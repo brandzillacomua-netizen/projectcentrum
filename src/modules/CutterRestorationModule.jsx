@@ -81,16 +81,25 @@ export default function CutterRestorationModule() {
     }
   }, [load, supabase])
 
+  const isChamferCutter = (name) => {
+    const n = String(name || '').toLowerCase()
+    return n.includes('фасоч') || n.includes('фаска') || n.includes('chamfer')
+  }
+
+  const chamferBatches = useMemo(() => {
+    return batches.filter(row => isChamferCutter(row.cutter_name))
+  }, [batches])
+
   const counts = useMemo(() => ({
-    pending: batches.filter(row => row.status === 'pending').reduce((sum, row) => sum + Number(row.received_qty || 0), 0),
-    inProgress: batches.filter(row => row.status === 'in_progress').reduce((sum, row) => sum + Number(row.received_qty || 0), 0),
-    reception: batches.filter(row => row.status === 'awaiting_reception').reduce((sum, row) => sum + Number(row.restored_qty || 0), 0),
-    restored: batches.reduce((sum, row) => sum + Number(row.restored_qty || 0), 0)
-  }), [batches])
+    pending: chamferBatches.filter(row => row.status === 'pending').reduce((sum, row) => sum + Number(row.received_qty || 0), 0),
+    inProgress: chamferBatches.filter(row => row.status === 'in_progress').reduce((sum, row) => sum + Number(row.received_qty || 0), 0),
+    reception: chamferBatches.filter(row => row.status === 'awaiting_reception').reduce((sum, row) => sum + Number(row.restored_qty || 0), 0),
+    restored: chamferBatches.reduce((sum, row) => sum + Number(row.restored_qty || 0), 0)
+  }), [chamferBatches])
 
   const visible = useMemo(() => {
     const needle = search.trim().toLowerCase()
-    const filtered = batches.filter(row => {
+    const filtered = chamferBatches.filter(row => {
       if (filter === 'active' && !['pending', 'in_progress'].includes(row.status)) return false
       if (filter !== 'active' && filter !== 'all' && row.status !== filter) return false
       if (!needle) return true
@@ -309,8 +318,8 @@ function BatchCard({ batch, currentUser, working, onStart, onFinish }) {
 }
 
 const styles = `
-  .cutter-restoration{min-height:100vh;background:#050606;color:#f5f7f8;font-family:Inter,system-ui,sans-serif}
-  .cr-header{height:72px;padding:0 28px;border-bottom:1px solid #1c2224;background:rgba(8,10,11,.96);display:flex;align-items:center;gap:18px;position:sticky;top:0;z-index:20}
+  .cutter-restoration{min-height:100vh;background:var(--bg, #050606);color:var(--text, #f5f7f8);font-family:Inter,system-ui,sans-serif}
+  .cr-header{height:72px;padding:0 28px 0 75px;border-bottom:1px solid #1c2224;background:rgba(8,10,11,.96);display:flex;align-items:center;gap:18px;position:sticky;top:0;z-index:20}
   .cr-icon-button{width:40px;height:40px;border:1px solid #293033;border-radius:11px;background:#101314;color:#aeb8bc;display:grid;place-items:center;cursor:pointer}
   .cr-brand{display:flex;align-items:center;gap:12px}.cr-logo{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;background:linear-gradient(135deg,#0e7490,#22d3ee);color:#001014;box-shadow:0 0 30px #22d3ee22}
   .cr-brand h1{font-size:17px;margin:0;font-weight:900}.cr-brand p{font-size:11px;color:#657176;margin:3px 0 0}.cr-user{margin-left:auto;display:flex;gap:8px;align-items:center;color:#8c999e;font-size:12px}

@@ -30,6 +30,7 @@ import {
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
+import { getNpApiKey, saveNpApiKey, testNpApiKey } from '../services/novaPoshtaService'
 
 const formatLastSeen = (lastSeen) => {
   if (!lastSeen) return 'ніколи'
@@ -103,6 +104,39 @@ const SettingsModule = () => {
   const [activeTab, setActiveTab] = useState('users') 
   const [structureSubTab, setStructureSubTab] = useState('departments')
   const [tempFortnetUrl, setTempFortnetUrl] = useState(fortnetUrl)
+
+  // Nova Poshta API Key state
+  const [npApiKeyInput, setNpApiKeyInput] = useState(() => getNpApiKey())
+  const [npTestResult, setNpTestResult] = useState(null)
+  const [npTesting, setNpTesting] = useState(false)
+
+  const handleTestAndSaveNpKey = async () => {
+    setNpTesting(true)
+    setNpTestResult(null)
+    try {
+      const keyToTest = npApiKeyInput.trim()
+      const res = await testNpApiKey(keyToTest)
+      if (res.success) {
+        saveNpApiKey(keyToTest)
+        setNpTestResult({
+          success: true,
+          message: `✅ Успішно! Знайдено відправника: «${res.senderName}»`
+        })
+      } else {
+        setNpTestResult({
+          success: false,
+          message: `❌ Помилка ключа API НП: ${res.message}`
+        })
+      }
+    } catch (err) {
+      setNpTestResult({
+        success: false,
+        message: `❌ Помилка: ${err.message}`
+      })
+    } finally {
+      setNpTesting(false)
+    }
+  }
 
   // Start pages settings states
   const [savingPosId, setSavingPosId] = useState(null)
@@ -1734,7 +1768,7 @@ const SettingsModule = () => {
     department: companyStructure?.[0]?.name || 'Цех №1',
     shift: 'Без зміни',
     access_rights: {
-      dashboard: false, foreman_dashboard: false, manager: false, chat: false, master: false, warehouse: false, warehouse_boxes: false, cutter_restoration: false, preparation_dashboard: false, engineer: false,
+      dashboard: false, foreman_dashboard: false, manager: false, chat: false, master: false, warehouse: false, warehouse_fgp: false, warehouse_boxes: false, cutter_restoration: false, preparation_dashboard: false, engineer: false,
       director: false, foreman: false, foreman2: false, operator: true, shipping: false, 
       supply: false, procurement: false, nomenclature: false, nomenclature_v2: false, shop2: false, machines: false, settings: false, packaging: false, kanban: false, reports: false, tumbling_terminal: false, tumbling_dashboard: false, reception_terminal: false, sorting_terminal: false, painting_terminal: false, pressing_terminal: false
     }
@@ -2000,10 +2034,12 @@ const SettingsModule = () => {
     { id: 'manager', label: 'Менеджер' },
     { id: 'master', label: 'Мастер (Цех)' },
     { id: 'warehouse', label: 'Склад Оперативний' },
+    { id: 'warehouse_fgp', label: 'Склад Готової Продукції (СГП)' },
     { id: 'warehouse_boxes', label: 'Бокси фрез (СО)' },
     { id: 'cutter_restoration', label: 'Відновлення фрез' },
     { id: 'preparation_dashboard', label: 'Дашборд підготовки (TV)' },
     { id: 'engineer', label: 'Інженер' },
+    { id: 'engineer_v2', label: 'Інженер ЧПК & BOM 2.0' },
     { id: 'director', label: 'Директор' },
     { id: 'foreman', label: 'Майстер дільниці' },
     { id: 'foreman2', label: 'Foreman 2.0' },
@@ -2018,11 +2054,13 @@ const SettingsModule = () => {
     { id: 'painting_terminal', label: 'Екран Фарбування' },
     { id: 'shop1_foreman', label: 'Кабінет Нач. Цеху №1' },
     { id: 'shop2', label: 'Цех №2 (Черга)' },
+    { id: 'shop2_card_gen', label: 'Цех №2 – Створення РК (Буфер)' },
     { id: 'shop2_terminal', label: 'Цех №2 · Термінал' },
     { id: 'packaging', label: 'Пакування' },
     { id: 'shipping', label: 'Логістика' },
     { id: 'supply', label: 'Склад Виробництва' },
     { id: 'procurement', label: 'Постачання (Закупівля)' },
+    { id: 'economy', label: 'Економіка & Ціноутворення' },
     { id: 'nomenclature_v2', label: 'Номенклатура (Нова)' },
     { id: 'nomenclature', label: 'База номенклатур (Old)' },
     { id: 'machines', label: 'Налаштування станків' },
@@ -2097,22 +2135,31 @@ const SettingsModule = () => {
         default: return null;
       }
     }
-    const grad = getGradient(user.avatar) || (user.position === 'Адмін' ? 'linear-gradient(135deg, #442a00, #221400)' : 'linear-gradient(135deg, #1c1c24, #0a0a0f)')
+    const getDefaultGradient = (position) => {
+      const posLower = (position || '').toLowerCase()
+      if (posLower.includes('адмін') || posLower.includes('admin')) return 'linear-gradient(135deg, #ff9000, #ea580c)'
+      if (posLower.includes('директор') || posLower.includes('керівник') || posLower.includes('начальник') || posLower.includes('майстер')) return 'linear-gradient(135deg, #3b82f6, #1d4ed8)'
+      return 'linear-gradient(135deg, #64748b, #334155)'
+    }
+    const grad = getGradient(user.avatar) || getDefaultGradient(user.position)
     return (
-      <div style={{ 
-        width: '46px', 
-        height: '46px', 
-        borderRadius: '14px', 
-        background: grad, 
-        border: user.position === 'Адмін' ? '1px solid rgba(255,144,0,0.3)' : '1px solid rgba(255,255,255,0.08)',
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center',
-        fontWeight: 900,
-        fontSize: '0.9rem',
-        color: '#fff',
-        boxShadow: 'inset 0 2px 4px rgba(255,255,255,0.05)'
-      }}>
+      <div 
+        className="user-avatar-badge"
+        style={{ 
+          width: '46px', 
+          height: '46px', 
+          borderRadius: '14px', 
+          background: grad, 
+          border: 'none',
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center',
+          fontWeight: 900,
+          fontSize: '0.9rem',
+          color: '#ffffff',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+        }}
+      >
         {initials}
       </div>
     )
@@ -2162,7 +2209,7 @@ const SettingsModule = () => {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
           <div style={{ textAlign: 'right', lineHeight: 1.2 }} className="hide-mobile">
-            <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#f3f4f6' }}>{currentUser?.first_name} {currentUser?.last_name}</div>
+            <div className="nav-user-name" style={{ fontSize: '0.85rem', fontWeight: 800, color: '#f3f4f6' }}>{currentUser?.first_name} {currentUser?.last_name}</div>
             <div style={{ fontSize: '0.65rem', color: '#ff9000', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{currentUser?.position}</div>
           </div>
           <button onClick={logout} style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#ef4444', padding: '10px 18px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer', transition: '0.2s' }} className="logout-btn">ВИЙТИ</button>
@@ -2986,6 +3033,8 @@ const SettingsModule = () => {
                   Ця адреса локального API сервера Fortnet використовується для реального зчитування подій зчитувачів та прохідних карток співробітників цехів.
                 </p>
               </div>
+
+
 
               <div style={{ borderTop: '1px solid rgba(255,255,255,0.04)', paddingTop: '24px' }}>
                 <h4 style={{ fontSize: '0.8rem', fontWeight: 900, color: '#888', marginBottom: '15px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>СТАТУС ПОДІЙ ПРОХОДУ</h4>

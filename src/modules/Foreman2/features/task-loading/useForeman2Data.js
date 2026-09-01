@@ -46,8 +46,6 @@ export function useForeman2Data({ mes }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [reloadVersion, setReloadVersion] = useState(0)
-  const qualityLossTaskIds = useMemo(() => tasks.map(task => task.id).filter(Boolean), [tasks])
-  const qualityLoss = useQualityLossTotals(supabase, qualityLossTaskIds)
 
   const relevantTasks = useMemo(() => {
     return tasks
@@ -58,6 +56,9 @@ export function useForeman2Data({ mes }) {
         return new Date(b.created_at || 0) - new Date(a.created_at || 0)
       })
   }, [tasks])
+
+  const qualityLossTaskIds = useMemo(() => relevantTasks.map(task => task.id).filter(Boolean), [relevantTasks])
+  const qualityLoss = useQualityLossTotals(supabase, qualityLossTaskIds)
 
   const taskIdKey = useMemo(() => relevantTasks.map(task => asId(task.id)).sort().join('|'), [relevantTasks])
 
@@ -174,10 +175,24 @@ export function useForeman2Data({ mes }) {
   }, [scrapTotalsHistoryRows, flowScrapHistoryRows])
 
   const allHistory = useMemo(() => {
-    const sourceRows = totalsHistoryRows.length > 0
-      ? totalsHistoryRows
-      : [...workCardHistory, ...dbHistory]
-    return Array.from(new Map(sourceRows.filter(Boolean).map(row => [String(row.id || `${row.card_id}-${row.created_at || Math.random()}`), row])).values())
+    const historyMap = new Map()
+    // Always include detailed history logs from dbHistory / workCardHistory
+    ;[...workCardHistory, ...dbHistory].forEach(row => {
+      if (!row) return
+      const key = String(row.id || `${row.card_id}-${row.created_at}`)
+      historyMap.set(key, row)
+    })
+    const existingCardIds = new Set(Array.from(historyMap.values()).map(r => String(r.card_id)).filter(Boolean))
+    // Append totals history rows ONLY for cards without detailed history rows
+    totalsHistoryRows.forEach(row => {
+      if (!row) return
+      if (row.card_id && existingCardIds.has(String(row.card_id))) return
+      const key = String(row.id || `total-${row.card_id}-${row.nomenclature_id}`)
+      if (!historyMap.has(key)) {
+        historyMap.set(key, row)
+      }
+    })
+    return Array.from(historyMap.values())
   }, [workCardHistory, dbHistory, totalsHistoryRows])
 
   const scrapModel = useMemo(() => buildScrapModel(allCards, allHistory), [allCards, allHistory])
@@ -205,6 +220,7 @@ export function useForeman2Data({ mes }) {
         nomenclatures,
         flowTotalsByTaskNom,
         finalScrapByTask: qualityLoss.index.byTask,
+        vkyaReturnedByTask: qualityLoss.returnedIndex,
         hasFinalScrapProjection: qualityLoss.isAvailable
       })
       const summary = summarizeTaskState({ task, cards: allCards, parts })
@@ -219,10 +235,11 @@ export function useForeman2Data({ mes }) {
         parts,
         summary,
         scrapSummary,
-        scrapRows: taskScrapRows
+        scrapRows: taskScrapRows,
+        isLoading: loading || qualityLoss.loading
       }
     })
-  }, [relevantTasks, orders, orderCache, allCards, scrapModel, nomenclatures, flowTotalsByTaskNom, qualityLoss.index, qualityLoss.isAvailable])
+  }, [relevantTasks, orders, orderCache, allCards, scrapModel, nomenclatures, flowTotalsByTaskNom, qualityLoss.index, qualityLoss.returnedIndex, qualityLoss.isAvailable, loading, qualityLoss.loading])
 
   const refreshForeman2 = async () => {
     setError(null)
@@ -233,7 +250,7 @@ export function useForeman2Data({ mes }) {
   }
 
   return {
-    loading,
+    loading: loading || qualityLoss.loading,
     error,
     taskModels,
     allCards,

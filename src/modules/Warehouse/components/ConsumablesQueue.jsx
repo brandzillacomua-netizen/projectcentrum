@@ -71,7 +71,7 @@ export const ConsumablesQueue = ({
             ? (nomenclatures || []).find(n => String(n.id) === String(reissueCard.nomenclature_id))
             : null
           const cardSeq = reissueCard
-            ? ((reissueCard.card_info || '').match(/(\d+\/\d+)/)?.[1] || '')
+            ? ((reissueCard.card_info || '').match(/(\d+\/\d+)/)?.[1] || (reissueCard.card_info || '').match(/(№\d+)/)?.[1] || '')
             : ''
 
           const task = (tasks || []).find(t => t.id === taskId)

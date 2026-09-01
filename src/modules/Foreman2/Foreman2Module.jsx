@@ -18,6 +18,7 @@ import AdminCardDeletePanel from './features/admin-card-delete/AdminCardDeletePa
 import { useAdminCardDelete } from './features/admin-card-delete/useAdminCardDelete.js'
 import MaterialCorrectionModal from './features/material-correction/MaterialCorrectionModal.jsx'
 import { useMaterialCorrection } from './features/material-correction/useMaterialCorrection.js'
+import CreateNaryadModal from './features/create-naryad/CreateNaryadModal.jsx'
 import ForemanPrintQueue from '../Foreman/components/ForemanPrintQueue.jsx'
 import { getDisplayMaterial } from '../Foreman/utils/foremanHelpers.js'
 
@@ -27,6 +28,7 @@ export default function Foreman2Module() {
   const [activeTaskId, setActiveTaskId] = useState(() => searchParams.get('task') || localStorage.getItem('foreman2_active_task_id') || null)
   const [reissuePart, setReissuePart] = useState(null)
   const [isQueueOpen, setIsQueueOpen] = useState(false)
+  const [isCreateNaryadOpen, setIsCreateNaryadOpen] = useState(false)
 
   const {
     taskModels,
@@ -130,6 +132,7 @@ export default function Foreman2Module() {
           onSelect={handleSelectTask}
           isDrawerOpen={isQueueOpen}
           setIsDrawerOpen={setIsQueueOpen}
+          onOpenCreateNaryad={() => setIsCreateNaryadOpen(true)}
         />
         <div className="content-panel" style={{ flex: 1, background: '#0a0a0a', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
           <ActiveCallsWidget
@@ -152,7 +155,11 @@ export default function Foreman2Module() {
             onOpenReissue={handleOpenReissue}
             onMachineChange={(part) => machineChange.openMachineChange(activeModel.task, part)}
             onMaterialCorrection={materialCorrection.canCorrect ? (part) => materialCorrection.open(activeModel.task, part) : null}
-            onGenerateCards={(part, count, capacityOverride, maxSheetsToGenerate) => cardGen.openGenModal({ task: activeModel.task, part, count, capacityOverride, maxSheetsToGenerate, isRepair: false })}
+            onGenerateCards={(part, count, capacityOverride, maxSheetsToGenerate) => {
+              // If there are already non-rework production cards, this is a reissue (dovypusk)
+              const hasExistingCards = (part.productionCards || []).some(c => !c.is_rework && !String(c.card_info || '').includes('[REDO]'))
+              cardGen.openGenModal({ task: activeModel.task, part, count: 1, capacityOverride, maxSheetsToGenerate, isRepair: hasExistingCards })
+            }}
             onPrintCards={(part, metadata) => cardGen.setPrintQueue({ task: activeModel.task, part, metadata })}
             adminCardsPanel={
               adminCardDelete.isSuperAdmin ? (
@@ -221,6 +228,8 @@ export default function Foreman2Module() {
         config={cardGen.genModalConfig}
         machines={mes.machines || []}
         nomenclatures={mes.nomenclatures || []}
+        machineOperations={mes.machineOperations || []}
+        inventory={mes.inventory || []}
         workCards={mes.workCards || []}
         materialRequests={mes.materialRequests || []}
         isGenerating={cardGen.isGenerating}
@@ -235,6 +244,22 @@ export default function Foreman2Module() {
         error={materialCorrection.error}
         onClose={materialCorrection.close}
         onSave={materialCorrection.save}
+      />
+
+      <CreateNaryadModal
+        isOpen={isCreateNaryadOpen}
+        onClose={() => setIsCreateNaryadOpen(false)}
+        orders={mes.orders || []}
+        tasks={mes.tasks || []}
+        nomenclatures={mes.nomenclatures || []}
+        bomItems={mes.bomItems || []}
+        inventory={mes.inventory || []}
+        machines={mes.machines || []}
+        createNaryad={mes.createNaryad}
+        onNaryadCreated={(createdTask) => {
+          refreshForeman2()
+          if (createdTask?.id) setActiveTaskId(String(createdTask.id))
+        }}
       />
 
       <ForemanPrintQueue

@@ -58,6 +58,41 @@ export const fetchFulfillmentTasks = async (client, pathname = '') => {
   const config = QUEUE_CONFIG[pathname]
   if (!config) return { data: null, error: null, source: 'not-applicable' }
 
+  // For packaging: ALWAYS fetch active (in-progress/new/active) tasks directly,
+  // regardless of what the RPC returns. The RPC only covers completed/archived batches.
+  if (config.queue === 'packaging') {
+    // Fetch actively running tasks (what Shop 1 has launched)
+    const { data: activeTasks, error: activeError } = await client
+      .from('tasks')
+      .select(TASK_FIELDS)
+      .in('status', ['in-progress', 'active', 'new'])
+      .order('created_at', { ascending: false })
+      .limit(500)
+
+    // Also fetch RPC for completed/archived batches ready for packaging
+    let rpcTasks = []
+    const { data: rpcData, error: rpcError } = await client.rpc('mes_fulfillment_queue', {
+      p_queue: config.queue,
+      p_open_batch_limit: config.openBatchLimit,
+      p_archive_batch_limit: config.archiveBatchLimit
+    })
+
+    if (!rpcError && rpcData) {
+      rpcTasks = flattenRpcBatches(rpcData)
+    }
+
+    // Merge: active tasks + RPC completed tasks, deduplicated
+    const combined = uniqueById([...(activeTasks || []), ...rpcTasks])
+    if (combined.length > 0) {
+      return { data: combined, error: activeError || null, source: 'direct+rpc' }
+    }
+
+    // Last resort fallback
+    const fallback = await fetchCompatibilityQueue(client, config.queue)
+    return { ...fallback, source: 'compatibility-fallback' }
+  }
+
+  // For other routes (shipping etc.) — keep original RPC-first logic
   const { data, error } = await client.rpc('mes_fulfillment_queue', {
     p_queue: config.queue,
     p_open_batch_limit: config.openBatchLimit,
@@ -65,16 +100,16 @@ export const fetchFulfillmentTasks = async (client, pathname = '') => {
   })
 
   if (!error) {
-    return { data: flattenRpcBatches(data || []), error: null, source: 'rpc' }
-  }
-
-  if (!isMissingRpcError(error)) {
-    return { data: null, error, source: 'rpc-error' }
+    const flattened = flattenRpcBatches(data || [])
+    if (flattened.length > 0) {
+      return { data: flattened, error: null, source: 'rpc' }
+    }
   }
 
   const fallback = await fetchCompatibilityQueue(client, config.queue)
-  return { ...fallback, source: 'compatibility' }
+  return { ...fallback, source: error ? 'compatibility-fallback-error' : 'compatibility-fallback-empty-rpc' }
 }
+
 
 export const fetchMissingOrdersForTasks = async (client, taskRows = [], knownOrders = []) => {
   const knownIds = new Set((knownOrders || []).map(order => String(order?.id || '')).filter(Boolean))

@@ -189,7 +189,7 @@ export default function VKYARestorationTerminal() {
     await loadCards()
   }
 
-  return <div style={{ minHeight: '100vh', background: '#050505', color: '#fff', padding: '28px clamp(16px, 3vw, 42px)' }}>
+  return <div style={{ minHeight: '100vh', background: 'var(--bg, #050505)', color: 'var(--text, #fff)', padding: '28px clamp(16px, 3vw, 42px)' }}>
     <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '20px', flexWrap: 'wrap', marginBottom: '32px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
         <Link to="/brak" style={{ color: '#94a3b8', display: 'flex', alignItems: 'center', textDecoration: 'none', gap: '7px', fontWeight: 800 }}><ArrowLeft size={18}/> ВКЯ</Link>

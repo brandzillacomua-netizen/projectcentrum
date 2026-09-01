@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react'
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { Package, ArrowLeft, ClipboardList, CheckCircle2, Box, Send, AlertCircle, Wrench, FileArchive, Layers, Clock, Scan, Loader2, Hash, Save, Eye, X, Menu, Plus, Search, Trash2, Sun, Moon } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import { useMES } from '../MESContext'
@@ -66,6 +66,116 @@ const PackagingModule = () => {
     fetchData, completePackaging, systemUsers,
     inventory, theme, toggleTheme
   } = useMES()
+
+  // ─── Локальний стейт черги нарядів (незалежний від глобального tasks) ─────
+  // Завантажується напряму з БД, щоб уникнути race conditions глобального reconcile
+  const [localTasks, setLocalTasks] = useState([])
+  const [localOrders, setLocalOrders] = useState({})
+  const localTasksLoadedRef = useRef(false)
+  const fetchIntervalRef = useRef(null)
+
+  // Миттєва ініціалізація з контексту (0мс затримки при відкритті)
+  useEffect(() => {
+    if (orders?.length) {
+      setLocalOrders(prev => {
+        const map = { ...prev }
+        orders.forEach(o => { map[o.id] = o })
+        return map
+      })
+    }
+  }, [orders])
+
+  useEffect(() => {
+    if (tasks?.length && !localTasksLoadedRef.current) {
+      const relevant = tasks.filter(t => {
+        if (t.plan_snapshot?._metadata?.is_packaged === true) return false
+        return t.status === 'in-progress' || t.status === 'completed' || t.status === 'active' || t.status === 'new'
+      })
+      if (relevant.length > 0) setLocalTasks(relevant)
+    }
+  }, [tasks])
+
+  const loadPackagingTasks = useCallback(async () => {
+    if (!supabase) return
+    try {
+      const FIELDS = 'id,order_id,step,status,planned_sets,estimated_time,engineer_conf,warehouse_conf,director_conf,batch_index,planned_deadline,machine_name,created_at,completed_at,plan_snapshot'
+      
+      // 1 & 2. Паралельне завантаження активних та завершених нарядів (1 мережевий запит замість 2 послідовних)
+      const [{ data: active }, { data: completed }] = await Promise.all([
+        supabase
+          .from('tasks')
+          .select(FIELDS)
+          .in('status', ['in-progress', 'active', 'new'])
+          .order('created_at', { ascending: false })
+          .limit(500),
+        supabase
+          .from('tasks')
+          .select(FIELDS)
+          .eq('status', 'completed')
+          .order('completed_at', { ascending: false, nullsFirst: false })
+          .limit(300)
+      ])
+
+      const all = [...(active || []), ...(completed || [])]
+      const unique = Array.from(new Map(all.map(t => [t.id, t])).values())
+      setLocalTasks(unique)
+      localTasksLoadedRef.current = true
+
+      // 3. Паралельне завантаження замовлень порціями (всі чанки завантажуються одночасно!)
+      const orderIds = [...new Set(unique.map(t => t.order_id).filter(Boolean))]
+      if (orderIds.length > 0) {
+        const chunkSize = 50
+        const chunks = []
+        for (let i = 0; i < orderIds.length; i += chunkSize) {
+          chunks.push(orderIds.slice(i, i + chunkSize))
+        }
+
+        const results = await Promise.all(
+          chunks.map(chunk =>
+            supabase
+              .from('orders')
+              .select('*, order_items(*)')
+              .in('id', chunk)
+          )
+        )
+
+        setLocalOrders(prev => {
+          const map = { ...prev }
+          results.forEach(res => {
+            ;(res.data || []).forEach(o => { map[o.id] = o })
+          })
+          return map
+        })
+      }
+    } catch (e) {
+      console.error('[Packaging] loadPackagingTasks error:', e)
+    }
+  }, [supabase])
+
+  useEffect(() => {
+    loadPackagingTasks()
+    // Refresh every 30s to pick up new orders from Shop 1
+    fetchIntervalRef.current = setInterval(loadPackagingTasks, 30000)
+    return () => { if (fetchIntervalRef.current) clearInterval(fetchIntervalRef.current) }
+  }, [loadPackagingTasks])
+
+  // Merge realtime task updates into localTasks
+  useEffect(() => {
+    if (!localTasksLoadedRef.current) return
+    setLocalTasks(prev => {
+      const map = new Map(prev.map(t => [t.id, t]))
+      tasks.forEach(t => {
+        if (map.has(t.id)) {
+          const existing = map.get(t.id)
+          // Keep plan_snapshot from existing if incoming doesn't have it
+          map.set(t.id, { ...existing, ...t, plan_snapshot: t.plan_snapshot ?? existing.plan_snapshot })
+        }
+        // Don't add tasks from global state if they weren't in our direct query
+      })
+      return Array.from(map.values())
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tasks])
 
   const [selectedBatch, setSelectedBatch] = useState(null)
   const [isProcessing, setIsProcessing] = useState(false)
@@ -216,13 +326,14 @@ const PackagingModule = () => {
   }
 
   const batchList = useMemo(() => {
-    const relevantTasks = tasks.filter(t => {
+    const relevantTasks = localTasks.filter(t => {
       if (t.plan_snapshot?._metadata?.is_packaged === true) return false
       return t.status === 'in-progress' || t.status === 'completed' || t.status === 'active' || t.status === 'new'
     })
     const batchGroups = {}
     relevantTasks.forEach(task => {
-      const order = orders.find(o => o.id === task.order_id)
+      // Use localOrders first (fetched directly), fall back to global orders
+      const order = localOrders[task.order_id] || orders.find(o => o.id === task.order_id)
       if (!order || order.status === 'deleted' || order.status === 'cancelled' || order.status === 'shipped') return
       if (order.order_num && (order.order_num.startsWith('ВБ') || order.order_num.startsWith('VB'))) return
       
@@ -274,7 +385,7 @@ const PackagingModule = () => {
       const batchBOM = []
       
       // 1. Add standard BOM items from order_items
-      const order = orders.find(o => o.id === batch.orderId)
+      const order = localOrders[batch.orderId] || orders.find(o => o.id === batch.orderId)
       const hasSnapshot = batch.tasks.some(t => t.plan_snapshot)
       order?.order_items?.forEach(item => {
         const children = bomItems.filter(b => String(b.parent_id) === String(item.nomenclature_id))
@@ -338,7 +449,7 @@ const PackagingModule = () => {
         const taskIdMatch = r.task_id && batch.tasks.some(t => String(t.id) === String(r.task_id))
         const detailsMatch = batch.batchIndex ? r.details?.includes(`/${batch.batchIndex}`) : false
         if (taskIdMatch || detailsMatch) return true
-        const allTasksForOrder = tasks.filter(t => String(t.order_id) === String(batch.orderId))
+        const allTasksForOrder = localTasks.filter(t => String(t.order_id) === String(batch.orderId))
         if (allTasksForOrder.length <= 1 && r.details?.includes('КОМПЛЕКТУВАННЯ')) return true
         return false
       })
@@ -364,7 +475,7 @@ const PackagingModule = () => {
       if (w[a.packStatus] !== w[b.packStatus]) return w[a.packStatus] - w[b.packStatus]
       return b.orderNum.localeCompare(a.orderNum)
     })
-  }, [tasks, orders, requests, bomItems, nomenclatures])
+  }, [localTasks, localOrders, orders, requests, bomItems, nomenclatures])
 
   const activeQueueCount = useMemo(() => {
     return batchList.filter(b => b.packStatus !== 'completed').length
@@ -382,7 +493,7 @@ const PackagingModule = () => {
     let foundAnyBom = false
     const hasSnapshot = activeBatchData.tasks.some(t => t.plan_snapshot)
 
-    const order = orders.find(o => o.id === activeBatchData.orderId)
+    const order = localOrders[activeBatchData.orderId] || orders.find(o => o.id === activeBatchData.orderId)
     if (order && order.order_items) {
       order.order_items.forEach(item => {
         const parentBOM = bomItems.filter(b => String(b.parent_id) === String(item.nomenclature_id))
@@ -534,7 +645,7 @@ const PackagingModule = () => {
     })
 
     return { categorizedBOM: categories, hasBOM: foundAnyBom }
-  }, [activeBatchData, orders, bomItems, nomenclatures, customItems, requests])
+  }, [activeBatchData, localOrders, orders, bomItems, nomenclatures, customItems, requests])
 
   const allBOMItems = useMemo(() => Object.values(categorizedBOM).flatMap(c => c.items), [categorizedBOM])
 
@@ -857,7 +968,7 @@ const PackagingModule = () => {
 
   // ─── RENDER ────────────────────────────────────────────────────────────────
   return (
-    <div className="packaging-module" style={{ background: '#050505', minHeight: '100vh', color: '#fff', display: 'flex', flexDirection: 'column' }}>
+    <div className="packaging-module" style={{ background: 'var(--bg, #050505)', minHeight: '100vh', color: 'var(--text, #fff)', display: 'flex', flexDirection: 'column' }}>
 
       <nav className="module-nav module-nav-container" style={{ flexShrink: 0, background: '#0a0a0a', borderBottom: '1px solid #1a1a1a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
@@ -892,7 +1003,7 @@ const PackagingModule = () => {
           </div>
           <div>
             <h1 className="nav-title" style={{ fontSize: '0.95rem', fontWeight: 950, margin: 0, letterSpacing: '0.5px', lineHeight: 1.1 }}>ВІДДІЛ ПАКУВАННЯ</h1>
-            <div className="nav-subtitle" style={{ fontSize: '0.58rem', color: '#444', fontWeight: 900, textTransform: 'uppercase', marginTop: '3px', letterSpacing: '0.3px', lineHeight: 1 }}>Контроль комплектування партій</div>
+            <div className="nav-subtitle pack-nav-subtitle" style={{ fontSize: '0.58rem', color: '#444', fontWeight: 900, textTransform: 'uppercase', marginTop: '3px', letterSpacing: '0.3px', lineHeight: 1 }}>Контроль комплектування партій</div>
           </div>
         </div>
       </nav>
@@ -935,15 +1046,15 @@ const PackagingModule = () => {
                     style={{ flexShrink: 0, padding: '14px 16px 14px 20px', background: isSelected ? `${statusColor}12` : (isCompleted ? '#060608' : '#0e0e10'), border: `1px solid ${isSelected ? statusColor : '#18181b'}`, borderRadius: '16px', cursor: 'pointer', transition: 'all 0.2s ease', position: 'relative', opacity: isCompleted ? 0.4 : 1, filter: isCompleted ? 'grayscale(1)' : 'none', overflow: 'hidden' }}>
                     <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '4px', background: statusColor, boxShadow: isSelected ? `2px 0 10px ${statusColor}44` : 'none' }}></div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                      <div style={{ fontSize: '0.95rem', fontWeight: 900, color: isSelected ? '#fff' : '#e4e4e7' }}>№ {batch.orderNum}{batch.batchIndex ? `/${batch.batchIndex}` : ''}</div>
+                      <div className="pack-card-order-num" style={{ fontSize: '0.95rem', fontWeight: 900, color: isSelected ? '#fff' : '#e4e4e7' }}>№ {batch.orderNum}{batch.batchIndex ? `/${batch.batchIndex}` : ''}</div>
                       <div style={{ background: statusBg, padding: '3px 6px', borderRadius: '6px', fontSize: '0.52rem', color: statusColor, fontWeight: 950, display: 'flex', alignItems: 'center', gap: '3px', border: `1px solid ${statusColor}22` }}>
                         {isCompleted ? <CheckCircle2 size={8} /> : (isReady ? <Scan size={8} /> : <Clock size={8} />)} {statusLabel}
                       </div>
                     </div>
-                    <div style={{ fontSize: '0.78rem', color: isSelected ? '#fff' : '#a1a1aa', fontWeight: 700, marginBottom: '2px' }}>{batch.customer}</div>
-                    <div style={{ fontSize: '0.92rem', color: '#ff9000', fontWeight: 900, marginBottom: '10px', lineHeight: 1.2 }}>{batch.productNames}</div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '10px', borderTop: '1px solid #18181b', marginTop: '4px' }}>
-                      <span style={{ fontSize: '0.72rem', color: '#52525b', fontWeight: 800 }}>ОБСЯГ:</span>
+                    <div className="pack-card-customer" style={{ fontSize: '0.78rem', color: isSelected ? '#fff' : '#a1a1aa', fontWeight: 700, marginBottom: '2px' }}>{batch.customer}</div>
+                    <div className="pack-card-product" style={{ fontSize: '0.92rem', color: '#ff9000', fontWeight: 900, marginBottom: '10px', lineHeight: 1.2 }}>{batch.productNames}</div>
+                    <div className="pack-card-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '10px', borderTop: '1px solid #18181b', marginTop: '4px' }}>
+                      <span className="pack-card-vol-label" style={{ fontSize: '0.72rem', color: '#52525b', fontWeight: 800 }}>ОБСЯГ:</span>
                       <span style={{ fontSize: '0.88rem', color: '#10b981', fontWeight: 900 }}>{batch.plannedSets} шт</span>
                     </div>
                   </div>
@@ -975,7 +1086,7 @@ const PackagingModule = () => {
                         </span>
                       )}
                     </div>
-                    <p className="detail-customer-text" style={{ margin: 0, color: '#555', fontSize: '1rem', fontWeight: 600 }}>Замовник: <strong style={{ color: '#888' }}>{activeBatchData.customer}</strong></p>
+                    <p className="detail-customer-text" style={{ margin: 0, color: '#555', fontSize: '1rem', fontWeight: 600 }}>Замовник: <strong className="pack-detail-customer-name" style={{ color: '#888' }}>{activeBatchData.customer}</strong></p>
                     <p className="detail-product-text" style={{ margin: '4px 0 0 0', color: '#555', fontSize: '1rem', fontWeight: 600 }}>Виріб: <strong style={{ color: '#ff9000' }}>{activeBatchData.productNames}</strong></p>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'flex-end' }}>

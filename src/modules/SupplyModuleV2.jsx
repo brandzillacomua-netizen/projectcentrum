@@ -23,6 +23,7 @@ import { supabase } from '../supabase'
 import { ScannerPanel } from './Warehouse/components/ScannerPanel'
 import { ReceptionAcceptanceModal } from './Warehouse/components/ReceptionAcceptanceModal'
 import { ReserveAnalysisModal } from './Warehouse/components/ReserveAnalysisModal'
+import { IconSV } from '../components/WarehouseIcons'
 
 const getQR = (nom) => {
   if (!nom || !nom.additional_info) return ''
@@ -1020,7 +1021,7 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
           <Link to="/" className="back-link" style={{ color: '#555', transition: '0.3s' }}><ArrowLeft size={18} /></Link>
           <div className="module-title-group" style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-            <Truck className="text-secondary" size={24} style={{ color: '#ff9000' }} />
+            <IconSV size={26} color="#10b981" />
             <h1 className="hide-mobile" style={{ margin: 0, fontSize: '1.2rem', fontWeight: 950, letterSpacing: '-0.02em' }}>{isProcurementOnly ? 'Постачання' : 'Склад Виробництва'}</h1>
             <h1 className="mobile-only" style={{ margin: 0, fontSize: '1rem', fontWeight: 950 }}>{isProcurementOnly ? 'ПОСТАЧАННЯ' : 'СКЛАД ВИРОБНИЦТВА'}</h1>
           </div>

@@ -22,7 +22,7 @@ import { useQualityLossTotals } from './VKYA/quality-hold/useQualityLossTotals.j
 // Helpers
 // ─────────────────────────────────────────────────────────────
 
-const renderVal = (val = 0, type = 'normal', demand = 0) => {
+const renderVal = (val = 0, type = 'normal', demand = 0, onClick = null, title = '') => {
   if (val === 0 && !demand) {
     return <span style={{ color: 'var(--text-muted, #64748b)', fontWeight: 400 }}>0</span>
   }
@@ -39,13 +39,36 @@ const renderVal = (val = 0, type = 'normal', demand = 0) => {
   }
 
   const displayVal = type === 'sum' && demand > 0 ? `${val} / ${demand}` : val
+  const isClickable = typeof onClick === 'function' && val > 0
 
   return (
-    <span className={type === 'sum' ? 'wip-sum-badge' : ''} style={{
-      fontWeight: 'bold', color, background: bg, border, padding: '2px 6px',
-      borderRadius: '4px', display: 'inline-block', minWidth: '24px',
-      textAlign: 'center', whiteSpace: 'nowrap'
-    }}>
+    <span
+      className={type === 'sum' ? 'wip-sum-badge' : ''}
+      onClick={isClickable ? (e) => { e.stopPropagation(); onClick(); } : undefined}
+      title={title || (isClickable ? `Клікніть, щоб відкрити ${val} шт карток на цьому етапі` : '')}
+      style={{
+        fontWeight: 'bold', color, background: bg, border, padding: '2px 6px',
+        borderRadius: '4px', display: 'inline-block', minWidth: '24px',
+        textAlign: 'center', whiteSpace: 'nowrap',
+        cursor: isClickable ? 'pointer' : 'default',
+        transition: 'all 0.15s ease-in-out',
+        ...(isClickable ? { boxShadow: '0 1px 4px rgba(0,0,0,0.2)' } : {})
+      }}
+      onMouseEnter={e => {
+        if (isClickable) {
+          e.currentTarget.style.transform = 'scale(1.16)'
+          e.currentTarget.style.boxShadow = '0 0 12px rgba(255, 144, 0, 0.7)'
+          e.currentTarget.style.zIndex = '10'
+        }
+      }}
+      onMouseLeave={e => {
+        if (isClickable) {
+          e.currentTarget.style.transform = 'scale(1)'
+          e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.2)'
+          e.currentTarget.style.zIndex = 'auto'
+        }
+      }}
+    >
       {displayVal}
     </span>
   )
@@ -147,7 +170,7 @@ const getBestKnownProducedFromFlow = (rows) => {
 // ─────────────────────────────────────────────────────────────
 // WIP Table component (reusable for overview & per-order)
 // ─────────────────────────────────────────────────────────────
-const WipTable = ({ groupedData, maxHeight = 'calc(100vh - 320px)', emptyText = 'Немає даних' }) => {
+const WipTable = ({ groupedData, maxHeight = 'calc(100vh - 320px)', emptyText = 'Немає даних', onCellClick = null }) => {
   const [isFull, setIsFull] = React.useState(false)
 
   const renderTable = (scrollMaxHeight) => (
@@ -207,34 +230,32 @@ const WipTable = ({ groupedData, maxHeight = 'calc(100vh - 320px)', emptyText = 
 
                   {/* Rows */}
                   {group.rows.map(row => (
-                    <tr key={row.id} style={{ background: 'var(--bg, #09090b)', borderBottom: '1px solid #1f1f22', transition: 'background 0.15s' }}
-                      
-                      >
+                    <tr key={row.id} style={{ background: 'var(--bg, #09090b)', borderBottom: '1px solid #1f1f22', transition: 'background 0.15s' }}>
                       <td className="wip-col-nomenclature" style={{ ...TD_STICKY, paddingLeft: '28px' }}>
                         {row.name}
                         {row.code && <span style={{ display: 'block', fontSize: '0.68rem', color: '#52525b', marginTop: '1px' }}>Код: {row.code}</span>}
                       </td>
-                      <td className="wip-col-sum" style={TD_SUM}>{renderVal(row.sum, 'sum', row.demand)}</td>
-                      <td style={TD}>{renderVal(row.qCutWait)}</td>
-                      <td style={TD}>{renderVal(row.qCut)}</td>
-                      <td style={TD}>{renderVal(row.qCutBuf)}</td>
-                      <td style={TD}>{renderVal(row.qGalt)}</td>
-                      <td style={TD}>{renderVal(row.qGaltBuf)}</td>
-                      <td style={TD}>{renderVal(row.qPriy)}</td>
-                      <td style={TD}>{renderVal(row.qSortAct)}</td>
-                      <td style={TD}>{renderVal(row.qSort)}</td>
-                      <td style={TD}>{renderVal(row.qMalWait)}</td>
-                      <td style={TD}>{renderVal(row.qMal)}</td>
-                      <td style={TD}>{renderVal(row.qMalBuf)}</td>
-                      <td style={TD}>{renderVal(row.qPresWait)}</td>
-                      <td style={TD}>{renderVal(row.qPres)}</td>
-                      <td style={TD}>{renderVal(row.qPresBuf)}</td>
-                      <td style={TD}>{renderVal(row.qDoopWait)}</td>
-                      <td style={TD}>{renderVal(row.qDoop)}</td>
-                      <td style={TD}>{renderVal(row.qDoopBuf)}</td>
-                      <td style={{ ...TD, background: 'rgba(16,185,129,0.03)' }}>{renderVal(row.qSgp, 'sgp')}</td>
-                      <td style={{ ...TD, background: 'rgba(16,185,129,0.03)' }}>{renderVal(row.qBz, 'bz')}</td>
-                      <td style={{ ...TD, background: 'rgba(239,68,68,0.03)', borderRight: 'none' }}>{renderVal(row.qScrap, 'scrap')}</td>
+                      <td className="wip-col-sum" style={TD_SUM}>{renderVal(row.sum, 'sum', row.demand, onCellClick ? () => onCellClick(row, 'sum', 'Усі етапи (Сума)', group) : null)}</td>
+                      <td style={TD}>{renderVal(row.qCutWait, 'normal', 0, onCellClick ? () => onCellClick(row, 'qCutWait', 'Очік. Розкрій', group) : null)}</td>
+                      <td style={TD}>{renderVal(row.qCut, 'normal', 0, onCellClick ? () => onCellClick(row, 'qCut', 'Розкрій', group) : null)}</td>
+                      <td style={TD}>{renderVal(row.qCutBuf, 'normal', 0, onCellClick ? () => onCellClick(row, 'qCutBuf', 'Буфер Розкр.', group) : null)}</td>
+                      <td style={TD}>{renderVal(row.qGalt, 'normal', 0, onCellClick ? () => onCellClick(row, 'qGalt', 'Галтовка', group) : null)}</td>
+                      <td style={TD}>{renderVal(row.qGaltBuf, 'normal', 0, onCellClick ? () => onCellClick(row, 'qGaltBuf', 'Буфер Галт.', group) : null)}</td>
+                      <td style={TD}>{renderVal(row.qPriy, 'normal', 0, onCellClick ? () => onCellClick(row, 'qPriy', 'Прийомка', group) : null)}</td>
+                      <td style={TD}>{renderVal(row.qSortAct, 'normal', 0, onCellClick ? () => onCellClick(row, 'qSortAct', 'Сортування (в роботі)', group) : null)}</td>
+                      <td style={TD}>{renderVal(row.qSort, 'normal', 0, onCellClick ? () => onCellClick(row, 'qSort', 'Сортування / Буфер Цех2', group) : null)}</td>
+                      <td style={TD}>{renderVal(row.qMalWait, 'normal', 0, onCellClick ? () => onCellClick(row, 'qMalWait', 'Очік. Малярка', group) : null)}</td>
+                      <td style={TD}>{renderVal(row.qMal, 'normal', 0, onCellClick ? () => onCellClick(row, 'qMal', 'Малярка', group) : null)}</td>
+                      <td style={TD}>{renderVal(row.qMalBuf, 'normal', 0, onCellClick ? () => onCellClick(row, 'qMalBuf', 'Буфер Мал.', group) : null)}</td>
+                      <td style={TD}>{renderVal(row.qPresWait, 'normal', 0, onCellClick ? () => onCellClick(row, 'qPresWait', 'Очік. Прес.', group) : null)}</td>
+                      <td style={TD}>{renderVal(row.qPres, 'normal', 0, onCellClick ? () => onCellClick(row, 'qPres', 'Пресування', group) : null)}</td>
+                      <td style={TD}>{renderVal(row.qPresBuf, 'normal', 0, onCellClick ? () => onCellClick(row, 'qPresBuf', 'Буфер Прес.', group) : null)}</td>
+                      <td style={TD}>{renderVal(row.qDoopWait, 'normal', 0, onCellClick ? () => onCellClick(row, 'qDoopWait', 'Очік. Доопр.', group) : null)}</td>
+                      <td style={TD}>{renderVal(row.qDoop, 'normal', 0, onCellClick ? () => onCellClick(row, 'qDoop', 'Доопрацювання', group) : null)}</td>
+                      <td style={TD}>{renderVal(row.qDoopBuf, 'normal', 0, onCellClick ? () => onCellClick(row, 'qDoopBuf', 'Буфер Доопр.', group) : null)}</td>
+                      <td style={{ ...TD, background: 'rgba(16,185,129,0.03)' }}>{renderVal(row.qSgp, 'sgp', 0, onCellClick ? () => onCellClick(row, 'qSgp', 'СГП (Пакування)', group) : null)}</td>
+                      <td style={{ ...TD, background: 'rgba(16,185,129,0.03)' }}>{renderVal(row.qBz, 'bz', 0, onCellClick ? () => onCellClick(row, 'qBz', 'БЗ (Склад)', group) : null)}</td>
+                      <td style={{ ...TD, background: 'rgba(239,68,68,0.03)', borderRight: 'none' }}>{renderVal(row.qScrap, 'scrap', 0, onCellClick ? () => onCellClick(row, 'qScrap', 'Брак', group) : null)}</td>
                     </tr>
                   ))}
 
@@ -361,6 +382,65 @@ const ForemanDashboardModule = () => {
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [expandedBottlenecks, setExpandedBottlenecks] = useState({})
+  const [selectedCellModal, setSelectedCellModal] = useState(null)
+  const [inspectCardModal, setInspectCardModal] = useState(null)
+
+  const handleCellClick = (row, stageKey, stageName, group) => {
+    const nomId = String(row.nomId || row.id.split('_')[0] || '')
+    const rowParentId = String(row.parentId || '')
+    // Filter to only cards that belong to this specific product group
+    // (taskParentMap[c.task_id] === rowParentId), or cards whose task has no
+    // parent mapping but is in the active filter set (e.g. at-shop2-buffer cards).
+    const nomCards = (dashboardCards || []).filter(c => {
+      if (String(c.nomenclature_id) !== nomId) return false
+      if (!c.task_id) return false
+      const tp = globalTaskParentMap[c.task_id]
+      // If taskParentMap has a mapping for this card's task, enforce it matches this parent
+      if (tp && tp !== rowParentId) return false
+      return true
+    })
+
+    const matchOpsAndStatus = (ops, statuses) => {
+      const opArr = Array.isArray(ops) ? ops : [ops]
+      const stArr = Array.isArray(statuses) ? statuses : [statuses]
+      return nomCards.filter(c => {
+        const isMatchOp = opArr.some(op => op === 'Галтовка' ? (c.operation === 'Галтовка' || c.operation?.startsWith('Галтовка')) : c.operation === op)
+        return isMatchOp && stArr.includes(c.status)
+      })
+    }
+
+    let matchingCards = []
+    if (stageKey === 'qCutWait') matchingCards = matchOpsAndStatus(['Розкрій'], ['new', 'waiting-materials', 'waiting-machines'])
+    else if (stageKey === 'qCut') matchingCards = matchOpsAndStatus(['Розкрій'], ['in-progress', 'paused', 'hold'])
+    else if (stageKey === 'qCutBuf') matchingCards = matchOpsAndStatus(['Розкрій'], ['at-buffer'])
+    else if (stageKey === 'qGalt') matchingCards = matchOpsAndStatus(['Галтовка'], ['in-progress'])
+    else if (stageKey === 'qGaltBuf') matchingCards = matchOpsAndStatus(['Галтовка'], ['at-buffer'])
+    else if (stageKey === 'qPriy') matchingCards = matchOpsAndStatus(['Прийомка'], ['new', 'in-progress', 'at-buffer'])
+    else if (stageKey === 'qSortAct') matchingCards = matchOpsAndStatus(['Сортування'], ['new', 'in-progress', 'at-buffer'])
+    else if (stageKey === 'qSort') matchingCards = nomCards.filter(c => c.status === 'at-shop2-buffer')
+    else if (stageKey === 'qMalWait') matchingCards = matchOpsAndStatus(['Фарбування', 'Малярка'], ['new'])
+    else if (stageKey === 'qMal') matchingCards = matchOpsAndStatus(['Фарбування', 'Малярка'], ['in-progress'])
+    else if (stageKey === 'qMalBuf') matchingCards = matchOpsAndStatus(['Фарбування', 'Малярка'], ['at-buffer'])
+    else if (stageKey === 'qPresWait') matchingCards = matchOpsAndStatus(['Пресування'], ['new'])
+    else if (stageKey === 'qPres') matchingCards = matchOpsAndStatus(['Пресування'], ['in-progress'])
+    else if (stageKey === 'qPresBuf') matchingCards = matchOpsAndStatus(['Пресування'], ['at-buffer'])
+    else if (stageKey === 'qDoopWait') matchingCards = matchOpsAndStatus(['Доопрацювання'], ['new'])
+    else if (stageKey === 'qDoop') matchingCards = matchOpsAndStatus(['Доопрацювання'], ['in-progress'])
+    else if (stageKey === 'qDoopBuf') matchingCards = matchOpsAndStatus(['Доопрацювання'], ['at-buffer'])
+    else if (stageKey === 'qSgp') matchingCards = nomCards.filter(c => ['пакування', 'сгп'].some(o => (c.operation || '').toLowerCase().includes(o)) && c.status === 'completed')
+    else if (stageKey === 'qBz') matchingCards = nomCards.filter(c => c.operation === 'Склад БЗ')
+    else if (stageKey === 'qScrap') matchingCards = nomCards.filter(c => Number(c.scrap_qty || 0) > 0)
+    else matchingCards = nomCards
+
+    setSelectedCellModal({
+      row,
+      group,
+      stageKey,
+      stageName,
+      cards: matchingCards,
+      val: row[stageKey] || 0
+    })
+  }
 
   // Extra state for per-order drill-down
   const [orderAllCards, setOrderAllCards] = useState({}) // taskId -> cards[]
@@ -383,7 +463,7 @@ const ForemanDashboardModule = () => {
     return tasks.filter(t => {
       const stepName = (t.step || '').toLowerCase()
       const isLaser = stepName.includes('розкрій') || stepName.includes('різка')
-      
+
       const hasActiveShop2Task = tasks.some(s2 =>
         String(s2.order_id) === String(t.order_id) &&
         s2.batch_index === t.batch_index &&
@@ -426,6 +506,19 @@ const ForemanDashboardModule = () => {
     orders.forEach(o => { m[o.id] = o })
     return m
   }, [orders])
+
+  // ── Global taskParentMap — task_id → parent nomenclature_id (string) ──
+  // Used by handleCellClick to scope popup cards to the correct product group.
+  const globalTaskParentMap = useMemo(() => {
+    const m = {}
+    tasks.forEach(task => {
+      const o = ordersMap[task.order_id]
+      if (!o) return
+      const pId = o.nomenclature_id || o.order_items?.[0]?.nomenclature_id
+      if (pId) m[task.id] = String(pId)
+    })
+    return m
+  }, [tasks, ordersMap])
 
   // Extra state for per-order drill-down and overall WIP
   const [allTasksCards, setAllTasksCards] = useState([])
@@ -500,7 +593,7 @@ const ForemanDashboardModule = () => {
       const allTaskIdsForOrders = tasks
         .filter(t => orderIds.includes(t.order_id))
         .map(t => t.id)
-      
+
       const taskIds = allTaskIdsForOrders.length > 0 ? allTaskIdsForOrders : taskList.map(t => t.id)
 
       const cards = await fetchWorkCardsByTaskIds(taskIds, 'id, task_id, nomenclature_id, status, quantity, operation, used_in_shop2_qty, card_info, created_at')
@@ -569,20 +662,24 @@ const ForemanDashboardModule = () => {
   // ── Production cache: task_id -> nom_id -> produced qty ──
   const productionCache = useMemo(() => {
     const cache = {}
-    
+
     relevantTasks.forEach(task => {
       cache[task.id] = {}
       const scopeIds = taskScopeIdsMap[task.id] || [task.id]
       const taskCards = scopeIds.flatMap(taskId => cardsByTaskId[taskId] || [])
       const snapshot = task.plan_snapshot || {}
-      
+
       Object.keys(snapshot).forEach(nid => {
         const nomCards = taskCards.filter(c => String(c.nomenclature_id) === nid)
         const flowRows = scopeIds.flatMap(taskId => flowTotalsByTaskNom[taskId]?.[nid] || [])
-        
+
         const getQ = (ops, statuses) => {
           return nomCards.filter(c => {
-            const isMatchOp = ops.some(op => op === 'Галтовка' ? (c.operation === 'Галтовка' || c.operation?.startsWith('Галтовка')) : c.operation === op)
+            const isMatchOp = ops.some(op => {
+              if (op === 'Галтовка') return c.operation === 'Галтовка' || c.operation?.startsWith('Галтовка')
+              if (op === 'Сортування') return c.operation === 'Сортування' || c.operation?.startsWith('Сортування') || c.operation?.includes('Сортування')
+              return c.operation === op
+            })
             return isMatchOp && statuses.includes(c.status)
           }).reduce((s, c) => s + (Number(c.quantity) || 0), 0)
         }
@@ -593,7 +690,7 @@ const ForemanDashboardModule = () => {
         const qGalt = getQ(['Галтовка'], ['in-progress'])
         const qGaltBuf = getQ(['Галтовка'], ['at-buffer'])
         const qPriy = getQ(['Прийомка'], ['new', 'in-progress', 'at-buffer'])
-        const qSortAct = getQ(['Сортування'], ['in-progress', 'at-buffer'])
+        const qSortAct = getQ(['Сортування'], ['new', 'in-progress', 'at-buffer'])
         const qSort = nomCards.filter(c => c.status === 'at-shop2-buffer')
           .reduce((s, c) => s + Math.max(0, (Number(c.quantity) || 0) - (Number(c.used_in_shop2_qty) || 0)), 0)
 
@@ -609,14 +706,14 @@ const ForemanDashboardModule = () => {
         }).reduce((s, c) => s + (Number(c.quantity) || 0), 0)
 
         const bzCardsQty = nomCards.filter(c => c.operation === 'Склад БЗ').reduce((s, c) => s + (Number(c.quantity) || 0), 0)
-        
+
         const flowBzQty = sumFlowField(flowRows, 'total_bz')
         const qBz = flowRows.length > 0
           ? flowBzQty
           : Math.max(0, groupProduced - qSort - totalShop2Qty) + bzCardsQty
 
         const sum = qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriy + qSortAct + qSort + qBz
-        
+
         const snap = snapshot[nid] || {}
         const need = Number(snap.need) || 0
         const initialStock = Number(snap.stock) || 0
@@ -651,7 +748,7 @@ const ForemanDashboardModule = () => {
     }
     const cardMap = {}
     dashboardCards.forEach(c => { cardMap[c.id] = c })
-    
+
     dashboardHistory.forEach(h => {
       if (!h.card_id && (!h.task_id || !h.nomenclature_id)) return
       const card = cardMap[h.card_id]
@@ -904,10 +1001,13 @@ const ForemanDashboardModule = () => {
         const qGalt = getQ(['Галтовка'], ['in-progress'])
         const qGaltBuf = getQ(['Галтовка'], ['at-buffer'])
         const qPriy = getQ(['Прийомка'], ['new', 'in-progress', 'at-buffer'])
-        const qSortAct = getQ(['Сортування'], ['in-progress', 'at-buffer'])
+        const qSortAct = getQ(['Сортування'], ['new', 'in-progress', 'at-buffer'])
+        // at-shop2-buffer cards: do NOT restrict by taskParentMap — the card's nomenclature
+        // is already matched to this product group via BOM (childToParents). A card's order may
+        // have a different nomenclature_id than the BOM parent (e.g. order 260826-1 is "Рама F10"
+        // but contains KR-325 parts that belong to "Рама KHARAK 15" per BOM).
         const qSort = filteredCards.filter(c => {
           if (String(c.nomenclature_id) !== String(nom.id)) return false
-          if (c.task_id && taskParentMap[c.task_id] && taskParentMap[c.task_id] !== parentId) return false
           return c.status === 'at-shop2-buffer'
         }).reduce((s, c) => s + Math.max(0, (Number(c.quantity) || 0) - (Number(c.used_in_shop2_qty) || 0)), 0)
 
@@ -921,10 +1021,19 @@ const ForemanDashboardModule = () => {
         const qDoop = getQ(['Доопрацювання'], ['in-progress'])
         const qDoopBuf = getQ(['Доопрацювання'], ['at-buffer'])
 
-        // Find booked BZ from plan snapshot (which is already ready/finished for this order), summing across all relevant orders
+        // Find booked BZ from plan snapshot – only for orders belonging to THIS parent product group.
+        // Iterating all orderIds caused stock to accumulate across unrelated orders (every order that
+        // happens to share the same filteredCards scope), producing phantom totals.
         let initialStock = 0
         let plannedReserve = 0
-        const orderTasks = tasks.filter(t => t.order_id && orderIds.includes(t.order_id))
+        const orderTasks = tasks.filter(t => {
+          if (!t.order_id || !orderIds.includes(t.order_id)) return false
+          // Only include tasks whose order belongs to the current parent product group
+          const o = ordersMap[t.order_id]
+          if (!o) return false
+          const oPid = o.nomenclature_id || o.order_items?.[0]?.nomenclature_id
+          return String(oPid) === String(parentId)
+        })
         const ordersWithTasks = Array.from(new Set(orderTasks.map(t => t.order_id)))
         ordersWithTasks.forEach(oid => {
           const taskWithSnap = orderTasks.find(t => t.order_id === oid && t.plan_snapshot && t.plan_snapshot[String(nom.id)])
@@ -984,12 +1093,14 @@ const ForemanDashboardModule = () => {
         }).reduce((s, c) => s + (Number(c.quantity) || 0), 0)
 
         // qBz is newly produced BZ (not yet in Shop 2) + excess SGP
+        // IMPORTANT: flowBzQty already includes the plan_snapshot BZ stock reservation,
+        // so we must NOT add initialStock on top of it — that would double-count.
         const bzExcess = Math.max(0, totalPotentialSgp - demandForParent)
         const flowBzQty = sumFlowField(flowRowsForThisPart, 'total_bz')
         const qBz = groupProduced > 0
           ? initialStock + Math.max(0, sgpProduced - demandForParent)
           : (flowRowsForThisPart.length > 0
-            ? initialStock + Math.max(flowBzQty, Math.max(0, netSgpQty - demandForParent))
+            ? Math.max(flowBzQty, Math.max(0, netSgpQty - demandForParent))
             : Math.max(0, groupProduced - qSort - totalShop2Qty) + bzExcess)
 
         // Scrap from task card history
@@ -1012,9 +1123,11 @@ const ForemanDashboardModule = () => {
           nom.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
           (nom.code || '').toLowerCase().includes(searchQuery.toLowerCase())
 
-        if (matchSearch && demandForParent > 0) {
+        if (matchSearch && (demandForParent > 0 || qSort > 0)) {
           groups[parentId].rows.push({
             id: nom.id + '_' + parentId,
+            nomId: nom.id,
+            parentId,
             name: nom.name,
             code: nom.code || '',
             demand: demandForParent,
@@ -1036,7 +1149,7 @@ const ForemanDashboardModule = () => {
       return buildWipGroups(activeTasks.map(t => t.id))
     }
     return buildWipGroups([selectedTaskId])
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedTaskId, dashboardCards, dashboardHistory, flowTotalsRows, inventory, nomenclatures, bomItems, tasks, orders, searchQuery])
 
   // ── Refresh ──
@@ -1090,8 +1203,8 @@ const ForemanDashboardModule = () => {
             onClick={handleRefresh}
             disabled={isRefreshing}
             style={{ background: 'var(--card-bg, #18181b)', border: '1px solid var(--glass-border, #27272a)', color: '#fff', padding: '8px 14px', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', transition: 'all 0.2s' }}
-            
-            
+
+
           >
             <RefreshCw size={14} style={{ animation: isRefreshing ? 'spin 1s linear infinite' : 'none' }} />
             Оновити
@@ -1142,43 +1255,43 @@ const ForemanDashboardModule = () => {
           })
           return sortedTasks.map(task => {
             const order = ordersMap[task.order_id]
-          const displayNum = order?.order_num || task.id.split('-')[0]
-          const batchSuffix = task.batch_index ? `/${task.batch_index}` : ''
-          const status = taskStatusMap[task.id]
-          const isActive = selectedTaskId === task.id
+            const displayNum = order?.order_num || task.id.split('-')[0]
+            const batchSuffix = task.batch_index ? `/${task.batch_index}` : ''
+            const status = taskStatusMap[task.id]
+            const isActive = selectedTaskId === task.id
 
-          const tabColor = status === 'ready' ? '#10b981'
-            : status === 'shortage' ? '#ef4444'
-              : status === 'new' ? '#3b82f6'
-                : status === 'completed' ? '#52525b'
-                  : '#eab308'
+            const tabColor = status === 'ready' ? '#10b981'
+              : status === 'shortage' ? '#ef4444'
+                : status === 'new' ? '#3b82f6'
+                  : status === 'completed' ? '#52525b'
+                    : '#eab308'
 
-          const statusDot = status === 'ready' ? '🟢'
-            : status === 'shortage' ? '🔴'
-              : status === 'new' ? '🔵'
-                : status === 'completed' ? '⚪'
-                  : '🟡'
+            const statusDot = status === 'ready' ? '🟢'
+              : status === 'shortage' ? '🔴'
+                : status === 'new' ? '🔵'
+                  : status === 'completed' ? '⚪'
+                    : '🟡'
 
-          return (
-            <button
-              key={task.id}
-              onClick={() => setSelectedTaskId(task.id)}
-              style={{
-                background: isActive ? `${tabColor}18` : 'var(--tab-inactive-bg, #18181b)',
-                color: isActive ? tabColor : 'var(--text-muted, #71717a)',
-                border: `1px solid ${isActive ? tabColor + '60' : 'var(--glass-border, #27272a)'}`,
-                padding: '8px 16px', borderRadius: '10px', fontWeight: 800, fontSize: '0.78rem',
-                cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.2s', flexShrink: 0,
-                display: 'flex', alignItems: 'center', gap: '6px'
-              }}
-            >
-              <span style={{ fontSize: '0.75rem' }}>{statusDot}</span>
-              №{displayNum}{batchSuffix}
-              {status === 'completed' && <span style={{ fontSize: '0.62rem', opacity: 0.6 }}>✓</span>}
-            </button>
-          )
-        })
-      })()}
+            return (
+              <button
+                key={task.id}
+                onClick={() => setSelectedTaskId(task.id)}
+                style={{
+                  background: isActive ? `${tabColor}18` : 'var(--tab-inactive-bg, #18181b)',
+                  color: isActive ? tabColor : 'var(--text-muted, #71717a)',
+                  border: `1px solid ${isActive ? tabColor + '60' : 'var(--glass-border, #27272a)'}`,
+                  padding: '8px 16px', borderRadius: '10px', fontWeight: 800, fontSize: '0.78rem',
+                  cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.2s', flexShrink: 0,
+                  display: 'flex', alignItems: 'center', gap: '6px'
+                }}
+              >
+                <span style={{ fontSize: '0.75rem' }}>{statusDot}</span>
+                №{displayNum}{batchSuffix}
+                {status === 'completed' && <span style={{ fontSize: '0.62rem', opacity: 0.6 }}>✓</span>}
+              </button>
+            )
+          })
+        })()}
       </div>
 
       {/* ── CONTENT ── */}
@@ -1206,10 +1319,11 @@ const ForemanDashboardModule = () => {
               ))}
             </div>
 
-            {/* Order cards grid */}
+            {/* Order cards grid - Temporarily hidden per user request */}
+            {/* 
             {activeTasks.length > 0 && (
               <div style={{ marginBottom: '28px' }}>
-                <div style={{ fontSize: '0.8rem', fontWeight: 900, color: '#52525b', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ fontSize: '0.8rem', fontWeight: 900, color: 'var(--text-muted, #52525b)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <TrendingUp size={14} color="#ef4444" />
                   ОГЛЯД НАРЯДІВ
                 </div>
@@ -1224,96 +1338,93 @@ const ForemanDashboardModule = () => {
                     })
                     return sortedActiveTasks.map(task => {
                       const order = ordersMap[task.order_id]
-                    const displayNum = order?.order_num || task.id.split('-')[0]
-                    const batchSuffix = task.batch_index ? `/${task.batch_index}` : ''
-                    const status = taskStatusMap[task.id]
-                    const progress = taskProgressMap[task.id] || { actual: 0, demand: 0 }
-                    const pct = progress.demand > 0 ? Math.min(100, Math.round((progress.actual / progress.demand) * 100)) : 0
-                    const prodNames = (order?.order_items || []).map(it => nomenclatures.find(n => n.id === it.nomenclature_id)?.name).filter(Boolean).join(', ') || '—'
+                      const displayNum = order?.order_num || task.id.split('-')[0]
+                      const batchSuffix = task.batch_index ? `/${task.batch_index}` : ''
+                      const status = taskStatusMap[task.id]
+                      const progress = taskProgressMap[task.id] || { actual: 0, demand: 0 }
+                      const pct = progress.demand > 0 ? Math.min(100, Math.round((progress.actual / progress.demand) * 100)) : 0
+                      const prodNames = (order?.order_items || []).map(it => nomenclatures.find(n => n.id === it.nomenclature_id)?.name).filter(Boolean).join(', ') || '—'
 
-                    const accentColor = status === 'ready' ? '#10b981'
-                      : status === 'shortage' ? '#ef4444'
-                        : status === 'new' ? '#3b82f6' : '#eab308'
+                      const accentColor = status === 'ready' ? '#10b981'
+                        : status === 'shortage' ? '#ef4444'
+                          : status === 'new' ? '#3b82f6' : '#eab308'
 
-                    const statusBadge = status === 'ready'
-                      ? <span style={{ background: 'rgba(16,185,129,0.15)', color: '#10b981', border: '1px solid rgba(16,185,129,0.3)', padding: '2px 8px', borderRadius: '6px', fontSize: '0.62rem', fontWeight: 900 }}>🟢 ГОТОВО</span>
-                      : status === 'shortage'
-                        ? <span style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', padding: '2px 8px', borderRadius: '6px', fontSize: '0.62rem', fontWeight: 900 }}>🔴 НЕСТАЧА</span>
-                        : status === 'new'
-                          ? <span style={{ background: 'rgba(59,130,246,0.15)', color: '#3b82f6', border: '1px solid rgba(59,130,246,0.3)', padding: '2px 8px', borderRadius: '6px', fontSize: '0.62rem', fontWeight: 900 }}>🔵 НОВИЙ</span>
-                          : <span style={{ background: 'rgba(234,179,8,0.15)', color: '#eab308', border: '1px solid rgba(234,179,8,0.3)', padding: '2px 8px', borderRadius: '6px', fontSize: '0.62rem', fontWeight: 900 }}>🟡 В РОБОТІ</span>
+                      const statusBadge = status === 'ready'
+                        ? <span style={{ background: 'rgba(16,185,129,0.15)', color: '#10b981', border: '1px solid rgba(16,185,129,0.3)', padding: '2px 8px', borderRadius: '6px', fontSize: '0.62rem', fontWeight: 900 }}>🟢 ГОТОВО</span>
+                        : status === 'shortage'
+                          ? <span style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', padding: '2px 8px', borderRadius: '6px', fontSize: '0.62rem', fontWeight: 900 }}>🔴 НЕСТАЧА</span>
+                          : status === 'new'
+                            ? <span style={{ background: 'rgba(59,130,246,0.15)', color: '#3b82f6', border: '1px solid rgba(59,130,246,0.3)', padding: '2px 8px', borderRadius: '6px', fontSize: '0.62rem', fontWeight: 900 }}>🔵 НОВИЙ</span>
+                            : <span style={{ background: 'rgba(234,179,8,0.15)', color: '#eab308', border: '1px solid rgba(234,179,8,0.3)', padding: '2px 8px', borderRadius: '6px', fontSize: '0.62rem', fontWeight: 900 }}>🟡 В РОБОТІ</span>
 
-                    return (
-                      <div
-                        key={task.id}
-                        onClick={() => setSelectedTaskId(task.id)}
-                        style={{
-                          background: 'var(--card-bg, linear-gradient(145deg, #141417, #111113))',
-                          border: `1px solid ${accentColor}30`,
-                          borderRadius: '18px', cursor: 'pointer', overflow: 'hidden',
-                          transition: 'all 0.2s', boxShadow: '0 4px 16px rgba(0,0,0,0.3)'
-                        }}
-                        onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = `0 8px 28px rgba(0,0,0,0.4), 0 0 0 1px ${accentColor}50` }}
-                        onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.3)' }}
-                      >
-                        <div style={{ height: '3px', background: `linear-gradient(90deg, ${accentColor}, transparent)` }} />
-                        <div style={{ padding: '16px 18px' }}>
-                          {/* Header */}
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
-                            <div>
-                              <div style={{ fontSize: '1.1rem', fontWeight: 950, color: '#fff', lineHeight: 1.2 }}>
-                                Наряд №{displayNum}{batchSuffix}
+                      return (
+                        <div
+                          key={task.id}
+                          onClick={() => setSelectedTaskId(task.id)}
+                          style={{
+                            background: 'var(--card-bg, linear-gradient(145deg, #141417, #111113))',
+                            border: `1px solid ${accentColor}30`,
+                            borderRadius: '18px', cursor: 'pointer', overflow: 'hidden',
+                            transition: 'all 0.2s', boxShadow: '0 4px 16px rgba(0,0,0,0.3)'
+                          }}
+                          onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = `0 8px 28px rgba(0,0,0,0.4), 0 0 0 1px ${accentColor}50` }}
+                          onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.3)' }}
+                        >
+                          <div style={{ height: '3px', background: `linear-gradient(90deg, ${accentColor}, transparent)` }} />
+                          <div style={{ padding: '16px 18px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
+                              <div>
+                                <div style={{ fontSize: '1.1rem', fontWeight: 950, color: 'var(--text, #fff)', lineHeight: 1.2 }}>
+                                  Наряд №{displayNum}{batchSuffix}
+                                </div>
+                                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted, #71717a)', marginTop: '2px', fontWeight: 600 }}>{order?.customer || '—'}</div>
                               </div>
-                              <div style={{ fontSize: '0.72rem', color: '#71717a', marginTop: '2px', fontWeight: 600 }}>{order?.customer || '—'}</div>
+                              {statusBadge}
                             </div>
-                            {statusBadge}
-                          </div>
-                          {/* Product */}
-                          <div style={{ fontSize: '0.8rem', color: '#a1a1aa', marginBottom: '12px', fontWeight: 600, lineHeight: 1.3 }}>{prodNames}</div>
-                          {/* Progress */}
-                          <div style={{ marginBottom: '10px' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', fontWeight: 800, marginBottom: '4px' }}>
-                              <span style={{ color: '#52525b' }}>Виконання</span>
-                              <span style={{ color: accentColor }}>{progress.actual} / {progress.demand} компл. ({pct}%)</span>
+                            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted, #a1a1aa)', marginBottom: '12px', fontWeight: 600, lineHeight: 1.3 }}>{prodNames}</div>
+                            <div style={{ marginBottom: '10px' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', fontWeight: 800, marginBottom: '4px' }}>
+                                <span style={{ color: 'var(--text-muted, #52525b)' }}>Виконання</span>
+                                <span style={{ color: accentColor }}>{progress.actual} / {progress.demand} компл. ({pct}%)</span>
+                              </div>
+                              <div style={{ height: '6px', background: 'var(--border, #1f1f23)', borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--glass-border, #27272a)' }}>
+                                <div style={{ width: `${pct}%`, height: '100%', background: `linear-gradient(90deg, ${accentColor}, ${accentColor}99)`, borderRadius: '6px', transition: 'width 0.5s ease', boxShadow: `0 0 6px ${accentColor}60` }} />
+                              </div>
                             </div>
-                            <div style={{ height: '6px', background: '#1f1f23', borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--glass-border, #27272a)' }}>
-                              <div style={{ width: `${pct}%`, height: '100%', background: `linear-gradient(90deg, ${accentColor}, ${accentColor}99)`, borderRadius: '6px', transition: 'width 0.5s ease', boxShadow: `0 0 6px ${accentColor}60` }} />
+                            <div style={{ fontSize: '0.64rem', color: 'var(--text-muted, #3f3f46)', fontWeight: 700, textAlign: 'right', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                              Клікніть для деталей →
                             </div>
-                          </div>
-                          {/* Click hint */}
-                          <div style={{ fontSize: '0.64rem', color: '#3f3f46', fontWeight: 700, textAlign: 'right', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                            Клікніть для деталей →
                           </div>
                         </div>
-                      </div>
-                    )
-                  })
-                })()}
+                      )
+                    })
+                  })()}
                 </div>
               </div>
             )}
+            */}
 
             {/* Search */}
             <div style={{ display: 'flex', gap: '12px', marginBottom: '16px', alignItems: 'center' }}>
               <div style={{ position: 'relative', flex: 1, maxWidth: '400px' }}>
-                <Search size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#52525b' }} />
+                <Search size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted, #52525b)' }} />
                 <input
                   type="text"
                   placeholder="Пошук деталі..."
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
-                  style={{ width: '100%', padding: '10px 12px 10px 36px', background: 'var(--card-bg, #18181b)', border: '1px solid var(--glass-border, #27272a)', borderRadius: '10px', color: '#fff', fontSize: '0.82rem', outline: 'none', boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '10px 12px 10px 36px', background: 'var(--card-bg, #18181b)', border: '1px solid var(--glass-border, #27272a)', borderRadius: '10px', color: 'var(--text, #fff)', fontSize: '0.82rem', outline: 'none', boxSizing: 'border-box' }}
                   onFocus={e => e.target.style.borderColor = '#ef4444'}
-                  onBlur={e => e.target.style.borderColor = '#27272a'}
+                  onBlur={e => e.target.style.borderColor = 'var(--glass-border, #27272a)'}
                 />
               </div>
-              <div style={{ fontSize: '0.72rem', color: '#3f3f46', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted, #64748b)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                 ЗАГАЛЬНА ТАБЛИЦЯ WIP — ВСІ НАРЯДИ
               </div>
             </div>
 
             {/* Overview WIP table */}
-            <WipTable groupedData={overviewGroups} emptyText="Немає активних деталей. Запустіть наряди в Foreman." />
+            <WipTable groupedData={overviewGroups} emptyText="Немає активних деталей. Запустіть наряди в Foreman." onCellClick={handleCellClick} />
           </div>
         ) : (
           /* ═══════════════════ ORDER DETAIL MODE ═══════════════════ */
@@ -1341,9 +1452,318 @@ const ForemanDashboardModule = () => {
             setSearchQuery={setSearchQuery}
             expandedBottlenecks={expandedBottlenecks}
             setExpandedBottlenecks={setExpandedBottlenecks}
+            onCellClick={handleCellClick}
           />
         )}
       </div>
+
+      {/* ── Cell Cards Detail Modal ────────────────────────────────────── */}
+      {selectedCellModal && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
+          background: 'rgba(0, 0, 0, 0.75)', backdropFilter: 'blur(8px)',
+          zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: '20px', boxSizing: 'border-box'
+        }}
+          onClick={() => setSelectedCellModal(null)}
+        >
+          <div
+            style={{
+              background: 'var(--card-bg, #121215)', border: '1px solid var(--border, #27272a)', borderRadius: '24px',
+              maxWidth: '900px', width: '100%', maxHeight: '85vh', display: 'flex',
+              flexDirection: 'column', boxShadow: '0 20px 50px rgba(0,0,0,0.6)',
+              overflow: 'hidden', color: 'var(--text, #f4f4f5)'
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div style={{
+              padding: '20px 24px', borderBottom: '1px solid var(--border, #27272a)',
+              background: 'var(--bg, #09090b)',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+            }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Package size={20} color="#ff9000" />
+                  <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 900, color: 'var(--text, #fff)' }}>
+                    {selectedCellModal.row?.name}
+                    {selectedCellModal.row?.code && <span style={{ fontSize: '0.8rem', color: 'var(--text-muted, #a1a1aa)', fontWeight: 600, marginLeft: '8px' }}>({selectedCellModal.row.code})</span>}
+                  </h3>
+                </div>
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted, #71717a)', marginTop: '4px', fontWeight: 700 }}>
+                  Етап: <span style={{ color: '#ff9000' }}>{selectedCellModal.stageName}</span> | Всього на етапі: <strong style={{ color: 'var(--text, #fff)' }}>{selectedCellModal.val} шт</strong> ({selectedCellModal.cards.length} карток)
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedCellModal(null)}
+                style={{
+                  background: 'var(--border, #27272a)', border: 'none', color: 'var(--text, #fff)',
+                  width: '32px', height: '32px', borderRadius: '50%',
+                  fontWeight: 900, cursor: 'pointer', display: 'flex',
+                  alignItems: 'center', justifyContent: 'center', fontSize: '1rem'
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Content / Cards List */}
+            <div style={{ padding: '20px 24px', overflowY: 'auto', flex: 1, background: 'var(--card-bg, #121215)' }}>
+              {selectedCellModal.cards.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted, #71717a)' }}>
+                  <Layers size={36} style={{ margin: '0 auto 12px', opacity: 0.4 }} />
+                  <p style={{ margin: 0, fontSize: '0.88rem' }}>Фізичних робочих карток на цьому етапі зараз немає.</p>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted, #52525b)', marginTop: '4px', display: 'block' }}>
+                    Показник розраховано за первинним планом або складом БЗ.
+                  </span>
+                </div>
+              ) : (
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', color: 'var(--text, #f4f4f5)' }}>
+                  <thead>
+                    <tr style={{ background: 'var(--bg, #18181b)', color: 'var(--text-muted, #a1a1aa)', textAlign: 'left', borderBottom: '1px solid var(--border, #27272a)' }}>
+                      <th style={{ padding: '12px' }}>№ Картки / Системний номер</th>
+                      <th style={{ padding: '12px' }}>Наряд</th>
+                      <th style={{ padding: '12px' }}>Операція</th>
+                      <th style={{ padding: '12px', textAlign: 'center' }}>Статус</th>
+                      <th style={{ padding: '12px', textAlign: 'center' }}>Кількість</th>
+                      <th style={{ padding: '12px', textAlign: 'right' }}>Дія</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedCellModal.cards.map(c => {
+                      const task = tasks.find(t => String(t.id) === String(c.task_id))
+                      const ord = ordersMap[c.order_id] || (task ? ordersMap[task.order_id] : null) || orders.find(o => String(o.id) === String(c.order_id))
+                      const orderNumText = ord?.order_num ? `Наряд № ${ord.order_num}` : (c.order_id ? `№ ${String(c.order_id).substring(0, 8)}` : 'Без наряду')
+
+                      const infoParts = (c.card_info || '').split(' ')
+                      const cardNumBadge = infoParts[0] && (infoParts[0].includes('/') || infoParts[0].includes('[')) ? infoParts[0] : (c.card_number || `№ ${String(c.id).substring(0, 8)}`)
+                      const sysHexNum = `#${String(c.id).substring(0, 8).toUpperCase()}`
+                      const restCardInfo = infoParts.slice(cardNumBadge === infoParts[0] ? 1 : 0).join(' ')
+
+                      return (
+                        <tr
+                          key={c.id}
+                          onClick={() => setInspectCardModal(c)}
+                          style={{
+                            borderBottom: '1px solid var(--border, #1f1f23)', transition: 'background 0.15s',
+                            cursor: 'pointer'
+                          }}
+                          onMouseEnter={e => e.currentTarget.style.background = 'var(--hover-bg, rgba(255,255,255,0.05))'}
+                          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                        >
+                          <td style={{ padding: '12px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                              <span style={{
+                                background: 'rgba(255, 144, 0, 0.15)', color: '#ff9000',
+                                border: '1px solid rgba(255, 144, 0, 0.3)', padding: '2px 8px',
+                                borderRadius: '6px', fontSize: '0.75rem', fontWeight: 900
+                              }}>
+                                {cardNumBadge.startsWith('№') ? cardNumBadge : `№ ${cardNumBadge}`}
+                              </span>
+                              <span style={{ fontWeight: 900, color: 'var(--text, #fff)', fontFamily: 'monospace', fontSize: '0.88rem', letterSpacing: '0.5px' }}>
+                                {sysHexNum}
+                              </span>
+                            </div>
+                            {restCardInfo && <div style={{ fontSize: '0.68rem', color: 'var(--text-muted, #71717a)', marginTop: '4px' }}>{restCardInfo}</div>}
+                          </td>
+                          <td style={{ padding: '12px' }}>
+                            <div style={{ fontWeight: 900, color: 'var(--text, #fff)', fontSize: '0.88rem' }}>{orderNumText}</div>
+                            <div style={{ fontSize: '0.68rem', color: 'var(--text-muted, #71717a)' }}>{ord?.customer || '—'}</div>
+                          </td>
+                          <td style={{ padding: '12px' }}>
+                            <span style={{ background: 'var(--border, #27272a)', color: 'var(--text, #fff)', padding: '3px 8px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 800 }}>
+                              {c.operation || '—'}
+                            </span>
+                          </td>
+                          <td style={{ padding: '12px', textAlign: 'center' }}>
+                            <span style={{
+                              background: c.status === 'completed' ? 'rgba(16,185,129,0.15)' : c.status === 'at-shop2-buffer' ? 'rgba(255,144,0,0.15)' : 'rgba(59,130,246,0.15)',
+                              color: c.status === 'completed' ? '#10b981' : c.status === 'at-shop2-buffer' ? '#ff9000' : '#3b82f6',
+                              border: c.status === 'completed' ? '1px solid rgba(16,185,129,0.3)' : c.status === 'at-shop2-buffer' ? '1px solid rgba(255,144,0,0.3)' : '1px solid rgba(59,130,246,0.3)',
+                              padding: '2px 8px', borderRadius: '6px', fontSize: '0.68rem', fontWeight: 900
+                            }}>
+                              {c.status}
+                            </span>
+                          </td>
+                          <td style={{ padding: '12px', textAlign: 'center', fontWeight: 900, color: 'var(--text, #fff)', fontSize: '0.9rem' }}>
+                            {c.quantity} шт
+                          </td>
+                          <td style={{ padding: '12px', textAlign: 'right' }}>
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setInspectCardModal(c)
+                                }}
+                                style={{
+                                  background: 'var(--border, #27272a)',
+                                  color: 'var(--text, #fff)', border: '1px solid var(--border, #3f3f46)', padding: '6px 10px',
+                                  borderRadius: '8px', fontSize: '0.72rem', fontWeight: 800,
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                🔎 Деталі
+                              </button>
+                              {['розкрій', 'галтовка', 'прийомка', 'сортування'].some(o => (c.operation || '').toLowerCase().includes(o)) ? (
+                                <Link
+                                  to="/shop1"
+                                  onClick={(e) => e.stopPropagation()}
+                                  style={{
+                                    background: 'linear-gradient(135deg, #0284c7, #2563eb)',
+                                    color: '#fff', textDecoration: 'none', padding: '6px 10px',
+                                    borderRadius: '8px', fontSize: '0.72rem', fontWeight: 800,
+                                    boxShadow: '0 2px 6px rgba(2,132,199,0.3)'
+                                  }}
+                                >
+                                  🚀 Термінал Цеху 1
+                                </Link>
+                              ) : (
+                                <Link
+                                  to="/shop2"
+                                  onClick={(e) => e.stopPropagation()}
+                                  style={{
+                                    background: 'linear-gradient(135deg, #ff9000, #ea580c)',
+                                    color: '#fff', textDecoration: 'none', padding: '6px 10px',
+                                    borderRadius: '8px', fontSize: '0.72rem', fontWeight: 800,
+                                    boxShadow: '0 2px 6px rgba(255,144,0,0.3)'
+                                  }}
+                                >
+                                  🚀 Термінал Цеху 2
+                                </Link>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Individual Work Card Inspector Modal ──────────────────────── */}
+      {inspectCardModal && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
+          background: 'rgba(0, 0, 0, 0.85)', backdropFilter: 'blur(10px)',
+          zIndex: 100000, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: '20px', boxSizing: 'border-box'
+        }}
+          onClick={() => setInspectCardModal(null)}
+        >
+          <div
+            style={{
+              background: 'var(--card-bg, #16161a)', border: '1px solid #ff9000', borderRadius: '24px',
+              maxWidth: '600px', width: '100%', padding: '24px', boxShadow: '0 0 30px rgba(255,144,0,0.2)',
+              color: 'var(--text, #fff)'
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            {(() => {
+              const infoParts = (inspectCardModal.card_info || '').split(' ')
+              const cardNumBadge = infoParts[0] && (infoParts[0].includes('/') || infoParts[0].includes('[')) ? infoParts[0] : (inspectCardModal.card_number || `№ ${String(inspectCardModal.id).substring(0, 8)}`)
+              const sysHexNum = `#${String(inspectCardModal.id).substring(0, 8).toUpperCase()}`
+
+              return (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{
+                        background: 'rgba(255, 144, 0, 0.15)', color: '#ff9000',
+                        border: '1px solid rgba(255, 144, 0, 0.3)', padding: '2px 8px',
+                        borderRadius: '6px', fontSize: '0.72rem', fontWeight: 900
+                      }}>
+                        № КАРТКИ: {cardNumBadge.startsWith('№') ? cardNumBadge.substring(1).trim() : cardNumBadge}
+                      </span>
+                    </div>
+                    <h2 style={{ margin: '6px 0 0', fontSize: '1.3rem', fontWeight: 950, color: 'var(--text, #fff)', fontFamily: 'monospace' }}>
+                      СИСТЕМНИЙ НОМЕР: <span style={{ color: '#ff9000' }}>{sysHexNum}</span>
+                    </h2>
+                  </div>
+                  <button
+                    onClick={() => setInspectCardModal(null)}
+                    style={{ background: 'var(--border, #27272a)', border: 'none', color: 'var(--text, #fff)', width: '30px', height: '30px', borderRadius: '50%', cursor: 'pointer', fontWeight: 900 }}
+                  >
+                    ✕
+                  </button>
+                </div>
+              )
+            })()}
+
+            <div style={{ background: 'var(--bg, #0d0d0f)', borderRadius: '16px', padding: '16px', border: '1px solid var(--border, #27272a)', marginBottom: '20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '0.8rem' }}>
+              <div>
+                <div style={{ color: 'var(--text-muted, #71717a)', fontSize: '0.68rem', fontWeight: 700 }}>ОПЕРАЦІЯ</div>
+                <div style={{ fontWeight: 900, color: '#ff9000', fontSize: '0.95rem', marginTop: '2px' }}>{inspectCardModal.operation || '—'}</div>
+              </div>
+              <div>
+                <div style={{ color: 'var(--text-muted, #71717a)', fontSize: '0.68rem', fontWeight: 700 }}>СТАТУС</div>
+                <div style={{ fontWeight: 900, color: '#10b981', marginTop: '2px' }}>{inspectCardModal.status}</div>
+              </div>
+              <div>
+                <div style={{ color: 'var(--text-muted, #71717a)', fontSize: '0.68rem', fontWeight: 700 }}>КІЛЬКІСТЬ</div>
+                <div style={{ fontWeight: 900, color: 'var(--text, #fff)', fontSize: '1.1rem', marginTop: '2px' }}>{inspectCardModal.quantity} шт</div>
+              </div>
+              <div>
+                <div style={{ color: 'var(--text-muted, #71717a)', fontSize: '0.68rem', fontWeight: 700 }}>БРАК / ВІДХОДИ</div>
+                <div style={{ fontWeight: 900, color: inspectCardModal.scrap_qty > 0 ? '#ef4444' : 'var(--text-muted, #71717a)', marginTop: '2px' }}>{inspectCardModal.scrap_qty || 0} шт</div>
+              </div>
+            </div>
+
+            {(() => {
+              const task = tasks.find(t => String(t.id) === String(inspectCardModal.task_id))
+              const ord = ordersMap[inspectCardModal.order_id] || (task ? ordersMap[task.order_id] : null) || orders.find(o => String(o.id) === String(inspectCardModal.order_id))
+              const orderNumText = ord?.order_num ? `№ ${ord.order_num}` : (inspectCardModal.order_id ? `№ ${String(inspectCardModal.order_id).substring(0, 8)}` : '—')
+
+              return (
+                <div style={{ fontSize: '0.82rem', color: 'var(--text-muted, #a1a1aa)', marginBottom: '20px', lineHeight: 1.6 }}>
+                  <div><strong>Наряд:</strong> <span style={{ color: '#ff9000', fontWeight: 900 }}>{orderNumText}</span></div>
+                  <div><strong>Замовник:</strong> {ord?.customer || '—'}</div>
+                  <div><strong>Створено:</strong> {inspectCardModal.created_at ? new Date(inspectCardModal.created_at).toLocaleString('uk-UA') : '—'}</div>
+                  {inspectCardModal.completed_at && <div><strong>Завершено:</strong> {new Date(inspectCardModal.completed_at).toLocaleString('uk-UA')}</div>}
+                </div>
+              )
+            })()}
+
+            {(() => {
+              const op = String(inspectCardModal.operation || '').toLowerCase()
+              const isShop1Card = ['розкрій', 'галтовка', 'прийомка', 'сортування'].some(o => op.includes(o))
+
+              return (
+                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                  {isShop1Card ? (
+                    <Link
+                      to="/shop1"
+                      style={{
+                        flex: 1, textAlign: 'center', background: 'linear-gradient(135deg, #0284c7, #2563eb)',
+                        color: '#fff', textDecoration: 'none', padding: '12px 16px', borderRadius: '12px',
+                        fontWeight: 900, fontSize: '0.85rem', boxShadow: '0 4px 15px rgba(2,132,199,0.3)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
+                      }}
+                    >
+                      🚀 Перейти до Терміналу Цеху №1
+                    </Link>
+                  ) : (
+                    <Link
+                      to="/shop2"
+                      style={{
+                        flex: 1, textAlign: 'center', background: 'linear-gradient(135deg, #ff9000, #ea580c)',
+                        color: '#fff', textDecoration: 'none', padding: '12px 16px', borderRadius: '12px',
+                        fontWeight: 900, fontSize: '0.85rem', boxShadow: '0 4px 15px rgba(255,144,0,0.3)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
+                      }}
+                    >
+                      🚀 Перейти до Терміналу Цеху №2
+                    </Link>
+                  )}
+                </div>
+              )
+            })()}
+          </div>
+        </div>
+      )}
 
       <style>{`
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
@@ -1556,7 +1976,7 @@ const OrderDetailView = ({
   const partDetails = useMemo(() => {
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
     const snapshot = task.plan_snapshot || {}
-    
+
     // Get all task IDs for the same order
     const orderTasks = tasks.filter(t => t.order_id === task.order_id)
     const orderTaskIdSet = new Set(orderTasks.map(t => t.id))
@@ -1575,7 +1995,11 @@ const OrderDetailView = ({
         const opArr = Array.isArray(ops) ? ops : [ops]
         const stArr = Array.isArray(statuses) ? statuses : [statuses]
         return nomCards.filter(c => {
-          const isMatchOp = opArr.some(op => op === 'Галтовка' ? (c.operation === 'Галтовка' || c.operation?.startsWith('Галтовка')) : c.operation === op)
+          const isMatchOp = opArr.some(op => {
+            if (op === 'Галтовка') return c.operation === 'Галтовка' || c.operation?.startsWith('Галтовка')
+            if (op === 'Сортування') return c.operation === 'Сортування' || c.operation?.startsWith('Сортування') || c.operation?.includes('Сортування')
+            return c.operation === op
+          })
           return isMatchOp && stArr.includes(c.status)
         }).reduce((s, c) => s + (Number(c.quantity) || 0), 0)
       }
@@ -1586,7 +2010,7 @@ const OrderDetailView = ({
       const qGalt = getQFromCards(['Галтовка'], ['in-progress'])
       const qGaltBuf = getQFromCards(['Галтовка'], ['at-buffer'])
       const qPriy = getQFromCards(['Прийомка'], ['new', 'in-progress', 'at-buffer'])
-      const qSortAct = getQFromCards(['Сортування'], ['in-progress', 'at-buffer'])
+      const qSortAct = getQFromCards(['Сортування'], ['new', 'in-progress', 'at-buffer'])
       const qSort = nomCards.filter(c => c.status === 'at-shop2-buffer')
         .reduce((s, c) => s + Math.max(0, (Number(c.quantity) || 0) - (Number(c.used_in_shop2_qty) || 0)), 0)
       const qMalWait = getQFromCards(['Фарбування', 'Малярка'], ['new'])
@@ -1801,7 +2225,7 @@ const OrderDetailView = ({
             Аналітика вузьких місць за часовими інтервалами всього наряду
           </div>
         </div>
-        
+
         {loadingHistory ? (
           <div style={{ padding: '30px', textAlign: 'center', color: '#71717a', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
             <RefreshCw size={14} className="animate-spin" style={{ animation: 'spin 1s linear infinite' }} /> Завантаження історії руху карт...
@@ -1816,7 +2240,7 @@ const OrderDetailView = ({
               // 1. Get ALL cards for this nomenclature inside the active task/order
               const partCards = orderAllCards.filter(c => String(c.nomenclature_id) === String(part.id))
               if (partCards.length === 0) return null
-              
+
               const cardIds = partCards.map(c => c.id)
               const cardHistory = taskHistory.filter(h => cardIds.includes(h.card_id))
 
@@ -1860,7 +2284,7 @@ const OrderDetailView = ({
               })
 
               const totalDurationMs = Object.values(stageDurations).reduce((sum, v) => sum + v, 0)
-              
+
               // Helper to format duration
               const formatMs = (ms) => {
                 if (ms <= 0) return '0хв'
@@ -1884,7 +2308,7 @@ const OrderDetailView = ({
 
               return (
                 <div key={part.id} style={{ background: '#18181c', border: '1px solid #2d2d39', borderRadius: '20px', padding: '20px', transition: 'all 0.2s', boxShadow: '0 4px 20px rgba(0,0,0,0.2)' }}>
-                  
+
                   {/* Part Title and Overall info */}
                   {(() => {
                     const totalQty = partCards.reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
@@ -1932,15 +2356,15 @@ const OrderDetailView = ({
                           if (ms <= 0) return null
                           const pct = (ms / totalDurationMs) * 100
                           return (
-                            <div 
-                              key={s.key} 
-                              style={{ 
-                                width: `${pct}%`, 
-                                height: '100%', 
-                                background: s.color, 
-                                transition: 'width 0.4s ease', 
-                                display: 'flex', 
-                                alignItems: 'center', 
+                            <div
+                              key={s.key}
+                              style={{
+                                width: `${pct}%`,
+                                height: '100%',
+                                background: s.color,
+                                transition: 'width 0.4s ease',
+                                display: 'flex',
+                                alignItems: 'center',
                                 justifyContent: 'center',
                                 minWidth: pct > 8 ? '50px' : '6px',
                                 position: 'relative'
@@ -2027,9 +2451,9 @@ const OrderDetailView = ({
                                   return sum
                                 }, 0)
 
-                                const cPct = c.status === 'completed' ? '🟢 ЗАВЕРШЕНО' 
-                                  : c.status === 'at-buffer' ? '🔵 В БУФЕРІ' 
-                                    : c.status === 'in-progress' ? '🟡 В РОБОТІ' 
+                                const cPct = c.status === 'completed' ? '🟢 ЗАВЕРШЕНО'
+                                  : c.status === 'at-buffer' ? '🔵 В БУФЕРІ'
+                                    : c.status === 'in-progress' ? '🟡 В РОБОТІ'
                                       : '⚪ ОЧІКУЄ'
 
                                 const currentOp = c.operation || 'Створення'
@@ -2064,7 +2488,7 @@ const OrderDetailView = ({
           </div>
         )}
       </div>
-      
+
       <style>{`
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }

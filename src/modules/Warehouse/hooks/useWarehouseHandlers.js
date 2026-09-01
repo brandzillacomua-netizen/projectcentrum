@@ -630,9 +630,22 @@ export const useWarehouseHandlers = ({
 
       if (scannedCard) {
         const nextCardInfo = `${scannedCard.card_info || ''} [MATERIALS_ISSUED:true]`.trim()
+        const { data: pendingReqs } = await supabaseClient
+          .from('material_requests')
+          .select('id')
+          .eq('card_id', scannedCard.id)
+          .eq('status', 'pending')
+
+        const updatePayload = { card_info: nextCardInfo }
+        if (!pendingReqs || pendingReqs.length === 0) {
+          if (scannedCard.status === 'waiting-cutters' || scannedCard.status === 'waiting-materials') {
+            updatePayload.status = 'new'
+          }
+        }
+
         await supabaseClient
           .from('work_cards')
-          .update({ card_info: nextCardInfo })
+          .update(updatePayload)
           .eq('id', scannedCard.id)
       }
 

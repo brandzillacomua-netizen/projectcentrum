@@ -18,11 +18,26 @@ import {
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
-import { apiService } from '../services/apiDispatcher'
+const toLocalISO = (dateVal) => {
+  if (!dateVal) return null
+  try {
+    if (typeof dateVal === 'string' && dateVal.includes('.')) {
+      const [d, m, y] = dateVal.split('.')
+      return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
+    }
+    const d = new Date(dateVal)
+    if (isNaN(d.getTime())) return null
+    const year = d.getFullYear()
+    const mon = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    return `${year}-${mon}-${day}`
+  } catch (e) { return null }
+}
 
 const DirectorModule = () => {
   const { tasks, orders, approveDirector, nomenclatures, requests, workCards, workCardHistory, inventory, supabase } = useMES()
   const [viewDate, setViewDate] = useState(new Date())
+  const [viewMode, setViewMode] = useState('calendar') // 'calendar' | 'matrix'
   const [isApprovalsOpen, setIsApprovalsOpen] = useState(false)
   const [selectedCell, setSelectedCell] = useState(null)
   const [hoveredPid, setHoveredPid] = useState(null)
@@ -30,6 +45,144 @@ const DirectorModule = () => {
   const [expandedReqs, setExpandedReqs] = useState({})
   const [expandedNaryads, setExpandedNaryads] = useState({})
   const [allOrdersMap, setAllOrdersMap] = useState({})
+
+  const calendarGridDays = useMemo(() => {
+    const year = viewDate.getFullYear()
+    const month = viewDate.getMonth()
+
+    const firstDayOfMonth = new Date(year, month, 1)
+    let firstDayIndex = (firstDayOfMonth.getDay() + 6) % 7
+
+    const lastDateOfMonth = new Date(year, month + 1, 0).getDate()
+    const lastDateOfPrevMonth = new Date(year, month, 0).getDate()
+
+    const days = []
+    const todayKey = toLocalISO(new Date())
+
+    for (let i = firstDayIndex - 1; i >= 0; i--) {
+      const prevDay = lastDateOfPrevMonth - i
+      const d = new Date(year, month - 1, prevDay)
+      const dateKey = toLocalISO(d)
+      days.push({
+        day: prevDay,
+        isCurrentMonth: false,
+        dateKey,
+        isToday: dateKey === todayKey,
+        isWeekend: false,
+        dayOfWeek: (d.getDay() + 6) % 7
+      })
+    }
+
+    for (let d = 1; d <= lastDateOfMonth; d++) {
+      const dateObj = new Date(year, month, d)
+      const dateKey = toLocalISO(dateObj)
+      const dayOfWeek = (dateObj.getDay() + 6) % 7
+      days.push({
+        day: d,
+        isCurrentMonth: true,
+        dateKey,
+        isToday: dateKey === todayKey,
+        isWeekend: dayOfWeek === 5 || dayOfWeek === 6,
+        dayOfWeek
+      })
+    }
+
+    const totalSlots = days.length <= 35 ? 35 : 42
+    const nextDaysCount = totalSlots - days.length
+    for (let i = 1; i <= nextDaysCount; i++) {
+      const d = new Date(year, month + 1, i)
+      const dateKey = toLocalISO(d)
+      days.push({
+        day: i,
+        isCurrentMonth: false,
+        dateKey,
+        isToday: dateKey === todayKey,
+        isWeekend: false,
+        dayOfWeek: (d.getDay() + 6) % 7
+      })
+    }
+
+    return days
+  }, [viewDate])
+
+  const calendarEventsByDate = useMemo(() => {
+    const map = {}
+    const addEvent = (dateKey, event) => {
+      if (!dateKey) return
+      if (!map[dateKey]) map[dateKey] = []
+      map[dateKey].push(event)
+    }
+
+    const combinedOrders = [...orders]
+    Object.values(allOrdersMap).forEach(o => {
+      if (!combinedOrders.find(co => String(co.id) === String(o.id))) {
+        combinedOrders.push(o)
+      }
+    })
+
+    combinedOrders.forEach(o => {
+      const orderDeadline = toLocalISO(o.deadline)
+      if (!orderDeadline) return
+
+      const orderTasks = tasks.filter(t => String(t.order_id) === String(o.id))
+      const batches = {}
+      orderTasks.forEach(t => {
+        const key = t.batch_index || `task_${t.id}`
+        const qty = Number(t.planned_sets) || 0
+        if (!batches[key] || qty > batches[key]) {
+          batches[key] = qty
+        }
+      })
+      const totalPlanned = Object.values(batches).reduce((acc, q) => acc + q, 0)
+      const totalOrderQty = o.order_items?.reduce((sum, it) => sum + (Number(it.quantity) || 0), 0) || Number(o.quantity) || 0
+
+      const productName = o.order_items?.map(it => {
+        const nom = nomenclatures.find(n => String(n.id) === String(it.nomenclature_id))
+        return nom ? nom.name : null
+      }).filter(Boolean).join(', ') || 'Замовлення'
+
+      addEvent(orderDeadline, {
+        id: o.id,
+        orderNum: o.order_num,
+        customer: o.customer || 'Замовник не вказаний',
+        productName,
+        qty: totalOrderQty > 0 ? totalOrderQty : (totalPlanned || 1),
+        status: o.status || 'in-progress',
+        isOrder: true
+      })
+    })
+
+    tasks.filter(t => t.step === 'Розкрій' || t.step === 'Різка' || String(t.step).includes('ЦЕХ')).forEach(t => {
+      const taskDeadline = toLocalISO(t.planned_deadline || t.created_at)
+      if (!taskDeadline) return
+
+      const order = combinedOrders.find(o => String(o.id) === String(t.order_id))
+      const batchQty = Number(t.planned_sets) || 0
+
+      if (order && batchQty > 0) {
+        const productName = order.order_items?.map(it => {
+          const nom = nomenclatures.find(n => String(n.id) === String(it.nomenclature_id))
+          return nom ? nom.name : null
+        }).filter(Boolean).join(', ') || 'Партія'
+
+        const existing = (map[taskDeadline] || []).find(e => String(e.id) === String(order.id))
+        if (!existing) {
+          addEvent(taskDeadline, {
+            id: order.id,
+            taskId: t.id,
+            orderNum: `${order.order_num}${t.batch_index ? `/${t.batch_index}` : ''}`,
+            customer: order.customer || 'Партія',
+            productName,
+            qty: batchQty,
+            status: t.status === 'completed' ? 'completed' : 'in-progress',
+            isBatch: true
+          })
+        }
+      }
+    })
+
+    return map
+  }, [orders, allOrdersMap, tasks, nomenclatures])
 
   // ── Load orders for ALL tasks in state (pagination-independent) ───────────────
   useEffect(() => {
@@ -78,22 +231,6 @@ const DirectorModule = () => {
   const approvedCount = tasks.filter(t => t.status === 'waiting' && t.director_conf).length
 
   // 2. Matrix Data Preparation
-  const toLocalISO = (dateVal) => {
-    if (!dateVal) return null
-    try {
-      if (typeof dateVal === 'string' && dateVal.includes('.')) {
-        const [d, m, y] = dateVal.split('.')
-        return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
-      }
-      const d = new Date(dateVal)
-      if (isNaN(d.getTime())) return null
-      const year = d.getFullYear()
-      const mon = String(d.getMonth() + 1).padStart(2, '0')
-      const day = String(d.getDate()).padStart(2, '0')
-      return `${year}-${mon}-${day}`
-    } catch (e) { return null }
-  }
-
   const daysInMonth = useMemo(() => {
     const year = viewDate.getFullYear()
     const month = viewDate.getMonth()
@@ -284,6 +421,21 @@ const DirectorModule = () => {
           </div>
 
           <div className="header-meta-actions">
+            <div className="gcal-view-toggle-group">
+              <button
+                className={`gcal-toggle-btn ${viewMode === 'calendar' ? 'active' : ''}`}
+                onClick={() => setViewMode('calendar')}
+              >
+                <Calendar size={16} /> <span>КАЛЕНДАР</span>
+              </button>
+              <button
+                className={`gcal-toggle-btn ${viewMode === 'matrix' ? 'active' : ''}`}
+                onClick={() => setViewMode('matrix')}
+              >
+                <Layers size={16} /> <span>МАТРИЦЯ</span>
+              </button>
+            </div>
+
             <button onClick={() => setViewDate(new Date())} className="btn-jump-today">
               <Calendar size={16} />
               <span>СЬОГОДНІ</span>
@@ -302,124 +454,194 @@ const DirectorModule = () => {
       </div>
 
       <main className="dashboard-body">
-        <div className="matrix-section">
-          <div className="matrix-content-area">
-            <table className="production-grid">
-              <thead>
-                <tr>
-                  <th className="sticky-col-strategic first-col">ДАТА</th>
-                  {activeProducts.map(p => (
-                    <th
-                      key={p.id}
-                      className={`product-head ${hoveredPid === p.id ? 'col-highlight' : ''}`}
-                      onMouseEnter={() => setHoveredPid(p.id)}
-                      onMouseLeave={() => setHoveredPid(null)}
-                    >
-                      <div className="product-name-horizontal">{p.name}</div>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {daysInMonth.map(day => {
-                   const isToday = day.fullDate === toLocalISO(new Date())
-                  const isWeekend = day.weekday === 'сб' || day.weekday === 'нд'
+        {viewMode === 'calendar' ? (
+          <div className="google-calendar-container">
+            <div className="gcal-weekdays-header">
+              {['ПН', 'ВТ', 'СР', 'ЧТ', 'ПТ', 'СБ', 'НД'].map((dayName, idx) => (
+                <div key={dayName} className={`gcal-weekday-head ${idx >= 5 ? 'weekend' : ''}`}>
+                  {dayName}
+                </div>
+              ))}
+            </div>
 
-                  return (
-                    <tr key={day.day} className={`matrix-row ${isToday ? 'is-today' : ''} ${isWeekend ? 'is-weekend' : ''}`}>
-                      <td className="sticky-col-strategic date-col">
-                        <div className="date-block-compact">
-                          <span className="day-num-small">{day.day}</span>
-                          <span className="day-name-small">{day.weekday}</span>
-                        </div>
-                      </td>
-                      {activeProducts.map(p => {
-                        const cellOrders = matrixData[day.fullDate]?.[p.id] || []
-                        const totalQty = cellOrders.reduce((sum, o) => sum + o.qty, 0)
+            <div className="gcal-month-grid">
+              {calendarGridDays.map((cell, idx) => {
+                const dayEvents = calendarEventsByDate[cell.dateKey] || []
+                const totalDayQty = dayEvents.reduce((acc, e) => acc + (Number(e.qty) || 0), 0)
 
-                        // Heatmap logic: intensity based on quantity
-                        let intensity = 0;
-                        if (totalQty > 0) {
-                          intensity = Math.min(0.2 + (totalQty / 500) * 0.8, 1);
-                        }
+                return (
+                  <div
+                    key={idx}
+                    className={`gcal-day-cell ${!cell.isCurrentMonth ? 'other-month' : ''} ${cell.isToday ? 'today' : ''} ${cell.isWeekend ? 'weekend' : ''}`}
+                    onClick={() => {
+                      if (dayEvents.length > 0) {
+                        setSelectedCell({ day: { day: cell.day, fullDate: cell.dateKey }, orders: dayEvents })
+                        if (dayEvents.length === 1) setSelectedOrderId(dayEvents[0].id)
+                      }
+                    }}
+                  >
+                    <div className="gcal-day-top">
+                      <span className={`gcal-day-num ${cell.isToday ? 'today-badge' : ''}`}>
+                        {cell.day}
+                      </span>
+                      {cell.isToday && <span className="today-label">СЬОГОДНІ</span>}
+                      {totalDayQty > 0 && (
+                        <span className="gcal-day-qty-badge">
+                          {totalDayQty.toLocaleString()} шт
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="gcal-events-list">
+                      {dayEvents.map((evt, eIdx) => {
+                        const statusColor = evt.status === 'completed' || evt.status === 'shipped' || evt.status === 'packaged'
+                          ? '#10b981'
+                          : (evt.status === 'pending' ? '#38bdf8' : '#ff9000')
 
                         return (
-                          <td
-                            key={p.id}
-                            className={`analysis-cell ${totalQty > 0 ? 'has-data' : ''} ${hoveredPid === p.id ? 'col-highlight' : ''}`}
-                            style={totalQty > 0 ? {
-                              '--load-intensity': intensity,
-                              backgroundColor: `rgba(255, 144, 0, ${intensity * 0.15})`,
-                              verticalAlign: 'top' // To align lists to the top
-                            } : {}}
-                            onMouseEnter={() => setHoveredPid(p.id)}
-                            onMouseLeave={() => setHoveredPid(null)}
+                          <div
+                            key={eIdx}
+                            className="gcal-event-card"
+                            style={{ borderLeftColor: statusColor }}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setSelectedOrderId(evt.id)
+                            }}
                           >
-                            {totalQty > 0 && (
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', padding: '12px' }}>
-                                <div style={{ display: 'flex', justifyContent: 'flex-start', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '8px' }}>
-                                  <span style={{ fontSize: '0.65rem', fontWeight: 900, color: '#ff9000', letterSpacing: '1px' }}>РАЗОМ: <span style={{ fontSize: '1rem', color: '#fff' }}>{totalQty}</span></span>
-                                </div>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                  {cellOrders.map((o, idx) => (
-                                    <div 
-                                      key={idx} 
-                                      onClick={(e) => { 
-                                        e.stopPropagation()
-                                        setSelectedCell({ day, product: p, orders: cellOrders })
-                                        setSelectedOrderId(o.id)
-                                      }}
-                                      style={{ 
-                                        background: 'rgba(5,5,5,0.6)', 
-                                        borderRadius: '8px', 
-                                        padding: '10px', 
-                                        display: 'flex', 
-                                        flexDirection: 'column', 
-                                        alignItems: 'flex-start', 
-                                        cursor: 'pointer', 
-                                        border: '1px solid rgba(255,144,0,0.15)',
-                                        transition: 'all 0.2s'
-                                      }}
-                                      onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,144,0,0.1)'; e.currentTarget.style.borderColor = '#ff9000'; }}
-                                      onMouseLeave={e => { e.currentTarget.style.background = 'rgba(5,5,5,0.6)'; e.currentTarget.style.borderColor = 'rgba(255,144,0,0.15)'; }}
-                                    >
-                                      <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', marginBottom: '4px' }}>
-                                        <span style={{ fontSize: '0.7rem', color: '#ff9000', fontWeight: 900 }}>#{o.orderNum}</span>
-                                        <span style={{ fontSize: '0.8rem', color: '#fff', fontWeight: 900 }}>{o.qty} шт</span>
-                                      </div>
-                                      <span style={{ fontSize: '0.75rem', color: '#aaa', fontWeight: 600, textAlign: 'left', lineHeight: 1.2 }}>{o.customer}</span>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                          </td>
+                            <div className="gcal-event-head">
+                              <span className="gcal-event-num">#{evt.orderNum}</span>
+                              <span className="gcal-event-qty">{evt.qty} шт</span>
+                            </div>
+                            <div className="gcal-event-prod">{evt.productName}</div>
+                            <div className="gcal-event-cust">{evt.customer}</div>
+                          </div>
                         )
                       })}
-                    </tr>
-                  )
-                })}
-              </tbody>
-              <tfoot className="strategic-footer">
-                <tr>
-                  <td className="sticky-col-strategic footer-label-cell">РАЗОМ ПЛАН</td>
-                  {activeProducts.map(p => {
-                    const totalMonthQty = daysInMonth.reduce((sum, day) => {
-                      const dayOrders = matrixData[day.fullDate]?.[p.id] || []
-                      return sum + dayOrders.reduce((s, o) => s + o.qty, 0)
-                    }, 0)
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        ) : (
+          <div className="matrix-section">
+            <div className="matrix-content-area">
+              <table className="production-grid">
+                <thead>
+                  <tr>
+                    <th className="sticky-col-strategic first-col">ДАТА</th>
+                    {activeProducts.map(p => (
+                      <th
+                        key={p.id}
+                        className={`product-head ${hoveredPid === p.id ? 'col-highlight' : ''}`}
+                        onMouseEnter={() => setHoveredPid(p.id)}
+                        onMouseLeave={() => setHoveredPid(null)}
+                      >
+                        <div className="product-name-horizontal">{p.name}</div>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {daysInMonth.map(day => {
+                    const isToday = day.fullDate === toLocalISO(new Date())
+                    const isWeekend = day.weekday === 'сб' || day.weekday === 'нд'
 
                     return (
-                      <td key={p.id} className="footer-total-cell">
-                        {totalMonthQty > 0 ? <span className="month-sum">{totalMonthQty}</span> : '-'}
-                      </td>
+                      <tr key={day.day} className={`matrix-row ${isToday ? 'is-today' : ''} ${isWeekend ? 'is-weekend' : ''}`}>
+                        <td className="sticky-col-strategic date-col">
+                          <div className="date-block-compact">
+                            <span className="day-num-small">{day.day}</span>
+                            <span className="day-name-small">{day.weekday}</span>
+                          </div>
+                        </td>
+                        {activeProducts.map(p => {
+                          const cellOrders = matrixData[day.fullDate]?.[p.id] || []
+                          const totalQty = cellOrders.reduce((sum, o) => sum + o.qty, 0)
+
+                          let intensity = 0;
+                          if (totalQty > 0) {
+                            intensity = Math.min(0.2 + (totalQty / 500) * 0.8, 1);
+                          }
+
+                          return (
+                            <td
+                              key={p.id}
+                              className={`analysis-cell ${totalQty > 0 ? 'has-data' : ''} ${hoveredPid === p.id ? 'col-highlight' : ''}`}
+                              style={totalQty > 0 ? {
+                                '--load-intensity': intensity,
+                                backgroundColor: `rgba(255, 144, 0, ${intensity * 0.15})`,
+                                verticalAlign: 'top'
+                              } : {}}
+                              onMouseEnter={() => setHoveredPid(p.id)}
+                              onMouseLeave={() => setHoveredPid(null)}
+                            >
+                              {totalQty > 0 && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', padding: '12px' }}>
+                                  <div style={{ display: 'flex', justifyContent: 'flex-start', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '8px' }}>
+                                    <span style={{ fontSize: '0.65rem', fontWeight: 900, color: '#ff9000', letterSpacing: '1px' }}>РАЗОМ: <span style={{ fontSize: '1rem', color: '#fff' }}>{totalQty}</span></span>
+                                  </div>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                    {cellOrders.map((o, idx) => (
+                                      <div 
+                                        key={idx} 
+                                        onClick={(e) => { 
+                                          e.stopPropagation()
+                                          setSelectedCell({ day, product: p, orders: cellOrders })
+                                          setSelectedOrderId(o.id)
+                                        }}
+                                        style={{ 
+                                          background: 'rgba(5,5,5,0.6)', 
+                                          borderRadius: '8px', 
+                                          padding: '10px', 
+                                          display: 'flex', 
+                                          flexDirection: 'column', 
+                                          alignItems: 'flex-start', 
+                                          cursor: 'pointer', 
+                                          border: '1px solid rgba(255,144,0,0.15)',
+                                          transition: 'all 0.2s'
+                                        }}
+                                        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,144,0,0.1)'; e.currentTarget.style.borderColor = '#ff9000'; }}
+                                        onMouseLeave={e => { e.currentTarget.style.background = 'rgba(5,5,5,0.6)'; e.currentTarget.style.borderColor = 'rgba(255,144,0,0.15)'; }}
+                                      >
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', marginBottom: '4px' }}>
+                                          <span style={{ fontSize: '0.7rem', color: '#ff9000', fontWeight: 900 }}>#{o.orderNum}</span>
+                                          <span style={{ fontSize: '0.8rem', color: '#fff', fontWeight: 900 }}>{o.qty} шт</span>
+                                        </div>
+                                        <span style={{ fontSize: '0.75rem', color: '#aaa', fontWeight: 600, textAlign: 'left', lineHeight: 1.2 }}>{o.customer}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </td>
+                          )
+                        })}
+                      </tr>
                     )
                   })}
-                </tr>
-              </tfoot>
-            </table>
+                </tbody>
+                <tfoot className="strategic-footer">
+                  <tr>
+                    <td className="sticky-col-strategic footer-label-cell">РАЗОМ ПЛАН</td>
+                    {activeProducts.map(p => {
+                      const totalMonthQty = daysInMonth.reduce((sum, day) => {
+                        const dayOrders = matrixData[day.fullDate]?.[p.id] || []
+                        return sum + dayOrders.reduce((s, o) => s + o.qty, 0)
+                      }, 0)
+
+                      return (
+                        <td key={p.id} className="footer-total-cell">
+                          {totalMonthQty > 0 ? <span className="month-sum">{totalMonthQty}</span> : '-'}
+                        </td>
+                      )
+                    })}
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
           </div>
-        </div>
+        )}
       </main>
 
       {/* APPROVALS DRAWER */}
@@ -436,9 +658,34 @@ const DirectorModule = () => {
 
             <div className="drawer-body">
               {pendingTasks.map(task => {
-                const order = orders.find(o => o.id === task.order_id)
+                const order = orders.find(o => String(o.id) === String(task.order_id)) || allOrdersMap[task.order_id]
                 const isSkladOk = task.warehouse_conf === 'true' || task.warehouse_conf === 'partial'
                 const isEngOk = task.engineer_conf === true
+
+                const orderItems = order?.order_items || []
+                let prodName = ''
+                let prodQty = ''
+
+                if (orderItems.length > 0) {
+                  prodName = orderItems.map(it => {
+                    const nom = nomenclatures.find(n => String(n.id) === String(it.nomenclature_id))
+                    return nom ? nom.name : null
+                  }).filter(Boolean).join(', ')
+
+                  const totalItemQty = orderItems.reduce((sum, it) => sum + (Number(it.quantity) || 0), 0)
+                  prodQty = task.planned_sets ? `${task.planned_sets} компл.` : (totalItemQty > 0 ? `${totalItemQty} шт` : '')
+                }
+
+                if (!prodName && order?.nomenclature_id) {
+                  const nom = nomenclatures.find(n => String(n.id) === String(order.nomenclature_id))
+                  if (nom) prodName = nom.name
+                }
+
+                if (!prodQty && task.planned_sets) {
+                  prodQty = `${task.planned_sets} компл.`
+                }
+
+                if (!prodName) prodName = '—'
 
                 return (
                   <div key={task.id} className="approval-card glass-panel">
@@ -450,6 +697,20 @@ const DirectorModule = () => {
                       </div>
                       <div className="order-time">
                         <Clock size={14} /> {new Date(task.created_at).toLocaleDateString()}
+                      </div>
+                    </div>
+
+                    <div className="order-product-badge-block" style={{ marginBottom: '16px', padding: '12px 14px', background: 'rgba(255, 144, 0, 0.06)', border: '1px solid rgba(255, 144, 0, 0.2)', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.62rem', fontWeight: 900, color: '#ff9000', textTransform: 'uppercase', letterSpacing: '0.5px' }}>ВИРІБ / ПРОДУКЦІЯ</span>
+                        {prodQty && (
+                          <span style={{ fontSize: '0.82rem', fontWeight: 950, color: '#10b981', background: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '2px 8px', borderRadius: '6px' }}>
+                            {prodQty}
+                          </span>
+                        )}
+                      </div>
+                      <div className="opbb-name" style={{ fontSize: '0.95rem', fontWeight: 950, color: 'var(--text, #ffffff)', lineHeight: 1.3 }}>
+                        {prodName}
                       </div>
                     </div>
 
@@ -789,7 +1050,7 @@ const DirectorModule = () => {
         @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800;900&display=swap');
 
         .director-console {
-          background: #050505; height: 100vh; color: #fff;
+          background: var(--bg, #050505); height: 100vh; color: var(--text, #fff);
           font-family: 'Outfit', sans-serif; display: flex; flex-direction: column; width: 100%;
           overflow: hidden;
         }
@@ -979,9 +1240,9 @@ const DirectorModule = () => {
         .modal-body { padding: 0; }
 
         /* DOSSIER DASHBOARD */
-        .order-dossier-dashboard { height: 80vh; overflow-y: auto; display: flex; flex-direction: column; background: #050505; }
-        .dossier-main-grid { display: grid; grid-template-columns: 400px 1fr; gap: 2px; background: #111; flex: 1; }
-        .dossier-left, .dossier-right { display: flex; flex-direction: column; gap: 2px; background: #050505; padding: 25px; overflow-y: auto; }
+        .order-dossier-dashboard { height: 80vh; overflow-y: auto; display: flex; flex-direction: column; background: var(--bg, #050505); }
+        .dossier-main-grid { display: grid; grid-template-columns: 400px 1fr; gap: 2px; background: var(--border, #111); flex: 1; }
+        .dossier-left, .dossier-right { display: flex; flex-direction: column; gap: 2px; background: var(--bg, #050505); padding: 25px; overflow-y: auto; }
         
         .dossier-card { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.03); border-radius: 20px; padding: 25px; margin-bottom: 20px; }
         .dossier-card.header-card { background: linear-gradient(135deg, rgba(255,144,0,0.1), transparent); border-color: rgba(255,144,0,0.2); }
@@ -1149,6 +1410,427 @@ const DirectorModule = () => {
         .anim-scale-up { animation: scaleUp 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
         @keyframes scaleUp { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
+        /* GOOGLE CALENDAR VIEW STYLING (GLOBAL) */
+        .gcal-view-toggle-group {
+          display: flex;
+          background: #111;
+          border: 1px solid #222;
+          border-radius: 12px;
+          padding: 3px;
+          gap: 4px;
+        }
+        .gcal-toggle-btn {
+          background: transparent;
+          border: none;
+          color: #888;
+          padding: 7px 14px;
+          border-radius: 99px;
+          font-weight: 800;
+          font-size: 0.78rem;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          transition: all 0.2s;
+        }
+        .gcal-toggle-btn.active {
+          background: #ff9000;
+          color: #000;
+          box-shadow: 0 2px 6px rgba(255, 144, 0, 0.4);
+        }
+
+        .google-calendar-container {
+          display: flex;
+          flex-direction: column;
+          height: 100%;
+          width: 100%;
+          background: var(--bg, #050505);
+          padding: 12px 16px 24px;
+          box-sizing: border-box;
+          overflow-y: auto;
+          overflow-x: hidden;
+        }
+
+        .gcal-weekdays-header {
+          display: grid;
+          grid-template-columns: repeat(7, minmax(0, 1fr));
+          gap: 6px;
+          margin-bottom: 6px;
+          flex-shrink: 0;
+          width: 100%;
+          box-sizing: border-box;
+        }
+
+        .gcal-weekday-head {
+          text-align: center;
+          font-size: 0.75rem;
+          font-weight: 900;
+          color: #888;
+          padding: 8px 4px;
+          background: #0d0d0d;
+          border-radius: 10px;
+          border: 1px solid #1a1a1a;
+          letter-spacing: 1px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .gcal-weekday-head.weekend {
+          color: #f59e0b;
+          background: rgba(245, 158, 11, 0.06);
+          border-color: rgba(245, 158, 11, 0.2);
+        }
+
+        .gcal-month-grid {
+          display: grid;
+          grid-template-columns: repeat(7, minmax(0, 1fr));
+          grid-auto-rows: minmax(130px, 1fr);
+          gap: 6px;
+          flex: 1;
+          width: 100%;
+          box-sizing: border-box;
+        }
+
+        .gcal-day-cell {
+          background: #0d0d0d;
+          border: 1px solid #1a1a1a;
+          border-radius: 12px;
+          padding: 8px;
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+          transition: all 0.2s;
+          min-height: 120px;
+          min-width: 0;
+          position: relative;
+          cursor: pointer;
+          box-sizing: border-box;
+        }
+        .gcal-day-cell:hover {
+          border-color: #333;
+          background: #111;
+        }
+        .gcal-day-cell.other-month {
+          opacity: 0.3;
+          background: #070707;
+        }
+        .gcal-day-cell.today {
+          border-color: #ff9000;
+          background: rgba(255, 144, 0, 0.04);
+          box-shadow: inset 0 0 15px rgba(255, 144, 0, 0.05);
+        }
+        .gcal-day-cell.weekend {
+          background: #090b0d;
+        }
+
+        .gcal-day-top {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          width: 100%;
+          gap: 4px;
+        }
+
+        .gcal-day-num {
+          font-size: 0.85rem;
+          font-weight: 900;
+          color: #ccc;
+          width: 24px;
+          height: 24px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 50%;
+          flex-shrink: 0;
+        }
+        .gcal-day-num.today-badge {
+          background: #ff9000;
+          color: #000;
+          font-weight: 1000;
+        }
+        .today-label {
+          font-size: 0.58rem;
+          font-weight: 950;
+          color: #ff9000;
+          letter-spacing: 0.5px;
+        }
+
+        .gcal-day-qty-badge {
+          font-size: 0.65rem;
+          font-weight: 950;
+          color: #ff9000;
+          background: rgba(255, 144, 0, 0.12);
+          padding: 2px 5px;
+          border-radius: 5px;
+          border: 1px solid rgba(255, 144, 0, 0.2);
+          white-space: nowrap;
+        }
+
+        .gcal-events-list {
+          display: flex;
+          flex-direction: column;
+          gap: 5px;
+          overflow-y: auto;
+          max-height: 180px;
+          min-width: 0;
+        }
+
+        .gcal-event-card {
+          background: #141414;
+          border: 1px solid #222;
+          border-left-width: 4px;
+          border-radius: 8px;
+          padding: 6px 8px;
+          cursor: pointer;
+          transition: all 0.2s;
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+          min-width: 0;
+        }
+        .gcal-event-card:hover {
+          background: #1c1c1c;
+          transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+        }
+
+        .gcal-event-head {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 4px;
+        }
+        .gcal-event-num {
+          font-size: 0.72rem;
+          font-weight: 950;
+          color: #ff9000;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .gcal-event-qty {
+          font-size: 0.72rem;
+          font-weight: 900;
+          color: #fff;
+          white-space: nowrap;
+          flex-shrink: 0;
+        }
+        .gcal-event-prod {
+          font-size: 0.72rem;
+          font-weight: 800;
+          color: #e2e8f0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .gcal-event-cust {
+          font-size: 0.62rem;
+          color: #888;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        /* Light theme overrides for Director Google Calendar & Dossier */
+        .light-theme .google-calendar-container,
+        body.light-theme .google-calendar-container,
+        .light-theme .modal-body,
+        body.light-theme .modal-body,
+        .light-theme .order-dossier-dashboard,
+        body.light-theme .order-dossier-dashboard {
+          background: #f8fafc !important;
+        }
+        .light-theme .dossier-main-grid,
+        body.light-theme .dossier-main-grid {
+          background: #cbd5e1 !important;
+        }
+        .light-theme .dossier-left,
+        body.light-theme .dossier-left,
+        .light-theme .dossier-right,
+        body.light-theme .dossier-right {
+          background: #f8fafc !important;
+        }
+        .light-theme .gcal-weekday-head,
+        body.light-theme .gcal-weekday-head {
+          background: #ffffff !important;
+          border-color: #cbd5e1 !important;
+          color: #334155 !important;
+        }
+        .light-theme .gcal-day-cell,
+        body.light-theme .gcal-day-cell {
+          background: #ffffff !important;
+          border-color: #cbd5e1 !important;
+        }
+        .light-theme .gcal-day-cell:hover,
+        body.light-theme .gcal-day-cell:hover {
+          border-color: #94a3b8 !important;
+          background: #f8fafc !important;
+        }
+        .light-theme .gcal-day-cell.other-month,
+        body.light-theme .gcal-day-cell.other-month {
+          opacity: 0.45 !important;
+          background: #f1f5f9 !important;
+        }
+
+        .light-theme .gcal-day-num,
+        body.light-theme .gcal-day-num {
+          color: #0f172a !important;
+        }
+        .light-theme .gcal-day-qty-badge,
+        body.light-theme .gcal-day-qty-badge {
+          background: #fff7ed !important;
+          border-color: #fdba74 !important;
+          color: #ea580c !important;
+        }
+        .light-theme .gcal-event-card,
+        body.light-theme .gcal-event-card {
+          background: #f1f5f9 !important;
+          border-color: #cbd5e1 !important;
+        }
+        .light-theme .gcal-event-card:hover,
+        body.light-theme .gcal-event-card:hover {
+          background: #e2e8f0 !important;
+          border-color: #94a3b8 !important;
+        }
+        .light-theme .gcal-event-num,
+        body.light-theme .gcal-event-num {
+          color: #d97706 !important;
+        }
+        /* Light theme overrides for Matrix View & Approvals Drawer */
+        .light-theme .production-grid th,
+        body.light-theme .production-grid th {
+          background: #f1f5f9 !important;
+          border-bottom-color: #cbd5e1 !important;
+          border-right-color: #e2e8f0 !important;
+          color: #0f172a !important;
+        }
+        .light-theme .sticky-col-strategic,
+        body.light-theme .sticky-col-strategic {
+          background: #ffffff !important;
+          border-right-color: #cbd5e1 !important;
+        }
+        .light-theme thead th.sticky-col-strategic,
+        body.light-theme thead th.sticky-col-strategic {
+          background: #f1f5f9 !important;
+          border-bottom-color: #cbd5e1 !important;
+          border-right-color: #cbd5e1 !important;
+          color: #0f172a !important;
+        }
+        .light-theme .date-col,
+        body.light-theme .date-col {
+          background: #ffffff !important;
+        }
+        .light-theme .day-num-small,
+        body.light-theme .day-num-small {
+          color: #0f172a !important;
+        }
+        .light-theme .day-name-small,
+        body.light-theme .day-name-small {
+          color: #64748b !important;
+        }
+        .light-theme .analysis-cell,
+        body.light-theme .analysis-cell {
+          border-bottom-color: #e2e8f0 !important;
+          border-right-color: #e2e8f0 !important;
+          background: #ffffff !important;
+        }
+        .light-theme .analysis-cell:hover,
+        body.light-theme .analysis-cell:hover {
+          background: #f8fafc !important;
+        }
+        .light-theme .matrix-row.is-today .date-col,
+        body.light-theme .matrix-row.is-today .date-col {
+          background: #fff7ed !important;
+          border-right-color: #ff9000 !important;
+        }
+        .light-theme .matrix-row.is-today .day-num-small,
+        body.light-theme .matrix-row.is-today .day-num-small {
+          color: #ea580c !important;
+        }
+        .light-theme .matrix-row.is-weekend .date-col,
+        body.light-theme .matrix-row.is-weekend .date-col {
+          background: #fff1f2 !important;
+        }
+        .light-theme .matrix-row.is-weekend .day-name-small,
+        body.light-theme .matrix-row.is-weekend .day-name-small {
+          color: #e11d48 !important;
+        }
+        .light-theme .strategic-footer tr td,
+        body.light-theme .strategic-footer tr td {
+          background: #f1f5f9 !important;
+          border-top-color: #cbd5e1 !important;
+          border-right-color: #e2e8f0 !important;
+          color: #0f172a !important;
+        }
+        .light-theme .footer-label-cell,
+        body.light-theme .footer-label-cell {
+          color: #475569 !important;
+        }
+        .light-theme .drawer-overlay,
+        body.light-theme .drawer-overlay {
+          background: rgba(15, 23, 42, 0.4) !important;
+        }
+        .light-theme .drawer-content,
+        body.light-theme .drawer-content {
+          background: #ffffff !important;
+          border-left-color: #cbd5e1 !important;
+          color: #0f172a !important;
+          box-shadow: -10px 0 40px rgba(15, 23, 42, 0.15) !important;
+        }
+        .light-theme .drawer-header,
+        body.light-theme .drawer-header {
+          border-bottom-color: #e2e8f0 !important;
+        }
+        .light-theme .header-title h3,
+        body.light-theme .header-title h3 {
+          color: #0f172a !important;
+        }
+        .light-theme .approval-card,
+        body.light-theme .approval-card {
+          background: #f8fafc !important;
+          border-color: #cbd5e1 !important;
+          color: #0f172a !important;
+        }
+        .light-theme .order-label,
+        body.light-theme .order-label {
+          color: #64748b !important;
+        }
+        .light-theme .order-num,
+        body.light-theme .order-num {
+          color: #0f172a !important;
+        }
+        .light-theme .order-cust,
+        body.light-theme .order-cust {
+          color: #475569 !important;
+        }
+        .light-theme .order-time,
+        body.light-theme .order-time {
+          color: #64748b !important;
+        }
+        .light-theme .order-product-badge-block,
+        body.light-theme .order-product-badge-block {
+          background: #fff7ed !important;
+          border-color: #fed7aa !important;
+        }
+        .light-theme .opbb-name,
+        body.light-theme .opbb-name {
+          color: #0f172a !important;
+        }
+        .light-theme .check-item.pending,
+        body.light-theme .check-item.pending {
+          background: #ffffff !important;
+          color: #64748b !important;
+          border-color: #cbd5e1 !important;
+        }
+        .light-theme .gcal-event-prod,
+        body.light-theme .gcal-event-prod {
+          color: #0f172a !important;
+        }
+        .light-theme .gcal-event-cust,
+        body.light-theme .gcal-event-cust {
+          color: #475569 !important;
+        }
+
         @media (max-width: 768px) {
           .drawer-content { width: 100%; }
           .modal-content { width: 95vw; max-width: 95vw; border-radius: 20px; }
@@ -1206,6 +1888,18 @@ const DirectorModule = () => {
           }
           .analysis-summary-mini {
             font-size: 0.7rem;
+          }
+
+          .google-calendar-container {
+            padding: 10px;
+          }
+          .gcal-month-grid {
+            grid-auto-rows: minmax(90px, 1fr);
+            gap: 4px;
+          }
+          .gcal-day-cell {
+            padding: 6px;
+            min-height: 90px;
           }
 
           /* Table details modal stacking */

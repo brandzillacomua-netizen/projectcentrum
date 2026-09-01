@@ -24,6 +24,8 @@ export const buildScrapModel = (cards = [], historyRows = []) => {
   const cardById = buildCardIndex(cards)
   const cardScrap = {}
   const scrapByTask = {}
+  // pendingVkyaByTask: scrap rows still in VKYA review (is_archived_scrap === false explicitly)
+  const pendingVkyaByTask = {}
   const scrapRows = []
 
   historyRows.forEach(row => {
@@ -31,17 +33,36 @@ export const buildScrapModel = (cards = [], historyRows = []) => {
     if (scrapQty <= 0) return
 
     const card = row.card_id ? cardById.get(asId(row.card_id)) : null
-    const taskId = asId(card?.task_id)
+    const taskId = asId(card?.task_id || row.task_id)
     const nomId = asId(row.nomenclature_id || card?.nomenclature_id)
     if (!taskId || !nomId) return
 
     cardScrap[asId(row.card_id)] = (cardScrap[asId(row.card_id)] || 0) + scrapQty
     if (!scrapByTask[taskId]) scrapByTask[taskId] = {}
     scrapByTask[taskId][nomId] = (scrapByTask[taskId][nomId] || 0) + scrapQty
+
+    // Track rows that are explicitly NOT yet archived by VKYA (still in quarantine/review)
+    // is_archived_scrap === false means the VKYA inspector has NOT yet closed this case
+    if (row.is_archived_scrap === false) {
+      if (!pendingVkyaByTask[taskId]) pendingVkyaByTask[taskId] = {}
+      pendingVkyaByTask[taskId][nomId] = (pendingVkyaByTask[taskId][nomId] || 0) + scrapQty
+    }
+
     scrapRows.push({ ...row, scrapQty, card, taskId, nomId })
   })
 
-  return { cardById, cardScrap, scrapByTask, scrapRows }
+  // Also count cards physically in quality-hold status by task+nom
+  const qualityHoldCardsByTask = {}
+  cards.forEach(card => {
+    if (card?.status !== 'quality-hold') return
+    const taskId = asId(card.task_id)
+    const nomId = asId(card.nomenclature_id)
+    if (!taskId || !nomId) return
+    if (!qualityHoldCardsByTask[taskId]) qualityHoldCardsByTask[taskId] = {}
+    qualityHoldCardsByTask[taskId][nomId] = (qualityHoldCardsByTask[taskId][nomId] || 0) + asNumber(card.quantity)
+  })
+
+  return { cardById, cardScrap, scrapByTask, pendingVkyaByTask, qualityHoldCardsByTask, scrapRows }
 }
 
 export const summarizeScrap = (scrapRows = [], nomenclatures = []) => {

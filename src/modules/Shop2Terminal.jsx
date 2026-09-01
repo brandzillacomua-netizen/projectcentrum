@@ -76,6 +76,29 @@ const Shop2Terminal = () => {
   }
 
   const { workCards, orders, nomenclatures, inventory, startWorkCard, confirmBuffer, fetchData, refreshTable, operators, getFilteredOperators, getFilteredManagers, managers, workCardHistory, handoverToSGP, currentUser, systemUsers, tasks } = useMES()
+
+  const shop2TaskIdsSet = React.useMemo(() => {
+    const set = new Set()
+    ;(tasks || []).forEach(t => {
+      const step = String(t.step || '').toLowerCase()
+      const name = String(t.name || '').toLowerCase()
+      if (step.includes('цех №2') || step.includes('цех 2') || step.includes('пресування') || step.includes('фарбування') || step.includes('маляр') ||
+          name.includes('цех №2') || name.includes('цех 2') || name.includes('пресування') || name.includes('фарбування') || name.includes('маляр')) {
+        set.add(String(t.id))
+      }
+    })
+    return set
+  }, [tasks])
+
+  const isShop2Card = React.useCallback((card) => {
+    if (!card) return false
+    if (shop2TaskIdsSet.has(String(card.task_id))) return true
+    const info = String(card.card_info || '')
+    if (info.includes('[SHOP:2]') || info.includes('[ЦЕХ №2]') || info.includes('[ЦЕХ 2]')) return true
+    const op = String(card.operation || '')
+    if (['Пресування', 'Фарбування', 'Малярка', 'Доопрацювання', 'Пакування'].includes(op)) return true
+    return false
+  }, [shop2TaskIdsSet])
   const [selectedCardId, setSelectedCardId] = useState(null)
   const [manualId, setManualId] = useState('')
   const [selectedStage, setSelectedStage] = useState('')
@@ -109,6 +132,7 @@ const Shop2Terminal = () => {
   const [detailTab, setDetailTab] = useState('work')
   const [showStorageExplorer, setShowStorageExplorer] = useState(false)
   const [activeExplorerTab, setActiveExplorerTab] = useState('semi')
+  const [bufferSearchQuery, setBufferSearchQuery] = useState('')
   // Admin Manual Card State
   const isAdmin = currentUser?.position === 'Адмін' || currentUser?.role === 'admin'
   const [showAdminCardModal, setShowAdminCardModal] = useState(false)
@@ -754,80 +778,325 @@ const Shop2Terminal = () => {
     </div>
   )
 
-  const renderStorageExplorer = () => {
-    const explorerTabs = [
-      { id: 'semi', label: 'ДЕТАЛІ (ПОТРЕБА)', icon: <Package size={14} />, color: '#8b5cf6', type: 'semi_shop2' },
-      { id: 'bz', label: 'ЗАПАС (БЗ)', icon: <Layers size={14} />, color: '#eab308', type: 'bz_shop2' }
-    ]
-    const filteredItems = (inventory || []).filter(i => {
-      if (activeExplorerTab === 'bz') return i.type === 'bz_shop2'
-      return i.type === 'semi_shop2'
+  
+  const calculateTotalBufferParts = () => {
+    let totalBufferPartsCount = 0;
+
+    (workCards || []).forEach(card => {
+      if (isShop2Card(card)) return
+      const op = String(card.operation || '')
+      const status = String(card.status || '')
+      const isSortedOrBuffer = status === 'at-shop2-buffer'
+
+      if (isSortedOrBuffer) {
+        const qty = Number(card.quantity || 0)
+        const used = Number(card.used_in_shop2_qty || 0)
+        totalBufferPartsCount += Math.max(0, qty - used)
+      }
     })
 
+    return totalBufferPartsCount
+  }
+
+  const renderStorageExplorer = () => {
+    // 1. Collect all active buffer cards for Route 1 (at-shop2-buffer) & Route 2 (VKYA return / rework)
+    const bufferCards = (workCards || []).filter(c => {
+      if (isShop2Card(c)) return false
+      const status = String(c.status || '')
+      return status === 'at-shop2-buffer'
+    })
+
+    // 2. Group buffer items by Task ID / Order
+    const taskGroups = {}
+
+    bufferCards.forEach(card => {
+      const qty = Number(card.quantity || 0)
+      const used = Number(card.used_in_shop2_qty || 0)
+      const avail = Math.max(0, qty - used)
+      if (avail <= 0) return
+
+      const taskId = card.task_id || 'unassigned'
+      if (!taskGroups[taskId]) {
+        const taskObj = (tasks || []).find(t => String(t.id) === String(taskId))
+        const orderObj = (orders || []).find(o => String(o.id) === String(card.order_id || taskObj?.order_id))
+        const rawNum = orderObj?.order_num || taskObj?.order_num || card.card_info?.match(/Наряд №(\d+(?:-\d+)?)/)?.[1] || 'Вільний запас'
+        const orderNumStr = String(rawNum)
+        const displayNum = orderNumStr.startsWith('№') || orderNumStr.includes('Вільний') || orderNumStr.includes('Загальний')
+          ? orderNumStr
+          : `Наряд №${orderNumStr}`
+
+        taskGroups[taskId] = {
+          taskId,
+          orderNum: displayNum,
+          items: {}
+        }
+      }
+
+      const nomId = card.nomenclature_id
+      if (!taskGroups[taskId].items[nomId]) {
+        const nom = (nomenclatures || []).find(n => String(n.id) === String(nomId))
+        
+        // Calculate Shop 2 scrap for this part / order
+        let scrapQty = 0
+        ;(workCards || []).forEach(sc => {
+          if (isShop2Card(sc) && String(sc.nomenclature_id) === String(nomId)) {
+            if (!card.order_id || String(sc.order_id) === String(card.order_id)) {
+              scrapQty += Number(sc.scrap_qty || 0)
+            }
+          }
+        })
+
+        taskGroups[taskId].items[nomId] = {
+          nomId,
+          name: nom?.name || 'Деталь',
+          unit: nom?.unit || 'шт',
+          material: nom?.material_type || nom?.material || '—',
+          rawReceived: 0,
+          total_qty: 0,
+          scrapQty,
+          cardCount: 0,
+          updated_at: card.created_at
+        }
+      }
+      taskGroups[taskId].items[nomId].rawReceived += qty
+      taskGroups[taskId].items[nomId].total_qty += avail
+      taskGroups[taskId].items[nomId].cardCount += 1
+    })
+
+    const rawGroupList = Object.values(taskGroups).filter(g => Object.keys(g.items).length > 0)
+
+    // Calculate Summary KPIs
+    let totalBufferPartsCount = 0
+    let totalNomenclaturesCount = 0
+    const nomSet = new Set()
+
+    rawGroupList.forEach(group => {
+      Object.values(group.items).forEach(item => {
+        if (item.total_qty > 0) {
+          totalBufferPartsCount += item.total_qty
+          nomSet.add(item.nomId)
+        }
+      })
+    })
+    totalNomenclaturesCount = nomSet.size
+
+    const streamingIncoming = (workCards || [])
+      .filter(c => c.status === 'at-shop2-buffer')
+      .reduce((a, c) => a + (Number(c.quantity) || 0) - (Number(c.used_in_shop2_qty) || 0), 0)
+
+    const totalIncoming = (inventory || [])
+      .filter(i => i.type === 'semi_shop2' || i.type === 'bz_shop2')
+      .reduce((a, i) => a + (Number(i.total_qty) || 0), 0)
+
+    const totalTakenInShop2 = (workCards || [])
+      .filter(c => c.card_info?.includes('[ЦЕХ №2]') && (c.status === 'in-progress' || c.status === 'at-buffer' || c.status === 'waiting-buffer'))
+      .reduce((a, c) => a + (Number(c.quantity) || 0), 0)
+
+    const netAvailableForRK = streamingIncoming > 0 ? streamingIncoming : Math.max(0, totalIncoming - totalTakenInShop2)
+
+    // Filter groups by bufferSearchQuery if present
+    const q = String(bufferSearchQuery || '').trim().toLowerCase()
+    const groupList = rawGroupList.map(group => {
+      if (!q) return group
+      const matchesGroupTitle = group.orderNum.toLowerCase().includes(q)
+      if (matchesGroupTitle) return group
+      
+      const filteredItems = {}
+      Object.entries(group.items).forEach(([nid, item]) => {
+        if (item.name.toLowerCase().includes(q) || (item.material && item.material.toLowerCase().includes(q))) {
+          filteredItems[nid] = item
+        }
+      })
+      return { ...group, items: filteredItems }
+    }).filter(g => Object.keys(g.items).length > 0)
+
     return (
-      <div style={{ position: 'fixed', inset: 0, zIndex: 10000, background: '#0a0a0a', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ padding: '20px', borderBottom: '1px solid #111', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{ background: '#8b5cf620', padding: '8px', borderRadius: '10px' }}><Package size={20} color="#8b5cf6" /></div>
+      <div style={{
+        position: 'fixed', inset: 0, zIndex: 10000,
+        background: 'var(--bg-primary, #0a0a0a)',
+        display: 'flex', flexDirection: 'column',
+        color: 'var(--text-primary, #ffffff)'
+      }}>
+        {/* Header */}
+        <div style={{
+          padding: '18px 25px',
+          background: 'var(--card-bg, #ffffff)',
+          borderBottom: '1px solid var(--border-color, #e2e8f0)',
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <div style={{ background: 'rgba(139, 92, 246, 0.12)', border: '1px solid rgba(139, 92, 246, 0.3)', padding: '10px', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Package size={22} color="#8b5cf6" />
+            </div>
             <div>
-              <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 1000 }}>БУФЕР ЦЕХУ №2</h2>
-              <div style={{ fontSize: '0.6rem', color: '#444', fontWeight: 800, textTransform: 'uppercase' }}>Надходження з дільниці розкрою</div>
+              <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 950, letterSpacing: '-0.01em', color: 'var(--text-primary, #0f172a)' }}>
+                БУФЕР ЦЕХУ №2
+              </h2>
+              <div style={{ fontSize: '0.64rem', color: 'var(--text-muted, #64748b)', fontWeight: 850, textTransform: 'uppercase', marginTop: '2px', letterSpacing: '0.5px' }}>
+                Надходження деталей з Розкрою / Сортування / ВКЯ
+              </div>
             </div>
           </div>
-          <button onClick={() => setShowStorageExplorer(false)} style={{ background: '#1a1a1a', border: 'none', color: '#fff', width: '40px', height: '40px', borderRadius: '12px', cursor: 'pointer' }}>
+
+          {/* Search Control Bar */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, maxWidth: '420px' }}>
+            <div style={{ position: 'relative', width: '100%' }}>
+              <Search size={16} color="var(--text-muted, #64748b)" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)' }} />
+              <input
+                type="text"
+                placeholder="Пошук по деталях або № наряду..."
+                value={bufferSearchQuery}
+                onChange={e => setBufferSearchQuery(e.target.value)}
+                style={{
+                  width: '100%',
+                  background: 'var(--bg-secondary, #f8fafc)',
+                  border: '1px solid var(--border-color, #cbd5e1)',
+                  color: 'var(--text-primary, #0f172a)',
+                  padding: '9px 14px 9px 38px',
+                  borderRadius: '12px',
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  outline: 'none'
+                }}
+              />
+              {bufferSearchQuery && (
+                <X
+                  size={14}
+                  color="var(--text-muted, #64748b)"
+                  onClick={() => setBufferSearchQuery('')}
+                  style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', cursor: 'pointer' }}
+                />
+              )}
+            </div>
+          </div>
+
+          <button onClick={() => setShowStorageExplorer(false)} style={{ background: 'var(--bg-secondary, #f1f5f9)', border: '1px solid var(--border-color, #cbd5e1)', color: 'var(--text-primary, #0f172a)', width: '40px', height: '40px', borderRadius: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <X size={20} />
           </button>
         </div>
 
-        <div style={{ display: 'flex', gap: '8px', padding: '15px 20px', background: '#0d0d0d' }}>
-          {explorerTabs.map(t => (
-            <button key={t.id} onClick={() => setActiveExplorerTab(t.id)}
-              style={{
-                flex: 1, background: activeExplorerTab === t.id ? t.color : '#0a0a0a',
-                color: activeExplorerTab === t.id ? '#000' : '#444', border: 'none',
-                padding: '12px', borderRadius: '12px', fontWeight: 900, fontSize: '0.65rem',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-                transition: 'all 0.2s', cursor: 'pointer'
-              }}>
-              {t.icon} {t.label}
-            </button>
-          ))}
+        {/* Summary KPI Bar — EXACTLY 2 CARDS */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+          gap: '14px',
+          padding: '14px 25px',
+          background: 'var(--bg-secondary, #f8fafc)',
+          borderBottom: '1px solid var(--border-color, #e2e8f0)'
+        }}>
+          {/* Card 1: Нарядів у буфері */}
+          <div style={{ background: 'var(--card-bg, #ffffff)', border: '1px solid var(--border-color, #e2e8f0)', borderRadius: '12px', padding: '14px 20px', display: 'flex', alignItems: 'center', gap: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.03)' }}>
+            <ClipboardList size={22} color="#8b5cf6" />
+            <div>
+              <div style={{ color: 'var(--text-muted, #64748b)', fontSize: '0.62rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px' }}>НАРЯДІВ У БУФЕРІ</div>
+              <div style={{ color: 'var(--text-primary, #0f172a)', fontSize: '1.25rem', fontWeight: 950, marginTop: '2px' }}>{rawGroupList.filter(g => g.taskId !== 'unassigned').length} нарядів</div>
+            </div>
+          </div>
+
+          {/* Card 2: Вільних деталей у буфері */}
+          <div style={{ background: 'var(--card-bg, #ffffff)', border: '1px solid rgba(139, 92, 246, 0.4)', borderRadius: '12px', padding: '14px 20px', display: 'flex', alignItems: 'center', gap: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.03)' }}>
+            <Play size={22} color="#8b5cf6" />
+            <div>
+              <div style={{ color: '#8b5cf6', fontSize: '0.62rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px' }}>ВІЛЬНИХ ДЕТАЛЕЙ У БУФЕРІ</div>
+              <div style={{ color: '#8b5cf6', fontSize: '1.25rem', fontWeight: 950, marginTop: '2px' }}>{totalBufferPartsCount.toLocaleString('uk-UA')} шт</div>
+            </div>
+          </div>
         </div>
 
-        <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '15px' }}>
-            {Object.values(filteredItems.reduce((acc, item) => {
-              if (!acc[item.nomenclature_id]) {
-                acc[item.nomenclature_id] = { ...item }
-              } else {
-                acc[item.nomenclature_id].total_qty = (Number(acc[item.nomenclature_id].total_qty) || 0) + (Number(item.total_qty) || 0)
-                if (new Date(item.updated_at) > new Date(acc[item.nomenclature_id].updated_at)) {
-                  acc[item.nomenclature_id].updated_at = item.updated_at
-                }
-              }
-              return acc
-            }, {})).filter(item => Number(item.total_qty) > 0).map(item => {
-              const nom = nomenclatures.find(n => n.id === item.nomenclature_id)
-              return (
-                <div key={item.id} style={{ background: '#111', borderRadius: '18px', padding: '18px', border: '1px solid #1a1a1a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: '0.85rem', fontWeight: 800, marginBottom: '2px', color: '#fff' }}>{nom?.name || item.name}</div>
-                    <div style={{ fontSize: '0.6rem', color: '#555', fontWeight: 900 }}>{item.unit || 'шт'} | ОНОВЛЕНО: {new Date(item.updated_at).toLocaleDateString()}</div>
-                  </div>
-                  <div style={{ textAlign: 'right', minWidth: '60px' }}>
-                    <div style={{ fontSize: '1.5rem', fontWeight: 1000, color: explorerTabs.find(t => t.id === activeExplorerTab).color }}>{item.total_qty}</div>
-                    <div style={{ fontSize: '0.5rem', color: '#333', fontWeight: 900 }}>В НАЯВНОСТІ</div>
-                  </div>
-                </div>
-              )
-            })}
-            {filteredItems.length === 0 && (
-              <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '60px', color: '#222' }}>
-                <Package size={48} style={{ marginBottom: '15px', opacity: 0.1 }} />
-                <div style={{ fontWeight: 800 }}>НЕМАЄ ДЕТАЛЕЙ В БУФЕРІ</div>
+        {/* Content Container */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '22px 25px', background: 'var(--bg-primary, #f1f5f9)' }}>
+          {groupList.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '70px 20px', color: 'var(--text-muted, #64748b)' }}>
+              <Package size={52} style={{ marginBottom: '16px', opacity: 0.15 }} />
+              <div style={{ fontWeight: 900, fontSize: '0.95rem' }}>
+                {bufferSearchQuery ? 'Нічого не знайдено за вашим запитом' : 'НЕМАЄ ДЕТАЛЕЙ В БУФЕРІ'}
               </div>
-            )}
-          </div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '22px' }}>
+              {groupList.map(group => {
+                const totalGroupQty = Object.values(group.items).reduce((sum, item) => sum + item.total_qty, 0)
+                const isUnassigned = group.taskId === 'unassigned'
+                const itemCount = Object.keys(group.items).length
+
+                return (
+                  <div
+                    key={group.taskId}
+                    style={{
+                      background: isUnassigned ? 'rgba(234, 179, 8, 0.05)' : 'var(--card-bg, #ffffff)',
+                      border: isUnassigned ? '1px solid rgba(234, 179, 8, 0.35)' : '1px solid var(--border-color, #e2e8f0)',
+                      borderRadius: '20px',
+                      padding: '20px',
+                      boxShadow: '0 4px 20px rgba(0,0,0,0.04)'
+                    }}
+                  >
+                    {/* Task Header */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', paddingBottom: '12px', borderBottom: '1px solid var(--border-color, #f1f5f9)', flexWrap: 'wrap', gap: '10px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <div style={{
+                          background: isUnassigned ? 'rgba(234, 179, 8, 0.15)' : 'rgba(139, 92, 246, 0.12)',
+                          border: `1px solid ${isUnassigned ? 'rgba(234, 179, 8, 0.4)' : 'rgba(139, 92, 246, 0.3)'}`,
+                          color: isUnassigned ? '#d97706' : '#8b5cf6',
+                          padding: '6px 14px',
+                          borderRadius: '10px',
+                          fontSize: '0.82rem',
+                          fontWeight: 950,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px'
+                        }}>
+                          {isUnassigned ? '📦' : '📋'} {group.orderNum}
+                        </div>
+                        {isUnassigned && (
+                          <span style={{ color: 'var(--text-muted, #64748b)', fontSize: '0.66rem', fontWeight: 800 }}>
+                            (Складський резерв БЗ без прив'язки до наряду)
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ color: 'var(--text-muted, #64748b)', fontSize: '0.74rem', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <span>{itemCount} найменувань</span>
+                        <span>•</span>
+                        <span>Усього в буфері: <strong style={{ color: isUnassigned ? '#d97706' : '#8b5cf6', fontSize: '0.95rem', fontWeight: 950 }}>{totalGroupQty.toLocaleString('uk-UA')} шт</strong></span>
+                      </div>
+                    </div>
+
+                    {/* Part Grid */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px' }}>
+                      {Object.values(group.items).filter(item => item.total_qty > 0).map(item => (
+                        <div
+                          key={item.nomId}
+                          style={{
+                            background: 'var(--bg-secondary, #f8fafc)',
+                            borderRadius: '14px',
+                            padding: '14px 16px',
+                            border: '1px solid var(--border-color, #e2e8f0)',
+                            display: 'flex',
+                            justify: 'space-between',
+                            alignItems: 'center'
+                          }}
+                        >
+                          <div style={{ flex: 1, minWidth: 0, paddingRight: '12px' }}>
+                            <div style={{ fontSize: '0.84rem', fontWeight: 900, color: 'var(--text-primary, #0f172a)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.name}>
+                              {item.name}
+                            </div>
+                            <div style={{ fontSize: '0.62rem', color: 'var(--text-muted, #64748b)', fontWeight: 850, marginTop: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {item.material !== '—' ? `${item.material} · ` : ''}{item.cardCount > 0 ? `${item.cardCount} карток` : 'в наявності'}
+                            </div>
+                          </div>
+                          <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                            <div style={{ fontSize: '1.45rem', fontWeight: 1000, color: isUnassigned ? '#d97706' : '#8b5cf6', lineHeight: 1, fontFamily: 'monospace' }}>
+                              {item.total_qty.toLocaleString('uk-UA')}
+                            </div>
+                            <div style={{ fontSize: '0.52rem', color: 'var(--text-muted, #64748b)', fontWeight: 900, marginTop: '3px', textTransform: 'uppercase' }}>ВІЛЬНІ ДЕТАЛІ</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
       </div>
     )
@@ -866,9 +1135,6 @@ const Shop2Terminal = () => {
     <div className="operator-terminal-shop2" style={{ background: '#0a0a0a', height: '100vh', display: 'flex', flexDirection: 'column', color: '#fff', overflow: 'hidden' }}>
       <header className="terminal-nav" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 20px', height: '70px', background: '#000', borderBottom: '2px solid #8b5cf6', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-          <Link to="/" style={{ color: '#94a3b8', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, fontSize: '0.85rem' }}>
-            <ArrowLeft size={18} /> <span className="hide-mobile">На головну</span>
-          </Link>
           <button onClick={() => setIsDrawerOpen(true)} className="burger-btn-labeled mobile-only">
             <Menu size={20} />
             <span>Черга</span>
@@ -1150,7 +1416,7 @@ const Shop2Terminal = () => {
               </div>
             </div>
           ) : (
-            <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+            <div style={{ width: '100%', padding: '0 10px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
                 <h2 style={{ margin: 0, fontSize: '1.8rem', fontWeight: 950 }}>МОНІТОРИНГ ЦЕХУ №2</h2>
               </div>
@@ -1158,35 +1424,23 @@ const Shop2Terminal = () => {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px', marginBottom: '50px' }}>
                 {/* ───── КАРТКА ВХІДНОГО БУФЕРА ───── */}
                 {(() => {
-                  const streamingIncoming = (workCards || [])
-                    .filter(c => c.status === 'at-shop2-buffer')
-                    .reduce((a, c) => a + (Number(c.quantity) || 0) - (Number(c.used_in_shop2_qty) || 0), 0)
-
-                  const totalIncoming = (inventory || [])
-                    .filter(i => i.type === 'semi_shop2' || i.type === 'bz_shop2')
-                    .reduce((a, i) => a + (Number(i.total_qty) || 0), 0)
-
-                  const totalTaken = workCards
-                    .filter(c => c.card_info?.includes('[ЦЕХ №2]') && (c.status === 'in-progress' || c.status === 'at-buffer' || c.status === 'waiting-buffer'))
-                    .reduce((a, c) => a + (c.quantity || 0), 0)
-
-                  const bufferQty = Math.max(streamingIncoming, Math.max(0, totalIncoming - totalTaken))
+                  const bufferQty = calculateTotalBufferParts()
 
                   return (
-                    <div onClick={() => setShowStorageExplorer(true)} style={{ background: '#111', border: '1px solid #8b5cf644', borderRadius: '24px', padding: '20px', cursor: 'pointer', transition: '0.3s', boxShadow: '0 10px 30px -10px rgba(139, 92, 246, 0.2)' }}>
+                    <div onClick={() => setShowStorageExplorer(true)} style={{ background: 'var(--card-bg, #ffffff)', border: '1px solid var(--border-color, rgba(139, 92, 246, 0.3))', borderRadius: '24px', padding: '20px', cursor: 'pointer', transition: '0.3s', boxShadow: '0 10px 30px -10px rgba(139, 92, 246, 0.15)' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
                         <span style={{ color: '#8b5cf6', fontSize: '0.7rem', fontWeight: 950, textTransform: 'uppercase' }}>ВХІДНИЙ БУФЕР</span>
                         <Package size={14} color="#8b5cf6" />
                       </div>
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', alignItems: 'flex-end', width: '100%' }}>
                         <div>
-                          <div style={{ fontSize: '0.6rem', color: '#8b5cf6', fontWeight: 800 }}>ПРИЙНЯТО</div>
-                          <div style={{ fontSize: '1.8rem', fontWeight: 1000, color: '#fff', lineHeight: 1 }}>{bufferQty}</div>
+                          <div style={{ fontSize: '0.6rem', color: '#8b5cf6', fontWeight: 800 }}>ВІЛЬНІ ДЕТАЛІ</div>
+                          <div style={{ fontSize: '1.8rem', fontWeight: 1000, color: 'var(--text-primary, #0f172a)', lineHeight: 1 }}>{bufferQty.toLocaleString('uk-UA')}</div>
                         </div>
-                        <div style={{ borderLeft: '1px solid #222', paddingLeft: '8px', gridColumn: 'span 2' }}>
-                          <div style={{ fontSize: '0.55rem', color: '#555', fontWeight: 800 }}>СТАН БУФЕРА</div>
-                          <div style={{ fontSize: '0.75rem', fontWeight: 800, color: bufferQty > 0 ? '#8b5cf6' : '#444', marginTop: '4px' }}>
-                            {bufferQty > 0 ? 'Готові до генерації РК' : 'Буфер порожній'}
+                        <div style={{ borderLeft: '1px solid var(--border-color, #e2e8f0)', paddingLeft: '8px', gridColumn: 'span 2' }}>
+                          <div style={{ fontSize: '0.55rem', color: 'var(--text-muted, #64748b)', fontWeight: 800 }}>СТАН БУФЕРА</div>
+                          <div style={{ fontSize: '0.75rem', fontWeight: 800, color: bufferQty > 0 ? '#8b5cf6' : 'var(--text-muted, #64748b)', marginTop: '4px' }}>
+                            {bufferQty > 0 ? 'Вільні для нових карток' : 'Буфер порожній'}
                           </div>
                         </div>
                       </div>
@@ -1195,10 +1449,10 @@ const Shop2Terminal = () => {
                 })()}
 
                 {shop2Stages.map(stage => {
-                  const stageCards = workCards.filter(c => c.card_info?.includes('[ЦЕХ №2]') && matchesStage(c.operation, stage))
+                  const stageCards = workCards.filter(c => isShop2Card(c) && matchesStage(c.operation, stage))
                   const workQty = stageCards.filter(c => c.status === 'in-progress').reduce((acc, c) => acc + (c.quantity || 0), 0)
                   const bufferQty = stageCards.filter(c => ['at-buffer', 'waiting-buffer'].includes(c.status)).reduce((acc, c) => acc + (c.quantity || 0), 0)
-                  const scrapQty = workCardHistory.filter(h => h.card_info?.includes('[ЦЕХ №2]') && matchesStage(h.stage_name, stage)).reduce((acc, h) => acc + (Number(h.scrap_qty) || 0), 0)
+                  const scrapQty = workCardHistory.filter(h => isShop2Card(h) && matchesStage(h.stage_name, stage)).reduce((acc, h) => acc + (Number(h.scrap_qty) || 0), 0)
 
                   return (
                     <div key={stage} onClick={() => setDetailStage(stage)} style={{ background: '#111', border: '1px solid #222', borderRadius: '24px', padding: '20px', cursor: 'pointer', transition: '0.3s' }}>
@@ -1232,35 +1486,67 @@ const Shop2Terminal = () => {
                   </div>
                   <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '1200px' }}>
                   <thead style={{ background: '#0a0a0a', fontSize: '0.65rem', fontWeight: 900, color: '#555', textTransform: 'uppercase' }}>
-                    <tr><th style={{ padding: '12px 15px' }}>ДЕТАЛЬ</th><th style={{ padding: '12px 15px' }}>ЕТАП</th><th style={{ padding: '12px 15px' }}>К-СТЬ</th><th style={{ padding: '12px 15px' }}>МАЙСТЕР</th><th style={{ padding: '12px 15px' }}>ЗМІНА</th><th style={{ padding: '12px 15px' }}>ОПЕРАТОР</th><th style={{ padding: '12px 15px' }}>ВЕРСТАТ</th><th style={{ padding: '12px 15px' }}>ПЛАН. ЧАС</th><th style={{ padding: '12px 15px' }}>ЧАС</th><th style={{ padding: '12px 15px' }}></th></tr>
+                    <tr>
+                      <th style={{ padding: '12px 15px' }}>ДЕТАЛЬ</th>
+                      <th style={{ padding: '12px 15px' }}>ЕТАП</th>
+                      <th style={{ padding: '12px 15px' }}>К-СТЬ</th>
+                      <th style={{ padding: '12px 15px' }}>БРАК ЦЕХУ 2</th>
+                      <th style={{ padding: '12px 15px' }}>ВИХІД СГП</th>
+                      <th style={{ padding: '12px 15px' }}>МАЙСТЕР</th>
+                      <th style={{ padding: '12px 15px' }}>ЗМІНА</th>
+                      <th style={{ padding: '12px 15px' }}>ОПЕРАТОР</th>
+                      <th style={{ padding: '12px 15px' }}>ВЕРСТАТ</th>
+                      <th style={{ padding: '12px 15px' }}>ПЛАН. ЧАС</th>
+                      <th style={{ padding: '12px 15px' }}>ЧАС</th>
+                      <th style={{ padding: '12px 15px' }}></th>
+                    </tr>
                   </thead>
                   <tbody>
-                    {workCards.filter(c => c.card_info?.includes('[ЦЕХ №2]') && (c.status === 'in-progress' || c.status === 'at-buffer')).map(card => (
-                      <tr key={card.id} 
-                        onClick={() => setSelectedCardId(card.id)}
-                        style={{ borderBottom: '1px solid #1a1a1a', fontSize: '0.85rem', cursor: 'pointer' }}>
-                        <td style={{ padding: '12px 15px', fontWeight: 800, whiteSpace: 'nowrap', fontSize: '0.75rem' }}>
-                          {getNomFromCard(card)?.name || (card.card_info?.split('] ').pop() || `Картка #${card.id.slice(0, 8)}`)}
-                        </td>
-                        <td style={{ padding: '12px 15px' }}><span style={{ color: card.status === 'at-buffer' ? '#10b981' : '#8b5cf6', fontWeight: 900, fontSize: '0.7rem' }}>{card.operation?.toUpperCase()}</span></td>
-                        <td style={{ padding: '12px 15px', fontWeight: 900 }}>{card.quantity} шт</td>
-                        <td style={{ padding: '12px 15px', color: '#888' }}>{card.manager_name || '—'}</td>
-                        <td style={{ padding: '12px 15px', color: '#888' }}>{card.shift_name || '—'}</td>
-                        <td style={{ padding: '12px 15px', color: '#aaa' }}>{card.operator_name || '—'}</td>
-                        <td style={{ padding: '12px 15px', color: '#eab308', fontWeight: 800 }}>{formatMachine(card.machine)}</td>
-                        <td style={{ padding: '12px 15px', color: '#3b82f6', fontWeight: 700 }}>{formatPlanned(getPlannedTime(card))}</td>
-                        <td style={{ padding: '12px 15px', color: '#10b981' }}>{formatElapsedTime(card.started_at)}</td>
-                        <td style={{ padding: '12px 15px', textAlign: 'right' }}>
-                          <button onClick={(e) => { e.stopPropagation(); setSelectedCardId(card.id) }}
-                            style={{ background: '#eab308', border: 'none', color: '#000', padding: '10px', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                            title="Відкрити">
-                            <Eye size={18} />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                    {workCards.filter(c => c.card_info?.includes('[ЦЕХ №2]') && (c.status === 'in-progress' || c.status === 'at-buffer')).length === 0 && (
-                      <tr><td colSpan="6" style={{ padding: '40px', textAlign: 'center', color: '#333', fontSize: '0.8rem' }}>Немає активних процесів у другому цеху</td></tr>
+                    {workCards.filter(c => isShop2Card(c) && (c.status === 'in-progress' || c.status === 'at-buffer')).map(card => {
+                      const scrap = Number(card.scrap_qty || 0)
+                      const netYield = Math.max(0, Number(card.quantity || 0) - scrap)
+                      return (
+                        <tr key={card.id} 
+                          onClick={() => setSelectedCardId(card.id)}
+                          style={{ borderBottom: '1px solid #1a1a1a', fontSize: '0.85rem', cursor: 'pointer' }}>
+                          <td style={{ padding: '12px 15px', fontWeight: 800, whiteSpace: 'nowrap', fontSize: '0.75rem' }}>
+                            {getNomFromCard(card)?.name || (card.card_info?.split('] ').pop() || `Картка #${card.id.slice(0, 8)}`)}
+                          </td>
+                          <td style={{ padding: '12px 15px' }}><span style={{ color: card.status === 'at-buffer' ? '#10b981' : '#8b5cf6', fontWeight: 900, fontSize: '0.7rem' }}>{card.operation?.toUpperCase()}</span></td>
+                          <td style={{ padding: '12px 15px', fontWeight: 900 }}>{card.quantity} шт</td>
+                          
+                          {/* БРАК ЦЕХУ 2 */}
+                          <td style={{ padding: '12px 15px' }}>
+                            <span style={{ color: scrap > 0 ? '#ef4444' : '#555', fontWeight: 900, fontSize: '0.8rem' }}>
+                              {scrap > 0 ? `${scrap} шт` : '0'}
+                            </span>
+                          </td>
+
+                          {/* ВИХІД СГП */}
+                          <td style={{ padding: '12px 15px' }}>
+                            <span style={{ color: '#10b981', fontWeight: 950, fontSize: '0.85rem', background: 'rgba(16, 185, 129, 0.1)', padding: '2px 8px', borderRadius: '6px' }}>
+                              {netYield} шт
+                            </span>
+                          </td>
+
+                          <td style={{ padding: '12px 15px', color: '#888' }}>{card.manager_name || '—'}</td>
+                          <td style={{ padding: '12px 15px', color: '#888' }}>{card.shift_name || '—'}</td>
+                          <td style={{ padding: '12px 15px', color: '#aaa' }}>{card.operator_name || '—'}</td>
+                          <td style={{ padding: '12px 15px', color: '#eab308', fontWeight: 800 }}>{formatMachine(card.machine)}</td>
+                          <td style={{ padding: '12px 15px', color: '#3b82f6', fontWeight: 700 }}>{formatPlanned(getPlannedTime(card))}</td>
+                          <td style={{ padding: '12px 15px', color: '#10b981' }}>{formatElapsedTime(card.started_at)}</td>
+                          <td style={{ padding: '12px 15px', textAlign: 'right' }}>
+                            <button onClick={(e) => { e.stopPropagation(); setSelectedCardId(card.id) }}
+                              style={{ background: '#eab308', border: 'none', color: '#000', padding: '10px', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                              title="Відкрити">
+                              <Eye size={18} />
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                    {workCards.filter(c => isShop2Card(c) && (c.status === 'in-progress' || c.status === 'at-buffer')).length === 0 && (
+                      <tr><td colSpan="12" style={{ padding: '40px', textAlign: 'center', color: '#333', fontSize: '0.8rem' }}>Немає активних процесів у другому цеху</td></tr>
                     )}
                   </tbody>
                 </table>
@@ -1294,7 +1580,7 @@ const Shop2Terminal = () => {
             <div style={{ padding: '0 15px 25px', maxHeight: '450px', overflowY: 'auto' }}>
               {(() => {
                 if (detailTab === 'buffer') {
-                  const bufferCards = workCards.filter(c => c.card_info?.includes('[ЦЕХ №2]') && matchesStage(c.operation, detailStage) && c.status === 'at-buffer');
+                  const bufferCards = workCards.filter(c => isShop2Card(c) && matchesStage(c.operation, detailStage) && c.status === 'at-buffer');
                   if (bufferCards.length === 0) return <div style={{ textAlign: 'center', padding: '50px', color: '#444', fontSize: '0.85rem' }}>Буфер пустий</div>;
 
                   return (
@@ -1332,7 +1618,7 @@ const Shop2Terminal = () => {
                   );
                 } else {
                   const agg = {};
-                  workCards.filter(c => c.card_info?.includes('[ЦЕХ №2]') && matchesStage(c.operation, detailStage) && c.status === 'in-progress').forEach(c => {
+                  workCards.filter(c => isShop2Card(c) && matchesStage(c.operation, detailStage) && c.status === 'in-progress').forEach(c => {
                     const nom = getNomFromCard(c);
                     const name = nom?.name || 'Деталь';
                     agg[name] = (agg[name] || 0) + (c.quantity || 0);

@@ -77,7 +77,7 @@ export const useWarehouseComputed = ({
   const cardsWithBoxes = useMemo(() => {
     const list = []
     const activeCards = (workCards || []).filter(c => 
-      (c.status === 'new' || c.status === 'waiting-materials') && 
+      (c.status === 'new' || c.status === 'waiting-materials' || c.status === 'waiting-cutters') &&
       (!c.operation || c.operation === 'Нова' || c.operation === 'Розкрій')
     )
     
@@ -122,6 +122,35 @@ export const useWarehouseComputed = ({
             const cQty = parseFloat(parts[2]) || 0
             if (cNomId && cQty > 0) {
               cuttersRates[cNomId] = cQty
+            }
+          }
+        })
+      }
+
+      // Fallback: if machineOperations has no cutter data, look at pending/issued material requests
+      // This handles tasks where cutters come from plan_snapshot (not machineOperations)
+      if (Object.keys(cuttersRates).length === 0) {
+        const cutterReqs = (requests || []).filter(r =>
+          String(r.task_id) === String(card.task_id) &&
+          (r.status === 'pending' || r.status === 'issued') &&
+          (r.details || '').includes('ВИТРАТНІ МАТЕРІАЛИ')
+        )
+        cutterReqs.forEach(r => {
+          if (r.nomenclature_id) {
+            const rNom = nomenclatures.find(n => String(n.id) === String(r.nomenclature_id))
+            const rName = (rNom?.name || '').toLowerCase()
+            if (rName.includes('фреза') && rName !== 'фреза') {
+              // Use qty per task to derive rate per sheet for THIS card
+              const unitsPS = Number(nom?.units_per_sheet) || 1
+              const totalCardSheets = Math.ceil(Number(card.quantity) / unitsPS)
+              // rate = requested qty / total sheets of this batch (approx)
+              const totalTaskSheets = (workCards || [])
+                .filter(wc => String(wc.task_id) === String(card.task_id) && String(wc.nomenclature_id) === String(card.nomenclature_id))
+                .reduce((sum, wc) => sum + Math.ceil(Number(wc.quantity) / unitsPS), 0) || totalCardSheets
+              const rate = (Number(r.quantity) || 0) / Math.max(1, totalTaskSheets)
+              if (rate > 0) {
+                cuttersRates[r.nomenclature_id] = rate
+              }
             }
           }
         })
@@ -410,9 +439,13 @@ export const useWarehouseComputed = ({
         const card = (workCards || []).find(c => String(c.id) === String(r.card_id))
         const isReissue = !!card && (card.is_rework || String(card.card_info || '').includes('[REDO]'))
         const isMachineChange = String(r.details || '').includes('[BALANCED_MACHINE_CHANGE]')
-        // Initial work cards belong to the one consolidated task request.
-        // Only explicit reissues and machine changes get their own warehouse tile.
-        if (!isReissue && !isMachineChange) return false
+        const isCutterOrConsumable = (r.details || '').toLowerCase().includes('фреза') ||
+          (r.details || '').includes('ВИТРАТНІ МАТЕРІАЛИ') ||
+          (nomenclatures || []).find(n => String(n.id) === String(r.nomenclature_id))?.type === 'consumable'
+
+        // Initial work cards belong to the one consolidated task request for sheets.
+        // But cutter/consumable requests AND explicit reissues AND machine changes MUST show up for warehouse fulfillment!
+        if (!isReissue && !isMachineChange && !isCutterOrConsumable) return false
       }
       if (r.status === 'issued') {
         const task = tasks.find(t => t.id === r.task_id)

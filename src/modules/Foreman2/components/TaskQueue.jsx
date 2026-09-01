@@ -10,13 +10,13 @@ const getQueueState = (model) => {
   const isReady = !completed && model.summary.isReady
   const inProgress = !completed && model.summary.totalCards > 0 && !isReady && !needsReissue && !hasRedoInProgress
 
-  if (completed) return { key: 'completed', color: '#10b981', bg: 'transparent', icon: <CheckCircle2 size={14} />, label: 'Виконано', hint: 'Наряд завершено' }
-  if (isReady) return { key: 'ready', color: '#10b981', bg: 'rgba(16,185,129,.08)', icon: <ArrowRight size={14} />, label: 'Готово', hint: 'Всі картки готові' }
-  if (needsReissue) return { key: 'shortage', color: '#ef4444', bg: 'rgba(239,68,68,.08)', icon: <AlertTriangle size={14} />, label: 'Нестача', hint: 'Потрібен довипуск' }
-  if (hasRedoInProgress) return { key: 'reissue', color: '#ff9000', bg: 'rgba(255,144,0,.09)', icon: <AlertTriangle size={14} />, label: 'Довипуск', hint: 'Довипуск у процесі' }
-  if (isNew) return { key: 'new', color: '#3b82f6', bg: 'rgba(59,130,246,.08)', icon: <Clock size={14} />, label: 'Новий', hint: 'Картки ще не згенеровано' }
-  if (inProgress) return { key: 'progress', color: '#eab308', bg: 'rgba(234,179,8,.08)', icon: <Layers size={14} />, label: 'В роботі', hint: 'У процесі виробництва' }
-  return { key: 'idle', color: '#555', bg: 'transparent', icon: <Layers size={14} />, label: 'Наряд', hint: 'Очікує дії' }
+  if (completed) return { key: 'completed', color: '#64748b', bg: 'transparent', icon: <CheckCircle2 size={14} />, label: 'Виконано', hint: 'Наряд завершено' }
+  if (isReady) return { key: 'ready', color: '#10b981', bg: 'rgba(16,185,129,.12)', icon: <ArrowRight size={14} />, label: 'Готово', hint: 'Всі картки готові' }
+  if (needsReissue) return { key: 'shortage', color: '#ef4444', bg: 'rgba(239,68,68,.12)', icon: <AlertTriangle size={14} />, label: 'Довипуск', hint: 'Потрібен довипуск' }
+  if (hasRedoInProgress) return { key: 'reissue', color: '#ef4444', bg: 'rgba(239,68,68,.12)', icon: <AlertTriangle size={14} />, label: 'Довипуск', hint: 'Довипуск у процесі' }
+  if (isNew) return { key: 'new', color: '#3b82f6', bg: 'rgba(59,130,246,.12)', icon: <Clock size={14} />, label: 'Новий', hint: 'Картки ще не згенеровано' }
+  if (inProgress) return { key: 'progress', color: '#eab308', bg: 'rgba(234,179,8,.12)', icon: <Layers size={14} />, label: 'В роботі', hint: 'У процесі виробництва' }
+  return { key: 'idle', color: '#64748b', bg: 'transparent', icon: <Layers size={14} />, label: 'Наряд', hint: 'Очікує дії' }
 }
 
 const stateRank = {
@@ -29,7 +29,7 @@ const stateRank = {
   completed: 6
 }
 
-export default function TaskQueue({ taskModels, nomenclatures = [], activeId, onSelect, isDrawerOpen, setIsDrawerOpen }) {
+export default function TaskQueue({ taskModels, nomenclatures = [], activeId, onSelect, isDrawerOpen, setIsDrawerOpen, onOpenCreateNaryad }) {
   const handleSelect = (id) => {
     onSelect(id)
     if (typeof setIsDrawerOpen === 'function') setIsDrawerOpen(false)
@@ -40,13 +40,40 @@ export default function TaskQueue({ taskModels, nomenclatures = [], activeId, on
       className={`side-panel no-print ${isDrawerOpen ? 'drawer-open' : ''}`}
       style={{ display: 'flex', flexDirection: 'column', background: '#121212', borderRight: '1px solid #222', transition: '0.3s transform', width: '300px', flexShrink: 0 }}
     >
-      <div style={{ padding: '20px', color: '#444', fontWeight: 850, fontSize: '0.65rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-        ЧЕРГА НАРЯДІВ ({taskModels.length})
-        {isDrawerOpen && (
-          <button onClick={() => setIsDrawerOpen(false)} title="Закрити" style={{ background: 'transparent', border: 'none', color: '#555', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-            <X size={18} />
-          </button>
-        )}
+      <div style={{ padding: '16px 20px', color: '#888', fontWeight: 850, fontSize: '0.65rem', display: 'flex', flexDirection: 'column', gap: '10px', borderBottom: '1px solid #1a1a1a' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+          <span>ЧЕРГА НАРЯДІВ ({taskModels.length})</span>
+          {isDrawerOpen && (
+            <button onClick={() => setIsDrawerOpen(false)} title="Закрити" style={{ background: 'transparent', border: 'none', color: '#555', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+              <X size={18} />
+            </button>
+          )}
+        </div>
+
+        <button
+          type="button"
+          onClick={onOpenCreateNaryad}
+          style={{
+            width: '100%',
+            background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+            color: '#fff',
+            border: 'none',
+            padding: '10px 14px',
+            borderRadius: '12px',
+            fontSize: '0.75rem',
+            fontWeight: 950,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '6px',
+            letterSpacing: '0.5px',
+            boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25)',
+            transition: '0.2s'
+          }}
+        >
+          + СТВОРИТИ НАРАД
+        </button>
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto' }}>

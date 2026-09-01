@@ -3,6 +3,8 @@ import { Routes, Route, Link, Navigate, useLocation, useNavigate } from 'react-r
 import {
   Menu,
   LayoutDashboard,
+  LayoutGrid,
+  Box,
   Warehouse,
   Users,
   Tablet,
@@ -26,6 +28,7 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
+  ChevronLeft,
   ClipboardList,
   BellOff,
   ArrowLeft,
@@ -33,25 +36,39 @@ import {
   Moon,
   MessageCircle,
   MessagesSquare,
-  Wrench
+  Wrench,
+  Briefcase,
+  LogOut,
+  User,
+  Volume2,
+  Archive,
+  DollarSign,
+  Zap,
+  Plus
 } from 'lucide-react'
+import { IconSO, IconSV, IconSGP } from './components/WarehouseIcons'
 
 // ── Lazy-loaded modules (loaded on demand, not at startup) ─────────────────────
+const CrmModule = lazy(() => import('./modules/CrmModule'))
+const CrmClientsModule = lazy(() => import('./modules/CRM/ClientsModule'))
+const EconomyModule = lazy(() => import('./modules/Economy/EconomyModule'))
 const ManagerModule = lazy(() => import('./modules/ManagerModule'))
 const WarehouseModule = lazy(() => import('./modules/WarehouseModuleV2'))
 const MasterModule = lazy(() => import('./modules/MasterModule_v3'))
 const NomenclatureModule = lazy(() => import('./modules/NomenclatureModule'))
 const EngineerModule = lazy(() => import('./modules/EngineerModule'))
+const EngineerV2Module = lazy(() => import('./modules/EngineerV2Module'))
 const DirectorModule = lazy(() => import('./modules/DirectorModule'))
 const OperatorTerminal = lazy(() => import('./modules/OperatorTerminalV2'))
 const ShippingModule = lazy(() => import('./modules/ShippingModule'))
 const SupplyModule = lazy(() => import('./modules/SupplyModuleV2'))
 const PreparationTerminal = lazy(() => import('./modules/PreparationTerminal'))
-const ForemanWorkplace = lazy(() => import('./modules/ForemanWorkplace'))
 const Foreman2Module = lazy(() => import('./modules/Foreman2/Foreman2Module'))
 const PackagingModule = lazy(() => import('./modules/PackagingModule'))
 const MachinesModule = lazy(() => import('./modules/MachinesModule'))
 const SettingsModule = lazy(() => import('./modules/SettingsModule'))
+const UserSettingsPage = lazy(() => import('./modules/UserSettingsPage'))
+const NotificationsPage = lazy(() => import('./modules/NotificationsPage'))
 const LoginPage = lazy(() => import('./modules/LoginPage'))
 const Shop1Terminal = lazy(() => import('./modules/Shop1Terminal'))
 const Shop1ForemanModule = lazy(() => import('./modules/Shop1ForemanModule'))
@@ -66,7 +83,6 @@ const KanbanModule = lazy(() => import('./modules/KanbanModule'))
 const TaskProjectsModule = lazy(() => import('./modules/TaskProjectsModule'))
 const AccessModule = lazy(() => import('./modules/AccessModule'))
 const ReportsModule = lazy(() => import('./modules/ReportsModule'))
-const DashboardModule = lazy(() => import('./modules/DashboardModule'))
 const ForemanDashboardModule = lazy(() => import('./modules/ForemanDashboardModule'))
 const MachineCallModule = lazy(() => import('./modules/MachineCallModule'))
 const TumblingTerminal = lazy(() => import('./modules/TumblingTerminal'))
@@ -80,6 +96,8 @@ const WarehouseBoxesModule = lazy(() => import('./modules/WarehouseBoxesModule')
 const PreparationDashboard = lazy(() => import('./modules/PreparationDashboard'))
 const ChatModule = lazy(() => import('./modules/ChatModule'))
 const CutterRestorationModule = lazy(() => import('./modules/CutterRestorationModule'))
+const WarehouseFGPModule = lazy(() => import('./modules/WarehouseFGPModule'))
+const Shop2CardGenModule = lazy(() => import('./modules/Shop2CardGen/Shop2CardGenModule'))
 
 import { MESProvider, useMES } from './MESContext'
 import { subscribeToPush } from './services/pushService'
@@ -99,54 +117,54 @@ const FileCodeIcon = () => (
 )
 
 const getAllModules = (badgeCount = 0, chatBadgeCount = 0) => [
-  // 1. Цех 1 (Розкрій та Підготовка)
-  { id: 'prep_terminal', title: 'Підготовка', icon: <Tablet />, path: '/prep-terminal', desc: 'Відділ Підготовки', color: '#10b981' },
-  { id: 'preparation_dashboard', title: 'Дашборд підготовки (TV)', icon: <LayoutDashboard />, path: '/preparation-dashboard', desc: 'Спільний екран підготовки та боксів', color: '#22c55e' },
-  { id: 'master', title: 'ЦЕХ №1 – Створення нарядів', icon: <Monitor />, path: '/master', desc: 'Управління зміною', color: '#3b82f6' },
-  { id: 'foreman', title: 'ЦЕХ №1 – Створення РК', icon: <Users />, path: '/foreman', desc: 'Розподіл нарядів', color: '#f59e0b' },
-  { id: 'foreman2', title: 'Foreman 2.0', icon: <Users />, path: '/foreman2', desc: 'Новий модуль нарядів Цеху №1', color: '#ff9000' },
-  { id: 'shop1', title: 'Цех №1 · Термінал', icon: <Tablet />, path: '/shop1', desc: 'Розкрій → Галтовка → Прийомка', color: '#eab308' },
-  { id: 'shop1_foreman', title: 'Кабінет Нач. Цеху №1', icon: <Users />, path: '/shop1-foreman', desc: 'Управління персоналом, календар та верстати', color: '#ff9000' },
-  { id: 'tumbling_terminal', title: 'Екран Галтовки', icon: <Tablet />, path: '/tumbling-terminal', desc: 'Дільниця галтовки', color: '#06b6d4' },
-  { id: 'tumbling_dashboard', title: 'Дашборд Галтовки (TV)', icon: <LayoutDashboard />, path: '/tumbling-dashboard', desc: 'Монітор черги та комплектів', color: '#ff9000' },
-  { id: 'reception_terminal', title: 'Екран Прийомки', icon: <Tablet />, path: '/reception-terminal', desc: 'Дільниця прийомки', color: '#a78bfa' },
-  { id: 'sorting_terminal', title: 'Екран Сортування', icon: <Tablet />, path: '/sorting-terminal', desc: 'Дільниця сортування', color: '#34d399' },
-  { id: 'operator', title: 'Термінал', icon: <Tablet />, path: '/operator', desc: 'Робоче місце', color: '#ef4444' },
+  // ── CRM Pillar (Клієнти, Продажі та Комунікація) ──────────────────────────
+  { id: 'crm', title: 'CRM Воронка Лідів & Угод', icon: <Briefcase />, path: '/crm', desc: 'Воронка лідів, запитів та угод', color: '#6366f1', pillar: 'crm' },
+  { id: 'crm_clients', title: 'База Клієнтів & Картки CRM', icon: <Users />, path: '/crm/clients', desc: 'Картки клієнтів, LTV, середній чек та комунікація', color: '#6366f1', pillar: 'crm' },
+  { id: 'manager', title: 'Менеджер Замовлень', icon: <LayoutDashboard />, path: '/manager', desc: 'Вхідні замовлення та реєстрація', color: '#6366f1', pillar: 'crm' },
+  { id: 'chat', title: 'Чат & Комунікація', icon: <MessageCircle />, path: '/chat', desc: 'Внутрішні та клієнтські канали', color: '#6366f1', badge: chatBadgeCount, pillar: 'crm' },
+  { id: 'kanban', title: 'Задачі (Канбан)', icon: <KanbanSquare />, path: '/tasks', desc: 'Доручення та проекти', color: '#8b5cf6', badge: badgeCount, pillar: 'crm' },
 
-  // 2. Цех 2
-  { id: 'shop2', title: 'Цех №2 - Створення РК', icon: <Monitor />, path: '/shop2', desc: 'Черга нарядів', color: '#8b5cf6' },
-  { id: 'shop2_terminal', title: 'Цех №2 · Термінал', icon: <Tablet />, path: '/shop2-terminal', desc: 'Пресування → Фарбування → Доопрацювання', color: '#8b5cf6' },
-  { id: 'pressing_terminal', title: 'Екран Пресування', icon: <Tablet />, path: '/pressing-terminal', desc: 'Дільниця пресування', color: '#8b5cf6' },
-  { id: 'painting_terminal', title: 'Екран Фарбування', icon: <Tablet />, path: '/painting-terminal', desc: 'Дільниця фарбування', color: '#ec4899' },
+  // ── ERP Pillar (Ресурси, Склад, Аналітика та Управління) ───────────────────
+  { id: 'warehouse', title: 'Склад Оперативний (WMS)', icon: <IconSO />, path: '/warehouse', desc: 'Матеріали, залишки та комплектація', color: '#10b981', pillar: 'erp' },
+  { id: 'warehouse_fgp', title: 'Склад Готової Продукції (СГП)', icon: <IconSGP />, path: '/warehouse-fgp', desc: 'Готова продукція, напівфабрикати, брак та БЗ', color: '#10b981', pillar: 'erp' },
+  { id: 'supply', title: 'Склад Виробництва', icon: <IconSV />, path: '/supply', desc: 'Управління запасами та запити', color: '#10b981', pillar: 'erp' },
+  { id: 'procurement', title: 'Постачання (Procurement)', icon: <ShoppingBag />, path: '/procurement', desc: 'Закупівля ТМЦ у постачальників', color: '#10b981', pillar: 'erp' },
+  { id: 'economy', title: 'Економіка & Ціноутворення', icon: <DollarSign />, path: '/economy', desc: 'Прайс-листи, калькуляція собівартості, націнки та маржа', color: '#10b981', pillar: 'erp' },
+  { id: 'packaging', title: 'Пакування & Комплектація', icon: <Package />, path: '/packaging', desc: 'Збирання готової продукції', color: '#10b981', pillar: 'erp' },
+  { id: 'shipping', title: 'Логістика & Відвантаження', icon: <Truck />, path: '/shipping', desc: 'Відвантаження замовнику', color: '#10b981', pillar: 'erp' },
+  { id: 'director', title: 'Кабінет Директора', icon: <ShieldCheck size={24} />, path: '/director', desc: 'Фінальні погодження та моніторинг', color: '#10b981', pillar: 'erp' },
+  { id: 'analytics', title: 'Аналітика & KPI', icon: <TrendingUp />, path: '/analytics', desc: 'Статистика продуктивності та випуску', color: '#10b981', pillar: 'erp' },
+  { id: 'reports', title: 'Звіти (1С / Леджер)', icon: <BarChart2 />, path: '/reports', desc: 'Зведена аналітика та експорт', color: '#10b981', pillar: 'erp' },
+  { id: 'access', title: 'Система Доступу (СКУД)', icon: <ShieldCheck />, path: '/access', desc: 'Контроль проходів Fortnet', color: '#10b981', pillar: 'erp' },
+  { id: 'machines', title: 'Обладнання & Верстати', icon: <Cpu />, path: '/machines', desc: 'Моніторинг верстатів та викликів', color: '#10b981', pillar: 'erp' },
+  { id: 'cutter_restoration', title: 'Відновлення Фрез', icon: <Wrench />, path: '/cutter-restoration', desc: 'Заточування фасочних фрез', color: '#10b981', pillar: 'erp' },
+  { id: 'engineer', title: 'Інженер ЧПК & BOM (v1.0)', icon: <FileCodeIcon />, path: '/engineer', desc: 'CNC програми та специфікації (Old)', color: '#10b981', pillar: 'erp' },
+  { id: 'engineer_v2', title: 'Інженер ЧПК & BOM 2.0', icon: <FileCodeIcon />, path: '/engineer-v2', desc: 'Специфікації та ЧПК операції для Номенклатури v2.0', color: '#10b981', pillar: 'erp' },
+  { id: 'nomenclature', title: 'База Номенклатури', icon: <Settings />, path: '/nomenclature', desc: 'Основний каталог товарів', color: '#10b981', pillar: 'erp' },
+  { id: 'nomenclature_v2', title: 'Номенклатура LAB', icon: <Menu />, path: '/nomenclature-v2', desc: 'Експериментальний каталог v2', color: '#10b981', pillar: 'erp' },
+  { id: 'settings', title: 'Системні Налаштування', icon: <Settings />, path: '/settings', desc: 'Конфігурація користувачів та прав', color: '#10b981', pillar: 'erp' },
+  { id: 'simulator', title: 'Симулятор Навантаження', icon: <Sliders />, path: '/simulator', desc: 'Тестування живих замовлень', color: '#ef4444', pillar: 'erp' },
 
-  // 3. Склад, Постачання та Логістика
-  { id: 'warehouse', title: 'Склад Оперативний', icon: <Warehouse />, path: '/warehouse', desc: 'Матеріали та залишки', color: '#10b981' },
-  { id: 'warehouse_boxes', title: 'Бокси фрез (СО)', icon: <Package />, path: '/warehouse-boxes', desc: 'Підготовка боксів для карток', color: '#f59e0b' },
-  { id: 'cutter_restoration', title: 'Відновлення фрез', icon: <Wrench />, path: '/cutter-restoration', desc: 'Заточування та повернення фасочних фрез', color: '#06b6d4' },
-  { id: 'supply', title: 'Склад Виробництва', icon: <Warehouse />, path: '/supply', desc: 'Управління запасами та запити', color: '#06b6d4' },
-  { id: 'procurement', title: 'Постачання', icon: <ShoppingBag />, path: '/procurement', desc: 'Закупівля ТМЦ у постачальників', color: '#ec4899' },
-  { id: 'packaging', title: 'Пакування', icon: <Package />, path: '/packaging', desc: 'Комплектування', color: '#f43f5e' },
-  { id: 'shipping', title: 'Логістика', icon: <Truck />, path: '/shipping', desc: 'Відвантаження', color: '#ec4899' },
-
-  // 4. Керування та Аналітика
-  { id: 'dashboard', title: 'Дашборд WIP', icon: <LayoutDashboard />, path: '/dashboard', desc: 'Моніторинг незавершеного виробництва', color: '#ff9000' },
-  { id: 'foreman_dashboard', title: 'ДАШБОРД 2.0', icon: <LayoutDashboard />, path: '/foreman-dashboard', desc: 'Моніторинг нарядів Цеху №1', color: '#ff9000' },
-  { id: 'manager', title: 'Менеджер', icon: <LayoutDashboard />, path: '/manager', desc: 'Замовлення та планування', color: '#ff9000' },
-  { id: 'kanban', title: 'Задачі', icon: <KanbanSquare />, path: '/tasks', desc: 'Внутрішні доручення', color: '#8b5cf6', badge: badgeCount },
-  { id: 'chat', title: 'Чат', icon: <MessageCircle />, path: '/chat', desc: 'Внутрішня комунікація', color: '#3b82f6', badge: chatBadgeCount },
-  { id: 'director', title: 'Директор Виробництва', icon: <ShieldCheck size={24} />, path: '/director', desc: 'Фінальне підтвердження', color: '#10b981' },
-  { id: 'analytics', title: 'Аналітика', icon: <TrendingUp />, path: '/analytics', desc: 'Статистика та KPI', color: '#8b5cf6' },
-  { id: 'reports', title: 'Звіти (1С)', icon: <BarChart2 />, path: '/reports', desc: 'Зведена аналітика та звіти', color: '#10b981' },
-  { id: 'simulator', title: 'Симулятор', icon: <Sliders />, path: '/simulator', desc: 'Тестування живих замовлень', color: '#ef4444' },
-
-  // 5. Технічні дані та Конфігурація
-  { id: 'engineer', title: 'Інженер', icon: <FileCodeIcon />, path: '/engineer', desc: 'CNC та специфікації', color: '#8b5cf6' },
-  { id: 'nomenclature', title: 'База', icon: <Settings />, path: '/nomenclature', desc: 'Основна робоча номенклатура', color: '#6366f1' },
-  { id: 'nomenclature_v2', title: 'Номенклатура LAB', icon: <Menu />, path: '/nomenclature-v2', desc: 'Експериментальний каталог — лише перегляд', color: '#8b5cf6' },
-  { id: 'machines', title: 'Станки', icon: <Cpu />, path: '/machines', desc: 'Обладнання', color: '#f97316' },
-  { id: 'settings', title: 'Система', icon: <Settings />, path: '/settings', desc: 'Конфігурація', color: '#444' },
-  { id: 'access', title: 'Система Доступу', icon: <ShieldCheck />, path: '/access', desc: 'Контроль проходів (Fortnet)', color: '#ff9000' },
-  { id: 'brak', title: 'ВКЯ', icon: <AlertTriangle />, path: '/brak', desc: 'Контроль якості та облік браку', color: '#ef4444' }
+  // ── MES Pillar (Виробниче Виконання & Цехи) ────────────────────────────────
+  { id: 'master', title: 'ЦЕХ №1 – Створення нарядів', icon: <Monitor />, path: '/master', desc: 'Управління зміною та БЗ', color: '#ff9000', pillar: 'mes' },
+  { id: 'foreman', title: 'ЦЕХ №1 – Створення РК (Foreman 2.0)', icon: <Users />, path: '/foreman', desc: 'Розподіл нарядів та робочі карти 2.0', color: '#ff9000', pillar: 'mes' },
+  { id: 'shop1', title: 'Цех №1 · Термінал', icon: <Tablet />, path: '/shop1', desc: 'Розкрій → Галтовка → Прийомка', color: '#ff9000', pillar: 'mes' },
+  { id: 'shop1_foreman', title: 'Кабінет Нач. Цеху №1', icon: <Users />, path: '/shop1-foreman', desc: 'Управління персоналом та верстатами', color: '#ff9000', pillar: 'mes' },
+  { id: 'prep_terminal', title: 'Термінал Підготовки', icon: <Tablet />, path: '/prep-terminal', desc: 'Дільниця підготовки металу', color: '#ff9000', pillar: 'mes' },
+  { id: 'preparation_dashboard', title: 'Дашборд Підготовки (TV)', icon: <LayoutDashboard />, path: '/preparation-dashboard', desc: 'TV монітор підготовки', color: '#ff9000', pillar: 'mes' },
+  { id: 'tumbling_terminal', title: 'Термінал Галтовки', icon: <Tablet />, path: '/tumbling-terminal', desc: 'Дільниця галтовки', color: '#ff9000', pillar: 'mes' },
+  { id: 'tumbling_dashboard', title: 'Дашборд Галтовки (TV)', icon: <LayoutDashboard />, path: '/tumbling-dashboard', desc: 'TV монітор галтовки', color: '#ff9000', pillar: 'mes' },
+  { id: 'reception_terminal', title: 'Термінал Прийомки', icon: <Tablet />, path: '/reception-terminal', desc: 'Дільниця прийомки', color: '#ff9000', pillar: 'mes' },
+  { id: 'sorting_terminal', title: 'Термінал Сортування', icon: <Tablet />, path: '/sorting-terminal', desc: 'Дільниця сортування', color: '#ff9000', pillar: 'mes' },
+  { id: 'operator', title: 'Термінал Оператора', icon: <Tablet />, path: '/operator', desc: 'Спрощене робоче місце', color: '#ff9000', pillar: 'mes' },
+  { id: 'warehouse_boxes', title: 'Бокси Фрез (СО)', icon: <Package />, path: '/warehouse-boxes', desc: 'Підготовка боксів інструменту', color: '#ff9000', pillar: 'mes' },
+  { id: 'shop2', title: 'Цех №2 – Створення РК', icon: <Monitor />, path: '/shop2', desc: 'Черга нарядів Другого цеху', color: '#ff9000', pillar: 'mes' },
+  { id: 'shop2_card_gen', title: 'Цех №2 – Створення РК (Буфер)', icon: <Monitor />, path: '/shop2-card-gen', desc: 'Формування РК Цеху №2 з буфера заготовок', color: '#ff9000', pillar: 'mes' },
+  { id: 'shop2_terminal', title: 'Цех №2 · Термінал', icon: <Tablet />, path: '/shop2-terminal', desc: 'Пресування → Фарбування → Доопрацювання', color: '#ff9000', pillar: 'mes' },
+  { id: 'pressing_terminal', title: 'Термінал Пресування', icon: <Tablet />, path: '/pressing-terminal', desc: 'Дільниця пресування', color: '#ff9000', pillar: 'mes' },
+  { id: 'painting_terminal', title: 'Термінал Фарбування', icon: <Tablet />, path: '/painting-terminal', desc: 'Дільниця фарбування', color: '#ff9000', pillar: 'mes' },
+  { id: 'foreman_dashboard', title: 'Дашборд 2.0 (TV)', icon: <LayoutDashboard />, path: '/foreman-dashboard', desc: 'Загальний монітор Цеху №1', color: '#ff9000', pillar: 'mes' },
+  { id: 'brak', title: 'ВКЯ & Контроль Якості', icon: <AlertTriangle />, path: '/brak', desc: 'Облік браку та карантин деталей', color: '#ef4444', pillar: 'mes' }
 ]
 
 const getAvailableModules = (currentUser, badgeCount, chatBadgeCount = 0) => {
@@ -154,67 +172,91 @@ const getAvailableModules = (currentUser, badgeCount, chatBadgeCount = 0) => {
   const allModules = getAllModules(badgeCount, chatBadgeCount);
   return allModules.filter(m => {
     if (m.id === 'simulator') return currentUser?.position === 'Адмін' || currentUser?.role === 'admin';
+    if (m.id === 'crm' || m.id === 'crm_clients') return true; // CRM enabled for all authorized users
+    if (m.id === 'warehouse_fgp') {
+      return (
+        currentUser?.access_rights?.warehouse_fgp === true ||
+        currentUser?.access_rights?.warehouse === true ||
+        currentUser?.position === 'Адмін' ||
+        currentUser?.role === 'admin'
+      );
+    }
+    if (m.id === 'economy') {
+      return (
+        currentUser?.access_rights?.economy === true ||
+        currentUser?.position === 'Адмін' ||
+        currentUser?.role === 'admin'
+      );
+    }
+    if (m.id === 'engineer_v2') {
+      return (
+        currentUser?.access_rights?.engineer_v2 === true ||
+        currentUser?.access_rights?.engineer === true ||
+        currentUser?.position === 'Адмін' ||
+        currentUser?.role === 'admin'
+      );
+    }
     return currentUser?.access_rights?.[m.id] === true;
   });
 }
 
 const CATEGORY_MAP = {
-  // Цех 1
-  master: 'shop1',
-  foreman: 'shop1',
-  foreman2: 'shop1',
-  shop1: 'shop1',
-  shop1_foreman: 'shop1',
-  prep_terminal: 'shop1',
-  preparation_dashboard: 'shop1',
-  tumbling_terminal: 'shop1',
-  tumbling_dashboard: 'shop1',
-  reception_terminal: 'shop1',
-  sorting_terminal: 'shop1',
-  operator: 'shop1',
-  warehouse_boxes: 'shop1',
-  cutter_restoration: 'shop1',
+  // CRM
+  crm: 'crm',
+  crm_clients: 'crm',
+  manager: 'crm',
+  chat: 'crm',
+  kanban: 'crm',
 
-  // Цех 2
-  shop2: 'shop2',
-  shop2_terminal: 'shop2',
-  pressing_terminal: 'shop2',
-  painting_terminal: 'shop2',
+  // ERP
+  warehouse: 'erp',
+  warehouse_fgp: 'erp',
+  supply: 'erp',
+  procurement: 'erp',
+  economy: 'erp',
+  packaging: 'erp',
+  shipping: 'erp',
+  director: 'erp',
+  dashboard: 'erp',
+  analytics: 'erp',
+  reports: 'erp',
+  access: 'erp',
+  machines: 'erp',
+  engineer: 'erp',
+  engineer_v2: 'erp',
+  cutter_restoration: 'erp',
+  nomenclature: 'erp',
+  nomenclature_v2: 'erp',
+  settings: 'erp',
+  simulator: 'erp',
 
-  // Склад, Постачання та Логістика
-  warehouse: 'warehouse_logistics',
-  supply: 'warehouse_logistics',
-  procurement: 'warehouse_logistics',
-  packaging: 'warehouse_logistics',
-  shipping: 'warehouse_logistics',
-
-  // Керування та Аналітика
-  dashboard: 'management_analytics',
-  foreman_dashboard: 'management_analytics',
-  manager: 'management_analytics',
-  kanban: 'management_analytics',
-  chat: 'management_analytics',
-  director: 'management_analytics',
-  analytics: 'management_analytics',
-  reports: 'management_analytics',
-  simulator: 'management_analytics',
-
-  // Технічні дані та Конфігурація
-  engineer: 'tech_settings',
-  nomenclature_v2: 'tech_settings',
-  nomenclature: 'tech_settings',
-  machines: 'tech_settings',
-  settings: 'tech_settings',
-  access: 'tech_settings',
-  brak: 'tech_settings'
+  // MES
+  master: 'mes',
+  foreman: 'mes',
+  foreman2: 'mes',
+  shop1: 'mes',
+  shop1_foreman: 'mes',
+  prep_terminal: 'mes',
+  preparation_dashboard: 'mes',
+  tumbling_terminal: 'mes',
+  tumbling_dashboard: 'mes',
+  reception_terminal: 'mes',
+  sorting_terminal: 'mes',
+  operator: 'mes',
+  warehouse_boxes: 'mes',
+  shop2: 'mes',
+  shop2_card_gen: 'mes',
+  shop2_terminal: 'mes',
+  pressing_terminal: 'mes',
+  painting_terminal: 'mes',
+  foreman_dashboard: 'mes',
+  brak: 'mes'
 };
 
 const CATEGORIES = [
-  { id: 'shop1', title: 'Цех №1 (Розкрій та Підготовка)', color: '#ff9000' },
-  { id: 'shop2', title: 'Цех №2 (Пресування та Фарбування)', color: '#8b5cf6' },
-  { id: 'warehouse_logistics', title: 'Склад, Постачання та Логістика', color: '#10b981' },
-  { id: 'management_analytics', title: 'Керування та Аналітика', color: '#3b82f6' },
-  { id: 'tech_settings', title: 'Технічні дані та Конфігурація', color: '#6b7280' }
+  { id: 'crm', title: 'CRM (Клієнти, Угоди та Продажі)', color: '#6366f1' },
+  { id: 'erp', title: 'ERP (Склад, Ресурси та Керування)', color: '#10b981' },
+  { id: 'mes', title: 'MES (Цехи, Наряди та Термінали)', color: '#ff9000' }
 ];
 
 const useChatUnreadCount = (currentUser, supabase) => {
@@ -514,6 +556,14 @@ const GlobalUserNav = ({ chatUnreadCount = 0 }) => {
   const [profileAvatar, setProfileAvatar] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+
+
+  // Open notification panel via mobile topbar bell (centrum:openNotifications event)
+  useEffect(() => {
+    const handler = () => { setMenuOpen(true); setActiveSubPanel('notifications'); };
+    window.addEventListener('centrum:openNotifications', handler);
+    return () => window.removeEventListener('centrum:openNotifications', handler);
+  }, []);
 
   // Sync profile form states when panel is opened
   const wasOpenedRef = useRef(false);
@@ -1626,7 +1676,13 @@ const GlobalUserNav = ({ chatUnreadCount = 0 }) => {
     });
   };
 
-  if (location.pathname === '/login' || location.pathname === '/') return null;
+  // Auto-close menu on route navigation
+  useEffect(() => {
+    setMenuOpen(false);
+    setActiveSubPanel(null);
+  }, [location.pathname]);
+
+  if (location.pathname === '/login') return null;
   if (!currentUser) return null;
 
   const isAdmin = currentUser.position === 'Адмін' || currentUser.role === 'admin';
@@ -1644,30 +1700,61 @@ const GlobalUserNav = ({ chatUnreadCount = 0 }) => {
   return (
     <>
       <style>{`
-        /* Hide all navigation back buttons for non-admins */
-        a[href="/"],
+        /* Hide all navigation back buttons for non-admins (except main sidebar logo) */
+        a[href="/"]:not(.sidebar-brand-link),
         .back-link,
         .back-btn-modern,
         .nav-back-link,
         .nav-back-btn,
         .btn-back,
-        .btn-back-director {
+        .btn-back-director,
+        .cr-icon-button {
           display: none !important;
         }
 
         /* Hide adjacent vertical dividers (separators) next to back buttons */
-        a[href="/"] + div {
+        a[href="/"]:not(.sidebar-brand-link) + div {
           display: none !important;
         }
 
-        /* Expand left padding of top headers to make space for the fixed hamburger menu */
-        nav:has(a[href="/"]),
-        header:has(a[href="/"]),
-        .module-nav:has(a[href="/"]),
-        .terminal-nav:has(a[href="/"]),
-        .glass-nav:has(a[href="/"]),
-        .tp-header {
+        /* Expand left padding of all top headers, nav bars, and back bars to make space for the fixed hamburger menu */
+        nav,
+        header,
+        .module-nav,
+        .terminal-nav,
+        .glass-nav,
+        .cr-header,
+        .tp-header,
+        .crm-header,
+        .client-detail-top-bar,
+        .page-top-bar,
+        .page-header,
+        .dashboard-header,
+        .shipping-header,
+        .packaging-header,
+        .main-header,
+        .top-bar-nav {
           padding-left: 75px !important;
+        }
+
+        @media (max-width: 640px) {
+          nav,
+          header,
+          .module-nav,
+          .terminal-nav,
+          .glass-nav,
+          .tp-header,
+          .crm-header,
+          .client-detail-top-bar,
+          .page-top-bar,
+          .page-header,
+          .dashboard-header,
+          .shipping-header,
+          .packaging-header,
+          .main-header,
+          .top-bar-nav {
+            padding-left: 70px !important;
+          }
         }
 
 
@@ -1680,11 +1767,12 @@ const GlobalUserNav = ({ chatUnreadCount = 0 }) => {
           z-index: 99999;
           opacity: 0;
           pointer-events: none;
-          transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+          transition: opacity 0.15s ease-out;
         }
         .sidebar-backdrop.open {
           opacity: 1;
           pointer-events: auto;
+          transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
         /* Sidebar drawer */
@@ -1702,10 +1790,11 @@ const GlobalUserNav = ({ chatUnreadCount = 0 }) => {
           display: flex;
           flex-direction: column;
           transform: translateX(-100%);
-          transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+          transition: transform 0.12s ease-out;
         }
         .sidebar-drawer.open {
           transform: translateX(0);
+          transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
         /* Sidebar scrollable links container */
@@ -2763,58 +2852,724 @@ const GlobalUserNav = ({ chatUnreadCount = 0 }) => {
   );
 };
 
-const Portal = ({ chatUnreadCount = 0 }) => {
-  const { currentUser, managementTasks, companyPositions } = useMES()
+// ── 3-in-1 Executive Portal Dashboard ──────────────────────────────────────────
+const Portal = ({ chatUnreadCount }) => {
+  const { currentUser, orders = [], workCards = [], requests = [], machines = [], machineCalls = [], tasks = [], companyPositions = [] } = useMES()
   const location = useLocation()
+  const [selectedPillar, setSelectedPillar] = useState('all') // 'all', 'crm', 'erp', 'mes'
+  const [portalSearch, setPortalSearch] = useState('')
 
-  // Badge logic for Kanban Module
-  const myPendingTasksCount = (managementTasks || []).filter(t =>
-    t.status !== 'done' &&
-    (t.assigned_to === currentUser?.login || t.created_by === currentUser?.login)
-  ).length
+  const isAdmin = currentUser?.position === 'Адмін' || currentUser?.role === 'admin'
+  const modules = useMemo(() => {
+    return getAvailableModules(currentUser, 0, chatUnreadCount)
+  }, [currentUser, chatUnreadCount])
 
-  const modules = getAvailableModules(currentUser, myPendingTasksCount, chatUnreadCount)
-  const isAdmin = currentUser?.position === 'Адмін' || currentUser?.role === 'admin';
-
-  // REDIRECT NON-ADMIN TO START PAGE OR FIRST AVAILABLE MODULE
+  // REDIRECT NON-ADMIN TO START PAGE OR FIRST AVAILABLE MODULE IF DEFINED
   if (!isAdmin && modules.length > 0 && location.pathname === '/') {
     const userPosition = (companyPositions || []).find(p => p.name === currentUser?.position)
     const targetPath = userPosition?.start_page
     if (targetPath && modules.some(m => m.path === targetPath)) {
       return <Navigate to={targetPath} replace />
     }
-    return <Navigate to={modules[0].path} replace />
   }
 
+  const filteredModules = modules.filter(m => {
+    const matchesSearch = m.title.toLowerCase().includes(portalSearch.toLowerCase()) ||
+                          m.desc.toLowerCase().includes(portalSearch.toLowerCase());
+    const matchesPillar = selectedPillar === 'all' || m.pillar === selectedPillar;
+    return matchesSearch && matchesPillar;
+  });
+
+  const crmCount = modules.filter(m => m.pillar === 'crm').length;
+  const erpCount = modules.filter(m => m.pillar === 'erp').length;
+  const mesCount = modules.filter(m => m.pillar === 'mes').length;
+
+  // Real Enterprise Live Analytics Metrics
+  const activeOrders = orders.filter(o => o.status !== 'completed' && o.status !== 'shipped' && o.status !== 'cancelled');
+  const activeOrdersCount = activeOrders.length;
+  
+  const activeOrdersSum = activeOrders.reduce((acc, o) => {
+    let val = Number(o.total_price || o.price || o.total_amount || 0);
+    if (!val && Array.isArray(o.order_items) && o.order_items.length > 0) {
+      val = o.order_items.reduce((iSum, item) => {
+        const q = Number(item.quantity || item.qty || item.count || 0);
+        const p = Number(item.price_per_unit || item.price || item.cost || 0);
+        return iSum + (Number(item.total_price) || (q * p));
+      }, 0);
+    }
+    return acc + val;
+  }, 0);
+
+  const pendingRequestsCount = requests.filter(r => r.status === 'pending' || r.status === 'new' || r.status === 'created' || r.status === 'in_progress').length;
+  
+  const activeWorkCardsCount = workCards.filter(w => w.status === 'in-progress' || w.status === 'at-buffer' || w.status === 'new' || w.status === 'in_progress' || w.status === 'active').length
+    || tasks.filter(t => t.status !== 'completed' && t.status !== 'done' && t.status !== 'cancelled').length;
+
+  const activeCallsCount = machineCalls.filter(c => c.status === 'pending' || c.status === 'active' || c.status === 'new').length;
+  const workingMachinesCount = machines.filter(m => m.status === 'working' || m.status === 'active' || m.status === 'online').length;
+
+  // User position & role detection
+  const userPos = (currentUser?.position || '').toLowerCase();
+  const userRole = (currentUser?.role || '').toLowerCase();
+
+  const isManagerRole = userPos.includes('менеджер') || userPos.includes('продаж') || userRole.includes('manager');
+  const isForemanRole = userPos.includes('майстер') || userPos.includes('нач') || userPos.includes('цех') || userPos.includes('бригад') || userRole.includes('foreman') || userRole.includes('master');
+  const isWarehouseRole = userPos.includes('склад') || userPos.includes('комір') || userPos.includes('постач') || userRole.includes('warehouse');
+  const isDirectorRole = userPos.includes('директор') || userPos.includes('керівник') || userRole.includes('director');
+  const isEngineerRole = userPos.includes('інженер') || userPos.includes('чпк') || userPos.includes('вкя') || userRole.includes('engineer');
+
+  const positionTitle = currentUser?.position || (isDirectorRole ? 'Директор' : isManagerRole ? 'Менеджер' : isForemanRole ? 'Начальник Цеху' : isWarehouseRole ? 'Завскладу' : isEngineerRole ? 'Інженер' : isAdmin ? 'Адмін' : 'Спеціаліст');
+
+  const hasModule = (id) => modules.some(m => m.id === id);
+
+  // Quick Action availability based on permissions
+  const canCreateOrder = hasModule('crm') || hasModule('manager') || hasModule('director') || isAdmin;
+  const canCreateBatch = hasModule('master') || hasModule('foreman') || hasModule('director') || isAdmin;
+  const canRequestMaterial = hasModule('warehouse') || hasModule('supply') || hasModule('master') || hasModule('foreman') || hasModule('director') || isAdmin;
+  const canCallMaster = hasModule('operator') || hasModule('shop1') || hasModule('shop2_terminal') || hasModule('master') || isAdmin;
+
   return (
-    <div className="portal-container-v2" style={{ background: '#050505', minHeight: '100vh', color: '#fff', padding: '40px 20px' }}>
-      <header className="portal-header-v2" style={{ maxWidth: '1200px', margin: '0 auto 50px', textAlign: 'center' }}>
-        <div className="logo-section" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '15px' }}>
-          <img src="/kulytsya.png" alt="Logo" style={{ height: '70px', filter: 'drop-shadow(0 0 15px rgba(255,144,0,0.4))' }} />
-          <h1 style={{ fontSize: '2.4rem', fontWeight: 950, margin: 0, letterSpacing: '-1px' }}>CRM <span style={{ color: '#ff9000' }}>КУЛИЦЯ</span></h1>
-          <p style={{ color: '#333', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.4em' }}>Industrial Control v2.0</p>
+    <div className="portal-container-v2" style={{ background: 'var(--bg)', minHeight: 'calc(100vh - 64px)', color: 'var(--text)', padding: '24px 28px 40px' }}>
+      <div style={{ maxWidth: '1380px', margin: '0 auto' }}>
+        
+        {/* Executive Command Header & Pulse Status */}
+        <div style={{
+          background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(255, 144, 0, 0.08) 100%)',
+          border: '1px solid var(--glass-border, rgba(255, 255, 255, 0.1))',
+          borderRadius: '24px',
+          padding: '24px 28px',
+          marginBottom: '24px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '20px'
+        }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+              <h1 style={{ fontSize: '1.85rem', fontWeight: 950, margin: 0, letterSpacing: '-0.5px', color: 'var(--text)' }}>
+                Вітаємо, {currentUser?.first_name || currentUser?.login || 'Користувач'}! 👋
+              </h1>
+              <span style={{
+                background: 'linear-gradient(135deg, #ff9000, #ea580c)',
+                color: '#fff',
+                padding: '4px 14px',
+                borderRadius: '20px',
+                fontSize: '0.75rem',
+                fontWeight: 900,
+                letterSpacing: '0.03em',
+                textTransform: 'uppercase',
+                boxShadow: '0 4px 12px rgba(255,144,0,0.3)'
+              }}>
+                {positionTitle}
+              </span>
+            </div>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: '8px', marginBottom: 0, fontWeight: 600 }}>
+              Операційний центр підприємства • Моніторинг CRM, ERP та виробничого виконання (MES) у реальному часі
+            </p>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              background: 'var(--card-bg, rgba(22, 24, 34, 0.75))',
+              border: '1px solid var(--glass-border)',
+              padding: '8px 16px',
+              borderRadius: '16px',
+              fontSize: '0.8rem',
+              fontWeight: 800,
+              color: '#10b981'
+            }}>
+              <span style={{ width: '9px', height: '9px', borderRadius: '50%', background: '#10b981', boxShadow: '0 0 10px #10b981' }} />
+              Пульс системи: Всі цехи в нормі
+            </div>
+          </div>
         </div>
-      </header>
-      <div className="portal-grid-v2" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', maxWidth: '1200px', margin: '0 auto' }}>
-        {modules.map(mod => (
-          <Link key={mod.id} to={mod.path} className="portal-card-v2 glass-panel" style={{ textDecoration: 'none', background: '#111', border: '1px solid #1a1a1a', borderRadius: '24px', padding: '25px', display: 'flex', alignItems: 'center', gap: '20px', transition: '0.3s cubic-bezier(0.4, 0, 0.2, 1)', position: 'relative', overflow: 'hidden' }}>
-            <div className="card-icon-v2" style={{ background: '#000', width: '56px', height: '56px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: mod.color, position: 'relative' }}>
-              {mod.icon}
-              {mod.badge > 0 && <span className="badge-count anim-pulse" style={{ position: 'absolute', top: -5, right: -5 }}>{mod.badge}</span>}
+
+        {/* ⚡ Enterprise Quick Actions Bar (Швидкі Операційні Дії) */}
+        <div style={{
+          background: 'var(--card-bg, rgba(22, 24, 34, 0.75))',
+          border: '1px solid var(--glass-border)',
+          borderRadius: '20px',
+          padding: '16px 20px',
+          marginBottom: '28px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '14px'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ width: '36px', height: '36px', borderRadius: '12px', background: 'rgba(255, 144, 0, 0.15)', color: '#ff9000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Zap size={20} />
             </div>
-            <div className="card-info-v2" style={{ flex: 1 }}>
-              <h3 style={{ margin: '0 0 4px 0', fontSize: '1.1rem', color: '#fff', fontWeight: 900 }}>{mod.title}</h3>
-              <p style={{ margin: 0, fontSize: '0.75rem', color: '#555', fontWeight: 500 }}>{mod.desc}</p>
+            <div>
+              <div style={{ fontSize: '0.9rem', fontWeight: 900, color: 'var(--text)' }}>Швидкі Дії Підприємства</div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>Оперативне створення запитів, замовлень та зв'язок</div>
             </div>
-            <ChevronRight className="arrow-v2" size={18} style={{ color: '#222', transition: '0.3s' }} />
-            <div className="hover-line" style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '3px', background: mod.color, opacity: 0, transition: '0.3s' }}></div>
-          </Link>
-        ))}
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            {canCreateOrder && (
+              <Link to="/manager" style={{ background: 'linear-gradient(135deg, #6366f1, #4f46e5)', color: '#fff', textDecoration: 'none', padding: '9px 18px', borderRadius: '14px', fontSize: '0.82rem', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 14px rgba(99, 102, 241, 0.3)', transition: '0.2s' }}>
+                <Plus size={16} /> Створити Замовлення
+              </Link>
+            )}
+
+            {canCreateBatch && (
+              <Link to="/master" style={{ background: 'linear-gradient(135deg, #ff9000, #ea580c)', color: '#fff', textDecoration: 'none', padding: '9px 18px', borderRadius: '14px', fontSize: '0.82rem', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 14px rgba(255, 144, 0, 0.3)', transition: '0.2s' }}>
+                <Plus size={16} /> Створити Наряд
+              </Link>
+            )}
+
+            {canRequestMaterial && (
+              <Link to="/warehouse" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)', textDecoration: 'none', padding: '9px 18px', borderRadius: '14px', fontSize: '0.82rem', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px', transition: '0.2s' }}>
+                <Package size={16} /> Запит Матеріалів
+              </Link>
+            )}
+
+            {canCallMaster && (
+              <Link to="/machines" style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)', textDecoration: 'none', padding: '9px 18px', borderRadius: '14px', fontSize: '0.82rem', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px', transition: '0.2s' }}>
+                <AlertTriangle size={16} /> Викликати Майстра
+              </Link>
+            )}
+
+            <Link to="/chat" style={{ background: 'var(--secondary, rgba(255,255,255,0.06))', color: 'var(--text)', border: '1px solid var(--glass-border)', textDecoration: 'none', padding: '9px 18px', borderRadius: '14px', fontSize: '0.82rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px', transition: '0.2s' }}>
+              <MessageCircle size={16} color="#6366f1" /> Чат
+            </Link>
+          </div>
+        </div>
+
+        {/* 4 Core Vital Executive Metric Cards */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+          gap: '20px',
+          marginBottom: '32px'
+        }}>
+          {/* Tile 1: CRM & Orders */}
+          <div className="glass-panel" style={{
+            background: 'var(--card-bg, rgba(22, 24, 34, 0.75))',
+            border: '1px solid var(--glass-border)',
+            padding: '22px 24px',
+            borderRadius: '22px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '18px',
+            transition: 'all 0.3s ease'
+          }}>
+            <div style={{
+              width: '54px',
+              height: '54px',
+              borderRadius: '16px',
+              background: 'rgba(99, 102, 241, 0.14)',
+              color: '#6366f1',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              border: '1px solid rgba(99, 102, 241, 0.3)',
+              flexShrink: 0
+            }}>
+              <Briefcase size={26} />
+            </div>
+            <div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Активні Замовлення & Оборот
+              </div>
+              <div style={{ fontSize: '1.45rem', fontWeight: 950, color: 'var(--text)', marginTop: '2px' }}>
+                {activeOrdersCount} <span style={{ fontSize: '0.85rem', color: '#6366f1', fontWeight: 800 }}>замовлень</span>
+              </div>
+              <div style={{ fontSize: '0.75rem', color: '#10b981', fontWeight: 700, marginTop: '2px' }}>
+                ₴ {activeOrdersSum > 0 ? activeOrdersSum.toLocaleString('uk-UA') : '0'} у роботі
+              </div>
+            </div>
+          </div>
+
+          {/* Tile 2: MES Manufacturing Stream */}
+          <div className="glass-panel" style={{
+            background: 'var(--card-bg, rgba(22, 24, 34, 0.75))',
+            border: '1px solid var(--glass-border)',
+            padding: '22px 24px',
+            borderRadius: '22px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '18px',
+            transition: 'all 0.3s ease'
+          }}>
+            <div style={{
+              width: '54px',
+              height: '54px',
+              borderRadius: '16px',
+              background: 'rgba(255, 144, 0, 0.14)',
+              color: '#ff9000',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              border: '1px solid rgba(255, 144, 0, 0.3)',
+              flexShrink: 0
+            }}>
+              <Tablet size={26} />
+            </div>
+            <div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Цеховий Потік & Наряди
+              </div>
+              <div style={{ fontSize: '1.45rem', fontWeight: 950, color: 'var(--text)', marginTop: '2px' }}>
+                {activeWorkCardsCount} <span style={{ fontSize: '0.85rem', color: '#ff9000', fontWeight: 800 }}>карт у процесі</span>
+              </div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, marginTop: '2px' }}>
+                Цех №1 & Цех №2 активні
+              </div>
+            </div>
+          </div>
+
+          {/* Tile 3: ERP Warehouse & Supplies */}
+          <div className="glass-panel" style={{
+            background: 'var(--card-bg, rgba(22, 24, 34, 0.75))',
+            border: '1px solid var(--glass-border)',
+            padding: '22px 24px',
+            borderRadius: '22px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '18px',
+            transition: 'all 0.3s ease'
+          }}>
+            <div style={{
+              width: '54px',
+              height: '54px',
+              borderRadius: '16px',
+              background: 'rgba(16, 185, 129, 0.14)',
+              color: '#10b981',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              border: '1px solid rgba(16, 185, 129, 0.3)',
+              flexShrink: 0
+            }}>
+              <Warehouse size={26} />
+            </div>
+            <div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Склад WMS & Запити
+              </div>
+              <div style={{ fontSize: '1.45rem', fontWeight: 950, color: 'var(--text)', marginTop: '2px' }}>
+                {pendingRequestsCount} <span style={{ fontSize: '0.85rem', color: '#10b981', fontWeight: 800 }}>активних запитів</span>
+              </div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, marginTop: '2px' }}>
+                Склад готовності & ТМЦ
+              </div>
+            </div>
+          </div>
+
+          {/* Tile 4: Equipment & Quality */}
+          <div className="glass-panel" style={{
+            background: 'var(--card-bg, rgba(22, 24, 34, 0.75))',
+            border: '1px solid var(--glass-border)',
+            padding: '22px 24px',
+            borderRadius: '22px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '18px',
+            transition: 'all 0.3s ease'
+          }}>
+            <div style={{
+              width: '54px',
+              height: '54px',
+              borderRadius: '16px',
+              background: activeCallsCount > 0 ? 'rgba(239, 68, 68, 0.14)' : 'rgba(14, 165, 233, 0.14)',
+              color: activeCallsCount > 0 ? '#ef4444' : '#0ea5e9',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              border: activeCallsCount > 0 ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid rgba(14, 165, 233, 0.3)',
+              flexShrink: 0
+            }}>
+              <Cpu size={26} />
+            </div>
+            <div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Верстати & Контроль Якості
+              </div>
+              <div style={{ fontSize: '1.45rem', fontWeight: 950, color: 'var(--text)', marginTop: '2px' }}>
+                {workingMachinesCount > 0 ? workingMachinesCount : (machines.length || 'Всі')} <span style={{ fontSize: '0.85rem', color: '#0ea5e9', fontWeight: 800 }}>обладнання</span>
+              </div>
+              <div style={{ fontSize: '0.75rem', color: activeCallsCount > 0 ? '#ef4444' : '#10b981', fontWeight: 800, marginTop: '2px' }}>
+                {activeCallsCount > 0 ? `🚨 ${activeCallsCount} термінових викликів!` : '✓ Аварійні виклики відсутні'}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 3-in-1 Pillars Fast Access Row (Filtered strictly by Permissions) */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))',
+          gap: '20px',
+          marginBottom: '32px'
+        }}>
+          {/* CRM Pillar Bar */}
+          <div style={{
+            background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, rgba(99, 102, 241, 0.03) 100%)',
+            border: '1px solid rgba(99, 102, 241, 0.25)',
+            borderRadius: '20px',
+            padding: '22px 24px',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            gap: '16px'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <span style={{ fontSize: '0.72rem', fontWeight: 900, color: '#6366f1', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                  🟣 CRM ПРОДАЖІ & ВОРОНКА
+                </span>
+                <h3 style={{ margin: '4px 0 0', fontSize: '1.15rem', fontWeight: 900, color: 'var(--text)' }}>
+                  Клієнтські Угоди та Замовлення
+                </h3>
+              </div>
+              <span style={{ background: '#6366f1', color: '#fff', fontSize: '0.75rem', fontWeight: 900, padding: '4px 10px', borderRadius: '12px' }}>
+                {crmCount} Модулів
+              </span>
+            </div>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              {hasModule('crm') && (
+                <Link to="/crm" style={{ background: '#6366f1', color: '#fff', textDecoration: 'none', padding: '8px 15px', borderRadius: '12px', fontSize: '0.82rem', fontWeight: 800, transition: '0.2s' }}>
+                  Воронка Угод →
+                </Link>
+              )}
+              {(hasModule('crm') || hasModule('crm_clients')) && (
+                <Link to="/crm/clients" style={{ background: 'rgba(99, 102, 241, 0.15)', color: '#6366f1', border: '1px solid rgba(99, 102, 241, 0.3)', textDecoration: 'none', padding: '8px 15px', borderRadius: '12px', fontSize: '0.82rem', fontWeight: 800, transition: '0.2s' }}>
+                  База Клієнтів
+                </Link>
+              )}
+              {hasModule('manager') && (
+                <Link to="/manager" style={{ background: 'rgba(99, 102, 241, 0.15)', color: '#6366f1', border: '1px solid rgba(99, 102, 241, 0.3)', textDecoration: 'none', padding: '8px 15px', borderRadius: '12px', fontSize: '0.82rem', fontWeight: 800, transition: '0.2s' }}>
+                  Менеджер Замовлень
+                </Link>
+              )}
+              {hasModule('kanban') && (
+                <Link to="/tasks" style={{ background: 'rgba(99, 102, 241, 0.15)', color: '#6366f1', border: '1px solid rgba(99, 102, 241, 0.3)', textDecoration: 'none', padding: '8px 15px', borderRadius: '12px', fontSize: '0.82rem', fontWeight: 800, transition: '0.2s' }}>
+                  Задачі Канбан
+                </Link>
+              )}
+            </div>
+          </div>
+
+          {/* ERP Pillar Bar */}
+          <div style={{
+            background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(16, 185, 129, 0.03) 100%)',
+            border: '1px solid rgba(16, 185, 129, 0.25)',
+            borderRadius: '20px',
+            padding: '22px 24px',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            gap: '16px'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <span style={{ fontSize: '0.72rem', fontWeight: 900, color: '#10b981', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                  🟢 ERP РЕСУРСИ & ЛОГІСТИКА
+                </span>
+                <h3 style={{ margin: '4px 0 0', fontSize: '1.15rem', fontWeight: 900, color: 'var(--text)' }}>
+                  Склади WMS, Постачання та Економіка
+                </h3>
+              </div>
+              <span style={{ background: '#10b981', color: '#fff', fontSize: '0.75rem', fontWeight: 900, padding: '4px 10px', borderRadius: '12px' }}>
+                {erpCount} Модулів
+              </span>
+            </div>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              {hasModule('warehouse') && (
+                <Link to="/warehouse" style={{ background: '#10b981', color: '#fff', textDecoration: 'none', padding: '8px 15px', borderRadius: '12px', fontSize: '0.82rem', fontWeight: 800, transition: '0.2s' }}>
+                  Склад Оперативний →
+                </Link>
+              )}
+              {(hasModule('prep_terminal') || hasModule('preparation_dashboard') || hasModule('warehouse') || isAdmin) && (
+                <Link to="/preparation-dashboard" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)', textDecoration: 'none', padding: '8px 15px', borderRadius: '12px', fontSize: '0.82rem', fontWeight: 800, transition: '0.2s' }}>
+                  Склад Виробництва
+                </Link>
+              )}
+              {(hasModule('warehouse_fgp') || isAdmin) && (
+                <Link to="/warehouse-fgp" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)', textDecoration: 'none', padding: '8px 15px', borderRadius: '12px', fontSize: '0.82rem', fontWeight: 800, transition: '0.2s' }}>
+                  Склад СГП
+                </Link>
+              )}
+              {(hasModule('warehouse_boxes') || isAdmin) && (
+                <Link to="/warehouse-boxes" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)', textDecoration: 'none', padding: '8px 15px', borderRadius: '12px', fontSize: '0.82rem', fontWeight: 800, transition: '0.2s' }}>
+                  Бокси фрез
+                </Link>
+              )}
+              {(hasModule('supply') || isAdmin) && (
+                <Link to="/supply" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)', textDecoration: 'none', padding: '8px 15px', borderRadius: '12px', fontSize: '0.82rem', fontWeight: 800, transition: '0.2s' }}>
+                  Постачання (Procurement)
+                </Link>
+              )}
+              {(hasModule('economy') || isAdmin) && (
+                <Link to="/economy" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)', textDecoration: 'none', padding: '8px 15px', borderRadius: '12px', fontSize: '0.82rem', fontWeight: 800, transition: '0.2s' }}>
+                  Економіка & Ціни
+                </Link>
+              )}
+            </div>
+          </div>
+
+          {/* MES Pillar Bar */}
+          <div style={{
+            background: 'linear-gradient(135deg, rgba(255, 144, 0, 0.12) 0%, rgba(255, 144, 0, 0.03) 100%)',
+            border: '1px solid rgba(255, 144, 0, 0.25)',
+            borderRadius: '20px',
+            padding: '22px 24px',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            gap: '16px'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <span style={{ fontSize: '0.72rem', fontWeight: 900, color: '#ff9000', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                  🟠 MES ВИРОБНИЧІ ЦЕХИ
+                </span>
+                <h3 style={{ margin: '4px 0 0', fontSize: '1.15rem', fontWeight: 900, color: 'var(--text)' }}>
+                  Наряди, Термінали та Кабінет Директора
+                </h3>
+              </div>
+              <span style={{ background: '#ff9000', color: '#fff', fontSize: '0.75rem', fontWeight: 900, padding: '4px 10px', borderRadius: '12px' }}>
+                {mesCount} Модулів
+              </span>
+            </div>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              {hasModule('director') && (
+                <Link to="/director" style={{ background: '#ff9000', color: '#000', textDecoration: 'none', padding: '8px 15px', borderRadius: '12px', fontSize: '0.82rem', fontWeight: 900, transition: '0.2s' }}>
+                  Кабінет Директора →
+                </Link>
+              )}
+              {hasModule('master') && (
+                <Link to="/master" style={{ background: 'rgba(255, 144, 0, 0.15)', color: '#ff9000', border: '1px solid rgba(255, 144, 0, 0.3)', textDecoration: 'none', padding: '8px 15px', borderRadius: '12px', fontSize: '0.82rem', fontWeight: 800, transition: '0.2s' }}>
+                  Кабінет Майстра
+                </Link>
+              )}
+              {hasModule('foreman') && (
+                <Link to="/foreman" style={{ background: 'rgba(255, 144, 0, 0.15)', color: '#ff9000', border: '1px solid rgba(255, 144, 0, 0.3)', textDecoration: 'none', padding: '8px 15px', borderRadius: '12px', fontSize: '0.82rem', fontWeight: 800, transition: '0.2s' }}>
+                  Начальник Цеху
+                </Link>
+              )}
+              {hasModule('shop1_foreman') && (
+                <Link to="/shop1-foreman" style={{ background: 'rgba(255, 144, 0, 0.15)', color: '#ff9000', border: '1px solid rgba(255, 144, 0, 0.3)', textDecoration: 'none', padding: '8px 15px', borderRadius: '12px', fontSize: '0.82rem', fontWeight: 800, transition: '0.2s' }}>
+                  Диспетчер Цех №1
+                </Link>
+              )}
+              {(hasModule('operator') || hasModule('shop1')) && (
+                <Link to="/operator" style={{ background: 'rgba(255, 144, 0, 0.15)', color: '#ff9000', border: '1px solid rgba(255, 144, 0, 0.3)', textDecoration: 'none', padding: '8px 15px', borderRadius: '12px', fontSize: '0.82rem', fontWeight: 800, transition: '0.2s' }}>
+                  Робочий Термінал
+                </Link>
+              )}
+              {hasModule('machines') && (
+                <Link to="/machines" style={{ background: 'rgba(255, 144, 0, 0.15)', color: '#ff9000', border: '1px solid rgba(255, 144, 0, 0.3)', textDecoration: 'none', padding: '8px 15px', borderRadius: '12px', fontSize: '0.82rem', fontWeight: 800, transition: '0.2s' }}>
+                  Верстати & ЧПК
+                </Link>
+              )}
+              {hasModule('brak') && (
+                <Link to="/brak" style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)', textDecoration: 'none', padding: '8px 15px', borderRadius: '12px', fontSize: '0.82rem', fontWeight: 800, transition: '0.2s' }}>
+                  Контроль Браку (QC)
+                </Link>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Filter Toolbar & Module Catalog Grid */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '16px',
+          marginBottom: '24px',
+          flexWrap: 'wrap'
+        }}>
+          {/* Pillar Selector Buttons */}
+          <div style={{
+            background: 'var(--card-bg, rgba(22, 24, 34, 0.75))',
+            border: '1px solid var(--glass-border)',
+            padding: '6px',
+            borderRadius: '18px',
+            display: 'flex',
+            gap: '6px',
+            flexWrap: 'wrap'
+          }}>
+            <button
+              onClick={() => setSelectedPillar('all')}
+              style={{
+                padding: '9px 18px',
+                borderRadius: '14px',
+                border: selectedPillar === 'all' ? '1px solid #ff9000' : '1px solid transparent',
+                background: selectedPillar === 'all' ? 'rgba(255, 144, 0, 0.15)' : 'transparent',
+                color: selectedPillar === 'all' ? '#ff9000' : 'var(--text-muted)',
+                fontWeight: 900,
+                fontSize: '0.82rem',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              Усі Модулі Системи ({modules.length})
+            </button>
+
+            <button
+              onClick={() => setSelectedPillar('crm')}
+              style={{
+                padding: '9px 18px',
+                borderRadius: '14px',
+                border: selectedPillar === 'crm' ? '1px solid #6366f1' : '1px solid transparent',
+                background: selectedPillar === 'crm' ? 'rgba(99, 102, 241, 0.15)' : 'transparent',
+                color: selectedPillar === 'crm' ? '#6366f1' : 'var(--text-muted)',
+                fontWeight: 900,
+                fontSize: '0.82rem',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}
+            >
+              <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#6366f1' }} />
+              CRM Продажі ({crmCount})
+            </button>
+
+            <button
+              onClick={() => setSelectedPillar('erp')}
+              style={{
+                padding: '9px 18px',
+                borderRadius: '14px',
+                border: selectedPillar === 'erp' ? '1px solid #10b981' : '1px solid transparent',
+                background: selectedPillar === 'erp' ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
+                color: selectedPillar === 'erp' ? '#10b981' : 'var(--text-muted)',
+                fontWeight: 900,
+                fontSize: '0.82rem',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}
+            >
+              <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981' }} />
+              ERP Ресурси ({erpCount})
+            </button>
+
+            <button
+              onClick={() => setSelectedPillar('mes')}
+              style={{
+                padding: '9px 18px',
+                borderRadius: '14px',
+                border: selectedPillar === 'mes' ? '1px solid #ff9000' : '1px solid transparent',
+                background: selectedPillar === 'mes' ? 'rgba(255, 144, 0, 0.15)' : 'transparent',
+                color: selectedPillar === 'mes' ? '#ff9000' : 'var(--text-muted)',
+                fontWeight: 900,
+                fontSize: '0.82rem',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}
+            >
+              <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#ff9000' }} />
+              MES Цехи ({mesCount})
+            </button>
+          </div>
+
+          {/* Search Box */}
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+            <Search size={16} style={{ position: 'absolute', left: '14px', color: 'var(--text-muted)' }} />
+            <input
+              type="text"
+              placeholder="Пошук модуля..."
+              value={portalSearch}
+              onChange={(e) => setPortalSearch(e.target.value)}
+              style={{
+                padding: '11px 16px 11px 40px',
+                borderRadius: '16px',
+                border: '1px solid var(--glass-border)',
+                background: 'var(--card-bg, rgba(22, 24, 34, 0.75))',
+                color: 'var(--text)',
+                fontSize: '0.88rem',
+                width: '280px',
+                outline: 'none',
+                fontWeight: 600
+              }}
+            />
+            {portalSearch && (
+              <button
+                onClick={() => setPortalSearch('')}
+                style={{ position: 'absolute', right: '12px', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '2px' }}
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Modules Grid */}
+        <div className="portal-grid-v2" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(290px, 1fr))', gap: '20px' }}>
+          {filteredModules.map(mod => (
+            <Link
+              key={mod.id}
+              to={mod.path}
+              className="portal-card-v2 glass-panel"
+              style={{
+                textDecoration: 'none',
+                background: 'var(--card-bg, rgba(22, 24, 34, 0.75))',
+                border: '1px solid var(--glass-border)',
+                borderRadius: '22px',
+                padding: '22px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '18px',
+                transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+                position: 'relative',
+                overflow: 'hidden'
+              }}
+            >
+              <div className="card-icon-v2" style={{
+                background: `rgba(${mod.color === '#6366f1' ? '99, 102, 241' : mod.color === '#10b981' ? '16, 185, 129' : '255, 144, 0'}, 0.12)`,
+                width: '54px',
+                height: '54px',
+                borderRadius: '16px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: mod.color,
+                position: 'relative',
+                border: `1px solid ${mod.color}33`,
+                flexShrink: 0
+              }}>
+                {mod.icon}
+                {mod.badge > 0 && <span className="badge-count anim-pulse" style={{ position: 'absolute', top: -5, right: -5 }}>{mod.badge}</span>}
+              </div>
+
+              <div className="card-info-v2" style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                  <h3 style={{ margin: 0, fontSize: '1.02rem', color: 'var(--text)', fontWeight: 900, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {mod.title}
+                  </h3>
+                </div>
+                <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 500, lineHeight: 1.45, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                  {mod.desc}
+                </p>
+              </div>
+
+              <ChevronRight className="arrow-v2" size={18} style={{ color: 'var(--text-muted)', transition: '0.2s', flexShrink: 0 }} />
+              <div className="hover-line" style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '3px', background: mod.color, opacity: 0, transition: '0.2s' }} />
+            </Link>
+          ))}
+        </div>
       </div>
+
       <style dangerouslySetInnerHTML={{
         __html: `
-        .portal-card-v2:hover { transform: translateY(-5px) scale(1.02); background: #181818; border-color: #333; box-shadow: 0 20px 40px rgba(0,0,0,0.4); }
-        .portal-card-v2:hover .arrow-v2 { color: #ff9000; transform: translateX(5px); }
+        .portal-card-v2:hover { transform: translateY(-4px); background: var(--card-hover-bg, rgba(30, 30, 42, 0.95)); border-color: rgba(255, 144, 0, 0.4) !important; box-shadow: 0 12px 30px rgba(0,0,0,0.15); }
+        .portal-card-v2:hover .arrow-v2 { color: #ff9000; transform: translateX(4px); }
         .portal-card-v2:hover .hover-line { opacity: 1; }
         @media (max-width: 768px) { .portal-grid-v2 { grid-template-columns: 1fr; } }
       `}} />
@@ -2888,12 +3643,12 @@ const SystemAlertHost = () => {
         position: 'fixed',
         inset: 0,
         zIndex: 50000,
-        background: 'rgba(0,0,0,.72)',
-        backdropFilter: 'blur(10px)',
+        background: 'rgba(0,0,0,.75)',
+        backdropFilter: 'blur(6px)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '18px'
+        padding: '20px'
       }}
       onClick={() => setMessage(null)}
     >
@@ -2965,6 +3720,1027 @@ const SystemAlertHost = () => {
   )
 }
 
+// ── App Sidebar (Enterprise 3-in-1 Side Menu) ──────────────────────────────────
+const AppSidebar = ({ isCollapsed, setIsCollapsed, chatUnreadCount, isMobileOpen, setIsMobileOpen, onOpenProfile, onOpenNotifications, unreadNotifCount = 0 }) => {
+  const { currentUser, logout: logoutUser, theme, toggleTheme } = useMES()
+  const location = useLocation()
+  const navigate = useNavigate()
+  const [collapsedGroups, setCollapsedGroups] = useState({ crm: false, erp: false, mes: false })
+  const [sidebarFilter, setSidebarFilter] = useState('')
+
+  const modules = useMemo(() => {
+    return getAvailableModules(currentUser, 0, chatUnreadCount)
+  }, [currentUser, chatUnreadCount])
+
+  // Collapse sidebar ONLY when clicking on empty space (ignoring buttons, links, cards & inputs)
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (isCollapsed) return
+      const sidebarEl = document.querySelector('.app-sidebar')
+      if (!sidebarEl) return
+      
+      // If click is inside sidebar, do nothing
+      if (sidebarEl.contains(e.target)) return
+
+      // If click is on ANY button, link, input, card, or interactive element on the page, DO NOT collapse (let the button click work directly on 1st click!)
+      const isInteractive = e.target.closest(
+        'button, a, input, select, textarea, [role="button"], .portal-card-v2, .glass-panel, .glass-modal, [role="dialog"], .mobile-menu-toggle-btn, .sidebar-toggle-edge-btn, .card, .btn'
+      );
+      if (isInteractive) return
+
+      // Only collapse when clicking on plain empty space / page background
+      setIsCollapsed(true)
+    }
+
+    document.addEventListener('click', handleClickOutside)
+    return () => document.removeEventListener('click', handleClickOutside)
+  }, [isCollapsed, setIsCollapsed])
+
+  const toggleGroup = (pillar) => {
+    setCollapsedGroups(prev => ({ ...prev, [pillar]: !prev[pillar] }))
+  }
+
+  const filteredModules = useMemo(() => {
+    if (!sidebarFilter.trim()) return modules;
+    const query = sidebarFilter.toLowerCase();
+    return modules.filter(m => m.title.toLowerCase().includes(query) || m.desc.toLowerCase().includes(query));
+  }, [modules, sidebarFilter]);
+
+  const crmModules = filteredModules.filter(m => m.pillar === 'crm')
+  const erpModules = filteredModules.filter(m => m.pillar === 'erp')
+  const mesModules = filteredModules.filter(m => m.pillar === 'mes')
+
+  return (
+    <>
+      {/* Mobile Sticky Website Header Bar */}
+      <header className="mobile-app-topbar">
+        {/* Left: Logo 🦊 + Brand + Menu Toggle Arrow */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <button
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="mobile-menu-toggle-btn"
+            title={isCollapsed ? "Відкрити меню" : "Згорнути меню"}
+          >
+            <img src="/kulytsya.png" alt="Logo" style={{ height: '26px', filter: 'drop-shadow(0 0 6px rgba(255,144,0,0.5))' }} />
+            {isCollapsed ? <ChevronRight size={16} color="#ff9000" /> : <ChevronLeft size={16} color="#ff9000" />}
+          </button>
+          
+          <Link to="/" className="sidebar-brand-link" onClick={() => setIsCollapsed(true)} style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ fontSize: '0.95rem', fontWeight: 950, color: 'var(--text)', letterSpacing: '-0.3px' }}>
+              CENTRUM <span style={{ color: '#ff9000' }}>3-IN-1</span>
+            </span>
+          </Link>
+        </div>
+
+        {/* Right: Quick Action Icons (Chat 💬, Notifications 🔔, Theme 🌙/☀️) */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          {/* Chat Button */}
+          <Link
+            to="/chat"
+            onClick={() => setIsCollapsed(true)}
+            className="mobile-topbar-icon-btn"
+            title="Чат & Комунікація"
+            style={{ position: 'relative' }}
+          >
+            <MessageCircle size={18} color="#ff9000" />
+            {chatUnreadCount > 0 && (
+              <span className="mobile-unread-badge">
+                {chatUnreadCount}
+              </span>
+            )}
+          </Link>
+
+          {/* Notifications Button */}
+          <Link
+            to="/notifications"
+            onClick={() => setIsCollapsed(true)}
+            className="mobile-topbar-icon-btn"
+            title="Центр сповіщень"
+            style={{ position: 'relative' }}
+          >
+            <Bell size={18} color={unreadNotifCount > 0 ? "#ff9000" : "var(--text-muted)"} />
+            {unreadNotifCount > 0 && (
+              <span className="mobile-unread-badge" style={{ background: '#ef4444' }}>
+                {unreadNotifCount}
+              </span>
+            )}
+          </Link>
+
+          {/* Theme Switcher */}
+          <button
+            onClick={toggleTheme}
+            className="mobile-topbar-icon-btn"
+            title="Змінити тему"
+          >
+            {theme === 'light' ? <Sun size={18} color="#eab308" /> : <Moon size={18} color="#a78bfa" />}
+          </button>
+        </div>
+      </header>
+
+      {!isCollapsed && (
+        <div
+          className="mobile-backdrop-overlay"
+          onClick={() => setIsCollapsed(true)}
+        />
+      )}
+
+      <aside
+        className={`app-sidebar ${isCollapsed ? 'collapsed' : ''}`}
+        onClick={() => {
+          if (isCollapsed) setIsCollapsed(false);
+        }}
+        style={{
+          position: 'sticky',
+          top: 0,
+          height: '100vh',
+          zIndex: 99999,
+          overflow: 'visible',
+          cursor: isCollapsed ? 'pointer' : 'default'
+        }}
+      >
+        {/* Brand Header */}
+        <div className="sidebar-header" style={{ position: 'relative', zIndex: 10000, overflow: 'visible', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 18px 12px 18px', minHeight: '60px', width: '100%', boxSizing: 'border-box', flexShrink: 0 }}>
+          <Link to="/" className="sidebar-brand-link" onClick={() => setIsMobileOpen(false)} style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--text)', opacity: 1, visibility: 'visible' }}>
+            <img src="/kulytsya.png" alt="Logo" style={{ width: '34px', height: '34px', objectFit: 'contain', filter: 'drop-shadow(0 0 10px rgba(255,144,0,0.4))', flexShrink: 0, display: 'block' }} />
+            {!isCollapsed && (
+              <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                <div style={{ fontSize: '1.05rem', fontWeight: 950, color: 'var(--text)', letterSpacing: '-0.5px', lineHeight: 1.1, whiteSpace: 'nowrap' }}>
+                  CENTRUM <span style={{ color: '#ff9000' }}>3-IN-1</span>
+                </div>
+                <div style={{ fontSize: '0.58rem', color: 'var(--text-muted)', fontWeight: 800, marginTop: '2px', textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>
+                  Enterprise Suite v2.4
+                </div>
+              </div>
+            )}
+          </Link>
+
+          <button
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="sidebar-toggle-edge-btn"
+            title={isCollapsed ? "Розгорнути меню" : "Згорнути меню"}
+          >
+            {isCollapsed ? <ChevronRight size={15} /> : <ChevronLeft size={15} />}
+          </button>
+        </div>
+
+        {/* Quick Action Toolbar Below Logo */}
+        {!isCollapsed && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '6px 14px 12px 14px',
+            borderBottom: '1px solid var(--glass-border, rgba(255, 255, 255, 0.05))',
+            flexShrink: 0
+          }}>
+            <Link
+              to="/chat"
+              style={{
+                flex: 1,
+                padding: '8px 10px',
+                borderRadius: '12px',
+                background: chatUnreadCount > 0 ? 'rgba(99, 102, 241, 0.12)' : 'rgba(255, 255, 255, 0.04)',
+                border: chatUnreadCount > 0 ? '1px solid rgba(99, 102, 241, 0.3)' : '1px solid var(--glass-border, rgba(255, 255, 255, 0.08))',
+                color: chatUnreadCount > 0 ? '#6366f1' : 'var(--text)',
+                fontSize: '0.82rem',
+                fontWeight: 800,
+                textDecoration: 'none',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                transition: 'all 0.2s ease'
+              }}
+              title="Чат & Комунікація"
+            >
+              <MessageCircle size={15} color={chatUnreadCount > 0 ? "#6366f1" : "var(--text-muted)"} />
+              <span>Чат</span>
+              {chatUnreadCount > 0 && (
+                <span style={{
+                  background: '#6366f1',
+                  color: '#ffffff',
+                  fontSize: '0.68rem',
+                  fontWeight: 900,
+                  padding: '2px 7px',
+                  borderRadius: '10px',
+                  lineHeight: 1,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: '0 2px 6px rgba(99, 102, 241, 0.4)'
+                }}>
+                  {chatUnreadCount}
+                </span>
+              )}
+            </Link>
+
+            <Link
+              to="/notifications"
+              style={{
+                flex: 1,
+                padding: '8px 10px',
+                borderRadius: '12px',
+                background: unreadNotifCount > 0 ? 'rgba(239, 68, 68, 0.12)' : 'rgba(255, 255, 255, 0.04)',
+                border: unreadNotifCount > 0 ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid var(--glass-border, rgba(255, 255, 255, 0.08))',
+                color: unreadNotifCount > 0 ? '#ef4444' : 'var(--text)',
+                fontSize: '0.82rem',
+                fontWeight: 800,
+                textDecoration: 'none',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                transition: 'all 0.2s ease'
+              }}
+              title="Центр сповіщень"
+            >
+              <Bell size={15} color={unreadNotifCount > 0 ? "#ef4444" : "var(--text-muted)"} />
+              <span>Сповіщення</span>
+              {unreadNotifCount > 0 && (
+                <span style={{
+                  background: '#ef4444',
+                  color: '#ffffff',
+                  fontSize: '0.68rem',
+                  fontWeight: 900,
+                  padding: '2px 7px',
+                  borderRadius: '10px',
+                  lineHeight: 1,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: '0 2px 6px rgba(239, 68, 68, 0.4)'
+                }}>
+                  {unreadNotifCount}
+                </span>
+              )}
+            </Link>
+          </div>
+        )}
+
+        {/* Quick Filter Search in Sidebar */}
+        {!isCollapsed && (
+          <div className="sidebar-search-box">
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+              <Search size={14} style={{ position: 'absolute', left: '10px', color: '#64748b' }} />
+              <input
+                type="text"
+                placeholder="Швидкий фільтр..."
+                value={sidebarFilter}
+                onChange={(e) => setSidebarFilter(e.target.value)}
+                className="sidebar-search-input"
+              />
+              {sidebarFilter && (
+                <button
+                  onClick={() => setSidebarFilter('')}
+                  style={{ position: 'absolute', right: '8px', background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', display: 'flex' }}
+                >
+                  <X size={13} />
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Navigation Items */}
+        <div className="sidebar-nav-container">
+          {/* Main Dashboard Link */}
+          <Link
+            to="/"
+            onClick={() => {
+              setIsMobileOpen(false)
+              if (isCollapsed) setIsCollapsed(false)
+            }}
+            className={`sidebar-link-item ${location.pathname === '/' ? 'active' : ''}`}
+          >
+            <LayoutDashboard size={18} color="#ff9000" />
+            {!isCollapsed && <span>Головний Дашборд</span>}
+          </Link>
+
+          {/* 🟣 CRM Pillar Group */}
+          {crmModules.length > 0 && (
+            <div>
+              {!isCollapsed && (
+                <div className="sidebar-group-header" onClick={() => toggleGroup('crm')}>
+                  <span className="sidebar-group-title">
+                    <Briefcase size={12} color="#6366f1" /> CRM Продажі ({crmModules.length})
+                  </span>
+                  {collapsedGroups.crm ? <ChevronRight size={12} color="#64748b" /> : <ChevronDown size={12} color="#64748b" />}
+                </div>
+              )}
+              {(!collapsedGroups.crm || isCollapsed) && crmModules.map(mod => {
+                const isActive = location.pathname === mod.path
+                return (
+                  <Link
+                    key={mod.id}
+                    to={mod.path}
+                    onClick={() => {
+                      setIsMobileOpen(false)
+                      if (isCollapsed) setIsCollapsed(false)
+                    }}
+                    className={`sidebar-link-item crm-active ${isActive ? 'active' : ''}`}
+                    title={isCollapsed ? mod.title : ''}
+                  >
+                    <span style={{ color: mod.color, display: 'flex', alignItems: 'center' }}>{mod.icon}</span>
+                    {!isCollapsed && (
+                      <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{mod.title}</span>
+                        {mod.badge > 0 && <span className="badge-count" style={{ fontSize: '0.65rem' }}>{mod.badge}</span>}
+                      </div>
+                    )}
+                  </Link>
+                )
+              })}
+            </div>
+          )}
+
+          {/* 🟢 ERP Pillar Group */}
+          {erpModules.length > 0 && (
+            <div>
+              {!isCollapsed && (
+                <div className="sidebar-group-header" onClick={() => toggleGroup('erp')}>
+                  <span className="sidebar-group-title">
+                    <IconSO size={14} color="#10b981" /> ERP Ресурси ({erpModules.length})
+                  </span>
+                  {collapsedGroups.erp ? <ChevronRight size={12} color="#64748b" /> : <ChevronDown size={12} color="#64748b" />}
+                </div>
+              )}
+              {(!collapsedGroups.erp || isCollapsed) && erpModules.map(mod => {
+                const isActive = location.pathname === mod.path
+                return (
+                  <Link
+                    key={mod.id}
+                    to={mod.path}
+                    onClick={() => {
+                      setIsMobileOpen(false)
+                      if (isCollapsed) setIsCollapsed(false)
+                    }}
+                    className={`sidebar-link-item erp-active ${isActive ? 'active' : ''}`}
+                    title={isCollapsed ? mod.title : ''}
+                  >
+                    <span style={{ color: mod.color, display: 'flex', alignItems: 'center' }}>{mod.icon}</span>
+                    {!isCollapsed && (
+                      <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{mod.title}</span>
+                        {mod.badge > 0 && <span className="badge-count" style={{ fontSize: '0.65rem' }}>{mod.badge}</span>}
+                      </div>
+                    )}
+                  </Link>
+                )
+              })}
+            </div>
+          )}
+
+          {/* 🟠 MES Pillar Group */}
+          {mesModules.length > 0 && (
+            <div>
+              {!isCollapsed && (
+                <div className="sidebar-group-header" onClick={() => toggleGroup('mes')}>
+                  <span className="sidebar-group-title">
+                    <Settings size={12} color="#ff9000" /> MES Виробництво ({mesModules.length})
+                  </span>
+                  {collapsedGroups.mes ? <ChevronRight size={12} color="#64748b" /> : <ChevronDown size={12} color="#64748b" />}
+                </div>
+              )}
+              {(!collapsedGroups.mes || isCollapsed) && mesModules.map(mod => {
+                const isActive = location.pathname === mod.path
+                return (
+                  <Link
+                    key={mod.id}
+                    to={mod.path}
+                    onClick={() => {
+                      setIsMobileOpen(false)
+                      if (isCollapsed) setIsCollapsed(false)
+                    }}
+                    className={`sidebar-link-item mes-active ${isActive ? 'active' : ''}`}
+                    title={isCollapsed ? mod.title : ''}
+                  >
+                    <span style={{ color: mod.color, display: 'flex', alignItems: 'center' }}>{mod.icon}</span>
+                    {!isCollapsed && (
+                      <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{mod.title}</span>
+                        {mod.badge > 0 && <span className="badge-count" style={{ fontSize: '0.65rem' }}>{mod.badge}</span>}
+                      </div>
+                    )}
+                  </Link>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* User Profile Footer at Sidebar Bottom */}
+        <div className="sidebar-footer">
+          <div
+            style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, cursor: 'pointer' }}
+            onClick={() => navigate('/user-settings?tab=profile')}
+            title="Налаштування профілю"
+          >
+            {(() => {
+              const userAvatar = currentUser?.avatar || '';
+              const isImage = userAvatar.startsWith('data:image/') || userAvatar.startsWith('http');
+              const avatarBg = isImage ? 'transparent' : userAvatar.startsWith('#') ? `linear-gradient(135deg, ${userAvatar}, rgba(0,0,0,0.4))` : 'linear-gradient(135deg, #ff9000, #e65100)';
+              return (
+                <div style={{
+                  width: '34px', height: '34px', borderRadius: '10px',
+                  background: avatarBg,
+                  color: '#fff', fontWeight: 950, fontSize: '0.85rem',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                  overflow: 'hidden',
+                  border: userAvatar.startsWith('#') ? `1px solid ${userAvatar}` : 'none'
+                }}>
+                  {isImage ? (
+                    <img src={userAvatar} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    (currentUser?.first_name || currentUser?.login || 'U').charAt(0).toUpperCase()
+                  )}
+                </div>
+              );
+            })()}
+            {!isCollapsed && (
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {currentUser?.first_name ? `${currentUser.first_name} ${currentUser.last_name || ''}` : currentUser?.login}
+                </div>
+                <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {currentUser?.position || 'Спеціаліст'}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {!isCollapsed && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+              <button
+                onClick={() => navigate('/user-settings')}
+                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '6px', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                title="Налаштування"
+              >
+                <Settings size={17} />
+              </button>
+              <button
+                onClick={toggleTheme}
+                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '6px', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                title="Переключити тему"
+              >
+                {theme === 'light' ? <Moon size={17} color="#6366f1" /> : <Sun size={17} color="#eab308" />}
+              </button>
+              <button
+                onClick={logoutUser}
+                style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '6px', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                title="Вийти з системи"
+              >
+                <LogOut size={17} />
+              </button>
+            </div>
+          )}
+        </div>
+      </aside>
+    </>
+  )
+}
+
+// ── User Profile Settings Modal ────────────────────────────────────────────────
+const ProfileModal = ({ isOpen, onClose }) => {
+  const { currentUser, upsertUser } = useMES()
+  const [firstName, setFirstName] = useState(currentUser?.first_name || '')
+  const [lastName, setLastName] = useState(currentUser?.last_name || '')
+  const [password, setPassword] = useState('')
+  const [isSaving, setIsSaving] = useState(false)
+
+  useEffect(() => {
+    if (currentUser) {
+      setFirstName(currentUser.first_name || '')
+      setLastName(currentUser.last_name || '')
+    }
+  }, [currentUser])
+
+  if (!isOpen || !currentUser) return null
+
+  const handleSave = async (e) => {
+    e.preventDefault()
+    setIsSaving(true)
+    try {
+      const payload = {
+        ...currentUser,
+        first_name: firstName.trim(),
+        last_name: lastName.trim()
+      }
+      if (password.trim()) {
+        payload.password = password.trim()
+      }
+      await upsertUser(payload)
+      alert('Профіль успішно оновлено!')
+      onClose()
+    } catch (err) {
+      alert('Помилка оновлення профілю: ' + err.message)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+      <div className="glass-panel" style={{ width: '100%', maxWidth: '480px', borderRadius: '24px', background: 'var(--card-bg)', border: '1px solid var(--glass-border)', padding: '28px', color: 'var(--text)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: 'linear-gradient(135deg, #ff9000, #e65100)', color: '#000', fontWeight: 950, fontSize: '1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <User size={22} />
+            </div>
+            <div>
+              <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 950 }}>Налаштування Профілю</h2>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{currentUser.login} · {currentUser.position || 'Спеціаліст'}</div>
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}><X size={20} /></button>
+        </div>
+
+        <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div>
+            <label style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>Ім'я</label>
+            <input
+              type="text"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              placeholder="Введіть ім'я..."
+              style={{ width: '100%', padding: '10px 14px', borderRadius: '12px', border: '1px solid var(--glass-border)', background: 'rgba(0,0,0,0.2)', color: 'var(--text)', outline: 'none' }}
+            />
+          </div>
+
+          <div>
+            <label style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>Прізвище</label>
+            <input
+              type="text"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              placeholder="Введіть прізвище..."
+              style={{ width: '100%', padding: '10px 14px', borderRadius: '12px', border: '1px solid var(--glass-border)', background: 'rgba(0,0,0,0.2)', color: 'var(--text)', outline: 'none' }}
+            />
+          </div>
+
+          <div>
+            <label style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>Змінити Пароль (залиште порожнім, щоб не змінювати)</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Новий пароль..."
+              style={{ width: '100%', padding: '10px 14px', borderRadius: '12px', border: '1px solid var(--glass-border)', background: 'rgba(0,0,0,0.2)', color: 'var(--text)', outline: 'none' }}
+            />
+          </div>
+
+          <div style={{ display: 'flex', gap: '12px', marginTop: '10px' }}>
+            <button type="button" onClick={onClose} style={{ flex: 1, padding: '12px', borderRadius: '12px', border: '1px solid var(--glass-border)', background: 'transparent', color: 'var(--text)', fontWeight: 800, cursor: 'pointer' }}>
+              Скасувати
+            </button>
+            <button type="submit" disabled={isSaving} style={{ flex: 1, padding: '12px', borderRadius: '12px', border: 'none', background: 'linear-gradient(135deg, #ff9000, #e65100)', color: '#000', fontWeight: 950, cursor: 'pointer' }}>
+              {isSaving ? 'Збереження...' : 'Зберегти Профіль'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// ── Notification Center Modal Component ───────────────────────────────────────
+const NotificationCenterModal = ({ isOpen, onClose, notifications = [], unreadCount = 0, readIds = [], markAsRead, markAllAsRead }) => {
+  const navigate = useNavigate()
+  if (!isOpen) return null
+
+  const handleNotificationClick = (item) => {
+    if (markAsRead) markAsRead(item.id)
+    onClose()
+    if (item.path) {
+      navigate(item.path, { state: item.state })
+    }
+  }
+
+  const formatTime = (dateStr) => {
+    if (!dateStr) return ''
+    try {
+      const date = new Date(dateStr)
+      const now = new Date()
+      const diffSec = Math.floor((now - date) / 1000)
+      if (diffSec < 60) return 'щойно'
+      const diffMin = Math.floor(diffSec / 60)
+      if (diffMin < 60) return `${diffMin} хв. тому`
+      const diffHours = Math.floor(diffMin / 60)
+      if (diffHours < 24) return `${diffHours} год. тому`
+      const diffDays = Math.floor(diffHours / 24)
+      if (diffDays === 1) return 'вчора'
+      return `${diffDays} дн. тому`
+    } catch {
+      return ''
+    }
+  }
+
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(10px)', zIndex: 999999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}
+      onClick={onClose}
+    >
+      <div
+        className="glass-panel"
+        onClick={e => e.stopPropagation()}
+        style={{
+          width: 'min(540px, 95vw)',
+          maxHeight: '85vh',
+          display: 'flex',
+          flexDirection: 'column',
+          borderRadius: '24px',
+          background: 'var(--card-bg, #0c0d12)',
+          border: '1px solid var(--glass-border, rgba(255,255,255,0.12))',
+          boxShadow: '0 24px 80px rgba(0,0,0,0.8)',
+          overflow: 'hidden',
+          color: 'var(--text, #fff)'
+        }}
+      >
+        {/* Header */}
+        <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--glass-border, rgba(255,255,255,0.08))', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ width: 42, height: 42, borderRadius: '12px', background: 'rgba(255,144,0,0.14)', border: '1px solid rgba(255,144,0,0.3)', color: '#ff9000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Bell size={20} />
+            </div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <h2 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 950, letterSpacing: '-0.3px' }}>Центр Сповіщень</h2>
+                {unreadCount > 0 && (
+                  <span style={{ background: '#ef4444', color: '#fff', fontSize: '0.7rem', fontWeight: 950, padding: '2px 8px', borderRadius: '12px' }}>
+                    {unreadCount} нових
+                  </span>
+                )}
+              </div>
+              <div style={{ fontSize: '0.73rem', color: 'var(--text-muted, #94a3b8)', marginTop: '2px' }}>
+                Активні сповіщення та завдання системи
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {unreadCount > 0 && (
+              <button
+                onClick={markAllAsRead}
+                style={{ background: 'rgba(255,144,0,0.12)', border: '1px solid rgba(255,144,0,0.3)', color: '#ff9000', padding: '6px 12px', borderRadius: '10px', fontSize: '0.72rem', fontWeight: 800, cursor: 'pointer' }}
+              >
+                Прочитати все
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              style={{ width: 34, height: 34, borderRadius: '10px', background: 'rgba(255,255,255,0.06)', border: '1px solid var(--glass-border)', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            >
+              <X size={18} />
+            </button>
+          </div>
+        </div>
+
+        {/* List */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {notifications.length === 0 ? (
+            <div style={{ padding: '60px 20px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px' }}>
+              <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>
+                <BellOff size={26} />
+              </div>
+              <div>
+                <div style={{ fontWeight: 900, fontSize: '0.95rem' }}>Сповіщень немає</div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>Усі події прочитані та оброблені</div>
+              </div>
+            </div>
+          ) : (
+            notifications.map(item => {
+              const isUnread = !readIds.includes(item.id)
+              return (
+                <div
+                  key={item.id}
+                  onClick={() => handleNotificationClick(item)}
+                  style={{
+                    padding: '14px 16px',
+                    borderRadius: '16px',
+                    background: isUnread ? 'rgba(255,144,0,0.06)' : 'rgba(255,255,255,0.03)',
+                    border: `1px solid ${isUnread ? 'rgba(255,144,0,0.3)' : 'var(--glass-border, rgba(255,255,255,0.06))'}`,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '14px',
+                    transition: 'all 0.2s ease',
+                    position: 'relative'
+                  }}
+                >
+                  <div style={{ width: 38, height: 38, borderRadius: '11px', background: `${item.color}20`, border: `1px solid ${item.color}40`, color: item.color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    {item.icon}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                      <div style={{ fontWeight: isUnread ? 900 : 700, fontSize: '0.88rem', color: isUnread ? 'var(--text, #fff)' : 'var(--text-muted, #cbd5e1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {item.title}
+                      </div>
+                      <span style={{ fontSize: '0.65rem', color: 'var(--text-muted, #64748b)', flexShrink: 0, fontWeight: 700 }}>
+                        {formatTime(item.createdAt)}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted, #94a3b8)', marginTop: '4px', lineHeight: 1.4 }}>
+                      {item.description}
+                    </div>
+                  </div>
+                  {isUnread && (
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#ff9000', boxShadow: '0 0 8px #ff9000', marginTop: '6px', flexShrink: 0 }} />
+                  )}
+                </div>
+              )
+            })
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── App Layout Wrapper ────────────────────────────────────────────────────────
+const AppLayout = ({ children, chatUnreadCount }) => {
+  const { currentUser, managementTasks, requests, workCards, purchaseRequests, receptionDocs, nomenclatures, machineCalls, machines, tasks, orders } = useMES()
+  const location = useLocation()
+  const [isCollapsed, setIsCollapsed] = useState(() => typeof window !== 'undefined' && window.innerWidth <= 900)
+  const [isMobileOpen, setIsMobileOpen] = useState(false)
+  const [isProfileOpen, setIsProfileOpen] = useState(false)
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false)
+
+  // Track read notification IDs in localStorage per user
+  const [readNotifIds, setReadNotifIds] = useState(() => {
+    if (!currentUser) return []
+    try {
+      const saved = localStorage.getItem(`MES_READ_NOTIF_${currentUser.id}`)
+      return saved ? JSON.parse(saved) : []
+    } catch {
+      return []
+    }
+  })
+
+  useEffect(() => {
+    if (currentUser) {
+      localStorage.setItem(`MES_READ_NOTIF_${currentUser.id}`, JSON.stringify(readNotifIds))
+    }
+  }, [readNotifIds, currentUser])
+
+  // Build active notifications list across all 6 system sources
+  const notifications = useMemo(() => {
+    const list = []
+    if (!currentUser) return list
+    const availableModules = getAvailableModules(currentUser, 0)
+    const hasModule = (id) => availableModules.some(m => m.id === id)
+
+    // 0. New Orders awaiting Batch/Task
+    const hasOrderCreationAccess = hasModule('director') || hasModule('master') || hasModule('foreman')
+    if (hasOrderCreationAccess && orders) {
+      orders.forEach(order => {
+        if (order.order_num && (order.order_num.startsWith('ВБ') || order.order_num.startsWith('VB'))) return
+        const orderTasks = (tasks || []).filter(t => t.order_id === order.id)
+        if (orderTasks.length === 0 && order.status !== 'completed' && order.status !== 'cancelled' && order.status !== 'shipped') {
+          let path = '/'
+          if (hasModule('master')) path = '/master'
+          else if (hasModule('foreman')) path = '/foreman'
+          else if (hasModule('director')) path = '/director'
+
+          const productNames = (order.order_items || [])
+            .map(it => nomenclatures?.find(n => n.id === it.nomenclature_id)?.name)
+            .filter(Boolean)
+            .join(', ') || '—'
+
+          list.push({
+            id: `order-new-${order.id}`,
+            type: 'order_new',
+            title: `Нове замовлення № ${order.order_num}`,
+            description: `Очікує на створення наряду. Виріб: ${productNames}`,
+            createdAt: order.created_at,
+            path,
+            color: '#3b82f6',
+            icon: <Monitor size={16} />
+          })
+        }
+      })
+    }
+
+    // 1. Kanban Tasks
+    if (hasModule('kanban') && managementTasks) {
+      managementTasks.forEach(t => {
+        if (t.status !== 'done' && (t.assigned_to === currentUser.login || t.created_by === currentUser.login)) {
+          list.push({
+            id: `task-${t.id}`,
+            type: 'task',
+            title: `Задача: ${t.title || 'Без назви'}`,
+            description: t.description || 'Немає опису',
+            createdAt: t.created_at,
+            path: '/tasks',
+            color: '#8b5cf6',
+            icon: <KanbanSquare size={16} />
+          })
+        }
+      })
+    }
+
+    // 2. Material Requests
+    const hasWarehouseAccess = hasModule('warehouse') || hasModule('supply') || hasModule('master') || hasModule('foreman') || hasModule('director')
+    if (hasWarehouseAccess && requests) {
+      const groups = {}
+      requests.forEach(r => {
+        if (r.status === 'pending') {
+          const order = orders?.find(o => o.id === r.order_id)
+          const orderNum = order?.order_num || ''
+          let batchIndex = ''
+          if (r.details) {
+            const batchMatch = r.details.match(/\(([^)]+\/\d+)\)/)
+            if (batchMatch) {
+              const parts = batchMatch[1].split('/')
+              batchIndex = parts[parts.length - 1]
+            }
+          }
+          if (!batchIndex && r.task_id && tasks) {
+            const task = tasks.find(t => t.id === r.task_id)
+            if (task?.batch_index) batchIndex = task.batch_index
+          }
+
+          const groupKey = `${r.order_id}_${r.task_id || 'null'}_${batchIndex || 'no-batch'}`
+          if (!groups[groupKey]) {
+            groups[groupKey] = { orderId: r.order_id, orderNum, batchIndex, taskId: r.task_id, count: 0, items: [], latestCreatedAt: r.created_at }
+          }
+          groups[groupKey].count += 1
+          if (r.created_at > groups[groupKey].latestCreatedAt) groups[groupKey].latestCreatedAt = r.created_at
+          let itemName = ''
+          if (r.details) {
+            const splitCol = r.details.split(': ')
+            itemName = splitCol.length > 1 ? splitCol[1].split(' — ')[0] : r.details
+          }
+          if (itemName) groups[groupKey].items.push(itemName)
+        }
+      })
+
+      Object.entries(groups).forEach(([key, g]) => {
+        let path = '/'
+        if (hasModule('supply')) path = '/supply'
+        else if (hasModule('warehouse')) path = '/warehouse'
+        else if (hasModule('foreman')) path = '/foreman'
+        else if (hasModule('master')) path = '/master'
+        else if (hasModule('director')) path = '/director'
+
+        const batchStr = g.batchIndex ? `/${g.batchIndex}` : ''
+        const orderPart = g.orderNum ? ` (№ ${g.orderNum}${batchStr})` : ''
+        const desc = g.count === 1 ? (g.items[0] || 'Новий запит матеріалу') : `Запит на ${g.count} позицій: ${g.items.slice(0, 3).join(', ')}${g.items.length > 3 ? '...' : ''}`
+
+        list.push({
+          id: `req-group-${key}`,
+          type: 'request',
+          title: `Запит матеріалів${orderPart}`,
+          description: desc,
+          createdAt: g.latestCreatedAt,
+          path,
+          color: '#10b981',
+          icon: <ClipboardList size={16} />,
+          state: { highlightTaskId: g.taskId }
+        })
+      })
+    }
+
+    // 3. Work Cards
+    if (workCards) {
+      workCards.forEach(w => {
+        if (w.status === 'new') {
+          const op = (w.operation || '').toLowerCase()
+          const isShop1 = ['розкрій', 'галтовка', 'прийомка'].some(o => op.includes(o))
+          const isShop2 = ['пресування', 'фарбування', 'малярка', 'доопрацювання'].some(o => op.includes(o))
+          let isRelevant = false
+          let path = '/'
+
+          if (isShop1) {
+            isRelevant = hasModule('shop1') || hasModule('master') || hasModule('foreman') || hasModule('director')
+            if (isRelevant) {
+              if (hasModule('shop1')) path = '/shop1'
+              else if (hasModule('master')) path = '/master'
+              else if (hasModule('foreman')) path = '/foreman'
+              else if (hasModule('director')) path = '/director'
+            }
+          } else if (isShop2) {
+            isRelevant = hasModule('shop2_terminal') || hasModule('shop2') || hasModule('master') || hasModule('foreman') || hasModule('director')
+            if (isRelevant) {
+              if (hasModule('shop2_terminal')) path = '/shop2-terminal'
+              else if (hasModule('shop2')) path = '/shop2'
+              else if (hasModule('foreman')) path = '/foreman'
+              else if (hasModule('master')) path = '/master'
+              else if (hasModule('director')) path = '/director'
+            }
+          } else {
+            isRelevant = hasModule('master') || hasModule('foreman') || hasModule('director')
+            if (isRelevant) {
+              if (hasModule('foreman')) path = '/foreman'
+              else if (hasModule('master')) path = '/master'
+              else if (hasModule('director')) path = '/director'
+            }
+          }
+
+          if (isRelevant) {
+            list.push({
+              id: `wc-${w.id}`,
+              type: 'work_card',
+              title: `Нова картка: ${w.operation || 'Операція'}`,
+              description: w.card_info || `Кількість: ${w.quantity}`,
+              createdAt: w.created_at,
+              path,
+              color: '#eab308',
+              icon: <Tablet size={16} />
+            })
+          }
+        }
+      })
+    }
+
+    // 4. Machine Calls
+    if (machineCalls) {
+      machineCalls.forEach(c => {
+        if (c.status === 'pending') {
+          const mach = machines?.find(m => m.id === c.machine_id)
+          const machName = mach ? mach.name : 'Верстат'
+          let isRelevant = false
+          if (c.called_employee_id) {
+            isRelevant = currentUser?.id === c.called_employee_id
+          } else {
+            if (c.called_role === 'master') isRelevant = currentUser?.access_rights?.master || currentUser?.access_rights?.foreman
+            else if (c.called_role === 'engineer') isRelevant = currentUser?.access_rights?.engineer
+            else if (c.called_role === 'quality' || c.called_role === 'qc') isRelevant = currentUser?.access_rights?.brak || currentUser?.position?.toLowerCase().includes('вкя')
+          }
+
+          if (isRelevant) {
+            list.push({
+              id: `call-${c.id}`,
+              type: 'machine_call',
+              title: `Виклик до ${machName}`,
+              description: c.reason || 'Аварійна зупинка / Наналагодження',
+              createdAt: c.created_at,
+              path: '/machines',
+              color: '#ef4444',
+              icon: <AlertTriangle size={16} />
+            })
+          }
+        }
+      })
+    }
+
+    return list.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+  }, [currentUser, managementTasks, requests, workCards, purchaseRequests, receptionDocs, nomenclatures, machineCalls, machines, tasks, orders])
+
+  const unreadNotifCount = useMemo(() => {
+    return notifications.filter(n => !readNotifIds.includes(n.id)).length
+  }, [notifications, readNotifIds])
+
+  const markNotifAsRead = (id) => {
+    setReadNotifIds(prev => prev.includes(id) ? prev : [...prev, id])
+  }
+
+  const markAllNotifsAsRead = () => {
+    setReadNotifIds(notifications.map(n => n.id))
+  }
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.innerWidth <= 900) {
+      setIsCollapsed(true)
+    }
+  }, [location.pathname])
+
+  const isPublicCall = /^\/machines\/[^/]+\/call$/.test(location.pathname)
+  if (location.pathname === '/login' || isPublicCall || !currentUser) {
+    return <>{children}</>
+  }
+
+  const isTvDashboard = ['/preparation-dashboard', '/tumbling-dashboard', '/foreman-dashboard'].includes(location.pathname)
+
+  return (
+    <div className="app-shell">
+      {!isTvDashboard && (
+        <AppSidebar
+          isCollapsed={isCollapsed}
+          setIsCollapsed={setIsCollapsed}
+          chatUnreadCount={chatUnreadCount}
+          unreadNotifCount={unreadNotifCount}
+          isMobileOpen={isMobileOpen}
+          setIsMobileOpen={setIsMobileOpen}
+          onOpenProfile={() => setIsProfileOpen(true)}
+          onOpenNotifications={() => setIsNotificationsOpen(true)}
+        />
+      )}
+      <div className="app-main-content">
+        {children}
+      </div>
+      <ProfileModal isOpen={isProfileOpen} onClose={() => setIsProfileOpen(false)} />
+      <NotificationCenterModal
+        isOpen={isNotificationsOpen}
+        onClose={() => setIsNotificationsOpen(false)}
+        notifications={notifications}
+        unreadCount={unreadNotifCount}
+        readIds={readNotifIds}
+        markAsRead={markNotifAsRead}
+        markAllAsRead={markAllNotifsAsRead}
+      />
+    </div>
+  )
+}
+
 const AppContent = () => {
   const { currentUser, sessionLoading, supabase } = useMES()
   const location = useLocation()
@@ -3000,29 +4776,27 @@ const AppContent = () => {
   }
 
   return (
-    <>
+    <AppLayout chatUnreadCount={chatUnreadCount}>
       <ScrollToTop />
       <SystemAlertHost />
       <Suspense fallback={<ModuleLoader />}>
-        {currentUser &&
-          currentUser.position !== 'Адмін' &&
-          currentUser.role !== 'admin' &&
-          location.pathname !== '/login' &&
-          location.pathname !== '/' && (
-            <GlobalUserNav key={currentUser.id} chatUnreadCount={chatUnreadCount} />
-          )}
+        {currentUser && location.pathname !== '/login' && (
+          <GlobalUserNav key={currentUser.id} chatUnreadCount={chatUnreadCount} />
+        )}
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/" element={<Portal chatUnreadCount={chatUnreadCount} />} />
-          <Route path="/dashboard" element={<PermissionGuard id="dashboard"><DashboardModule /></PermissionGuard>} />
+          <Route path="/crm" element={<PermissionGuard id="crm"><CrmModule /></PermissionGuard>} />
+          <Route path="/crm/clients" element={<PermissionGuard id="crm"><CrmClientsModule /></PermissionGuard>} />
           <Route path="/foreman-dashboard" element={<PermissionGuard id="foreman_dashboard"><ForemanDashboardModule /></PermissionGuard>} />
           <Route path="/manager" element={<PermissionGuard id="manager"><ManagerModule /></PermissionGuard>} />
           <Route path="/warehouse" element={<PermissionGuard id="warehouse"><WarehouseModule /></PermissionGuard>} />
+          <Route path="/warehouse-fgp" element={<PermissionGuard id="warehouse_fgp"><WarehouseFGPModule /></PermissionGuard>} />
           <Route path="/warehouse-boxes" element={<PermissionGuard id="warehouse_boxes"><WarehouseBoxesModule /></PermissionGuard>} />
           <Route path="/cutter-restoration" element={<PermissionGuard id="cutter_restoration"><CutterRestorationModule /></PermissionGuard>} />
           <Route path="/master" element={<PermissionGuard id="master"><MasterModule /></PermissionGuard>} />
-          <Route path="/foreman" element={<PermissionGuard id="foreman"><ForemanWorkplace /></PermissionGuard>} />
-          <Route path="/foreman2" element={<PermissionGuard id="foreman2"><Foreman2Module /></PermissionGuard>} />
+          <Route path="/foreman" element={<PermissionGuard id="foreman"><Foreman2Module /></PermissionGuard>} />
+          <Route path="/foreman2" element={<PermissionGuard id="foreman"><Foreman2Module /></PermissionGuard>} />
           <Route path="/operator" element={<PermissionGuard id="operator"><OperatorTerminal /></PermissionGuard>} />
           <Route path="/prep-terminal" element={<PermissionGuard id="prep_terminal"><PreparationTerminal /></PermissionGuard>} />
           <Route path="/preparation-dashboard" element={<PermissionGuard id="preparation_dashboard"><PreparationDashboard /></PermissionGuard>} />
@@ -3033,16 +4807,19 @@ const AppContent = () => {
           <Route path="/reception-terminal" element={<PermissionGuard id="reception_terminal"><ReceptionTerminal /></PermissionGuard>} />
           <Route path="/sorting-terminal" element={<PermissionGuard id="sorting_terminal"><SortingTerminal /></PermissionGuard>} />
           <Route path="/shop2" element={<PermissionGuard id="shop2"><Shop2Module /></PermissionGuard>} />
+          <Route path="/shop2-card-gen" element={<PermissionGuard id="shop2_card_gen"><Shop2CardGenModule /></PermissionGuard>} />
           <Route path="/shop2-terminal" element={<PermissionGuard id="shop2_terminal"><Shop2Terminal /></PermissionGuard>} />
           <Route path="/pressing-terminal" element={<PermissionGuard id="pressing_terminal"><PressingTerminal /></PermissionGuard>} />
           <Route path="/painting-terminal" element={<PermissionGuard id="painting_terminal"><PaintingTerminal /></PermissionGuard>} />
           <Route path="/packaging" element={<PermissionGuard id="packaging"><PackagingModule /></PermissionGuard>} />
           <Route path="/engineer" element={<PermissionGuard id="engineer"><EngineerModule /></PermissionGuard>} />
+          <Route path="/engineer-v2" element={<PermissionGuard id="engineer_v2"><EngineerV2Module /></PermissionGuard>} />
           <Route path="/director" element={<PermissionGuard id="director"><DirectorModule /></PermissionGuard>} />
           <Route path="/shipping" element={<PermissionGuard id="shipping"><ShippingModule /></PermissionGuard>} />
           <Route path="/supply" element={<PermissionGuard id="supply"><SupplyModule /></PermissionGuard>} />
           <Route path="/nomenclature" element={<PermissionGuard id="nomenclature"><NomenclatureModule /></PermissionGuard>} />
           <Route path="/nomenclature-v2" element={<PermissionGuard id="nomenclature_v2"><NomenclatureV2 /></PermissionGuard>} />
+          <Route path="/economy" element={<PermissionGuard id="economy"><EconomyModule /></PermissionGuard>} />
           <Route path="/machines" element={<PermissionGuard id="machines"><MachinesModule /></PermissionGuard>} />
           <Route path="/machines/:id/call" element={<PermissionGuard id="public_call"><MachineCallModule /></PermissionGuard>} />
           <Route path="/analytics" element={<PermissionGuard id="analytics"><AnalyticsModule /></PermissionGuard>} />
@@ -3056,11 +4833,14 @@ const AppContent = () => {
           <Route path="/procurement" element={<PermissionGuard id="procurement"><SupplyModule isProcurementOnly={true} /></PermissionGuard>} />
           <Route path="/reports" element={<PermissionGuard id="reports"><ReportsModule /></PermissionGuard>} />
           <Route path="/settings" element={<PermissionGuard id="settings"><SettingsModule /></PermissionGuard>} />
+          <Route path="/notifications" element={<NotificationsPage />} />
+          <Route path="/user-settings" element={<UserSettingsPage />} />
+          <Route path="/profile-settings" element={<UserSettingsPage />} />
           <Route path="/simulator" element={<PermissionGuard id="simulator"><SimulatorModule /></PermissionGuard>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>
-    </>
+    </AppLayout>
   )
 }
 

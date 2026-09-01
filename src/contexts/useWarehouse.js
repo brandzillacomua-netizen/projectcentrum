@@ -491,10 +491,10 @@ export function createWarehouseActions({
     })[0]
 
     if (invItem) {
-      await supabase.from('inventory').update({ total_qty: Math.max(0, (Number(invItem.total_qty) || 0) - Number(req.quantity)) }).eq('id', invItem.id)
-      await supabase.from('material_requests').update({ status: 'completed', inventory_id: invItem.id }).eq('id', requestId)
+      await supabase.from('inventory').update({ reserved_qty: (Number(invItem.reserved_qty) || 0) + Number(req.quantity) }).eq('id', invItem.id)
+      await supabase.from('material_requests').update({ status: 'issued', inventory_id: invItem.id }).eq('id', requestId)
     } else {
-      await supabase.from('material_requests').update({ status: 'completed' }).eq('id', requestId)
+      await supabase.from('material_requests').update({ status: 'issued' }).eq('id', requestId)
     }
 
     try {
@@ -511,7 +511,7 @@ export function createWarehouseActions({
             .from('work_cards')
             .update({ status: 'new' })
             .eq('task_id', taskIdToCheck)
-            .eq('status', 'waiting-materials')
+            .in('status', ['waiting-materials', 'waiting-cutters'])
         }
       }
     } catch (err) {
@@ -670,16 +670,16 @@ export function createWarehouseActions({
           const needed = Number(req.quantity) || 0
           
           if (available >= needed) {
-            // Повне забезпечення
+            // Повне забезпечення — резервуємо під наряд
             inventoryUpdateMap[invItem.id] = (inventoryUpdateMap[invItem.id] || 0) + needed
-            requestUpdateList.push({ id: req.id, status: 'completed', inventory_id: invItem.id })
+            requestUpdateList.push({ id: req.id, status: 'issued', inventory_id: invItem.id })
           } else if (available > 0) {
-            // Часткове забезпечення: розділяємо на два запити (виданий і дефіцитний)
+            // Часткове забезпечення: розділяємо на два запити (зарезервований і дефіцитний)
             const shortage = needed - available
             inventoryUpdateMap[invItem.id] = (inventoryUpdateMap[invItem.id] || 0) + available
             
-            // 1. Оновлюємо оригінальний запит на кількість, яка є в наявності, і ставимо status: 'completed'
-            requestUpdateList.push({ id: req.id, status: 'completed', inventory_id: invItem.id, quantity: available })
+            // 1. Оновлюємо оригінальний запит на кількість, яка є в наявності, і ставимо status: 'issued'
+            requestUpdateList.push({ id: req.id, status: 'issued', inventory_id: invItem.id, quantity: available })
             
             // 2. Додаємо новий запит на дефіцит у pending
             requestsToInsert.push({
@@ -711,18 +711,18 @@ export function createWarehouseActions({
             // Залишаємо в pending — видача відбудеться коли підготовка передасть листи на СО
             console.log(`[issueMaterialsBatch] Skipping prepared sheet (no inventory): ${parsedName}`)
           } else {
-            // Для інших матеріалів без інвентарного запису (СГП тощо) — видаємо як раніше
-            requestUpdateList.push({ id: req.id, status: 'completed' })
+            // Для інших матеріалів без інвентарного запису (СГП тощо) — резервуємо як раніше
+            requestUpdateList.push({ id: req.id, status: 'issued' })
           }
         }
       })
 
-      const invUpdates = Object.entries(inventoryUpdateMap).map(([id, subQty]) => {
+      const invUpdates = Object.entries(inventoryUpdateMap).map(([id, addReservedQty]) => {
         const item = matchedInventory.find(i => String(i.id) === String(id))
         if (!item) return null
         return {
           ...item,
-          total_qty: Math.max(0, (Number(item.total_qty) || 0) - subQty)
+          reserved_qty: (Number(item.reserved_qty) || 0) + addReservedQty
         }
       }).filter(Boolean)
 
@@ -757,11 +757,13 @@ export function createWarehouseActions({
         try {
           const { data: allPending } = await supabase
             .from('material_requests')
-            .select('id, task_id')
+            .select('id, task_id, card_id')
             .in('task_id', uniqueTaskIds)
             .eq('status', 'pending')
 
           const pendingTaskIds = new Set((allPending || []).map(r => r.task_id))
+          const pendingCardIds = new Set((allPending || []).map(r => r.card_id).filter(Boolean))
+
           const tasksToUpdate = uniqueTaskIds.filter(tId => !pendingTaskIds.has(tId))
 
           if (tasksToUpdate.length > 0) {
@@ -770,8 +772,18 @@ export function createWarehouseActions({
                 .from('work_cards')
                 .update({ status: 'new' })
                 .eq('task_id', tId)
-                .eq('status', 'waiting-materials')
+                .in('status', ['waiting-materials', 'waiting-cutters'])
             ))
+          }
+
+          const uniqueCardIds = [...new Set(relevantRequests.map(r => r.card_id).filter(Boolean))]
+          const cardsToUpdate = uniqueCardIds.filter(cId => !pendingCardIds.has(cId))
+          if (cardsToUpdate.length > 0) {
+            await supabase
+              .from('work_cards')
+              .update({ status: 'new' })
+              .in('id', cardsToUpdate)
+              .in('status', ['waiting-materials', 'waiting-cutters'])
           }
         } catch (err) {
           console.error('Error updating work cards for tasks in batch:', err)

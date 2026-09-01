@@ -126,8 +126,22 @@ const LoginPage = () => {
           </button>
         </form>
 
-        <div style={{ marginTop: '40px', fontSize: '0.65rem', color: '#333', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-          &copy; 2026 REBRAND STUDIO | MES v2.4
+        <div style={{ marginTop: '40px', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.68rem', color: '#666', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+          <div>
+            &copy; 2026{' '}
+            <a
+              href="https://centrumbox.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: '#ff9000', textDecoration: 'none', fontWeight: 900 }}
+            >
+              CENTRUMBOX
+            </a>
+            {' '}— CRM | ERP | MES
+          </div>
+          <div style={{ fontSize: '0.62rem', color: '#64748b', fontWeight: 600, textTransform: 'none', letterSpacing: '0.02em', fontStyle: 'italic' }}>
+            Перетворюємо операційний хаос на керовану систему
+          </div>
         </div>
       </div>
 

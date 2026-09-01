@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react'
-import { 
+import {
+  Sparkles, 
   Settings, 
   ArrowLeft, 
   CheckCircle2, 
@@ -28,6 +29,12 @@ import {
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
+import { 
+  DEFAULT_ERP_GROUPS, 
+  ERP_CATEGORY_SCHEMAS, 
+  generateStandardName, 
+  buildFlattenedGroupOptions 
+} from './NomenclatureV2'
 import { apiService } from '../services/apiDispatcher'
 
 const MACHINE_TYPES = [
@@ -81,7 +88,7 @@ const renderCutterListEditorShared = (cutters, setCutters, nomenclatures) => {
             />
             <button 
               onClick={() => setCutters(cutters.filter((_, i) => i !== idx))}
-              style={{ background: '#ef4444', border: 'none', color: '#fff', borderRadius: '6px', padding: '0 10px', cursor: 'pointer' }}
+              style={{ background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: '6px', padding: '0 10px', cursor: 'pointer' }}
             >
               <Trash2 size={14} />
             </button>
@@ -813,7 +820,7 @@ const MachineOperationsTab = () => {
 
   const renderOpList = (ops, setOps, title) => (
     <div style={{ flex: 1, background: '#111', padding: '15px', borderRadius: '12px', border: '1px solid #222' }}>
-      <h4 style={{ margin: '0 0 10px 0', fontSize: '0.9rem', color: '#888' }}>{title}</h4>
+      <h4 style={{ margin: '0 0 10px 0', fontSize: '0.9rem', color: 'var(--text-muted, #64748b)' }}>{title}</h4>
       {ops.map((op, idx) => (
         <div key={idx} style={{ display: 'flex', gap: '5px', marginBottom: '8px' }}>
           <input 
@@ -825,7 +832,7 @@ const MachineOperationsTab = () => {
             }}
             style={{ flex: 1, padding: '8px', background: '#000', border: '1px solid #333', color: '#fff', borderRadius: '6px' }}
           />
-          <button onClick={() => setOps(ops.filter((_, i) => i !== idx))} style={{ background: '#ef4444', border: 'none', color: '#fff', borderRadius: '6px', padding: '0 10px', cursor: 'pointer' }}><Trash2 size={14} /></button>
+          <button onClick={() => setOps(ops.filter((_, i) => i !== idx))} style={{ background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: '6px', padding: '0 10px', cursor: 'pointer' }}><Trash2 size={14} /></button>
         </div>
       ))}
       <button onClick={() => setOps([...ops, ''])} style={{ width: '100%', padding: '8px', background: 'transparent', border: '1px dashed #333', color: '#3b82f6', borderRadius: '6px', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '5px' }}>
@@ -1060,206 +1067,637 @@ const MachineOperationsTab = () => {
   )
 }
 
-// ─── NOM QUICK-CREATE MODAL ───────────────────────────────────────────────────
-const SHEET_THICKNESS_VALUES = ['0.5', '0.8', '1', '1.2', '1.5', '2', '2.5', '3', '4', '5', '6', '8', '10', '12']
-
+// ─── NOM QUICK-CREATE MODAL (EXACT ERP NOMENCLATURE V2.0 WIZARD) ─────────────
 const NomCreateModal = ({ onClose, onCreated, supabase, refreshTable, prefilledName = '' }) => {
-  const [name, setName] = useState(prefilledName)
-  const [type, setType] = useState('part')
-  const [materialType, setMaterialType] = useState('')
-  const [sheetThickness, setSheetThickness] = useState('')
-  const [unitsPerSheet, setUnitsPerSheet] = useState('')
+  const [groups, setGroups] = useState(DEFAULT_ERP_GROUPS)
+  const [items, setItems] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  const DEFAULT_LOAD_TIMINGS = { '2': '', '4': '', '8': '', '16': '', '32': '', '64': '' }
+
+  const [wizardGroup, setWizardGroup] = useState(null)
+  const [wizardRuleType, setWizardRuleType] = useState('generic')
+  const [wizardParams, setWizardParams] = useState({
+    standard: 'DIN912', diameter: '3', length: '10', isBlack: true, isPartialThread: false,
+    type: 'TFF', thread: '3', tailLength: '6', outerDiameter: '5', material: 'Алюміній',
+    cutDia: '1,5', shankDia: '3,175', cutLength: '8', totalLength: '38', angle: '90',
+    specialType: '', din: 'DIN 934', thickness: '1',
+    grade: 'Т300', dimensions: '500*600', extra: '',
+    projType: 'SERIAL', projNum: '', name: prefilledName || '',
+    customName: prefilledName || '', unit: 'шт',
+    sheetGrade: 'Т300', sheetThickness: '3', unitsPerSheet: 24,
+    loadTimings: { ...DEFAULT_LOAD_TIMINGS }
+  })
   const [saving, setSaving] = useState(false)
 
-  const handleSave = async () => {
-    if (!name.trim()) return alert('Введіть назву')
-    if (type === 'part' && !sheetThickness) return alert('Оберіть марку та товщину листа')
-    if (type === 'part' && (!Number.isInteger(Number(unitsPerSheet)) || Number(unitsPerSheet) <= 0)) {
-      return alert('Вкажіть кількість деталей на лист цілим числом більше нуля')
+  // 1. Fetch Catalog Groups & Items for Duplicate Check
+  useEffect(() => {
+    let isMounted = true
+    const loadCatalogData = async () => {
+      try {
+        const { data: gData } = await supabase.from('nomenclature_catalog_groups').select('*').order('sort_order', { ascending: true })
+        if (gData && gData.length > 0 && isMounted) {
+          // Merge gData with DEFAULT_ERP_GROUPS so rule_type and V2 structure are ALWAYS preserved!
+          const groupMap = new Map(DEFAULT_ERP_GROUPS.map(g => [g.id, g]))
+          gData.forEach(g => {
+            if (groupMap.has(g.id)) {
+              const existing = groupMap.get(g.id)
+              groupMap.set(g.id, { ...existing, ...g, rule_type: g.rule_type || existing.rule_type })
+            }
+          })
+          setGroups(Array.from(groupMap.values()))
+        } else if (isMounted) {
+          setGroups(DEFAULT_ERP_GROUPS)
+        }
+
+        const { data: nData } = await supabase.from('nomenclatures_v2').select('*')
+        if (nData && isMounted) {
+          setItems(nData)
+        }
+      } catch (err) {
+        console.warn('V2 wizard data load warning:', err)
+      } finally {
+        if (isMounted) setLoading(false)
+      }
     }
+    loadCatalogData()
+    return () => { isMounted = false }
+  }, [supabase])
+
+  // Flattened groups for select options
+  const flattenedGroups = useMemo(() => {
+    return buildFlattenedGroupOptions(groups)
+  }, [groups])
+
+  // Set default group once loaded
+  useEffect(() => {
+    if (groups.length > 0 && !wizardGroup) {
+      const defaultG = groups.find(g => g.id === 'grp_carbon_t300') || groups.find(g => g.id === 'grp_carbon_sheets') || groups[0]
+      setWizardGroup(defaultG)
+      setWizardRuleType(defaultG?.rule_type || 'carbon')
+    }
+  }, [groups, wizardGroup])
+
+  // Generated Real-time Name
+  const generatedName = useMemo(() => {
+    return generateStandardName(wizardRuleType, wizardParams)
+  }, [wizardRuleType, wizardParams])
+
+  // Duplicate Check
+  const isDuplicate = useMemo(() => {
+    if (!generatedName) return false
+    const norm = generatedName.toLowerCase().replace(/\s+/g, '')
+    return items.some(it => (it.name || '').toLowerCase().replace(/\s+/g, '') === norm)
+  }, [generatedName, items])
+
+  const inputStyle = { 
+    width: '100%', 
+    background: 'var(--input-bg, #ffffff)', 
+    border: '1px solid var(--border-color, #cbd5e1)', 
+    borderRadius: '12px', 
+    padding: '10px 14px', 
+    color: 'var(--text-main, #0f172a)', 
+    fontWeight: 700, 
+    fontSize: '0.88rem',
+    boxSizing: 'border-box',
+    outline: 'none'
+  }
+
+  const labelStyle = { 
+    fontSize: '0.72rem', 
+    fontWeight: 900, 
+    color: 'var(--text-muted, #64748b)', 
+    textTransform: 'uppercase', 
+    marginBottom: '6px', 
+    display: 'block' 
+  }
+
+  const handleCreateSubmit = async (e) => {
+    e.preventDefault()
+    if (!generatedName) {
+      return alert('Будь ласка, заповніть параметри для формування назви!')
+    }
+    if (isDuplicate) {
+      return alert('Позиція з такою назвою вже існує у V2 каталозі!')
+    }
+
     setSaving(true)
     try {
-      const payload = {
-        name: name.trim(),
-        type,
-        material_type: type === 'part' ? sheetThickness : (materialType.trim() || null),
-        ...(type === 'part' ? { units_per_sheet: Number(unitsPerSheet) } : {})
+      const nextCode = items.reduce((max, it) => {
+        const num = parseInt(String(it.code || '').replace(/\D/g, ''))
+        return num > max ? num : max
+      }, 90000) + 1
+
+      const v2Payload = {
+        code: `V2-${nextCode}`,
+        name: generatedName,
+        group_id: wizardGroup?.id || null,
+        category: wizardGroup?.name || 'V2 Номенклатура',
+        type: wizardGroup?.id?.includes('frame') || wizardGroup?.id === 'cat_fg' ? 'product' : (wizardGroup?.id === 'cat_parts' ? 'part' : 'consumable'),
+        unit: wizardParams.unit || 'шт',
+        rule_type: wizardRuleType,
+        rule_params: wizardParams,
+        status: 'active'
       }
-      const { data, error } = await supabase.from('nomenclatures').insert(payload).select().single()
-      if (error) throw error
+
+      const { data: inserted, error: insertErr } = await supabase
+        .from('nomenclatures_v2')
+        .insert([v2Payload])
+        .select()
+        .single()
+
+      if (insertErr) throw insertErr
+
       await refreshTable('nomenclatures')
-      onCreated(data)
+      if (onCreated) onCreated(inserted)
       onClose()
-    } catch (e) { alert('Помилка: ' + e.message) }
-    finally { setSaving(false) }
+      alert(`✅ Позицію «${generatedName}» успішно збережено до V2 каталогу!`)
+    } catch (err) {
+      alert('Помилка збереження до V2 каталогу: ' + err.message)
+    } finally {
+      setSaving(false)
+    }
   }
 
-  const inputStyle = { width: '100%', padding: '10px 14px', background: '#111', border: '1px solid #2a2a2a', color: '#fff', borderRadius: '8px', fontSize: '0.9rem', boxSizing: 'border-box' }
-  const labelStyle = { fontSize: '0.7rem', color: '#666', fontWeight: 800, textTransform: 'uppercase', display: 'block', marginBottom: '6px' }
-
-  return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(10px)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-      <div style={{ background: '#0d0d0d', border: '1px solid #2a2a2a', borderRadius: '20px', width: '100%', maxWidth: '480px', padding: '30px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
-          <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 900, color: '#a78bfa' }}>Нова номенклатура</h3>
-          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#555', cursor: 'pointer' }}><X size={20}/></button>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <div>
-            <label style={labelStyle}>Назва</label>
-            <input value={name} onChange={e => setName(e.target.value)} style={inputStyle} placeholder="напр. Накладка права" autoFocus />
-          </div>
-          <div>
-            <label style={labelStyle}>Тип</label>
-            <select value={type} onChange={e => setType(e.target.value)} style={inputStyle}>
-              <option value="part">Деталь (part)</option>
-              <option value="raw">Сировина (raw)</option>
-              <option value="consumable">Метиз / Витратний (consumable)</option>
-              <option value="product">Готовий виріб (product)</option>
-              <option value="assembly">Вузол збірки (assembly)</option>
-            </select>
-          </div>
-          {type === 'part' ? (
-            <>
-              <div>
-                <label style={labelStyle}>Марка і товщина листа</label>
-                <select value={sheetThickness} onChange={e => setSheetThickness(e.target.value)} style={inputStyle}>
-                  <option value="">Оберіть марку та товщину</option>
-                  <optgroup label="Т300">
-                    {SHEET_THICKNESS_VALUES.map(value => <option key={`Т300-${value}`} value={`Лист Т300-${value}`}>Лист Т300-{value}</option>)}
-                  </optgroup>
-                  <optgroup label="Т700">
-                    {SHEET_THICKNESS_VALUES.map(value => <option key={`Т700-${value}`} value={`Лист Т700-${value}`}>Лист Т700-{value}</option>)}
-                  </optgroup>
-                </select>
-              </div>
-              <div>
-                <label style={labelStyle}>Кількість деталей на лист</label>
-                <input type="number" min="1" step="1" value={unitsPerSheet} onChange={e => setUnitsPerSheet(e.target.value)} style={inputStyle} placeholder="напр. 24" />
-              </div>
-            </>
-          ) : (
-            <div>
-              <label style={labelStyle}>Матеріал / характеристика</label>
-              <input value={materialType} onChange={e => setMaterialType(e.target.value)} style={inputStyle} placeholder="напр. сталь, ПВХ 3мм" />
-            </div>
-          )}
-          <button onClick={handleSave} disabled={saving} style={{ width: '100%', padding: '13px', background: 'linear-gradient(135deg, #7c3aed, #a78bfa)', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: 900, cursor: 'pointer', fontSize: '0.9rem', marginTop: '6px' }}>
-            {saving ? 'Збереження...' : '+ Створити та додати'}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-const ParentCreateModal = ({ onClose, onCreated, initialType = 'product', prefilledName = '' }) => {
-  const [name, setName] = useState(prefilledName)
-  const [type, setType] = useState(initialType)
-  const [materialType, setMaterialType] = useState('')
-
-  const handleSave = () => {
-    if (!name.trim()) return alert('Введіть назву')
-    onCreated({ name: name.trim(), type, material_type: materialType.trim() || null })
-    onClose()
+  const refDicts = {
+    millTypes: ['кукурудза', 'двопера', 'чотирьохпера', 'фасочна', 'сферична по алюмінію'],
+    millShankDias: ['3,175', '4', '6', '8', '10', '12'],
+    millCutDias: ['1', '1,2', '1,5', '2', '2,5', '3', '3,175', '4', '6', '8'],
+    millCutLengths: ['4', '6', '8', '12', '15', '17', '22', '25', '32'],
+    millTotalLengths: ['38', '45', '50', '55', '60', '75', '100'],
+    grades: ['Т300', 'Т700'],
+    thicknesses: ['1', '2', '2,5', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'],
+    extras: ['(преференція)', '(0/45/90)']
   }
 
-  const inputStyle = { width: '100%', padding: '12px 14px', background: '#111', border: '1px solid #2a2a2a', color: '#fff', borderRadius: '10px', fontSize: '0.9rem', boxSizing: 'border-box', outline: 'none' }
-  const labelStyle = { fontSize: '0.75rem', color: '#888', fontWeight: 800, textTransform: 'uppercase', display: 'block', marginBottom: '6px' }
+  const prefixList = ['Комплект карбонової рами', 'Комплект карбонових елементів', 'Набір деталей рами']
+  const seriesList = ['Серія Серійний', 'Серія Продакшн', 'Серія Марун']
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(10px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-      <div style={{ background: '#0d0d0d', border: '1px solid #2a2a5a', borderRadius: '24px', width: '100%', maxWidth: '580px', padding: '30px', boxShadow: '0 20px 50px rgba(0,0,0,0.8)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid #1a1a2e', paddingBottom: '15px' }}>
-          <div>
-            <span style={{ fontSize: '0.7rem', color: '#818cf8', fontWeight: 900, textTransform: 'uppercase' }}>Конструктор специфікацій</span>
-            <h3 style={{ margin: '4px 0 0 0', fontSize: '1.25rem', fontWeight: 900, color: '#fff' }}>Створення виробу або вузла</h3>
+      <div style={{ background: 'var(--card-bg, #ffffff)', border: '1px solid var(--border-color, #cbd5e1)', borderRadius: '24px', width: '100%', maxWidth: '650px', maxHeight: '90vh', overflowY: 'auto', padding: '30px', boxShadow: '0 20px 50px rgba(0,0,0,0.2)' }}>
+        
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '15px', borderBottom: '1px solid var(--border-color, #e2e8f0)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <Sparkles size={22} color="#ff9000" />
+            <h3 style={{ margin: 0, fontWeight: 950, fontSize: '1.2rem', color: 'var(--text-main, #0f172a)' }}>
+              Конструктор Номенклатури ERP
+            </h3>
           </div>
-          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#555', cursor: 'pointer' }}><X size={20}/></button>
+          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}><X size={20} /></button>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        <form onSubmit={handleCreateSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          
+          {/* Category Selector */}
           <div>
-            <label style={labelStyle}>Назва готового виробу / вузла збірки</label>
-            <input value={name} onChange={e => setName(e.target.value)} style={inputStyle} placeholder="напр. Рама (інд.проект 24), F610 або Вузол кріплення променів" autoFocus />
+            <label style={labelStyle}>КАТЕГОРІЯ НОМЕНКЛАТУРИ</label>
+            <select 
+              value={wizardGroup?.id || ''} 
+              onChange={e => {
+                const g = groups.find(it => it.id === e.target.value)
+                const rType = g?.rule_type || 'generic'
+                setWizardGroup(g)
+                setWizardRuleType(rType)
+                setWizardParams(prev => ({
+                  ...prev,
+                  isBlack: rType === 'screw_black' ? true : rType === 'screw_silver' ? false : prev.isBlack
+                }))
+              }}
+              style={{ ...inputStyle, fontWeight: 800, fontSize: '0.9rem', padding: '12px' }}
+            >
+              {flattenedGroups.map(g => (
+                <option 
+                  key={g.id} 
+                  value={g.id}
+                  style={{
+                    fontWeight: g.depth === 0 ? 900 : g.hasSubs ? 800 : 400
+                  }}
+                >
+                  {g.label}
+                </option>
+              ))}
+            </select>
           </div>
 
-          <div>
-            <label style={labelStyle}>Тип об'єкта</label>
-            <div style={{ display: 'flex', gap: '12px', marginTop: '6px' }}>
-              <div 
-                onClick={() => setType('product')}
-                style={{ 
-                  flex: 1, 
-                  padding: '16px', 
-                  background: type === 'product' ? 'rgba(245,158,11,0.08)' : '#070707', 
-                  border: `2px solid ${type === 'product' ? '#f59e0b' : '#1e1e1e'}`, 
-                  borderRadius: '12px', 
-                  cursor: 'pointer',
-                  transition: 'all 0.2s',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '8px'
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#f59e0b' }}></div>
-                  <span style={{ fontWeight: 800, fontSize: '0.85rem', color: type === 'product' ? '#f59e0b' : '#aaa' }}>Готовий Виріб (Рама)</span>
-                </div>
-                <p style={{ margin: 0, fontSize: '0.75rem', color: '#666', lineHeight: '1.3' }}>
-                  Кінцевий виріб або збірка рами. Специфікація містить перелік деталей, метизів, накладок і пакування.
-                </p>
-              </div>
+          {/* Live Preview Card */}
+          <div style={{ background: 'rgba(255,144,0,0.08)', border: '1px solid rgba(255,144,0,0.35)', borderRadius: '16px', padding: '18px' }}>
+            <div style={{ fontSize: '0.72rem', fontWeight: 900, color: '#d97706', textTransform: 'uppercase', marginBottom: '6px' }}>АВТОМАТИЧНО СГЕНЕРОВАНА НАЗВА:</div>
+            <div style={{ fontSize: '1.1rem', fontWeight: 950, color: 'var(--text-main, #0f172a)', wordBreak: 'break-word' }}>
+              {generatedName || <span style={{ color: '#777', fontStyle: 'italic', fontWeight: 600 }}>{wizardRuleType === 'frame_part' ? 'Введіть назву деталі у поле нижче...' : 'Заповніть параметри нижче...'}</span>}
+            </div>
 
-              <div 
-                onClick={() => setType('assembly')}
-                style={{ 
-                  flex: 1, 
-                  padding: '16px', 
-                  background: type === 'assembly' ? 'rgba(167,139,250,0.08)' : '#070707', 
-                  border: `2px solid ${type === 'assembly' ? '#a78bfa' : '#1e1e1e'}`, 
-                  borderRadius: '12px', 
-                  cursor: 'pointer',
-                  transition: 'all 0.2s',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '8px'
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#a78bfa' }}></div>
-                  <span style={{ fontWeight: 800, fontSize: '0.85rem', color: type === 'assembly' ? '#a78bfa' : '#aaa' }}>Вузол збірки</span>
-                </div>
-                <p style={{ margin: 0, fontSize: '0.75rem', color: '#666', lineHeight: '1.3' }}>
-                  Проміжний складальний елемент (підвузол), який входить до специфікації Готового виробу.
-                </p>
+            {isDuplicate && (
+              <div style={{ marginTop: '10px', color: '#dc2626', fontSize: '0.78rem', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <AlertCircle size={15} /> Увага: Позиція з такою назвою вже існує у V2 каталозі!
+              </div>
+            )}
+          </div>
+
+          {/* Category Rules & Dictionaries Badge */}
+          {ERP_CATEGORY_SCHEMAS[wizardRuleType] && (
+            <div style={{ background: 'var(--button-bg, #f8fafc)', border: '1px solid var(--border-color, #e2e8f0)', borderRadius: '14px', padding: '12px 16px', fontSize: '0.75rem' }}>
+              <div style={{ color: 'var(--text-muted, #64748b)', fontWeight: 900, textTransform: 'uppercase', marginBottom: '6px', fontSize: '0.68rem', letterSpacing: '0.5px' }}>
+                📋 Обов'язкові довідникові параметри для {ERP_CATEGORY_SCHEMAS[wizardRuleType].title}:
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                {ERP_CATEGORY_SCHEMAS[wizardRuleType].fields.map(f => (
+                  <span key={f.key} style={{ background: 'rgba(217,119,6,0.12)', color: '#b45309', border: '1px solid rgba(217,119,6,0.3)', padding: '3px 8px', borderRadius: '6px', fontWeight: 800, fontSize: '0.7rem' }}>
+                    ✓ {f.label}
+                  </span>
+                ))}
               </div>
             </div>
-          </div>
+          )}
 
-          <div>
-            <label style={labelStyle}>Матеріал / характеристика (необов'язково)</label>
-            <input value={materialType} onChange={e => setMaterialType(e.target.value)} style={inputStyle} placeholder="напр. карбон, алюміній" />
+          {/* Dynamic Rule Form Fields */}
+          <div style={{ background: 'var(--card-bg, #ffffff)', padding: '20px', borderRadius: '16px', border: '1px solid var(--border-color, #cbd5e1)', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+            
+            {/* SCREWS */}
+            {(wizardRuleType === 'screw' || wizardRuleType === 'screw_black' || wizardRuleType === 'screw_silver') && (
+              <>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <label style={labelStyle}>СТАНДАРТ (DIN / ISO)</label>
+                    <select value={wizardParams.standard} onChange={e => setWizardParams({...wizardParams, standard: e.target.value})} style={inputStyle}>
+                      <option value="DIN912">DIN 912 (Циліндрична)</option>
+                      <option value="DIN7991">DIN 7991 (Потай)</option>
+                      <option value="ISO7380">ISO 7380 (Напівкругла)</option>
+                      <option value="DIN7985">DIN 7985 (Сочевиця)</option>
+                      <option value="DIN913">DIN 913 (Установчий)</option>
+                      <option value="ISO10642">ISO 10642</option>
+                      <option value="custom">✏️ + Власний стандарт...</option>
+                    </select>
+                    {wizardParams.standard === 'custom' && (
+                      <input type="text" value={wizardParams.customStandard || ''} onChange={e => setWizardParams({...wizardParams, customStandard: e.target.value})} placeholder="напр. DIN 84" style={{ ...inputStyle, marginTop: '8px' }} />
+                    )}
+                  </div>
+                  <div>
+                    <label style={labelStyle}>РІЗЬБА (М)</label>
+                    <select value={wizardParams.diameter} onChange={e => setWizardParams({...wizardParams, diameter: e.target.value})} style={inputStyle}>
+                      <option value="1,6">М1.6</option>
+                      <option value="2">М2</option>
+                      <option value="2,5">М2.5</option>
+                      <option value="3">М3</option>
+                      <option value="4">М4</option>
+                      <option value="5">М5</option>
+                      <option value="6">М6</option>
+                      <option value="8">М8</option>
+                      <option value="10">М10</option>
+                      <option value="custom">✏️ + Власна різьба...</option>
+                    </select>
+                    {wizardParams.diameter === 'custom' && (
+                      <input type="text" value={wizardParams.customDiameter || ''} onChange={e => setWizardParams({...wizardParams, customDiameter: e.target.value})} placeholder="напр. 3,5" style={{ ...inputStyle, marginTop: '8px' }} />
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <label style={labelStyle}>ДОВЖИНА ГВИНТА (мм)</label>
+                  <input type="text" value={wizardParams.length} onChange={e => setWizardParams({...wizardParams, length: e.target.value})} placeholder="напр. 10, 16, 25" style={inputStyle} />
+                </div>
+
+                <div style={{ display: 'flex', gap: '20px', paddingTop: '5px' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-main)' }}>
+                    <input type="checkbox" checked={wizardParams.isBlack} onChange={e => setWizardParams({...wizardParams, isBlack: e.target.checked})} />
+                    Чорний колір (чорний)
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-main)' }}>
+                    <input type="checkbox" checked={wizardParams.isPartialThread} onChange={e => setWizardParams({...wizardParams, isPartialThread: e.target.checked})} />
+                    Неповна різьба
+                  </label>
+                </div>
+              </>
+            )}
+
+            {/* NUTS */}
+            {wizardRuleType === 'nut' && (
+              <>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <label style={labelStyle}>СТАНДАРТ (DIN)</label>
+                    <select value={wizardParams.din || 'DIN 934'} onChange={e => setWizardParams({...wizardParams, din: e.target.value})} style={inputStyle}>
+                      <option value="DIN 934">DIN 934 (Шестигранна)</option>
+                      <option value="DIN 6923">DIN 6923 (З фланцем)</option>
+                      <option value="DIN 985">DIN 985 (З нейлоном)</option>
+                      <option value="custom">✏️ + Власний DIN...</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={labelStyle}>РІЗЬБА (М)</label>
+                    <select value={wizardParams.diameter || '3'} onChange={e => setWizardParams({...wizardParams, diameter: e.target.value})} style={inputStyle}>
+                      <option value="2">М2</option>
+                      <option value="2,5">М2.5</option>
+                      <option value="3">М3</option>
+                      <option value="4">М4</option>
+                      <option value="5">М5</option>
+                      <option value="6">М6</option>
+                      <option value="custom">✏️ + Власна різьба...</option>
+                    </select>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* PRESS NUTS */}
+            {wizardRuleType === 'press_nut' && (
+              <>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <label style={labelStyle}>РІЗЬБА (М)</label>
+                    <select value={wizardParams.diameter || '3'} onChange={e => setWizardParams({...wizardParams, diameter: e.target.value})} style={inputStyle}>
+                      <option value="2">М2</option>
+                      <option value="2,5">М2.5</option>
+                      <option value="3">М3</option>
+                      <option value="4">М4</option>
+                      <option value="5">М5</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={labelStyle}>ТОВЩИНА ЗАПРЕСОВКИ</label>
+                    <select value={wizardParams.thickness || '1'} onChange={e => setWizardParams({...wizardParams, thickness: e.target.value})} style={inputStyle}>
+                      <option value="0">0 (0.8 мм)</option>
+                      <option value="1">1 (1.0 мм)</option>
+                      <option value="2">2 (1.4 мм)</option>
+                      <option value="3">3 (2.3 мм)</option>
+                    </select>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* STANDOFFS */}
+            {wizardRuleType === 'standoff' && (
+              <>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <label style={labelStyle}>ТИП СТІЙКИ</label>
+                    <select value={wizardParams.type} onChange={e => setWizardParams({...wizardParams, type: e.target.value})} style={inputStyle}>
+                      <option value="TFF">TFF (Мама-Мама)</option>
+                      <option value="TFM">TFM (Тато-Мама)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={labelStyle}>РІЗЬБА (М)</label>
+                    <select value={wizardParams.thread} onChange={e => setWizardParams({...wizardParams, thread: e.target.value})} style={inputStyle}>
+                      <option value="3">М3</option>
+                      <option value="4">М4</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <label style={labelStyle}>ДОВЖИНА СТІЙКИ (мм)</label>
+                    <input type="text" value={wizardParams.length} onChange={e => setWizardParams({...wizardParams, length: e.target.value})} placeholder="напр. 20" style={inputStyle} />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>МАТЕРІАЛ</label>
+                    <select value={wizardParams.material} onChange={e => setWizardParams({...wizardParams, material: e.target.value})} style={inputStyle}>
+                      <option value="Алюміній">Алюміній</option>
+                      <option value="Латунь">Латунь</option>
+                      <option value="Цинк S5">Цинк S5</option>
+                    </select>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* MILLS */}
+            {wizardRuleType === 'mill' && (
+              <>
+                <div>
+                  <label style={labelStyle}>ТИП ФРЕЗИ</label>
+                  <select value={wizardParams.type || 'кукурудза'} onChange={e => setWizardParams({...wizardParams, type: e.target.value})} style={inputStyle}>
+                    {refDicts.millTypes.map(m => (
+                      <option key={m} value={m}>{m.charAt(0).toUpperCase() + m.slice(1)}</option>
+                    ))}
+                  </select>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '8px' }}>
+                  <div>
+                    <label style={labelStyle}>d (різ, мм)</label>
+                    <select value={wizardParams.cutDia || '1,5'} onChange={e => setWizardParams({...wizardParams, cutDia: e.target.value})} style={inputStyle}>
+                      {refDicts.millCutDias.map(v => <option key={v} value={v}>{v} мм</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={labelStyle}>D (цанга)</label>
+                    <select value={wizardParams.shankDia || '3,175'} onChange={e => setWizardParams({...wizardParams, shankDia: e.target.value})} style={inputStyle}>
+                      {refDicts.millShankDias.map(v => <option key={v} value={v}>{v} мм</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={labelStyle}>l (різ, мм)</label>
+                    <select value={wizardParams.cutLength || '8'} onChange={e => setWizardParams({...wizardParams, cutLength: e.target.value})} style={inputStyle}>
+                      {refDicts.millCutLengths.map(v => <option key={v} value={v}>{v} мм</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={labelStyle}>L (заг, мм)</label>
+                    <select value={wizardParams.totalLength || '38'} onChange={e => setWizardParams({...wizardParams, totalLength: e.target.value})} style={inputStyle}>
+                      {refDicts.millTotalLengths.map(v => <option key={v} value={v}>{v} мм</option>)}
+                    </select>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* CARBON SHEETS */}
+            {wizardRuleType === 'carbon' && (
+              <>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '10px' }}>
+                  <div>
+                    <label style={labelStyle}>МАРКА СИРОВИНИ</label>
+                    <select value={wizardParams.grade || 'Т300'} onChange={e => setWizardParams({...wizardParams, grade: e.target.value})} style={inputStyle}>
+                      {refDicts.grades.map(g => <option key={g} value={g}>Карбон {g}</option>)}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={labelStyle}>ФОРМАТ (мм)</label>
+                    <select value={wizardParams.dimensions || '500*600'} onChange={e => setWizardParams({...wizardParams, dimensions: e.target.value})} style={inputStyle}>
+                      <option value="500*600">500*600</option>
+                      <option value="1000*600">1000*600</option>
+                      <option value="500*500">500*500</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={labelStyle}>ТОВЩИНА (мм)</label>
+                    <select value={wizardParams.thickness || '1'} onChange={e => setWizardParams({...wizardParams, thickness: e.target.value})} style={inputStyle}>
+                      {refDicts.thicknesses.map(t => <option key={t} value={t}>{t} мм</option>)}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={labelStyle}>СПЕЦ. ПОЗНАЧКА</label>
+                    <select value={wizardParams.extra || ''} onChange={e => setWizardParams({...wizardParams, extra: e.target.value})} style={inputStyle}>
+                      <option value="">— Немає</option>
+                      {refDicts.extras.map(ex => <option key={ex} value={ex}>{ex}</option>)}
+                    </select>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* FULL FRAME & KITS */}
+            {(wizardRuleType === 'full_frame' || wizardRuleType === 'element_kit') && (
+              <>
+                <div>
+                  <label style={labelStyle}>ПОЧАТОК НАЗВИ / ТИП ВИРОБУ</label>
+                  <select value={wizardParams.prefixChoice || 'Комплект карбонової рами'} onChange={e => setWizardParams({...wizardParams, prefixChoice: e.target.value})} style={inputStyle}>
+                    {prefixList.map(p => <option key={p} value={p}>{p}</option>)}
+                  </select>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <label style={labelStyle}>ТИП ПРОЄКТУ</label>
+                    <select value={wizardParams.projType || 'SERIAL'} onChange={e => setWizardParams({...wizardParams, projType: e.target.value})} style={inputStyle}>
+                      <option value="SERIAL">Серійний виріб</option>
+                      <option value="RND">Серія RND</option>
+                      <option value="IP">Індивідуальний проєкт (ІП)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={labelStyle}>НОМЕР ПРОЄКТУ</label>
+                    <input type="text" value={wizardParams.projNum || ''} onChange={e => setWizardParams({...wizardParams, projNum: e.target.value})} placeholder="напр. 52 або 176" style={inputStyle} />
+                  </div>
+                </div>
+
+                <div>
+                  <label style={labelStyle}>НАЗВА МОДЕЛІ / МОДИФІКАЦІЯ</label>
+                  <input type="text" value={wizardParams.name || ''} onChange={e => setWizardParams({...wizardParams, name: e.target.value})} placeholder="напр. Drozd Interceptor" style={inputStyle} />
+                </div>
+              </>
+            )}
+
+            {/* FRAME PART (ДЕТАЛІ ЛАЗЕР) */}
+            {wizardRuleType === 'frame_part' && (
+              <>
+                <div>
+                  <label style={labelStyle}>НАЗВА ДЕТАЛІ</label>
+                  <input type="text" value={wizardParams.name || wizardParams.customName || ''} onChange={e => setWizardParams({...wizardParams, name: e.target.value, customName: e.target.value})} placeholder="напр. KR-10(218)-П-7-60" style={inputStyle} />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1.2fr', gap: '10px' }}>
+                  <div>
+                    <label style={labelStyle}>МАРКА СИРОВИНИ</label>
+                    <select value={wizardParams.sheetGrade || 'Т300'} onChange={e => setWizardParams({...wizardParams, sheetGrade: e.target.value})} style={inputStyle}>
+                      {refDicts.grades.map(g => <option key={g} value={g}>Карбон {g}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={labelStyle}>ТОВЩИНА (мм)</label>
+                    <select value={wizardParams.sheetThickness || '3'} onChange={e => setWizardParams({...wizardParams, sheetThickness: e.target.value})} style={inputStyle}>
+                      {refDicts.thicknesses.map(t => <option key={t} value={t}>{t} мм</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={labelStyle}>НОРМА (шт/л)</label>
+                    <input type="number" value={wizardParams.unitsPerSheet || 24} onChange={e => setWizardParams({...wizardParams, unitsPerSheet: Number(e.target.value) || 1})} placeholder="24" style={inputStyle} />
+                  </div>
+                </div>
+
+                {/* LOAD TIMINGS SECTION */}
+                <div style={{ background: 'rgba(255, 144, 0, 0.05)', border: '1px solid rgba(255, 144, 0, 0.25)', borderRadius: '16px', padding: '16px', marginTop: '4px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Clock size={16} color="#d97706" />
+                      <span style={{ fontSize: '0.75rem', fontWeight: 950, color: 'var(--text-main, #0f172a)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        ТАЙМІНГИ ОБРОБКИ ДЛЯ ВАРІАНТІВ ЗАГРУЗКИ (ХВИЛИНИ)
+                      </span>
+                    </div>
+                    <span style={{ fontSize: '0.68rem', color: 'var(--text-muted, #64748b)', fontWeight: 700 }}>Час виконання на партію</span>
+                  </div>
+
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted, #64748b)', marginBottom: '12px', lineHeight: '1.3' }}>
+                    Вкажіть час обробки деталі (в хвилинах) для кожної кількості листів при завантаженні у верстат:
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
+                    {['2', '4', '8', '16', '32', '64'].map(sheets => {
+                      const val = wizardParams.loadTimings?.[sheets] ?? ''
+                      return (
+                        <div key={sheets} style={{ background: 'var(--card-bg, #ffffff)', border: '1px solid var(--border-color, #cbd5e1)', borderRadius: '12px', padding: '10px 12px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+                          <div style={{ fontSize: '0.72rem', fontWeight: 900, color: '#d97706', marginBottom: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span>{sheets} {sheets === '2' || sheets === '4' || sheets === '32' || sheets === '64' ? 'листи' : 'листів'}:</span>
+                            <span style={{ fontSize: '0.65rem', color: 'var(--text-muted, #64748b)', fontWeight: 700 }}>хв</span>
+                          </div>
+                          <input 
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            value={val}
+                            onChange={e => {
+                              const updatedVal = e.target.value
+                              setWizardParams(prev => ({
+                                ...prev,
+                                loadTimings: {
+                                  ...(prev.loadTimings || DEFAULT_LOAD_TIMINGS),
+                                  [sheets]: updatedVal
+                                }
+                              }))
+                            }}
+                            placeholder="напр. 15"
+                            style={{ 
+                              ...inputStyle,
+                              padding: '8px 10px',
+                              fontSize: '0.88rem'
+                            }} 
+                          />
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* GENERIC / CUSTOM */}
+            {wizardRuleType === 'generic' && (
+              <div>
+                <label style={labelStyle}>ПОВНА НАЗВА ПОЗИЦІЇ</label>
+                <input type="text" value={wizardParams.customName || ''} onChange={e => setWizardParams({...wizardParams, customName: e.target.value})} placeholder="Введіть стандартизовану назву..." style={inputStyle} />
+              </div>
+            )}
+
+            {/* Unit selector */}
+            <div style={{ borderTop: '1px solid var(--border-color, #e2e8f0)', paddingTop: '15px' }}>
+              <label style={labelStyle}>ОДИНИЦЯ ВИМІРУ</label>
+              <select value={wizardParams.unit || 'шт'} onChange={e => setWizardParams({...wizardParams, unit: e.target.value})} style={inputStyle}>
+                <option value="шт">Штуки (шт)</option>
+                <option value="компл.">Комплекти (компл.)</option>
+                <option value="лист">Листи (лист)</option>
+                <option value="кг">Кілограми (кг)</option>
+                <option value="м">Метри (м)</option>
+                <option value="м²">Квадратні метри (м²)</option>
+                <option value="л">Літри (л)</option>
+              </select>
+            </div>
+
           </div>
 
           <button 
-            onClick={handleSave} 
+            type="submit" 
+            disabled={isDuplicate || !generatedName || saving}
             style={{ 
-              width: '100%', 
-              padding: '14px', 
-              background: type === 'product' ? 'linear-gradient(135deg, #f59e0b, #d97706)' : 'linear-gradient(135deg, #7c3aed, #6d28d9)', 
-              color: '#fff', 
+              background: isDuplicate || !generatedName ? 'var(--button-bg, #cbd5e1)' : 'linear-gradient(135deg, #10b981, #059669)', 
+              color: isDuplicate || !generatedName ? '#777' : '#ffffff', 
               border: 'none', 
-              borderRadius: '12px', 
-              fontWeight: 900, 
-              cursor: 'pointer', 
-              fontSize: '0.9rem', 
-              marginTop: '10px'
+              borderRadius: '14px', 
+              padding: '16px', 
+              fontWeight: 950, 
+              fontSize: '0.95rem', 
+              cursor: isDuplicate || !generatedName || saving ? 'not-allowed' : 'pointer',
+              boxShadow: isDuplicate || !generatedName ? 'none' : '0 5px 20px rgba(16,185,129,0.3)',
+              transition: 'all 0.2s'
             }}
           >
-            + Створити та почати редагування
+            {saving ? 'ЗБЕРЕЖЕННЯ ДО V2 КАТАЛОГУ...' : 'ЗБЕРЕГТИ ДО V2 КАТАЛОГУ'}
           </button>
-        </div>
+        </form>
       </div>
     </div>
   )
@@ -1297,7 +1735,7 @@ const BomRow = ({ row, idx, nomenclatures, bomItems, onUpdate, onRemove, supabas
     return bomItems.filter(b => String(b.parent_id) === String(row.nomId))
   }, [row.nomId, bomItems])
 
-  const TYPE_COLORS = { product: '#f59e0b', part: '#60a5fa', raw: '#34d399', consumable: '#f87171', assembly: '#a78bfa' }
+  const TYPE_COLORS = { product: '#d97706', part: '#2563eb', raw: '#059669', consumable: '#dc2626', assembly: '#7c3aed' }
   const TYPE_LABELS = { product: 'Виріб', part: 'Деталь', raw: 'Сировина', consumable: 'Метиз', assembly: 'Вузол' }
 
   return (
@@ -1369,7 +1807,7 @@ const BomRow = ({ row, idx, nomenclatures, bomItems, onUpdate, onRemove, supabas
           <select
             value={row.group || 'Деталі'}
             onChange={e => onUpdate(idx, { group: e.target.value })}
-            style={{ padding: '8px 8px', background: '#111', border: '1px solid #2a2a2a', color: '#888', borderRadius: '8px', fontSize: '0.75rem' }}
+            style={{ padding: '8px 8px', background: '#111', border: '1px solid #2a2a2a', color: 'var(--text-muted, #64748b)', borderRadius: '8px', fontSize: '0.75rem' }}
           >
             <option>Деталі</option>
             <option>Накладки</option>
@@ -1498,6 +1936,8 @@ const SpecBuilderTab = () => {
   const [saving, setSaving] = useState(false)
   const [viewMode, setViewMode] = useState('editor') // 'editor' | 'catalog' | 'dossier'
   const [catalogSearch, setCatalogSearch] = useState('')
+  const [catalogFolder, setCatalogFolder] = useState('all') // 'all' | 'grp_production_frames' | 'grp_test_samples' | 'grp_assemblies'
+  const [collapsedFolders, setCollapsedFolders] = useState({})
   const [expandedParents, setExpandedParents] = useState({})
   const [showNomCreate, setShowNomCreate] = useState(false)
   const [showParentCreate, setShowParentCreate] = useState(false)
@@ -1753,6 +2193,7 @@ const SpecBuilderTab = () => {
   }
 
   // Catalog: group bom_items by parent — show all finished products & assemblies (including empty ones without BOMs)
+  
   const catalogParents = useMemo(() => {
     const q = catalogSearch.toLowerCase()
     
@@ -1809,7 +2250,37 @@ const SpecBuilderTab = () => {
       })
   }, [bomItems, nomenclatures, catalogSearch])
 
-  const TYPE_COLORS = { product: '#f59e0b', part: '#60a5fa', raw: '#34d399', consumable: '#f87171', assembly: '#a78bfa' }
+const getItemFolderKey = (nom) => {
+    if (!nom) return 'grp_production_frames'
+    const gId = nom.group_id
+    const name = (nom.name || '').toLowerCase()
+    const cat = (nom.category || '').toLowerCase()
+    if (gId === 'grp_test_samples' || cat.includes('тестов') || name.includes('тестовий') || name.includes('тест')) {
+      return 'grp_test_samples'
+    }
+    if (nom.type === 'assembly' || gId === 'grp_assemblies' || cat.includes('вузол')) {
+      return 'grp_assemblies'
+    }
+    return 'grp_production_frames'
+  }
+
+  const folderCounts = useMemo(() => {
+    const counts = { all: catalogParents.length, grp_production_frames: 0, grp_test_samples: 0, grp_assemblies: 0 }
+    catalogParents.forEach(({ nom }) => {
+      const key = getItemFolderKey(nom)
+      counts[key] = (counts[key] || 0) + 1
+    })
+    return counts
+  }, [catalogParents])
+
+  const filteredCatalogParents = useMemo(() => {
+    if (catalogFolder === 'all') return catalogParents
+    return catalogParents.filter(({ nom }) => getItemFolderKey(nom) === catalogFolder)
+  }, [catalogParents, catalogFolder])
+
+  
+
+  const TYPE_COLORS = { product: '#d97706', part: '#2563eb', raw: '#059669', consumable: '#dc2626', assembly: '#7c3aed' }
   const TYPE_LABELS = { product: 'Виріб', part: 'Деталь', raw: 'Сировина', consumable: 'Метиз', assembly: 'Вузол' }
 
   // Group rows for preview
@@ -1844,38 +2315,38 @@ const SpecBuilderTab = () => {
       )}
 
       {/* Header */}
-      <div style={{ background: 'linear-gradient(135deg, #0d0d1a, #12122a)', border: '1px solid #2a2a5a', borderRadius: '20px', padding: '25px 30px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
+      <div style={{ background: 'var(--card-bg, #ffffff)', border: '1px solid var(--border-color, #cbd5e1)', boxShadow: '0 4px 20px rgba(0,0,0,0.05)', borderRadius: '20px', padding: '25px 30px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px' }}>
             <BookOpen size={24} color="#818cf8" />
-            <h2 style={{ margin: 0, fontSize: '1.3rem', fontWeight: 900, color: '#c7d2fe' }}>Конструктор специфікацій BOM</h2>
+            <h2 style={{ margin: 0, fontSize: '1.3rem', fontWeight: 900, color: 'var(--text-main, #0f172a)' }}>Конструктор специфікацій BOM</h2>
           </div>
-          <p style={{ margin: 0, fontSize: '0.8rem', color: '#4a4a7a' }}>Створюйте та редагуйте специфікації (Bill of Materials) безпосередньо в системі</p>
+          <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted, #64748b)' }}>Створюйте та редагуйте специфікації (Bill of Materials) безпосередньо в системі</p>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
           {viewMode === 'dossier' && (
             <button
               onClick={() => { setViewMode('catalog'); setDossierParentId(null) }}
-              style={{ padding: '10px 20px', background: '#111', color: '#818cf8', border: '1px solid #2a2a5a', borderRadius: '10px', cursor: 'pointer', fontWeight: 700, fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}
+              style={{ padding: '10px 20px', background: 'var(--button-bg, #f1f5f9)', color: 'var(--text-secondary, #334155)', border: '1px solid var(--border-color, #cbd5e1)', borderRadius: '10px', cursor: 'pointer', fontWeight: 700, fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}
             >
               <ArrowLeft size={15}/> До списку
             </button>
           )}
           <button
             onClick={() => { setViewMode('editor'); setDossierParentId(null) }}
-            style={{ padding: '10px 20px', background: viewMode === 'editor' ? 'linear-gradient(135deg,#4f46e5,#7c3aed)' : '#111', color: '#fff', border: '1px solid #2a2a4a', borderRadius: '10px', cursor: 'pointer', fontWeight: 700, fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}
+            style={{ padding: '10px 20px', background: viewMode === 'editor' ? 'linear-gradient(135deg, #10b981, #059669)' : 'var(--button-bg, #f1f5f9)', color: viewMode === 'editor' ? '#ffffff' : 'var(--text-secondary, #334155)', border: '1px solid var(--border-color, #cbd5e1)', borderRadius: '10px', cursor: 'pointer', fontWeight: 700, fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}
           >
             <Edit2 size={15}/> Конструктор
           </button>
           <button
             onClick={() => { setViewMode('catalog'); setDossierParentId(null) }}
-            style={{ padding: '10px 20px', background: viewMode === 'catalog' ? 'linear-gradient(135deg,#4f46e5,#7c3aed)' : '#111', color: '#fff', border: '1px solid #2a2a4a', borderRadius: '10px', cursor: 'pointer', fontWeight: 700, fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}
+            style={{ padding: '10px 20px', background: viewMode === 'catalog' ? 'linear-gradient(135deg, #10b981, #059669)' : 'var(--button-bg, #f1f5f9)', color: viewMode === 'catalog' ? '#ffffff' : 'var(--text-secondary, #334155)', border: '1px solid var(--border-color, #cbd5e1)', borderRadius: '10px', cursor: 'pointer', fontWeight: 700, fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}
           >
             <Layers size={15}/> Каталог ({catalogParents.length})
           </button>
           <button
             onClick={() => setShowNomCreate(true)}
-            style={{ padding: '10px 20px', background: '#1a0f2e', color: '#a78bfa', border: '1px solid #4c1d9533', borderRadius: '10px', cursor: 'pointer', fontWeight: 700, fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}
+            style={{ padding: '10px 20px', background: 'rgba(16, 185, 129, 0.1)', color: '#059669', border: '1px solid rgba(16, 185, 129, 0.3)', borderRadius: '10px', cursor: 'pointer', fontWeight: 700, fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}
           >
             <Plus size={15}/> Нова номенклатура
           </button>
@@ -1908,7 +2379,7 @@ const SpecBuilderTab = () => {
                   <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
                     {/* Render inputs side1 */}
                     <div style={{ flex: 1, minWidth: '180px', background: '#0a0a0a', padding: '12px', borderRadius: '12px', border: '1px solid #111' }}>
-                      <h5 style={{ margin: '0 0 8px 0', fontSize: '0.75rem', color: '#888' }}>1 сторона</h5>
+                      <h5 style={{ margin: '0 0 8px 0', fontSize: '0.75rem', color: 'var(--text-muted, #64748b)' }}>1 сторона</h5>
                       {side1Ops.map((op, idx) => (
                         <div key={idx} style={{ display: 'flex', gap: '5px', marginBottom: '5px' }}>
                           <input value={op} onChange={e => { const copy = [...side1Ops]; copy[idx] = e.target.value; setSide1Ops(copy) }} style={{ flex: 1, padding: '6px', background: '#000', border: '1px solid #222', color: '#fff', borderRadius: '6px', fontSize: '0.75rem' }} />
@@ -1920,7 +2391,7 @@ const SpecBuilderTab = () => {
 
                     {/* Render inputs side2 F2 */}
                     <div style={{ flex: 1, minWidth: '180px', background: '#0a0a0a', padding: '12px', borderRadius: '12px', border: '1px solid #111' }}>
-                      <h5 style={{ margin: '0 0 8px 0', fontSize: '0.75rem', color: '#888' }}>2 сторона (Ф2)</h5>
+                      <h5 style={{ margin: '0 0 8px 0', fontSize: '0.75rem', color: 'var(--text-muted, #64748b)' }}>2 сторона (Ф2)</h5>
                       {side2OpsF2.map((op, idx) => (
                         <div key={idx} style={{ display: 'flex', gap: '5px', marginBottom: '5px' }}>
                           <input value={op} onChange={e => { const copy = [...side2OpsF2]; copy[idx] = e.target.value; setSide2OpsF2(copy) }} style={{ flex: 1, padding: '6px', background: '#000', border: '1px solid #222', color: '#fff', borderRadius: '6px', fontSize: '0.75rem' }} />
@@ -1932,7 +2403,7 @@ const SpecBuilderTab = () => {
 
                     {/* Render inputs side2 F1.5 */}
                     <div style={{ flex: 1, minWidth: '180px', background: '#0a0a0a', padding: '12px', borderRadius: '12px', border: '1px solid #111' }}>
-                      <h5 style={{ margin: '0 0 8px 0', fontSize: '0.75rem', color: '#888' }}>2 сторона (Ф1.5)</h5>
+                      <h5 style={{ margin: '0 0 8px 0', fontSize: '0.75rem', color: 'var(--text-muted, #64748b)' }}>2 сторона (Ф1.5)</h5>
                       {side2OpsF15.map((op, idx) => (
                         <div key={idx} style={{ display: 'flex', gap: '5px', marginBottom: '5px' }}>
                           <input value={op} onChange={e => { const copy = [...side2OpsF15]; copy[idx] = e.target.value; setSide2OpsF15(copy) }} style={{ flex: 1, padding: '6px', background: '#000', border: '1px solid #222', color: '#fff', borderRadius: '6px', fontSize: '0.75rem' }} />
@@ -1944,7 +2415,7 @@ const SpecBuilderTab = () => {
 
                     {/* Render inputs side2cut F2 */}
                     <div style={{ flex: 1, minWidth: '180px', background: '#0a0a0a', padding: '12px', borderRadius: '12px', border: '1px solid #111' }}>
-                      <h5 style={{ margin: '0 0 8px 0', fontSize: '0.75rem', color: '#888' }}>Вирізка (Ф2)</h5>
+                      <h5 style={{ margin: '0 0 8px 0', fontSize: '0.75rem', color: 'var(--text-muted, #64748b)' }}>Вирізка (Ф2)</h5>
                       {side2CutOpsF2.map((op, idx) => (
                         <div key={idx} style={{ display: 'flex', gap: '5px', marginBottom: '5px' }}>
                           <input value={op} onChange={e => { const copy = [...side2CutOpsF2]; copy[idx] = e.target.value; setSide2CutOpsF2(copy) }} style={{ flex: 1, padding: '6px', background: '#000', border: '1px solid #222', color: '#fff', borderRadius: '6px', fontSize: '0.75rem' }} />
@@ -1956,7 +2427,7 @@ const SpecBuilderTab = () => {
 
                     {/* Render inputs side2cut F1.5 */}
                     <div style={{ flex: 1, minWidth: '180px', background: '#0a0a0a', padding: '12px', borderRadius: '12px', border: '1px solid #111' }}>
-                      <h5 style={{ margin: '0 0 8px 0', fontSize: '0.75rem', color: '#888' }}>Вирізка (Ф1.5)</h5>
+                      <h5 style={{ margin: '0 0 8px 0', fontSize: '0.75rem', color: 'var(--text-muted, #64748b)' }}>Вирізка (Ф1.5)</h5>
                       {side2CutOpsF15.map((op, idx) => (
                         <div key={idx} style={{ display: 'flex', gap: '5px', marginBottom: '5px' }}>
                           <input value={op} onChange={e => { const copy = [...side2CutOpsF15]; copy[idx] = e.target.value; setSide2CutOpsF15(copy) }} style={{ flex: 1, padding: '6px', background: '#000', border: '1px solid #222', color: '#fff', borderRadius: '6px', fontSize: '0.75rem' }} />
@@ -1983,9 +2454,9 @@ const SpecBuilderTab = () => {
       {viewMode === 'editor' ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           {/* Parent product selector */}
-          <div style={{ background: '#0d0d0d', border: '1px solid #1e1e1e', borderRadius: '16px', padding: '24px' }}>
+          <div style={{ background: 'var(--card-bg, #ffffff)', border: '1px solid var(--border-color, #cbd5e1)', boxShadow: '0 4px 20px rgba(0,0,0,0.05)', borderRadius: '16px', padding: '24px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '10px' }}>
-              <label style={{ fontSize: '0.75rem', color: '#888', fontWeight: 900, textTransform: 'uppercase', display: 'block' }}>Крок 1: Оберіть або Створіть виріб-батько</label>
+              <label style={{ fontSize: '0.75rem', color: 'var(--text-muted, #64748b)', fontWeight: 900, textTransform: 'uppercase', display: 'block' }}>Крок 1: Оберіть або Створіть виріб-батько</label>
             </div>
             <div style={{ position: 'relative', maxWidth: '600px' }}>
               <input
@@ -2007,7 +2478,7 @@ const SpecBuilderTab = () => {
                 }}
                 onFocus={() => { if (!parentId) setShowParentDrop(true) }}
                 onBlur={() => { if (!parentId) setTimeout(() => setShowParentDrop(false), 180) }}
-                style={{ width: '100%', padding: '12px 16px', background: parentId ? '#0f1a2e' : '#111', border: `1px solid ${parentId ? '#1d4ed840' : '#2a2a2a'}`, color: '#fff', borderRadius: '10px', fontSize: '0.95rem', fontWeight: 600, boxSizing: 'border-box' }}
+                style={{ width: '100%', padding: '12px 16px', background: 'var(--input-bg, #ffffff)', border: '1px solid var(--border-color, #cbd5e1)', color: '#fff', borderRadius: '10px', fontSize: '0.95rem', fontWeight: 600, boxSizing: 'border-box' }}
               />
               {selectedParent && (
                 <button onClick={() => { setParentId(''); setPendingParent(null); setParentSearch(''); setRows([]) }} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: '#555', cursor: 'pointer' }}><X size={16}/></button>
@@ -2015,7 +2486,7 @@ const SpecBuilderTab = () => {
               {showParentDrop && !selectedParent && (
                 <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#111', border: '1px solid #3b82f6', borderRadius: '12px', zIndex: 9999, maxHeight: '300px', overflowY: 'auto', boxShadow: '0 12px 40px rgba(0,0,0,0.8)', marginTop: '5px' }}>
                   {productNoms.length === 0 ? (
-                    <div style={{ padding: '16px', color: '#888', fontSize: '0.85rem', textAlign: 'center' }}>
+                    <div style={{ padding: '16px', color: 'var(--text-muted, #64748b)', fontSize: '0.85rem', textAlign: 'center' }}>
                       <p style={{ margin: '0 0 10px 0' }}>Не знайдено виробів з назвою «{parentSearch}»</p>
                       <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
                         <button
@@ -2097,7 +2568,7 @@ const SpecBuilderTab = () => {
             {/* Dropdown for quick creation of new items directly under the search field */}
             {!selectedParent && parentSearch.trim().length > 0 && (
               <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <span style={{ fontSize: '0.8rem', color: '#888' }}>Створити нову номенклатуру:</span>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted, #64748b)' }}>Створити нову номенклатуру:</span>
                 <select
                   onChange={(e) => {
                     const val = e.target.value
@@ -2158,7 +2629,7 @@ const SpecBuilderTab = () => {
           </div>
 
           {/* BOM Rows */}
-          <div style={{ background: '#0d0d0d', border: '1px solid #1e1e1e', borderRadius: '16px' }}>
+          <div style={{ background: 'var(--card-bg, #ffffff)', border: '1px solid var(--border-color, #cbd5e1)', boxShadow: '0 4px 20px rgba(0,0,0,0.05)', borderRadius: '16px' }}>
             {/* Table header */}
             <div style={{ display: 'grid', gridTemplateColumns: '28px 1fr 120px 90px 28px', gap: '8px', padding: '10px 10px', background: '#111', borderBottom: '1px solid #1a1a1a' }}>
               <span style={{ fontSize: '0.65rem', color: '#444', fontWeight: 900, textAlign: 'center' }}>№</span>
@@ -2324,7 +2795,7 @@ const SpecBuilderTab = () => {
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ fontSize: '0.7rem', color: '#555', fontWeight: 800 }}>СИСТЕМА CENTRUM MES</div>
-                    <div style={{ fontSize: '0.8rem', color: '#888', marginTop: '4px', fontFamily: 'monospace' }}>ID: {dossierParent?.id?.substring(0, 8)}</div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted, #64748b)', marginTop: '4px', fontFamily: 'monospace' }}>ID: {dossierParent?.id?.substring(0, 8)}</div>
                     <div style={{ fontSize: '0.75rem', color: '#666', marginTop: '2px' }}>{new Date().toLocaleDateString('uk-UA')}</div>
                   </div>
                 </div>
@@ -2465,7 +2936,7 @@ const SpecBuilderTab = () => {
                 {/* Dossier Footer Totals */}
                 <div style={{ borderTop: '2px solid #333', marginTop: '30px', paddingTop: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div style={{ fontSize: '0.75rem', color: '#555', fontWeight: 800 }}>СПЕЦИФІКАЦІЯ CENTRUM MES</div>
-                  <div style={{ fontSize: '0.8rem', color: '#c7d2fe', fontWeight: 800 }}>РАЗОМ: {dossierChildren.length} ПОЗИЦІЙ В {sortedGroups.length} ГРУПАХ</div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-main, #0f172a)', fontWeight: 800 }}>РАЗОМ: {dossierChildren.length} ПОЗИЦІЙ В {sortedGroups.length} ГРУПАХ</div>
                 </div>
               </div>
 
@@ -2487,461 +2958,294 @@ const SpecBuilderTab = () => {
           )
         })()
       ) : (
-        /* ── CATALOG VIEW ── */
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        /* ── CATALOG VIEW (FOLDERS STRUCTURE) ── */
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {/* Folder Navigation Pills Bar */}
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center', background: 'var(--card-bg, #ffffff)', padding: '12px 16px', borderRadius: '16px', border: '1px solid var(--border-color, #cbd5e1)', boxShadow: '0 2px 10px rgba(0,0,0,0.03)' }}>
+            <span style={{ fontSize: '0.72rem', fontWeight: 900, color: 'var(--text-muted, #64748b)', textTransform: 'uppercase', marginRight: '6px' }}>Папки v2.0:</span>
+            
+            <button
+              onClick={() => setCatalogFolder('all')}
+              style={{
+                padding: '7px 14px',
+                borderRadius: '10px',
+                fontWeight: 800,
+                fontSize: '0.8rem',
+                border: '1px solid var(--border-color, #cbd5e1)',
+                background: catalogFolder === 'all' ? 'linear-gradient(135deg, #10b981, #059669)' : 'var(--button-bg, #f8fafc)',
+                color: catalogFolder === 'all' ? '#ffffff' : 'var(--text-main, #0f172a)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                transition: 'all 0.15s'
+              }}
+            >
+              📁 Усі позиції ({folderCounts.all})
+            </button>
+
+            <button
+              onClick={() => setCatalogFolder('grp_production_frames')}
+              style={{
+                padding: '7px 14px',
+                borderRadius: '10px',
+                fontWeight: 800,
+                fontSize: '0.8rem',
+                border: '1px solid var(--border-color, #cbd5e1)',
+                background: catalogFolder === 'grp_production_frames' ? 'linear-gradient(135deg, #10b981, #059669)' : 'var(--button-bg, #f8fafc)',
+                color: catalogFolder === 'grp_production_frames' ? '#ffffff' : 'var(--text-main, #0f172a)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                transition: 'all 0.15s'
+              }}
+            >
+              🚀 Продакшн ({folderCounts.grp_production_frames})
+            </button>
+
+            <button
+              onClick={() => setCatalogFolder('grp_test_samples')}
+              style={{
+                padding: '7px 14px',
+                borderRadius: '10px',
+                fontWeight: 800,
+                fontSize: '0.8rem',
+                border: '1px solid var(--border-color, #cbd5e1)',
+                background: catalogFolder === 'grp_test_samples' ? 'linear-gradient(135deg, #10b981, #059669)' : 'var(--button-bg, #f8fafc)',
+                color: catalogFolder === 'grp_test_samples' ? '#ffffff' : 'var(--text-main, #0f172a)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                transition: 'all 0.15s'
+              }}
+            >
+              🧪 Тестові зразки ({folderCounts.grp_test_samples})
+            </button>
+
+            <button
+              onClick={() => setCatalogFolder('grp_assemblies')}
+              style={{
+                padding: '7px 14px',
+                borderRadius: '10px',
+                fontWeight: 800,
+                fontSize: '0.8rem',
+                border: '1px solid var(--border-color, #cbd5e1)',
+                background: catalogFolder === 'grp_assemblies' ? 'linear-gradient(135deg, #10b981, #059669)' : 'var(--button-bg, #f8fafc)',
+                color: catalogFolder === 'grp_assemblies' ? '#ffffff' : 'var(--text-main, #0f172a)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                transition: 'all 0.15s'
+              }}
+            >
+              📦 Вузли збірки ({folderCounts.grp_assemblies})
+            </button>
+          </div>
+
+          {/* Search bar */}
           <div style={{ position: 'relative' }}>
-            <Search style={{ position: 'absolute', left: '15px', top: '50%', transform: 'translateY(-50%)', color: '#333' }} size={16}/>
+            <Search style={{ position: 'absolute', left: '15px', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} size={16}/>
             <input
               value={catalogSearch}
               onChange={e => setCatalogSearch(e.target.value)}
               placeholder="Пошук специфікації за назвою виробу..."
-              style={{ width: '100%', padding: '12px 15px 12px 42px', background: '#111', border: '1px solid #1e1e1e', color: '#fff', borderRadius: '12px', fontSize: '0.9rem', boxSizing: 'border-box' }}
+              style={{ width: '100%', padding: '12px 15px 12px 42px', background: 'var(--input-bg, #ffffff)', border: '1px solid var(--border-color, #cbd5e1)', color: 'var(--text-main, #0f172a)', borderRadius: '12px', fontSize: '0.9rem', boxSizing: 'border-box' }}
             />
           </div>
 
-          {catalogParents.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '60px 20px', color: '#2a2a2a' }}>
+          {/* Render Items by Folders */}
+          {filteredCatalogParents.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted, #64748b)' }}>
               <BookOpen size={56} style={{ marginBottom: '15px', opacity: 0.15 }}/>
-              <p style={{ fontSize: '1rem', fontWeight: 700 }}>Специфікацій не знайдено</p>
+              <p style={{ fontSize: '1rem', fontWeight: 700 }}>У цій папці специфікацій не знайдено</p>
             </div>
-          ) : catalogParents.map(({ nom, children }) => {
-            const isExpanded = expandedParents[nom.id]
-            const isEmpty = children.length === 0
+          ) : (() => {
+            // Group catalogParents into folder buckets
+            const FOLDER_DEFINITIONS = [
+              { key: 'grp_production_frames', label: '🚀 Продакшн (Серійні рами)', color: '#d97706', bg: 'rgba(217,119,6,0.06)', border: 'rgba(217,119,6,0.25)' },
+              { key: 'grp_test_samples', label: '🧪 Тестові зразки (Прототипи та RND)', color: '#7c3aed', bg: 'rgba(124,58,237,0.06)', border: 'rgba(124,58,237,0.25)' },
+              { key: 'grp_assemblies', label: '📦 Вузли збірки (Підвузли)', color: '#2563eb', bg: 'rgba(37,99,235,0.06)', border: 'rgba(37,99,235,0.25)' }
+            ]
+
+            const folderMap = {}
+            filteredCatalogParents.forEach(item => {
+              const fKey = getItemFolderKey(item.nom)
+              if (!folderMap[fKey]) folderMap[fKey] = []
+              folderMap[fKey].push(item)
+            })
+
+            const activeFolders = FOLDER_DEFINITIONS.filter(fd => (folderMap[fd.key] || []).length > 0)
 
             return (
-              <div
-                key={nom.id}
-                style={{
-                  background: isEmpty ? 'rgba(239, 68, 68, 0.05)' : '#0d0d0d',
-                  border: isEmpty ? '1px solid rgba(239, 68, 68, 0.5)' : '1px solid #1a1a1a',
-                  borderRadius: '14px',
-                  overflow: 'hidden',
-                  boxShadow: isEmpty ? '0 0 15px rgba(239, 68, 68, 0.15)' : 'none',
-                  transition: 'all 0.2s'
-                }}
-              >
-                <div
-                  onClick={() => {
-                    if (isEmpty) {
-                      setParentId(nom.id)
-                      setViewMode('editor')
-                    } else {
-                      setDossierParentId(nom.id)
-                      setViewMode('dossier')
-                    }
-                  }}
-                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 20px', cursor: 'pointer', transition: 'background 0.2s' }}
-                  onMouseEnter={e => e.currentTarget.style.background = isEmpty ? 'rgba(239, 68, 68, 0.12)' : '#111'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-                    <Package size={16} color={isEmpty ? '#ef4444' : '#6366f1'} />
-                    <span style={{ fontWeight: 800, fontSize: '0.95rem', color: isEmpty ? '#fca5a5' : '#c7d2fe' }}>{nom.name}</span>
-                    <span style={{ fontSize: '0.65rem', color: TYPE_COLORS[nom.type] || '#888', fontWeight: 900, background: (TYPE_COLORS[nom.type] || '#555') + '22', padding: '2px 8px', borderRadius: '20px' }}>
-                      {TYPE_LABELS[nom.type] || nom.type}
-                    </span>
-                    {isEmpty && (
-                      <span style={{
-                        fontSize: '0.65rem',
-                        color: '#fff',
-                        fontWeight: 900,
-                        background: '#ef4444',
-                        padding: '3px 10px',
-                        borderRadius: '20px',
-                        letterSpacing: '0.5px',
-                        textTransform: 'uppercase',
-                        boxShadow: '0 2px 8px rgba(239,68,68,0.5)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '5px'
-                      }}>
-                        <AlertCircle size={11} /> ПОРОЖНЯ
-                      </span>
-                    )}
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <span style={{ fontSize: '0.75rem', color: isEmpty ? '#ef4444' : '#555', fontWeight: isEmpty ? 900 : 700 }}>
-                      {isEmpty ? '0 позицій (ПОРОЖНЯ)' : `${children.length} позицій`}
-                    </span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                {activeFolders.map(folder => {
+                  const folderItems = folderMap[folder.key] || []
+                  const isCollapsed = catalogFolder === 'all' ? collapsedFolders[folder.key] !== false : collapsedFolders[folder.key] === true
 
-                    {!isEmpty && (
-                      <button
-                        onClick={e => { e.stopPropagation(); setDossierParentId(nom.id); setViewMode('dossier') }}
-                        style={{ padding: '5px 12px', background: 'rgba(99,102,241,0.1)', border: '1px solid #6366f133', color: '#818cf8', borderRadius: '6px', cursor: 'pointer', fontSize: '0.7rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '5px' }}
+                  return (
+                    <div 
+                      key={folder.key}
+                      style={{ 
+                        background: 'var(--card-bg, #ffffff)', 
+                        border: `1px solid ${folder.border}`, 
+                        borderRadius: '18px', 
+                        overflow: 'hidden',
+                        boxShadow: '0 4px 15px rgba(0,0,0,0.03)'
+                      }}
+                    >
+                      {/* Folder Card Header */}
+                      <div 
+                        onClick={() => setCollapsedFolders(prev => ({ ...prev, [folder.key]: isCollapsed ? false : true }))}
+                        style={{ 
+                          padding: '14px 20px', 
+                          background: folder.bg, 
+                          borderBottom: isCollapsed ? 'none' : `1px solid ${folder.border}`,
+                          display: 'flex', 
+                          justify: 'space-between', 
+                          alignItems: 'center', 
+                          cursor: 'pointer',
+                          userSelect: 'none'
+                        }}
                       >
-                        <Layers size={11}/> Досьє виробу
-                      </button>
-                    )}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <span style={{ fontSize: '1.05rem', fontWeight: 950, color: folder.color }}>{folder.label}</span>
+                          <span style={{ fontSize: '0.7rem', fontWeight: 900, background: folder.color, color: '#ffffff', padding: '2px 9px', borderRadius: '12px' }}>
+                            {folderItems.length} позицій
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: folder.color, fontWeight: 800, fontSize: '0.8rem' }}>
+                          <span>{isCollapsed ? 'Показати' : 'Згорнути'}</span>
+                          {isCollapsed ? <ChevronDown size={18} /> : <ChevronRight size={18} style={{ transform: 'rotate(90deg)' }} />}
+                        </div>
+                      </div>
 
-                    <button
-                      onClick={e => { e.stopPropagation(); setParentId(nom.id); setViewMode('editor') }}
-                      style={{
-                        padding: '6px 14px',
-                        background: isEmpty ? '#ef4444' : 'rgba(99,102,241,0.05)',
-                        border: isEmpty ? 'none' : '1px solid #6366f120',
-                        color: isEmpty ? '#fff' : '#818cf8',
-                        borderRadius: '6px',
-                        cursor: 'pointer',
-                        fontSize: '0.7rem',
-                        fontWeight: 900,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '5px',
-                        boxShadow: isEmpty ? '0 3px 10px rgba(239,68,68,0.4)' : 'none'
-                      }}
-                    >
-                      <Edit2 size={11}/> {isEmpty ? '+ Наповнити специфікацію' : 'Конструктор'}
-                    </button>
+                      {/* Folder Items List */}
+                      {!isCollapsed && (
+                        <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          {folderItems.map(({ nom, children }) => {
+                            const isExpanded = expandedParents[nom.id]
+                            const isEmpty = children.length === 0
 
-                    <button
-                      onClick={async e => {
-                        e.stopPropagation()
-                        if (!confirm(`Видалити позицію та специфікацію «${nom.name}»?`)) return
-                        try {
-                          await supabase.from('bom_items').delete().eq('parent_id', nom.id)
-                          await supabase.from('nomenclature_catalog_profiles').delete().eq('nomenclature_id', nom.id)
-                          await supabase.from('nomenclatures_v2').delete().eq('id', nom.id)
+                            return (
+                              <div
+                                key={nom.id}
+                                style={{
+                                  background: 'var(--card-bg, #ffffff)',
+                                  border: isEmpty ? '1px solid rgba(239, 68, 68, 0.35)' : '1px solid var(--border-color, #e2e8f0)',
+                                  boxShadow: isEmpty ? '0 4px 16px rgba(239, 68, 68, 0.08)' : '0 2px 10px rgba(0,0,0,0.03)',
+                                  borderRadius: '14px',
+                                  overflow: 'hidden',
+                                  transition: 'all 0.2s'
+                                }}
+                              >
+                                <div
+                                  onClick={() => {
+                                    if (isEmpty) {
+                                      setParentId(nom.id)
+                                      setViewMode('editor')
+                                    } else {
+                                      setDossierParentId(nom.id)
+                                      setViewMode('dossier')
+                                    }
+                                  }}
+                                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 18px', cursor: 'pointer', transition: 'background 0.2s' }}
+                                  onMouseEnter={e => e.currentTarget.style.background = isEmpty ? 'rgba(239, 68, 68, 0.06)' : 'var(--button-bg, #f8fafc)'}
+                                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                                >
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                                    <Package size={16} color={isEmpty ? '#ef4444' : '#6366f1'} />
+                                    <span style={{ fontWeight: 800, fontSize: '0.95rem', color: 'var(--text-main, #0f172a)' }}>{nom.name}</span>
+                                    <span style={{ fontSize: '0.65rem', color: TYPE_COLORS[nom.type] || '#888', fontWeight: 900, background: (TYPE_COLORS[nom.type] || '#555') + '22', padding: '2px 8px', borderRadius: '20px' }}>
+                                      {TYPE_LABELS[nom.type] || nom.type}
+                                    </span>
+                                    {isEmpty && (
+                                      <span style={{
+                                        fontSize: '0.65rem',
+                                        color: '#dc2626',
+                                        fontWeight: 900,
+                                        background: '#fee2e2', 
+                                        border: '1px solid #fca5a5',
+                                        padding: '3px 10px',
+                                        borderRadius: '20px',
+                                        letterSpacing: '0.5px',
+                                        textTransform: 'uppercase',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '5px'
+                                      }}>
+                                        <AlertCircle size={11} /> ПОРОЖНЯ
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                    <span style={{ fontSize: '0.75rem', color: isEmpty ? '#dc2626' : 'var(--text-muted, #64748b)', fontWeight: isEmpty ? 900 : 700 }}>
+                                      {isEmpty ? '0 позицій (ПОРОЖНЯ)' : `${children.length} позицій`}
+                                    </span>
 
-                          const { error: nomErr } = await supabase.from('nomenclatures').delete().eq('id', nom.id)
-                          if (nomErr) {
-                            if (nomErr.code === '23503' || (nomErr.message && nomErr.message.includes('foreign key'))) {
-                              alert(`Неможливо видалити «${nom.name}», оскільки цей виріб вже використовується в існуючих замовленнях або робочих картах!`)
-                            } else {
-                              alert(`Помилка видалення: ${nomErr.message}`)
-                            }
-                            return
-                          }
+                                    {!isEmpty && (
+                                      <button
+                                        onClick={e => { e.stopPropagation(); setDossierParentId(nom.id); setViewMode('dossier') }}
+                                        style={{ padding: '5px 12px', background: 'rgba(99,102,241,0.1)', border: '1px solid #6366f133', color: '#818cf8', borderRadius: '6px', cursor: 'pointer', fontSize: '0.7rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '5px' }}
+                                      >
+                                        <Layers size={11}/> Досьє виробу
+                                      </button>
+                                    )}
 
-                          await refreshTable('bom_items')
-                          await refreshTable('nomenclatures')
-                        } catch (err) {
-                          alert('Помилка видалення: ' + err.message)
-                        }
-                      }}
-                      title="Видалити позицію з системи"
-                      style={{ padding: '5px 8px', background: 'rgba(239,68,68,0.06)', border: '1px solid #ef444420', color: '#ef4444', borderRadius: '6px', cursor: 'pointer' }}
-                    >
-                      <Trash2 size={12}/>
-                    </button>
-                  </div>
-                </div>
-
-                {isExpanded && (
-                  <div style={{ borderTop: '1px solid #1a1a1a' }}>
-                    {/* Grouped table view */}
-                    {(() => {
-                      // Define canonical group order
-                      const GROUP_ORDER = ['Деталі', 'Накладки', 'Метизи', 'Гума/Пластик', '3D-друк', 'Фурнітура', 'Комплектуючі', 'Інше']
-                      const GROUP_COLORS = {
-                        'Деталі': '#60a5fa', 'Накладки': '#a78bfa', 'Метизи': '#f59e0b',
-                        'Гума/Пластик': '#34d399', '3D-друк': '#f87171', 'Фурнітура': '#fb923c',
-                        'Комплектуючі': '#38bdf8', 'Інше': '#888'
-                      }
-                      const grouped = {}
-                      children.forEach(b => {
-                        const childNom = nomenclatures.find(n => String(n.id) === String(b.child_id))
-                        // Use group_label from DB if exists, otherwise auto-classify by nomenclature name/type
-                        const g = b.group_label || autoClassify(childNom)
-                        if (!grouped[g]) grouped[g] = []
-                        grouped[g].push(b)
-                      })
-                      // Sort groups by canonical order, unknowns at end
-                      const sortedGroups = Object.keys(grouped).sort((a, b) => {
-                        const ai = GROUP_ORDER.indexOf(a), bi = GROUP_ORDER.indexOf(b)
-                        if (ai === -1 && bi === -1) return a.localeCompare(b)
-                        if (ai === -1) return 1
-                        if (bi === -1) return -1
-                        return ai - bi
-                      })
-                      let globalIdx = 0
-                      return (
-                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
-                          <thead>
-                            <tr style={{ background: '#0a0a0a', borderBottom: '1px solid #1a1a1a' }}>
-                              <th style={{ padding: '8px 12px', textAlign: 'left', color: '#333', fontWeight: 900, fontSize: '0.65rem', textTransform: 'uppercase', width: '36px' }}>№</th>
-                              <th style={{ padding: '8px 12px', textAlign: 'left', color: '#333', fontWeight: 900, fontSize: '0.65rem', textTransform: 'uppercase' }}>Найменування</th>
-                              <th style={{ padding: '8px 12px', textAlign: 'left', color: '#333', fontWeight: 900, fontSize: '0.65rem', textTransform: 'uppercase', width: '160px' }}>Характеристика</th>
-                              <th style={{ padding: '8px 12px', textAlign: 'center', color: '#333', fontWeight: 900, fontSize: '0.65rem', textTransform: 'uppercase', width: '60px' }}>К-сть</th>
-                              <th style={{ padding: '8px 12px', textAlign: 'center', color: '#333', fontWeight: 900, fontSize: '0.65rem', textTransform: 'uppercase', width: '40px' }}>Од.</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {sortedGroups.map(grp => {
-                              const items = grouped[grp]
-                              const grpColor = GROUP_COLORS[grp] || '#888'
-                              return [
-                                // Group header row
-                                <tr key={`hdr-${grp}`} style={{ background: grpColor + '0d', borderTop: '1px solid ' + grpColor + '30' }}>
-                                  <td colSpan={5} style={{ padding: '7px 12px' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                      <span style={{ width: '3px', height: '14px', background: grpColor, borderRadius: '2px', display: 'inline-block', flexShrink: 0 }} />
-                                      <span style={{ fontSize: '0.7rem', fontWeight: 900, color: grpColor, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{grp}</span>
-                                      <span style={{ fontSize: '0.65rem', color: '#555', fontWeight: 700 }}>({items.length} поз.)</span>
-                                    </div>
-                                  </td>
-                                </tr>,
-                                // Data rows
-                                ...items.map((b) => {
-                                  globalIdx++
-                                  const rowNum = globalIdx
-                                  const child = nomenclatures.find(n => String(n.id) === String(b.child_id))
-                                  return (
-                                    <tr key={b.child_id} style={{ borderBottom: '1px solid #0f0f0f', transition: 'background 0.15s' }}
-                                      onMouseEnter={e => e.currentTarget.style.background = '#111'}
-                                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                                    <button
+                                      onClick={e => { e.stopPropagation(); setParentId(nom.id); setViewMode('editor') }}
+                                      style={{
+                                        padding: '6px 14px',
+                                        background: isEmpty ? 'linear-gradient(135deg, #10b981, #059669)' : 'var(--button-bg, #f1f5f9)',
+                                        border: isEmpty ? 'none' : '1px solid var(--border-color, #cbd5e1)',
+                                        color: isEmpty ? '#ffffff' : 'var(--text-main, #0f172a)',
+                                        borderRadius: '6px',
+                                        cursor: 'pointer',
+                                        fontSize: '0.7rem',
+                                        fontWeight: 900,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '5px'
+                                      }}
                                     >
-                                      <td style={{ padding: '9px 12px', color: '#333', fontWeight: 800, textAlign: 'center', fontSize: '0.75rem' }}>{rowNum}</td>
-                                      <td style={{ padding: '9px 12px' }}>
-                                        <span style={{ fontWeight: 700, color: child ? '#e0e7ff' : '#3a3a3a' }}>{child?.name || `(ID: ${b.child_id})`}</span>
-                                      </td>
-                                      <td style={{ padding: '9px 12px', color: '#555', fontSize: '0.75rem' }}>{child?.material_type || '—'}</td>
-                                      <td style={{ padding: '9px 12px', textAlign: 'center', color: '#f59e0b', fontWeight: 900, fontSize: '0.9rem' }}>{b.quantity_per_parent}</td>
-                                      <td style={{ padding: '9px 12px', textAlign: 'center', color: '#444', fontSize: '0.75rem' }}>{child?.unit || 'шт'}</td>
-                                    </tr>
-                                  )
-                                })
-                              ]
-                            })}
-                            {/* Footer totals */}
-                            <tr style={{ borderTop: '1px solid #1a1a1a', background: '#0a0a0a' }}>
-                              <td colSpan={3} style={{ padding: '8px 12px', fontSize: '0.7rem', color: '#444', fontWeight: 800 }}>РАЗОМ: {children.length} позицій у {sortedGroups.length} групах</td>
-                              <td colSpan={2} />
-                            </tr>
-                          </tbody>
-                        </table>
-                      )
-                    })()}
-                  </div>
-                )}
+                                      <Edit2 size={11}/> {isEmpty ? '+ Наповнити специфікацію' : 'Конструктор'}
+                                    </button>
+
+                                    <button
+                                      onClick={async e => {
+                                        e.stopPropagation()
+                                        if (!confirm(`Видалити позицію та специфікацію «${nom.name}»?`)) return
+                                        try {
+                                          await supabase.from('bom_items').delete().eq('parent_id', nom.id)
+                                          await supabase.from('nomenclature_catalog_profiles').delete().eq('nomenclature_id', nom.id)
+                                          await supabase.from('nomenclatures_v2').delete().eq('id', nom.id)
+
+                                          await refreshTable('bom_items')
+                                          await refreshTable('nomenclatures')
+                                        } catch (err) {
+                                          alert('Помилка видалення: ' + err.message)
+                                        }
+                                      }}
+                                      title="Видалити позицію з системи"
+                                      style={{ padding: '5px 8px', background: 'rgba(239,68,68,0.06)', border: '1px solid #ef444420', color: '#ef4444', borderRadius: '6px', cursor: 'pointer' }}
+                                    >
+                                      <Trash2 size={12}/>
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             )
-          })}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ─── IMPORT SPEC TAB (перенесено з модуля База) ───────────────────────────────
-const ImportSpecTab = () => {
-  const { nomenclatures, bomItems, supabase, refreshTable } = useMES()
-  const [importLogs, setImportLogs] = useState([])
-  const [isProcessing, setIsProcessing] = useState(false)
-
-  const parseSpecCSV = (text) => {
-    const cleanedText = text.replace(/"([^"]*)"/g, (m, p1) => `"${p1.replace(/\r?\n/g, ' ')}"`)
-    const lines = cleanedText.split(/\r?\n/).filter(line => line.trim() !== '')
-    if (lines.length === 0) return null
-
-    let specName = 'Нова специфікація'
-    const firstLineMatch = lines[0].match(/Специфікація\s+(.*)/i)
-    if (firstLineMatch) {
-      let content = firstLineMatch[1].trim()
-      content = content.replace(/,+$/, '').trim()
-      while (content.startsWith('"') || content.endsWith('"')) {
-        if (content.startsWith('"')) content = content.substring(1)
-        if (content.endsWith('"')) content = content.slice(0, -1)
-        content = content.trim()
-      }
-      content = content.replace(/""/g, '"')
-      if (content) specName = content
-    }
-
-    const result = { productName: specName, components: [] }
-    let currentCategory = 'structural'
-    let currentGroupLabel = 'Деталі'  // default for structural parts
-
-    for (let i = 1; i < lines.length; i++) {
-      const line = lines[i]
-      const cols = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(c => c.trim().replace(/^"|"$/g, ''))
-      const isHeader = !cols[0] || isNaN(parseInt(cols[0]))
-      if (isHeader) {
-        if (line.includes('Метизи'))      { currentCategory = 'fastener'; currentGroupLabel = 'Метизи';        continue }
-        if (line.includes('Стійки'))      { currentCategory = 'hardware'; currentGroupLabel = 'Стійки';        continue }
-        if (line.includes('Накладки') || line.includes('Наклад')) { currentCategory = 'hardware'; currentGroupLabel = 'Накладки'; continue }
-        if (line.includes('Тримач'))      { currentCategory = 'hardware'; currentGroupLabel = 'Накладки';        continue }
-        if (line.includes('Гума') || line.includes('Пластик') || line.includes('ПВХ')) { currentCategory = 'hardware'; currentGroupLabel = 'Гума/Пластик'; continue }
-        if (line.includes('3D') || line.includes('3д') || line.includes('друк')) { currentCategory = 'hardware'; currentGroupLabel = '3D-друк'; continue }
-        if (line.includes('Фурнітура') || line.includes('Фурніт'))       { currentCategory = 'hardware'; currentGroupLabel = 'Фурнітура';       continue }
-        if (line.includes('Комплект'))    { currentCategory = 'hardware'; currentGroupLabel = 'Комплектуючі';   continue }
-      }
-      const indexNum = parseInt(cols[0])
-      if (!isNaN(indexNum) && cols[1]) {
-        const desc = cols[3] || ''
-        let thickness = ''; let unitsPerSheet = 0
-        const thickMatch = desc.match(/(\d+(?:\.\d+)?)\s*мм/i); if (thickMatch) thickness = thickMatch[1]
-        const unitsMatch = desc.match(/(\d+)\s*шт/i); if (unitsMatch) unitsPerSheet = parseInt(unitsMatch[1])
-        result.components.push({
-          name: cols[1], characteristics: cols[2], description: desc,
-          qtyPerOne: parseFloat(cols[4]) || 1, category: currentCategory,
-          groupLabel: currentGroupLabel,
-          thickness, unitsPerSheet
-        })
-      }
-    }
-    return result
-  }
-
-  const handleFileUpload = async (e) => {
-    const file = e.target.files[0]
-    if (!file) return
-    // Reset input so same file can be re-uploaded
-    e.target.value = ''
-    setIsProcessing(true)
-    setImportLogs(['⏳ Зчитування файлу...'])
-    const reader = new FileReader()
-    reader.onload = async (event) => {
-      try {
-        const text = event.target.result
-        const parsed = parseSpecCSV(text)
-        if (!parsed || !parsed.productName) throw new Error('Не вдалося розпізнати назву виробу')
-        setImportLogs(prev => [...prev, `📦 Знайдено виріб: ${parsed.productName}`, `🧩 Складових частин: ${parsed.components.length}`])
-
-        const normalizeHomoglyphs = (str) => {
-          if (!str) return ''
-          const mapper = { 'а': 'a', 'в': 'b', 'с': 'c', 'е': 'e', 'н': 'h', 'к': 'k', 'м': 'm', 'о': 'o', 'р': 'p', 'т': 't', 'х': 'x', 'у': 'y', 'і': 'i', 'ї': 'i' }
-          return str.toLowerCase().trim().split('').map(c => mapper[c] || c).join('').replace(/[^a-z0-9]/g, '')
-        }
-
-        // Local mutable cache
-        const localNoms = [...nomenclatures]
-
-        const createdBOM = []
-        for (const comp of parsed.components) {
-          const nameLower = comp.name.toLowerCase()
-          const charLower = (comp.characteristics || '').toLowerCase()
-          const fullName = charLower.includes(nameLower)
-            ? comp.characteristics
-            : (comp.characteristics ? `${comp.name} ${comp.characteristics}` : comp.name)
-
-          setImportLogs(prev => [...prev, `🔍 Обробка: ${fullName}...`])
-
-          let materialType = comp.category === 'structural' && comp.thickness ? `Лист Т300 (${comp.thickness}мм)` : ''
-
-          if (comp.category === 'structural' && comp.thickness) {
-            const thickStr = `${comp.thickness}мм`
-            const rawName = `Лист Т300 (${thickStr}) [Непідготовлений]`
-            const prepName = `Лист Т300 (${thickStr}) [Підготовлений]`
-
-            let rawNom = localNoms.find(n => n.name === rawName)
-            if (!rawNom) {
-              const { data: rawData, error: rawErr } = await supabase.from('nomenclatures').insert([{ name: rawName, material_type: thickStr, type: 'raw' }]).select().single()
-              if (!rawErr && rawData) { rawNom = rawData; localNoms.push(rawData) }
-            }
-            let prepNom = localNoms.find(n => n.name === prepName)
-            if (!prepNom) {
-              const { data: prepData, error: prepErr } = await supabase.from('nomenclatures').insert([{ name: prepName, material_type: thickStr, type: 'raw' }]).select().single()
-              if (!prepErr && prepData) { prepNom = prepData; localNoms.push(prepData) }
-            }
-            if (rawNom && prepNom) {
-              await supabase.from('bom_items').delete().eq('parent_id', prepNom.id)
-              await supabase.from('bom_items').insert([{ parent_id: prepNom.id, child_id: rawNom.id, quantity_per_parent: 1 }])
-            }
-          }
-
-          const payload = {
-            name: fullName,
-            type: comp.category === 'structural' ? 'part' : 'hardware',
-            material_type: materialType,
-            units_per_sheet: comp.category === 'structural' ? (comp.unitsPerSheet || 0) : 0,
-            characteristic: comp.characteristics || '',
-            description: comp.description || comp.characteristics || '',
-            qty_per_unit: Number(comp.qtyPerOne) || 0
-          }
-
-          const normalizedFullName = normalizeHomoglyphs(fullName)
-          const existing = localNoms.find(n => normalizeHomoglyphs(n.name) === normalizedFullName)
-          if (existing) payload.id = existing.id
-
-          const { data: upserted, error } = await supabase.from('nomenclatures').upsert([payload]).select()
-          if (error) throw error
-          if (upserted && upserted[0]) {
-            if (!existing) localNoms.push(upserted[0])
-            createdBOM.push({ child_id: upserted[0].id, qty: comp.qtyPerOne, groupLabel: comp.groupLabel || 'Деталі' })
-          }
-        }
-
-        setImportLogs(prev => [...prev, `✨ Реєстрація комплекту: ${parsed.productName}...`])
-        const existingParent = localNoms.find(n => n.name === parsed.productName)
-        const parentPayload = { name: parsed.productName, type: 'product', material_type: 'Збірка' }
-        if (existingParent) parentPayload.id = existingParent.id
-
-        const { data: pData, error: pErr } = await supabase.from('nomenclatures').upsert([parentPayload]).select()
-        if (pErr) throw pErr
-
-        if (pData && pData[0]) {
-          const parentId = pData[0].id
-          const aggregatedBOM = []
-          createdBOM.forEach(item => {
-            const ex = aggregatedBOM.find(it => it.child_id === item.child_id)
-            if (ex) ex.qty += item.qty
-            else aggregatedBOM.push({ ...item })
-          })
-          setImportLogs(prev => [...prev, `🔗 Формування специфікації BOM...`])
-          // Sync BOM manually
-          await supabase.from('bom_items').delete().eq('parent_id', parentId)
-          const bomRows = aggregatedBOM.map(r => ({ parent_id: parentId, child_id: r.child_id, quantity_per_parent: r.qty, group_label: r.groupLabel || 'Деталі' }))
-          if (bomRows.length > 0) await supabase.from('bom_items').insert(bomRows)
-          setImportLogs(prev => [...prev, `✅ ІМПОРТ ЗАВЕРШЕНО УСПІШНО!`, `🎉 Виріб готовий до використання.`])
-        }
-
-        await refreshTable('nomenclatures')
-        await refreshTable('bom_items')
-        setIsProcessing(false)
-      } catch (err) {
-        setImportLogs(prev => [...prev, `❌ Помилка: ${err.message}`])
-        setIsProcessing(false)
-      }
-    }
-    reader.readAsText(file)
-  }
-
-  return (
-    <div style={{ maxWidth: '800px', margin: '0 auto' }}>
-      <div style={{ background: '#0d0d0d', border: '2px dashed #1e3a1e', borderRadius: '24px', padding: '40px', textAlign: 'center', marginBottom: '24px' }}>
-        <FileUp size={48} color="#10b981" style={{ marginBottom: '16px', opacity: 0.6 }} />
-        <h2 style={{ margin: '0 0 8px', fontSize: '1.4rem', fontWeight: 900, color: '#fff' }}>Імпорт специфікацій CSV</h2>
-        <p style={{ color: '#555', marginBottom: '28px', fontSize: '0.9rem', lineHeight: 1.5 }}>
-          Завантажте CSV-файл специфікації.<br/>
-          Система автоматично створить виріб, всі компоненти та зв'язки BOM.
-        </p>
-        <label style={{
-          display: 'inline-flex', alignItems: 'center', gap: '10px',
-          background: isProcessing ? '#111' : 'linear-gradient(135deg, #059669, #10b981)',
-          color: isProcessing ? '#555' : '#fff',
-          padding: '14px 32px', borderRadius: '14px',
-          fontWeight: 900, cursor: isProcessing ? 'not-allowed' : 'pointer',
-          fontSize: '0.9rem', letterSpacing: '0.5px',
-          boxShadow: isProcessing ? 'none' : '0 8px 24px rgba(16,185,129,0.3)',
-          transition: 'all 0.3s'
-        }}>
-          {isProcessing ? <Loader2 size={20} className="anim-spin" /> : <Plus size={20} />}
-          {isProcessing ? 'ОБРОБКА...' : 'ОБРАТИ ФАЙЛ СПЕЦИФІКАЦІЇ'}
-          <input type="file" accept=".csv" hidden onChange={handleFileUpload} disabled={isProcessing} />
-        </label>
-      </div>
-
-      {importLogs.length > 0 && (
-        <div style={{ background: '#060606', border: '1px solid #111', borderRadius: '16px', padding: '20px', maxHeight: '420px', overflowY: 'auto' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
-            <h4 style={{ margin: 0, color: '#444', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', fontWeight: 900 }}>
-              <Clock size={14} /> Лог імпорту
-            </h4>
-            {!isProcessing && (
-              <button onClick={() => setImportLogs([])} style={{ background: 'transparent', border: 'none', color: '#333', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 800 }}>ОЧИСТИТИ</button>
-            )}
-          </div>
-          {importLogs.map((log, i) => (
-            <div key={i} style={{
-              fontSize: '0.8rem', padding: '7px 0',
-              borderBottom: '1px solid #0d0d0d',
-              color: log.includes('✅') || log.includes('🎉') ? '#10b981' : log.includes('❌') ? '#ef4444' : log.includes('📦') || log.includes('✨') ? '#f59e0b' : '#555',
-              fontWeight: log.includes('✅') || log.includes('❌') || log.includes('📦') || log.includes('✨') ? 800 : 400,
-              fontFamily: 'monospace'
-            }}>
-              {log}
-            </div>
-          ))}
+          })()}
         </div>
       )}
       <style dangerouslySetInnerHTML={{ __html: '.anim-spin { animation: spin 1s linear infinite; } @keyframes spin { from{transform:rotate(0deg);} to{transform:rotate(360deg);} }' }} />
@@ -3166,7 +3470,7 @@ const EngineerModule = () => {
         {activeCalls.length > 0 && (
           <div style={{ background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.15)', borderRadius: '16px', padding: '15px 20px', marginBottom: '20px' }}>
             <h3 style={{ margin: '0 0 12px 0', fontSize: '0.85rem', fontWeight: 900, color: '#ef4444', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span className="pulse-indicator" style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: '#ef4444', boxShadow: '0 0 8px #ef4444' }} />
+              <span className="pulse-indicator" style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5', boxShadow: '0 0 8px #ef4444' }} />
               АКТИВНІ ВИКЛИКИ ДО ВЕРСТАТІВ ({activeCalls.length})
             </h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -3178,7 +3482,7 @@ const EngineerModule = () => {
                       <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#fff' }}>
                         {mach ? mach.name : 'Верстат'} (пор. №{mach?.sequence_number || '—'})
                       </div>
-                      <div style={{ fontSize: '0.75rem', color: '#888', marginTop: '2px' }}>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted, #64748b)', marginTop: '2px' }}>
                         Локація: {mach?.floor || '—'} поверх | Викликав: {c.operator_name || 'Оператор'}
                         {c.called_employee_name && <span style={{ color: '#8b5cf6', fontWeight: 800 }}> | Цільовий для: {c.called_employee_name}</span>}
                       </div>
@@ -3253,7 +3557,7 @@ const EngineerModule = () => {
            </div>
            <div className="hide-mobile" style={{ flex: 2, background: 'rgba(59, 130, 246, 0.05)', padding: '15px', borderRadius: '16px', border: '1px solid rgba(59, 130, 246, 0.2)', display: 'flex', alignItems: 'center', gap: '12px' }}>
               <AlertCircle size={20} color="#3b82f6" />
-              <p style={{ margin: 0, fontSize: '0.75rem', color: '#888', lineHeight: 1.4 }}>Ваше підтвердження активує кнопки запуску на терміналах операторів верстатів.</p>
+              <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-muted, #64748b)', lineHeight: 1.4 }}>Ваше підтвердження активує кнопки запуску на терміналах операторів верстатів.</p>
            </div>
         </div>
 

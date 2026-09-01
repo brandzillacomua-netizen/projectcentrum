@@ -21,6 +21,7 @@ import {
 import { Link, useSearchParams } from 'react-router-dom'
 import { useMES } from '../MESContext'
 import { supabase } from '../supabase'
+import { IconSO, IconSGP } from '../components/WarehouseIcons'
 
 // Hooks
 import { getMaterialType, useWarehouseComputed } from './Warehouse/hooks/useWarehouseComputed'
@@ -266,10 +267,6 @@ const WarehouseModuleV2 = () => {
       { id: 'raw', label: 'Оперативний', icon: <Package size={18} />, count: getCount('raw') },
       { id: 'boxes', label: 'Бокси фрез', icon: <WarehouseIcon size={18} />, count: cardsWithBoxes.filter(c => !c.isPrepared).length },
       { id: 'pocket', label: 'Кишеня майстра', icon: <FolderOpen size={18} />, count: getCount('pocket') },
-      { id: 'semi', label: 'Напівфабрикати', icon: <Layers size={18} />, count: getCount('semi') },
-      { id: 'finished', label: 'Готова продукція', icon: <Archive size={18} />, count: getCount('finished') },
-      { id: 'scrap', label: 'Брак', icon: <AlertTriangle size={18} />, count: getCount('scrap') },
-      { id: 'bz', label: 'БЗ', icon: <CheckCircle2 size={18} />, count: getCount('bz') },
       { id: 'registry', label: 'Реєстр', icon: <History size={18} /> }
     ]
   }, [requests, tasks, receptionDocs, nomenclatures, inventory, cardsWithBoxes])
@@ -304,8 +301,11 @@ const WarehouseModuleV2 = () => {
           <div style={{ display: 'flex', alignItems: 'center', gap: window.innerWidth < 768 ? '8px' : '20px' }}>
             <Link to="/" className="back-link" style={{ color: '#555', transition: '0.3s', display: 'flex', alignItems: 'center' }}><ArrowLeft size={18} /> <span className="hide-mobile" style={{ marginLeft: '5px' }}>Назад</span></Link>
             <div className="module-title-group" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <WarehouseIcon className="text-secondary" size={18} style={{ color: '#ff9000' }} />
+              <IconSO className="text-secondary" size={20} color="#10b981" />
               <h1 className="hide-mobile" style={{ margin: 0, fontSize: '1.1rem', fontWeight: 950, letterSpacing: '-0.02em' }}>СКЛАД ОПЕРАТИВНИЙ</h1>
+              <span className="pillar-badge-erp hide-mobile" style={{ padding: '3px 8px', borderRadius: '12px', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase' }}>
+                ERP WMS Pillar
+              </span>
               <h1 className="mobile-only" style={{ margin: 0, fontSize: '0.85rem', fontWeight: 950 }}>СКЛАД</h1>
               <button
                 type="button"
@@ -338,43 +338,48 @@ const WarehouseModuleV2 = () => {
             </div>
           </div>
           
-          <button
-            onClick={() => setShowReception(!showReception)}
-            style={{
-              background: showReception 
-                ? 'linear-gradient(135deg, #0ea5e9, #0284c7)' 
-                : (pendingDocs.length > 0 ? 'rgba(14, 165, 233, 0.2)' : 'rgba(14, 165, 233, 0.08)'),
-              color: showReception ? '#000' : '#0ea5e9',
-              border: showReception ? 'none' : '1px solid rgba(14, 165, 233, 0.4)',
-              padding: window.innerWidth < 768 ? '8px 12px' : '10px 20px',
-              borderRadius: '10px',
-              fontSize: '0.75rem',
-              fontWeight: 900,
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              cursor: 'pointer',
-              position: 'relative',
-              boxShadow: pendingDocs.length > 0 ? '0 0 15px rgba(14, 165, 233, 0.4)' : 'none',
-              animation: pendingDocs.length > 0 ? 'pulse-blue 2s infinite' : 'none',
-              transition: 'all 0.2s'
-            }}
-          >
-            <Truck size={14} /> 
-            <span className="hide-mobile">ПРИЙОМКА</span>
-            <span className="mobile-only">ПРИЙОМКА</span>
-            {pendingDocs.length > 0 && (
-              <span className="badge-count anim-pulse" style={{ position: 'absolute', top: '-5px', right: '-5px', background: '#ef4444', color: '#fff', borderRadius: '50%', fontSize: '10px', width: '18px', height: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
-                {pendingDocs.length}
-              </span>
-            )}
-          </button>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-          <ManualIssueJournalButton onClick={manualIssue.openJournal} compact={window.innerWidth < 900} />
-          <div className="hide-mobile" style={{ color: '#555', fontSize: '0.75rem', fontWeight: 600 }}>
-            {currentUser?.first_name} {currentUser?.last_name}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <button
+              type="button"
+              onClick={() => setShowReception(!showReception)}
+              className="warehouse-nav-btn reception-btn"
+              style={{
+                height: '42px',
+                padding: window.innerWidth < 768 ? '0 12px' : '0 16px',
+                borderRadius: '12px',
+                border: showReception ? 'none' : '1px solid rgba(14, 165, 233, 0.4)',
+                background: showReception 
+                  ? 'linear-gradient(135deg, #0ea5e9, #0284c7)' 
+                  : (pendingDocs.length > 0 ? 'rgba(14, 165, 233, 0.2)' : 'rgba(14, 165, 233, 0.08)'),
+                color: showReception ? '#000' : '#0ea5e9',
+                fontSize: '0.8rem',
+                fontWeight: 900,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                cursor: 'pointer',
+                position: 'relative',
+                whiteSpace: 'nowrap',
+                boxShadow: pendingDocs.length > 0 ? '0 0 15px rgba(14, 165, 233, 0.4)' : 'none',
+                animation: pendingDocs.length > 0 ? 'pulse-blue 2s infinite' : 'none',
+                transition: 'all 0.2s'
+              }}
+            >
+              <Truck size={17} /> 
+              <span className="hide-mobile">ПРИЙОМКА</span>
+              <span className="mobile-only">ПРИЙОМКА</span>
+              {pendingDocs.length > 0 && (
+                <span className="badge-count anim-pulse" style={{ position: 'absolute', top: '-5px', right: '-5px', background: '#ef4444', color: '#fff', borderRadius: '50%', fontSize: '10px', width: '18px', height: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
+                  {pendingDocs.length}
+                </span>
+              )}
+            </button>
+
+            <ManualIssueJournalButton onClick={manualIssue.openJournal} compact={window.innerWidth < 900} />
           </div>
+        </div>
+        <div className="hide-mobile" style={{ color: '#555', fontSize: '0.75rem', fontWeight: 600 }}>
+          {currentUser?.first_name} {currentUser?.last_name}
         </div>
       </nav>
 
@@ -537,6 +542,7 @@ const WarehouseModuleV2 = () => {
           {tabs.map(tab => (
             <button
               key={tab.id}
+              className={`warehouse-tab-btn ${activeTab === tab.id ? 'active' : ''}`}
               onClick={() => {
                 setActiveTab(tab.id)
                 setNewItem({ ...newItem, type: tab.id, pocket_owner: '' })
@@ -563,7 +569,7 @@ const WarehouseModuleV2 = () => {
               {tab.icon}
               <span>{tab.label}</span>
               {tab.count > 0 && (
-                <span style={{
+                <span className="tab-count-badge" style={{
                   marginLeft: '5px',
                   background: activeTab === tab.id ? '#000' : '#ff9000',
                   color: activeTab === tab.id ? '#ff9000' : '#000',
@@ -580,6 +586,28 @@ const WarehouseModuleV2 = () => {
               )}
             </button>
           ))}
+
+          <Link
+            to="/warehouse-fgp"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              background: 'rgba(16, 185, 129, 0.1)',
+              color: '#10b981',
+              border: '1px solid rgba(16, 185, 129, 0.3)',
+              padding: '12px 20px',
+              borderRadius: '14px',
+              fontSize: '0.85rem',
+              fontWeight: 900,
+              textDecoration: 'none',
+              whiteSpace: 'nowrap',
+              marginLeft: 'auto'
+            }}
+          >
+            <IconSGP size={20} color="#10b981" />
+            <span>Склад Готової Продукції (СГП) →</span>
+          </Link>
         </div>
 
         {/* Main Content card */}
@@ -630,6 +658,7 @@ const WarehouseModuleV2 = () => {
                 <button
                   key={folder.id}
                   type="button"
+                  className={`folder-tab-btn ${activeTab === folder.id ? 'active' : ''}`}
                   onClick={() => {
                     setActiveTab(folder.id)
                     setSearchParams({ tab: folder.id })

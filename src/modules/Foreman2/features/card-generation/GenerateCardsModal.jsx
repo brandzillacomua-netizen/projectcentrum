@@ -1,10 +1,14 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { X, Printer, Loader2 } from 'lucide-react'
+import { calculateCuttersForBatch } from '../../../../utils/cutterCalculator.js'
+import { CutterSelectorRow } from './components/CutterSelectorRow.jsx'
 
 export default function GenerateCardsModal({
   config,
   machines,
   nomenclatures,
+  machineOperations = [],
+  inventory = [],
   workCards,
   materialRequests,
   isGenerating,
@@ -13,19 +17,135 @@ export default function GenerateCardsModal({
 }) {
   const [capacity, setCapacity] = useState(config?.capacityOverride || config?.capacity || 1)
   const [total, setTotal] = useState(config?.count || 1)
-  const [machineName, setMachineName] = useState(config?.part?.machine || '')
+  const [machineName, setMachineName] = useState('')
   
   const [customLoadingCapacities, setCustomLoadingCapacities] = useState({})
   const [partialCounts, setPartialCounts] = useState({})
+  const [selectedCutters, setSelectedCutters] = useState({})
 
   useEffect(() => {
     if (config) {
-      setMachineName(config.part?.machine || '')
+      setMachineName('')
       setTotal(config.count || 1)
-      const m = machines.find(m => m.name === (config.part?.machine || '').split(' №')[0].trim())
-      setCapacity(config.capacityOverride || m?.sheet_capacity || 1)
+      setCapacity(config.capacityOverride || 1)
     }
-  }, [config, machines])
+  }, [config])
+
+  // Simulate per-card sheet distribution (mirrors handleGenerateCards logic)
+  const batchCards = useMemo(() => {
+    const cap = Number(capacity) || 1
+    const cnt = Math.max(1, Number(total) || 1)
+    // maxSheetsToGenerate comes from getLoadProgress.remainingSheets which is 0 for brand-new tasks
+    // In that case we fall back to part.plannedSheets (total planned sheets for this part)
+    const maxSheets = Number(config?.maxSheetsToGenerate) > 0
+      ? Number(config.maxSheetsToGenerate)
+      : null
+    const partSheets = Number(config?.part?.plannedSheets) > 0
+      ? Number(config.part.plannedSheets)
+      : null
+    // Determine the cap on total sheets for this batch
+    let remainingSheets = maxSheets !== null ? maxSheets : (partSheets !== null ? partSheets : cnt * cap)
+
+    const cards = []
+    for (let i = 0; i < cnt; i++) {
+      const sheetsInThisCard = Math.min(remainingSheets, cap)
+      if (sheetsInThisCard <= 0) break
+      cards.push(sheetsInThisCard)
+      remainingSheets -= sheetsInThisCard
+    }
+    return cards
+  }, [config, total, capacity])
+
+  const actualTotalSheets = useMemo(() => batchCards.reduce((s, v) => s + v, 0), [batchCards])
+
+  // Live cutter calculation for this batch
+  const cutterRows = useMemo(() => {
+    if (!config || !config.part?.nom) return []
+    return calculateCuttersForBatch({
+      partNom: config.part.nom,
+      machineName,
+      sheets: actualTotalSheets,
+      task: config.task,
+      machineOperations,
+      nomenclatures,
+      inventory
+    })
+  }, [config, actualTotalSheets, machineName, machineOperations, nomenclatures, inventory])
+
+  const extractCutterDiameter = (nameStr) => {
+    if (!nameStr) return null
+    const s = String(nameStr).toLowerCase()
+
+    const fMatch = s.match(/ф\s*(\d+(?:[.,]\d+)?)/)
+    if (fMatch) return fMatch[1].replace(',', '.')
+
+    const mmMatch = s.match(/(\d+(?:[.,]\d+)?)\s*мм/)
+    if (mmMatch) return mmMatch[1].replace(',', '.')
+
+    const dimMatch = s.match(/(\d+(?:[.,]\d+)?)\s*[хx]/)
+    if (dimMatch) return dimMatch[1].replace(',', '.')
+
+    return null
+  }
+
+  // Helper to find specific cutter nomenclatures matching a diameter category
+  const getMatchingCutters = (categoryName, noms = [], inv = []) => {
+    const targetDia = extractCutterDiameter(categoryName)
+
+    const cutterNoms = (noms || []).filter(n => {
+      const nLower = (n.name || '').toLowerCase()
+      return nLower.includes('фрез')
+    })
+
+    const getStock = (nomId) => {
+      const item = (inv || []).find(i => (i.warehouse === 'operational' || !i.warehouse) && String(i.nomenclature_id) === String(nomId))
+      return item ? Math.max(0, (Number(item.total_qty) || 0) - (Number(item.reserved_qty) || 0)) : 0
+    }
+
+    const matching = []
+    const others = []
+
+    cutterNoms.forEach(n => {
+      const dia = extractCutterDiameter(n.name)
+      if (targetDia && dia === targetDia) {
+        matching.push(n)
+      } else {
+        others.push(n)
+      }
+    })
+
+    matching.sort((a, b) => getStock(b.id) - getStock(a.id))
+    others.sort((a, b) => getStock(b.id) - getStock(a.id))
+
+    return { matching, others, targetDia }
+  }
+
+  // Pre-select matching cutters when cutterRows calculate
+  useEffect(() => {
+    if (cutterRows.length > 0) {
+      setSelectedCutters(prev => {
+        const next = { ...prev }
+        let updated = false
+        cutterRows.forEach(cutter => {
+          const cutterKey = String(cutter.nomenclature_id || cutter.name)
+          if (!next[cutterKey] && !next[cutter.name]) {
+            const { matching, others } = getMatchingCutters(cutter.name, nomenclatures, inventory)
+            const pool = matching.length > 0 ? matching : others
+            if (pool.length > 0) {
+              const defaultChoice = pool[0]
+              if (defaultChoice) {
+                next[cutterKey] = String(defaultChoice.id)
+                next[cutter.name] = String(defaultChoice.id)
+                next[cutter.name.toLowerCase()] = String(defaultChoice.id)
+                updated = true
+              }
+            }
+          }
+        })
+        return updated ? next : prev
+      })
+    }
+  }, [cutterRows, nomenclatures, inventory])
 
   if (!config) return null
 
@@ -52,8 +172,13 @@ export default function GenerateCardsModal({
           <X size={20} />
         </button>
 
-        <h2 style={{ fontSize: '1.5rem', fontWeight: 950, margin: '0 0 10px', textAlign: 'center', textTransform: 'uppercase', letterSpacing: '1px' }}>Генерація карток</h2>
-        <p style={{ color: '#555', textAlign: 'center', fontSize: '0.9rem', marginBottom: '30px' }}>{part.nom?.name || part.name}</p>
+        <h2 style={{ fontSize: '1.5rem', fontWeight: 950, margin: '0 0 10px', textAlign: 'center', textTransform: 'uppercase', letterSpacing: '1px', color: isRepair ? '#f97316' : '#fff' }}>{isRepair ? '🔄 ДОВИПУСК' : 'Генерація карток'}</h2>
+        <p style={{ color: '#555', textAlign: 'center', fontSize: '0.9rem', marginBottom: isRepair ? '10px' : '30px' }}>{part.nom?.name || part.name}</p>
+        {isRepair && (
+          <div style={{ background: 'rgba(249,115,22,0.08)', border: '1px solid rgba(249,115,22,0.3)', borderRadius: '12px', padding: '10px 16px', marginBottom: '20px', fontSize: '0.72rem', color: '#f97316', fontWeight: 800, textAlign: 'center' }}>
+            ⚠️ Для цієї деталі вже є картки. Нові картки будуть позначені як <strong>ДОВИПУСК</strong> (is_rework = true)
+          </div>
+        )}
 
         {part.isSplitMode ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
@@ -274,109 +399,172 @@ export default function GenerateCardsModal({
           </div>
         ) : (
           <>
-            {isRepair ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginBottom: '30px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginBottom: '30px' }}>
+              <div>
+                <label style={{ display: 'block', color: machineName ? '#888' : '#eab308', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>
+                  {machineName ? 'Оберіть верстат для цієї партії:' : '⚠️ Оберіть верстат зі списку:'}
+                </label>
+                <select
+                  value={machineName}
+                  onChange={(e) => {
+                    const newMachineName = e.target.value
+                    const resolvedMachine = findMachine(newMachineName)
+                    const newCapacity = Number(resolvedMachine?.sheet_capacity) || 1
+                    setMachineName(newMachineName)
+                    setCapacity(newCapacity)
+                  }}
+                  style={{ width: '100%', background: '#000', border: machineName ? '1px solid #10b981' : '1px solid #eab308', color: machineName ? '#fff' : '#eab308', padding: '15px', borderRadius: '15px', fontSize: '0.95rem', outline: 'none', fontWeight: 800 }}
+                >
+                  <option value="">-- Оберіть верстат --</option>
+                  {MACHINE_TYPES.map(t => {
+                    const cap = findMachine(t)?.sheet_capacity || 1
+                    return (
+                      <option key={t} value={t}>{t} (місткість за замовчуванням: {cap} л.)</option>
+                    )
+                  })}
+                </select>
+              </div>
+
+              {!isRepair && (
+                <div style={{ background: '#080808', padding: '18px', borderRadius: '20px', border: '1px solid #1a1a1a' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
+                    <span style={{ color: '#555', fontSize: '0.75rem', fontWeight: 800 }}>ПРОГРЕС ВИПУСКУ:</span>
+                    <span style={{ color: '#3b82f6', fontSize: '0.75rem', fontWeight: 900 }}>
+                      Згенеровано {part.productionCards?.length || 0} з {config.targetTotal || (total + (part.productionCards?.length || 0))} карт.
+                    </span>
+                  </div>
+                  <div style={{ height: '6px', background: '#1a1a1a', borderRadius: '3px', overflow: 'hidden' }}>
+                    <div style={{ width: `${Math.min(100, ((part.productionCards?.length || 0) / (config.targetTotal || (total + (part.productionCards?.length || 0)))) * 100)}%`, height: '100%', background: '#3b82f6', transition: '0.3s' }} />
+                  </div>
+                </div>
+              )}
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
                 <div>
-                  <label style={{ display: 'block', color: '#888', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>
-                    Оберіть верстат для довипуску:
+                  <label style={{ display: 'block', color: '#ff9000', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px', textAlign: 'center' }}>
+                    Місткість (листів / картка):
                   </label>
-                  <select
-                    value={machineName}
+                  <input
+                    type="number"
+                    value={capacity}
                     onChange={(e) => {
-                      const newMachineName = e.target.value
-                      const resolvedMachine = findMachine(newMachineName)
-                      const newCapacity = Number(resolvedMachine?.sheet_capacity) || 1
-                      const newCardsNeeded = Math.ceil(part.plannedSheets / newCapacity)
-                      setMachineName(newMachineName)
-                      setTotal(Math.max(1, newCardsNeeded - (part.productionCards?.length || 0)))
+                      const newCap = parseInt(e.target.value);
+                      const m = findMachine(machineName);
+                      const minC = m?.min_capacity || 1;
+                      const maxC = m?.max_capacity || m?.sheet_capacity || 99;
+                      setCapacity(isNaN(newCap) ? '' : Math.min(maxC, Math.max(minC, newCap)));
                     }}
-                    style={{ width: '100%', background: '#000', border: '1px solid #333', color: '#fff', padding: '15px', borderRadius: '15px', fontSize: '0.95rem', outline: 'none', fontWeight: 800 }}
-                  >
-                    {MACHINE_TYPES.map(t => {
-                      const cap = findMachine(t)?.sheet_capacity || 1
-                      return (
-                        <option key={t} value={t}>{t} (місткість: {cap} л.)</option>
-                      )
-                    })}
-                  </select>
+                    onBlur={(e) => {
+                      const m = findMachine(machineName);
+                      const minC = m?.min_capacity || 1;
+                      const maxC = m?.max_capacity || m?.sheet_capacity || 99;
+                      let v = parseInt(e.target.value);
+                      if (isNaN(v)) v = minC;
+                      else v = Math.min(maxC, Math.max(minC, v));
+                      setCapacity(v);
+                    }}
+                    min="1"
+                    style={{ width: '100%', background: '#000', border: '1px solid rgba(255,144,0,0.5)', color: '#ff9000', fontSize: '1.5rem', fontWeight: 950, textAlign: 'center', padding: '10px', borderRadius: '15px', outline: 'none' }}
+                  />
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                  <div style={{ background: '#080808', padding: '15px', borderRadius: '15px', border: '1px solid #1a1a1a', textAlign: 'center' }}>
-                    <div style={{ color: '#555', fontSize: '0.65rem', fontWeight: 800 }}>НЕОБХІДНО ЛИСТІВ:</div>
-                    <div style={{ color: '#fff', fontSize: '1.2rem', fontWeight: 950, marginTop: '4px' }}>{part.plannedSheets} л.</div>
-                  </div>
-                  <div style={{ background: '#080808', padding: '15px', borderRadius: '15px', border: '1px solid #1a1a1a', textAlign: 'center' }}>
-                    <div style={{ color: '#555', fontSize: '0.65rem', fontWeight: 800 }}>КІЛЬКІСТЬ КАРТ:</div>
-                    <div style={{ color: '#ff9000', fontSize: '1.2rem', fontWeight: 950, marginTop: '4px' }}>{total} шт.</div>
-                  </div>
+                <div>
+                  <label style={{ display: 'block', color: '#10b981', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px', textAlign: 'center' }}>
+                    Кількість карт партії:
+                  </label>
+                  <input
+                    type="number"
+                    value={total}
+                    onChange={(e) => {
+                      const val = Math.max(1, parseInt(e.target.value) || 1)
+                      setTotal(val)
+                    }}
+                    min="1"
+                    style={{ width: '100%', background: '#000', border: '1px solid #10b98150', color: '#fff', fontSize: '1.5rem', fontWeight: 950, textAlign: 'center', padding: '10px', borderRadius: '15px', outline: 'none' }}
+                  />
                 </div>
               </div>
-            ) : (
-              <div style={{ background: '#080808', padding: '20px', borderRadius: '20px', border: '1px solid #1a1a1a', marginBottom: '30px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
-                  <span style={{ color: '#555', fontSize: '0.75rem', fontWeight: 800 }}>СТАТУС:</span>
-                  <span style={{ color: '#3b82f6', fontSize: '0.75rem', fontWeight: 900 }}>Згенеровано {part.productionCards?.length || 0} з {config.targetTotal || (total + (part.productionCards?.length || 0))}</span>
+
+              {/* Розрахунок матеріалів для порції */}
+              <div style={{ background: '#090909', border: '1px solid #1e293b', borderRadius: '18px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ fontSize: '0.7rem', fontWeight: 900, color: '#38bdf8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  📦 РОЗРАХУНОК ДЛЯ СКЛАДУ ОПЕРАТИВНОГО (КИТТИНГ):
                 </div>
-                <div style={{ height: '6px', background: '#1a1a1a', borderRadius: '3px', overflow: 'hidden' }}>
-                  <div style={{ width: `${((part.productionCards?.length || 0) / (config.targetTotal || (total + (part.productionCards?.length || 0)))) * 100}%`, height: '100%', background: '#3b82f6', transition: '0.3s' }} />
+
+                {!machineName ? (
+                  <div style={{ fontSize: '0.78rem', color: '#eab308', padding: '12px 14px', background: 'rgba(234, 179, 8, 0.08)', borderRadius: '10px', border: '1px solid rgba(234, 179, 8, 0.2)', textAlign: 'center', fontWeight: 800 }}>
+                    ⚠️ Оберіть верстат зі списку вище, щоб розрахувати листи та необхідні фрези
+                  </div>
+                ) : (
+                  <>
+                    {/* Листи — розкладка по картках */}
+                    {batchCards.length > 0 ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        {batchCards.map((sh, idx) => (
+                          <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', padding: '5px 10px', background: '#0d1117', borderRadius: '8px', border: '1px solid #1a2435' }}>
+                            <span style={{ color: '#888' }}>📄 Картка {idx + 1}:</span>
+                            <span style={{ color: sh < (Number(capacity) || 1) ? '#eab308' : '#fff', fontWeight: 950 }}>{sh} л.{sh < (Number(capacity) || 1) ? ' ⚡ останній залишок' : ''}</span>
+                          </div>
+                        ))}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem', padding: '7px 10px', background: '#0a0a18', borderRadius: '10px', border: '1px solid #1e293b', marginTop: '2px' }}>
+                          <span style={{ color: '#38bdf8', fontWeight: 900 }}>📦 ВСЬОГО ЛИСТІВ:</span>
+                          <span style={{ color: '#fff', fontWeight: 950 }}>{actualTotalSheets} л.</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: '0.75rem', color: '#ef4444', padding: '6px 10px', background: 'rgba(239,68,68,0.06)', borderRadius: '8px', border: '1px solid rgba(239,68,68,0.2)' }}>Немає залишку листів для генерації</div>
+                    )}
+
+                    {/* Фрези */}
+                    {cutterRows.length > 0 ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
+                        <div style={{ fontSize: '0.62rem', color: '#888', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: '2px' }}>
+                          ✂️ ФРЕЗИ ДЛЯ ПАРТІЇ (ОБЕРІТЬ МОДЕЛЬ ФРЕЗИ):
+                        </div>
+                        {cutterRows.map((cutter, idx) => {
+                          const cutterKey = String(cutter.nomenclature_id || cutter.name)
+                          const categoryName = cutter.name
+                          const selectedNomId = selectedCutters[cutterKey] || selectedCutters[categoryName] || selectedCutters[categoryName.toLowerCase()] || ''
+
+                          return (
+                            <CutterSelectorRow
+                              key={idx}
+                              cutter={cutter}
+                              nomenclatures={nomenclatures}
+                              inventory={inventory}
+                              selectedNomId={selectedNomId}
+                              getMatchingCutters={getMatchingCutters}
+                              onSelectCutter={(key, name, val) => {
+                                setSelectedCutters(prev => ({
+                                  ...prev,
+                                  [key]: val,
+                                  [name]: val,
+                                  [name.toLowerCase()]: val
+                                }))
+                              }}
+                            />
+                          )
+                        })}
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: '0.7rem', color: '#555', fontStyle: 'italic', textAlign: 'center', padding: '4px 0' }}>Фрези не визначено в плані обробки</div>
+                    )}
+                  </>
+                )}
+
+                <div style={{ fontSize: '0.65rem', color: '#eab308', background: 'rgba(234, 179, 8, 0.08)', padding: '8px 12px', borderRadius: '10px', border: '1px solid rgba(234, 179, 8, 0.2)', marginTop: '2px' }}>
+                  ⏳ Запит на листи та фрези відправиться на Склад. Картки з'являться в Цеху №1 одразу після підтвердження складом!
                 </div>
               </div>
-            )}
-
-            <div style={{ marginBottom: '20px' }}>
-              <label style={{ display: 'block', color: '#ff9000', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '10px', textAlign: 'center' }}>
-                Завантаження (від {findMachine(machineName)?.min_capacity || 1} до {findMachine(machineName)?.max_capacity || findMachine(machineName)?.sheet_capacity || 1} л.)
-              </label>
-              <input
-                type="number"
-                value={capacity}
-                onChange={(e) => {
-                  const newCap = parseInt(e.target.value);
-                  const m = findMachine(machineName);
-                  const minC = m?.min_capacity || 1;
-                  const maxC = m?.max_capacity || m?.sheet_capacity || 1;
-                  const safeCap = isNaN(newCap) ? 1 : Math.min(maxC, Math.max(minC, newCap));
-                  const newTargetTotal = Math.ceil(part.plannedSheets / safeCap);
-                  setCapacity(isNaN(newCap) ? '' : newCap);
-                  setTotal(Math.max(1, newTargetTotal - (part.productionCards?.length || 0)));
-                }}
-                onBlur={(e) => {
-                  const m = findMachine(machineName);
-                  const minC = m?.min_capacity || 1;
-                  const maxC = m?.max_capacity || m?.sheet_capacity || 1;
-                  let v = parseInt(e.target.value);
-                  if (isNaN(v)) v = minC;
-                  else v = Math.min(maxC, Math.max(minC, v));
-                  const newTargetTotal = Math.ceil(part.plannedSheets / v);
-                  setCapacity(v);
-                  setTotal(Math.max(1, newTargetTotal - (part.productionCards?.length || 0)));
-                }}
-                min={findMachine(machineName)?.min_capacity || 1}
-                max={findMachine(machineName)?.max_capacity || findMachine(machineName)?.sheet_capacity || 1}
-                style={{ width: '100%', background: '#000', border: '1px solid rgba(255,144,0,0.5)', color: '#ff9000', fontSize: '1.5rem', fontWeight: 950, textAlign: 'center', padding: '10px', borderRadius: '15px', outline: 'none' }}
-              />
-            </div>
-
-            <div style={{ marginBottom: '30px' }}>
-              <label style={{ display: 'block', color: '#888', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '10px', textAlign: 'center' }}>
-                {isRepair ? 'Кількість карт до друку' : 'Скільки ще карт згенерувати?'}
-              </label>
-              <input
-                type="number"
-                value={total}
-                onChange={(e) => {
-                  const val = Math.max(1, parseInt(e.target.value) || 1)
-                  setTotal(val)
-                }}
-                min="1"
-                style={{ width: '100%', background: '#000', border: '1px solid #333', color: '#fff', fontSize: '2.5rem', fontWeight: 950, textAlign: 'center', padding: '15px', borderRadius: '20px', outline: 'none', borderInline: '4px solid #10b981' }}
-              />
             </div>
 
             <button
-              disabled={isGenerating}
+              disabled={isGenerating || !machineName}
               onClick={() => {
+                if (!machineName) {
+                  alert('Будь ласка, спочатку оберіть верстат!')
+                  return
+                }
                 if (total > 0) {
                   onGenerate(
                     task,
@@ -390,13 +578,31 @@ export default function GenerateCardsModal({
                     null,
                     0,
                     capacity,
-                    config.maxSheetsToGenerate
+                    // Pass null when maxSheetsToGenerate is 0 (new task, no cards yet),
+                    // so handleGenerateCards doesn't cap sheetsRemaining to 0
+                    Number(config.maxSheetsToGenerate) > 0 ? config.maxSheetsToGenerate : null,
+                    null,
+                    selectedCutters
                   )
                 }
               }}
-              style={{ width: '100%', background: '#10b981', color: '#fff', padding: '22px', borderRadius: '22px', fontSize: '1rem', fontWeight: 950, cursor: isGenerating ? 'not-allowed' : 'pointer', border: 'none', textTransform: 'uppercase', letterSpacing: '1px', boxShadow: '0 10px 20px -5px rgba(16, 185, 129, 0.4)', opacity: isGenerating ? 0.6 : 1 }}
+              style={{
+                width: '100%',
+                background: machineName ? '#10b981' : '#222',
+                color: machineName ? '#fff' : '#666',
+                padding: '20px',
+                borderRadius: '20px',
+                fontSize: '1rem',
+                fontWeight: 950,
+                cursor: (isGenerating || !machineName) ? 'not-allowed' : 'pointer',
+                border: machineName ? 'none' : '1px solid #333',
+                textTransform: 'uppercase',
+                letterSpacing: '1px',
+                boxShadow: machineName ? '0 10px 20px -5px rgba(16, 185, 129, 0.4)' : 'none',
+                opacity: (isGenerating || !machineName) ? 0.5 : 1
+              }}
             >
-              {isGenerating ? 'ГЕНЕРАЦІЯ...' : 'ПІДТВЕРДИТИ ТА ДРУКУВАТИ'}
+              {isGenerating ? 'ОБРОБКА ТА СТВОРЕННЯ ЗАПИТУ...' : (machineName ? 'ПІДТВЕРДИТИ ТА ЗГЕНЕРУВАТИ ПАРТІЮ' : 'ОБЕРІТЬ ВЕРСТАТ ДЛЯ ПРОДОВЖЕННЯ')}
             </button>
           </>
         )}

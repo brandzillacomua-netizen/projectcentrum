@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { findMachineByName } from '../utils/foremanHelpers'
+import { calculateCuttersForBatch } from '../../../utils/cutterCalculator'
 
 const fetchWorkCardHistoryByCardIds = async (supabase, cardIds = []) => {
   const rows = []
@@ -793,6 +794,20 @@ export function useForemanHandlers({
         : originalNeed - actualGeneratedRequiredQty
       if (reqRemainingForThisSplit < 0) reqRemainingForThisSplit = 0
 
+      const partNomForCutters = part.nom || part
+      const totalBatchSheetsForCutters = finalCount * capacity
+      const batchCuttersReq = calculateCuttersForBatch({
+        partNom: partNomForCutters,
+        machineName: selectedMachineName,
+        sheets: totalBatchSheetsForCutters,
+        task,
+        machineOperations,
+        nomenclatures,
+        inventory
+      })
+
+      const initialStatus = isRepair ? 'waiting-materials' : (batchCuttersReq.length > 0 ? 'waiting-cutters' : 'new')
+
       for (let i = 1; i <= finalCount; i++) {
         const currentSeq = startSeqForThisBatch + (i - 1)
         const sheetsInThisLoading = Math.min(sheetsRemainingForThisSplit, capacity)
@@ -806,11 +821,11 @@ export function useForemanHandlers({
           operation: 'Розкрій',
           machine: selectedMachineName || 'Не вказано',
           estimatedTime: (Number(part.nom?.time_per_unit) || 0) * reqInThisLoading * 60,
-          cardInfo: `${prefix}${currentSeq}/${displayTotal}${originalNeed > 0 ? ` [NEED:${originalNeed}]` : ''} [REQ:${reqInThisLoading}] [BZ:${bzInThisLoading}]`,
+          cardInfo: `${prefix}№${currentSeq}${originalNeed > 0 ? ` [NEED:${originalNeed}]` : ''} [REQ:${reqInThisLoading}] [BZ:${bzInThisLoading}]`,
           quantity: qtyInThisLoading,
           bufferQty: bzInThisLoading,
           actualSheets: sheetsInThisLoading,
-          status: isRepair ? 'waiting-materials' : 'new',
+          status: initialStatus,
           is_rework: isRepair
         })
 
@@ -825,18 +840,6 @@ export function useForemanHandlers({
 
       const createdCards = await apiService.submitCreateWorkCardsBatch(task.id, task.order_id, part.nom.id, cardsBatch, createWorkCardsBatch)
 
-      // Генерація може виконуватися будь-якою кількістю пакетів. Після додавання
-      // нового пакета оновлюємо знаменник усіх попередніх карток до спільного N.
-      if (!isRepair && dbCardsForRenumber.length > 0) {
-        const renumberUpdates = dbCardsForRenumber.map(card => {
-          const currentInfo = String(card.card_info || '')
-          const normalizedInfo = currentInfo.replace(/(\d+)\s*\/\s*(\d+)/, (_, sequence) => `${sequence}/${displayTotal}`)
-          if (normalizedInfo === currentInfo) return null
-          return supabase.from('work_cards').update({ card_info: normalizedInfo }).eq('id', card.id)
-        }).filter(Boolean)
-        if (renumberUpdates.length > 0) await Promise.all(renumberUpdates)
-      }
-
       if (isRepair && sheets > 0 && typeof createDovyпускMaterialRequests === 'function') {
         for (let idx = 0; idx < cardsBatch.length; idx += 1) {
           const batchItem = cardsBatch[idx]
@@ -846,6 +849,45 @@ export function useForemanHandlers({
           const qtyForCard = Number(batchItem.quantity) || 0
           if (sheetsForCard <= 0 || qtyForCard <= 0) continue
           await createDovyпускMaterialRequests(task.id, task.order_id, part.nom, sheetsForCard, qtyForCard, batchItem.machine || selectedMachineName, createdCard?.id || null)
+        }
+      }
+
+      if (!isRepair && batchCuttersReq.length > 0 && createdCards && createdCards.length > 0) {
+        const cutterRequestsToInsert = []
+        for (let idx = 0; idx < cardsBatch.length; idx += 1) {
+          const batchItem = cardsBatch[idx]
+          const createdCard = createdCards?.[idx]
+          const cardSheets = Number(batchItem.actualSheets || capacity)
+          
+          const cardCutters = calculateCuttersForBatch({
+            partNom: partNomForCutters,
+            machineName: selectedMachineName,
+            sheets: cardSheets,
+            task,
+            machineOperations,
+            nomenclatures,
+            inventory
+          })
+
+          cardCutters.forEach(c => {
+            const consInvItem = (inventory || []).find(i => String(i.nomenclature_id) === String(c.nomenclature_id) && (i.warehouse === 'operational' || !i.warehouse))
+              || (inventory || []).find(i => String(i.nomenclature_id) === String(c.nomenclature_id))
+            
+            cutterRequestsToInsert.push({
+              order_id: task.order_id,
+              task_id: task.id,
+              card_id: createdCard?.id || null,
+              quantity: c.qty,
+              status: 'pending',
+              inventory_id: consInvItem?.id || null,
+              nomenclature_id: c.nomenclature_id,
+              details: `ФРЕЗИ ДЛЯ КАРТКИ (${createdCard?.card_info || batchItem.cardInfo}): ${c.name} — ${c.qty} од.`
+            })
+          })
+        }
+
+        if (cutterRequestsToInsert.length > 0) {
+          await supabase.from('material_requests').insert(cutterRequestsToInsert)
         }
       }
 

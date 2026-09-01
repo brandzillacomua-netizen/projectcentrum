@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { buildQualityLossIndex } from './qualityHoldModel.js'
-import { fetchFinalScrapTotals } from './qualityHoldService.js'
+import { fetchFinalScrapTotals, fetchVkyaReturnedTotals } from './qualityHoldService.js'
 
 export function useQualityLossTotals(supabase, taskIds = []) {
   const taskKey = useMemo(() => [...new Set(taskIds.filter(Boolean).map(String))].sort().join('|'), [taskIds])
   const [rows, setRows] = useState([])
+  const [returnedRows, setReturnedRows] = useState([])
   const [isAvailable, setIsAvailable] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -15,6 +16,7 @@ export function useQualityLossTotals(supabase, taskIds = []) {
     const ids = taskKey ? taskKey.split('|') : []
     if (ids.length === 0) {
       setRows([])
+      setReturnedRows([])
       setIsAvailable(true)
       setError(null)
       return
@@ -22,15 +24,17 @@ export function useQualityLossTotals(supabase, taskIds = []) {
 
     setLoading(true)
     try {
-      const nextRows = await fetchFinalScrapTotals(supabase, ids)
+      const [nextRows, nextReturned] = await Promise.all([
+        fetchFinalScrapTotals(supabase, ids),
+        fetchVkyaReturnedTotals(supabase, ids).catch(() => [])
+      ])
       if (requestRef.current !== requestId) return
       setRows(nextRows)
+      setReturnedRows(nextReturned)
       setIsAvailable(true)
       setError(null)
     } catch (loadError) {
       if (requestRef.current !== requestId) return
-      // During a rolling deployment the view may not exist yet. Consumers keep
-      // using the legacy detected-scrap totals until the migration is present.
       setIsAvailable(false)
       setError(loadError)
     } finally {
@@ -53,6 +57,7 @@ export function useQualityLossTotals(supabase, taskIds = []) {
     const channel = supabase
       .channel(`vkya-final-loss-${taskKey.length}-${taskKey.slice(-24)}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'scrap_classification_categories' }, scheduleReload)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'vkya_quality_resolutions' }, scheduleReload)
       .subscribe()
     return () => {
       if (timer) clearTimeout(timer)
@@ -61,5 +66,18 @@ export function useQualityLossTotals(supabase, taskIds = []) {
   }, [supabase, taskKey, reload])
 
   const index = useMemo(() => buildQualityLossIndex(rows), [rows])
-  return { rows, index, isAvailable, loading, error, reload }
+
+  const returnedIndex = useMemo(() => {
+    const byTask = {}
+    ;(returnedRows || []).forEach(row => {
+      const tid = String(row.task_id || '')
+      const nid = String(row.nomenclature_id || '')
+      if (!tid || !nid) return
+      if (!byTask[tid]) byTask[tid] = {}
+      byTask[tid][nid] = (byTask[tid][nid] || 0) + (Number(row.quantity) || 0)
+    })
+    return byTask
+  }, [returnedRows])
+
+  return { rows, returnedRows, index, returnedIndex, isAvailable, loading, error, reload }
 }

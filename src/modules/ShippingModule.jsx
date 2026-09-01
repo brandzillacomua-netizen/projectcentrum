@@ -3,11 +3,15 @@ import {
   Truck, ArrowLeft, ClipboardList, AlertCircle, PackageCheck,
   X, Package, FileText, Printer, Calendar, User, Hash,
   Boxes, CheckSquare, Square, ChevronDown, Palette, Clock,
-  CheckCircle2, ArrowRight, Download
+  CheckCircle2, ArrowRight, Download, Plus, Trash2
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
 import { claimNextPackingSlipNumber } from '../services/fulfillmentQueueService'
+import { 
+  getNpApiKey, searchNpCities, fetchNpWarehouses, 
+  fetchSenderDetails, createOrGetRecipient, generateNpTTN 
+} from '../services/novaPoshtaService'
 
 // Форматування назви номенклатури спеціально для пакувального листа
 const formatPackingSlipName = (nomName, materialType, productNames = '') => {
@@ -180,7 +184,7 @@ const CustomSelect = ({ value, onChange, options, placeholder = '— Обрат�
 const ShippingModule = () => {
   const {
     orders, tasks, nomenclatures, supabase,
-    fetchData, currentUser, systemUsers,
+    fetchData, currentUser, systemUsers, customers,
     deductIssuedMaterialsForTask
   } = useMES()
 
@@ -197,12 +201,184 @@ const ShippingModule = () => {
   const [boxes, setBoxes] = useState([])    // [ { box_number, items: [{nom_name, qty, unit}] } ]
   const [checkedBoxes, setCheckedBoxes] = useState({}) // { box_number: bool }
   const [loadingBoxes, setLoadingBoxes] = useState(false)
+  const [selectedClientAddressId, setSelectedClientAddressId] = useState('')
+
+  // Nova Poshta Generator State
+  const [isNpModalOpen, setIsNpModalOpen] = useState(false)
+  const [npLoading, setNpLoading] = useState(false)
+  const [npError, setNpError] = useState('')
+  const [npSuccessData, setNpSuccessData] = useState(null) // { ttnNumber, printStickerUrl, printDocUrl }
+
+  // NP Form Inputs
+  const [npRecipientName, setNpRecipientName] = useState('')
+  const [npRecipientPhone, setNpRecipientPhone] = useState('')
+  const [npCitySearch, setNpCitySearch] = useState('Київ')
+  const [npCityList, setNpCityList] = useState([])
+  const [npSelectedCity, setNpSelectedCity] = useState(null)
+  const [npWarehouseList, setNpWarehouseList] = useState([])
+  const [npSelectedWarehouse, setNpSelectedWarehouse] = useState(null)
+
+  const [npKeyInput, setNpKeyInput] = useState('')
+  const [npSenderDetails, setNpSenderDetails] = useState(null)
+  const [npSeatsAmount, setNpSeatsAmount] = useState('1')
+  const [npWeight, setNpWeight] = useState('1.5')
+  const [npCost, setNpCost] = useState('1000')
+  const [npDescription, setNpDescription] = useState('Деталі карбонової рами та метизи')
+  const [npServiceType, setNpServiceType] = useState('WarehouseWarehouse')
+  const [npPayerType, setNpPayerType] = useState('Recipient')
+  const [npPaymentMethod, setNpPaymentMethod] = useState('Cash')
+
+  // NP Multi-Seat State (Згідно стандартів Нової Пошти v2.0)
+  const [npSeatsList, setNpSeatsList] = useState([
+    { id: 1, preset: '30x25x30', length: '30', width: '25', height: '30', weight: '1.5' }
+  ])
+
+  const handleAddSeat = () => {
+    setNpSeatsList(prev => [
+      ...prev,
+      { id: Date.now(), preset: '30x25x30', length: '30', width: '25', height: '30', weight: '1.5' }
+    ])
+  }
+
+  const handleRemoveSeat = (id) => {
+    if (npSeatsList.length <= 1) return
+    setNpSeatsList(prev => prev.filter(s => s.id !== id))
+  }
+
+  const handleUpdateSeat = (id, fields) => {
+    setNpSeatsList(prev => prev.map(s => s.id === id ? { ...s, ...fields } : s))
+  }
+
+  const totalSeatsWeight = useMemo(() => {
+    return npSeatsList.reduce((sum, s) => sum + (Number(s.weight) || 0), 0).toFixed(2)
+  }, [npSeatsList])
+
+  // Знайдений клієнт та його збережені адреси
+  const matchingCustomer = useMemo(() => {
+    if (!workModal?.batch?.customer) return null
+    const rawName = String(workModal.batch.customer || '').trim().toLowerCase()
+    return (customers || []).find(c => {
+      const name = String(c.name || c.company || '').trim().toLowerCase()
+      return name === rawName || name.includes(rawName) || rawName.includes(name)
+    })
+  }, [workModal, customers])
+
+const parseCustomerDeliveryAddresses = (cust) => {
+  if (!cust) return []
+  let list = []
+
+  if (Array.isArray(cust.deliveryAddresses)) {
+    list = cust.deliveryAddresses
+  } else if (Array.isArray(cust.delivery_addresses)) {
+    list = cust.delivery_addresses
+  } else if (cust.notes) {
+    if (cust.notes.includes('[DELIVERY_ADDRESSES_B64:')) {
+      const match = cust.notes.match(/\[DELIVERY_ADDRESSES_B64:([A-Za-z0-9+/=]+)\]/)
+      if (match && match[1]) {
+        try {
+          const jsonStr = decodeURIComponent(escape(atob(match[1])))
+          const parsed = JSON.parse(jsonStr)
+          if (Array.isArray(parsed)) list = parsed
+        } catch (e) {
+          console.warn('[Shipping] B64 decode address error:', e)
+        }
+      }
+    } else if (cust.notes.includes('[DELIVERY_ADDRESSES_JSON:')) {
+      try {
+        const match = cust.notes.match(/\[DELIVERY_ADDRESSES_JSON:([\s\S]*?)\]/)
+        if (match && match[1]) {
+          const parsed = JSON.parse(match[1])
+          if (Array.isArray(parsed)) list = parsed
+        }
+      } catch (e) {}
+    }
+  }
+
+  if (!Array.isArray(list) || list.length === 0) {
+    if (cust.delivery_city || cust.delivery_warehouse || cust.city) {
+      list = [{
+        id: 'addr_def',
+        title: 'Основна адреса',
+        deliveryMethod: cust.delivery_method || 'np_warehouse',
+        city: cust.delivery_city || cust.city || 'Київ',
+        warehouse: cust.delivery_warehouse || '',
+        address: cust.delivery_address || cust.address || '',
+        recipientName: cust.delivery_recipient_name || cust.contact_person || '',
+        recipientPhone: cust.delivery_recipient_phone || cust.phone || '',
+        isLegalEntity: cust.is_legal_entity || false,
+        edrpou: cust.edrpou || cust.tin || '',
+        legalEntityName: cust.legal_entity_name || cust.company || '',
+        isDefault: true
+      }]
+    }
+  }
+
+  return list
+}
+
+  const customerDeliveryAddresses = useMemo(() => {
+    return parseCustomerDeliveryAddresses(matchingCustomer)
+  }, [matchingCustomer])
 
   // Стан пакувального листа
   const [packingSlip, setPackingSlip] = useState(null)
   const printRef = useRef(null)
 
-  useEffect(() => { document.title = 'Логістика | Centrum' }, [])
+  // Persistent order cache to prevent any UI flickering during background context re-fetches
+  const ordersCacheRef = useRef({})
+  const [cacheVer, setCacheVer] = useState(0)
+
+  // 1. Sync orders from MESContext into persistent cache
+  useEffect(() => {
+    if (orders && orders.length > 0) {
+      let updated = false
+      orders.forEach(ord => {
+        if (ord?.id && !ordersCacheRef.current[ord.id]) {
+          ordersCacheRef.current[ord.id] = ord
+          updated = true
+        }
+        if (ord?.order_num && !ordersCacheRef.current[ord.order_num]) {
+          ordersCacheRef.current[ord.order_num] = ord
+          updated = true
+        }
+      })
+      if (updated) setCacheVer(v => v + 1)
+    }
+  }, [orders])
+
+  // 2. Fetch missing orders from Supabase into persistent cache
+  useEffect(() => {
+    if (!tasks || tasks.length === 0 || !supabase) return
+    const orderIds = Array.from(new Set(tasks.map(t => t.order_id).filter(Boolean)))
+    const missingIds = orderIds.filter(id => !ordersCacheRef.current[id])
+
+    if (missingIds.length > 0) {
+      const fetchMissing = async () => {
+        try {
+          const { data } = await supabase
+            .from('orders')
+            .select('*, order_items(*)')
+            .in('id', missingIds)
+
+          if (data && data.length > 0) {
+            data.forEach(ord => {
+              if (ord?.id) ordersCacheRef.current[ord.id] = ord
+              if (ord?.order_num) ordersCacheRef.current[ord.order_num] = ord
+            })
+            setCacheVer(v => v + 1)
+          }
+        } catch (err) {
+          console.warn('[Shipping] fetch missing orders error:', err)
+        }
+      }
+      fetchMissing()
+    }
+  }, [tasks, supabase])
+
+  // 3. Stable list of all known orders
+  const allKnownOrders = useMemo(() => {
+    return Object.values(ordersCacheRef.current)
+  }, [cacheVer])
 
   // Список відвантажувальників
   const shippingWorkers = useMemo(() =>
@@ -225,13 +401,72 @@ const ShippingModule = () => {
     })
     return Object.values(batchMap).map(taskList => {
       const t = taskList[0]
-      const order = (orders || []).find(o => String(o.id) === String(t.order_id))
       const meta = t.plan_snapshot?._metadata || {}
+      const order = allKnownOrders.find(o =>
+        String(o.id) === String(t.order_id) ||
+        String(o.order_num) === String(t.order_id) ||
+        (meta.order_num && String(o.order_num) === String(meta.order_num))
+      )
+      
+      let resolvedOrderNum = order?.order_num || meta.order_num || meta.order_number || t.order_num || t.order_number
+      if (!resolvedOrderNum) {
+        if (t.order_id && typeof t.order_id === 'string' && t.order_id.length > 20 && !t.order_id.includes('-')) {
+          resolvedOrderNum = `Наряд #${t.order_id.slice(-6)}`
+        } else if (t.order_id) {
+          resolvedOrderNum = String(t.order_id)
+        } else {
+          resolvedOrderNum = '—'
+        }
+      }
+
+      const resolvedCustomer =
+        order?.customer ||
+        order?.customer_name ||
+        order?.client ||
+        order?.client_name ||
+        meta.customer ||
+        meta.customer_name ||
+        meta.client ||
+        t.customer ||
+        '—'
+
+      // Calculate Product Names
+      let productNames = ''
+      if (order && Array.isArray(order.order_items) && order.order_items.length > 0) {
+        productNames = order.order_items.map(it => {
+          const nom = (nomenclatures || []).find(n => String(n.id) === String(it.nomenclature_id))
+          return nom?.name || it.nomenclature_name || it.name || ''
+        }).filter(Boolean).join(', ')
+      }
+      if (!productNames && meta.product_name) {
+        productNames = meta.product_name
+      }
+      if (!productNames && meta.product_names) {
+        productNames = meta.product_names
+      }
+      if (!productNames) {
+        const names = taskList.map(tk => {
+          const nom = (nomenclatures || []).find(n => String(n.id) === String(tk.nomenclature_id))
+          return nom?.name || tk.name || tk.title || ''
+        }).filter(Boolean)
+        productNames = Array.from(new Set(names)).slice(0, 3).join(', ')
+      }
+
+      // Calculate Planned Sets
+      const plannedSets = 
+        order?.order_items?.reduce((acc, it) => acc + (Number(it.quantity) || 0), 0) ||
+        meta.planned_sets ||
+        taskList.reduce((max, cur) => Math.max(max, Number(cur.planned_sets) || Number(cur.plan_snapshot?._metadata?.planned_sets) || 0), 0) ||
+        taskList[0]?.planned_sets ||
+        0
+
       return {
         id: t.id,
         orderId: t.order_id,
-        orderNum: order?.order_num || '???',
-        customer: order?.customer || '—',
+        orderNum: resolvedOrderNum,
+        customer: resolvedCustomer,
+        productNames,
+        plannedSets,
         deadline: order?.deadline,
         batchIndex: t.batch_index ?? '1',
         batchTasks: taskList,
@@ -240,7 +475,7 @@ const ShippingModule = () => {
         batchColor: meta.batch_color || '',
       }
     })
-  }, [tasks, orders])
+  }, [tasks, allKnownOrders, nomenclatures])
 
   // Відвантажені партії (для архіву)
   const shippedBatches = useMemo(() => {
@@ -255,13 +490,72 @@ const ShippingModule = () => {
     })
     return Object.values(batchMap).map(taskList => {
       const t = taskList[0]
-      const order = (orders || []).find(o => String(o.id) === String(t.order_id))
       const meta = t.plan_snapshot?._metadata || {}
+      const order = allKnownOrders.find(o =>
+        String(o.id) === String(t.order_id) ||
+        String(o.order_num) === String(t.order_id) ||
+        (meta.order_num && String(o.order_num) === String(meta.order_num))
+      )
+      
+      let resolvedOrderNum = order?.order_num || meta.order_num || meta.order_number || t.order_num || t.order_number
+      if (!resolvedOrderNum) {
+        if (t.order_id && typeof t.order_id === 'string' && t.order_id.length > 20 && !t.order_id.includes('-')) {
+          resolvedOrderNum = `Наряд #${t.order_id.slice(-6)}`
+        } else if (t.order_id) {
+          resolvedOrderNum = String(t.order_id)
+        } else {
+          resolvedOrderNum = '—'
+        }
+      }
+
+      const resolvedCustomer =
+        order?.customer ||
+        order?.customer_name ||
+        order?.client ||
+        order?.client_name ||
+        meta.customer ||
+        meta.customer_name ||
+        meta.client ||
+        t.customer ||
+        '—'
+
+      // Calculate Product Names
+      let productNames = ''
+      if (order && Array.isArray(order.order_items) && order.order_items.length > 0) {
+        productNames = order.order_items.map(it => {
+          const nom = (nomenclatures || []).find(n => String(n.id) === String(it.nomenclature_id))
+          return nom?.name || it.nomenclature_name || it.name || ''
+        }).filter(Boolean).join(', ')
+      }
+      if (!productNames && meta.product_name) {
+        productNames = meta.product_name
+      }
+      if (!productNames && meta.product_names) {
+        productNames = meta.product_names
+      }
+      if (!productNames) {
+        const names = taskList.map(tk => {
+          const nom = (nomenclatures || []).find(n => String(n.id) === String(tk.nomenclature_id))
+          return nom?.name || tk.name || tk.title || ''
+        }).filter(Boolean)
+        productNames = Array.from(new Set(names)).slice(0, 3).join(', ')
+      }
+
+      // Calculate Planned Sets
+      const plannedSets = 
+        order?.order_items?.reduce((acc, it) => acc + (Number(it.quantity) || 0), 0) ||
+        meta.planned_sets ||
+        taskList.reduce((max, cur) => Math.max(max, Number(cur.planned_sets) || Number(cur.plan_snapshot?._metadata?.planned_sets) || 0), 0) ||
+        taskList[0]?.planned_sets ||
+        0
+
       return {
         id: t.id,
         orderId: t.order_id,
-        orderNum: order?.order_num || '???',
-        customer: order?.customer || '—',
+        orderNum: resolvedOrderNum,
+        customer: resolvedCustomer,
+        productNames,
+        plannedSets,
         batchIndex: t.batch_index ?? '1',
         shippedAt: meta.shipped_at || '',
         shippedBy: meta.shipped_by || '',
@@ -272,7 +566,7 @@ const ShippingModule = () => {
       }
     }).sort((a, b) => (b.shippedAt || '').localeCompare(a.shippedAt || ''))
       .slice(0, 20)
-  }, [tasks, orders])
+  }, [tasks, allKnownOrders, nomenclatures])
 
   // ─── Завантаження коробок з БД ────────────────────────────────────────────
   const loadBoxes = useCallback(async (batch) => {
@@ -324,18 +618,182 @@ const ShippingModule = () => {
   // ─── Відкрити модалку "Взяти в роботу" ────────────────────────────────────
   const openWorkModal = useCallback((batch) => {
     setWorkModal({ batch })
-    setShippingType('')
-    setShippingDate('')
+    setShippingDate(new Date().toISOString().split('T')[0])
     setTtnNumber('')
     setSelectedWorkerId('')
     setBatchColor('')
+
+    // Look up customer addresses
+    const rawName = String(batch.customer || '').trim().toLowerCase()
+    const cust = (customers || []).find(c => {
+      const name = String(c.name || c.company || '').trim().toLowerCase()
+      return name === rawName || name.includes(rawName) || rawName.includes(name)
+    })
+
+    let addrs = parseCustomerDeliveryAddresses(cust)
+
+    const defAddr = addrs.find(a => a.isDefault) || addrs[0]
+    if (defAddr) {
+      setSelectedClientAddressId(defAddr.id)
+      setShippingType(defAddr.deliveryMethod === 'pickup' ? 'Самовивіз' : 'Доставка НП')
+    } else {
+      setSelectedClientAddressId('')
+      setShippingType('Доставка НП')
+    }
+
     loadBoxes(batch)
-  }, [loadBoxes])
+  }, [loadBoxes, customers])
 
   const closeWorkModal = () => {
     setWorkModal(null)
     setBoxes([])
     setCheckedBoxes({})
+  }
+
+  const handleOpenNpModal = async () => {
+    setIsNpModalOpen(true)
+    setNpError('')
+    setNpSuccessData(null)
+    setNpLoading(true)
+
+    try {
+      setNpKeyInput(getNpApiKey())
+      const addr = customerDeliveryAddresses.find(a => a.id === selectedClientAddressId) || customerDeliveryAddresses[0]
+      const recName = addr?.recipientName || matchingCustomer?.contact_person || matchingCustomer?.name || workModal?.batch?.customer || ''
+      const recPhone = addr?.recipientPhone || matchingCustomer?.phone || ''
+      const recCity = addr?.city || matchingCustomer?.city || 'Київ'
+      const recWh = addr?.warehouse || addr?.address || ''
+
+      setNpRecipientName(recName)
+      setNpRecipientPhone(recPhone)
+      setNpCitySearch(recCity)
+      
+      const initialCount = Math.max(1, boxes.length || 1)
+      const initialSeats = Array.from({ length: initialCount }, (_, idx) => ({
+        id: idx + 1,
+        preset: '30x25x30',
+        length: '30',
+        width: '25',
+        height: '30',
+        weight: '1.5'
+      }))
+      setNpSeatsList(initialSeats)
+
+      const sender = await fetchSenderDetails()
+      setNpSenderDetails(sender)
+
+      const cleanCityQuery = recCity.split(',')[0].replace(/^(м\.|смт\.|с\.|м|смт|с)\s*/i, '').trim()
+      const cities = await searchNpCities(cleanCityQuery || recCity)
+      setNpCityList(cities)
+
+      if (cities && cities.length > 0) {
+        const matchedCity = cities.find(c => {
+          const main = (c.mainDescription || '').toLowerCase()
+          const search = cleanCityQuery.toLowerCase()
+          return main === search || main.includes(search) || search.includes(main)
+        }) || cities[0]
+
+        setNpSelectedCity(matchedCity)
+
+        const warehouses = await fetchNpWarehouses(matchedCity.ref, matchedCity.mainDescription || cleanCityQuery)
+        setNpWarehouseList(warehouses)
+
+        if (warehouses && warehouses.length > 0) {
+          const whNumMatch = recWh.match(/№\s*(\d+)/) || recWh.match(/відділення\s*№?\s*(\d+)/i) || recWh.match(/(\d+)/)
+          const targetNum = whNumMatch ? whNumMatch[1] : null
+
+          let matchedWh = null
+          if (targetNum) {
+            matchedWh = warehouses.find(w => String(w.number) === String(targetNum))
+          }
+          if (!matchedWh && recWh) {
+            const cleanSearch = recWh.toLowerCase().replace(/[^a-z0-9а-щьюяєіїґ]/g, '')
+            matchedWh = warehouses.find(w => {
+              const desc = (w.description || '').toLowerCase().replace(/[^a-z0-9а-щьюяєіїґ]/g, '')
+              return desc.includes(cleanSearch) || cleanSearch.includes(desc)
+            })
+          }
+
+          setNpSelectedWarehouse(matchedWh || warehouses[0])
+        }
+      }
+    } catch (err) {
+      setNpError('Помилка завантаження даних НП: ' + err.message)
+    } finally {
+      setNpLoading(false)
+    }
+  }
+
+  const handleCitySearch = async (val) => {
+    setNpCitySearch(val)
+    if (val.trim().length >= 2) {
+      const cities = await searchNpCities(val)
+      setNpCityList(cities)
+    }
+  }
+
+  const handleSelectCity = async (city) => {
+    setNpSelectedCity(city)
+    setNpCitySearch(city.mainDescription)
+    setNpLoading(true)
+    try {
+      const warehouses = await fetchNpWarehouses(city.ref)
+      setNpWarehouseList(warehouses)
+      if (warehouses && warehouses.length > 0) {
+        setNpSelectedWarehouse(warehouses[0])
+      }
+    } catch (err) {
+      console.warn(err)
+    } finally {
+      setNpLoading(false)
+    }
+  }
+
+  const handleGenerateNpTTNSubmit = async () => {
+    setNpError('')
+    setNpLoading(true)
+    try {
+      if (!npSelectedCity) throw new Error('Будь ласка, оберіть місто доставки')
+      if (!npSelectedWarehouse) throw new Error('Будь ласка, оберіть відділення відправки / отримання')
+      if (!npRecipientName.trim()) throw new Error('Вкажіть ПІБ отримувача')
+      if (!npRecipientPhone.trim()) throw new Error('Вкажіть телефон отримувача')
+
+      const senderRef = npSenderDetails?.senderRef
+      if (!senderRef) {
+        throw new Error('Не вдалося завантажити профіль відправника. Перевірте API Key Нової Пошти у Налаштуваннях.')
+      }
+
+      const recipient = await createOrGetRecipient({
+        recipientName: npRecipientName,
+        phone: npRecipientPhone,
+        edrpou: matchingCustomer?.edrpou || '',
+        cityName: npSelectedCity.mainDescription
+      })
+
+      const result = await generateNpTTN({
+        senderRef,
+        senderAddressRef: npSenderDetails.addressRef,
+        senderContactRef: npSenderDetails.contactRef,
+        senderPhone: npSenderDetails.contactPhone,
+        recipientRef: recipient.recipientRef,
+        recipientAddressRef: npSelectedWarehouse.ref,
+        recipientContactRef: recipient.contactRef,
+        recipientPhone: npRecipientPhone,
+        serviceType: npServiceType,
+        payerType: npPayerType,
+        paymentMethod: npPaymentMethod,
+        cost: npCost,
+        cargoDescription: npDescription,
+        seatsList: npSeatsList
+      })
+
+      setNpSuccessData(result)
+      setTtnNumber(result.ttnNumber)
+    } catch (err) {
+      setNpError(err.message)
+    } finally {
+      setNpLoading(false)
+    }
   }
 
   // ─── Перевірка чи можна завершити ─────────────────────────────────────────
@@ -701,12 +1159,12 @@ const ShippingModule = () => {
   const checkedCount = Object.values(checkedBoxes).filter(Boolean).length
 
   return (
-    <div style={{ background: '#050505', minHeight: '100vh', color: '#e2e8f0', display: 'flex', flexDirection: 'column', fontFamily: 'Inter, system-ui, sans-serif' }}>
+    <div className="shipping-module-container" style={{ background: 'var(--bg, #050505)', minHeight: '100vh', color: 'var(--text, #e2e8f0)', display: 'flex', flexDirection: 'column', fontFamily: 'Inter, system-ui, sans-serif' }}>
 
       {/* HEADER */}
-      <header style={{ padding: '20px 40px', background: 'rgba(10,10,10,0.95)', backdropFilter: 'blur(20px)', borderBottom: '1px solid #1a1a1a', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, zIndex: 100 }}>
+      <header className="shipping-header" style={{ padding: '20px 40px', background: 'var(--header-bg, rgba(10,10,10,0.95))', backdropFilter: 'blur(20px)', borderBottom: '1px solid var(--border, #1a1a1a)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, zIndex: 100 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-          <Link to="/" style={{ background: '#111', color: '#555', width: '44px', height: '44px', borderRadius: '14px', border: '1px solid #222', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: '0.2s', textDecoration: 'none' }}>
+          <Link to="/" style={{ background: 'var(--card-bg, #111)', color: 'var(--text-secondary, #555)', width: '44px', height: '44px', borderRadius: '14px', border: '1px solid var(--border, #222)', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: '0.2s', textDecoration: 'none' }}>
             <ArrowLeft size={20} />
           </Link>
           <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
@@ -714,14 +1172,14 @@ const ShippingModule = () => {
               <Truck size={24} color="#000" />
             </div>
             <div>
-              <h1 style={{ fontSize: '1.25rem', fontWeight: 900, margin: 0, letterSpacing: '-0.02em' }}>ЛОГІСТИЧНИЙ ЦЕНТР</h1>
-              <div style={{ fontSize: '0.7rem', color: '#555', fontWeight: 600, textTransform: 'uppercase', marginTop: '2px' }}>Управління відвантаженням та ТТН</div>
+              <h1 style={{ fontSize: '1.25rem', fontWeight: 900, margin: 0, letterSpacing: '-0.02em', color: 'var(--text, #fff)' }}>ЛОГІСТИЧНИЙ ЦЕНТР</h1>
+              <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary, #555)', fontWeight: 600, textTransform: 'uppercase', marginTop: '2px' }}>Управління відвантаженням та ТТН</div>
             </div>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: '0.85rem', fontWeight: 700 }}>{currentUser?.first_name} {currentUser?.last_name}</div>
+            <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text, #fff)' }}>{currentUser?.first_name} {currentUser?.last_name}</div>
             <div style={{ fontSize: '0.65rem', color: '#ff9000', fontWeight: 800 }}>ВІДДІЛ ВІДВАНТАЖЕННЯ</div>
           </div>
           <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: '#ff900015', border: '1px solid #ff900030', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -748,7 +1206,7 @@ const ShippingModule = () => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 10px', marginBottom: '20px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#10b981', animation: 'pulse 2s infinite' }} />
-                <h3 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#fff', margin: 0 }}>ГОТОВО ДО ВІДВАНТАЖЕННЯ</h3>
+                <h3 style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text, #fff)', margin: 0 }}>ГОТОВО ДО ВІДВАНТАЖЕННЯ</h3>
               </div>
               <span style={{ background: '#10b98115', color: '#10b981', fontSize: '0.65rem', fontWeight: 900, padding: '6px 12px', borderRadius: '10px', border: '1px solid #10b98130' }}>
                 {readyBatches.length} ПАРТІЙ
@@ -765,8 +1223,8 @@ const ShippingModule = () => {
 
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div>
-                      <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#fff' }}>#{batch.orderNum}</div>
-                      <div style={{ fontSize: '0.65rem', fontWeight: 900, color: '#555', marginTop: '2px' }}>ПАРТІЯ {batch.batchIndex}</div>
+                      <div className="batch-order-num" style={{ fontSize: '1.2rem', fontWeight: 900, color: 'var(--text, #fff)' }}>#{batch.orderNum}</div>
+                      <div className="batch-index-lbl" style={{ fontSize: '0.65rem', fontWeight: 900, color: 'var(--text-secondary, #555)', marginTop: '2px' }}>ПАРТІЯ {batch.batchIndex}</div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <div style={{ background: '#10b98115', color: '#10b981', fontSize: '0.6rem', fontWeight: 900, padding: '5px 10px', borderRadius: '8px' }}>
@@ -775,19 +1233,37 @@ const ShippingModule = () => {
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#0a0a0a', padding: '10px 14px', borderRadius: '12px' }}>
-                    <User size={14} color="#ff9000" />
-                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#ccc' }}>{batch.customer}</span>
+                  <div className="shipping-customer-box" style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: 'var(--card-inner-bg, #0a0a0a)', padding: '12px 14px', borderRadius: '14px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <User size={14} color="#ff9000" />
+                        <span style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text, #fff)' }}>
+                          {batch.customer && batch.customer !== '—' ? batch.customer : 'Клієнт не вказаний'}
+                        </span>
+                      </div>
+                      {batch.plannedSets > 0 && (
+                        <span style={{ background: 'rgba(255,144,0,0.15)', color: '#ff9000', border: '1px solid rgba(255,144,0,0.3)', padding: '2px 8px', borderRadius: '8px', fontSize: '0.68rem', fontWeight: 900 }}>
+                          {batch.plannedSets} компл.
+                        </span>
+                      )}
+                    </div>
+
+                    {batch.productNames && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', color: 'var(--text-secondary, #888)', fontWeight: 600 }}>
+                        <Package size={13} color="#ff9000" style={{ flexShrink: 0 }} />
+                        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{batch.productNames}</span>
+                      </div>
+                    )}
                   </div>
 
                   {batch.packedBy && (
-                    <div style={{ fontSize: '0.7rem', color: '#444', fontWeight: 600 }}>
+                    <div className="shipping-packed-by" style={{ fontSize: '0.7rem', color: 'var(--text-secondary, #444)', fontWeight: 600 }}>
                       📦 Запакував: {batch.packedBy}
                     </div>
                   )}
 
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '5px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.7rem', color: '#444', fontWeight: 700 }}>
+                    <div className="shipping-deadline" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.7rem', color: 'var(--text-secondary, #444)', fontWeight: 700 }}>
                       <Calendar size={12} />
                       <span>{batch.deadline ? new Date(batch.deadline).toLocaleDateString('uk-UA') : '—'}</span>
                     </div>
@@ -807,8 +1283,8 @@ const ShippingModule = () => {
               {readyBatches.length === 0 && (
                 <div style={{ textAlign: 'center', padding: '80px 40px', color: '#222' }}>
                   <PackageCheck size={48} color="#1a1a1a" />
-                  <p style={{ fontWeight: 900, color: '#333', margin: '15px 0 5px' }}>Черга відвантаження порожня</p>
-                  <span style={{ fontSize: '0.8rem' }}>Очікуємо завершення пакування в цеху</span>
+                  <p style={{ fontWeight: 900, color: 'var(--text, #333)', margin: '15px 0 5px' }}>Черга відвантаження порожня</p>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary, #555)' }}>Очікуємо завершення пакування в цеху</span>
                 </div>
               )}
             </div>
@@ -819,9 +1295,9 @@ const ShippingModule = () => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 10px', marginBottom: '20px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <CheckCircle2 size={18} color="#555" />
-                <h3 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#555', margin: 0 }}>ВІДПРАВЛЕНО</h3>
+                <h3 style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-secondary, #555)', margin: 0 }}>ВІДПРАВЛЕНО</h3>
               </div>
-              <span style={{ background: '#111', color: '#555', fontSize: '0.65rem', fontWeight: 900, padding: '6px 12px', borderRadius: '10px', border: '1px solid #222' }}>
+              <span style={{ background: 'var(--card-inner-bg, #111)', color: 'var(--text-secondary, #555)', fontSize: '0.65rem', fontWeight: 900, padding: '6px 12px', borderRadius: '10px', border: '1px solid var(--border, #222)' }}>
                 {shippedBatches.length} ПАРТІЙ
               </span>
             </div>
@@ -830,8 +1306,8 @@ const ShippingModule = () => {
               {shippedBatches.map(batch => {
                 const colorObj = PALLET_COLORS.find(c => c.id === batch.batchColor)
                 return (
-                  <div key={`${batch.orderId}_${batch.batchIndex}`} style={{
-                    background: '#0d0d0d', border: '1px solid #1a1a1a', borderRadius: '20px',
+                  <div key={`${batch.orderId}_${batch.batchIndex}`} className="shipped-batch-card" style={{
+                    background: 'var(--card-bg, #0d0d0d)', border: '1px solid var(--border, #1a1a1a)', borderRadius: '20px',
                     padding: '18px 20px', position: 'relative', overflow: 'hidden'
                   }}>
                     {colorObj && (
@@ -839,32 +1315,43 @@ const ShippingModule = () => {
                     )}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                       <div>
-                        <div style={{ fontSize: '0.95rem', fontWeight: 900, color: '#888' }}>#{batch.orderNum} · Партія {batch.batchIndex}</div>
-                        <div style={{ fontSize: '0.75rem', color: '#444', marginTop: '3px', fontWeight: 600 }}>{batch.customer}</div>
+                        <div style={{ fontSize: '0.95rem', fontWeight: 900, color: 'var(--text, #888)' }}>#{batch.orderNum} · Партія {batch.batchIndex}</div>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary, #444)', marginTop: '3px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span>{batch.customer && batch.customer !== '—' ? batch.customer : 'Клієнт не вказаний'}</span>
+                          {batch.plannedSets > 0 && (
+                            <span style={{ color: '#ff9000', fontWeight: 800 }}>({batch.plannedSets} компл.)</span>
+                          )}
+                        </div>
+                        {batch.productNames && (
+                          <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary, #666)', marginTop: '3px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <Package size={12} color="#888" />
+                            <span>{batch.productNames}</span>
+                          </div>
+                        )}
                       </div>
                       <div style={{ textAlign: 'right' }}>
                         <div style={{ fontSize: '0.6rem', color: '#10b981', fontWeight: 800, background: '#10b98110', padding: '4px 8px', borderRadius: '6px' }}>ВІДПРАВЛЕНО</div>
                         {batch.shippedAt && (
-                          <div style={{ fontSize: '0.65rem', color: '#333', marginTop: '4px' }}>
+                          <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary, #333)', marginTop: '4px' }}>
                             {new Date(batch.shippedAt).toLocaleDateString('uk-UA')}
                           </div>
                         )}
                       </div>
                     </div>
-                    <div style={{ marginTop: '14px', borderTop: '1px dashed #1a1a1a', paddingTop: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ marginTop: '14px', borderTop: '1px dashed var(--border, #1a1a1a)', paddingTop: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                         {batch.ttn && (
-                          <span style={{ fontSize: '0.65rem', color: '#555', background: '#111', padding: '3px 8px', borderRadius: '6px', fontWeight: 700 }}>
+                          <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary, #555)', background: 'var(--card-inner-bg, #111)', padding: '3px 8px', borderRadius: '6px', fontWeight: 700 }}>
                             ТТН: {batch.ttn}
                           </span>
                         )}
                         {batch.shippingType && (
-                          <span style={{ fontSize: '0.65rem', color: '#555', background: '#111', padding: '3px 8px', borderRadius: '6px', fontWeight: 700 }}>
+                          <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary, #555)', background: 'var(--card-inner-bg, #111)', padding: '3px 8px', borderRadius: '6px', fontWeight: 700 }}>
                             {batch.shippingType}
                           </span>
                         )}
                         {batch.shippedBy && (
-                          <span style={{ fontSize: '0.65rem', color: '#555', background: '#111', padding: '3px 8px', borderRadius: '6px', fontWeight: 700 }}>
+                          <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary, #555)', background: 'var(--card-inner-bg, #111)', padding: '3px 8px', borderRadius: '6px', fontWeight: 700 }}>
                             👤 {batch.shippedBy}
                           </span>
                         )}
@@ -898,7 +1385,7 @@ const ShippingModule = () => {
       ═══════════════════════════════════════════════════════════════════════ */}
       {workModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', backdropFilter: 'blur(20px)', zIndex: 1000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '20px', overflowY: 'auto' }}>
-          <div style={{ background: 'linear-gradient(160deg, #0f1923 0%, #0a0f18 100%)', border: '1px solid rgba(255,144,0,0.2)', borderRadius: '32px', width: '100%', maxWidth: '720px', marginTop: '20px', marginBottom: '20px', overflow: 'hidden', boxShadow: '0 40px 100px rgba(0,0,0,0.8), 0 0 80px rgba(255,144,0,0.05)' }}>
+          <div className="shipping-modal-card" style={{ background: 'linear-gradient(160deg, #0f1923 0%, #0a0f18 100%)', border: '1px solid rgba(255,144,0,0.2)', borderRadius: '32px', width: '100%', maxWidth: '720px', marginTop: '20px', marginBottom: '20px', overflow: 'hidden', boxShadow: '0 40px 100px rgba(0,0,0,0.8), 0 0 80px rgba(255,144,0,0.05)' }}>
 
             {/* Modal Header */}
             <div style={{ padding: '28px 32px', borderBottom: '1px solid #1a1a1a', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,144,0,0.04)' }}>
@@ -924,6 +1411,87 @@ const ShippingModule = () => {
             </div>
 
             <div style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: '28px' }}>
+
+              {/* ── АДРЕСИ ДОСТАВКИ КЛІЄНТА ── */}
+              {customerDeliveryAddresses.length > 0 && (
+                <div className="shipping-address-btn-container" style={{ background: 'rgba(255,144,0,0.05)', border: '1px solid rgba(255,144,0,0.2)', borderRadius: '20px', padding: '20px' }}>
+                  <div style={{ fontSize: '0.68rem', fontWeight: 900, color: '#ff9000', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Truck size={14} />
+                      <span>Оберіть адресу доставки клієнта ({matchingCustomer?.name || workModal?.batch?.customer})</span>
+                    </div>
+                    {customerDeliveryAddresses.length > 1 && (
+                      <span style={{ background: 'rgba(255,144,0,0.15)', color: '#ff9000', padding: '2px 8px', borderRadius: '6px', fontSize: '0.65rem' }}>
+                        Знайдено адрес: {customerDeliveryAddresses.length}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Кнопки вибору адрес */}
+                  <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '14px' }}>
+                    {customerDeliveryAddresses.map(addr => {
+                      const isSel = selectedClientAddressId === addr.id
+                      return (
+                        <button
+                          key={addr.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedClientAddressId(addr.id)
+                            setShippingType(addr.deliveryMethod === 'pickup' ? 'Самовивіз' : 'Доставка НП')
+                          }}
+                          className={`shipping-address-btn ${isSel ? 'active-address' : ''}`}
+                          style={{
+                            padding: '10px 16px',
+                            borderRadius: '12px',
+                            border: isSel ? '2px solid #ff9000' : '1px solid var(--border, rgba(255,255,255,0.08))',
+                            background: isSel ? 'rgba(255,144,0,0.18)' : 'var(--card-inner-bg, #111)',
+                            color: isSel ? 'var(--text, #fff)' : 'var(--text-secondary, #aaa)',
+                            fontSize: '0.82rem',
+                            fontWeight: 800,
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '4px',
+                            boxShadow: isSel ? '0 4px 15px rgba(255,144,0,0.25)' : 'none',
+                            transition: 'all 0.2s'
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ color: isSel ? '#ff9000' : '#888' }}>
+                              {addr.deliveryMethod === 'pickup' ? '🏢' : addr.deliveryMethod === 'np_postomat' ? '📮' : '📦'}
+                            </span>
+                            <span className="address-title">{addr.title || addr.city}</span>
+                            {addr.isDefault && (
+                              <span style={{ background: '#ff9000', color: '#000', padding: '1px 5px', borderRadius: '4px', fontSize: '0.58rem', fontWeight: 950 }}>
+                                ★ Основна
+                              </span>
+                            )}
+                          </div>
+                          <div className="address-subtitle" style={{ fontSize: '0.7rem', color: isSel ? 'var(--text, #ddd)' : 'var(--text-secondary, #666)', fontWeight: 600 }}>
+                            {addr.city}{addr.warehouse ? `, ${addr.warehouse}` : addr.address ? `, ${addr.address}` : ''}
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+
+                  {/* Інформаційна картка обраної / єдиної адреси */}
+                  {(() => {
+                    const sel = customerDeliveryAddresses.find(a => a.id === selectedClientAddressId) || customerDeliveryAddresses[0]
+                    if (!sel) return null
+                    return (
+                      <div className="shipping-address-summary" style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '14px', padding: '14px', border: '1px solid rgba(255,144,0,0.15)', fontSize: '0.78rem', color: 'var(--text, #ccc)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                        <div><strong style={{ color: 'var(--text-secondary, #888)' }}>Місто:</strong> {sel.city || '—'}</div>
+                        <div><strong style={{ color: 'var(--text-secondary, #888)' }}>Спосіб:</strong> {sel.deliveryMethod === 'pickup' ? 'Самовивіз' : sel.deliveryMethod === 'np_postomat' ? 'Поштомат НП' : sel.deliveryMethod === 'np_courier' ? 'Адресна НП' : 'Відділення НП'}</div>
+                        <div style={{ gridColumn: '1 / -1' }}><strong style={{ color: 'var(--text-secondary, #888)' }}>Адреса / Відділення:</strong> <span style={{ color: '#ff9000', fontWeight: 800 }}>{sel.warehouse || sel.address || '—'}</span></div>
+                        {sel.recipientName && <div><strong style={{ color: 'var(--text-secondary, #888)' }}>Отримувач:</strong> {sel.recipientName}</div>}
+                        {sel.recipientPhone && <div><strong style={{ color: 'var(--text-secondary, #888)' }}>Тел. отримувача:</strong> {sel.recipientPhone}</div>}
+                      </div>
+                    )
+                  })()}
+                </div>
+              )}
 
               {/* ── СЕКЦІЯ 1: ДЕТАЛІ ВІДВАНТАЖЕННЯ ── */}
               <div>
@@ -966,7 +1534,16 @@ const ShippingModule = () => {
 
                   {/* Номер ТТН */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <label style={{ fontSize: '0.7rem', fontWeight: 700, color: '#666', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Номер ТТН</label>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <label style={{ fontSize: '0.7rem', fontWeight: 700, color: '#666', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Номер ТТН</label>
+                      <button
+                        type="button"
+                        onClick={handleOpenNpModal}
+                        style={{ background: 'linear-gradient(135deg, rgba(255,144,0,0.15), rgba(234,88,12,0.25))', border: '1px solid rgba(255,144,0,0.4)', borderRadius: '8px', color: '#ff9000', fontSize: '0.68rem', fontWeight: 900, padding: '3px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', transition: 'all 0.15s' }}
+                      >
+                        ⚡ Згенерувати ТТН НП
+                      </button>
+                    </div>
                     <input
                       type="text"
                       placeholder="20450000000000"
@@ -1490,7 +2067,409 @@ const ShippingModule = () => {
         ::-webkit-scrollbar-thumb { background: #1a1a1a; border-radius: 10px; }
         ::-webkit-scrollbar-thumb:hover { background: #333; }
       `}} />
-    </div>
+
+      {/* ── MODAL: NOVA POSHTA TTN GENERATOR ────────────────────────────────────────── */}
+      {isNpModalOpen && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(10px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+          <div className="shipping-modal-card" style={{ background: '#0e0e11', border: '1px solid rgba(255,144,0,0.3)', borderRadius: '24px', width: '100%', maxWidth: '640px', maxHeight: '90vh', overflowY: 'auto', padding: '28px', boxShadow: '0 20px 50px rgba(0,0,0,0.8)', color: '#fff' }}>
+            
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '14px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Truck size={22} color="#ff9000" />
+                <div>
+                  <h3 style={{ margin: 0, fontWeight: 900, fontSize: '1.15rem', color: '#fff' }}>
+                    Генерація ТТН Нова Пошта
+                  </h3>
+                  <span style={{ fontSize: '0.68rem', color: '#ff9000', fontWeight: 800 }}>API v2.0 Експрес-накладна</span>
+                </div>
+              </div>
+              <button onClick={() => setIsNpModalOpen(false)} style={{ background: 'transparent', border: 'none', color: '#888', cursor: 'pointer' }}><X size={20} /></button>
+            </div>
+
+            {npError && (
+              <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171', padding: '14px 16px', borderRadius: '14px', fontSize: '0.82rem', fontWeight: 700, marginBottom: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div>❌ {npError}</div>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                  <input
+                    type="password"
+                    value={npKeyInput}
+                    onChange={e => setNpKeyInput(e.target.value)}
+                    placeholder="Введіть API Ключ Нової Пошти..."
+                    style={{ flex: 1, minWidth: '220px', background: 'var(--card-inner-bg, #141414)', border: '1px solid #ff9000', borderRadius: '10px', padding: '8px 12px', color: 'var(--text, #fff)', fontSize: '0.82rem', fontWeight: 700 }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (npKeyInput.trim()) {
+                        saveNpApiKey(npKeyInput.trim())
+                        handleOpenNpModal()
+                      }
+                    }}
+                    style={{ background: 'linear-gradient(135deg, #ff9000, #ea580c)', color: '#fff', border: 'none', borderRadius: '10px', padding: '8px 16px', fontSize: '0.82rem', fontWeight: 900, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                  >
+                    💾 Зберегти та завантажити
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {npSuccessData ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', alignItems: 'center', padding: '20px 0', textAlign: 'center' }}>
+                <CheckCircle2 size={54} color="#10b981" />
+                <div>
+                  <h4 style={{ margin: '0 0 6px 0', fontSize: '1.2rem', fontWeight: 900, color: '#fff' }}>ТТН УСПІШНО ЗГЕНЕРОВАНО!</h4>
+                  <div style={{ fontSize: '1.5rem', fontWeight: 900, color: '#ff9000', fontFamily: 'monospace', letterSpacing: '1px' }}>
+                    {npSuccessData.ttnNumber}
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '12px', marginTop: '10px' }}>
+                  <a 
+                    href={npSuccessData.printStickerUrl} 
+                    target="_blank" 
+                    rel="noreferrer"
+                    style={{ background: 'linear-gradient(135deg, #ff9000, #ea580c)', color: '#fff', padding: '12px 20px', borderRadius: '12px', fontWeight: 900, textDecoration: 'none', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}
+                  >
+                    <Printer size={16} /> ДРУК СТІКЕРА (100x100)
+                  </a>
+                  <a 
+                    href={npSuccessData.printDocUrl} 
+                    target="_blank" 
+                    rel="noreferrer"
+                    style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', padding: '12px 20px', borderRadius: '12px', fontWeight: 800, textDecoration: 'none', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}
+                  >
+                    <FileText size={16} /> ДРУК ЕН (А4/А5)
+                  </a>
+                </div>
+
+                <button 
+                  onClick={() => setIsNpModalOpen(false)}
+                  style={{ background: 'rgba(255,255,255,0.05)', border: 'none', color: '#aaa', padding: '10px 24px', borderRadius: '10px', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', marginTop: '10px' }}
+                >
+                  ЗАКРИТИ ТА ЗБЕРЕГТИ У ВІДВАНТАЖЕННІ
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                
+                {/* 1. Відправник */}
+                <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '14px', padding: '14px' }}>
+                  <div style={{ fontSize: '0.7rem', fontWeight: 900, color: '#ff9000', textTransform: 'uppercase', marginBottom: '6px' }}>ВІДПРАВНИК (З ВАШОГО АКАУНТУ НП)</div>
+                  <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#fff' }}>
+                    {npSenderDetails?.senderName || 'Завантаження профілю відправника...'}
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: '#888', marginTop: '2px' }}>
+                    Контакт: {npSenderDetails?.contactName} | Тел: {npSenderDetails?.contactPhone}
+                  </div>
+                </div>
+
+                {/* 2. Отримувач */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '12px' }}>
+                  <div>
+                    <label style={{ fontSize: '0.7rem', fontWeight: 800, color: '#aaa', textTransform: 'uppercase', marginBottom: '4px', display: 'block' }}>ПІБ Отримувача</label>
+                    <input 
+                      type="text"
+                      value={npRecipientName}
+                      onChange={e => setNpRecipientName(e.target.value)}
+                      placeholder="напр. Ковальов Олександр Миколайович"
+                      style={{ width: '100%', background: '#141414', border: '1px solid #282828', borderRadius: '10px', padding: '10px', color: '#fff', fontSize: '0.85rem', fontWeight: 700 }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.7rem', fontWeight: 800, color: '#aaa', textTransform: 'uppercase', marginBottom: '4px', display: 'block' }}>Телефон Отримувача</label>
+                    <input 
+                      type="text"
+                      value={npRecipientPhone}
+                      onChange={e => setNpRecipientPhone(e.target.value)}
+                      placeholder="0971234567"
+                      style={{ width: '100%', background: '#141414', border: '1px solid #282828', borderRadius: '10px', padding: '10px', color: '#fff', fontSize: '0.85rem', fontWeight: 700 }}
+                    />
+                  </div>
+                </div>
+
+                {/* 3. Місто та Відділення */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <label style={{ fontSize: '0.7rem', fontWeight: 800, color: '#aaa', textTransform: 'uppercase', marginBottom: '4px', display: 'block' }}>Місто Доставки</label>
+                    <input 
+                      type="text"
+                      value={npCitySearch}
+                      onChange={e => handleCitySearch(e.target.value)}
+                      placeholder="Пошук міста..."
+                      style={{ width: '100%', background: '#141414', border: '1px solid #282828', borderRadius: '10px', padding: '10px', color: '#fff', fontSize: '0.85rem', fontWeight: 700 }}
+                    />
+                    {npCityList.length > 0 && !npSelectedCity && (
+                      <div style={{ background: '#1a1a1a', border: '1px solid #333', borderRadius: '10px', marginTop: '4px', maxHeight: '140px', overflowY: 'auto' }}>
+                        {npCityList.map(c => (
+                          <div 
+                            key={c.ref} 
+                            onClick={() => handleSelectCity(c)}
+                            style={{ padding: '8px 12px', fontSize: '0.78rem', color: '#eee', cursor: 'pointer', borderBottom: '1px solid #222' }}
+                          >
+                            {c.fullName}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: '0.7rem', fontWeight: 800, color: '#aaa', textTransform: 'uppercase', marginBottom: '4px', display: 'block' }}>Відділення НП</label>
+                    <select
+                      value={npSelectedWarehouse?.ref || ''}
+                      onChange={e => {
+                        const wh = npWarehouseList.find(w => w.ref === e.target.value)
+                        if (wh) setNpSelectedWarehouse(wh)
+                      }}
+                      style={{ width: '100%', background: '#141414', border: '1px solid #282828', borderRadius: '10px', padding: '10px', color: '#fff', fontSize: '0.82rem', fontWeight: 700 }}
+                    >
+                      {npWarehouseList.map(w => (
+                        <option key={w.ref} value={w.ref}>
+                          №{w.number} — {w.shortAddress}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* 4. Оголошена вартість */}
+                <div>
+                  <label style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-secondary, #aaa)', textTransform: 'uppercase', marginBottom: '4px', display: 'block' }}>Оголошена вартість (грн)</label>
+                  <input 
+                    type="number"
+                    value={npCost}
+                    onChange={e => setNpCost(e.target.value)}
+                    placeholder="1000"
+                    style={{ width: '100%', background: '#141414', border: '1px solid #282828', borderRadius: '10px', padding: '10px', color: '#fff', fontSize: '0.85rem', fontWeight: 700 }}
+                  />
+                </div>
+
+                {/* 4.5 МІСЦЯ ВАНТАЖУ ТА ГАБАРИТИ (Згідно стандартів НП v2.0) */}
+                <div style={{ background: 'var(--card-inner-bg, rgba(255,255,255,0.03))', border: '1px solid var(--border, rgba(255,255,255,0.08))', borderRadius: '16px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 900, color: '#ff9000', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        МІСЦЯ ВАНТАЖУ ТА ГАБАРИТИ ({npSeatsList.length} місц.)
+                      </div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary, #888)', marginTop: '2px' }}>
+                        Загальна вага вантажу: <strong style={{ color: '#ff9000' }}>{totalSeatsWeight} кг</strong>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleAddSeat}
+                      style={{
+                        background: 'linear-gradient(135deg, #ff9000, #ea580c)',
+                        color: '#fff',
+                        border: 'none',
+                        padding: '8px 14px',
+                        borderRadius: '10px',
+                        fontWeight: 800,
+                        fontSize: '0.75rem',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        boxShadow: '0 2px 10px rgba(255,144,0,0.3)'
+                      }}
+                    >
+                      <Plus size={14} /> ДОДАТИ МІСЦЕ (ЯЩИК)
+                    </button>
+                  </div>
+
+                  {npSeatsList.map((seat, index) => (
+                    <div
+                      key={seat.id}
+                      className="np-seat-card"
+                      style={{
+                        background: 'var(--card-bg, rgba(0,0,0,0.25))',
+                        border: '1px solid var(--border, rgba(255,255,255,0.08))',
+                        borderRadius: '12px',
+                        padding: '12px 14px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '10px'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span style={{ fontSize: '0.78rem', fontWeight: 900, color: 'var(--text, #fff)' }}>
+                          📦 Місце №{index + 1}
+                        </span>
+                        {npSeatsList.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveSeat(seat.id)}
+                            style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}
+                            title="Видалити місце"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Preset buttons for this seat */}
+                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateSeat(seat.id, { preset: '30x25x30', length: '30', width: '25', height: '30' })}
+                          className={`np-preset-btn ${seat.preset === '30x25x30' ? 'active-preset' : ''}`}
+                          style={{
+                            padding: '6px 12px',
+                            borderRadius: '8px',
+                            border: seat.preset === '30x25x30' ? '2px solid #ff9000' : '1px solid var(--border, #333)',
+                            background: seat.preset === '30x25x30' ? 'rgba(255,144,0,0.18)' : 'var(--card-inner-bg, #181818)',
+                            color: seat.preset === '30x25x30' ? '#ff9000' : 'var(--text, #eee)',
+                            fontSize: '0.75rem',
+                            fontWeight: 800,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          30 × 25 × 30 см (Компактний)
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateSeat(seat.id, { preset: '45x30x40', length: '45', width: '30', height: '40' })}
+                          className={`np-preset-btn ${seat.preset === '45x30x40' ? 'active-preset' : ''}`}
+                          style={{
+                            padding: '6px 12px',
+                            borderRadius: '8px',
+                            border: seat.preset === '45x30x40' ? '2px solid #ff9000' : '1px solid var(--border, #333)',
+                            background: seat.preset === '45x30x40' ? 'rgba(255,144,0,0.18)' : 'var(--card-inner-bg, #181818)',
+                            color: seat.preset === '45x30x40' ? '#ff9000' : 'var(--text, #eee)',
+                            fontSize: '0.75rem',
+                            fontWeight: 800,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          45 × 30 × 40 см (Стандартний)
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateSeat(seat.id, { preset: 'custom' })}
+                          className={`np-preset-btn ${seat.preset === 'custom' ? 'active-preset' : ''}`}
+                          style={{
+                            padding: '6px 12px',
+                            borderRadius: '8px',
+                            border: seat.preset === 'custom' ? '2px solid #ff9000' : '1px solid var(--border, #333)',
+                            background: seat.preset === 'custom' ? 'rgba(255,144,0,0.18)' : 'var(--card-inner-bg, #181818)',
+                            color: seat.preset === 'custom' ? '#ff9000' : 'var(--text, #eee)',
+                            fontSize: '0.75rem',
+                            fontWeight: 800,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          ✏️ Свої розміри
+                        </button>
+                      </div>
+
+                      {/* Grid of L, W, H, Weight for this seat */}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '8px' }}>
+                        <div>
+                          <label style={{ fontSize: '0.62rem', color: 'var(--text-secondary, #888)', display: 'block', marginBottom: '2px' }}>Довжина (см)</label>
+                          <input
+                            type="number"
+                            value={seat.length}
+                            readOnly={seat.preset !== 'custom'}
+                            onChange={e => handleUpdateSeat(seat.id, { length: e.target.value })}
+                            style={{ width: '100%', background: seat.preset === 'custom' ? 'var(--card-inner-bg, #141414)' : 'var(--bg-muted, #222)', border: '1px solid var(--border, #333)', borderRadius: '8px', padding: '6px', color: 'var(--text, #fff)', fontSize: '0.8rem', fontWeight: 700 }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: '0.62rem', color: 'var(--text-secondary, #888)', display: 'block', marginBottom: '2px' }}>Ширина (см)</label>
+                          <input
+                            type="number"
+                            value={seat.width}
+                            readOnly={seat.preset !== 'custom'}
+                            onChange={e => handleUpdateSeat(seat.id, { width: e.target.value })}
+                            style={{ width: '100%', background: seat.preset === 'custom' ? 'var(--card-inner-bg, #141414)' : 'var(--bg-muted, #222)', border: '1px solid var(--border, #333)', borderRadius: '8px', padding: '6px', color: 'var(--text, #fff)', fontSize: '0.8rem', fontWeight: 700 }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: '0.62rem', color: 'var(--text-secondary, #888)', display: 'block', marginBottom: '2px' }}>Висота (см)</label>
+                          <input
+                            type="number"
+                            value={seat.height}
+                            readOnly={seat.preset !== 'custom'}
+                            onChange={e => handleUpdateSeat(seat.id, { height: e.target.value })}
+                            style={{ width: '100%', background: seat.preset === 'custom' ? 'var(--card-inner-bg, #141414)' : 'var(--bg-muted, #222)', border: '1px solid var(--border, #333)', borderRadius: '8px', padding: '6px', color: 'var(--text, #fff)', fontSize: '0.8rem', fontWeight: 700 }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: '0.62rem', color: '#ff9000', fontWeight: 800, display: 'block', marginBottom: '2px' }}>Вага місця (кг)</label>
+                          <input
+                            type="text"
+                            value={seat.weight}
+                            onChange={e => handleUpdateSeat(seat.id, { weight: e.target.value })}
+                            placeholder="1.5"
+                            style={{ width: '100%', background: 'var(--card-inner-bg, #141414)', border: '1px solid #ff9000', borderRadius: '8px', padding: '6px', color: 'var(--text, #fff)', fontSize: '0.8rem', fontWeight: 800 }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* 5. Опис вантажу та платник */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '10px' }}>
+                  <div>
+                    <label style={{ fontSize: '0.7rem', fontWeight: 800, color: '#aaa', textTransform: 'uppercase', marginBottom: '4px', display: 'block' }}>Опис вмісту</label>
+                    <input 
+                      type="text"
+                      value={npDescription}
+                      onChange={e => setNpDescription(e.target.value)}
+                      style={{ width: '100%', background: '#141414', border: '1px solid #282828', borderRadius: '10px', padding: '10px', color: '#fff', fontSize: '0.85rem', fontWeight: 700 }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.7rem', fontWeight: 800, color: '#aaa', textTransform: 'uppercase', marginBottom: '4px', display: 'block' }}>Платник доставки</label>
+                    <select
+                      value={npPayerType}
+                      onChange={e => setNpPayerType(e.target.value)}
+                      style={{ width: '100%', background: '#141414', border: '1px solid #282828', borderRadius: '10px', padding: '10px', color: '#fff', fontSize: '0.85rem', fontWeight: 700 }}
+                    >
+                      <option value="Recipient">Отримувач</option>
+                      <option value="Sender">Відправник</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Submit button */}
+                <button
+                  type="button"
+                  onClick={handleGenerateNpTTNSubmit}
+                  disabled={npLoading}
+                  style={{
+                    marginTop: '10px',
+                    width: '100%',
+                    background: npLoading ? '#555' : 'linear-gradient(135deg, #ff9000 0%, #ea580c 100%)',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '14px',
+                    padding: '14px',
+                    fontSize: '0.95rem',
+                    fontWeight: 900,
+                    cursor: npLoading ? 'wait' : 'pointer',
+                    boxShadow: '0 4px 20px rgba(234, 88, 12, 0.4)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '10px'
+                  }}
+                >
+                  <Truck size={20} />
+                  {npLoading ? 'З\'єднання з Nova Poshta API...' : 'ЗГЕНЕРУВАТИ ТТН У НОВІЙ ПОШТІ'}
+                </button>
+
+              </div>
+            )}
+
+          </div>
+        </div>
+      )}
+      </div>
   )
 }
 

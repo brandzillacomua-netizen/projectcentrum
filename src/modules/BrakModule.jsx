@@ -1515,7 +1515,7 @@ export default function BrakModule() {
 
   if (showReportPage) {
     return (
-      <div style={{ background: '#050505', minHeight: '100vh', color: '#fff', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ background: 'var(--bg, #050505)', minHeight: '100vh', color: 'var(--text, #fff)', display: 'flex', flexDirection: 'column' }}>
         
         {/* Header */}
         <nav style={{ 
@@ -1747,7 +1747,7 @@ export default function BrakModule() {
   }
 
   return (
-    <div style={{ background: '#050505', minHeight: '100vh', color: '#fff', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ background: 'var(--bg, #050505)', minHeight: '100vh', color: 'var(--text, #fff)', display: 'flex', flexDirection: 'column' }}>
       
       {/* Header */}
       <nav style={{ 

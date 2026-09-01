@@ -412,137 +412,93 @@ export default function Shop1Terminal() {
   }
 
   // ── QR-сканер (Зроблено "таким самим", як в інших терміналах) ──────────
-  // ── QR-сканер (Зроблено з гарним підключенням камери та обробкою DOM) ─────
-  useEffect(() => {
-    if (!isScanning) return
+  // ── Глобальна функція обробки сканування та пошуку карток ─────────────────
+  const processCardScan = async (rawInput) => {
+    if (!rawInput) return false
 
-    let html5QrCode = null
-    let timer = null
+    let clean = translateCyrillic(String(rawInput).trim())
+      .replace(/^CENTRUM_CARD_/i, '')
+      .replace(/^#/, '')
+      .trim()
 
-    const startScanner = async () => {
-      if (!window.Html5Qrcode) {
-        setScanError('Бібліотека сканування не завантажена. Оновіть сторінку.')
-        return
-      }
-      const el = document.getElementById("reader")
-      if (!el) {
-        timer = setTimeout(startScanner, 50)
-        return
-      }
+    if (!clean) return false
 
+    const isMachineQR = await handleMachineQRScan(rawInput) || await handleMachineQRScan(clean)
+    if (isMachineQR) return true
+
+    const queryLower = clean.toLowerCase()
+    const hexSuffix = queryLower.slice(-8)
+
+    let card = workCards.find(c => {
+      if (!c || !c.id) return false
+      const idLower = String(c.id).trim().toLowerCase()
+      if (idLower === queryLower) return true
+      if (idLower.endsWith(hexSuffix)) return true
+      if (c.card_info && String(c.card_info).toLowerCase().includes(hexSuffix)) return true
+      return false
+    })
+
+    if (!card) {
+      setIsSyncing(true)
       try {
-        html5QrCode = new window.Html5Qrcode("reader")
-        const config = { fps: 20, qrbox: { width: 260, height: 260 } }
+        const { data: freshCards } = await supabase
+          .from('work_cards')
+          .select('*')
+          .ilike('id', `%${hexSuffix}`)
+          .limit(10)
 
-        const stopAndClose = async () => {
-          if (html5QrCode && html5QrCode.isScanning) await html5QrCode.stop().catch(() => { })
-          setIsScanning(false)
+        if (freshCards && freshCards.length > 0) {
+          card = freshCards[0]
+        } else {
+          const { data: directCard } = await supabase
+            .from('work_cards')
+            .select('*')
+            .eq('id', clean)
+            .maybeSingle()
+
+          if (directCard) card = directCard
         }
-
-        await html5QrCode.start(
-          { facingMode: "environment" },
-          config,
-          async (text) => {
-            if (text.startsWith('CENTRUM_CARD_')) {
-              const id = text.replace('CENTRUM_CARD_', '').trim()
-
-              await stopAndClose()
-
-              const queryLower = id.toLowerCase()
-              const hexSuffix = queryLower.slice(-8)
-
-              let card = workCards.find(c => 
-                String(c.id).trim().toLowerCase() === queryLower ||
-                String(c.id).trim().toLowerCase().endsWith(hexSuffix) ||
-                (c.card_info && c.card_info.toLowerCase().includes(hexSuffix))
-              )
-
-              if (!card) {
-                setIsSyncing(true)
-                const { data: freshCards } = await supabase
-                  .from('work_cards')
-                  .select('*')
-                  .ilike('id', `%${hexSuffix}`)
-
-                const freshCard = (freshCards && freshCards.length > 0) ? freshCards[0] : null
-                setIsSyncing(false)
-
-                if (!freshCard) {
-                  const { data: directCard } = await supabase
-                    .from('work_cards')
-                    .select('*')
-                    .eq('id', id)
-                    .single()
-
-                  if (!directCard) {
-                    setScanError(`Картку №${id.slice(-8).toUpperCase()} не знайдено.`)
-                    return
-                  }
-                  card = directCard
-                } else {
-                  card = freshCard
-                }
-
-                setWorkCards(prev => prev.some(c => c.id === card.id)
-                  ? prev.map(c => c.id === card.id ? { ...c, ...card } : c)
-                  : [card, ...prev])
-              }
-
-              // Дозволяємо картки "Нова", ті що в ланцюжку Цеху №1, або в буфері Сортування
-              const isNew = card.status === 'new' || !card.operation || card.operation === 'Нова'
-              const isInChain = CHAIN.includes(card.operation) || String(card.operation).startsWith('Розкрій') || String(card.operation).startsWith('Галтовка') || card.operation === 'Прийомка' || card.operation === 'Сортування'
-              const isSorting = card.status === 'at-buffer' && card.operation === 'Сортування'
-
-              if (!isNew && !isInChain && !isSorting) {
-                setScanError(`Картка #${card.id.slice(-8).toUpperCase()} — не для Цеху №1 (${card.operation})`)
-                return
-              }
-
-              if (card.status === 'completed') {
-                setScanError(`Картка #${card.id.slice(-8).toUpperCase()} вже завершена`)
-                return
-              }
-
-              // Додаємо в локальну чергу та активуємо
-              setScannedIds(prev => prev.includes(card.id) ? prev : [...prev, card.id])
-              setSelectedCardId(card.id)
-              setScanError(null)
-              checkCardMaterials(card)
-              window.scrollTo({ top: 0, behavior: 'smooth' })
-            } else {
-              // Check if it's a machine call QR code URL
-              const isMachineQR = await handleMachineQRScan(text)
-              if (isMachineQR) {
-                await stopAndClose()
-              }
-            }
-          }
-        )
       } catch (err) {
-        console.error("Scanner error:", err)
-        setScanError(`Помилка камери: ${err?.message || err}. Перевірте надання дозволу на доступ до камери.`)
+        console.error('Error fetching scanned card from Supabase:', err)
+      } finally {
+        setIsSyncing(false)
       }
     }
 
+    if (!card) {
+      setScanError(`Картку №${clean.slice(-8).toUpperCase()} не знайдено в системі.`)
+      return false
+    }
+
+    setWorkCards(prev => prev.some(c => c.id === card.id)
+      ? prev.map(c => c.id === card.id ? { ...c, ...card } : c)
+      : [card, ...prev])
+
+    const isNew = card.status === 'new' || card.status === 'waiting-materials' || card.status === 'waiting_material' || !card.operation || card.operation === 'Нова'
+    const isInChain = CHAIN.includes(card.operation) || 
+      String(card.operation).startsWith('Розкрій') || 
+      String(card.operation).startsWith('Галтовка') || 
+      card.operation === 'Прийомка' || 
+      card.operation === 'Сортування'
+    const isSorting = card.status === 'at-buffer' && card.operation === 'Сортування'
+
+    if (!isNew && !isInChain && !isSorting) {
+      setScanError(`Картка #${card.id.slice(-8).toUpperCase()} — не для Цеху №1 (${card.operation || 'невідомий етап'})`)
+      return false
+    }
+
+    if (card.status === 'completed') {
+      setScanError(`Картка #${card.id.slice(-8).toUpperCase()} вже завершена`)
+      return false
+    }
+
+    setScannedIds(prev => prev.includes(card.id) ? prev : [...prev, card.id])
+    setSelectedCardId(card.id)
     setScanError(null)
-    timer = setTimeout(startScanner, 100)
-
-    return () => {
-      clearTimeout(timer)
-      if (html5QrCode) {
-        if (html5QrCode.isScanning) {
-          html5QrCode.stop().then(() => {
-            try {
-              const videoEl = document.querySelector('#reader video')
-              if (videoEl && videoEl.srcObject) {
-                videoEl.srcObject.getTracks().forEach(track => track.stop())
-              }
-            } catch (e) {}
-          }).catch(() => {})
-        }
-      }
-    }
-  }, [isScanning, workCards])
+    checkCardMaterials(card)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+    return true
+  }
 
   // ── Global Scanner Keydown Listener ───────────────────────────────────────
   useEffect(() => {
@@ -564,47 +520,7 @@ export default function Shop1Terminal() {
         if (buffer.length > 3) {
           const scannedText = buffer.trim()
           buffer = ''
-          
-          const isMachineQR = await handleMachineQRScan(scannedText)
-          if (isMachineQR) {
-            e.preventDefault()
-            return
-          }
-
-          if (scannedText.startsWith('CENTRUM_CARD_')) {
-            const id = scannedText.replace('CENTRUM_CARD_', '').trim()
-            let card = workCards.find(c => String(c.id).trim() === id)
-
-            if (!card) {
-              setIsSyncing(true)
-              const { data: freshCard } = await supabase
-                .from('work_cards')
-                .select('*')
-                .eq('id', id)
-                .single()
-              setIsSyncing(false)
-              if (freshCard) {
-                card = freshCard
-                setWorkCards(prev => prev.some(c => c.id === freshCard.id)
-                  ? prev.map(c => c.id === freshCard.id ? { ...c, ...freshCard } : c)
-                  : [freshCard, ...prev])
-              }
-            }
-
-            if (card) {
-              const isNew = card.status === 'new' || !card.operation || card.operation === 'Нова'
-              const isInChain = CHAIN.includes(card.operation)
-              const isSortування = card.status === 'at-buffer' && card.operation === 'Сортування'
-
-              if ((isNew || isInChain || isSortування) && card.status !== 'completed') {
-                setScannedIds(prev => prev.includes(card.id) ? prev : [...prev, card.id])
-                setSelectedCardId(card.id)
-                setScanError(null)
-                checkCardMaterials(card)
-                window.scrollTo({ top: 0, behavior: 'smooth' })
-              }
-            }
-          }
+          await processCardScan(scannedText)
         }
         buffer = ''
       } else if (e.key.length === 1) {
@@ -615,63 +531,18 @@ export default function Shop1Terminal() {
 
     window.addEventListener('keydown', handleGlobalKeyDown)
     return () => window.removeEventListener('keydown', handleGlobalKeyDown)
-  }, [workCards])
+  }, [workCards, requests])
 
   const handleManualEntry = async (e) => {
     if (e) e.preventDefault()
     if (!manualId) return
 
-    const cleanInput = translateCyrillic(manualId.trim()).replace('CENTRUM_CARD_', '').replace('#', '').trim()
-
-    // Check if it's a machine call QR code URL
-    const isMachineQR = await handleMachineQRScan(cleanInput)
-    if (isMachineQR) {
+    setIsProcessing(true)
+    const success = await processCardScan(manualId)
+    if (success) {
       setManualId('')
       setShowManualInput(false)
       setIsScanning(false)
-      return
-    }
-
-    setIsProcessing(true)
-
-    // Check if it's a system number (UUID or 8-char short hex ID)
-    const isSystemNumber = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanInput) || /^[0-9a-fA-F]{8}$/.test(cleanInput);
-
-    if (isSystemNumber) {
-      // First try exact ID or end of ID match
-      let matches = workCards.filter(c => {
-        const nom = getNom(c)
-        if (nom && nom.type && nom.type !== 'part') return false
-        return String(c.id).trim() === cleanInput || String(c.id).toUpperCase().endsWith(cleanInput.toUpperCase())
-      })
-
-      if (matches.length === 0) {
-        await fetchData('work_cards').catch(() => { })
-        matches = workCards.filter(c => {
-          const nom = getNom(c)
-          if (nom && nom.type && nom.type !== 'part') return false
-          return String(c.id).trim() === cleanInput || String(c.id).toUpperCase().endsWith(cleanInput.toUpperCase())
-        })
-      }
-
-      if (matches.length === 0) {
-        setScanError(`Картку №${cleanInput} не знайдено`)
-      } else if (matches.length === 1) {
-        const card = matches[0]
-        setScannedIds(prev => prev.includes(card.id) ? prev : [...prev, card.id])
-        setSelectedCardId(card.id)
-        setManualId('')
-        setShowManualInput(false)
-        setIsScanning(false)
-        setScanError(null)
-        checkCardMaterials(card)
-      } else {
-        setScanError(`Знайдено декілька карток (${matches.length}). Оберіть потрібну зі списку ліворуч.`)
-      }
-    } else {
-      // It's a sequence/ordinal number or text. Just clear any errors and let the list filter.
-      setScanError(null)
-      setShowManualInput(false)
     }
     setIsProcessing(false)
   }
@@ -1235,7 +1106,7 @@ export default function Shop1Terminal() {
       if (info.includes('[ЦЕХ №2]') || info.includes('[ЦЕХ 2]')) return
       
       const nom = nomenclatures?.find(n => n.id === c.nomenclature_id)
-      if (nom && nom.type && nom.type !== 'part') return
+      if (nom && nom.type && ['raw', 'material', 'hardware', 'fastener', 'consumable'].includes(nom.type)) return
 
       const parentTask = tasks.find(t => String(t.id) === String(c.task_id))
       if (parentTask) {
@@ -1280,9 +1151,17 @@ export default function Shop1Terminal() {
     const info = String(c.card_info || '')
     if (info.includes('[ЦЕХ №2]') || info.includes('[ЦЕХ 2]')) return false
 
-    // 2.5. Фільтрація тільки для деталей (type === 'part')
+    // 2.5. Фільтрація тільки для деталей
     const nom = getNom(c)
-    if (nom && nom.type && nom.type !== 'part') return false
+    if (nom && nom.type && ['raw', 'material', 'hardware', 'fastener', 'consumable'].includes(nom.type)) return false
+
+    // 2.7. Гейт видимості (Киттинг / Склад): картка СТИХАЄ до підтвердження видачі сировини складом
+    const taskReqs = (requests || []).filter(r => 
+      String(r.task_id) === String(c.task_id) || 
+      (r.card_id && String(r.card_id) === String(c.id))
+    )
+    const hasPendingKitting = taskReqs.some(r => r.status === 'pending')
+    if (hasPendingKitting && c.status === 'new') return false
 
     // 3. Перевірка батьківського наряду
     const parentTask = tasks.find(t => String(t.id) === String(c.task_id))
@@ -2509,7 +2388,7 @@ export default function Shop1Terminal() {
         : c.operation === stage
       if (!matchStage) return false
       const nom = getNom(c)
-      return !nom || nom.type === 'part'
+      return !nom || !['raw', 'material', 'hardware', 'fastener', 'consumable'].includes(nom.type)
     })
     return {
       inWork: cards.filter(c => c.status === 'in-progress').reduce((a, c) => a + (c.quantity || 0), 0),
@@ -2518,7 +2397,7 @@ export default function Shop1Terminal() {
         const matchStage = stage === 'Галтовка' ? h.stage_name?.startsWith('Галтовка') : h.stage_name === stage
         if (!matchStage || h.is_archived_scrap) return false
         const nom = nomenclatures.find(n => n.id === h.nomenclature_id)
-        return !nom || nom.type === 'part'
+        return !nom || !['raw', 'material', 'hardware', 'fastener', 'consumable'].includes(nom.type)
       }).reduce((a, h) => a + (Number(h.scrap_qty) || 0), 0),
       total: cards.length
     }
@@ -2592,8 +2471,9 @@ export default function Shop1Terminal() {
             {/* Верхній рядок: Порядковий номер (Зліва) та Номер замовлення (Справа) */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
               {(() => {
-                const seqMatch = (card.card_info || '').match(/(\d+\/\d+)/)
-                return seqMatch ? (
+                const seqMatch = (card.card_info || '').match(/(\d+\/\d+)|(№\d+)/)
+                const displayVal = seqMatch ? (seqMatch[1] || seqMatch[2]) : null
+                return displayVal ? (
                   <span style={{
                     background: active ? 'rgba(0,0,0,0.15)' : '#eab30820',
                     color: active ? '#000' : '#eab308',
@@ -2601,7 +2481,7 @@ export default function Shop1Terminal() {
                     padding: '2px 8px', borderRadius: '6px',
                     fontSize: '0.65rem', fontWeight: 950
                   }}>
-                    {seqMatch[1]}
+                    {displayVal}
                   </span>
                 ) : <div />
               })()}
@@ -2681,7 +2561,7 @@ export default function Shop1Terminal() {
     const completeToBufferDisabled = isProcessing || !hasCuttersFact
 
     return (
-      <div style={{ maxWidth: '820px', margin: '0 auto' }}>
+      <div className="s1-card-detail-view" style={{ width: '100%', maxWidth: '1400px', margin: '0 auto', padding: '0 12px 140px', boxSizing: 'border-box' }}>
 
         {/* Хлібні крихти ланцюжка */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '16px', flexWrap: 'wrap' }}>
@@ -2690,7 +2570,7 @@ export default function Shop1Terminal() {
             const isDone = i < chainIdx
             return (
               <React.Fragment key={s}>
-                <span style={{
+                <span className={`s1-chain-pill ${isCurrent ? 'current' : isDone ? 'done' : 'inactive'}`} style={{
                   fontSize: '0.6rem', fontWeight: 900, textTransform: 'uppercase',
                   padding: '3px 9px', borderRadius: '5px',
                   background: isCurrent ? '#eab308' : isDone ? '#10b98120' : '#1a1a1a',
@@ -2732,7 +2612,7 @@ export default function Shop1Terminal() {
               title="Внести додатковий брак ВКЯ">
               🛡️ <span className="hide-mobile">БРАК ВКЯ</span>
             </button>
-            <button onClick={() => setSelectedCardId(null)}
+            <button className="s1-close-btn" onClick={() => setSelectedCardId(null)}
               style={{ background: '#111', border: 'none', color: '#555', padding: '10px', borderRadius: '12px', cursor: 'pointer' }}>
               <X size={22} />
             </button>
@@ -3208,14 +3088,14 @@ export default function Shop1Terminal() {
               <div style={{ maxWidth: '460px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '22px' }}>
 
                 {/* Великий бейдж кількості в буфері */}
-                <div style={{ background: (isLastBeforeReception || currentCard.operation === 'Прийомка') ? '#10b98110' : '#f59e0b10', border: `1px solid ${(isLastBeforeReception || currentCard.operation === 'Прийомка') ? '#10b98130' : '#f59e0b30'}`, borderRadius: '24px', padding: '24px', textAlign: 'center', marginBottom: '8px' }}>
+                <div className={`s1-buffer-box ${isLastBeforeReception || currentCard.operation === 'Прийомка' ? 'reception' : 'buffer'}`} style={{ background: (isLastBeforeReception || currentCard.operation === 'Прийомка') ? '#10b98110' : '#f59e0b10', border: `1px solid ${(isLastBeforeReception || currentCard.operation === 'Прийомка') ? '#10b98130' : '#f59e0b30'}`, borderRadius: '24px', padding: '24px', textAlign: 'center', marginBottom: '8px' }}>
                   <div style={{ fontSize: '0.65rem', fontWeight: 950, color: (isLastBeforeReception || currentCard.operation === 'Прийомка') ? '#10b981' : '#f59e0b', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: '8px' }}>
                     {currentCard.operation === 'Прийомка' ? 'В ПРИЙОМЦІ (ОЧІКУЄ СОРТУВАННЯ)' : isLastBeforeReception ? 'ГОТОВО ДО ПРИЙОМКИ' : `В БУФЕРІ: ${currentCard.operation?.toUpperCase()}`}
                   </div>
-                  <div style={{ fontSize: '3.5rem', fontWeight: 1000, color: '#fff', lineHeight: 1 }}>
+                  <div className="s1-buffer-qty-text" style={{ fontSize: '3.5rem', fontWeight: 1000, color: '#fff', lineHeight: 1 }}>
                     {currentCard.quantity} <small style={{ fontSize: '1.2rem', opacity: 0.3 }}>шт</small>
                   </div>
-                  <div style={{ marginTop: '14px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '12px' }}>
+                  <div className="s1-buffer-timer-inner" style={{ marginTop: '14px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '12px' }}>
                     <div style={{ fontSize: '1.8rem', fontWeight: 1000, color: (isLastBeforeReception || currentCard.operation === 'Прийомка') ? '#10b981' : '#f59e0b', fontFamily: 'monospace', lineHeight: 1 }}>
                       {formatTime(currentCard.completed_at || currentCard.started_at)}
                     </div>
@@ -3231,7 +3111,7 @@ export default function Shop1Terminal() {
                   const pNames = { 1: 'ВИСОКИЙ ПРІОРИТЕТ', 2: 'СЕРЕДНІЙ ПРІОРИТЕТ', 3: 'НИЗЬКИЙ ПРІОРИТЕТ' }
                   const pVal = currentCard.galt_priority || 2
                   return (
-                    <div style={{
+                    <div className="s1-priority-banner" style={{
                       background: `${pColors[pVal]}10`,
                       border: `1px solid ${pColors[pVal]}30`,
                       borderRadius: '16px',
@@ -3249,7 +3129,7 @@ export default function Shop1Terminal() {
 
                 {/* Прийомка: кнопка переводить в at-buffer(Прийомка) */}
                 {isLastBeforeReception ? (
-                  <div style={{ background: '#111', padding: '24px', borderRadius: '20px', border: '1px solid #10b98122' }}>
+                  <div className="s1-action-card" style={{ background: '#111', padding: '24px', borderRadius: '20px', border: '1px solid #10b98122' }}>
                     <div style={{ marginBottom: '15px' }}>
                       <label style={labelStyle}>Зміна</label>
                       <select value={selectedShift} onChange={e => setSelectedShift(e.target.value)} style={selectStyle}>
@@ -3284,7 +3164,7 @@ export default function Shop1Terminal() {
                   </div>
                 ) : (
                   /* Попередні етапи (Розкрій → Галтовка) — звичайний перехід */
-                  <div style={{ background: '#111', padding: '24px', borderRadius: '20px', border: '1px solid #222' }}>
+                  <div className="s1-action-card" style={{ background: '#111', padding: '24px', borderRadius: '20px', border: '1px solid #222' }}>
                     <div style={{ fontSize: '0.7rem', color: '#555', fontWeight: 800, marginBottom: '20px', textTransform: 'uppercase', textAlign: 'center' }}>
                       НАСТУПНИЙ ЕТАП: <span style={{ color: '#f59e0b' }}>{nextOp}</span>
                     </div>
@@ -3560,7 +3440,7 @@ export default function Shop1Terminal() {
 
   // ── Рендер: дашборд (без вибраної картки) ───────────────────────────────
   const renderDashboard = () => (
-    <div style={{ maxWidth: '1050px', margin: '0 auto' }}>
+    <div style={{ width: '100%', padding: '0 12px 140px', boxSizing: 'border-box' }}>
 
       {/* Шапка */}
       <style>{`
@@ -3620,14 +3500,14 @@ export default function Shop1Terminal() {
             disabled={isProcessing}
             style={{ background: 'transparent', border: 'none', color: '#fff', fontSize: '0.85rem', fontWeight: 700, outline: 'none', width: '100%' }}
           />
-          <button type="submit" disabled={isProcessing} style={{ background: '#eab308', color: '#000', border: 'none', padding: '6px 14px', borderRadius: '16px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+          <button type="submit" disabled={isProcessing} className="floating-search-btn" style={{ background: '#eab308', color: '#000', border: 'none', padding: '6px 14px', borderRadius: '16px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
             {isProcessing ? <RefreshCw size={12} className="anim-spin" /> : 'ЗНАЙТИ'}
           </button>
         </form>
 
         {/* Floating Round QR Scan Button */}
         <button onClick={() => setIsScanning(true)}
-          className="hover-lift"
+          className="hover-lift floating-qr-btn"
           style={{ 
             background: '#eab308', 
             border: 'none', 
@@ -3649,8 +3529,13 @@ export default function Shop1Terminal() {
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '28px' }}>
         <div>
-          <h2 style={{ margin: 0, fontSize: '1.8rem', fontWeight: 950, letterSpacing: '-0.02em' }}>ЦЕХ №1</h2>
-          <p style={{ margin: '3px 0 0', color: '#333', fontSize: '0.68rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <h2 style={{ margin: 0, fontSize: '1.8rem', fontWeight: 950, letterSpacing: '-0.02em' }}>ЦЕХ №1</h2>
+            <span className="pillar-badge-mes" style={{ padding: '3px 8px', borderRadius: '12px', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase' }}>
+              MES Shop Floor Pillar
+            </span>
+          </div>
+          <p style={{ margin: '3px 0 0', color: 'var(--text-muted)', fontSize: '0.68rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
             Розкрій → Буфер → Галтовка → Буфер → Прийомка
           </p>
         </div>
@@ -3665,20 +3550,23 @@ export default function Shop1Terminal() {
       }}>
         {['Розкрій', 'Галтовка'].map((stage, idx) => {
           const s = stageStats(stage)
+          const isCut = idx === 0
+          const stageColor = isCut ? '#3b82f6' : '#f59e0b'
+          const cardClass = isCut ? 's1-stage-card-cut' : 's1-stage-card-galt'
           return (
             <React.Fragment key={stage}>
               <div onClick={() => { setDetailStage(stage); setDetailTab('work') }}
                 style={{
-                  background: '#0a0a0a',
-                  border: '1px solid #222',
-                  borderTop: `4px solid ${idx === 0 ? '#3b82f6' : '#f59e0b'}`,
+                  background: isCut ? 'linear-gradient(145deg, #0b1526 0%, #050a14 100%)' : 'linear-gradient(145deg, #1f1404 0%, #0d0802 100%)',
+                  border: `1px solid ${isCut ? '#1e3a8a50' : '#78350f50'}`,
+                  borderTop: `4px solid ${stageColor}`,
                   borderRadius: '20px', padding: '20px 16px', cursor: 'pointer',
                   boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
                   gridArea: `stage${idx + 1}`
                 }}
-                className="s1-stage-card s1-stage-hover">
+                className={`s1-stage-card ${cardClass} s1-stage-hover`}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                  <span style={{ fontSize: '0.65rem', fontWeight: 1000, color: '#444', textTransform: 'uppercase', letterSpacing: '0.12em' }}>{stage}</span>
+                  <span className="stage-card-title" style={{ fontSize: '0.65rem', fontWeight: 1000, color: stageColor, textTransform: 'uppercase', letterSpacing: '0.12em' }}>{stage}</span>
                   <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: s.inWork > 0 ? '#10b981' : '#222', boxShadow: s.inWork > 0 ? '0 0 8px #10b981' : 'none' }} />
                 </div>
 
@@ -3687,13 +3575,13 @@ export default function Shop1Terminal() {
                     { label: 'РОБОТА', val: s.inWork, color: '#3b82f6' },
                     { label: 'БУФЕР', val: s.inBuffer, color: '#f59e0b' },
                   ].map(({ label, val, color }, li) => (
-                    <div key={label} style={li > 0 ? { borderLeft: '1px solid #111', paddingLeft: '8px' } : {}}>
-                      <div style={{ fontSize: '0.55rem', color: '#333', fontWeight: 1000, marginBottom: '2px', textTransform: 'uppercase' }}>{label}</div>
+                    <div key={label} style={li > 0 ? { borderLeft: '1px solid rgba(255,255,255,0.08)', paddingLeft: '8px' } : {}}>
+                      <div className="metric-label" style={{ fontSize: '0.55rem', color: '#6b7280', fontWeight: 1000, marginBottom: '2px', textTransform: 'uppercase' }}>{label}</div>
                       <div style={{
                         fontSize: '1.4rem', fontWeight: 1000, letterSpacing: '-0.02em',
-                        color: val > 0 ? color : '#1a1a1a'
+                        color: val > 0 ? color : '#475569'
                       }}>
-                        {val}<small style={{ fontSize: '0.45rem', opacity: 0.2, marginLeft: '1px' }}>шт</small>
+                        {val}<small style={{ fontSize: '0.45rem', opacity: 0.4, marginLeft: '1px' }}>шт</small>
                       </div>
                     </div>
                   ))}
@@ -3712,12 +3600,12 @@ export default function Shop1Terminal() {
                   gridArea: `arrow${idx + 1}`
                 }}>
                 <div style={{ display: 'flex', alignItems: 'center' }}>
-                  <div style={{ width: '20px', height: '2px', background: s.inBuffer > 0 ? (idx === 0 ? '#f59e0b' : '#10b981') : '#222' }} />
-                  <ChevronRight size={14} color={s.inBuffer > 0 ? (idx === 0 ? '#f59e0b' : '#10b981') : '#222'} />
+                  <div style={{ width: '20px', height: '2px', background: s.inBuffer > 0 ? (idx === 0 ? '#f59e0b' : '#10b981') : '#334155' }} />
+                  <ChevronRight size={14} color={s.inBuffer > 0 ? (idx === 0 ? '#f59e0b' : '#10b981') : '#334155'} />
                 </div>
                 <div style={{
                   marginTop: '5px', fontSize: '0.46rem', fontWeight: 900, textTransform: 'uppercase', padding: '2px 6px', borderRadius: '4px',
-                  background: s.inBuffer > 0 ? `${idx === 0 ? '#f59e0b20' : '#10b98120'}` : '#1a1a1a', color: s.inBuffer > 0 ? (idx === 0 ? '#f59e0b' : '#10b981') : '#2a2a2a'
+                  background: s.inBuffer > 0 ? `${idx === 0 ? '#f59e0b20' : '#10b98120'}` : 'rgba(255,255,255,0.05)', color: s.inBuffer > 0 ? (idx === 0 ? '#f59e0b' : '#10b981') : '#64748b'
                 }}>
                   {s.inBuffer > 0 ? `${s.inBuffer} шт` : (idx === 0 ? 'БУФЕР' : 'СКЛАД')}
                 </div>
@@ -3728,12 +3616,12 @@ export default function Shop1Terminal() {
 
         {/* ─── ПРИЙОМКА / СКЛАД (Фінальна стадія) ─── */}
         {(() => {
-          // Картки на Сортуванні / Прийомці = фізично знаходяться в Прийомці
+          // Картки на Сортуванні / Прийомці: Прийомка = c.operation === 'Прийомка', Сортування = c.operation === 'Сортування'
           const sortingCards = (workCards || []).filter(c => {
             const nom = getNom(c)
             if (nom && nom.type && nom.type !== 'part') return false
-            return (c.status === 'at-buffer' && (c.operation === 'Прийомка' || c.operation === 'Сортування')) ||
-                   (c.status === 'in-progress' && c.operation === 'Сортування')
+            return (c.operation === 'Прийомка' || c.operation === 'Сортування') &&
+                   (c.status === 'at-buffer' || c.status === 'in-progress')
           })
           const sortingQty = sortingCards.reduce((a, c) => a + (Number(c.quantity) || 0), 0)
 
@@ -3741,25 +3629,6 @@ export default function Shop1Terminal() {
           const realSortingCards = sortingCards.filter(c => c.operation === 'Сортування')
           const receptionQty = receptionCards.reduce((a, c) => a + (Number(c.quantity) || 0), 0)
           const realSortingQty = realSortingCards.reduce((a, c) => a + (Number(c.quantity) || 0), 0)
-
-          // Інвентар складу НФ (вже прийняті на склад)
-          const semiQty = (inventory || []).filter(i => {
-            if (i.type !== 'semi' || i.nomenclature_id === null || i.nomenclature_id === undefined) return false
-            const nom = nomenclatures.find(n => n.id === i.nomenclature_id)
-            return !nom || nom.type === 'part'
-          }).reduce((a, i) => a + (Number(i.total_qty) || 0), 0)
-
-          const bzQty = (inventory || []).filter(i => {
-            if (i.type !== 'bz' && i.type !== 'wip_bz') return false
-            const nom = nomenclatures.find(n => n.id === i.nomenclature_id)
-            return !nom || nom.type === 'part'
-          }).reduce((a, i) => a + (Number(i.total_qty) || 0), 0)
-
-          const scrapQty = (inventory || []).filter(i => {
-            if (i.type !== 'scrap') return false
-            const nom = nomenclatures.find(n => n.id === i.nomenclature_id)
-            return !nom || nom.type === 'part'
-          }).reduce((a, i) => a + (Number(i.total_qty) || 0), 0)
 
           const isActive = sortingQty > 0
           const cardColor = '#10b981'
@@ -3777,7 +3646,7 @@ export default function Shop1Terminal() {
               }}
               className="s1-stage-card-storage s1-stage-hover">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '28px' }}>
-                <span style={{ fontSize: '0.65rem', fontWeight: 1000, color: cardColor, textTransform: 'uppercase', letterSpacing: '0.12em' }}>ХАБ-СКЛАД ЦЕХУ 1</span>
+                <span className="stage-card-title" style={{ fontSize: '0.65rem', fontWeight: 1000, color: cardColor, textTransform: 'uppercase', letterSpacing: '0.12em' }}>ХАБ-СКЛАД ЦЕХУ 1</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   {isActive && (
                     <div style={{
@@ -3797,11 +3666,11 @@ export default function Shop1Terminal() {
                   { label: 'ПРИЙОМКА', val: receptionQty, color: '#3b82f6' },
                   { label: 'СОРТУВАННЯ', val: realSortingQty, color: '#8b5cf6' },
                 ].map(({ label, val, color }, i) => (
-                  <div key={label} style={i > 0 ? { borderLeft: '1px solid #111', paddingLeft: '6px' } : {}}>
-                    <div style={{ fontSize: '0.45rem', color: '#333', fontWeight: 1000, marginBottom: '2px', textTransform: 'uppercase' }}>{label}</div>
+                  <div key={label} style={i > 0 ? { borderLeft: '1px solid rgba(255,255,255,0.08)', paddingLeft: '6px' } : {}}>
+                    <div className="metric-label" style={{ fontSize: '0.45rem', color: '#6b7280', fontWeight: 1000, marginBottom: '2px', textTransform: 'uppercase' }}>{label}</div>
                     <div style={{
                       fontSize: '1.2rem', fontWeight: 1000, letterSpacing: '-0.02em',
-                      color: val > 0 ? color : '#1a1a1a'
+                      color: val > 0 ? color : '#475569'
                     }}>
                       {val}
                     </div>
@@ -4259,7 +4128,7 @@ export default function Shop1Terminal() {
         </div>
 
         {/* Основний контент */}
-        <div className="content-panel" style={{ flex: 1, minWidth: 0, overflowY: 'auto', padding: '25px 15px', background: '#0a0a0a' }}>
+        <div className="content-panel" style={{ flex: 1, minWidth: 0, overflowY: 'auto', padding: '20px 24px 100px', background: '#0a0a0a' }}>
           {scanError && (
             <div style={{ background: '#ef444420', border: '1px solid #ef444440', borderRadius: '10px', padding: '12px 16px', marginBottom: '18px', display: 'flex', alignItems: 'center', gap: '10px', color: '#ef4444', maxWidth: '680px' }}>
               <AlertTriangle size={16} /> {scanError}
@@ -4277,71 +4146,10 @@ export default function Shop1Terminal() {
         manualCardInput={manualId}
         setManualCardInput={setManualId}
         handleCardScan={async (scannedId) => {
-          let id = String(scannedId || '').trim()
-          if (id.startsWith('CENTRUM_CARD_')) {
-            id = id.replace('CENTRUM_CARD_', '').trim()
+          const success = await processCardScan(scannedId)
+          if (!success) {
+            throw new Error(scanError || 'Картку не знайдено в базі даних')
           }
-
-          const isMachineQR = await handleMachineQRScan(scannedId)
-          if (isMachineQR) return
-
-          const queryLower = id.toLowerCase()
-          const hexSuffix = queryLower.slice(-8)
-
-          let card = workCards.find(c => 
-            String(c.id).trim().toLowerCase() === queryLower ||
-            String(c.id).trim().toLowerCase().endsWith(hexSuffix) ||
-            (c.card_info && c.card_info.toLowerCase().includes(hexSuffix))
-          )
-
-          if (!card) {
-            setIsSyncing(true)
-            const { data: freshCards } = await supabase
-              .from('work_cards')
-              .select('*')
-              .ilike('id', `%${hexSuffix}`)
-
-            const freshCard = (freshCards && freshCards.length > 0) ? freshCards[0] : null
-            setIsSyncing(false)
-
-            if (!freshCard) {
-              const { data: directCard } = await supabase
-                .from('work_cards')
-                .select('*')
-                .eq('id', id)
-                .single()
-
-              if (!directCard) {
-                throw new Error(`Картку №${id.slice(-8).toUpperCase()} не знайдено.`)
-              }
-              card = directCard
-            } else {
-              card = freshCard
-            }
-
-            setWorkCards(prev => prev.some(c => c.id === card.id)
-              ? prev.map(c => c.id === card.id ? { ...c, ...card } : c)
-              : [card, ...prev])
-          }
-
-          // Дозволяємо картки "Нова", ті що в ланцюжку Цеху №1, або в буфері Сортування
-          const isNew = card.status === 'new' || !card.operation || card.operation === 'Нова'
-          const isInChain = CHAIN.includes(card.operation) || String(card.operation).startsWith('Розкрій') || String(card.operation).startsWith('Галтовка') || card.operation === 'Прийомка' || card.operation === 'Сортування'
-          const isSorting = card.status === 'at-buffer' && card.operation === 'Сортування'
-
-          if (!isNew && !isInChain && !isSorting) {
-            throw new Error(`Картка #${card.id.slice(-8).toUpperCase()} — не для Цеху №1 (${card.operation})`)
-          }
-
-          if (card.status === 'completed') {
-            throw new Error(`Картка #${card.id.slice(-8).toUpperCase()} вже завершена`)
-          }
-
-          setScannedIds(prev => prev.includes(card.id) ? prev : [...prev, card.id])
-          setSelectedCardId(card.id)
-          setScanError(null)
-          checkCardMaterials(card)
-          window.scrollTo({ top: 0, behavior: 'smooth' })
         }}
         color="#eab308"
       />

@@ -79,6 +79,7 @@ const ReportsModule = () => {
 
   const [activeTab, setActiveTab] = useState('warehouse')
   const [scrapReportSubTab, setScrapReportSubTab] = useState('cases')
+  const [scrapClassificationsList, setScrapClassificationsList] = useState([])
   const [searchQuery, setSearchQuery] = useState('')
   const [quickPeriod, setQuickPeriod] = useState('')
 
@@ -176,31 +177,25 @@ const ReportsModule = () => {
     const cached = historyRangeCacheRef.current.get(cacheKey)
     if (cached && Date.now() - cached.savedAt < REPORT_CACHE_TTL_MS) return cached.rows
 
-    const columns = scrapOnly
-      ? 'id,nomenclature_id,operator_name,shift_name,stage_name,scrap_qty,qc_scrap_comment,completed_at'
-      : 'id,card_id,nomenclature_id,operator_name,shift_name,stage_name,qty_completed,scrap_qty,qc_scrap_comment,completed_at,created_at,card_info'
-    const applyRange = (query) => {
-      let ranged = query
-      if (startIso) ranged = ranged.gte('completed_at', startIso)
-      if (endExclusiveIso) ranged = ranged.lt('completed_at', endExclusiveIso)
-      if (scrapOnly) ranged = ranged.gt('scrap_qty', 0)
-      return ranged
-    }
+    const columns = 'id,card_id,nomenclature_id,operator_name,shift_name,stage_name,qty_completed,scrap_qty,qc_scrap_comment,completed_at,created_at,card_info'
 
     const pageSize = 1000
     const rows = []
 
-    // Avoid an expensive exact count. Read stable pages until the server returns
-    // the final short page. Sequential reads also cannot expire while queued.
     for (let from = 0; ; from += pageSize) {
-      const result = await applyRange(
-        supabase
-          .from('work_card_history')
-          .select(columns)
-          .order('completed_at', { ascending: false })
-          .order('id', { ascending: false })
-          .range(from, from + pageSize - 1)
-      )
+      let query = supabase
+        .from('work_card_history')
+        .select(columns)
+
+      if (scrapOnly) query = query.gt('scrap_qty', 0)
+      if (startIso) query = query.gte('created_at', startIso)
+      if (endExclusiveIso) query = query.lt('created_at', endExclusiveIso)
+
+      const result = await query
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
+        .range(from, from + pageSize - 1)
+
       if (result.error) throw result.error
       const page = result.data || []
       rows.push(...page)
@@ -232,6 +227,16 @@ const ReportsModule = () => {
 
       if (requestSeq === historyRequestSeqRef.current) {
         setWorkCardHistory(completeHistory)
+      }
+
+      if (scrapOnly) {
+        let classQuery = supabase.from('scrap_classifications').select('*')
+        if (startIso) classQuery = classQuery.gte('created_at', startIso)
+        if (endExclusiveIso) classQuery = classQuery.lt('created_at', endExclusiveIso)
+        const classResult = await classQuery
+        if (!classResult.error && classResult.data && requestSeq === historyRequestSeqRef.current) {
+          setScrapClassificationsList(classResult.data)
+        }
       }
 
       // Reason analytics is optional and considerably heavier. Load it only
@@ -331,10 +336,11 @@ const ReportsModule = () => {
     setQuickPeriod(val);
   };
 
-  const filterByDate = (dateString) => {
+  const filterByDate = (dateString, altDateString = null) => {
     if (!startDate && !endDate) return true;
-    if (!dateString) return false;
-    const d = new Date(dateString);
+    const targetDate = dateString || altDateString
+    if (!targetDate) return true;
+    const d = new Date(targetDate);
     
     if (startDate) {
       const s = new Date(startDate)
@@ -412,7 +418,6 @@ const ReportsModule = () => {
     if (whFilter !== 'all') {
       data = data.filter(i => {
         let w = i.warehouse
-        // Якщо склад не вказаний, визначаємо за типом
         if (!w) {
           if (i.type === 'bz') w = 'sz'
           else if (i.type === 'finished' || i.type === 'product') w = 'sgp'
@@ -420,7 +425,6 @@ const ReportsModule = () => {
           else if (i.type?.startsWith('scrap')) w = 'scrap'
           else w = 'operational'
         } else {
-          // Пріоритетні мапінги для звітів
           if (i.type === 'bz') w = 'sz'
           if (i.type === 'finished' || i.type === 'product') w = 'sgp'
           if (i.type?.startsWith('scrap')) w = 'scrap'
@@ -443,11 +447,8 @@ const ReportsModule = () => {
       data = data.filter(i => String(i.nomenclature_id) === String(itemFilter))
     }
 
-    // Прибираємо нулі (щоб не засмічувати звіт), 
-    // але залишаємо ті, де є резерв, навіть якщо фізично 0 (на всяк випадок)
     data = data.filter(i => (Number(i.total_qty) || 0) > 0 || (Number(i.reserved_qty) || 0) > 0)
 
-    // Grouping by Warehouse -> Type for a professional view
     const grouped = {}
     let totalQtyAll = 0
     let totalResAll = 0
@@ -498,7 +499,6 @@ const ReportsModule = () => {
   const employeeStats = useMemo(() => {
     const stats = {};
     
-    // Initialize stats
     systemUsers.forEach(u => {
       stats[u.login] = { 
         name: `${u.first_name} ${u.last_name}`, 
@@ -514,11 +514,9 @@ const ReportsModule = () => {
       };
     });
 
-    // Add Work Card History
     workCardHistory
-      .filter(h => filterByDate(h.completed_at) && (selectedShiftFilter === 'all' || h.shift_name === selectedShiftFilter))
+      .filter(h => filterByDate(h.completed_at, h.created_at) && (selectedShiftFilter === 'all' || h.shift_name === selectedShiftFilter))
       .forEach(h => {
-        // Match by exact login or try to match name loosely
         const user = systemUsers.find(u => u.login === h.operator_name || `${u.first_name} ${u.last_name}` === h.operator_name);
         const key = user ? user.login : h.operator_name;
         
@@ -530,7 +528,6 @@ const ReportsModule = () => {
         stats[key].scrap += Number(h.scrap_qty) || 0;
         stats[key].operations += 1;
 
-        // Extract categories if present
         if (h.qc_scrap_comment && h.qc_scrap_comment.includes('SCRAP_CAT:')) {
           try {
             const match = h.qc_scrap_comment.match(/\[SCRAP_CAT:([^\]]+)\]/);
@@ -552,10 +549,19 @@ const ReportsModule = () => {
 
   // 3. Scrap Report
   const scrapStats = useMemo(() => {
-    const list = workCardHistory
-      .filter(h => Number(h.scrap_qty) > 0 && filterByDate(h.completed_at) && (selectedShiftFilter === 'all' || h.shift_name === selectedShiftFilter) && matchesOperator(h.operator_name, selectedEmployeeFilter))
+    let totalScrapFromHistory = 0
+    let totalScrapFromClassifications = 0
+    let totalCat123 = 0
+    let totalCat4 = 0
+    let totalQuarantine = 0
+    let totalUnclassified = 0
+
+    const historyList = workCardHistory
+      .filter(h => Number(h.scrap_qty) > 0 && filterByDate(h.completed_at, h.created_at) && (selectedShiftFilter === 'all' || h.shift_name === selectedShiftFilter) && matchesOperator(h.operator_name, selectedEmployeeFilter))
       .map(h => {
         const nom = nomenclatures.find(n => n.id === h.nomenclature_id);
+        const qtyScrap = Number(h.scrap_qty) || 0
+        totalScrapFromHistory += qtyScrap
         
         let cat1 = 0, cat2 = 0, cat3 = 0, cat4 = 0;
         if (h.qc_scrap_comment && h.qc_scrap_comment.includes('SCRAP_CAT:')) {
@@ -572,30 +578,65 @@ const ReportsModule = () => {
         }
         
         const totalClassified = cat1 + cat2 + cat3 + cat4;
-        const unclassified = Math.max(0, Number(h.scrap_qty) - totalClassified);
+        const unclassified = Math.max(0, qtyScrap - totalClassified);
+
+        totalCat123 += (cat1 + cat2);
+        totalQuarantine += cat3;
+        totalCat4 += cat4;
+        totalUnclassified += unclassified;
 
         return {
-          ...h,
+          id: h.id,
+          dateForSort: h.completed_at || h.created_at,
           nom_name: nom ? nom.name : 'Невідома деталь',
-          cat1,
-          cat2,
-          cat3,
-          cat4,
-          unclassified
+          operator_name: h.operator_name || 'Не вказано',
+          stage_name: h.stage_name || 'Невказаний етап',
+          cat1, cat2, cat3, cat4, unclassified,
+          scrap_qty: qtyScrap
         };
-      })
-      .filter(h => !searchQuery || h.nom_name.toLowerCase().includes(searchQuery.toLowerCase()) || h.operator_name.toLowerCase().includes(searchQuery.toLowerCase()))
-      .sort((a, b) => new Date(b.completed_at) - new Date(a.completed_at));
+      });
 
-    const totalScrap = list.reduce((acc, curr) => acc + Number(curr.scrap_qty), 0);
-    
+    const classificationsList = (scrapClassificationsList || [])
+      .filter(c => filterByDate(c.classified_at, c.created_at) && matchesOperator(c.source_operator_name, selectedEmployeeFilter))
+      .map(c => {
+        const nom = nomenclatures.find(n => n.id === c.nomenclature_id);
+        const qtyScrap = Number(c.quantity) || 0
+        totalScrapFromClassifications += qtyScrap
+
+        return {
+          id: `class-${c.id}`,
+          dateForSort: c.classified_at || c.created_at,
+          nom_name: nom ? nom.name : ('Деталь ' + (c.order_number || '')),
+          operator_name: c.source_operator_name || 'Оператор',
+          stage_name: c.source_stage_name || 'Контроль ВКЯ',
+          cat1: 0, cat2: 0, cat3: 0, cat4: qtyScrap, unclassified: 0,
+          scrap_qty: qtyScrap
+        };
+      });
+
+    const displayList = classificationsList.length > 0 ? classificationsList : historyList
+    const list = displayList
+      .filter(h => !searchQuery || h.nom_name.toLowerCase().includes(searchQuery.toLowerCase()) || (h.operator_name || '').toLowerCase().includes(searchQuery.toLowerCase()))
+      .sort((a, b) => new Date(b.dateForSort || 0) - new Date(a.dateForSort || 0));
+
+    const totalScrap = Math.max(totalScrapFromClassifications, totalScrapFromHistory);
+
     const byStage = list.reduce((acc, curr) => {
-      acc[curr.stage_name] = (acc[curr.stage_name] || 0) + Number(curr.scrap_qty);
+      const stName = curr.stage_name || 'Інше'
+      acc[stName] = (acc[stName] || 0) + Number(curr.scrap_qty);
       return acc;
     }, {});
 
-    return { list, totalScrap, byStage };
-  }, [workCardHistory, nomenclatures, startDate, endDate, searchQuery, selectedShiftFilter, selectedEmployeeFilter])
+    return { 
+      list, 
+      totalScrap, 
+      totalCat123, 
+      totalCat4, 
+      totalQuarantine, 
+      totalUnclassified,
+      byStage 
+    };
+  }, [workCardHistory, scrapClassificationsList, nomenclatures, startDate, endDate, searchQuery, selectedShiftFilter, selectedEmployeeFilter])
 
   // 3.1. Scrap Reasons Analytics
   const scrapReasonsStats = useMemo(() => {
@@ -912,27 +953,53 @@ const ReportsModule = () => {
       });
     });
 
-    // Використано фрез з історії деталей
+    // Використано фрез з історії деталей та нарядів
     workCardHistory
       .filter(h => filterByDate(h.completed_at) && (selectedShiftFilter === 'all' || h.shift_name === selectedShiftFilter) && matchesOperator(h.operator_name, selectedEmployeeFilter))
       .forEach(h => {
-        if (h.card_info && h.card_info.includes('[CUTTERS_BREAKDOWN:')) {
+        const info = String(h.card_info || '')
+        const markerIdx = info.indexOf('[CUTTERS_BREAKDOWN:')
+        if (markerIdx !== -1) {
           try {
-            const match = h.card_info.match(/\[CUTTERS_BREAKDOWN:({.*?})\]/);
-            if (match && match[1]) {
-              const breakdown = JSON.parse(match[1]);
-              Object.entries(breakdown).forEach(([cutterName, qty]) => {
-                const cleanCutterName = cutterName.trim();
-                if (stats[cleanCutterName]) {
-                  stats[cleanCutterName].used += Number(qty) || 0;
+            const start = markerIdx + '[CUTTERS_BREAKDOWN:'.length
+            let depth = 0
+            let end = -1
+            for (let i = start; i < info.length; i++) {
+              if (info[i] === '{') depth++
+              else if (info[i] === '}') {
+                depth--
+                if (depth === 0) {
+                  end = i + 1
+                  break
                 }
-              });
+              }
+            }
+            if (end !== -1) {
+              const jsonStr = info.substring(start, end)
+              const breakdown = JSON.parse(jsonStr)
+              Object.entries(breakdown).forEach(([cutterName, qty]) => {
+                const cleanCutterName = cutterName.trim()
+                if (stats[cleanCutterName]) {
+                  stats[cleanCutterName].used += Number(qty) || 0
+                }
+              })
             }
           } catch (e) {
-            // ignore
+            // fallback
           }
         }
       });
+
+    // Додаємо витрати фрез із складських вимог (requests)
+    (requests || []).filter(r => (r.status === 'issued' || r.status === 'completed') && filterByDate(r.created_at)).forEach(r => {
+      const nom = nomenclatures.find(n => String(n.id) === String(r.nomenclature_id))
+      if (nom && nom.type === 'consumable' && nom.name.toLowerCase().includes('фреза')) {
+        const cleanName = nom.name.trim()
+        if (stats[cleanName]) {
+          stats[cleanName].used += Number(r.quantity || 0)
+        }
+      }
+    });
 
     // Фактично на Складі
     (inventory || []).forEach(i => {
@@ -949,7 +1016,7 @@ const ReportsModule = () => {
     return Object.values(stats)
       .filter(s => (s.supplied > 0 || s.used > 0 || s.actual > 0) && (!searchQuery || s.name.toLowerCase().includes(searchQuery.toLowerCase())))
       .sort((a, b) => b.used - a.used);
-  }, [receptionDocs, workCardHistory, inventory, nomenclatures, startDate, endDate, searchQuery]);
+  }, [receptionDocs, requests, workCardHistory, inventory, nomenclatures, startDate, endDate, searchQuery, selectedShiftFilter, selectedEmployeeFilter]);
 
   const renderTabContent = () => {
     switch (activeTab) {
@@ -1176,117 +1243,155 @@ const ReportsModule = () => {
         if (historyLoadError) {
           return <div className="glass-panel" style={{ background: '#111', padding: '25px', borderRadius: '16px', border: '1px solid #7f1d1d', color: '#fca5a5' }}>Не вдалося завантажити звіт: {historyLoadError}</div>
         }
+
+        const invScrapCat123 = (inventory || []).filter(i => ['scrap_cat_1', 'scrap_cat_2', 'scrap_cat_3'].includes(i?.type)).reduce((s, i) => s + (Number(i?.total_qty) || 0), 0)
+        const invScrapCat4 = (inventory || []).filter(i => i?.type === 'scrap_cat_4').reduce((s, i) => s + (Number(i?.total_qty) || 0), 0)
+        const totalQuarantinePending = scrapStats.totalUnclassified + scrapStats.totalQuarantine
+        const totalOverallScrap = Math.max(scrapStats.totalScrap, invScrapCat4 + invScrapCat123 + totalQuarantinePending)
+
         return (
-          <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              <div className="glass-panel" style={{ background: '#111', padding: '20px', borderRadius: '16px', border: '1px solid #222' }}>
-                <h3 style={{ margin: '0 0 15px', color: '#ef4444', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <AlertTriangle size={18} /> Загальний облік браку
-                </h3>
-                <div style={{ fontSize: '2.5rem', fontWeight: 950, color: '#fff', lineHeight: 1 }}>{scrapStats.totalScrap} <span style={{ fontSize: '1rem', color: '#666', fontWeight: 600 }}>од.</span></div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
+            {/* TOP KPI DASHBOARD */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
+              <div className="glass-panel" style={{ background: '#111', padding: '20px', borderRadius: '16px', border: '1px solid #222', borderLeft: '4px solid #ef4444' }}>
+                <div style={{ fontSize: '0.7rem', color: '#888', textTransform: 'uppercase', fontWeight: 800, marginBottom: '8px' }}>Зафіксовано браку всього</div>
+                <div style={{ fontSize: '2.2rem', fontWeight: 950, color: '#ef4444', lineHeight: 1 }}>{totalOverallScrap} <span style={{ fontSize: '0.9rem', color: '#888', fontWeight: 600 }}>од.</span></div>
+                <div style={{ fontSize: '0.75rem', color: '#666', marginTop: '8px' }}>Сума (Утиль + Доопрацювання + Карантин)</div>
               </div>
 
-              <div className="glass-panel" style={{ background: '#111', padding: '20px', borderRadius: '16px', border: '1px solid #222' }}>
-                 <h4 style={{ margin: '0 0 15px', fontSize: '0.8rem', color: '#888', textTransform: 'uppercase' }}>Брак по етапах</h4>
-                 {Object.entries(scrapStats.byStage).map(([stage, count]) => (
-                   <div key={stage} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', padding: '10px', background: '#0a0a0a', borderRadius: '8px' }}>
-                     <span style={{ color: '#ccc', fontSize: '0.85rem' }}>{stage}</span>
-                     <strong style={{ color: '#ef4444' }}>{count} од.</strong>
-                   </div>
-                 ))}
+              <div className="glass-panel" style={{ background: '#111', padding: '20px', borderRadius: '16px', border: '1px solid #222', borderLeft: '4px solid #eab308' }}>
+                <div style={{ fontSize: '0.7rem', color: '#888', textTransform: 'uppercase', fontWeight: 800, marginBottom: '8px' }}>Брак на доопрацювання</div>
+                <div style={{ fontSize: '2.2rem', fontWeight: 950, color: '#eab308', lineHeight: 1 }}>{invScrapCat123 || scrapStats.totalCat123} <span style={{ fontSize: '0.9rem', color: '#888', fontWeight: 600 }}>од.</span></div>
+                <div style={{ fontSize: '0.75rem', color: '#666', marginTop: '8px' }}>Складський залишок доопрацювання</div>
+              </div>
+
+              <div className="glass-panel" style={{ background: '#111', padding: '20px', borderRadius: '16px', border: '1px solid #222', borderLeft: '4px solid #dc2626' }}>
+                <div style={{ fontSize: '0.7rem', color: '#888', textTransform: 'uppercase', fontWeight: 800, marginBottom: '8px' }}>Повний утиль</div>
+                <div style={{ fontSize: '2.2rem', fontWeight: 950, color: '#dc2626', lineHeight: 1 }}>{invScrapCat4 || scrapStats.totalCat4} <span style={{ fontSize: '0.9rem', color: '#888', fontWeight: 600 }}>од.</span></div>
+                <div style={{ fontSize: '0.75rem', color: '#666', marginTop: '8px' }}>Загальний утиль у базі даних</div>
+              </div>
+
+              <div className="glass-panel" style={{ background: '#111', padding: '20px', borderRadius: '16px', border: '1px solid #222', borderLeft: '4px solid #f97316' }}>
+                <div style={{ fontSize: '0.7rem', color: '#888', textTransform: 'uppercase', fontWeight: 800, marginBottom: '8px' }}>Не класифіковано / Карантин</div>
+                <div style={{ fontSize: '2.2rem', fontWeight: 950, color: '#f97316', lineHeight: 1 }}>{scrapStats.totalUnclassified + scrapStats.totalQuarantine} <span style={{ fontSize: '0.9rem', color: '#888', fontWeight: 600 }}>од.</span></div>
+                <div style={{ fontSize: '0.75rem', color: '#666', marginTop: '8px' }}>Очікують рішення інспектора ВКЯ</div>
               </div>
             </div>
 
-            <div className="glass-panel" style={{ flex: 2, background: '#111', padding: '20px', borderRadius: '16px', border: '1px solid #222' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', borderBottom: '1px solid #222', paddingBottom: '10px' }}>
-                <h4 style={{ margin: 0, fontSize: '0.8rem', color: '#888', textTransform: 'uppercase' }}>
-                  {scrapReportSubTab === 'cases' ? 'Деталізація випадків' : 'Аналітика причин браку'}
-                </h4>
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  <button 
-                    onClick={() => setScrapReportSubTab('cases')}
-                    style={{
-                      background: scrapReportSubTab === 'cases' ? '#ef4444' : 'transparent',
-                      color: '#fff', border: scrapReportSubTab === 'cases' ? 'none' : '1px solid #333',
-                      padding: '5px 12px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 800, cursor: 'pointer'
-                    }}
-                  >
-                    Випадки
-                  </button>
-                  <button 
-                    onClick={() => setScrapReportSubTab('reasons')}
-                    style={{
-                      background: scrapReportSubTab === 'reasons' ? '#ef4444' : 'transparent',
-                      color: '#fff', border: scrapReportSubTab === 'reasons' ? 'none' : '1px solid #333',
-                      padding: '5px 12px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 800, cursor: 'pointer'
-                    }}
-                  >
-                    Причини браку
-                  </button>
+            <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+              <div style={{ width: '300px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <div className="glass-panel" style={{ background: '#111', padding: '20px', borderRadius: '16px', border: '1px solid #222' }}>
+                   <h4 style={{ margin: '0 0 15px', fontSize: '0.8rem', color: '#888', textTransform: 'uppercase', fontWeight: 900 }}>Брак по етапах виникнення</h4>
+                   {Object.entries(scrapStats.byStage).map(([stage, count]) => (
+                     <div key={stage} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', padding: '10px', background: '#0a0a0a', borderRadius: '8px', border: '1px solid #1a1a1a' }}>
+                       <span style={{ color: '#ccc', fontSize: '0.85rem', fontWeight: 700 }}>{stage}</span>
+                       <strong style={{ color: '#ef4444', fontSize: '0.9rem' }}>{count} од.</strong>
+                     </div>
+                   ))}
+                   {Object.keys(scrapStats.byStage).length === 0 && (
+                     <div style={{ color: '#555', fontSize: '0.85rem' }}>Немає даних за обраний період</div>
+                   )}
                 </div>
               </div>
 
-              {scrapReportSubTab === 'cases' ? (
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
-                  <thead>
-                    <tr style={{ color: '#555', textAlign: 'left', borderBottom: '2px solid #222' }}>
-                      <th style={{ padding: '10px' }}>Дата</th>
-                      <th style={{ padding: '10px' }}>Деталь</th>
-                      <th style={{ padding: '10px' }}>Оператор</th>
-                      <th style={{ padding: '10px' }}>Етап</th>
-                      <th style={{ padding: '10px', textAlign: 'center', color: '#eab308' }}>Брак</th>
-                      <th style={{ padding: '10px', textAlign: 'center', color: '#f97316' }}>Карантин</th>
-                      <th style={{ padding: '10px', textAlign: 'center', color: '#ef4444' }}>Утиль</th>
-                      <th style={{ padding: '10px', textAlign: 'center', color: '#666' }}>Не класиф.</th>
-                      <th style={{ padding: '10px', textAlign: 'right' }}>Всього</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {scrapStats.list.map(h => (
-                      <tr key={h.id} style={{ borderBottom: '1px solid #1a1a1a' }}>
-                        <td style={{ padding: '10px', color: '#888' }}>{new Date(h.completed_at).toLocaleDateString()}</td>
-                        <td style={{ padding: '10px', color: '#fff', fontWeight: 700 }}>{h.nom_name}</td>
-                        <td style={{ padding: '10px', color: '#aaa' }}>{h.operator_name}</td>
-                        <td style={{ padding: '10px', color: '#aaa' }}>{h.stage_name}</td>
-                        <td style={{ padding: '10px', textAlign: 'center', color: h.cat1 + h.cat2 > 0 ? '#eab308' : '#444', fontWeight: h.cat1 + h.cat2 > 0 ? '900' : '400' }}>{h.cat1 + h.cat2 || '—'}</td>
-                        <td style={{ padding: '10px', textAlign: 'center', color: h.cat3 > 0 ? '#f97316' : '#444', fontWeight: h.cat3 > 0 ? '900' : '400' }}>{h.cat3 || '—'}</td>
-                        <td style={{ padding: '10px', textAlign: 'center', color: h.cat4 > 0 ? '#ef4444' : '#444', fontWeight: h.cat4 > 0 ? '900' : '400' }}>{h.cat4 || '—'}</td>
-                        <td style={{ padding: '10px', textAlign: 'center', color: h.unclassified > 0 ? '#888' : '#333', fontWeight: h.unclassified > 0 ? '700' : '400' }}>{h.unclassified || '—'}</td>
-                        <td style={{ padding: '10px', textAlign: 'right', color: '#ef4444', fontWeight: 900 }}>{h.scrap_qty}</td>
-                      </tr>
-                    ))}
-                    {scrapStats.list.length === 0 && (
-                      <tr><td colSpan="9" style={{ padding: '20px', textAlign: 'center', color: '#555' }}>Брак відсутній за обраний період</td></tr>
-                    )}
-                  </tbody>
-                </table>
-              ) : (
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
-                  <thead>
-                    <tr style={{ color: '#555', textAlign: 'left', borderBottom: '2px solid #222' }}>
-                      <th style={{ padding: '10px' }}>Причина браку</th>
-                      <th style={{ padding: '10px', textAlign: 'center' }}>Кількість деталей (шт)</th>
-                      <th style={{ padding: '10px', textAlign: 'center' }}>Відсоток (%)</th>
-                      <th style={{ padding: '10px' }}>Найчастіша деталь</th>
-                      <th style={{ padding: '10px', textAlign: 'right' }}>Найчастіший оператор</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {scrapReasonsStats.map((item, idx) => (
-                      <tr key={idx} style={{ borderBottom: '1px solid #1a1a1a' }}>
-                        <td style={{ padding: '12px 10px', color: '#fff', fontWeight: 700 }}>{item.name}</td>
-                        <td style={{ padding: '12px 10px', textAlign: 'center', color: '#ef4444', fontWeight: 900 }}>{item.quantity}</td>
-                        <td style={{ padding: '12px 10px', textAlign: 'center', color: '#888' }}>{item.percentage}%</td>
-                        <td style={{ padding: '12px 10px', color: '#aaa' }}>{item.topItem}</td>
-                        <td style={{ padding: '12px 10px', textAlign: 'right', color: '#aaa' }}>{item.topOperator}</td>
-                      </tr>
-                    ))}
-                    {scrapReasonsStats.length === 0 && (
-                      <tr><td colSpan="5" style={{ padding: '20px', textAlign: 'center', color: '#555' }}>Немає класифікованого браку за обраний період</td></tr>
-                    )}
-                  </tbody>
-                </table>
-              )}
+              <div className="glass-panel" style={{ flex: 1, minWidth: '600px', background: '#111', padding: '20px', borderRadius: '16px', border: '1px solid #222' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', borderBottom: '1px solid #222', paddingBottom: '12px' }}>
+                  <h4 style={{ margin: 0, fontSize: '0.85rem', color: '#fff', textTransform: 'uppercase', fontWeight: 900 }}>
+                    {scrapReportSubTab === 'cases' ? '📋 Деталізація всіх випадків браку' : '🎯 Аналітика причин браку'}
+                  </h4>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <button 
+                      onClick={() => setScrapReportSubTab('cases')}
+                      style={{
+                        background: scrapReportSubTab === 'cases' ? '#ef4444' : 'transparent',
+                        color: '#fff', border: scrapReportSubTab === 'cases' ? 'none' : '1px solid #333',
+                        padding: '6px 14px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer'
+                      }}
+                    >
+                      Випадки
+                    </button>
+                    <button 
+                      onClick={() => setScrapReportSubTab('reasons')}
+                      style={{
+                        background: scrapReportSubTab === 'reasons' ? '#ef4444' : 'transparent',
+                        color: '#fff', border: scrapReportSubTab === 'reasons' ? 'none' : '1px solid #333',
+                        padding: '6px 14px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer'
+                      }}
+                    >
+                      Причини браку
+                    </button>
+                  </div>
+                </div>
+
+                {scrapReportSubTab === 'cases' ? (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                      <thead>
+                        <tr style={{ color: '#888', textAlign: 'left', borderBottom: '2px solid #222', background: '#0a0a0a' }}>
+                          <th style={{ padding: '12px 10px' }}>Дата</th>
+                          <th style={{ padding: '12px 10px' }}>Деталь</th>
+                          <th style={{ padding: '12px 10px' }}>Оператор</th>
+                          <th style={{ padding: '12px 10px' }}>Етап</th>
+                          <th style={{ padding: '12px 10px', textAlign: 'center', color: '#eab308' }}>Брак</th>
+                          <th style={{ padding: '12px 10px', textAlign: 'center', color: '#f97316' }}>Карантин</th>
+                          <th style={{ padding: '12px 10px', textAlign: 'center', color: '#ef4444' }}>Утиль</th>
+                          <th style={{ padding: '12px 10px', textAlign: 'center', color: '#666' }}>Не класиф.</th>
+                          <th style={{ padding: '12px 10px', textAlign: 'right' }}>Всього</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {scrapStats.list.map(h => {
+                          const dateDisplay = h.completed_at || h.created_at ? new Date(h.completed_at || h.created_at).toLocaleDateString('uk-UA') : '—'
+                          return (
+                            <tr key={h.id} style={{ borderBottom: '1px solid #1a1a1a' }}>
+                              <td style={{ padding: '10px', color: '#888', whiteSpace: 'nowrap' }}>{dateDisplay}</td>
+                              <td style={{ padding: '10px', color: '#fff', fontWeight: 700 }}>{h.nom_name}</td>
+                              <td style={{ padding: '10px', color: '#aaa' }}>{h.operator_name || 'Не вказано'}</td>
+                              <td style={{ padding: '10px', color: '#aaa' }}>{h.stage_name}</td>
+                              <td style={{ padding: '10px', textAlign: 'center', color: h.cat1 + h.cat2 > 0 ? '#eab308' : '#444', fontWeight: h.cat1 + h.cat2 > 0 ? '900' : '400' }}>{h.cat1 + h.cat2 || '—'}</td>
+                              <td style={{ padding: '10px', textAlign: 'center', color: h.cat3 > 0 ? '#f97316' : '#444', fontWeight: h.cat3 > 0 ? '900' : '400' }}>{h.cat3 || '—'}</td>
+                              <td style={{ padding: '10px', textAlign: 'center', color: h.cat4 > 0 ? '#ef4444' : '#444', fontWeight: h.cat4 > 0 ? '900' : '400' }}>{h.cat4 || '—'}</td>
+                              <td style={{ padding: '10px', textAlign: 'center', color: h.unclassified > 0 ? '#888' : '#333', fontWeight: h.unclassified > 0 ? '700' : '400' }}>{h.unclassified || '—'}</td>
+                              <td style={{ padding: '10px', textAlign: 'right', color: '#ef4444', fontWeight: 900 }}>{h.scrap_qty}</td>
+                            </tr>
+                          )
+                        })}
+                        {scrapStats.list.length === 0 && (
+                          <tr><td colSpan="9" style={{ padding: '25px', textAlign: 'center', color: '#555' }}>Брак відсутній за обраний період</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                      <thead>
+                        <tr style={{ color: '#888', textAlign: 'left', borderBottom: '2px solid #222', background: '#0a0a0a' }}>
+                          <th style={{ padding: '12px 10px' }}>Причина браку</th>
+                          <th style={{ padding: '12px 10px', textAlign: 'center' }}>Кількість деталей (шт)</th>
+                          <th style={{ padding: '12px 10px', textAlign: 'center' }}>Відсоток (%)</th>
+                          <th style={{ padding: '12px 10px' }}>Найчастіша деталь</th>
+                          <th style={{ padding: '12px 10px', textAlign: 'right' }}>Найчастіший оператор</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {scrapReasonsStats.map((item, idx) => (
+                          <tr key={idx} style={{ borderBottom: '1px solid #1a1a1a' }}>
+                            <td style={{ padding: '12px 10px', color: '#fff', fontWeight: 700 }}>{item.name}</td>
+                            <td style={{ padding: '12px 10px', textAlign: 'center', color: '#ef4444', fontWeight: 900 }}>{item.quantity}</td>
+                            <td style={{ padding: '12px 10px', textAlign: 'center', color: '#888' }}>{item.percentage}%</td>
+                            <td style={{ padding: '12px 10px', color: '#aaa' }}>{item.topItem}</td>
+                            <td style={{ padding: '12px 10px', textAlign: 'right', color: '#aaa' }}>{item.topOperator}</td>
+                          </tr>
+                        ))}
+                        {scrapReasonsStats.length === 0 && (
+                          <tr><td colSpan="5" style={{ padding: '25px', textAlign: 'center', color: '#555' }}>Немає класифікованого браку за обраний період</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         );

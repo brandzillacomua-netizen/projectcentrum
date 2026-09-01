@@ -12,12 +12,12 @@ export function useCardGeneration({ mes }) {
     machines = [],
     workCards = [],
     createWorkCardsBatch,
-    fetchData,
-    createDovypuskMaterialRequests
+    fetchData
   } = mes
+  const createDovypuskMaterialRequests = mes.createDovypuskMaterialRequests || mes.createDovyпускMaterialRequests
 
   const handleGenerateCards = async (
-    task, part, sheets, selectedMachineName, count, localGeneratedCount = 0, totalToReach = 0, isRepair = false, globalTotalCards = null, globalSeqOffset = 0, customCapacity = null, maxSheetsToGenerate = null, onCardsGenerated = null
+    task, part, sheets, selectedMachineName, count, localGeneratedCount = 0, totalToReach = 0, isRepair = false, globalTotalCards = null, globalSeqOffset = 0, customCapacity = null, maxSheetsToGenerate = null, onCardsGenerated = null, selectedCutters = null
   ) => {
     if (generatingLockRef.current) {
       console.warn("[GEN] BLOCKED: Generation already in progress, ignoring duplicate call.")
@@ -25,11 +25,36 @@ export function useCardGeneration({ mes }) {
     }
     generatingLockRef.current = true
 
+    const targetNomId = part?.nomId || part?.id || part?.nom?.id
+    const resolvedPartNom = part?.nom || (mes.nomenclatures || []).find(n => String(n.id) === String(targetNomId)) || { id: targetNomId, name: part?.name, material_type: part?.material }
+    const nomId = resolvedPartNom?.id || targetNomId
+
+    // Persist selectedCutters to task plan_snapshot if provided
+    if (selectedCutters && Object.keys(selectedCutters).length > 0) {
+      try {
+        const nomKey = String(nomId)
+        const existingSnap = task.plan_snapshot || {}
+        const partSnap = existingSnap[nomKey] || {}
+        const updatedSnap = {
+          ...existingSnap,
+          selectedCutters: { ...(existingSnap.selectedCutters || {}), ...selectedCutters },
+          [nomKey]: {
+            ...partSnap,
+            selected_cutters: { ...(partSnap.selected_cutters || {}), ...selectedCutters }
+          }
+        }
+        task.plan_snapshot = updatedSnap
+        await supabase.from('tasks').update({ plan_snapshot: updatedSnap }).eq('id', task.id)
+      } catch (snapErr) {
+        console.warn('[CARD_GEN] Could not persist selectedCutters to task plan_snapshot:', snapErr)
+      }
+    }
+
     const baseName = (selectedMachineName || '').split(' №')[0].trim()
     let machineObj = machines.find(m => m.name === baseName) || machines.find(m => m.name === selectedMachineName)
     
     const capacity = customCapacity !== null ? Number(customCapacity) : (Number(machineObj?.sheet_capacity) || 1)
-    const unitsPerSheet = Number(part.nom?.units_per_sheet) || 1
+    const unitsPerSheet = Number(resolvedPartNom?.units_per_sheet || part?.unitsPerSheet) || 1
 
     const maxCardsForThisSplit = Math.ceil(sheets / capacity)
     const displayTotal = globalTotalCards || maxCardsForThisSplit
@@ -50,7 +75,7 @@ export function useCardGeneration({ mes }) {
           .from('work_cards')
           .select('id, is_rework, operation, card_info, quantity')
           .eq('task_id', task.id)
-          .eq('nomenclature_id', part.nom?.id)
+          .eq('nomenclature_id', nomId)
         if (!error && data) {
           dbCardsForRenumber = data.filter(c => !c.is_rework && c.operation !== 'Склад БЗ')
         }
@@ -61,13 +86,13 @@ export function useCardGeneration({ mes }) {
 
     const existingNomenclatureCards = (workCards || []).filter(wc =>
       String(wc.task_id) === String(task.id) &&
-      String(wc.nomenclature_id) === String(part.nom?.id)
+      String(wc.nomenclature_id) === String(nomId)
     )
 
     let maxExistingSeq = 0
     const cardsForSequence = !isRepair && dbCardsForRenumber.length > 0 ? dbCardsForRenumber : existingNomenclatureCards
     cardsForSequence.forEach(wc => {
-      const match = (wc.card_info || '').match(/(\d+)\/(\d+)/)
+      const match = (wc.card_info || '').match(/(\d+)\/(\d+)/) || (wc.card_info || '').match(/№(\d+)/)
       if (match) {
         const seq = parseInt(match[1])
         if (seq > maxExistingSeq) maxExistingSeq = seq
@@ -99,7 +124,7 @@ export function useCardGeneration({ mes }) {
       if (maxSheetsToGenerate !== null && maxSheetsToGenerate !== undefined) {
         sheetsRemainingForThisSplit = Math.min(sheetsRemainingForThisSplit, Math.max(0, Number(maxSheetsToGenerate) || 0))
       }
-      const snapshotEntry = task.plan_snapshot?.[String(part.nom?.id)]
+      const snapshotEntry = task.plan_snapshot?.[String(nomId)]
       const originalNeed = snapshotEntry?.need || totalToReach || 0
 
       let reqRemainingForThisSplit = isRepair
@@ -107,8 +132,11 @@ export function useCardGeneration({ mes }) {
         : originalNeed - actualGeneratedRequiredQty
       if (reqRemainingForThisSplit < 0) reqRemainingForThisSplit = 0
 
+      const totalCardsForTask = Math.max(startSeqForThisBatch + finalCount - 1, 1)
+
       for (let i = 1; i <= finalCount; i++) {
-        const currentSeq = startSeqForThisBatch + (i - 1)
+        const currentSeqNum = startSeqForThisBatch + (i - 1)
+        const currentSeq = `${currentSeqNum}/${totalCardsForTask}`
         const sheetsInThisLoading = Math.min(sheetsRemainingForThisSplit, capacity)
         if (sheetsInThisLoading <= 0) break
         const qtyInThisLoading = Math.ceil(sheetsInThisLoading * unitsPerSheet)
@@ -119,12 +147,12 @@ export function useCardGeneration({ mes }) {
         cardsBatch.push({
           operation: 'Розкрій',
           machine: selectedMachineName || 'Не вказано',
-          estimatedTime: (Number(part.nom?.time_per_unit) || 0) * reqInThisLoading * 60,
-          cardInfo: `${prefix}${currentSeq}/${displayTotal}${originalNeed > 0 ? ` [NEED:${originalNeed}]` : ''} [REQ:${reqInThisLoading}] [BZ:${bzInThisLoading}]`,
+          estimatedTime: Math.round((Number(resolvedPartNom?.time_per_unit) || 0) * reqInThisLoading * 60),
+          cardInfo: `${prefix}№${currentSeq}${originalNeed > 0 ? ` [NEED:${originalNeed}]` : ''} [REQ:${reqInThisLoading}] [BZ:${bzInThisLoading}]`,
           quantity: qtyInThisLoading,
           bufferQty: bzInThisLoading,
           actualSheets: sheetsInThisLoading,
-          status: isRepair ? 'waiting-materials' : 'new',
+          status: 'waiting-cutters',
           is_rework: isRepair
         })
 
@@ -137,27 +165,28 @@ export function useCardGeneration({ mes }) {
         throw new Error('Немає листів для довипуску. Перевірте розрахунок нестачі.')
       }
 
-      const createdCards = await apiService.submitCreateWorkCardsBatch(task.id, task.order_id, part.nom.id, cardsBatch, createWorkCardsBatch)
+      const createdCards = await apiService.submitCreateWorkCardsBatch(task.id, task.order_id, nomId, cardsBatch, createWorkCardsBatch)
 
-      if (!isRepair && dbCardsForRenumber.length > 0) {
-        const renumberUpdates = dbCardsForRenumber.map(card => {
-          const currentInfo = String(card.card_info || '')
-          const normalizedInfo = currentInfo.replace(/(\d+)\s*\/\s*(\d+)/, (_, sequence) => `${sequence}/${displayTotal}`)
-          if (normalizedInfo === currentInfo) return null
-          return supabase.from('work_cards').update({ card_info: normalizedInfo }).eq('id', card.id)
-        }).filter(Boolean)
-        if (renumberUpdates.length > 0) await Promise.all(renumberUpdates)
-      }
+      const createDovypuskFn = mes.createDovypuskMaterialRequests || mes.createDovyпускMaterialRequests || mes['createDovyпускMaterialRequests']
+      console.log('[CARD_GEN_REQ_DEBUG]', { hasFn: typeof createDovypuskFn === 'function', sheets, cardsBatchCount: cardsBatch.length, createdCardsCount: createdCards?.length })
 
-      if (isRepair && sheets > 0 && typeof createDovypuskMaterialRequests === 'function') {
-        for (let idx = 0; idx < cardsBatch.length; idx += 1) {
-          const batchItem = cardsBatch[idx]
-          const createdCard = createdCards?.[idx]
+      // Send ONE consolidated cutter request for the whole batch.
+      // Sheet requests are created at task creation time — not here.
+      if (typeof createDovypuskFn === 'function') {
+        const totalSheetsForBatch = cardsBatch.reduce((sum, batchItem) => {
           const cardSheets = Number(batchItem.actualSheets || batchItem.sheets)
-          const sheetsForCard = cardSheets > 0 ? cardSheets : Math.ceil((Number(batchItem.quantity) || 0) / unitsPerSheet)
-          const qtyForCard = Number(batchItem.quantity) || 0
-          if (sheetsForCard <= 0 || qtyForCard <= 0) continue
-          await createDovypuskMaterialRequests(task.id, task.order_id, part.nom, sheetsForCard, qtyForCard, batchItem.machine || selectedMachineName, createdCard?.id || null)
+          return sum + (cardSheets > 0 ? cardSheets : Math.ceil((Number(batchItem.quantity) || 0) / unitsPerSheet))
+        }, 0)
+        const totalQtyForBatch = cardsBatch.reduce((sum, batchItem) => sum + (Number(batchItem.quantity) || 0), 0)
+
+        if (totalSheetsForBatch > 0 && totalQtyForBatch > 0) {
+          try {
+            console.log('[CARD_GEN] Sending consolidated cutter request for batch, sheets:', totalSheetsForBatch, 'selectedCutters:', selectedCutters)
+            await createDovypuskFn(task.id, task.order_id, resolvedPartNom, totalSheetsForBatch, totalQtyForBatch, selectedMachineName, null, 'cutters_only', selectedCutters)
+          } catch (reqErr) {
+            console.error('[CARD_GEN] Error in createDovypuskFn (cutters):', reqErr)
+            alert('Помилка генерації запиту на фрези: ' + reqErr.message)
+          }
         }
       }
 

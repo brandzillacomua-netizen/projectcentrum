@@ -511,9 +511,13 @@ const MasterModule = () => {
     if (orderTasks.length === 0) return 0
     if (orderTasks.every(t => t.status === 'completed')) return Number(item.quantity) || 0
 
+    // Filter to primary cutting tasks to avoid double-counting downstream tasks (e.g. Shop 2 Pressing)
+    const cuttingTasks = orderTasks.filter(t => !t.step || t.step === 'Розкрій' || String(t.step).toLowerCase().includes('розкр'))
+    const targetTasks = cuttingTasks.length > 0 ? cuttingTasks : orderTasks
+
     // Групуємо наряди за індексом партії (batch_index), щоб не рахувати одну й ту саму партію двічі на різних етапах
     const batches = {}
-    orderTasks.forEach(t => {
+    targetTasks.forEach(t => {
       const key = t.batch_index || `task_${t.id}`
       let qty = 0
       if (t.plan_snapshot) {
@@ -930,138 +934,8 @@ const MasterModule = () => {
       })
     })
 
-    if (!isReprintMode && hasUnassignedMachines) {
-      alert("Будь ласка, оберіть верстат для деталей.")
-      return
-    }
-    const taskMachineName = uniqueMachines.length === 1 ? uniqueMachines[0] : (uniqueMachines.length > 1 ? "Різні верстати" : "Не вказано")
+    const taskMachineName = "Не призначено"
 
-    if (!isReprintMode) {
-      const sheetMaterials = materialSummary.filter(m => {
-        const name = m.name.toLowerCase()
-        return name.includes('лист') || name.includes('карбон') || name.includes('carbon')
-      })
-      const preparedByMaterial = sheetMaterials.map(material => {
-        const normName = getCleanNormalized(material.name)
-        const prepNom = nomenclatures.find(n =>
-          n.name.toLowerCase().includes('підготовлений') &&
-          !n.name.toLowerCase().includes('непідготовлений') &&
-          getCleanNormalized(n.name) === normName
-        )
-        const rawNom = nomenclatures.find(n =>
-          n.name.toLowerCase().includes('непідготовлений') &&
-          getCleanNormalized(n.name) === normName
-        )
-        return { material, normName, prepNom, rawNom }
-      }).filter(row => row.prepNom)
-
-      const preparedNomIds = [...new Set(preparedByMaterial.map(row => row.prepNom.id))]
-      const loadFreshPreparedInventory = async () => {
-        if (preparedNomIds.length === 0) return []
-        const { data, error } = await supabase
-          .from('inventory')
-          .select('*')
-          .in('nomenclature_id', preparedNomIds)
-        if (error) throw new Error(`Не вдалося перевірити актуальні залишки СО: ${error.message}`)
-        return data || []
-      }
-      const calculatePrepDeficits = inventoryRows => {
-        const missing = {}
-        preparedByMaterial.forEach(({ material, prepNom, rawNom }) => {
-          const requiredSheets = Number(material.sheets) || 0
-          const stock = inventoryRows
-            .filter(i =>
-              String(i.nomenclature_id) === String(prepNom.id)
-              && i.warehouse === 'operational'
-              && (
-                i.type === 'raw'
-                || (i.type === 'bz' && (!i.pocket_owner || i.pocket_owner === 'Не вказано'))
-              )
-            )
-            .reduce(
-              (sum, row) => sum + Math.max(
-                0,
-                (Number(row.total_qty) || 0) - (Number(row.reserved_qty) || 0)
-              ),
-              0
-            )
-          if (stock < requiredSheets) {
-            const targetId = rawNom ? rawNom.id : prepNom.id
-            missing[targetId] = (missing[targetId] || 0) + requiredSheets - stock
-          }
-        })
-        return missing
-      }
-
-      let freshPreparedInventory
-      try {
-        freshPreparedInventory = await loadFreshPreparedInventory()
-      } catch (error) {
-        alert(error.message)
-        return
-      }
-      let missingPrepQuantities = calculatePrepDeficits(freshPreparedInventory)
-      const hasDeficit = Object.keys(missingPrepQuantities).length > 0
-
-      if (hasDeficit) {
-        let errorMsg = 'УВАГА: Недостатньо підготовленого матеріалу на складі СО!\n\n';
-        Object.entries(missingPrepQuantities).forEach(([targetId, deficit]) => {
-          const rawNom = nomenclatures.find(n => n.id === targetId);
-          const normName = rawNom ? getCleanNormalized(rawNom.name) : '';
-          const prepNom = nomenclatures.find(n =>
-            n.name.toLowerCase().includes('підготовлений') &&
-            !n.name.toLowerCase().includes('непідготовлений') &&
-            getCleanNormalized(n.name) === normName
-          );
-          const prepName = prepNom ? prepNom.name : (rawNom ? rawNom.name.replace('Непідготовлений', 'Підготовлений') : 'Лист');
-
-          const m = materialSummary.find(item => getCleanNormalized(item.name) === normName);
-          const totalNeeded = m ? m.sheets : deficit;
-          const currentStock = Math.max(0, totalNeeded - deficit);
-
-          errorMsg += `• "${prepName}": Потрібно: ${totalNeeded} шт., в наявності: ${currentStock} шт. (Дефіцит: ${deficit} шт.)\n`;
-        });
-        errorMsg += '\nНатисніть ОК, щоб створити ці наряди. Наряд на підготовку дефіцитних листів буде створено автоматично паралельно!';
-
-        alert(errorMsg);
-
-        setIsSubmitting(true);
-        try {
-          // The operator may keep the warning open while stock changes. Read
-          // the database again immediately before creating preparation work.
-          freshPreparedInventory = await loadFreshPreparedInventory()
-          missingPrepQuantities = calculatePrepDeficits(freshPreparedInventory)
-          if (Object.keys(missingPrepQuantities).length > 0) {
-            await autoCreatePrepOrder(missingPrepQuantities, naryadDeadline || activeNaryadOrder.deadline);
-          }
-
-          // Create the production task only after the final stock check.
-          const createdTask = await apiService.submitCreateTask(activeNaryadOrder.id, taskMachineName, (oid, m) => createNaryad(oid, m, naryadQtys, naryadDeadline, rowMachines, materialSplits, selectedCutters, naryadParts, partCutterOverrides, rowMachinesSplits, useStockBZ, partBZOverrides));
-
-          if (createdTask) {
-            setReprintTask(createdTask);
-            if (activeNaryadOrder.order_num?.startsWith('ВБ')) {
-              await supabase.from('tasks').update({
-                engineer_conf: true,
-                director_conf: true
-              }).eq('id', createdTask.id)
-            }
-          }
-
-          window.print();
-
-          setReprintTask(null);
-          setActiveNaryadOrder(null);
-        } catch (err) {
-          console.error("Naryad creation error:", err);
-          alert("Помилка створення наряду: " + err.message);
-        } finally {
-          document.title = oldTitle;
-          setIsSubmitting(false);
-        }
-        return; // Concluded
-      }
-    }
 
     setIsSubmitting(true)
     try {
@@ -1278,16 +1152,12 @@ const MasterModule = () => {
         const sheets = Math.ceil(totalToProduce / unitsPerSheet)
         const unit = (part.nom.type === 'hardware' || part.nom.type === 'fastener') ? 'шт' : 'ЛИСТІВ'
 
-        const isDefaultT700 = (part.nom?.material_type || part.nom?.name || '').toLowerCase().includes('т700') || (part.nom?.material_type || part.nom?.name || '').toLowerCase().includes('t700')
-        const defaultT300 = isDefaultT700 ? 0 : sheets
-        const defaultT700 = isDefaultT700 ? sheets : 0
-
         const sheets_t300 = snapshot
-          ? (snapshot.sheets_t300 !== undefined ? Number(snapshot.sheets_t300) : (isDefaultT700 ? 0 : Number(snapshot.sheets)))
-          : (materialSplits[part.nom.id]?.t300 !== undefined ? materialSplits[part.nom.id].t300 : defaultT300)
+          ? (snapshot.sheets_t300 !== undefined ? Number(snapshot.sheets_t300) : 0)
+          : (materialSplits[part.nom.id]?.t300 !== undefined ? Number(materialSplits[part.nom.id].t300) : 0)
         const sheets_t700 = snapshot
-          ? (snapshot.sheets_t700 !== undefined ? Number(snapshot.sheets_t700) : (isDefaultT700 ? Number(snapshot.sheets) : 0))
-          : (materialSplits[part.nom.id]?.t700 !== undefined ? materialSplits[part.nom.id].t700 : defaultT700)
+          ? (snapshot.sheets_t700 !== undefined ? Number(snapshot.sheets_t700) : 0)
+          : (materialSplits[part.nom.id]?.t700 !== undefined ? Number(materialSplits[part.nom.id].t700) : 0)
 
         const addToSummary = (typePrefix, qty) => {
           if (qty <= 0) return
@@ -1489,19 +1359,52 @@ const MasterModule = () => {
     return hasUnassigned
   }, [activeNaryadOrder, isReprintMode, naryadQtys, nomenclatures, bomItems, inventory, reprintTask, rowMachines, rowMachinesSplits, naryadParts])
 
+  const isSheetDistributionComplete = useMemo(() => {
+    if (!activeNaryadOrder || !activeNaryadOrder.order_items) return false
+    if (isReprintMode) return true
+
+    for (const item of activeNaryadOrder.order_items) {
+      const thisNaryadQty = naryadQtys[item.id] || 0
+      if (thisNaryadQty <= 0) continue
+
+      const displayParts = getDisplayPartsForOrderItem(item)
+      for (const part of displayParts) {
+        if (!part.nom) continue
+        const snapshot = reprintTask?.plan_snapshot?.[String(part.nom?.id)]
+        const availableBZ = (() => {
+          const bzInv = (inventory || []).find(i => String(i.nomenclature_id) === String(part.nom?.id) && i.type === 'bz' && (!i.pocket_owner || i.pocket_owner === 'Не вказано'))
+          return bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0
+        })()
+        const isPartActiveBZ = isPartBZActive(part.nom?.id)
+        const totalNeeded = snapshot ? snapshot.need : (thisNaryadQty * (Number(part.quantity_per_parent) || 1))
+        const inStock = snapshot ? (snapshot.stock || 0) : (isPartActiveBZ ? Math.min(totalNeeded, availableBZ) : 0)
+        const totalToProduce = snapshot ? snapshot.plan : Math.max(0, totalNeeded - inStock)
+
+        if (totalToProduce <= 0) continue
+
+        const unitsPerSheet = Number(part.nom?.units_per_sheet) || 1
+        const sheetsNeeded = Math.ceil(totalToProduce / unitsPerSheet)
+
+        const splits = materialSplits[part.nom?.id] || {}
+        const t300 = Number(splits.t300 || 0)
+        const t700 = Number(splits.t700 || 0)
+
+        if ((t300 + t700) !== sheetsNeeded) {
+          return false
+        }
+      }
+    }
+    return true
+  }, [activeNaryadOrder, naryadQtys, materialSplits, inventory, partBZOverrides, useStockBZ, isReprintMode, nomenclatures, bomItems, reprintTask])
+
   const isPrintDisabled = useMemo(() => {
     if (isSubmitting) return true
     if (!activeNaryadOrder) return true
     if (activeNaryadOrder.isVirtualDraft && (!activeNaryadOrder.order_items || activeNaryadOrder.order_items.length === 0)) return true
-    if (hasUnassignedMachines) return true
-
-    // Ensure all cutters from consumableSummary are selected
-    const cutterItems = consumableSummary.filter(c => c.name.toLowerCase().startsWith('фреза'))
-    const hasUnselectedCutter = cutterItems.some(c => !selectedCutters[c.name])
-    if (hasUnselectedCutter) return true
+    if (!isReprintMode && !isSheetDistributionComplete) return true
 
     return false
-  }, [isSubmitting, activeNaryadOrder, hasUnassignedMachines, consumableSummary, selectedCutters])
+  }, [isSubmitting, activeNaryadOrder, isReprintMode, isSheetDistributionComplete])
 
   const renderAnalytics = () => (
     <div className="analytics-scroll" style={{ overflowX: 'auto', marginBottom: '25px', display: 'flex', gap: '15px', paddingBottom: '10px' }}>
@@ -2118,8 +2021,7 @@ const MasterModule = () => {
                 <table className="print-table screen-only-table no-print" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
                   <thead>
                     <tr style={{ background: '#111', textAlign: 'left', color: '#555' }} className="print-thr">
-                      <th style={{ padding: '12px 8px', width: '23%', minWidth: '170px', borderBottom: '1.5px solid #222' }} className="col-name">ДЕТАЛЬ В РОЗКРІЙ</th>
-                      <th style={{ padding: '12px 6px', width: '13%', textAlign: 'center', borderBottom: '1.5px solid #222' }} className="no-print">ВЕРСТАТ</th>
+                      <th style={{ padding: '12px 8px', width: '30%', minWidth: '170px', borderBottom: '1.5px solid #222' }} className="col-name">ДЕТАЛЬ В РОЗКРІЙ</th>
                       <th style={{ padding: '12px 4px', textAlign: 'center', width: '5%' }} className="no-print">ПОТРЕБА</th>
                       <th style={{ padding: '12px 4px', textAlign: 'center', width: '5%' }} className="no-print">СКЛАД БЗ</th>
                       <th style={{ padding: '12px 4px', textAlign: 'center', width: '5%', color: '#ff9000' }} className="col-plan">ПЛАН</th>
@@ -2287,16 +2189,12 @@ const displayParts = getDisplayPartsForOrderItem(it)
                         const unitsPerSheet = Number(part.nom?.units_per_sheet) || 1
                         const sheets = Math.ceil(totalToProduce / unitsPerSheet)
 
-                        const isDefaultT700 = (part.nom?.material_type || part.nom?.name || '').toLowerCase().includes('т700') || (part.nom?.material_type || part.nom?.name || '').toLowerCase().includes('t700')
-                        const defaultT300 = isDefaultT700 ? 0 : (totalToProduce > 0 ? sheets : 0)
-                        const defaultT700 = isDefaultT700 ? (totalToProduce > 0 ? sheets : 0) : 0
-
                         const sheets_t300 = snapshot
-                          ? (snapshot.sheets_t300 !== undefined ? Number(snapshot.sheets_t300) : (isDefaultT700 ? 0 : Number(snapshot.sheets)))
-                          : (materialSplits[part.nom?.id]?.t300 !== undefined ? materialSplits[part.nom?.id].t300 : defaultT300)
+                          ? (snapshot.sheets_t300 !== undefined ? Number(snapshot.sheets_t300) : 0)
+                          : (materialSplits[part.nom?.id]?.t300 !== undefined ? Number(materialSplits[part.nom?.id].t300) : 0)
                         const sheets_t700 = snapshot
-                          ? (snapshot.sheets_t700 !== undefined ? Number(snapshot.sheets_t700) : (isDefaultT700 ? Number(snapshot.sheets) : 0))
-                          : (materialSplits[part.nom?.id]?.t700 !== undefined ? materialSplits[part.nom?.id].t700 : defaultT700)
+                          ? (snapshot.sheets_t700 !== undefined ? Number(snapshot.sheets_t700) : 0)
+                          : (materialSplits[part.nom?.id]?.t700 !== undefined ? Number(materialSplits[part.nom?.id].t700) : 0)
 
                         const totalSplitsSheets = sheets_t300 + sheets_t700
 
@@ -2593,177 +2491,7 @@ const displayParts = getDisplayPartsForOrderItem(it)
                                 </>
                               )}
                             </td>
-                            <td style={{ padding: '10px 4px', textAlign: 'center' }} className="no-print">
-                              {totalToProduce > 0 ? (
-                                (() => {
-                                  const splits = rowMachinesSplits[part.nom?.id] || []
-                                  const isSplitMode = splits.length > 0
-                                  const totalSheetsNeeded = sheets
 
-                                  if (!isSplitMode) {
-                                    return (
-                                      <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
-                                        <select
-                                          value={rowMachines[part.nom?.id] || ''}
-                                          onChange={(e) => {
-                                            const val = e.target.value;
-                                            setRowMachines(prev => ({
-                                              ...prev,
-                                              [part.nom?.id]: val
-                                            }));
-                                          }}
-                                          style={{
-                                            flex: 1,
-                                            background: '#111',
-                                            border: '1px solid #333',
-                                            color: '#fff',
-                                            padding: '8px',
-                                            borderRadius: '10px',
-                                            fontSize: '0.8rem',
-                                            fontWeight: 800,
-                                            outline: 'none',
-                                            cursor: 'pointer'
-                                          }}
-                                        >
-                                          <option value="">-- Оберіть верстат --</option>
-                                          {MACHINE_TYPES.map(type => (
-                                            <option key={type} value={type}>{type.split(' - ')[0]}</option>
-                                          ))}
-                                        </select>
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            const initialSplits = [{ machine: rowMachines[part.nom?.id] || '', sheets: sheets, qty: totalToProduce }]
-                                            setRowMachinesSplits(prev => ({
-                                              ...prev,
-                                              [part.nom?.id]: initialSplits
-                                            }))
-                                          }}
-                                          title="Розділити на кілька верстатів"
-                                          style={{ background: '#222', border: 'none', color: '#888', cursor: 'pointer', padding: '8px', borderRadius: '8px', display: 'flex', alignItems: 'center' }}
-                                        >
-                                          <Shuffle size={14} />
-                                        </button>
-                                      </div>
-                                    )
-                                  } else {
-                                    return (
-                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                        {splits.map((s, sIdx) => {
-                                          return (
-                                            <div key={sIdx} style={{ display: 'flex', gap: '5px', alignItems: 'center', background: '#080808', padding: '5px', borderRadius: '8px', border: '1px solid #151515' }}>
-                                              <input
-                                                type="number"
-                                                value={s.sheets || ''}
-                                                placeholder="Л."
-                                                onFocus={(e) => e.target.select()}
-                                                onChange={(e) => {
-                                                  const val = e.target.value === '' ? 0 : parseInt(e.target.value) || 0
-                                                  setRowMachinesSplits(prev => {
-                                                    const newSplits = [...(prev[part.nom?.id] || [])]
-                                                    newSplits[sIdx] = {
-                                                      ...newSplits[sIdx],
-                                                      sheets: val,
-                                                      qty: val * unitsPerSheet
-                                                    }
-                                                    return { ...prev, [part.nom?.id]: newSplits }
-                                                  })
-                                                }}
-                                                style={{ width: '60px', background: '#000', border: '1px solid #333', color: '#fff', padding: '6px 4px', borderRadius: '8px', fontSize: '0.9rem', fontWeight: 950, textAlign: 'center', outline: 'none' }}
-                                              />
-                                              <select
-                                                value={s.machine || ''}
-                                                onChange={(e) => {
-                                                  const val = e.target.value
-                                                  setRowMachinesSplits(prev => {
-                                                    const newSplits = [...(prev[part.nom?.id] || [])]
-                                                    newSplits[sIdx] = {
-                                                      ...newSplits[sIdx],
-                                                      machine: val
-                                                    }
-                                                    return { ...prev, [part.nom?.id]: newSplits }
-                                                  })
-                                                }}
-                                                style={{ flex: 1, background: '#000', border: '1px solid #222', color: '#fff', padding: '5px', borderRadius: '6px', fontSize: '0.7rem' }}
-                                              >
-                                                <option value="">Тип верстата</option>
-                                                {MACHINE_TYPES.map(t => <option key={t} value={t}>{t.split(' - ')[0]}</option>)}
-                                              </select>
-                                              <button
-                                                type="button"
-                                                onClick={() => {
-                                                  setRowMachinesSplits(prev => {
-                                                    const newSplits = (prev[part.nom?.id] || []).filter((_, i) => i !== sIdx)
-                                                    return { ...prev, [part.nom?.id]: newSplits }
-                                                  })
-                                                }}
-                                                style={{ background: 'transparent', border: 'none', color: '#555', cursor: 'pointer' }}
-                                              >
-                                                <X size={12} />
-                                              </button>
-                                            </div>
-                                          )
-                                        })}
-                                        <div style={{ display: 'flex', gap: '5px' }}>
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              const currentSum = splits.reduce((a, b) => a + (Number(b.sheets) || 0), 0)
-                                              const remaining = Math.max(0, totalSheetsNeeded - currentSum)
-                                              setRowMachinesSplits(prev => {
-                                                const newSplits = [...(prev[part.nom?.id] || []), { machine: '', sheets: remaining, qty: remaining * unitsPerSheet }]
-                                                return { ...prev, [part.nom?.id]: newSplits }
-                                              })
-                                            }}
-                                            style={{ flex: 1, background: '#111', border: '1px solid #222', color: '#555', fontSize: '0.6rem', padding: '5px', borderRadius: '6px', cursor: 'pointer', fontWeight: 800 }}
-                                          >
-                                            + ДОДАТИ ВЕРСТАТ
-                                          </button>
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              setRowMachinesSplits(prev => ({
-                                                ...prev,
-                                                [part.nom?.id]: []
-                                              }))
-                                            }}
-                                            style={{ background: '#111', border: '1px solid #222', color: '#ef4444', padding: '5px', borderRadius: '6px', cursor: 'pointer' }}
-                                          >
-                                            <X size={12} />
-                                          </button>
-                                        </div>
-                                        {(() => {
-                                          const currentSumSheets = splits.reduce((a, b) => a + (Number(b.sheets) || 0), 0);
-                                          const isOver = currentSumSheets > totalSheetsNeeded;
-                                          const isExact = currentSumSheets === totalSheetsNeeded;
-                                          const statusColor = isOver ? '#ef4444' : isExact ? '#10b981' : '#ff9000';
-                                          return (
-                                            <div style={{
-                                              fontSize: '0.65rem',
-                                              textAlign: 'center',
-                                              color: statusColor,
-                                              fontWeight: 950,
-                                              background: `${statusColor}11`,
-                                              padding: '4px',
-                                              borderRadius: '8px',
-                                              border: `1px solid ${statusColor}33`
-                                            }}>
-                                              {isOver ? (
-                                                <span>ПЕРЕВИЩЕННЯ: {currentSumSheets} / {totalSheetsNeeded} л.</span>
-                                              ) : (
-                                                <span>ПЛАН: {currentSumSheets} / {totalSheetsNeeded} листів</span>
-                                              )}
-                                            </div>
-                                          );
-                                        })()}
-                                      </div>
-                                    )
-                                  }
-                                })()
-                              ) : (
-                                <span style={{ color: '#444', fontSize: '0.85rem' }}>—</span>
-                              )}
-                            </td>
                             <td style={{ padding: '10px 4px', textAlign: 'center', fontSize: '1.1rem', color: '#fff', fontWeight: 900 }} className="no-print">
                               {activeNaryadOrder.isVirtualDraft ? (
                                 <input
@@ -2910,7 +2638,7 @@ const displayParts = getDisplayPartsForOrderItem(it)
                               ) : '0'}
                             </td>
                             <td style={{ padding: '10px 4px', textAlign: 'center', fontSize: '1rem', color: '#ff9000', fontWeight: 900 }} className="col-bz">
-                              {totalToProduce > 0 ? `+${(totalSplitsSheets * unitsPerSheet) - totalToProduce}` : '0'}
+                              {totalToProduce > 0 && totalSplitsSheets > 0 ? `+${(totalSplitsSheets * unitsPerSheet) - totalToProduce}` : '0'}
                             </td>
                           </tr>
                         )
@@ -2986,16 +2714,12 @@ const displayParts = getDisplayPartsForOrderItem(it)
                             const unitsPerSheet = Number(part.nom?.units_per_sheet) || 1;
                             const sheets = Math.ceil(plan / unitsPerSheet);
 
-                            const isDefaultT700 = (part.nom?.material_type || part.nom?.name || '').toLowerCase().includes('т700') || (part.nom?.material_type || part.nom?.name || '').toLowerCase().includes('t700')
-                            const defaultT300 = isDefaultT700 ? 0 : (plan > 0 ? sheets : 0)
-                            const defaultT700 = isDefaultT700 ? (plan > 0 ? sheets : 0) : 0
-
                             const sheets_t300 = snapshot
-                              ? (snapshot.sheets_t300 !== undefined ? Number(snapshot.sheets_t300) : (isDefaultT700 ? 0 : Number(snapshot.sheets)))
-                              : (materialSplits[part.nom?.id]?.t300 !== undefined ? materialSplits[part.nom?.id].t300 : defaultT300);
+                              ? (snapshot.sheets_t300 !== undefined ? Number(snapshot.sheets_t300) : 0)
+                              : (materialSplits[part.nom?.id]?.t300 !== undefined ? Number(materialSplits[part.nom?.id].t300) : 0);
                             const sheets_t700 = snapshot
-                              ? (snapshot.sheets_t700 !== undefined ? Number(snapshot.sheets_t700) : (isDefaultT700 ? Number(snapshot.sheets) : 0))
-                              : (materialSplits[part.nom?.id]?.t700 !== undefined ? materialSplits[part.nom?.id].t700 : defaultT700);
+                              ? (snapshot.sheets_t700 !== undefined ? Number(snapshot.sheets_t700) : 0)
+                              : (materialSplits[part.nom?.id]?.t700 !== undefined ? Number(materialSplits[part.nom?.id].t700) : 0);
 
                             totalNeed += need;
                             totalPlan += plan;
@@ -3008,7 +2732,6 @@ const displayParts = getDisplayPartsForOrderItem(it)
                       return (
                         <tr>
                           <td style={{ padding: '12px 15px', fontWeight: 1000, fontSize: '1.1rem', textTransform: 'uppercase', border: '1px solid #000' }} className="col-name print-txt">ЗАГАЛЬНИЙ ПІДСУМОК:</td>
-                          <td className="no-print" style={{ border: '1px solid #000' }}></td>
                           <td className="no-print" style={{ padding: '12px 15px', textAlign: 'center', fontWeight: 1000, fontSize: '1.2rem', border: '1px solid #000' }}>{totalNeed.toString()}</td>
                           <td className="no-print" style={{ border: '1px solid #000' }}></td>
                           <td style={{ padding: '12px 15px', textAlign: 'center', fontWeight: 1000, fontSize: '1.4rem', color: '#ff9000', border: '1px solid #000' }} className="col-plan print-txt">
@@ -3179,16 +2902,12 @@ const displayParts = getDisplayPartsForOrderItem(it)
                             const unitsPerSheet = Number(part.nom?.units_per_sheet) || 1;
                             const sheets = Math.ceil(plan / unitsPerSheet);
 
-                            const isDefaultT700 = (part.nom?.material_type || part.nom?.name || '').toLowerCase().includes('т700') || (part.nom?.material_type || part.nom?.name || '').toLowerCase().includes('t700')
-                            const defaultT300 = isDefaultT700 ? 0 : (plan > 0 ? sheets : 0)
-                            const defaultT700 = isDefaultT700 ? (plan > 0 ? sheets : 0) : 0
-
                             const sheets_t300 = snapshot
-                              ? (snapshot.sheets_t300 !== undefined ? Number(snapshot.sheets_t300) : (isDefaultT700 ? 0 : Number(snapshot.sheets)))
-                              : (materialSplits[part.nom?.id]?.t300 !== undefined ? materialSplits[part.nom?.id].t300 : defaultT300);
+                              ? (snapshot.sheets_t300 !== undefined ? Number(snapshot.sheets_t300) : 0)
+                              : (materialSplits[part.nom?.id]?.t300 !== undefined ? Number(materialSplits[part.nom?.id].t300) : 0);
                             const sheets_t700 = snapshot
-                              ? (snapshot.sheets_t700 !== undefined ? Number(snapshot.sheets_t700) : (isDefaultT700 ? Number(snapshot.sheets) : 0))
-                              : (materialSplits[part.nom?.id]?.t700 !== undefined ? materialSplits[part.nom?.id].t700 : defaultT700);
+                              ? (snapshot.sheets_t700 !== undefined ? Number(snapshot.sheets_t700) : 0)
+                              : (materialSplits[part.nom?.id]?.t700 !== undefined ? Number(materialSplits[part.nom?.id].t700) : 0);
 
                             totalNeed += need;
                             totalPlan += plan;
@@ -3264,297 +2983,35 @@ const displayParts = getDisplayPartsForOrderItem(it)
                 </div>
               )}
 
-              {!activeNaryadOrder.isPrepOrder && hasUnassignedMachines ? (
-                <div className="consumable-summary-section no-print" style={{ marginTop: '15px', padding: '20px 30px', borderRadius: '18px', border: '1px solid rgba(239,68,68,0.2)', background: 'rgba(239,68,68,0.02)' }}>
-                  <h4 style={{ margin: '0 0 10px', fontSize: '0.75rem', fontWeight: 950, color: '#ef4444', textTransform: 'uppercase' }}>ВИТРАТНІ МАТЕРІАЛИ:</h4>
-                  <div style={{ color: '#aaa', fontSize: '0.85rem', fontWeight: 700 }}>
-                    ⚠️ Оберіть верстат для кожної деталі в таблиці, щоб розрахувати та відобразити необхідні фрези.
-                  </div>
-                </div>
-              ) : (
-                consumableSummary.length > 0 && (
-                  <div className="consumable-summary-section" style={{ marginTop: '15px', padding: '20px 30px', borderRadius: '18px', border: '1px solid #222', background: 'rgba(59,130,246,0.05)' }}>
-                    <h4 style={{ margin: '0 0 15px', fontSize: '0.75rem', fontWeight: 950, color: '#3b82f6', textTransform: 'uppercase' }}>ВИТРАТНІ МАТЕРІАЛИ:</h4>
-                    <div className="mat-flex-row" style={{ display: 'flex', flexWrap: 'wrap', gap: '25px' }}>
-                      {consumableSummary.map((c, idx) => {
-                        const selectedInvId = selectedCutters[c.name];
-                        const selectedInv = selectedInvId ? (inventory || []).find(i => String(i.id) === String(selectedInvId)) : null;
-                        const nom = selectedInv ? nomenclatures.find(n => String(n.id) === String(selectedInv.nomenclature_id)) : null;
-                        const displayName = nom ? nom.name : c.name;
-
-                        // Show toggle for Ф2 AND Ф1.5 cards (Ф1.5 is just an overridden Ф2)
-                        const cNameLower = c.name.toLowerCase()
-                        const cFMatch = cNameLower.match(/ф\s*([0-9,.]+)/)
-                        const cDiam = cFMatch ? parseFloat(cFMatch[1].replace(',', '.')) : null
-                        const isSwitchableCard = cDiam === 2 || Math.abs((cDiam || 0) - 1.5) < 0.01
-
-                        // Find all part nomIds in this order that use Ф2 in their operations
-                        const f2PartIds = isSwitchableCard ? (() => {
-                          const ids = []
-                          activeNaryadOrder.order_items?.forEach(item => {
-                            getDisplayPartsForOrderItem(item).forEach(part => {
-                              if (!part.nom || part.nom.type === 'hardware' || part.nom.type === 'fastener') return
-                              const machineName = rowMachines[part.nom.id]
-                              if (!machineName) return
-                              const opData = machineOperations?.find(o =>
-                                String(o.nomenclature_id) === String(part.nom.id) &&
-                                (o.machine_type === machineName || o.machine_id === machineName)
-                              )
-                              if (!opData?.side2_cut_ops) return
-                              const hasF2 = opData.side2_cut_ops.some(op => {
-                                if (!op.startsWith('__CUTTER__:') && !op.startsWith('__CUTTER__Reference:')) return false
-                                const opSplit = op.split(':')
-                                const cnId = opSplit[1]
-                                const cnNom = nomenclatures?.find(n => String(n.id) === String(cnId))
-                                if (!cnNom) return false
-                                const nl = cnNom.name.toLowerCase()
-                                const m = nl.match(/ф\s*([0-9,.]+)/)
-                                const d = m ? parseFloat(m[1].replace(',', '.')) : null
-                                return d === 2
-                              })
-                              if (hasF2 && !ids.includes(part.nom.id)) ids.push(part.nom.id)
-                            })
-                          })
-                          return ids
-                        })() : []
-
-                        // Current override state for these parts
-                        const currentF2Override = f2PartIds.length > 0 &&
-                          f2PartIds.every(id => (partCutterOverrides[id] || '2') === '1.5') ? '1.5' : '2'
-
-                        const totalQty = Number(c.total) || 0
-                        let displayQtyText = `${totalQty}`
-
-                        if (isReprintMode && reprintTask) {
-                          const normStrLocal = str => str ? str.toLowerCase().replace(/[^a-z0-9а-яєіїґ]/g, '') : ''
-                          const getD = (name) => {
-                            const clean = name.toLowerCase().replace(/,/g, '.')
-                            const match = clean.match(/(?:фреза|ф|d|d=|діаметр|діаметром)?\s*([0-9]+(?:[.,][0-9]+)?)/)
-                            return match ? parseFloat(match[1]) : null
-                          }
-                          const targetD = getD(displayName)
-
-                          const issued = (requests || []).filter(r => 
-                            r.task_id === reprintTask.id && 
-                            r.status === 'completed' && 
-                            (() => {
-                              const reqNom = nomenclatures.find(n => n.id === r.nomenclature_id)
-                              const rName = (reqNom?.name || r.details || '').toLowerCase()
-                              const targetName = displayName.toLowerCase()
-                              if (normStrLocal(rName).includes(normStrLocal(targetName)) || normStrLocal(targetName).includes(normStrLocal(rName))) return true
-                              
-                              const reqD = getD(rName)
-                              return reqD !== null && targetD !== null && reqD === targetD
-                            })()
-                          ).reduce((sum, r) => sum + (Number(r.quantity) || 0), 0)
-
-                          displayQtyText = `${issued}/${totalQty}`
-                        }
-
-                        return (
-                          <div key={idx} className="mat-card-p" style={{
-                            padding: '10px 15px',
-                            borderLeft: `4px solid ${isSwitchableCard && currentF2Override === '1.5' ? '#f59e0b' : '#3b82f6'}`,
-                            minWidth: '150px',
-                            borderRadius: '0 8px 8px 0',
-                            background: isSwitchableCard && currentF2Override === '1.5' ? 'rgba(245,158,11,0.05)' : 'transparent',
-                            transition: 'all 0.2s'
-                          }}>
-                            <div style={{ fontSize: '0.65rem', color: isSwitchableCard && currentF2Override === '1.5' ? '#f59e0b' : '#555', fontWeight: 800, marginBottom: '3px', transition: 'color 0.2s' }} className="print-subtxt">
-                              {displayName}
-                            </div>
-                            <div style={{ fontSize: '1.1rem', fontWeight: 950, color: '#fff' }} className="print-txt">
-                              {displayQtyText} <small style={{ fontSize: '0.65rem', fontWeight: 400, color: '#444' }} className="print-subtxt">ОД.</small>
-                            </div>
-                            {isSwitchableCard && f2PartIds.length > 0 && !isReprintMode && (
-                              <div style={{ marginTop: '8px', display: 'flex', gap: '3px', background: '#0d0d0d', borderRadius: '7px', padding: '2px', width: 'fit-content' }}>
-                                {[['2', 'Ф2'], ['1.5', 'Ф1.5']].map(([val, label]) => {
-                                  const isActive = currentF2Override === val
-                                  return (
-                                    <button
-                                      key={val}
-                                      onClick={() => {
-                                        setPartCutterOverrides(prev => {
-                                          const next = { ...prev }
-                                          f2PartIds.forEach(id => {
-                                            next[id] = val
-                                          })
-                                          return next
-                                        })
-                                      }}
-                                      style={{
-                                        background: isActive ? (val === '1.5' ? '#f59e0b' : '#3b82f6') : 'transparent',
-                                        color: isActive ? '#fff' : '#888',
-                                        border: 'none',
-                                        padding: '4px 8px',
-                                        borderRadius: '5px',
-                                        fontSize: '0.65rem',
-                                        fontWeight: 900,
-                                        cursor: 'pointer',
-                                        transition: 'all 0.2s'
-                                      }}
-                                    >
-                                      {label}
-                                    </button>
-                                  )
-                                })}
-                              </div>
-                            )}
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </div>
-                )
-              )}
-
-              {consumableSummary.length > 0 && (() => {
-                const cutterItems = consumableSummary.filter(c => c.name.toLowerCase().startsWith('фреза'))
-                if (cutterItems.length === 0) return null
-                return (
-                  <div className="stock-cutters-section no-print" style={{ marginTop: '15px', padding: '20px 30px', borderRadius: '18px', border: '1px solid rgba(255,144,0,0.18)', background: 'rgba(255,144,0,0.03)' }}>
-                    <h4 style={{ margin: '0 0 14px', fontSize: '0.75rem', fontWeight: 950, color: '#ff9000', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      🔧 ВИБІР ФРЕЗ ЗІ СКЛАДУ
-                    </h4>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                      {cutterItems.map((c, idx) => {
-                      // Extract diameter from the consumable name e.g. "Фреза ф3" → 3, "Фреза ф1.5" → 1.5
-                      const nameLower = c.name.toLowerCase()
-                      const fMatch = nameLower.match(/ф\s*([0-9][0-9,.]*)/)
-                      const parsedDiam = fMatch ? parseFloat(fMatch[1].replace(',', '.')) : null
-                      const requiredAngleMatch = nameLower.match(/(?:\(|x|х|×|\s)(90|120)\s*(?:°|град|\))/)
-                      const requiredAngle = requiredAngleMatch ? Number(requiredAngleMatch[1]) : null
-
-                      // Helper: extract cutting diameter from an inventory cutter nom name
-                      // Handles: "Фреза ф2", "Фреза кукурудза 2×3,175×6×50", "Фреза двопера 3×4×6×50"
-                      const extractNomDiam = (nomName) => {
-                        const nl = nomName.toLowerCase()
-                        // 1) Explicit ф<number> pattern
-                        const m1 = nl.match(/ф\s*([0-9][0-9,.]*)/)
-                        if (m1) return parseFloat(m1[1].replace(',', '.'))
-                        // 2) First dimension before × (e.g. "кукурудза 2×3,175×..." or "двопера 3×4×...")
-                        const m2 = nl.match(/(?:кукурудза|двопера|однопера|спіральна|торцева|шарова|радіусна)?\s*([0-9][0-9,]*)(?:\s*[×xх×])/)
-                        if (m2) return parseFloat(m2[1].replace(',', '.'))
-                        // 3) Last resort: first standalone number in name
-                        const m3 = nl.match(/\b([0-9][0-9,.]*)\b/)
-                        if (m3) return parseFloat(m3[1].replace(',', '.'))
-                        return null
-                      }
-
-                      const genericCutter = nomenclatures.find(n => n.name === c.name && n.type === 'cutter_type')
-
-                      // Filter inventory for consumable cutters with matching diameter or generic cutter type assignment
-                      const stockCutters = (inventory || []).filter(inv => {
-                        const nom = nomenclatures.find(n => String(n.id) === String(inv.nomenclature_id))
-                        if (!nom) return false
-                        if (!nom.name.toLowerCase().startsWith('фреза')) return false
-                        if (inv.type !== 'consumable') return false
-                        const availQty = Math.max(0, (Number(inv.total_qty) || 0) - (Number(inv.reserved_qty) || 0))
-                        if (availQty <= 0) return false
-                        
-                        // An exact cutter-type assignment is a strong match, but
-                        // a different assignment must not hide cutters of the
-                        // same diameter from a generic request such as "Фреза ф6".
-                        // Faceting cutters have their own ф6(90)/ф6(120) types.
-                        if (genericCutter && nom.characteristic &&
-                            String(nom.characteristic) === String(genericCutter.id)) {
-                          return true
-                        }
-                        if (requiredAngle !== null && genericCutter && nom.characteristic) return false
-
-                        if (parsedDiam) {
-                          const nomDiam = extractNomDiam(nom.name)
-                          if (nomDiam === null) return false
-                          if (Math.abs(nomDiam - parsedDiam) >= 0.01) return false
-                          if (requiredAngle === null) return true
-                          const nomAngleMatch = nom.name.match(/(?:\(|x|х|×|\s)(90|120)\s*(?:°|град|\))/i)
-                          return nomAngleMatch ? Number(nomAngleMatch[1]) === requiredAngle : false
-                        }
-                        return true
-                      })
-
-                        const selectedInvId = selectedCutters[c.name] || ''
-                        const selectedInv = stockCutters.find(inv => String(inv.id) === String(selectedInvId))
-                        const availQty = selectedInv ? Math.max(0, (Number(selectedInv.total_qty) || 0) - (Number(selectedInv.reserved_qty) || 0)) : null
-
-                        return (
-                          <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
-                            <div style={{ minWidth: '180px' }}>
-                              <div style={{ fontSize: '0.65rem', color: '#ff9000', fontWeight: 800, marginBottom: '2px' }}>{c.name}</div>
-                              <div style={{ fontSize: '0.72rem', color: '#888', fontWeight: 700 }}>Потрібно: <span style={{ color: '#fff', fontWeight: 900 }}>{c.total} ОД.</span></div>
-                            </div>
-                            <div style={{ flex: 1, minWidth: '260px' }}>
-                              <select
-                                value={selectedInvId}
-                                onChange={e => setSelectedCutters(prev => ({ ...prev, [c.name]: e.target.value }))}
-                                style={{
-                                  width: '100%',
-                                  background: '#0d0d11',
-                                  border: selectedInvId ? '1px solid rgba(255,144,0,0.5)' : '1px solid rgba(255,255,255,0.08)',
-                                  borderRadius: '10px',
-                                  color: '#fff',
-                                  padding: '9px 14px',
-                                  fontSize: '0.78rem',
-                                  fontWeight: 700,
-                                  outline: 'none',
-                                  cursor: 'pointer',
-                                  fontFamily: "'Outfit', sans-serif"
-                                }}
-                              >
-                                <option value="">— Оберіть фрезу зі складу —</option>
-                                {stockCutters.map(inv => {
-                                  const nom = nomenclatures.find(n => String(n.id) === String(inv.nomenclature_id))
-                                  const qty = Math.max(0, (Number(inv.total_qty) || 0) - (Number(inv.reserved_qty) || 0))
-                                  return (
-                                    <option key={inv.id} value={inv.id}>
-                                      {nom?.name || inv.name} — {qty} шт на складі
-                                    </option>
-                                  )
-                                })}
-                                {stockCutters.length === 0 && (
-                                  <option disabled value="">Немає фрез на складі</option>
-                                )}
-                              </select>
-                            </div>
-                            {selectedInvId && availQty !== null && (
-                              <div style={{
-                                fontSize: '0.72rem', fontWeight: 800, padding: '6px 12px', borderRadius: '8px',
-                                background: availQty >= c.total ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)',
-                                color: availQty >= c.total ? '#10b981' : '#ef4444',
-                                border: `1px solid ${availQty >= c.total ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)'}`
-                              }}>
-                                {availQty >= c.total ? '✓ Достатньо' : `⚠ Не вистачає ${c.total - availQty} шт`}
-                              </div>
-                            )}
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </div>
-                )
-              })()}
             </div>
 
-            <div className="no-print" style={{ padding: '30px 40px', background: '#111', borderTop: '1px solid #222', display: 'flex', justifyContent: 'flex-end', gap: '15px' }}>
-              <button onClick={() => { setActiveNaryadOrder(null); setReprintTask(null); setSelectedCutters({}); setPartCutterOverrides({}); }} style={{ background: '#222', color: '#fff', border: 'none', padding: '12px 30px', borderRadius: '12px', fontWeight: 800, cursor: 'pointer' }}>СКАСУВАТИ</button>
-              <button
-                onClick={handlePrint}
-                disabled={isPrintDisabled}
-                style={{
-                  background: isPrintDisabled ? '#222' : '#ff9000',
-                  color: isPrintDisabled ? '#555' : '#000',
-                  border: 'none',
-                  padding: '12px 45px',
-                  borderRadius: '12px',
-                  fontWeight: 950,
-                  cursor: isPrintDisabled ? 'not-allowed' : 'pointer',
-                  fontSize: '0.9rem',
-                  transition: '0.2s',
-                  opacity: isPrintDisabled ? 0.6 : 1
-                }}
-              >
-                {isSubmitting ? 'ЧЕКАЙТЕ...' : (isReprintMode ? 'ПОВТОРНИЙ ДРУК' : 'ДРУКУВАТИ ТА В РОБОТУ')}
-              </button>
+            <div className="no-print" style={{ padding: '30px 40px', background: '#111', borderTop: '1px solid #222', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '15px' }}>
+              {!isReprintMode && !isSheetDistributionComplete && (
+                <div style={{ color: '#ef4444', fontSize: '0.85rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(239,68,68,0.1)', padding: '8px 16px', borderRadius: '10px', border: '1px solid rgba(239,68,68,0.2)' }}>
+                  ⚠️ Розподіліть всі листи (Т300 / Т700) у таблиці, щоб створити наряд
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: '15px', marginLeft: 'auto' }}>
+                <button onClick={() => { setActiveNaryadOrder(null); setReprintTask(null); setSelectedCutters({}); setPartCutterOverrides({}); }} style={{ background: '#222', color: '#fff', border: 'none', padding: '12px 30px', borderRadius: '12px', fontWeight: 800, cursor: 'pointer' }}>СКАСУВАТИ</button>
+                <button
+                  onClick={handlePrint}
+                  disabled={isPrintDisabled}
+                  style={{
+                    background: isPrintDisabled ? '#222' : '#ff9000',
+                    color: isPrintDisabled ? '#555' : '#000',
+                    border: 'none',
+                    padding: '12px 45px',
+                    borderRadius: '12px',
+                    fontWeight: 950,
+                    cursor: isPrintDisabled ? 'not-allowed' : 'pointer',
+                    fontSize: '0.9rem',
+                    transition: '0.2s',
+                    opacity: isPrintDisabled ? 0.6 : 1
+                  }}
+                >
+                  {isSubmitting ? 'ЧЕКАЙТЕ...' : (isReprintMode ? 'ПОВТОРНИЙ ДРУК' : 'ДРУКУВАТИ ТА В РОБОТУ')}
+                </button>
+              </div>
             </div>
             {stockInfoModalData && (
               <div style={{
@@ -3664,7 +3121,15 @@ const displayParts = getDisplayPartsForOrderItem(it)
 
       {quickPlanOrder && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div className="glass-panel" style={{ background: '#0a0a0a', padding: '30px', borderRadius: '24px', border: '1px solid #222', width: '90%', maxWidth: '400px' }}>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleOpenNaryadModal(quickPlanOrder, tempSets, tempDeadline);
+              setQuickPlanOrder(null);
+            }}
+            className="glass-panel"
+            style={{ background: '#0a0a0a', padding: '30px', borderRadius: '24px', border: '1px solid #222', width: '90%', maxWidth: '400px' }}
+          >
             <h3 style={{ margin: '0 0 20px', fontSize: '1.2rem', color: '#ff9000', fontWeight: 900 }}>ШВИДКЕ ПЛАНУВАННЯ</h3>
             <p style={{ fontSize: '0.8rem', color: '#555', marginBottom: '25px' }}>Вкажіть кількість комплектів для цього наряду та планивий дедлайн.</p>
 
@@ -3672,8 +3137,16 @@ const displayParts = getDisplayPartsForOrderItem(it)
               <label style={{ display: 'block', fontSize: '0.65rem', color: '#444', fontWeight: 800, textTransform: 'uppercase', marginBottom: '8px' }}>КІЛЬКІСТЬ КОМПЛЕКТІВ</label>
               <input
                 type="number"
+                autoFocus
                 value={tempSets}
                 onChange={e => setTempSets(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleOpenNaryadModal(quickPlanOrder, tempSets, tempDeadline);
+                    setQuickPlanOrder(null);
+                  }
+                }}
                 style={{ width: '100%', background: '#111', border: '1px solid #333', color: '#fff', padding: '12px', borderRadius: '12px', fontSize: '1.1rem', fontWeight: 900 }}
               />
             </div>
@@ -3684,23 +3157,27 @@ const displayParts = getDisplayPartsForOrderItem(it)
                 type="date"
                 value={tempDeadline ? tempDeadline.split('T')[0] : ''}
                 onChange={e => setTempDeadline(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleOpenNaryadModal(quickPlanOrder, tempSets, tempDeadline);
+                    setQuickPlanOrder(null);
+                  }
+                }}
                 style={{ width: '100%', background: '#111', border: '1px solid #333', color: '#fff', padding: '12px', borderRadius: '12px', fontSize: '1rem', fontWeight: 800 }}
               />
             </div>
 
             <div style={{ display: 'flex', gap: '10px' }}>
-              <button onClick={() => setQuickPlanOrder(null)} style={{ flex: 1, padding: '12px', background: '#222', color: '#555', border: 'none', borderRadius: '12px', fontWeight: 800, cursor: 'pointer' }}>СКАСУВАТИ</button>
+              <button type="button" onClick={() => setQuickPlanOrder(null)} style={{ flex: 1, padding: '12px', background: '#222', color: '#555', border: 'none', borderRadius: '12px', fontWeight: 800, cursor: 'pointer' }}>СКАСУВАТИ</button>
               <button
-                onClick={() => {
-                  handleOpenNaryadModal(quickPlanOrder, tempSets, tempDeadline);
-                  setQuickPlanOrder(null);
-                }}
+                type="submit"
                 style={{ flex: 2, padding: '12px', background: '#ff9000', color: '#000', border: 'none', borderRadius: '12px', fontWeight: 900, cursor: 'pointer' }}
               >
                 ДАЛІ
               </button>
             </div>
-          </div>
+          </form>
         </div>
       )}
 

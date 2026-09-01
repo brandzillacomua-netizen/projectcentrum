@@ -3409,8 +3409,8 @@ const ChatModule = () => {
             left: 0;
           }
           .chat-shell {
-            height: 100vh;
-            height: 100dvh;
+            height: calc(100vh - 56px);
+            height: calc(100dvh - 56px);
             width: 100vw;
             grid-template-columns: 1fr;
             border: 0;
@@ -3420,12 +3420,12 @@ const ChatModule = () => {
             display: ${activeThread ? 'none' : 'flex'};
           }
           .chat-sidebar-head {
-            min-height: 90px;
-            padding: 18px 14px 18px ${isSuperAdmin ? '14px' : '74px'};
+            min-height: 64px;
+            padding: 14px;
             gap: 10px;
           }
           .chat-sidebar-head h1 {
-            font-size: 1.8rem;
+            font-size: 1.6rem;
             line-height: 1;
           }
           .chat-main {
@@ -3436,8 +3436,8 @@ const ChatModule = () => {
             display: inline-flex;
           }
           .chat-header {
-            min-height: 66px;
-            padding: 10px 10px 10px 74px;
+            min-height: 60px;
+            padding: 10px;
             gap: 8px;
             display: grid;
             grid-template-columns: 36px minmax(0, 1fr) auto;

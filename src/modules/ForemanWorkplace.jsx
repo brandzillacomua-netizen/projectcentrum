@@ -22,6 +22,7 @@ import MachineChangeModal from './Foreman2/features/machine-change/MachineChange
 import { useMachineChange } from './Foreman2/features/machine-change/useMachineChange.js'
 import { getFinalScrapForTaskPart } from './VKYA/quality-hold/qualityHoldModel.js'
 import { useQualityLossTotals } from './VKYA/quality-hold/useQualityLossTotals.js'
+import { calculateCuttersForBatch } from '../utils/cutterCalculator'
 
 const uniqueById = (rows = []) => {
   return Array.from(new Map(rows.filter(Boolean).map(row => [String(row.id), row])).values())
@@ -1097,8 +1098,6 @@ const ForemanWorkplace = () => {
                             <th style={{ padding: '12px 6px', textAlign: 'center' }}>МАТЕРІАЛ</th>
                             <th style={{ padding: '12px 6px', textAlign: 'center' }}>ШТ/Л</th>
                             <th style={{ padding: '12px 6px', textAlign: 'center', color: '#10b981' }}>ЛИСТІВ</th>
-                            <th style={{ padding: '12px 10px', width: '12%' }}>ВЕРСТАТ</th>
-                            <th style={{ padding: '12px 6px', textAlign: 'center', color: '#3b82f6', width: '8%' }}>ЗАВАНТ.</th>
                             {!isReworkOrder && <th style={{ padding: '12px 6px', textAlign: 'center', color: '#ef4444' }}>БЗ</th>}
                             <th style={{ padding: '12px 6px', textAlign: 'center' }}>ДІЇ</th>
                           </tr>
@@ -1144,6 +1143,7 @@ const ForemanWorkplace = () => {
 
                               const rawRowMachineName = ((task.plan_snapshot || {})[String(nomId)]?.machine || (task.plan_snapshot || {})[String(nomId)]?.selected_machine || selectedMachines[rowId] || '')
                                 || (productionCards.length > 0 && productionCards[0].machine && productionCards[0].machine !== 'Не вказано' ? productionCards[0].machine : '')
+                                || task.machine_name || 'Різні верстати'
                               const rowMachineName = getStandardMachineType(rawRowMachineName)
 
                               // Use local state if it exists (for fluid typing), fallback to context
@@ -1222,7 +1222,7 @@ const ForemanWorkplace = () => {
                                       task={task}
                                       part={part.nom}
                                       snapshot={snapshot}
-                                      productionCards={activeProductionCards}
+                                      productionCards={productionCards}
                                       material={getDisplayMaterial(part.nom, snapshot)}
                                       sheets={sheets}
                                       plan={plan}
@@ -1230,203 +1230,6 @@ const ForemanWorkplace = () => {
                                   </td>
                                   <td style={{ padding: '10px 4px', textAlign: 'center' }}>{unitsPerSheet}</td>
                                   <td style={{ padding: '10px 4px', textAlign: 'center', color: '#10b981', fontWeight: 1000, fontSize: '1.1rem' }}>{sheets}</td>
-                                  <td style={{ padding: '10px 4px' }}>
-                                    {!isSplitMode ? (
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%', minWidth: '220px' }}>
-                                        {/* Ліва частина: верстат та кнопка */}
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', flex: 1 }}>
-                                          <div style={{ fontSize: '0.75rem', fontWeight: 800, background: '#000', padding: '8px 10px', borderRadius: '8px', border: rowMachineName ? '1px solid #333' : '1px solid #ef4444', textAlign: 'center', color: rowMachineName ? '#fff' : '#ef4444' }}>
-                                            {rowMachineName || 'Оберіть тип верстата'}
-                                          </div>
-                                          {plan > 0 && (
-                                            <button
-                                              onClick={() => {
-                                                setChangeNomMachineTaskId(task.id)
-                                                setChangeNomMachineNomId(nomId)
-                                                setChangeNomMachineName(part.nom?.name || 'Деталь')
-                                                const selectedMachineInfo = findMachine(rowMachineName || MACHINE_TYPES[0])
-                                                const nextLoadCapacity = Number((task.plan_snapshot || {})[String(nomId)]?.load_capacity || (task.plan_snapshot || {})[String(nomId)]?.custom_capacity || rowCapacities[rowId])
-                                                  || selectedMachineInfo?.max_capacity
-                                                  || selectedMachineInfo?.sheet_capacity
-                                                  || 1
-                                                setSelectedNomNewMachine(rowMachineName || MACHINE_TYPES[0])
-                                                setSelectedNomLoadCapacity(nextLoadCapacity)
-                                              }}
-                                              style={{
-                                                background: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.3)',
-                                                color: '#3b82f6', padding: '6px 10px', borderRadius: '8px', fontSize: '0.7rem',
-                                                fontWeight: 900, cursor: 'pointer', transition: 'all 0.2s', textTransform: 'uppercase', letterSpacing: '0.5px'
-                                              }}
-                                              onMouseEnter={e => e.currentTarget.style.background = 'rgba(59, 130, 246, 0.2)'}
-                                              onMouseLeave={e => e.currentTarget.style.background = 'rgba(59, 130, 246, 0.1)'}
-                                            >
-                                              ⚙️ Змінити верстат
-                                            </button>
-                                          )}
-                                        </div>
-
-                                        {/* Права частина: кількість листів на завантаження */}
-                                        {plan > 0 && rowMachineName && defaultCapacity !== maxCapacity && (
-                                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}>
-                                            <label style={{ fontSize: '0.6rem', color: '#666', fontWeight: 900, textTransform: 'uppercase' }}>Листів</label>
-                                            <input
-                                              type="number"
-                                              title={`Листів за завантаження (від ${defaultCapacity} до ${maxCapacity})`}
-                                              placeholder="Завант."
-                                              value={rowCapacities[rowId] !== undefined ? rowCapacities[rowId] : (savedLoadCapacity ?? inferredLoadCapacity ?? maxCapacity)}
-                                              min={defaultCapacity}
-                                              max={maxCapacity}
-                                              readOnly={activeProductionCards.length > 0 && activeProductionCards.length >= totalTargetLoads}
-                                              onChange={(e) => {
-                                                if (activeProductionCards.length > 0 && activeProductionCards.length >= totalTargetLoads) return
-                                                const v = parseInt(e.target.value)
-                                                setRowCapacities(p => ({ ...p, [rowId]: isNaN(v) ? '' : v }))
-                                              }}
-                                              onBlur={(e) => {
-                                                if (activeProductionCards.length > 0 && activeProductionCards.length >= totalTargetLoads) return
-                                                let v = parseInt(e.target.value)
-                                                if (isNaN(v)) {
-                                                  v = savedLoadCapacity || inferredLoadCapacity || maxCapacity
-                                                  setRowCapacities(p => ({ ...p, [rowId]: v }));
-                                                  persistNomLoadCapacity(task, nomId, v).catch(console.error)
-                                                  return
-                                                }
-                                                v = Math.min(maxCapacity, Math.max(defaultCapacity, v));
-                                                setRowCapacities(p => ({ ...p, [rowId]: v }));
-                                                persistNomLoadCapacity(task, nomId, v).catch(console.error)
-                                              }}
-                                              style={{
-                                                width: '65px',
-                                                background: '#000',
-                                                border: `1px solid ${activeProductionCards.length > 0 && activeProductionCards.length >= totalTargetLoads ? '#222' : '#ff9000'}`,
-                                                color: activeProductionCards.length > 0 && activeProductionCards.length >= totalTargetLoads ? '#444' : '#ff9000',
-                                                padding: '10px 5px',
-                                                borderRadius: '8px',
-                                                fontSize: '0.9rem',
-                                                fontWeight: 950,
-                                                textAlign: 'center',
-                                                cursor: activeProductionCards.length > 0 && activeProductionCards.length >= totalTargetLoads ? 'default' : 'text',
-                                                outline: 'none'
-                                              }}
-                                            />
-                                          </div>
-                                        )}
-                                      </div>) : (
-                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                        {splits.map((s, sIdx) => {
-                                          const cap = findMachine(s.machine)?.sheet_capacity || 1
-                                          const sh = Math.ceil(Number(s.qty) / (unitsPerSheet || 1))
-                                          const l = Math.ceil(sh / cap)
-                                          return (
-                                            <div key={sIdx} style={{ display: 'flex', gap: '5px', alignItems: 'center', background: '#080808', padding: '5px', borderRadius: '8px', border: '1px solid #151515' }}>
-                                              <input
-                                                type="number"
-                                                value={(s.sheets || (unitsPerSheet > 0 ? Math.ceil((s.qty || 0) / unitsPerSheet) : 0)) || ''}
-                                                placeholder="Л."
-                                                onFocus={(e) => e.target.select()}
-                                                onChange={(e) => {
-                                                  const newSplits = [...splits]
-                                                  const val = e.target.value === '' ? 0 : parseInt(e.target.value) || 0
-                                                  newSplits[sIdx].sheets = val
-                                                  newSplits[sIdx].qty = val * unitsPerSheet
-                                                  debouncedUpdateSplits(task, nomId, newSplits)
-                                                }}
-                                                onBlur={() => {
-                                                  // Force sync on blur
-                                                  if (saveTimeoutRef.current) {
-                                                    clearTimeout(saveTimeoutRef.current)
-                                                    handleUpdateNomenclatureMachineAndRecalculate(task, nomId, null, splits)
-                                                    saveTimeoutRef.current = null
-                                                  }
-                                                }}
-                                                style={{ width: '80px', background: '#000', border: '1px solid #333', color: '#fff', padding: '10px 5px', borderRadius: '8px', fontSize: '1rem', fontWeight: 950, textAlign: 'center', outline: 'none' }}
-                                              />
-                                              <select
-                                                value={s.machine || ''}
-                                                onChange={(e) => {
-                                                  const newSplits = [...splits]
-                                                  newSplits[sIdx].machine = e.target.value
-                                                  debouncedUpdateSplits(task, nomId, newSplits)
-                                                }}
-                                                style={{ flex: 1, background: '#000', border: '1px solid #222', color: '#fff', padding: '5px', borderRadius: '6px', fontSize: '0.7rem' }}
-                                              >
-                                                <option value="">Тип верстата</option>
-                                                {MACHINE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                                              </select>
-                                              <span style={{ fontSize: '0.65rem', color: '#444', fontWeight: 900, minWidth: '35px' }}>{l} завант.</span>
-                                              <button
-                                                onClick={() => {
-                                                  const newSplits = splits.filter((_, i) => i !== sIdx)
-                                                  handleUpdateNomenclatureMachineAndRecalculate(task, nomId, null, newSplits.length === 0 ? null : newSplits)
-                                                }}
-                                                style={{ background: 'transparent', border: 'none', color: '#444', cursor: 'pointer' }}
-                                              >
-                                                <X size={12} />
-                                              </button>
-                                            </div>
-                                          )
-                                        })}
-                                        <div style={{ display: 'flex', gap: '5px' }}>
-                                          <button
-                                            onClick={() => {
-                                              const currentSum = splits.reduce((a, b) => a + (Number(b.sheets) || (unitsPerSheet > 0 ? Math.ceil((Number(b.qty) || 0) / unitsPerSheet) : 0)), 0)
-                                              const remaining = Math.max(0, totalSheetsNeeded - currentSum)
-                                              const newSplits = [...splits, { machine: '', sheets: remaining, qty: remaining * unitsPerSheet }]
-                                              handleUpdateNomenclatureMachineAndRecalculate(task, nomId, null, newSplits)
-                                            }}
-                                            style={{ flex: 1, background: '#111', border: '1px solid #222', color: '#555', fontSize: '0.6rem', padding: '5px', borderRadius: '6px', cursor: 'pointer', fontWeight: 800 }}
-                                          >
-                                            + ДОДАТИ ВЕРСТАТ
-                                          </button>
-                                          <button
-                                            onClick={() => handleUpdateNomenclatureMachineAndRecalculate(task, nomId, null, [])}
-                                            style={{ background: '#111', border: '1px solid #222', color: '#ef4444', padding: '5px', borderRadius: '6px', cursor: 'pointer' }}
-                                          >
-                                            <X size={12} />
-                                          </button>
-                                        </div>
-                                        {(() => {
-                                          const currentSumSheets = splits.reduce((a, b) => a + (Number(b.sheets) || (unitsPerSheet > 0 ? Math.ceil((Number(b.qty) || 0) / unitsPerSheet) : 0)), 0);
-                                          const isOver = currentSumSheets > totalSheetsNeeded;
-                                          const isExact = currentSumSheets === totalSheetsNeeded;
-                                          const statusColor = isOver ? '#ef4444' : isExact ? '#10b981' : '#ff9000';
-                                          return (
-                                            <div style={{
-                                              fontSize: '0.65rem',
-                                              textAlign: 'center',
-                                              color: statusColor,
-                                              fontWeight: 950,
-                                              background: `${statusColor}11`,
-                                              padding: '6px',
-                                              borderRadius: '10px',
-                                              border: `1px solid ${statusColor}33`,
-                                              marginTop: '5px'
-                                            }}>
-                                              {isOver ? (
-                                                <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
-                                                  <AlertTriangle size={10} /> ПЕРЕВИЩЕННЯ: {currentSumSheets} / {totalSheetsNeeded} л.
-                                                </span>
-                                              ) : (
-                                                <span>ПЛАН: {currentSumSheets} / {totalSheetsNeeded} листів</span>
-                                              )}
-                                            </div>
-                                          );
-                                        })()}
-                                      </div>
-                                    )}
-                                  </td>
-                                  <td style={{ padding: '10px 4px', textAlign: 'center', color: '#3b82f6', fontWeight: 1000, fontSize: '1.2rem' }}>
-                                    {rowMachineName || isSplitMode ? (
-                                      <>
-                                        <span style={{ color: activeProductionCards.length < totalTargetLoads ? '#444' : '#3b82f6' }}>{activeProductionCards.length}</span>
-                                        <span style={{ color: '#222', margin: '0 5px' }}>/</span>
-                                        <span>{totalTargetLoads}</span>
-                                        {redoCount > 0 && <span style={{ fontSize: '0.9rem', color: '#ef4444', marginLeft: '5px', fontWeight: 900 }}>+{redoCount}</span>}
-                                      </>
-                                    ) : (
-                                      <span style={{ color: '#222', fontSize: '0.8rem' }}>—</span>
-                                    )}
-                                  </td>
                                   {!isReworkOrder && (
                                     <td style={{ padding: '10px 4px', textAlign: 'center', color: '#ef4444', fontWeight: 900 }}>{surplus > 0 ? `+${surplus}` : '0'}</td>
                                   )}
@@ -1802,19 +1605,30 @@ const ForemanWorkplace = () => {
                       const targetTotalCards = Math.ceil(sheets / (loadCapacity || 1));
                       const stockBZ = Number(snapshot?.stock) || 0;
 
+                      let generatedSheetsCalc = 0
+                      let generatedQtyCalc = 0
+                      laserCards.forEach(c => {
+                        const cardScrap = groupHistory
+                          .filter(h => String(h.card_id) === String(c.id))
+                          .reduce((s, h) => s + (Number(h.scrap_qty) || 0), 0)
+                        let qty = Number(c.quantity) || 0
+                        if (qty === 0 && cardScrap === 0 && c?.card_info) {
+                          const match = String(c.card_info).match(/\[REQ:(\d+)\]/)
+                          if (match) qty = Number(match[1]) || 0
+                        }
+                        const originalQty = qty + cardScrap
+                        const cSheets = c.actualSheets ? Number(c.actualSheets) : Math.ceil(originalQty / Math.max(1, unitsPerSheet))
+                        generatedSheetsCalc += cSheets
+                        generatedQtyCalc += Number(c.quantity) || qty
+                      })
+
+                      const actualSheetsCount = Math.max(sheets, generatedSheetsCalc)
                       const netAvailable = grossCutOnLaser + stockBZ
-                      const plannedTotalQty = (sheets * unitsPerSheet) + stockBZ
+                      const plannedTotalQty = (actualSheetsCount * unitsPerSheet) + stockBZ
                       const spareFromSheets = plannedTotalQty - need
                       const utilScrap = groupBreakdown?.util || 0
                       const rawShortage = (need > 0) ? Math.max(0, Math.ceil(utilScrap - spareFromSheets)) : 0
                       const shortage = Math.min(rawShortage, Math.max(0, need - netAvailable))
-
-                      let generatedSheetsCalc = 0
-                      let generatedQtyCalc = 0
-                      laserCards.forEach(c => {
-                        generatedSheetsCalc += Math.ceil(Number(c.quantity) / (unitsPerSheet || 1))
-                        generatedQtyCalc += Number(c.quantity)
-                      })
 
                       const stages = activeCards.reduce((acc, c) => {
                         if (c.status === 'new' || c.status === 'waiting-materials') acc.waiting++
@@ -2372,7 +2186,8 @@ const ForemanWorkplace = () => {
                               }}
                             >
                               {isGenerating ? <Loader2 size={12} className="animate-spin" /> : <Printer size={12} />}
-                              {isGenerating ? 'ОБРОБКА...' : (isKittingBlocked ? 'НЕМАЄ ЛИСТІВ' : 'ГЕНЕРУВАТИ')}</button>
+                              {isGenerating ? 'ОБРОБКА...' : (isKittingBlocked ? 'НЕМАЄ ЛИСТІВ' : 'ГЕНЕРУАТИ')}
+                            </button>
                           </div>
                         )}
                         {isGenerated && (
@@ -2385,48 +2200,40 @@ const ForemanWorkplace = () => {
               </div>
             ) : (
               <>
-                {genModal.isRepair ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginBottom: '30px' }}>
-                    {/* Machine selector */}
-                    <div>
-                      <label style={{ display: 'block', color: '#888', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>
-                        Оберіть верстат для довипуску:
-                      </label>
-                      <select
-                        value={genModal.machineName}
-                        onChange={(e) => {
-                          const newMachineName = e.target.value
-                          const resolvedMachine = findMachine(newMachineName)
-                          const newCapacity = Number(resolvedMachine?.sheet_capacity) || 1
-                          const newCardsNeeded = Math.ceil(genModal.sheets / newCapacity)
-                          setGenModal(prev => ({ ...prev, machineName: newMachineName, total: Math.max(1, newCardsNeeded - (prev.created || 0)), targetTotal: newCardsNeeded }))
-                        }}
-                        style={{ width: '100%', background: '#000', border: '1px solid #333', color: '#fff', padding: '15px', borderRadius: '15px', fontSize: '0.95rem', outline: 'none', fontWeight: 800 }}
-                      >
-                        {MACHINE_TYPES.map(t => {
-                          const cap = findMachine(t)?.sheet_capacity || 1
-                          return (
-                            <option key={t} value={t}>{t} (місткість: {cap} л.)</option>
-                          )
-                        })}
-                      </select>
-                    </div>
+                {/* Machine selector */}
+                <div style={{ marginBottom: '20px' }}>
+                  <label style={{ display: 'block', color: '#888', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>
+                    Оберіть верстат:
+                  </label>
+                  <select
+                    value={genModal.machineName}
+                    onChange={(e) => {
+                      const newMachineName = e.target.value
+                      const resolvedMachine = findMachine(newMachineName)
+                      const newCapacity = Number(resolvedMachine?.sheet_capacity) || 1
+                      const newCardsNeeded = Math.ceil((genModal.sheets || 1) / newCapacity)
+                      setGenModal(prev => ({
+                        ...prev,
+                        machineName: newMachineName,
+                        capacity: newCapacity,
+                        total: Math.max(1, newCardsNeeded - (prev.created || 0)),
+                        targetTotal: newCardsNeeded
+                      }))
+                    }}
+                    style={{ width: '100%', background: '#000', border: '1px solid #333', color: '#fff', padding: '15px', borderRadius: '15px', fontSize: '0.95rem', outline: 'none', fontWeight: 800 }}
+                  >
+                    {MACHINE_TYPES.map(t => {
+                      const cap = findMachine(t)?.sheet_capacity || 1
+                      return (
+                        <option key={t} value={t}>{t} (місткість: {cap} л.)</option>
+                      )
+                    })}
+                  </select>
+                </div>
 
-                    {/* Deficit info cards */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                      <div style={{ background: '#080808', padding: '15px', borderRadius: '15px', border: '1px solid #1a1a1a', textAlign: 'center' }}>
-                        <div style={{ color: '#555', fontSize: '0.65rem', fontWeight: 800 }}>НЕОБХІДНО ЛИСТІВ:</div>
-                        <div style={{ color: '#fff', fontSize: '1.2rem', fontWeight: 950, marginTop: '4px' }}>{genModal.sheets} л.</div>
-                      </div>
-                      <div style={{ background: '#080808', padding: '15px', borderRadius: '15px', border: '1px solid #1a1a1a', textAlign: 'center' }}>
-                        <div style={{ color: '#555', fontSize: '0.65rem', fontWeight: 800 }}>КІЛЬКІСТЬ КАРТ:</div>
-                        <div style={{ color: '#ff9000', fontSize: '1.2rem', fontWeight: 950, marginTop: '4px' }}>{genModal.total} шт.</div>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div style={{ background: '#080808', padding: '20px', borderRadius: '20px', border: '1px solid #1a1a1a', marginBottom: '30px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
+                {!genModal.isRepair && (
+                  <div style={{ background: '#080808', padding: '15px 20px', borderRadius: '20px', border: '1px solid #1a1a1a', marginBottom: '20px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
                       <span style={{ color: '#555', fontSize: '0.75rem', fontWeight: 800 }}>СТАТУС:</span>
                       <span style={{ color: '#3b82f6', fontSize: '0.75rem', fontWeight: 900 }}>Згенеровано {genModal.created} з {genModal.targetTotal || genModal.total}</span>
                     </div>
@@ -2449,7 +2256,7 @@ const ForemanWorkplace = () => {
                       const minC = m?.min_capacity || 1;
                       const maxC = m?.max_capacity || m?.sheet_capacity || 1;
                       const safeCap = isNaN(newCap) ? 1 : Math.min(maxC, Math.max(minC, newCap));
-                      const newTargetTotal = Math.ceil(genModal.sheets / safeCap);
+                      const newTargetTotal = Math.ceil((genModal.sheets || 1) / safeCap);
                       setGenModal(prev => ({
                         ...prev,
                         capacity: isNaN(newCap) ? '' : newCap,
@@ -2464,7 +2271,7 @@ const ForemanWorkplace = () => {
                       let v = parseInt(e.target.value);
                       if (isNaN(v)) v = minC;
                       else v = Math.min(maxC, Math.max(minC, v));
-                      const newTargetTotal = Math.ceil(genModal.sheets / v);
+                      const newTargetTotal = Math.ceil((genModal.sheets || 1) / v);
                       setGenModal(prev => ({
                         ...prev,
                         capacity: v,
@@ -2478,9 +2285,9 @@ const ForemanWorkplace = () => {
                   />
                 </div>
 
-                <div style={{ marginBottom: '30px' }}>
+                <div style={{ marginBottom: '20px' }}>
                   <label style={{ display: 'block', color: '#888', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '10px', textAlign: 'center' }}>
-                    {genModal.isRepair ? 'Кількість карт до друку' : 'Скільки ще карт згенерувати?'}
+                    {genModal.isRepair ? 'Кількість карт до друку' : 'Скільки карт згенерувати?'}
                   </label>
                   <input
                     type="number"
@@ -2494,6 +2301,61 @@ const ForemanWorkplace = () => {
                     style={{ width: '100%', background: '#000', border: '1px solid #333', color: '#fff', fontSize: '2.5rem', fontWeight: 950, textAlign: 'center', padding: '15px', borderRadius: '20px', outline: 'none', borderInline: '4px solid #10b981' }}
                   />
                 </div>
+
+                {/* Live cutter calculation breakdown */}
+                {(() => {
+                  const currentPartNom = genModal.part?.nom || genModal.part
+                  const batchSheets = (Number(genModal.total) || 1) * (Number(genModal.capacity) || 1)
+                  const batchCutters = calculateCuttersForBatch({
+                    partNom: currentPartNom,
+                    machineName: genModal.machineName,
+                    sheets: batchSheets,
+                    task: genModal.task,
+                    machineOperations,
+                    nomenclatures,
+                    inventory
+                  })
+
+                  return (
+                    <div style={{ marginBottom: '25px', background: '#09090b', border: '1px solid #1f1f23', borderRadius: '16px', padding: '16px' }}>
+                      <div style={{ fontSize: '0.7rem', fontWeight: 900, color: '#ff9000', textTransform: 'uppercase', marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>✂️ ПОТРІБНІ ФРЕЗИ ДЛЯ ЦІЄЇ ПОРЦІЇ ({batchSheets} л.):</span>
+                        <span style={{ fontSize: '0.65rem', color: '#888', fontWeight: 800 }}>{batchCutters.length} найменувань</span>
+                      </div>
+                      {batchCutters.length > 0 ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          {batchCutters.map((item, idx) => {
+                            const invItem = (inventory || []).find(i => String(i.nomenclature_id) === String(item.nomenclature_id) && (i.warehouse === 'operational' || !i.warehouse))
+                            const inStock = Number(invItem?.total_qty) || 0
+                            const freeStock = Math.max(0, inStock - (Number(invItem?.reserved_qty) || 0))
+                            const isAvailable = freeStock >= item.qty
+
+                            return (
+                              <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#121215', padding: '10px 14px', borderRadius: '12px', border: '1px solid #1f1f23' }}>
+                                <div>
+                                  <div style={{ color: '#fff', fontWeight: 900, fontSize: '0.85rem' }}>{item.name}</div>
+                                  <div style={{ color: '#666', fontSize: '0.7rem', marginTop: '2px' }}>
+                                    Склад операт.: <strong style={{ color: isAvailable ? '#10b981' : '#ef4444' }}>{freeStock} од. вільних</strong> (всього {inStock})
+                                  </div>
+                                </div>
+                                <div style={{ background: 'rgba(255, 144, 0, 0.1)', border: '1px solid rgba(255, 144, 0, 0.3)', color: '#ff9000', padding: '4px 12px', borderRadius: '10px', fontWeight: 950, fontSize: '0.95rem' }}>
+                                  {item.qty} од.
+                                </div>
+                              </div>
+                            )
+                          })}
+                          <div style={{ fontSize: '0.65rem', color: '#888', fontStyle: 'italic', marginTop: '6px', textAlign: 'center' }}>
+                            ℹ️ При створенні буде надіслано запит на оперативний склад. Картки активуються в Цеху 1 після погодження фрез.
+                          </div>
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: '0.75rem', color: '#555', fontStyle: 'italic', textAlign: 'center', padding: '8px 0' }}>
+                          Для цієї деталі додаткові фрези не вимагаються
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
 
                 <button
                   onClick={() => {

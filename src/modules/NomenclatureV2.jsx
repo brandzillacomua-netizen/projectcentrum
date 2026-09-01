@@ -34,7 +34,7 @@ import { supabase } from '../supabase';
 import { useMES } from '../MESContext';
 
 // ── Default Hierarchical Tree of Groups for ERP Accounting ─────────────────
-const DEFAULT_ERP_GROUPS = [
+export const DEFAULT_ERP_GROUPS = [
   { id: 'cat_raw', code: 'RAW', name: '01. Сировина та матеріали', parent_id: null, sort_order: 10 },
   { id: 'grp_carbon_sheets', code: 'RAW.CARBON', name: 'Карбонові листи', parent_id: 'cat_raw', sort_order: 11 },
   { id: 'grp_carbon_t300', code: 'RAW.CARBON.T300', name: 'Карбонова пластина Т300', parent_id: 'grp_carbon_sheets', sort_order: 12, rule_type: 'carbon' },
@@ -145,7 +145,8 @@ export const ERP_CATEGORY_SCHEMAS = {
       { key: 'name', label: 'Назва деталі', required: true },
       { key: 'sheetGrade', label: 'Марка сировини (Т300/Т700)', required: true },
       { key: 'sheetThickness', label: 'Товщина листа (мм)', required: true },
-      { key: 'unitsPerSheet', label: 'Норма деталей з 1 листа (шт/л)', required: true }
+      { key: 'unitsPerSheet', label: 'Норма деталей з 1 листа (шт/л)', required: true },
+      { key: 'loadTimings', label: 'Таймінги загрузок (2, 4, 8, 16, 32, 64 л.)', required: false }
     ]
   },
   full_frame: {
@@ -367,7 +368,7 @@ const GroupTreeNode = ({ group, allGroups, activeGroupId, onSelectGroup, onAddSu
           {hasChildren ? (
             isOpen ? <FolderOpen size={16} color="#ff9000" /> : <Folder size={16} color="#e58300" />
           ) : (
-            <Folder size={15} color={isSelected ? '#ff9000' : '#888'} />
+            <Folder size={16} color={isSelected ? '#ff9000' : '#e58300'} />
           )}
 
           <span style={{ 
@@ -489,6 +490,8 @@ const NomenclatureV2 = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
 
+  const DEFAULT_LOAD_TIMINGS = { '2': '', '4': '', '8': '', '16': '', '32': '', '64': '' };
+
   // Wizard State
   const [wizardGroup, setWizardGroup] = useState(null);
   const [wizardRuleType, setWizardRuleType] = useState('screw');
@@ -505,6 +508,9 @@ const NomenclatureV2 = () => {
     grade: 'Т300', dimensions: '500*600', extra: '',
     // Frames
     projType: 'RND', projNum: '', name: '',
+    // Frame part
+    sheetGrade: 'Т300', sheetThickness: '3', unitsPerSheet: 1,
+    loadTimings: { ...DEFAULT_LOAD_TIMINGS },
     // Custom
     customName: '', unit: 'шт'
   });
@@ -689,6 +695,8 @@ const NomenclatureV2 = () => {
         specialType: '', din: 'DIN 934', thickness: '1',
         grade: 'Т300', dimensions: '500*600', extra: '',
         projType: 'RND', projNum: '', name: '',
+        sheetGrade: 'Т300', sheetThickness: '3', unitsPerSheet: 1,
+        loadTimings: { ...DEFAULT_LOAD_TIMINGS, ...(itemToEdit.rule_params?.loadTimings || {}) },
         customName: itemToEdit.name || '', unit: itemToEdit.unit || 'шт',
         ...(itemToEdit.rule_params || {})
       });
@@ -700,6 +708,7 @@ const NomenclatureV2 = () => {
       setWizardRuleType(rType);
       setWizardParams(prev => ({
         ...prev,
+        loadTimings: { ...DEFAULT_LOAD_TIMINGS },
         isBlack: rType === 'screw_black' ? true : rType === 'screw_silver' ? false : prev.isBlack
       }));
     }
@@ -995,7 +1004,7 @@ const NomenclatureV2 = () => {
   }, [items, selectedGroup, groups, searchQuery]);
 
   return (
-    <div className="nomenclature-v2-container" style={{ background: '#050505', minHeight: '100vh', color: '#fff', display: 'flex', flexDirection: 'column', fontFamily: 'Inter, system-ui, sans-serif' }}>
+    <div className="nomenclature-v2-container" style={{ background: 'var(--bg, #050505)', minHeight: '100vh', color: 'var(--text, #fff)', display: 'flex', flexDirection: 'column', fontFamily: 'Inter, system-ui, sans-serif' }}>
       
       {/* Toast Notification */}
       {toastMessage && (
@@ -1005,18 +1014,18 @@ const NomenclatureV2 = () => {
       )}
 
       {/* Header Bar */}
-      <header style={{ height: '70px', background: '#080808', borderBottom: '1px solid #1a1a1a', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 30px', sticky: 'top', zIndex: 100 }}>
+      <header className="nom-v2-header" style={{ height: '70px', background: 'var(--header-bg, #080808)', borderBottom: '1px solid var(--border, #1a1a1a)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 30px', sticky: 'top', zIndex: 100 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-          <Link to="/" style={{ color: '#666', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', fontWeight: 700 }}>
+          <Link to="/" className="nom-v2-back-link" style={{ color: 'var(--text-secondary, #666)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', fontWeight: 700 }}>
             <ArrowLeft size={18} /> Назад
           </Link>
-          <div style={{ height: '24px', width: '1px', background: '#222' }} />
+          <div style={{ height: '24px', width: '1px', background: 'var(--border, #222)' }} />
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(255,144,0,0.15)', border: '1px solid rgba(255,144,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ff9000' }}>
               <Layers size={20} />
             </div>
             <div>
-              <h1 style={{ fontSize: '1.1rem', fontWeight: 900, margin: 0, letterSpacing: '0.5px' }}>Номенклатура ERP v2.0</h1>
+              <h1 style={{ fontSize: '1.1rem', fontWeight: 900, margin: 0, letterSpacing: '0.5px', color: 'var(--text, #fff)' }}>Номенклатура ERP v2.0</h1>
               <span style={{ fontSize: '0.68rem', color: '#ff9000', fontWeight: 800 }}>Окремий стандарт каталогу</span>
             </div>
           </div>
@@ -1026,14 +1035,42 @@ const NomenclatureV2 = () => {
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <button 
             onClick={() => setIsGroupModalOpen(true)}
-            style={{ background: '#141414', color: '#ccc', border: '1px solid #282828', borderRadius: '12px', padding: '10px 16px', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem' }}
+            className="btn-v2-secondary"
+            style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '8px', 
+              padding: '10px 18px', 
+              borderRadius: '12px', 
+              fontSize: '0.82rem', 
+              fontWeight: 800, 
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              outline: 'none'
+            }}
           >
             <FolderPlus size={16} /> СТВОРИТИ ГРУПУ
           </button>
 
           <button 
             onClick={() => handleOpenWizard()}
-            style={{ background: '#ff9000', color: '#000', border: 'none', borderRadius: '12px', padding: '10px 20px', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', boxShadow: '0 4px 15px rgba(255,144,0,0.25)' }}
+            className="btn-v2-primary"
+            style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '8px', 
+              padding: '10px 22px', 
+              borderRadius: '12px', 
+              fontSize: '0.85rem', 
+              fontWeight: 900, 
+              cursor: 'pointer',
+              background: 'linear-gradient(135deg, #ff9000 0%, #ea580c 100%)',
+              color: '#ffffff',
+              border: 'none',
+              boxShadow: '0 4px 15px rgba(234, 88, 12, 0.35)',
+              transition: 'all 0.2s ease',
+              outline: 'none'
+            }}
           >
             <Plus size={18} /> СТВОРИТИ ПОЗИЦІЮ
           </button>
@@ -1044,9 +1081,9 @@ const NomenclatureV2 = () => {
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         
         {/* Left Sidebar: Hierarchical Tree */}
-        <aside style={{ width: '320px', background: '#080808', borderRight: '1px solid #1a1a1a', display: 'flex', flexDirection: 'column' }}>
-          <div style={{ padding: '20px 20px 15px', borderBottom: '1px solid #141414', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '0.75rem', fontWeight: 900, color: '#666', textTransform: 'uppercase', letterSpacing: '1px' }}>ДЕРЕВО КАТЕГОРІЙ</span>
+        <aside className="nom-v2-sidebar" style={{ width: '320px', background: 'var(--sidebar-bg, #080808)', borderRight: '1px solid var(--border, #1a1a1a)', display: 'flex', flexDirection: 'column' }}>
+          <div className="nom-v2-sidebar-head" style={{ padding: '20px 20px 15px', borderBottom: '1px solid var(--border, #141414)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.75rem', fontWeight: 900, color: 'var(--text-secondary, #666)', textTransform: 'uppercase', letterSpacing: '1px' }}>ДЕРЕВО КАТЕГОРІЙ</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <button 
                 onClick={() => handleOpenCreateGroup(null)}
@@ -1081,53 +1118,53 @@ const NomenclatureV2 = () => {
             ))}
           </div>
 
-          <div style={{ padding: '15px 20px', background: '#0a0a0a', borderTop: '1px solid #141414', fontSize: '0.75rem', color: '#555', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div className="nom-v2-sidebar-foot" style={{ padding: '15px 20px', background: 'var(--card-bg, #0a0a0a)', borderTop: '1px solid var(--border, #141414)', fontSize: '0.75rem', color: 'var(--text-secondary, #555)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span>Каталог V2:</span>
             <span style={{ color: '#ff9000', fontWeight: 900 }}>{items.length} позицій</span>
           </div>
         </aside>
 
         {/* Right Main Area: Items Table / Workbench */}
-        <main style={{ flex: 1, padding: '25px', overflowY: 'auto', background: '#050505', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        <main className="nom-v2-main" style={{ flex: 1, padding: '25px', overflowY: 'auto', background: 'var(--bg, #050505)', display: 'flex', flexDirection: 'column', gap: '20px' }}>
           
           {/* Top Info & Search Bar */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: '#888', marginBottom: '4px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: 'var(--text-secondary, #888)', marginBottom: '4px' }}>
                 <span>Каталог</span>
                 <ChevronRight size={14} />
-                <span style={{ color: selectedGroup ? '#ff9000' : '#eee', fontWeight: 800 }}>
+                <span style={{ color: selectedGroup ? '#ff9000' : 'var(--text, #eee)', fontWeight: 800 }}>
                   {selectedGroup ? selectedGroup.name : 'Усі позиції'}
                 </span>
               </div>
-              <h2 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 900 }}>
+              <h2 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 900, color: 'var(--text, #fff)' }}>
                 {selectedGroup ? selectedGroup.name : 'Реєстр номенклатури v2'}
               </h2>
             </div>
 
             {/* Search */}
-            <div style={{ position: 'relative', width: '360px' }}>
-              <Search style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#444' }} size={18} />
+            <div className="nom-v2-search" style={{ position: 'relative', width: '360px' }}>
+              <Search style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#888' }} size={18} />
               <input 
                 type="text"
                 placeholder="Швидкий пошук у V2 за назвою чи кодом..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                style={{ width: '100%', background: '#111', border: '1px solid #222', borderRadius: '12px', padding: '11px 15px 11px 44px', color: '#fff', fontSize: '0.85rem', outline: 'none' }}
+                style={{ width: '100%', background: 'var(--card-bg, #111)', border: '1px solid var(--border, #222)', borderRadius: '12px', padding: '11px 15px 11px 44px', color: 'var(--text, #fff)', fontSize: '0.85rem', outline: 'none' }}
               />
             </div>
           </div>
 
           {/* Table Container */}
-          <div style={{ background: '#0a0a0a', border: '1px solid #1a1a1a', borderRadius: '20px', overflow: 'hidden', flex: 1, display: 'flex', flexDirection: 'column' }}>
+          <div className="nom-v2-table-wrap" style={{ background: 'var(--card-bg, #0a0a0a)', border: '1px solid var(--border, #1a1a1a)', borderRadius: '20px', overflow: 'hidden', flex: 1, display: 'flex', flexDirection: 'column' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
               <thead>
-                <tr style={{ background: '#111', borderBottom: '1px solid #1a1a1a' }}>
-                  <th style={{ padding: '16px 20px', fontSize: '0.72rem', color: '#555', textTransform: 'uppercase', fontWeight: 900, width: '120px' }}>Код V2</th>
-                  <th style={{ padding: '16px 20px', fontSize: '0.72rem', color: '#555', textTransform: 'uppercase', fontWeight: 900 }}>Стандартизована Назва</th>
-                  <th style={{ padding: '16px 20px', fontSize: '0.72rem', color: '#555', textTransform: 'uppercase', fontWeight: 900, width: '160px' }}>Матеріал (Лист)</th>
-                  <th style={{ padding: '16px 20px', fontSize: '0.72rem', color: '#555', textTransform: 'uppercase', fontWeight: 900, width: '130px' }}>Норма на листі</th>
-                  <th style={{ padding: '16px 20px', fontSize: '0.72rem', color: '#555', textTransform: 'uppercase', fontWeight: 900, width: '180px' }}>Категорія / Група</th>
+                <tr className="nom-v2-tr-head" style={{ background: 'var(--table-th-bg, #111)', borderBottom: '1px solid var(--border, #1a1a1a)' }}>
+                  <th className="nom-v2-th" style={{ padding: '16px 20px', fontSize: '0.72rem', color: 'var(--text-secondary, #555)', textTransform: 'uppercase', fontWeight: 900, width: '120px' }}>Код V2</th>
+                  <th className="nom-v2-th" style={{ padding: '16px 20px', fontSize: '0.72rem', color: 'var(--text-secondary, #555)', textTransform: 'uppercase', fontWeight: 900 }}>Стандартизована Назва</th>
+                  <th className="nom-v2-th" style={{ padding: '16px 20px', fontSize: '0.72rem', color: 'var(--text-secondary, #555)', textTransform: 'uppercase', fontWeight: 900, width: '160px' }}>Матеріал (Лист)</th>
+                  <th className="nom-v2-th" style={{ padding: '16px 20px', fontSize: '0.72rem', color: 'var(--text-secondary, #555)', textTransform: 'uppercase', fontWeight: 900, width: '130px' }}>Норма на листі</th>
+                  <th className="nom-v2-th" style={{ padding: '16px 20px', fontSize: '0.72rem', color: 'var(--text-secondary, #555)', textTransform: 'uppercase', fontWeight: 900, width: '180px' }}>Категорія / Група</th>
                   <th style={{ padding: '16px 20px', fontSize: '0.72rem', color: '#555', textTransform: 'uppercase', fontWeight: 900, width: '90px' }}>Од. вим.</th>
                   <th style={{ padding: '16px 20px', fontSize: '0.72rem', color: '#555', textTransform: 'uppercase', fontWeight: 900, width: '100px', textAlign: 'right' }}>Дії</th>
                 </tr>
@@ -1154,19 +1191,33 @@ const NomenclatureV2 = () => {
                   const grp = groups.find(g => g.id === item.group_id);
                   const rawMat = item.rule_params?.rawSheet || item.material_type || '—';
                   const normQty = item.rule_params?.unitsPerSheet || item.units_per_sheet || null;
+                  const cResVal = item.rule_params?.cutterResource === 'custom' ? item.rule_params?.customCutterResource : (item.rule_params?.cutterResource || item.cutter_resource || null);
+                  const cRes = cResVal ? `${cResVal} л/фр` : null;
                   return (
                     <tr key={item.id} style={{ borderBottom: '1px solid #111', transition: 'background 0.2s' }} className="table-row-hover">
                       <td style={{ padding: '16px 20px', fontWeight: 900, color: '#ff9000', fontSize: '0.85rem', fontFamily: 'monospace' }}>
                         {item.code}
                       </td>
                       <td style={{ padding: '16px 20px', fontWeight: 800, fontSize: '0.9rem', color: '#eee' }}>
-                        {item.name}
+                        <div>{item.name}</div>
+                        {item.rule_params?.loadTimings && Object.entries(item.rule_params.loadTimings).some(([_, v]) => v !== '' && v !== null && v !== undefined) && (
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '6px' }}>
+                            {Object.entries(item.rule_params.loadTimings)
+                              .filter(([_, v]) => v !== '' && v !== null && v !== undefined)
+                              .map(([k, v]) => (
+                                <span key={k} style={{ background: 'rgba(255, 144, 0, 0.12)', border: '1px solid rgba(255, 144, 0, 0.3)', color: '#ff9000', padding: '2px 6px', borderRadius: '5px', fontSize: '0.68rem', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                  <Clock size={10} /> {k}л: {v}хв
+                                </span>
+                              ))
+                            }
+                          </div>
+                        )}
                       </td>
                       <td style={{ padding: '16px 20px', color: '#38bdf8', fontWeight: 700, fontSize: '0.82rem' }}>
                         {rawMat}
                       </td>
-                      <td style={{ padding: '16px 20px', color: normQty ? '#22c55e' : '#555', fontWeight: 800, fontSize: '0.85rem' }}>
-                        {normQty ? `${normQty} шт/л` : '—'}
+                      <td style={{ padding: '16px 20px', color: normQty ? '#22c55e' : (cRes ? '#ff9000' : '#555'), fontWeight: 800, fontSize: '0.85rem' }}>
+                        {normQty ? `${normQty} шт/л` : (cRes ? cRes : '—')}
                       </td>
                       <td style={{ padding: '16px 20px' }}>
                         <span style={{ background: '#141414', color: '#aaa', border: '1px solid #222', padding: '4px 10px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700 }}>
@@ -1695,6 +1746,7 @@ const NomenclatureV2 = () => {
                         </div>
                       </div>
                     )}
+
                   </>
                 )}
 
@@ -1996,6 +2048,66 @@ const NomenclatureV2 = () => {
                       <div>
                         <label style={{ fontSize: '0.72rem', color: '#666', fontWeight: 800 }}>НОРМА (шт/л)</label>
                         <input type="number" value={wizardParams.unitsPerSheet || 1} onChange={e => setWizardParams({...wizardParams, unitsPerSheet: Number(e.target.value) || 1})} placeholder="60" style={inputStyle} />
+                      </div>
+                    </div>
+
+                    {/* LOAD TIMINGS SECTION */}
+                    <div style={{ background: 'rgba(255,144,0,0.06)', border: '1px solid rgba(255,144,0,0.25)', borderRadius: '16px', padding: '16px', marginTop: '4px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <Clock size={16} color="#ff9000" />
+                          <span style={{ fontSize: '0.75rem', fontWeight: 900, color: '#fff', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                            ТАЙМІНГИ ОБРОБКИ ДЛЯ ВАРІАНТІВ ЗАГРУЗКИ (ХВИЛИНИ)
+                          </span>
+                        </div>
+                        <span style={{ fontSize: '0.68rem', color: '#aaa', fontWeight: 700 }}>Час виконання на партію</span>
+                      </div>
+
+                      <div style={{ fontSize: '0.72rem', color: '#aaa', marginBottom: '12px', lineHeight: '1.3' }}>
+                        Вкажіть час обробки деталі (в хвилинах) для кожної кількості листів при завантаженні у верстат:
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
+                        {['2', '4', '8', '16', '32', '64'].map(sheets => {
+                          const val = wizardParams.loadTimings?.[sheets] ?? '';
+                          return (
+                            <div key={sheets} style={{ background: '#09090b', border: '1px solid #27272a', borderRadius: '12px', padding: '10px 12px' }}>
+                              <div style={{ fontSize: '0.72rem', fontWeight: 900, color: '#ff9000', marginBottom: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span>{sheets} {sheets === '2' || sheets === '4' || sheets === '32' || sheets === '64' ? 'листи' : 'листів'}:</span>
+                                <span style={{ fontSize: '0.65rem', color: '#888' }}>хв</span>
+                              </div>
+                              <input 
+                                type="number"
+                                step="0.1"
+                                min="0"
+                                value={val}
+                                onChange={e => {
+                                  const updatedVal = e.target.value;
+                                  setWizardParams(prev => ({
+                                    ...prev,
+                                    loadTimings: {
+                                      ...(prev.loadTimings || DEFAULT_LOAD_TIMINGS),
+                                      [sheets]: updatedVal
+                                    }
+                                  }));
+                                }}
+                                placeholder="напр. 15"
+                                style={{ 
+                                  width: '100%', 
+                                  background: '#141414', 
+                                  border: '1px solid #3f3f46', 
+                                  borderRadius: '8px', 
+                                  padding: '8px 10px', 
+                                  color: '#fff', 
+                                  fontSize: '0.88rem', 
+                                  fontWeight: 800,
+                                  boxSizing: 'border-box',
+                                  outline: 'none'
+                                }} 
+                              />
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   </>

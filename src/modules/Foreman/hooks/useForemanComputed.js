@@ -95,9 +95,9 @@ export function useForemanComputed({
           csCache[h.card_id] = (csCache[h.card_id] || 0) + (Number(h.scrap_qty) || 0)
         }
         const card = h.card_id ? cardsById.get(String(h.card_id)) : null
-        if (card) {
-          const tid = card.task_id
-          const nid = String(card.nomenclature_id)
+        const tid = card ? card.task_id : h.task_id
+        const nid = String(h.nomenclature_id || card?.nomenclature_id || '')
+        if (tid && nid) {
           if (!sCache[tid]) sCache[tid] = {}
           sCache[tid][nid] = (sCache[tid][nid] || 0) + (Number(h.scrap_qty) || 0)
         }
@@ -235,7 +235,8 @@ export function useForemanComputed({
 
         const stockBZ = Number(snap?.stock) || 0
         const netAvailable = grossProduced + stockBZ
-        const plannedTotalQty = (sheets * unitsPerSheet) + stockBZ
+        const actualSheetsCount = Math.max(sheets, generatedSheets)
+        const plannedTotalQty = (actualSheetsCount * unitsPerSheet) + stockBZ
         const spareFromSheets = Math.max(0, plannedTotalQty - need)
 
         const totalScrap = scrapCache?.[task.id]?.[targetNomId] || 0

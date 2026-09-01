@@ -13,12 +13,22 @@ export function ManualIssueJournalButton({ onClick, compact = false }) {
     <button
       type="button"
       onClick={onClick}
+      className="warehouse-nav-btn manual-issue-btn"
       title="Журнал ручної видачі"
       style={{
-        height: compact ? '42px' : '46px', padding: compact ? '0 12px' : '0 16px',
-        borderRadius: '12px', border: '1px solid #333', background: '#161616',
-        color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '8px',
-        fontWeight: 900, cursor: 'pointer', whiteSpace: 'nowrap'
+        height: '42px',
+        padding: compact ? '0 12px' : '0 16px',
+        borderRadius: '12px',
+        border: '1px solid #333',
+        background: '#161616',
+        color: '#f59e0b',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        fontSize: '0.8rem',
+        fontWeight: 900,
+        cursor: 'pointer',
+        whiteSpace: 'nowrap'
       }}
     >
       <History size={17} /> {!compact && 'РУЧНА ВИДАЧА'}

@@ -71,11 +71,11 @@ const ProductSearchSelect = ({ products = [], value, onChange, onCreateNewProduc
       <div
         className="input-wrapper"
         style={{
-          borderColor: isOpen ? '#ff9000' : (value ? 'rgba(255,144,0,0.3)' : 'rgba(255,255,255,0.1)'),
-          background: value ? 'rgba(255,144,0,0.03)' : 'rgba(0,0,0,0.3)',
+          borderColor: isOpen ? '#ff9000' : (value ? 'rgba(255,144,0,0.3)' : 'var(--glass-border, rgba(255,255,255,0.1))'),
+          background: value ? 'rgba(255,144,0,0.03)' : 'var(--card-bg, rgba(0,0,0,0.3))',
         }}
       >
-        <Layers size={16} style={{ color: value ? '#ff9000' : '#444' }} />
+        <Layers size={16} style={{ color: value ? '#ff9000' : '#888' }} />
         <input
           type="text"
           value={isOpen ? query : (selectedProduct ? `${selectedProduct.name}${selectedProduct.code ? ` (${selectedProduct.code})` : ''}` : query)}
@@ -112,7 +112,7 @@ const ProductSearchSelect = ({ products = [], value, onChange, onCreateNewProduc
             <X size={15} />
           </button>
         ) : (
-          <Search size={15} style={{ position: 'absolute', right: '12px', color: isOpen ? '#ff9000' : '#444', pointerEvents: 'none' }} />
+          <Search size={15} style={{ position: 'absolute', right: '12px', color: isOpen ? '#ff9000' : '#888', pointerEvents: 'none' }} />
         )}
       </div>
 
@@ -122,9 +122,9 @@ const ProductSearchSelect = ({ products = [], value, onChange, onCreateNewProduc
           style={{
             maxHeight: '280px',
             overflowY: 'auto',
-            boxShadow: '0 12px 30px rgba(0,0,0,0.85)',
-            border: '1px solid rgba(255,144,0,0.2)',
-            background: '#0d0d0d',
+            boxShadow: '0 12px 30px rgba(0,0,0,0.25)',
+            border: '1px solid rgba(255,144,0,0.3)',
+            background: 'var(--card-bg, #ffffff)',
             display: 'flex',
             flexDirection: 'column'
           }}
@@ -1008,13 +1008,13 @@ const ManagerModule = () => {
   }
 
   return (
-    <div className="manager-module-modern" style={{ background: '#050505', minHeight: '100vh', color: '#fff', display: 'flex', flexDirection: 'column', fontFamily: '"Outfit", sans-serif' }}>
+    <div className="manager-module-modern" style={{ background: 'var(--bg, #050505)', minHeight: '100vh', color: 'var(--text, #fff)', display: 'flex', flexDirection: 'column', fontFamily: '"Outfit", sans-serif' }}>
       
       {/* Header Overlay */}
       <nav className="glass-nav" style={{ 
         position: 'sticky', top: 0, zIndex: 100,
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        padding: '12px 25px', background: 'rgba(10,10,10,0.8)', backdropFilter: 'blur(12px)',
+        padding: '12px 25px 12px 75px', background: 'rgba(10,10,10,0.8)', backdropFilter: 'blur(12px)',
         borderBottom: '1px solid rgba(255,255,255,0.05)'
       }}>
         <Link to="/" className="back-btn-modern">
@@ -1023,6 +1023,9 @@ const ManagerModule = () => {
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <LayoutDashboard className="text-orange" size={24} />
           <h1 style={{ fontSize: '1.2rem', fontWeight: 800, letterSpacing: '1px', margin: 0 }}>MANAGER <span className="text-dim">CONSOLE</span></h1>
+          <span className="pillar-badge-crm" style={{ padding: '3px 8px', borderRadius: '12px', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase' }}>
+            CRM & ERP Pillar
+          </span>
         </div>
       </nav>
 

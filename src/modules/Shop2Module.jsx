@@ -6,6 +6,7 @@ import { supabase } from '../supabase'
 import { QRCodeCanvas } from 'qrcode.react'
 
 import { useScrapReasons } from '../hooks/useScrapReasons'
+import { getScrapBreakdown } from './Foreman/utils/foremanHelpers'
 
 const Shop2Module = () => {
   const { names: scrapReasons } = useScrapReasons()
@@ -917,7 +918,8 @@ const Shop2Module = () => {
                         <th style={{ padding: '15px 20px', textAlign: 'center', minWidth: '80px' }}>ПОТРЕБА</th>
                         {!isReworkOrder && (
                           <>
-                            <th style={{ padding: '15px 20px', textAlign: 'center', color: '#eab308', minWidth: '100px' }}>БЗ (ЗАПАС)</th>
+                            <th style={{ padding: '15px 20px', textAlign: 'center', color: '#8b5cf6', minWidth: '130px' }}>ОТРИМАНО З ЦЕХУ №1</th>
+                            <th style={{ padding: '15px 20px', textAlign: 'center', color: '#eab308', minWidth: '110px' }}>ПРОГНОЗ БЗ</th>
                             <th style={{ padding: '15px 20px', textAlign: 'center', minWidth: '160px' }}>ЗАГАЛЬНА КІЛЬКІСТЬ</th>
                           </>
                         )}
@@ -963,30 +965,48 @@ const Shop2Module = () => {
 
                           const actualArrived = Math.max(totalArrived, arrival ? (Number(arrival.semi) || 0) + (Number(arrival.bz) || 0) : 0)
 
-                          const displayNeed = plannedNeed
-                           const plannedBz = arrival ? (Number(arrival.bz) || 0) : 0
-                           const snapEntry = snap[String(item.nom?.id)] || {}
-                           const unitsPerSheet = Number(snapEntry.units_per_sheet) || 1
-                           
-                           let displayTotal = plannedNeed + plannedBz
-                           let displayBz = plannedBz
-                           
-                           if (actualArrived < plannedNeed) {
-                             const shortage = plannedNeed - actualArrived
-                             const sheetsNeeded = Math.ceil(shortage / unitsPerSheet)
-                             const reissueQty = sheetsNeeded * unitsPerSheet
-                             displayTotal = actualArrived + reissueQty
-                             displayBz = displayTotal - plannedNeed
-                          } else {
-                            displayTotal = actualArrived
-                            displayBz = actualArrived - plannedNeed
-                          }
+                          const s1SnapEntry = s1Task?.plan_snapshot?.[String(item.nom?.id)] || snap[String(item.nom?.id)] || {}
+                          const unitsPerSheet = Number(s1SnapEntry.units_per_sheet) || Number(item.nom?.units_per_sheet) || 1
+                          const s1Stock = Number(s1SnapEntry.stock) || 0
+
+                          // Картки та історія розкрою Цеху №1 для цієї деталі
+                          const s1AllCards = (workCards || []).filter(c =>
+                            (String(c.task_id) === String(s1TaskId) || c.order_id === task.order_id || c.card_info?.includes(order?.order_num)) &&
+                            String(c.nomenclature_id) === String(item.nom?.id) &&
+                            c.operation !== 'Склад БЗ'
+                          )
+                          const s1CardIds = new Set(s1AllCards.map(c => String(c.id)))
+
+                          const s1GroupHistory = (workCardHistory || []).filter(h =>
+                            (h.card_id && s1CardIds.has(String(h.card_id))) ||
+                            (String(h.nomenclature_id) === String(item.nom?.id) && (String(h.task_id) === String(s1TaskId) || h.card_info?.includes(order?.order_num)))
+                          )
+
+                          const s1Breakdown = getScrapBreakdown(s1AllCards, s1GroupHistory, workCards)
+                          const s1UtilScrap = s1Breakdown?.util || 0
+
+                          // Повний план випуску з листів у Цеху №1 (знімки раскрою + додаткові довипуски)
+                          const plannedSheets = Number(s1SnapEntry.sheets) || 0
+                          const basePlannedFromSheets = plannedSheets > 0 ? (plannedSheets * unitsPerSheet) : Number(s1SnapEntry.plan || plannedNeed)
+                          
+                          // Якщо створювалися додаткові картки довипуску в Цеху №1:
+                          const s1ReissueCards = s1AllCards.filter(c => c.is_rework || c.card_info?.includes('[REDO]') || c.card_info?.includes('Довипуск'))
+                          const reissueQty = s1ReissueCards.reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
+
+                          const s1TotalPlannedFromSheets = basePlannedFromSheets + reissueQty
+
+                          // Прогнозований вихід придатних деталей з Цеху №1 з урахуванням утилю та довипусків
+                          const s1NetProjectedGood = Math.max(actualArrived, s1TotalPlannedFromSheets + s1Stock - s1UtilScrap)
+
+                          const displayBz = Math.max(0, s1NetProjectedGood - plannedNeed)
+                          const displayTotal = s1TotalPlannedFromSheets + s1Stock
 
                           // Загальна кількість деталей, яка вже пішла в процес (згенеровані робочі карти в Цеху №2)
                           const allShop2CardsForNom = [...(workCards || []), ...(completedCards || []).filter(ac => !(workCards || []).some(wc => wc.id === ac.id))].filter(c =>
                             String(c.task_id) === String(task.id) && String(c.nomenclature_id) === String(item.nom?.id)
                           )
-                          const totalInProcess = allShop2CardsForNom.reduce((s, c) => s + (Number(c.quantity) || 0), 0)
+                          const s2InWorkCards = (workCards || []).filter(c => String(c.task_id) === String(task.id) && String(c.nomenclature_id) === String(item.nom?.id) && (c.status === 'in-progress' || c.status === 'at-buffer' || c.status === 'waiting-buffer' || c.status === 'new'))
+                          const totalInWork = s2InWorkCards.reduce((s, c) => s + (Number(c.quantity) || 0), 0)
 
                           return (
                             <tr key={idx} style={{ borderBottom: '1px solid #1a1a1a', opacity: (existingCard && existingCard.status === 'completed') ? 0.7 : 1 }}>
@@ -1001,7 +1021,7 @@ const Shop2Module = () => {
                                 {(() => {
                                   const snapEntry = snap[String(item.nom?.id)] || {}
                                   const bzStock = Number(snapEntry.stock) || 0
-                                  const totalNeed = Number(snapEntry.need) || displayNeed
+                                  const totalNeed = Number(snapEntry.need) || plannedNeed
                                   const planToProduce = snapEntry.plan !== undefined ? Number(snapEntry.plan) : (totalNeed - bzStock)
                                   
                                   if (bzStock > 0) {
@@ -1014,19 +1034,22 @@ const Shop2Module = () => {
                                       </div>
                                     )
                                   }
-                                  return displayNeed
+                                  return plannedNeed
                                 })()}
                               </td>
                               {!isReworkOrder && (
                                 <>
-                                  <td style={{ padding: '20px', textAlign: 'center', color: '#eab308', fontWeight: 1000, fontSize: '1.4rem' }}>
-                                    {displayBz}
+                                  <td style={{ padding: '20px', textAlign: 'center', color: '#8b5cf6', fontWeight: 1000, fontSize: '1.4rem' }}>
+                                    {actualArrived}
                                   </td>
+                                   <td style={{ padding: '20px', textAlign: 'center', color: '#eab308', fontWeight: 1000, fontSize: '1.4rem' }}>
+                                     {displayBz > 0 ? `+${displayBz}` : displayBz}
+                                   </td>
                                   <td style={{ padding: '20px', textAlign: 'center', color: '#3b82f6', fontWeight: 1000, fontSize: '1.4rem' }}>
                                     <div>{actualArrived}/{displayTotal}</div>
-                                    {totalInProcess > 0 && (
+                                    {totalInWork > 0 && (
                                       <span style={{ fontSize: '0.75rem', color: '#10b981', display: 'block', marginTop: '4px', fontWeight: 800 }}>
-                                        ({totalInProcess} в роботі)
+                                        ({totalInWork} в роботі)
                                       </span>
                                     )}
                                     {(() => {

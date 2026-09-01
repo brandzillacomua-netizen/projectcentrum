@@ -140,8 +140,9 @@ export function Shop1QueueList({
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                 {(() => {
-                  const seqMatch = (card.card_info || '').match(/(\d+\/\d+)/)
-                  return seqMatch ? (
+                  const seqMatch = (card.card_info || '').match(/(\d+\/\d+)|(№\d+)/)
+                  const displayVal = seqMatch ? (seqMatch[1] || seqMatch[2]) : null
+                  return displayVal ? (
                     <span style={{
                       background: active ? 'rgba(0,0,0,0.15)' : '#eab30820',
                       color: active ? '#000' : '#eab308',
@@ -151,7 +152,7 @@ export function Shop1QueueList({
                       fontSize: '0.65rem',
                       fontWeight: 950
                     }}>
-                      {seqMatch[1]}
+                      {displayVal}
                     </span>
                   ) : <div />
                 })()}

@@ -2262,7 +2262,8 @@ export const KanbanStyles = () => (
 
         .kb-root {
           background: #020202;
-          min-height: 100vh; height: 100vh;
+          min-height: calc(100vh - 56px);
+          height: calc(100vh - 56px);
           color: #e8e8e8;
           display: flex; flex-direction: column;
           font-family: 'Inter', sans-serif;
@@ -2802,7 +2803,23 @@ export const KanbanStyles = () => (
           .kb-board { padding: 16px 20px; }
         }
         @media (max-width: 768px) {
-          .kb-body-container { display: block !important; overflow-y: auto; }
+          .kb-root {
+            height: auto !important;
+            min-height: calc(100vh - 56px) !important;
+            overflow: visible !important;
+          }
+          .kb-nav {
+            padding: 10px 12px !important;
+            gap: 8px !important;
+          }
+          .kb-brand-text {
+            display: none !important;
+          }
+          .kb-body-container {
+            display: block !important;
+            height: auto !important;
+            overflow: visible !important;
+          }
           .kb-sidebar {
             position: fixed !important;
             top: 0 !important;

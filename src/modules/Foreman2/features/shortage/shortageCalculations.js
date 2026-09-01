@@ -3,11 +3,20 @@ import { countAsProduced, getProducedQty, isBufferCard } from '../scrap/scrapCal
 import { getSnapshotPartEntries } from '../task-loading/taskSelectors.js'
 import { getBestKnownProducedFromFlow } from './flowUtils.js'
 
-export const getCardSheets = (card, unitsPerSheet, cardScrap = 0) => {
-  const explicit = asNumber(card?.actual_sheets || card?.actualSheets)
+export const getCardSheets = (card, unitsPerSheet) => {
+  const explicit = asNumber(card?.actual_sheets || card?.actualSheets || card?.sheets)
   if (explicit > 0) return explicit
-  const originalQty = asNumber(card?.quantity) + asNumber(cardScrap)
-  return Math.ceil(originalQty / Math.max(1, asNumber(unitsPerSheet, 1)))
+  if (card?.card_info) {
+    const match = String(card.card_info).match(/\[REQ:(\d+)\]/)
+    if (match) {
+      // REQ tag is explicitly present — use it even if 0 (BZ-only card needs 0 sheets to cut)
+      const reqQty = Number(match[1]) || 0
+      return reqQty > 0 ? Math.ceil(reqQty / Math.max(1, asNumber(unitsPerSheet, 1))) : 0
+    }
+  }
+  // No REQ tag at all → fall back to quantity
+  const targetQty = asNumber(card?.quantity)
+  return Math.ceil(targetQty / Math.max(1, asNumber(unitsPerSheet, 1)))
 }
 
 export const calculatePartShortage = ({
@@ -16,8 +25,11 @@ export const calculatePartShortage = ({
   cards,
   cardScrapMap,
   scrapByNom,
+  pendingVkyaByNom = {},
+  qualityHoldCardsByNom = {},
   flowTotalsByTaskNom = {},
   finalScrapByTask = {},
+  vkyaReturnedByTask = {},
   hasFinalScrapProjection = false
 }) => {
   const nomId = asId(entry.nomId)
@@ -37,13 +49,23 @@ export const calculatePartShortage = ({
   const sumProduced = getProducedQty(nomCards)
   const produced = flowProduced > 0 ? flowProduced : sumProduced
 
-  const activeRedo = nomCards.some(card => {
+  const isRedoCard = (card) => {
     const info = String(card.card_info || '')
-    return !countAsProduced(card) && (card.is_rework || info.includes('[REDO]'))
-  })
+    return card.is_rework || info.includes('[REDO]') || info.includes('[REPAIR]')
+  }
+
+  const activeRedo = nomCards.some(card => !countAsProduced(card) && isRedoCard(card))
+
+  // Already-issued reissue (dovypusk) quantities
+  const redoQty = nomCards
+    .filter(card => countAsProduced(card) && isRedoCard(card))
+    .reduce((sum, card) => sum + asNumber(card.quantity), 0)
+  const redoPendingQty = nomCards
+    .filter(card => !countAsProduced(card) && isRedoCard(card))
+    .reduce((sum, card) => sum + asNumber(card.quantity), 0)
 
   const actualSheets = productionCards.reduce((sum, card) => {
-    return sum + getCardSheets(card, unitsPerSheet, cardScrapMap[asId(card.id)] || 0)
+    return sum + getCardSheets(card, unitsPerSheet)
   }, 0)
 
   const totalSheets = productionCards.length > 0 ? Math.max(plannedSheets, actualSheets) : plannedSheets
@@ -53,6 +75,21 @@ export const calculatePartShortage = ({
     ? asNumber(finalScrapByTask?.[asId(task.id)]?.[nomId])
     : observedScrap
   const shortage = Math.max(0, scrap - spareFromSheets)
+
+  const returnedFromResolutionIndex = asNumber(vkyaReturnedByTask?.[asId(task.id)]?.[nomId])
+  const returnedFromCardInfo = nomCards.reduce((sum, card) => {
+    const info = String(card.card_info || '')
+    const match = info.match(/\[VKYA_RETURN:[^:]+:(\d+)\]/)
+    if (match) return sum + (Number(match[1]) || 0)
+    return sum
+  }, 0)
+  const returnedVkya = Math.max(returnedFromResolutionIndex, returnedFromCardInfo)
+
+  // Quality Hold (НА ВКЯ): parts sent to VKYA that have neither been written off as Cat4 Util (scrap) nor returned to order (returnedVkya)
+  const qualityHoldFromCards = asNumber(qualityHoldCardsByNom?.[nomId])
+  const qualityHoldFromPending = asNumber(pendingVkyaByNom?.[nomId])
+  const qualityHoldFromFormula = Math.max(0, observedScrap - scrap - returnedVkya)
+  const qualityHold = Math.max(qualityHoldFromCards, qualityHoldFromPending, qualityHoldFromFormula)
 
   const splits = Array.isArray(snapshot.splits) ? snapshot.splits : []
   const isSplitMode = splits.length > 0
@@ -74,10 +111,13 @@ export const calculatePartShortage = ({
     produced,
     scrap,
     observedScrap,
-    qualityHold: Math.max(0, observedScrap - scrap),
+    qualityHold,
+    returnedVkya,
     spareFromSheets,
     shortage,
     activeRedo,
+    redoQty,
+    redoPendingQty,
     cards: nomCards,
     productionCards,
     machine: snapshot.machine || snapshot.selected_machine || task.machine_name || productionCards[0]?.machine || '',
@@ -93,10 +133,14 @@ export const calculateTaskParts = ({
   nomenclatures,
   flowTotalsByTaskNom = {},
   finalScrapByTask = {},
+  vkyaReturnedByTask = {},
   hasFinalScrapProjection = false
 }) => {
   const entries = getSnapshotPartEntries(task, nomenclatures)
-  const taskScrap = scrapModel.scrapByTask?.[asId(task.id)] || {}
+  const taskId = asId(task.id)
+  const taskScrap = scrapModel.scrapByTask?.[taskId] || {}
+  const pendingVkyaByNom = scrapModel.pendingVkyaByTask?.[taskId] || {}
+  const qualityHoldCardsByNom = scrapModel.qualityHoldCardsByTask?.[taskId] || {}
 
   return entries.map(entry => calculatePartShortage({
     task,
@@ -104,8 +148,11 @@ export const calculateTaskParts = ({
     cards,
     cardScrapMap: scrapModel.cardScrap || {},
     scrapByNom: taskScrap,
+    pendingVkyaByNom,
+    qualityHoldCardsByNom,
     flowTotalsByTaskNom,
     finalScrapByTask,
+    vkyaReturnedByTask,
     hasFinalScrapProjection
   }))
 }

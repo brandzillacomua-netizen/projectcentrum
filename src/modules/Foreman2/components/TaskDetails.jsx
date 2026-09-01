@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react'
 import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Clipboard, Copy, Factory, Layers, PackageCheck, Printer, Wrench, Clock } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import { formatQty } from '../utils/normalize.js'
+import { getCardSheets } from '../features/shortage/shortageCalculations.js'
 
 const panelStyle = {
   background: '#111',
@@ -11,22 +12,22 @@ const panelStyle = {
 }
 
 const getTaskBadge = (summary, task) => {
-  if (task.status === 'completed') return { label: 'Виконано', color: '#10b981', text: '#fff', icon: <CheckCircle2 size={13} /> }
-  if (summary.hasShortage) return { label: 'Потрібен довипуск', color: '#ef4444', text: '#fff', icon: <AlertTriangle size={13} /> }
-  if (summary.isReady) return { label: 'Готово', color: '#10b981', text: '#fff', icon: <PackageCheck size={13} /> }
+  if (task.status === 'completed') return { label: 'Виконано', color: '#64748b', text: '#fff', icon: <CheckCircle2 size={13} /> }
+  if (summary.hasShortage || summary.totalShortage > 0) return { label: 'Потрібен довипуск', color: '#ef4444', text: '#fff', icon: <AlertTriangle size={13} /> }
+  if (summary.isReady) return { label: 'Готово до закриття', color: '#10b981', text: '#fff', icon: <PackageCheck size={13} /> }
   if (summary.totalCards === 0) return { label: 'Новий', color: '#3b82f6', text: '#fff', icon: <Clipboard size={13} /> }
-  return { label: 'В роботі', color: '#eab308', text: '#111', icon: <Layers size={13} /> }
+  return { label: 'В роботі', color: '#eab308', text: '#000', icon: <Layers size={13} /> }
 }
 
 const getCardStatus = (card) => {
   const status = String(card?.status || '')
   if (status === 'completed') return { label: 'Готово', color: '#10b981' }
   if (status === 'at-shop2-buffer' || status === 'waiting-buffer' || status === 'at-buffer') return { label: 'Буфер', color: '#10b981' }
-  if (status === 'waiting-materials') return { label: 'Очікує склад', color: '#f59e0b' }
-  if (status === 'in-progress') return { label: 'В роботі', color: '#3b82f6' }
+  if (status === 'waiting-materials') return { label: 'Очікує склад', color: '#eab308' }
+  if (status === 'in-progress') return { label: 'В роботі', color: '#eab308' }
   if (status === 'paused') return { label: 'Пауза', color: '#a855f7' }
   if (status === 'scrapped') return { label: 'Брак', color: '#ef4444' }
-  return { label: status || 'Очікує', color: '#777' }
+  return { label: status || 'Очікує', color: '#3b82f6' }
 }
 
 const capacityByMachine = (machineName) => {
@@ -74,21 +75,12 @@ const getLoadProgress = (part, rowCapacityOverride) => {
 
   let generatedSheetsCalc = 0
   baseCards.forEach(c => {
-    const explicitSheets = Number(c?.actual_sheets || c?.actualSheets || c?.sheets)
-    if (explicitSheets > 0) {
-      generatedSheetsCalc += explicitSheets
-    } else {
-      const cardScrap = Number(c?.scrap_qty || 0) // if available directly
-      generatedSheetsCalc += Math.ceil(((Number(c.quantity) || 0) + cardScrap) / unitsPerSheet)
-    }
+    generatedSheetsCalc += getCardSheets(c, unitsPerSheet)
   })
 
   const plannedSheets = Number(part.plannedSheets) || 0
   
-  // If there is no overall shortage for the part, then we don't expect any more base loads
-  // We can just clamp remainingSheetsCalc to 0 in that case.
-  const hasShortage = (part.shortage || 0) > 0
-  const remainingSheetsCalc = hasShortage ? Math.max(0, plannedSheets - generatedSheetsCalc) : 0
+  const remainingSheetsCalc = Math.max(0, plannedSheets - generatedSheetsCalc)
 
   const baseLoads = part.machine ? (baseCards.length + Math.ceil(remainingSheetsCalc / machineCapacity)) : (plannedSheets || 0)
   const expectedLoads = (part.plan === 0 && (part.cards || []).some(c => c.operation === 'Склад БЗ')) ? 1 : baseLoads
@@ -133,17 +125,17 @@ const WorkCardTile = ({ card, onClick }) => {
   const cardCode = String(card?.id || '').slice(-8).toUpperCase()
 
   return (
-    <article className="foreman2-card-tile" onClick={onClick} style={{ cursor: onClick ? 'pointer' : 'default' }}>
+    <article className="foreman2-card-tile" onClick={onClick} style={{ cursor: onClick ? 'pointer' : 'default', background: 'var(--card-bg, #080808)', border: '1px solid var(--glass-border, #242424)', borderRadius: '10px', padding: '12px', minWidth: 0 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
         <div style={{ minWidth: 0 }}>
-          <div style={{ color: '#fff', fontSize: '0.82rem', fontWeight: 950, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <div style={{ color: 'var(--text, #fff)', fontSize: '0.82rem', fontWeight: 950, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             Картка {cardCode || 'без номера'}
           </div>
-          <div style={{ color: '#555', fontSize: '0.66rem', fontWeight: 850, marginTop: '3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <div style={{ color: 'var(--text-muted, #64748b)', fontSize: '0.66rem', fontWeight: 850, marginTop: '3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {card?.operation || 'Розкрій'} · {card?.machine || 'Верстат не вказано'}
           </div>
         </div>
-        <div style={{ background: '#fff', padding: '5px', borderRadius: '8px', flexShrink: 0 }}>
+        <div style={{ background: '#fff', padding: '5px', borderRadius: '8px', flexShrink: 0, border: '1px solid #cbd5e1' }}>
           <QRCodeSVG value={`CENTRUM_CARD_${card?.id}`} size={45} />
         </div>
       </div>
@@ -161,17 +153,17 @@ const WorkCardTile = ({ card, onClick }) => {
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '12px' }}>
         <div>
-          <div style={{ color: '#555', fontSize: '0.6rem', fontWeight: 950, textTransform: 'uppercase' }}>Кількість</div>
-          <div style={{ color: '#fff', fontSize: '1rem', fontWeight: 950 }}>{formatQty(card?.quantity)}</div>
+          <div style={{ color: 'var(--text-muted, #64748b)', fontSize: '0.6rem', fontWeight: 950, textTransform: 'uppercase' }}>Кількість</div>
+          <div style={{ color: 'var(--text, #fff)', fontSize: '1rem', fontWeight: 950 }}>{formatQty(card?.quantity)}</div>
         </div>
         <div>
-          <div style={{ color: '#555', fontSize: '0.6rem', fontWeight: 950, textTransform: 'uppercase' }}>Листів</div>
-          <div style={{ color: '#fff', fontSize: '1rem', fontWeight: 950 }}>{formatQty(card?.actual_sheets || card?.sheets || 0)}</div>
+          <div style={{ color: 'var(--text-muted, #64748b)', fontSize: '0.6rem', fontWeight: 950, textTransform: 'uppercase' }}>Листів</div>
+          <div style={{ color: 'var(--text, #fff)', fontSize: '1rem', fontWeight: 950 }}>{formatQty(card?.actual_sheets || card?.sheets || 0)}</div>
         </div>
       </div>
 
       {card?.card_info && (
-        <div style={{ marginTop: '10px', color: '#666', fontSize: '0.66rem', fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <div style={{ marginTop: '10px', color: 'var(--text-muted, #64748b)', fontSize: '0.66rem', fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {card.card_info}
         </div>
       )}
@@ -179,7 +171,7 @@ const WorkCardTile = ({ card, onClick }) => {
   )
 }
 
-const WorkCardsArchive = ({ parts, task, expandedId, onToggle, onOpenReissue, onMachineChange, onPrintCards }) => {
+const WorkCardsArchive = ({ parts, task, expandedId, onToggle, onOpenReissue, onMachineChange, onPrintCards, isLoading }) => {
   return (
     <section style={{ marginTop: '26px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
@@ -199,7 +191,7 @@ const WorkCardsArchive = ({ parts, task, expandedId, onToggle, onOpenReissue, on
           const redoCards = getRedoProductionCards(part)
           const waitingMaterials = (part.cards || []).some(card => card.status === 'waiting-materials')
           const bzAfterScrap = part.spareFromSheets - part.scrap
-          const hasShortage = part.shortage > 0 && task.status !== 'completed'
+          const hasShortage = part.shortage > 0 && task.status !== 'completed' && !isLoading
 
           return (
             <div key={part.nomId}>
@@ -213,6 +205,8 @@ const WorkCardsArchive = ({ parts, task, expandedId, onToggle, onOpenReissue, on
                     Потреба: <span style={{ color: '#aaa' }}>{formatQty(part.need)}</span> |{' '}
                     Вироблено: <span style={{ color: '#3b82f6' }}>{formatQty(part.produced)}</span> |{' '}
                     БЗ: <span style={{ color: bzAfterScrap > 0 ? '#10b981' : '#aaa' }}>{bzAfterScrap > 0 ? signedQty(bzAfterScrap) : '+0'}</span>
+                    {part.qualityHold > 0 && <span style={{ color: '#f59e0b', marginLeft: '6px' }}>| На ВКЯ: {formatQty(part.qualityHold)}</span>}
+                    {part.returnedVkya > 0 && <span style={{ color: '#10b981', marginLeft: '6px' }}>| Повернуто: {formatQty(part.returnedVkya)}</span>}
                   </div>
                 </div>
 
@@ -221,7 +215,7 @@ const WorkCardsArchive = ({ parts, task, expandedId, onToggle, onOpenReissue, on
                     Карток: <span style={{ color: '#fff' }}>{load.loaded}</span>
                     <small style={{ marginLeft: '8px', color: '#333' }}>
                       ({waitingCards > 0 && <span style={{ color: '#eab308', marginRight: '6px' }}>Очікують: {waitingCards}</span>}
-                      {inWorkCards > 0 && <span style={{ color: '#ff9000', marginRight: '6px' }}>В роботі: {inWorkCards}</span>}
+                      {inWorkCards > 0 && <span style={{ color: '#eab308', marginRight: '6px' }}>В роботі: {inWorkCards}</span>}
                       {completedCards > 0 && <span style={{ color: '#10b981' }}>Готові: {completedCards}</span>})
                     </small>
                   </div>
@@ -231,18 +225,42 @@ const WorkCardsArchive = ({ parts, task, expandedId, onToggle, onOpenReissue, on
                     </div>
                   )}
                   {redoCards.length > 0 && (
-                    <div style={{ fontSize: '0.68rem', color: '#ff9000', fontWeight: 950 }}>
+                    <div style={{ fontSize: '0.68rem', color: '#ef4444', fontWeight: 950 }}>
                       Довипуск: {redoCards.length}
                     </div>
                   )}
-                  <div style={{ fontSize: '0.68rem', color: '#555', fontWeight: 900, textTransform: 'uppercase' }}>
-                    Прийнято: <span style={{ color: '#3b82f6' }}>{formatQty(part.produced)}</span>
-                  </div>
-                  <div style={{ fontSize: '0.68rem', color: part.scrap > 0 ? '#ef4444' : '#333', fontWeight: 950, textTransform: 'uppercase' }}>
-                    Брак: {formatQty(part.scrap)}
+                  {/* ── Right-side QC metrics block ── */}
+                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                    <div style={{ fontSize: '0.68rem', color: '#555', fontWeight: 900, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+                      Прийнято: <span style={{ color: '#3b82f6' }}>{formatQty(part.produced)}</span>
+                    </div>
+                    {part.observedScrap > 0 && (
+                      <div style={{ fontSize: '0.68rem', color: '#f97316', fontWeight: 950, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+                        Брак: <span style={{ color: '#f97316' }}>{formatQty(part.observedScrap)}</span>
+                      </div>
+                    )}
+                    <div style={{ fontSize: '0.68rem', color: part.scrap > 0 ? '#ef4444' : '#555', fontWeight: 950, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+                      Утиль: <span style={{ color: part.scrap > 0 ? '#ef4444' : '#888' }}>{formatQty(part.scrap)}</span>
+                    </div>
+                    <div style={{ fontSize: '0.68rem', color: part.qualityHold > 0 ? '#f59e0b' : '#555', fontWeight: 950, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+                      На ВКЯ: <span style={{ color: part.qualityHold > 0 ? '#f59e0b' : '#888' }}>{formatQty(part.qualityHold)}</span>
+                    </div>
+                    <div style={{ fontSize: '0.68rem', color: part.returnedVkya > 0 ? '#10b981' : '#555', fontWeight: 950, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+                      Повернуто: <span style={{ color: part.returnedVkya > 0 ? '#10b981' : '#888' }}>{formatQty(part.returnedVkya)}</span>
+                    </div>
+                    {part.redoQty > 0 && (
+                      <div style={{ padding: '3px 8px', borderRadius: '6px', background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.35)', fontSize: '0.62rem', fontWeight: 950, textTransform: 'uppercase', whiteSpace: 'nowrap', color: '#818cf8' }}>
+                        Довипущено: <span style={{ color: '#a5b4fc' }}>{formatQty(part.redoQty)}</span>
+                      </div>
+                    )}
+                    {part.redoPendingQty > 0 && (
+                      <div style={{ padding: '3px 8px', borderRadius: '6px', background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.35)', fontSize: '0.62rem', fontWeight: 950, textTransform: 'uppercase', whiteSpace: 'nowrap', color: '#fbbf24' }}>
+                        В довипуску: <span style={{ color: '#fde68a' }}>{formatQty(part.redoPendingQty)}</span>
+                      </div>
+                    )}
                   </div>
                   {waitingMaterials && (
-                    <div style={{ padding: '5px 9px', borderRadius: '7px', background: 'rgba(255,144,0,.1)', border: '1px solid rgba(255,144,0,.35)', color: '#ff9000', fontSize: '0.62rem', fontWeight: 950, textTransform: 'uppercase' }}>
+                    <div style={{ padding: '5px 9px', borderRadius: '7px', background: 'rgba(234,179,8,.1)', border: '1px solid rgba(234,179,8,.35)', color: '#eab308', fontSize: '0.62rem', fontWeight: 950, textTransform: 'uppercase' }}>
                       Очікує склад
                     </div>
                   )}
@@ -488,9 +506,8 @@ export default function TaskDetails({ model, nomenclatures = [], allCards, onOpe
                 )}
                 <th style={{ padding: '12px 6px', textAlign: 'center' }}>МАТЕРІАЛ</th>
                 <th style={{ padding: '12px 6px', textAlign: 'center' }}>ШТ/Л</th>
+                <th style={{ padding: '12px 6px', textAlign: 'center', color: '#ff9000' }}>КАРТ</th>
                 <th style={{ padding: '12px 6px', textAlign: 'center', color: '#10b981' }}>ЛИСТІВ</th>
-                <th style={{ padding: '12px 10px', width: '12%' }}>ВЕРСТАТ</th>
-                <th style={{ padding: '12px 6px', textAlign: 'center', color: '#3b82f6', width: '8%' }}>ЗАВАНТ.</th>
                 {!isReworkOrder && <th style={{ padding: '12px 6px', textAlign: 'center', color: '#ef4444' }}>БЗ</th>}
                 <th style={{ padding: '12px 6px', textAlign: 'center' }}>ДІЇ</th>
               </tr>
@@ -540,98 +557,8 @@ export default function TaskDetails({ model, nomenclatures = [], allCards, onOpe
                         )}
                       </td>
                       <td style={{ padding: '10px 4px', textAlign: 'center', color: '#ddd', fontWeight: 900 }}>{formatQty(part.unitsPerSheet)}</td>
-                      <td style={{ padding: '10px 4px', textAlign: 'center', color: '#10b981', fontWeight: 1000, fontSize: '1.1rem' }}>{formatQty(part.plannedSheets)}</td>
-                      <td style={{ padding: '10px 4px' }}>
-                        {!part.isSplitMode ? (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%', minWidth: '220px' }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', flex: 1 }}>
-                              <div className={`machine-badge ${part.machine ? 'assigned' : 'unassigned'}`} style={{ background: part.machine ? '#050505' : '#1f1f1f', border: part.machine ? '1px solid #333' : '1px dashed #444', color: '#fff', borderRadius: '8px', padding: '7px 9px', textAlign: 'center', fontSize: '0.68rem', fontWeight: 950, lineHeight: 1.2 }}>
-                                {part.machine || 'Оберіть верстат'}
-                              </div>
-                              {part.plan > 0 && (
-                                <button
-                                  type="button"
-                                  onClick={(event) => {
-                                    event.stopPropagation()
-                                    if (onMachineChange) onMachineChange(part)
-                                  }}
-                                  style={{ background: 'rgba(59,130,246,.1)', border: '1px solid rgba(59,130,246,.3)', color: '#3b82f6', padding: '6px 10px', borderRadius: '8px', fontSize: '0.68rem', fontWeight: 950, cursor: 'pointer', textTransform: 'uppercase', transition: 'all 0.2s' }}
-                                  title="Змінити верстат"
-                                >
-                                  ⚙️ Змінити верстат
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        ) : (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }} onClick={e => e.stopPropagation()}>
-                            {(part.splits || []).map((s, sIdx) => {
-                              const cap = capacityRangeByMachine(s.machine).maxCapacity || 1
-                              const sh = Number(s.sheets) || Math.ceil((Number(s.qty) || 0) / (part.unitsPerSheet || 1))
-                              const l = Math.ceil(sh / cap)
-
-                              return (
-                                <div key={sIdx} className="split-machine-item" style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#111', padding: '6px 8px', borderRadius: '8px', border: '1px solid #333' }}>
-                                  <input
-                                    type="number"
-                                    defaultValue={s.sheets}
-                                    placeholder="Л."
-                                    style={{ width: '40px', background: '#000', border: '1px solid #444', color: '#fff', borderRadius: '6px', padding: '4px', textAlign: 'center', fontSize: '0.75rem', fontWeight: 800 }}
-                                  />
-                                  <div style={{ fontSize: '0.65rem', fontWeight: 900, color: '#aaa', flex: 1 }}>{s.machine}</div>
-                                  <div style={{ fontSize: '0.65rem', color: '#444', fontWeight: 900 }}>{l} завант.</div>
-                                </div>
-                              )
-                            })}
-                            <button
-                              type="button"
-                              style={{ background: 'rgba(59,130,246,.1)', border: '1px dashed rgba(59,130,246,.4)', color: '#3b82f6', padding: '4px', borderRadius: '6px', fontSize: '0.65rem', fontWeight: 900, cursor: 'pointer', textTransform: 'uppercase' }}
-                            >
-                              + Розділити ще
-                            </button>
-                          </div>
-                        )}
-                      </td>
-                      <td style={{ borderBottom: '1px solid #1a1a1a' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                          {part.plan > 0 && part.machine && capacityRangeByMachine(part.machine).defaultCapacity !== capacityRangeByMachine(part.machine).maxCapacity && (
-                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}>
-                              <label style={{ fontSize: '0.6rem', color: '#666', fontWeight: 900, textTransform: 'uppercase' }}>Листів</label>
-                              <input
-                                type="number"
-                                placeholder="Завант."
-                                value={rowCapacities[part.nomId] !== undefined ? rowCapacities[part.nomId] : ''}
-                                min={capacityRangeByMachine(part.machine).defaultCapacity}
-                                max={capacityRangeByMachine(part.machine).maxCapacity}
-                                readOnly={getBaseProductionCards(part).length > 0 && getBaseProductionCards(part).length >= load.expectedLoads}
-                                onChange={(e) => {
-                                  const v = parseInt(e.target.value)
-                                  setRowCapacities(p => ({ ...p, [part.nomId]: isNaN(v) ? '' : v }))
-                                }}
-                                onBlur={(e) => {
-                                  let v = parseInt(e.target.value)
-                                  if (isNaN(v)) {
-                                    setRowCapacities(p => ({ ...p, [part.nomId]: '' }))
-                                    return
-                                  }
-                                  const { defaultCapacity, maxCapacity } = capacityRangeByMachine(part.machine)
-                                  v = Math.min(maxCapacity, Math.max(defaultCapacity, v))
-                                  setRowCapacities(p => ({ ...p, [part.nomId]: v }))
-                                }}
-                                style={{ width: '38px', height: '24px', background: '#111', border: '1px solid #333', color: '#fff', fontSize: '0.75rem', fontWeight: 950, textAlign: 'center', borderRadius: '5px' }}
-                              />
-                            </div>
-                          )}
-                          <div style={{ padding: '10px 4px', textAlign: 'center', color: '#3b82f6', fontWeight: 1000, fontSize: '1.2rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <span style={{ color: load.loaded < load.expectedLoads ? '#444' : '#3b82f6' }}>{load.loaded}</span>
-                            <span style={{ color: '#222', margin: '0 5px' }}>/</span>
-                            <span>{load.expectedLoads}</span>
-                            {redoCards.length > 0 && (
-                              <span style={{ fontSize: '0.75rem', color: '#ef4444', marginLeft: '5px', fontWeight: 900 }}>+{redoCards.length}</span>
-                            )}
-                          </div>
-                        </div>
-                      </td>
+                      <td style={{ padding: '10px 4px', textAlign: 'center', color: '#ff9000', fontWeight: 950, fontSize: '0.95rem' }}>{part.productionCards?.length || 0}</td>
+                      <td style={{ padding: '10px 4px', textAlign: 'center', color: '#10b981', fontWeight: 1000, fontSize: '1.05rem' }}>{part.actualSheets || 0}/{formatQty(part.plannedSheets)}</td>
                       {!isReworkOrder && (
                         <td style={{ padding: '10px 6px', textAlign: 'center', color: '#ef4444', fontWeight: 950 }}>
                           {surplus > 0 ? `+${surplus}` : '0'}
@@ -644,9 +571,7 @@ export default function TaskDetails({ model, nomenclatures = [], allCards, onOpe
                               <div style={{ background: '#3b82f620', border: '1px solid #3b82f640', color: '#3b82f6', padding: '8px 12px', borderRadius: '10px', fontSize: '0.65rem', fontWeight: 950, textTransform: 'uppercase' }}>
                                 ЗАБРОНЬОВАНО ({Math.min(part.need || 0, part.stock)})
                               </div>
-                            ) : (
-                              <div style={{ color: '#222', fontSize: '0.6rem', fontWeight: 900 }}>НЕ ПОТРЕБУЄ ДІЇ</div>
-                            )
+                            ) : null
                           ) : (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                               {part.stock > 0 && (
@@ -654,32 +579,27 @@ export default function TaskDetails({ model, nomenclatures = [], allCards, onOpe
                                   ЗАБРОНЬОВАНО: {Math.min(part.need || 0, part.stock)} шт
                                 </div>
                               )}
-                              {(load.loaded === 0 || load.loaded < load.expectedLoads) && (
+                              {load.remainingSheets > 0 && (
                                 <button
                                   type="button"
-                                  disabled={!(part.machine || part.isSplitMode) || (part.machine && capacityRangeByMachine(part.machine).defaultCapacity !== capacityRangeByMachine(part.machine).maxCapacity && !rowCapacities[part.nomId])}
                                   onClick={(event) => {
                                     event.stopPropagation()
-                                    if (part.machine && capacityRangeByMachine(part.machine).defaultCapacity !== capacityRangeByMachine(part.machine).maxCapacity && !rowCapacities[part.nomId]) {
-                                      alert(`Вкажіть кількість листів на одне завантаження (${capacityRangeByMachine(part.machine).defaultCapacity}-${capacityRangeByMachine(part.machine).maxCapacity} л.) перед генерацією карток.`)
-                                      return
-                                    }
-                                    if (onGenerateCards) onGenerateCards(part, load.expectedLoads - load.loaded, rowCapacities[part.nomId], load.remainingSheets)
+                                    if (onGenerateCards) onGenerateCards(part, 1, rowCapacities[part.nomId], load.remainingSheets)
                                   }}
                                   style={{
-                                    background: (part.machine && capacityRangeByMachine(part.machine).defaultCapacity !== capacityRangeByMachine(part.machine).maxCapacity && !rowCapacities[part.nomId]) ? '#222' : (part.machine || part.isSplitMode ? '#ff9000' : '#222'),
-                                    color: (part.machine && capacityRangeByMachine(part.machine).defaultCapacity !== capacityRangeByMachine(part.machine).maxCapacity && !rowCapacities[part.nomId]) ? '#666' : (part.machine || part.isSplitMode ? '#000' : '#444'),
-                                    border: (part.machine && capacityRangeByMachine(part.machine).defaultCapacity !== capacityRangeByMachine(part.machine).maxCapacity && !rowCapacities[part.nomId]) ? '1px solid #333' : 'none',
+                                    background: '#ff9000',
+                                    color: '#000',
+                                    border: 'none',
                                     padding: '8px 15px',
                                     borderRadius: '8px',
                                     fontSize: '0.65rem',
                                     fontWeight: 900,
-                                    cursor: (part.machine && capacityRangeByMachine(part.machine).defaultCapacity !== capacityRangeByMachine(part.machine).maxCapacity && !rowCapacities[part.nomId]) ? 'not-allowed' : (part.machine || part.isSplitMode ? 'pointer' : 'not-allowed'),
+                                    cursor: 'pointer',
                                     textTransform: 'uppercase',
                                     opacity: 1
                                   }}
                                 >
-                                  {(part.machine && capacityRangeByMachine(part.machine).defaultCapacity !== capacityRangeByMachine(part.machine).maxCapacity && !rowCapacities[part.nomId]) ? 'ВКАЖІТЬ ЛИСТИ' : 'Генерувати'}
+                                  Генерувати
                                 </button>
                               )}
                             </div>
@@ -765,6 +685,7 @@ export default function TaskDetails({ model, nomenclatures = [], allCards, onOpe
       <WorkCardsArchive
         parts={parts}
         task={task}
+        isLoading={model?.isLoading}
         expandedId={expandedArchivePartId}
         onToggle={setExpandedArchivePartId}
         onOpenReissue={onOpenReissue}

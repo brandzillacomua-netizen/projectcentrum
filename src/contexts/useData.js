@@ -74,7 +74,7 @@ const FLOW_TOTALS_REALTIME_ROUTES = new Set([
 // on `/`, so keeping the portal profile tiny is what prevents a login/restart
 // wave from turning into the former 20-table bootstrap on every device.
 const ROUTE_DATA_PROFILES = Object.freeze({
-  '/': ['management_tasks', 'company_positions', 'system_users'],
+  '/': ['orders', 'work_cards', 'material_requests', 'machines', 'machine_calls', 'tasks', 'management_tasks', 'company_positions', 'system_users'],
   '/dashboard': ['orders', 'tasks', 'inventory', 'work_cards', 'nomenclatures', 'bom_items', 'work_card_history'],
   '/foreman-dashboard': ['orders', 'tasks', 'inventory', 'work_cards', 'nomenclatures', 'bom_items', 'work_card_scrap_totals', 'work_card_flow_totals'],
   '/manager': ['orders', 'tasks', 'nomenclatures'],
@@ -479,7 +479,10 @@ const mergeOrderRows = (existing = [], incoming = []) => {
 const isTaskInFulfillmentSlice = (task, pathname) => {
   const metadata = task?.plan_snapshot?._metadata || {}
   if (pathname === '/packaging') {
-    return task?.status === 'completed' || metadata.is_packaged === true
+    // Only already-packaged or archived tasks belong to the fulfillment slice
+    // and can be evicted when absent from incoming RPC data.
+    // Active/in-progress tasks MUST NEVER be dropped by reconciliation.
+    return metadata.is_packaged === true
   }
   if (pathname === '/shipping') {
     return metadata.is_packaged === true || metadata.is_shipped === true
@@ -488,6 +491,9 @@ const isTaskInFulfillmentSlice = (task, pathname) => {
 }
 
 const reconcileFulfillmentTaskRows = (existing = [], incoming = [], pathname = '') => {
+  // If incoming data is empty (RPC returned nothing), keep everything we have.
+  // This prevents the queue from wiping to 0 when the RPC is misconfigured.
+  if (!incoming || incoming.length === 0) return existing
   const incomingIds = new Set(incoming.map(task => String(task?.id || '')).filter(Boolean))
   const retained = existing.filter(task => (
     !isTaskInFulfillmentSlice(task, pathname) || incomingIds.has(String(task?.id || ''))
@@ -808,8 +814,8 @@ export function useData() {
         // Kanban badge counter
         needsTable('management_tasks') ? supabase.from('management_tasks').select('*').or('status.neq.done,project_id.not.is.null').order('created_at', { ascending: false }) : skippedTable(),
         needsTable('task_projects') ? supabase.from('task_projects').select('*').order('created_at', { ascending: false }) : skippedTable(),
-        // Customers for manager
-        needsTable('customers') ? supabase.from('customers').select('id,name,official_name').limit(50).order('name') : skippedTable(),
+        // Customers for manager & CRM
+        needsTable('customers') ? supabase.from('customers').select('*').limit(500).order('name') : skippedTable(),
         // Latest orders WITH order_items — needed by Master, Foreman, Director for naryad creation
         needsTable('orders') ? supabase.from('orders').select('*, order_items(*)').order('created_at', { ascending: false }).range(0, 99) : skippedTable(),
         // Active tasks WITHOUT nested order JOIN — order data is already in orders state
@@ -1233,7 +1239,7 @@ export function useData() {
           bomItemsLoadedRef.current = true
         }
       } else if (tableName === 'customers') {
-        const data = requireData(await supabase.from('customers').select('id,name,official_name').order('name').limit(500))
+        const data = requireData(await supabase.from('customers').select('*').order('name').limit(500))
         if (data) setCustomers(data)
       } else if (tableName === 'purchase_requests') {
         const data = requireData(await supabase.from('purchase_requests').select('*').order('created_at', { ascending: false }).limit(300))

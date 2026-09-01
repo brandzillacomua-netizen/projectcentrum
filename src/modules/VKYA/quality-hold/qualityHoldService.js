@@ -20,6 +20,23 @@ export async function fetchFinalScrapTotals(supabase, taskIds = []) {
   return rows
 }
 
+export async function fetchVkyaReturnedTotals(supabase, taskIds = []) {
+  const uniqueTaskIds = [...new Set(taskIds.filter(Boolean).map(String))]
+  if (uniqueTaskIds.length === 0) return []
+
+  const rows = []
+  for (const taskChunk of chunk(uniqueTaskIds, 40)) {
+    const { data, error } = await supabase
+      .from('vkya_quality_resolutions')
+      .select('*')
+      .in('task_id', taskChunk)
+      .eq('disposition', 'returned_to_route')
+    if (error) throw error
+    rows.push(...(data || []))
+  }
+  return rows
+}
+
 export async function returnQualityHoldToRoute(supabase, {
   sourceHistoryId,
   quantity,
