@@ -1899,33 +1899,35 @@ export function useData() {
         })
     }
 
-    // Static/rarely changed configuration tables are ONLY subscribed to when on Settings panel
+    // Always subscribe to system_users changes globally so permissions update instantly for all users
+    activeChannel2 = activeChannel2
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'system_users' }, (payload) => {
+        if (payload.eventType === 'INSERT') {
+          setSystemUsers(prev => {
+            if (prev.some(u => u.id === payload.new.id)) return prev
+            const updated = [...prev, payload.new]
+            return updated.sort((a, b) => (a.login || '').localeCompare(b.login || ''))
+          })
+        } else if (payload.eventType === 'UPDATE') {
+          setSystemUsers(prev => {
+            const existing = prev.find(u => u.id === payload.new.id)
+            if (existing) {
+              const keys = ['login', 'first_name', 'last_name', 'position', 'access_rights', 'department', 'shift', 'notification_settings', 'avatar']
+              const hasChanges = keys.some(k => JSON.stringify(existing[k]) !== JSON.stringify(payload.new[k]))
+              if (!hasChanges) {
+                existing.last_seen = payload.new.last_seen
+                return prev
+              }
+            }
+            return prev.map(u => u.id === payload.new.id ? { ...u, ...payload.new } : u)
+          })
+        } else if (payload.eventType === 'DELETE') {
+          setSystemUsers(prev => prev.filter(u => u.id !== payload.old.id))
+        }
+      })
+
     if (isSettings) {
       activeChannel2 = activeChannel2
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'system_users' }, (payload) => {
-          if (payload.eventType === 'INSERT') {
-            setSystemUsers(prev => {
-              if (prev.some(u => u.id === payload.new.id)) return prev
-              const updated = [...prev, payload.new]
-              return updated.sort((a, b) => (a.login || '').localeCompare(b.login || ''))
-            })
-          } else if (payload.eventType === 'UPDATE') {
-            setSystemUsers(prev => {
-              const existing = prev.find(u => u.id === payload.new.id)
-              if (existing) {
-                const keys = ['login', 'first_name', 'last_name', 'position', 'access_rights', 'department', 'shift', 'notification_settings', 'avatar']
-                const hasChanges = keys.some(k => JSON.stringify(existing[k]) !== JSON.stringify(payload.new[k]))
-                if (!hasChanges) {
-                  existing.last_seen = payload.new.last_seen
-                  return prev
-                }
-              }
-              return prev.map(u => u.id === payload.new.id ? { ...u, ...payload.new } : u)
-            })
-          } else if (payload.eventType === 'DELETE') {
-            setSystemUsers(prev => prev.filter(u => u.id !== payload.old.id))
-          }
-        })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'company_structure' }, () => {
           supabase.from('company_structure').select('*').order('name').then(({ data, error }) => {
             if (!error && data && data.length > 0) setCompanyStructure(data)

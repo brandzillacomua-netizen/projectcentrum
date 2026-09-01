@@ -715,11 +715,9 @@ const GlobalUserNav = ({ chatUnreadCount = 0 }) => {
   const shownNotifsRef = useRef(new Set());
   const pageLoadTimeRef = useRef(Date.now());
   const [openCategories, setOpenCategories] = useState({
-    shop1: true,
-    shop2: true,
-    warehouse_logistics: true,
-    management_analytics: true,
-    tech_settings: true
+    crm: true,
+    erp: true,
+    mes: true
   });
 
   const [completedCards, setCompletedCards] = useState([]);
@@ -2175,7 +2173,7 @@ const GlobalUserNav = ({ chatUnreadCount = 0 }) => {
               const catModules = modules.filter(m => (CATEGORY_MAP[m.id] || 'other') === cat.id);
               if (catModules.length === 0) return null;
 
-              const isOpen = openCategories[cat.id];
+              const isOpen = openCategories[cat.id] !== false;
 
               return (
                 <div key={cat.id} style={{ display: 'flex', flexDirection: 'column' }}>
