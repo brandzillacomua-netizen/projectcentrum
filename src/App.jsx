@@ -172,7 +172,23 @@ const getAvailableModules = (currentUser, badgeCount, chatBadgeCount = 0) => {
   const allModules = getAllModules(badgeCount, chatBadgeCount);
   return allModules.filter(m => {
     if (m.id === 'simulator') return currentUser?.position === 'Адмін' || currentUser?.role === 'admin';
-    if (m.id === 'crm' || m.id === 'crm_clients') return true; // CRM enabled for all authorized users
+    if (m.id === 'crm') {
+      return (
+        currentUser?.access_rights?.crm === true ||
+        currentUser?.access_rights?.crm === undefined ||
+        currentUser?.position === 'Адмін' ||
+        currentUser?.role === 'admin'
+      );
+    }
+    if (m.id === 'crm_clients') {
+      return (
+        currentUser?.access_rights?.crm_clients === true ||
+        currentUser?.access_rights?.crm === true ||
+        currentUser?.access_rights?.crm_clients === undefined ||
+        currentUser?.position === 'Адмін' ||
+        currentUser?.role === 'admin'
+      );
+    }
     if (m.id === 'warehouse_fgp') {
       return (
         currentUser?.access_rights?.warehouse_fgp === true ||
@@ -4787,7 +4803,7 @@ const AppContent = () => {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/" element={<Portal chatUnreadCount={chatUnreadCount} />} />
           <Route path="/crm" element={<PermissionGuard id="crm"><CrmModule /></PermissionGuard>} />
-          <Route path="/crm/clients" element={<PermissionGuard id="crm"><CrmClientsModule /></PermissionGuard>} />
+          <Route path="/crm/clients" element={<PermissionGuard id="crm_clients"><CrmClientsModule /></PermissionGuard>} />
           <Route path="/foreman-dashboard" element={<PermissionGuard id="foreman_dashboard"><ForemanDashboardModule /></PermissionGuard>} />
           <Route path="/manager" element={<PermissionGuard id="manager"><ManagerModule /></PermissionGuard>} />
           <Route path="/warehouse" element={<PermissionGuard id="warehouse"><WarehouseModule /></PermissionGuard>} />

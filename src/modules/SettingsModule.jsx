@@ -1768,7 +1768,7 @@ const SettingsModule = () => {
     department: companyStructure?.[0]?.name || 'Цех №1',
     shift: 'Без зміни',
     access_rights: {
-      dashboard: false, foreman_dashboard: false, manager: false, chat: false, master: false, warehouse: false, warehouse_fgp: false, warehouse_boxes: false, cutter_restoration: false, preparation_dashboard: false, engineer: false,
+      crm: false, crm_clients: false, dashboard: false, foreman_dashboard: false, manager: false, chat: false, master: false, warehouse: false, warehouse_fgp: false, warehouse_boxes: false, cutter_restoration: false, preparation_dashboard: false, engineer: false,
       director: false, foreman: false, foreman2: false, operator: true, shipping: false, 
       supply: false, procurement: false, nomenclature: false, nomenclature_v2: false, shop2: false, machines: false, settings: false, packaging: false, kanban: false, reports: false, tumbling_terminal: false, tumbling_dashboard: false, reception_terminal: false, sorting_terminal: false, painting_terminal: false, pressing_terminal: false
     }
@@ -1840,7 +1840,7 @@ const SettingsModule = () => {
     setUserForm({
       id: null, login: '', password: '', first_name: '', last_name: '', 
       position: companyPositions?.[0]?.name || 'Оператор', department: companyStructure?.[0]?.name || 'Цех №1', shift: 'Без зміни',
-      access_rights: { dashboard: false, foreman_dashboard: false, manager: false, chat: false, master: false, warehouse: false, warehouse_boxes: false, cutter_restoration: false, preparation_dashboard: false, engineer: false, director: false, foreman: false, foreman2: false, operator: true, prep_terminal: false, shipping: false, supply: false, procurement: false, nomenclature: false, nomenclature_v2: false, shop2: false, machines: false, settings: false, kanban: false, reports: false, tumbling_terminal: false, tumbling_dashboard: false, reception_terminal: false, sorting_terminal: false, painting_terminal: false, pressing_terminal: false }
+      access_rights: { crm: false, crm_clients: false, dashboard: false, foreman_dashboard: false, manager: false, chat: false, master: false, warehouse: false, warehouse_boxes: false, cutter_restoration: false, preparation_dashboard: false, engineer: false, director: false, foreman: false, foreman2: false, operator: true, prep_terminal: false, shipping: false, supply: false, procurement: false, nomenclature: false, nomenclature_v2: false, shop2: false, machines: false, settings: false, kanban: false, reports: false, tumbling_terminal: false, tumbling_dashboard: false, reception_terminal: false, sorting_terminal: false, painting_terminal: false, pressing_terminal: false }
     })
     setShowMobileUserForm(false)
   }
@@ -1850,7 +1850,7 @@ const SettingsModule = () => {
       ...user, 
       password: '••••••••',
       access_rights: {
-        dashboard: false, foreman_dashboard: false, manager: false, chat: false, master: false, warehouse: false, warehouse_boxes: false, cutter_restoration: false, preparation_dashboard: false, engineer: false,
+        crm: false, crm_clients: false, dashboard: false, foreman_dashboard: false, manager: false, chat: false, master: false, warehouse: false, warehouse_boxes: false, cutter_restoration: false, preparation_dashboard: false, engineer: false,
         director: false, foreman: false, foreman2: false, operator: false, prep_terminal: false, shipping: false, 
         supply: false, procurement: false, nomenclature: false, nomenclature_v2: false, shop2: false, machines: false, settings: false, packaging: false, kanban: false, reports: false, tumbling_terminal: false, tumbling_dashboard: false, reception_terminal: false, sorting_terminal: false, painting_terminal: false, pressing_terminal: false,
         ...(user.access_rights || {})
@@ -2027,6 +2027,8 @@ const SettingsModule = () => {
   }, [companyPositions, companyStructure, userForm.department])
 
   const moduleList = [
+    { id: 'crm', label: 'CRM Воронка Лідів & Угод' },
+    { id: 'crm_clients', label: 'База Клієнтів & Картки CRM' },
     { id: 'dashboard', label: 'Дашборд WIP' },
     { id: 'foreman_dashboard', label: 'ДАШБОРД 2.0' },
     { id: 'kanban', label: 'Задачі (Внутрішні)' },
