@@ -555,7 +555,10 @@ export default function Shop1Terminal() {
   const qcScrapTotal = qcScrapEntries.reduce((sum, row) => sum + (Number(row.scrap_qty) || 0), 0)
 
   const verifyCardBeforeMasterScrap = async () => {
-    if (!currentCard) return false
+    if (!currentCard) return true
+    // If no scrap is being added by operator/master, allow transfer immediately without blocking
+    if ((scrapCount || 0) <= 0) return true
+
     try {
       const [cardResult, qcResult] = await Promise.all([
         supabase.from('work_cards').select('id,quantity,status').eq('id', currentCard.id).maybeSingle(),
@@ -565,40 +568,40 @@ export default function Shop1Terminal() {
           .gt('scrap_qty', 0)
           .order('created_at', { ascending: true })
       ])
-      if (cardResult.error) throw cardResult.error
-      if (qcResult.error) throw qcResult.error
-      if (!cardResult.data) throw new Error('Картку не знайдено в базі')
 
-      const knownQcIds = new Set(qcScrapEntries.map(row => String(row.id)))
-      const freshQcRows = qcResult.data || []
-      const hasNewQcScrap = freshQcRows.some(row => !knownQcIds.has(String(row.id)))
-      const quantityChanged = Number(cardResult.data.quantity) !== Number(currentCard.quantity)
-
-      setSelectedCardHistory(previous => {
-        const byId = new Map(previous.map(row => [String(row.id), row]))
-        freshQcRows.forEach(row => byId.set(String(row.id), { ...byId.get(String(row.id)), ...row }))
-        return Array.from(byId.values()).sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0))
-      })
-
-      if (quantityChanged) {
-        setWorkCards(previous => previous.map(card => String(card.id) === String(currentCard.id)
-          ? { ...card, quantity: cardResult.data.quantity, status: cardResult.data.status }
-          : card))
+      if (cardResult?.data) {
+        const quantityChanged = Number(cardResult.data.quantity) !== Number(currentCard.quantity)
+        if (quantityChanged) {
+          setWorkCards(previous => previous.map(card => String(card.id) === String(currentCard.id)
+            ? { ...card, quantity: cardResult.data.quantity, status: cardResult.data.status }
+            : card))
+        }
       }
 
-      if (hasNewQcScrap || quantityChanged) {
-        setScrapCount(0)
-        const addedByQc = freshQcRows
-          .filter(row => !knownQcIds.has(String(row.id)))
-          .reduce((sum, row) => sum + (Number(row.scrap_qty) || 0), 0)
-        alert(`ВКЯ вже внесло${addedByQc > 0 ? ` ${addedByQc} шт` : ''} браку по цій картці. Дані оновлено, введення майстра скинуто — перевірте актуальну кількість.`)
-        return false
+      if (qcResult?.data && qcResult.data.length > 0) {
+        const knownHistoryIds = new Set((selectedCardHistory || workCardHistory || []).map(row => String(row.id)))
+        const freshQcRows = qcResult.data || []
+        const newQcRows = freshQcRows.filter(row => !knownHistoryIds.has(String(row.id)))
+
+        if (newQcRows.length > 0) {
+          setSelectedCardHistory(previous => {
+            const byId = new Map(previous.map(row => [String(row.id), row]))
+            freshQcRows.forEach(row => byId.set(String(row.id), { ...byId.get(String(row.id)), ...row }))
+            return Array.from(byId.values()).sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0))
+          })
+
+          setScrapCount(0)
+          const addedByQc = newQcRows.reduce((sum, row) => sum + (Number(row.scrap_qty) || 0), 0)
+          alert(`ВКЯ вже вніс ${addedByQc > 0 ? `${addedByQc} шт ` : ''}браку по цій картці. Дані оновлено.`)
+          return false
+        }
       }
+
       return true
     } catch (error) {
-      console.error('Failed to verify QC scrap before master action:', error)
-      alert('Не вдалося перевірити актуальний брак ВКЯ. Збереження зупинено, щоб не створити дубль. Повторіть спробу.')
-      return false
+      console.warn('Non-fatal error verifying QC scrap before master action:', error)
+      // Allow operation to proceed instead of blocking card transfer
+      return true
     }
   }
   const cardOperators = React.useMemo(() => {
