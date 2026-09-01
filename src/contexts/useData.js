@@ -6,8 +6,8 @@ import { getIndexedCache, setIndexedCache, removeIndexedCache } from '../service
 import { fetchProductionSummary } from '../services/statisticsService'
 import { fetchFulfillmentTasks, fetchMissingOrdersForTasks, isFulfillmentRoute } from '../services/fulfillmentQueueService'
 
-const CACHE_KEY = 'MES_APP_CACHE_V12'
-const LEGACY_CACHE_KEYS = ['MES_APP_CACHE_V1', 'MES_APP_CACHE_V2', 'MES_APP_CACHE_V3', 'MES_APP_CACHE_V4', 'MES_APP_CACHE_V5', 'MES_APP_CACHE_V6', 'MES_APP_CACHE_V7', 'MES_APP_CACHE_V8', 'MES_APP_CACHE_V9', 'MES_APP_CACHE_V10', 'MES_APP_CACHE_V11']
+const CACHE_KEY = 'MES_APP_CACHE_V13'
+const LEGACY_CACHE_KEYS = ['MES_APP_CACHE_V1', 'MES_APP_CACHE_V2', 'MES_APP_CACHE_V3', 'MES_APP_CACHE_V4', 'MES_APP_CACHE_V5', 'MES_APP_CACHE_V6', 'MES_APP_CACHE_V7', 'MES_APP_CACHE_V8', 'MES_APP_CACHE_V9', 'MES_APP_CACHE_V10', 'MES_APP_CACHE_V11', 'MES_APP_CACHE_V12']
 
 const F10_NOM_IDS = new Set([
   '5ecf63e5-802d-4f98-8291-aad9a52bfaa4',
