@@ -18,13 +18,16 @@ const getLoadingDeclaredTotal = (metadata) => {
   return fraction ? Number(fraction[2]) : 0
 }
 
-const getLoadingLabel = (metadata, total) => {
+const getLoadingLabel = (metadata) => {
   const loading = String(metadata?.loading || metadata?.card_info || '')
   const sequence = getLoadingSequence(metadata)
-  if (!Number.isFinite(sequence) || sequence === Number.MAX_SAFE_INTEGER) {
-    return loading.split(' [')[0]
+  if (sequence && Number.isFinite(sequence) && sequence !== Number.MAX_SAFE_INTEGER) {
+    return `№${sequence}`
   }
-  return `${sequence}/${total}`
+  const clean = loading.split(' [')[0].trim()
+  const fractionMatch = clean.match(/(?:^|\D)(\d+)\s*\/\s*\d+/)
+  if (fractionMatch) return `№${fractionMatch[1]}`
+  return clean ? (clean.startsWith('№') ? clean : `№${clean}`) : '—'
 }
 
 export default function ForemanPrintQueue({

@@ -1615,7 +1615,14 @@ export function ForemanTaskDetails({
                           </div>
                           <div style={{ width: '12%', borderRight: '1px solid #000', fontSize: '8pt', fontWeight: 1000, lineHeight: 1.1 }}>{getDisplayMaterial(nomenclature, snapshotPart)}</div>
                           <div style={{ width: '15%', borderRight: '1px solid #000', fontSize: '7.5pt', fontWeight: 1000, padding: '0 2px' }}>{m.machine}</div>
-                          <div style={{ width: '15%', borderRight: '1px solid #000', fontSize: '11pt', fontWeight: 1000 }}>{m.loading?.split(' [')[0]}</div>
+                          <div style={{ width: '15%', borderRight: '1px solid #000', fontSize: '11pt', fontWeight: 1000 }}>
+                            {(() => {
+                              const clean = String(m.loading || '').split(' [')[0].trim()
+                              const match = clean.match(/(?:^|\D)(\d+)\s*\/\s*\d+/)
+                              if (match) return `№${match[1]}`
+                              return clean ? (clean.startsWith('№') ? clean : `№${clean}`) : '—'
+                            })()}
+                          </div>
                           <div style={{ width: '18%', fontSize: '11pt', fontWeight: 1000 }}>#{m.id.slice(-8).toUpperCase()}</div>
                         </div>
                       </div>
