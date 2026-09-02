@@ -156,6 +156,7 @@ export function ConnectionStatus() {
 
   return (
     <div
+      className="no-print"
       role="status"
       aria-live="polite"
       title={meta.description}
@@ -267,7 +268,7 @@ export function ServiceWorkerUpdateManager() {
   if (!updateReady) return null
 
   return (
-    <div style={{
+    <div className="no-print" style={{
       position: 'fixed',
       top: 18,
       left: '50%',

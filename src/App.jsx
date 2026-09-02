@@ -3795,7 +3795,7 @@ const AppSidebar = ({ isCollapsed, setIsCollapsed, chatUnreadCount, isMobileOpen
   return (
     <>
       {/* Mobile Sticky Website Header Bar */}
-      <header className="mobile-app-topbar">
+      <header className="mobile-app-topbar no-print">
         {/* Left: Logo 🦊 + Brand + Menu Toggle Arrow */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <button
@@ -3867,7 +3867,7 @@ const AppSidebar = ({ isCollapsed, setIsCollapsed, chatUnreadCount, isMobileOpen
       )}
 
       <aside
-        className={`app-sidebar ${isCollapsed ? 'collapsed' : ''}`}
+        className={`app-sidebar no-print ${isCollapsed ? 'collapsed' : ''}`}
         onClick={() => {
           if (isCollapsed) setIsCollapsed(false);
         }}

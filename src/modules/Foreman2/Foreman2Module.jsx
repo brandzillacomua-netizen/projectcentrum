@@ -134,7 +134,7 @@ export default function Foreman2Module() {
           setIsDrawerOpen={setIsQueueOpen}
           onOpenCreateNaryad={() => setIsCreateNaryadOpen(true)}
         />
-        <div className="content-panel" style={{ flex: 1, background: '#0a0a0a', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+        <div className="content-panel no-print" style={{ flex: 1, background: '#0a0a0a', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
           <ActiveCallsWidget
             activeCalls={activeCalls}
             machines={mes.machines || []}

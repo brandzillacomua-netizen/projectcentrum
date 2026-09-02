@@ -362,7 +362,7 @@ export default function TaskDetails({ model, nomenclatures = [], allCards, onOpe
   const productNames = prod ? prod.name : (order?.product_name || order?.nomenclature?.name || task.step || '—')
 
   return (
-    <main style={{ padding: '22px 15px', overflowY: 'auto', position: 'relative' }}>
+    <main className="no-print" style={{ padding: '22px 15px', overflowY: 'auto', position: 'relative' }}>
       <section style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', flexWrap: 'wrap', gap: '15px' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>

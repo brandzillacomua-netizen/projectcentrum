@@ -238,6 +238,7 @@ export function ForemanTaskDetails({
 
   return (
     <div style={{ padding: '20px' }}>
+      <div className="no-print">
       {/* Active Machine Calls Widget */}
       {activeCalls.length > 0 && (
         <div style={{ background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.15)', borderRadius: '16px', padding: '15px 20px', marginBottom: '20px' }}>
@@ -1513,10 +1514,66 @@ export function ForemanTaskDetails({
           </div>
         </div>
       )}
+      </div>
 
       {/* Print labels layout */}
       {printQueue && (
         <div className="print-overlay" style={{ position: 'fixed', inset: 0, background: '#111', color: '#000', zIndex: 10000, overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '40px 0' }}>
+          <style>{`
+            @media print {
+              @page {
+                size: A4 portrait;
+                margin: 0;
+              }
+              html, body {
+                background: #fff !important;
+                color: #000 !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                width: 210mm !important;
+                height: auto !important;
+                overflow: visible !important;
+              }
+              .no-print,
+              body > *:not(#root),
+              nav, header, footer, .sidebar, .glass-nav, .back-btn-modern,
+              .foreman-module > *:not(.print-overlay),
+              .master-grid,
+              .module-nav {
+                display: none !important;
+              }
+              .print-overlay {
+                position: static !important;
+                display: block !important;
+                width: 210mm !important;
+                background: #fff !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                overflow: visible !important;
+                inset: auto !important;
+              }
+              .a4-page {
+                width: 210mm !important;
+                height: 297mm !important;
+                max-height: 297mm !important;
+                padding: 6mm 8mm !important;
+                margin: 0 !important;
+                margin-bottom: 0 !important;
+                box-shadow: none !important;
+                page-break-after: always !important;
+                break-after: page !important;
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+                box-sizing: border-box !important;
+                overflow: hidden !important;
+              }
+              .a4-page:last-child,
+              .a4-page:last-of-type {
+                page-break-after: avoid !important;
+                break-after: avoid !important;
+              }
+            }
+          `}</style>
           <div className="no-print" style={{ position: 'sticky', top: 0, width: '100%', padding: '15px 30px', background: '#111', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #222', zIndex: 100 }}>
             <h3>Друк: {printQueue.part.nom?.name}</h3>
             <div style={{ display: 'flex', gap: '15px' }}>
@@ -1583,7 +1640,7 @@ export function ForemanTaskDetails({
             }))
 
             return (
-              <div key={i} className="a4-page" style={{ width: '210mm', height: '297mm', background: '#fff', padding: '10mm', margin: '0 auto 40px auto', pageBreakAfter: i === printQueue.metadata.length - 1 ? 'avoid' : 'always', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', boxSizing: 'border-box' }}>
+              <div key={i} className="a4-page" style={{ width: '210mm', minHeight: '297mm', background: '#fff', padding: '10mm', margin: '0 auto 40px auto', pageBreakAfter: i === printQueue.metadata.length - 1 ? 'avoid' : 'always', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', boxSizing: 'border-box' }}>
                 <div style={{ height: '100%', display: 'flex', flexDirection: 'column', border: '1.5px solid #000' }}>
                   {[1, 2].map(blockIdx => (
                     <div key={blockIdx} style={{ borderBottom: '1.5px solid #000', marginBottom: blockIdx === 1 ? '20px' : '0' }}>
