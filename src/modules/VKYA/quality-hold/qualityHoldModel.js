@@ -59,18 +59,9 @@ export const buildQualityStatusTotals = (inventory = [], quarantineItems = []) =
 
 const recoverableStorageType = value => value === 'scrap_cat_2' ? 'scrap_cat_2' : 'scrap_cat_1'
 
-const F10_PURGED_NOM_IDS = new Set([
-  '5ecf63e5-802d-4f98-8291-aad9a52bfaa4',
-  '50947afc-4e40-4165-a682-780275d5feda',
-  '343417a7-4a5c-4e31-8f44-18abb41defec',
-  'b77e0883-0af2-40a4-a834-a1e47b6570da'
-])
-
 export const buildRecoverableScrapLotItems = (rows = []) => rows
   .filter(row => {
     if (qty(row?.available_quantity) <= 0) return false
-    if (F10_PURGED_NOM_IDS.has(String(row?.nomenclature_id))) return false
-    if (String(row?.order_number || '').trim() === '14082026-01') return false
     return true
   })
   .map(row => ({

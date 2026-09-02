@@ -1162,6 +1162,9 @@ export default function BrakModule() {
 
   const paginatedReadyItems = filteredReadyItems.slice((queuePage - 1) * queuePageSize, queuePage * queuePageSize);
 
+  const [categoryPage, setCategoryPage] = useState(1);
+  const categoryPageSize = 10;
+
   // New defects remain in quarantine until VKYA chooses recoverable scrap or final scrap.
   // Category 3 is included only as a rolling-deployment fallback; the migration moves it to category 1.
   const qualityStatusTotals = buildQualityStatusTotals(inventory || [], readyItems)
@@ -1182,6 +1185,21 @@ export default function BrakModule() {
           ? recoverableScrapItems
           : (inventory || []).filter(i => i.type === `scrap_cat_${viewingCategory}` && (Number(i.total_qty) > 0)))
     : []
+
+  const categoryTotalPages = Math.ceil(itemsInCat.length / categoryPageSize);
+
+  useEffect(() => {
+    setCategoryPage(1);
+  }, [viewingCategory]);
+
+  useEffect(() => {
+    if (categoryPage > 1 && categoryPage > categoryTotalPages) {
+      setCategoryPage(Math.max(1, categoryTotalPages));
+    }
+  }, [categoryTotalPages, categoryPage]);
+
+  const paginatedCategoryItems = itemsInCat.slice((categoryPage - 1) * categoryPageSize, categoryPage * categoryPageSize);
+  const categoryTotalQuantity = useMemo(() => itemsInCat.reduce((sum, item) => sum + Number(item.total_qty || 0), 0), [itemsInCat]);
 
   const viewingCategoryLabel = viewingCategory === 'brak'
     ? 'Брак'
@@ -2029,9 +2047,9 @@ export default function BrakModule() {
                 {viewingCategory ? `Деталі: ${viewingCategoryLabel}` : 'КАРАНТИН · ОЧІКУЮТЬ КЛАСИФІКАЦІЇ ВКЯ'}
               </h2>
               <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                <div style={{ background: viewingCategory ? '#444' : '#ef444415', padding: '8px 14px', borderRadius: '10px', color: viewingCategory ? '#fff' : '#ef4444', fontSize: '0.75rem', fontWeight: 1000 }}>
+                <div style={{ background: viewingCategory ? '#333' : '#ef444415', padding: '8px 14px', borderRadius: '10px', color: viewingCategory ? '#fff' : '#ef4444', fontSize: '0.75rem', fontWeight: 1000 }}>
                   {viewingCategory
-                    ? `${itemsInCat.length} ПОЗИЦІЙ`
+                    ? `${itemsInCat.length} ПОЗИЦІЙ · ${categoryTotalQuantity} ШТ`
                     : manualCardNumber.trim()
                       ? `ЗНАЙДЕНО: ${filteredReadyItems.length} з ${readyItems.length}`
                       : `${readyItems.length} ПОЗИЦІЙ`
@@ -2060,7 +2078,7 @@ export default function BrakModule() {
 
               {/* RENDER LIST: Either classifications OR category details */}
               {viewingCategory ? (
-                itemsInCat.map(item => (
+                paginatedCategoryItems.map(item => (
                   <div key={item.id} style={{ 
                     background: '#111', borderRadius: '20px', padding: '20px', border: '1px solid #1a1a1a',
                     display: 'flex', justifyContent: 'space-between', alignItems: 'center'
@@ -2166,8 +2184,8 @@ export default function BrakModule() {
                     disabled={queuePage === 1}
                     onClick={() => setQueuePage(p => Math.max(1, p - 1))}
                     style={{
-                      background: '#111', border: '1px solid #222', color: '#fff',
-                      padding: '8px 16px', borderRadius: '10px', fontWeight: 800, cursor: 'pointer'
+                      background: '#111', border: '1px solid #222', color: queuePage === 1 ? '#444' : '#fff',
+                      padding: '8px 16px', borderRadius: '10px', fontWeight: 800, cursor: queuePage === 1 ? 'default' : 'pointer'
                     }}
                   >
                     Назад
@@ -2196,8 +2214,54 @@ export default function BrakModule() {
                     disabled={queuePage === totalPages}
                     onClick={() => setQueuePage(p => Math.min(totalPages, p + 1))}
                     style={{
-                      background: '#111', border: '1px solid #222', color: '#fff',
-                      padding: '8px 16px', borderRadius: '10px', fontWeight: 800, cursor: 'pointer'
+                      background: '#111', border: '1px solid #222', color: queuePage === totalPages ? '#444' : '#fff',
+                      padding: '8px 16px', borderRadius: '10px', fontWeight: 800, cursor: queuePage === totalPages ? 'default' : 'pointer'
+                    }}
+                  >
+                    Вперед
+                  </button>
+                </div>
+              )}
+
+              {viewingCategory && categoryTotalPages > 1 && (
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', marginTop: '25px', flexWrap: 'wrap' }}>
+                  <button
+                    disabled={categoryPage === 1}
+                    onClick={() => setCategoryPage(p => Math.max(1, p - 1))}
+                    style={{
+                      background: '#111', border: '1px solid #222', color: categoryPage === 1 ? '#444' : '#fff',
+                      padding: '8px 16px', borderRadius: '10px', fontWeight: 800, cursor: categoryPage === 1 ? 'default' : 'pointer'
+                    }}
+                  >
+                    Назад
+                  </button>
+                  {Array.from({ length: categoryTotalPages }).map((_, idx) => {
+                    const pageNum = idx + 1
+                    const isActive = pageNum === categoryPage
+                    const categoryColor = viewingCategory === 'brak' ? '#a855f7' : viewingCategory === 'restoration' ? '#06b6d4' : '#ef4444'
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => setCategoryPage(pageNum)}
+                        style={{
+                          background: isActive ? categoryColor : '#111',
+                          border: `1px solid ${isActive ? categoryColor : '#222'}`,
+                          color: '#fff',
+                          width: '36px', height: '36px', borderRadius: '10px',
+                          fontWeight: 900, cursor: 'pointer',
+                          boxShadow: isActive ? `0 0 10px ${categoryColor}40` : 'none'
+                        }}
+                      >
+                        {pageNum}
+                      </button>
+                    )
+                  })}
+                  <button
+                    disabled={categoryPage === categoryTotalPages}
+                    onClick={() => setCategoryPage(p => Math.min(categoryTotalPages, p + 1))}
+                    style={{
+                      background: '#111', border: '1px solid #222', color: categoryPage === categoryTotalPages ? '#444' : '#fff',
+                      padding: '8px 16px', borderRadius: '10px', fontWeight: 800, cursor: categoryPage === categoryTotalPages ? 'default' : 'pointer'
                     }}
                   >
                     Вперед

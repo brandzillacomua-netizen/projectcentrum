@@ -86,13 +86,21 @@ export async function returnRestorationToRoute(supabase, {
 }
 
 export async function fetchRecoverableScrapLots(supabase) {
-  const { data, error } = await supabase
-    .from('vkya_recoverable_scrap_lots')
-    .select('*')
-    .gt('available_quantity', 0)
-    .order('classified_at', { ascending: false })
-  if (error) throw error
-  return data || []
+  const pageSize = 1000
+  const rows = []
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase
+      .from('vkya_recoverable_scrap_lots')
+      .select('*')
+      .gt('available_quantity', 0)
+      .order('classified_at', { ascending: false })
+      .range(from, from + pageSize - 1)
+    if (error) throw error
+    if (!data || data.length === 0) break
+    rows.push(...data)
+    if (data.length < pageSize) break
+  }
+  return rows
 }
 
 export async function createReworkFromScrapLot(supabase, {
