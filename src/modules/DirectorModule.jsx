@@ -18,6 +18,7 @@ import {
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
+import { apiService } from '../services/apiDispatcher'
 const toLocalISO = (dateVal) => {
   if (!dateVal) return null
   try {
@@ -223,12 +224,12 @@ const DirectorModule = () => {
 
   // 1. Pending Approvals Data (Only trigger when it's Director's turn)
   const pendingTasks = tasks.filter(t => 
-    t.status === 'waiting' && 
+    t.status !== 'completed' && t.status !== 'cancelled' && 
     (t.warehouse_conf === 'true' || t.warehouse_conf === 'partial') && 
     t.engineer_conf === true && 
     !t.director_conf
   )
-  const approvedCount = tasks.filter(t => t.status === 'waiting' && t.director_conf).length
+  const approvedCount = tasks.filter(t => t.director_conf).length
 
   // 2. Matrix Data Preparation
   const daysInMonth = useMemo(() => {

@@ -25,6 +25,20 @@ export function useCardGeneration({ mes }) {
     }
     generatingLockRef.current = true
 
+    const isWarehouseReady = task?.warehouse_conf === 'true' || task?.warehouse_conf === 'partial'
+    const isEngineerReady = task?.engineer_conf === true
+    const isDirectorReady = task?.director_conf === true
+
+    if (!isWarehouseReady || !isEngineerReady || !isDirectorReady) {
+      generatingLockRef.current = false
+      const missing = []
+      if (!isWarehouseReady) missing.push('Склад')
+      if (!isEngineerReady) missing.push('Інженер')
+      if (!isDirectorReady) missing.push('Директор')
+      alert(`Генерація карток заблокована! Наряд має отримати погодження: ${missing.join(', ')}.`)
+      return
+    }
+
     const targetNomId = part?.nomId || part?.id || part?.nom?.id
     const resolvedPartNom = part?.nom || (mes.nomenclatures || []).find(n => String(n.id) === String(targetNomId)) || { id: targetNomId, name: part?.name, material_type: part?.material }
     const nomId = resolvedPartNom?.id || targetNomId
