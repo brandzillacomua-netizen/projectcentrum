@@ -170,34 +170,48 @@ const getAllModules = (badgeCount = 0, chatBadgeCount = 0) => [
 const getAvailableModules = (currentUser, badgeCount, chatBadgeCount = 0) => {
   if (!currentUser) return [];
   const allModules = getAllModules(badgeCount, chatBadgeCount);
+  const posLower = (currentUser?.position || '').toLowerCase();
+  const roleLower = (currentUser?.role || '').toLowerCase();
+
+  const isFullAccessUser = posLower.includes('адмін') || roleLower === 'admin';
+  if (isFullAccessUser) return allModules;
+
+  const rights = currentUser?.access_rights || {};
+
+  const checkRight = (id) => {
+    if (!id) return false;
+    const val = rights[id];
+    return val === true || val === 'true' || val === 1;
+  };
+
   return allModules.filter(m => {
-    if (m.id === 'simulator') return currentUser?.position === 'Адмін' || currentUser?.role === 'admin';
-    // CRM Pillar modules are available to all authorized users unconditionally
-    if (m.pillar === 'crm') return true;
-    if (m.id === 'warehouse_fgp') {
-      return (
-        currentUser?.access_rights?.warehouse_fgp === true ||
-        currentUser?.access_rights?.warehouse === true ||
-        currentUser?.position === 'Адмін' ||
-        currentUser?.role === 'admin'
-      );
+    if (m.id === 'simulator') return false;
+
+    // Explicit exceptions that should bypass pillar hiding if explicitly checked
+    if ((m.id === 'kanban' && checkRight('kanban')) || (m.id === 'chat' && checkRight('chat'))) {
+      return true;
     }
-    if (m.id === 'economy') {
-      return (
-        currentUser?.access_rights?.economy === true ||
-        currentUser?.position === 'Адмін' ||
-        currentUser?.role === 'admin'
-      );
+
+    // Direct check
+    if (checkRight(m.id)) return true;
+
+    // CRM Pillar modules — enabled by default unless explicitly disabled
+    if (m.pillar === 'crm') {
+      if (rights.crm === false && rights.crm_clients === false && rights.manager === false) return false;
+      return true;
     }
-    if (m.id === 'engineer_v2') {
-      return (
-        currentUser?.access_rights?.engineer_v2 === true ||
-        currentUser?.access_rights?.engineer === true ||
-        currentUser?.position === 'Адмін' ||
-        currentUser?.role === 'admin'
-      );
-    }
-    return currentUser?.access_rights?.[m.id] === true;
+
+    // Aliases & fallbacks
+    if (m.id === 'warehouse_fgp' && (checkRight('warehouse_fgp') || checkRight('warehouse'))) return true;
+    if (m.id === 'warehouse_boxes' && (checkRight('warehouse_boxes') || checkRight('warehouse'))) return true;
+    if (m.id === 'economy' && (checkRight('economy') || checkRight('director'))) return true;
+    if (m.id === 'engineer_v2' && (checkRight('engineer_v2') || checkRight('engineer'))) return true;
+    if (m.id === 'engineer' && (checkRight('engineer') || checkRight('engineer_v2'))) return true;
+    if (m.id === 'foreman' && (checkRight('foreman') || checkRight('foreman2') || checkRight('master'))) return true;
+    if (m.id === 'shop2_card_gen' && (checkRight('shop2_card_gen') || checkRight('shop2'))) return true;
+    if (m.id === 'shop1_foreman' && (checkRight('shop1_foreman') || checkRight('master') || checkRight('foreman'))) return true;
+
+    return false;
   });
 }
 
@@ -2855,6 +2869,7 @@ const GlobalUserNav = ({ chatUnreadCount = 0 }) => {
 const Portal = ({ chatUnreadCount }) => {
   const { currentUser, orders = [], workCards = [], requests = [], machines = [], machineCalls = [], tasks = [], companyPositions = [] } = useMES()
   const location = useLocation()
+  const navigate = useNavigate()
   const [selectedPillar, setSelectedPillar] = useState('all') // 'all', 'crm', 'erp', 'mes'
   const [portalSearch, setPortalSearch] = useState('')
 
@@ -2863,14 +2878,20 @@ const Portal = ({ chatUnreadCount }) => {
     return getAvailableModules(currentUser, 0, chatUnreadCount)
   }, [currentUser, chatUnreadCount])
 
-  // REDIRECT NON-ADMIN TO START PAGE OR FIRST AVAILABLE MODULE IF DEFINED
-  if (!isAdmin && modules.length > 0 && location.pathname === '/') {
-    const userPosition = (companyPositions || []).find(p => p.name === currentUser?.position)
-    const targetPath = userPosition?.start_page
-    if (targetPath && modules.some(m => m.path === targetPath)) {
-      return <Navigate to={targetPath} replace />
+  // REDIRECT NON-ADMIN TO START PAGE ONLY ON INITIAL APP LOAD / LOGIN
+  useEffect(() => {
+    if (!isAdmin && modules.length > 0 && location.pathname === '/') {
+      const redirectedAlready = sessionStorage.getItem('start_page_redirected')
+      if (!redirectedAlready) {
+        const userPosition = (companyPositions || []).find(p => p.name === currentUser?.position)
+        const targetPath = userPosition?.start_page
+        if (targetPath && modules.some(m => m.path === targetPath)) {
+          sessionStorage.setItem('start_page_redirected', 'true')
+          navigate(targetPath, { replace: true })
+        }
+      }
     }
-  }
+  }, [isAdmin, modules, location.pathname, companyPositions, currentUser?.position, navigate])
 
   const filteredModules = modules.filter(m => {
     const matchesSearch = m.title.toLowerCase().includes(portalSearch.toLowerCase()) ||
@@ -3584,8 +3605,10 @@ const PermissionGuard = ({ id, children }) => {
 
   if (!currentUser) return children
 
-  const isAdmin = currentUser?.position === 'Адмін' || currentUser?.role === 'admin'
-  if (isAdmin) return children
+  const posLower = (currentUser?.position || '').toLowerCase()
+  const roleLower = (currentUser?.role || '').toLowerCase()
+  const isFullAccessUser = posLower.includes('адмін') || roleLower === 'admin'
+  if (isFullAccessUser) return children
 
   // Allow public call route
   if (id === 'public_call') return children
@@ -4003,17 +4026,19 @@ const AppSidebar = ({ isCollapsed, setIsCollapsed, chatUnreadCount, isMobileOpen
         {/* Navigation Items */}
         <div className="sidebar-nav-container">
           {/* Main Dashboard Link */}
-          <Link
-            to="/"
-            onClick={() => {
-              setIsMobileOpen(false)
-              if (isCollapsed) setIsCollapsed(false)
-            }}
-            className={`sidebar-link-item ${location.pathname === '/' ? 'active' : ''}`}
-          >
-            <LayoutDashboard size={18} color="#ff9000" />
-            {!isCollapsed && <span>Головний Дашборд</span>}
-          </Link>
+          {(currentUser?.position === 'Адмін' || currentUser?.role === 'admin' || currentUser?.access_rights?.dashboard === true || currentUser?.access_rights?.dashboard === 'true' || currentUser?.access_rights?.dashboard === 1) && (
+            <Link
+              to="/"
+              onClick={() => {
+                setIsMobileOpen(false)
+                if (isCollapsed) setIsCollapsed(false)
+              }}
+              className={`sidebar-link-item ${location.pathname === '/' ? 'active' : ''}`}
+            >
+              <LayoutDashboard size={18} color="#ff9000" />
+              {!isCollapsed && <span>Головний Дашборд</span>}
+            </Link>
+          )}
 
           {/* 🟣 CRM Pillar Group */}
           {crmModules.length > 0 && (

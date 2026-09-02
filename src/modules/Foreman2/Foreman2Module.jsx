@@ -156,9 +156,9 @@ export default function Foreman2Module() {
             onMachineChange={(part) => machineChange.openMachineChange(activeModel.task, part)}
             onMaterialCorrection={materialCorrection.canCorrect ? (part) => materialCorrection.open(activeModel.task, part) : null}
             onGenerateCards={(part, count, capacityOverride, maxSheetsToGenerate) => {
-              // If there are already non-rework production cards, this is a reissue (dovypusk)
-              const hasExistingCards = (part.productionCards || []).some(c => !c.is_rework && !String(c.card_info || '').includes('[REDO]'))
-              cardGen.openGenModal({ task: activeModel.task, part, count: 1, capacityOverride, maxSheetsToGenerate, isRepair: hasExistingCards })
+              // Dovypusk mode triggers ONLY when scrap (утиль) exceeds planned BZ (spareFromSheets), i.e. shortage > 0
+              const isDovypusk = Number(part.shortage) > 0 || (Number(part.scrap) > Number(part.spareFromSheets))
+              cardGen.openGenModal({ task: activeModel.task, part, count: 1, capacityOverride, maxSheetsToGenerate, isRepair: isDovypusk })
             }}
             onPrintCards={(part, metadata) => cardGen.setPrintQueue({ task: activeModel.task, part, metadata })}
             adminCardsPanel={
@@ -271,6 +271,7 @@ export default function Foreman2Module() {
         machines={mes.machines || []}
         machineOperations={mes.machineOperations || []}
         getDisplayMaterial={getDisplayMaterial}
+        customers={mes.customers || []}
       />
     </Foreman2Layout>
   )

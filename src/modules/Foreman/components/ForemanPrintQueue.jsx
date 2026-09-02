@@ -1,6 +1,7 @@
 import React from 'react'
 import { X } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
+import { getCustomerCode } from '../../../utils/customerCodeUtils.js'
 
 const getLoadingSequence = (metadata) => {
   const loading = String(metadata?.loading || metadata?.card_info || '')
@@ -35,7 +36,8 @@ export default function ForemanPrintQueue({
   machines,
   machineOperations,
   getDisplayMaterial,
-  formatDurationHMS // if defined
+  formatDurationHMS,
+  customers = []
 }) {
   if (!printQueue) return null
 
@@ -134,7 +136,7 @@ export default function ForemanPrintQueue({
                       <div style={{ width: '15%', fontSize: '6pt', fontWeight: 900, textTransform: 'uppercase', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Дата</div>
                     </div>
                     <div style={{ display: 'flex', height: '24px', borderBottom: '1.5px solid #000', textAlign: 'center', alignItems: 'center' }}>
-                      <div style={{ width: '25%', borderRight: '1px solid #000', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10pt', fontWeight: 950 }}>{order?.customer || '—'}</div>
+                      <div style={{ width: '25%', borderRight: '1px solid #000', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10pt', fontWeight: 950 }}>{getCustomerCode(order?.customer, customers, order)}</div>
                       <div style={{ width: '25%', borderRight: '1px solid #000', fontSize: '11pt', fontWeight: 950 }}>{order?.order_num || '—'}</div>
                       <div style={{ width: '35%', borderRight: '1px solid #000', fontSize: '10pt', fontWeight: 950 }}>{order?.deadline ? new Date(order.deadline).toLocaleDateString('uk-UA') : '—'}</div>
                       <div style={{ width: '15%', fontSize: '11pt', fontWeight: 950 }}>{currentDate}</div>

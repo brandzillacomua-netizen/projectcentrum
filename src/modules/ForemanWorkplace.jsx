@@ -2392,6 +2392,7 @@ const ForemanWorkplace = () => {
         machines={machines}
         machineOperations={machineOperations}
         getDisplayMaterial={getDisplayMaterial}
+        customers={customers}
       />
 
       <ForemanPrintNaryadQueue

@@ -3431,7 +3431,7 @@ const EngineerModule = () => {
   const isSuperAdmin = currentUser?.login === 'admin@workshop.local' || currentUser?.position === 'Адмін' || currentUser?.access_rights?.director
   const [activeTab, setActiveTab] = useState('tasks')
   
-  const pendingTasks = tasks.filter(t => t.status === 'waiting' && !t.engineer_conf)
+  const pendingTasks = tasks.filter(t => t.status === 'waiting' && !t.engineer_conf && !t.step?.includes('Пресування'))
   const approvedCount = tasks.filter(t => t.status === 'waiting' && t.engineer_conf).length
 
   const activeCalls = (machineCalls || []).filter(c => 

@@ -1,5 +1,6 @@
 import React from 'react'
 import { X } from 'lucide-react'
+import { getCustomerCode } from '../../../utils/customerCodeUtils.js'
 
 export default function ForemanPrintNaryadQueue({
   printNaryadQueue,
@@ -152,7 +153,7 @@ export default function ForemanPrintNaryadQueue({
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '30px', borderBottom: '2px solid #000', paddingBottom: '20px' }}>
           <div>
             <div style={{ fontSize: '8pt', color: '#555', textTransform: 'uppercase', fontWeight: 600 }}>Замовник</div>
-            <div style={{ fontSize: '14pt', fontWeight: 1000, color: '#000', marginTop: '2px' }}>{order?.customer || '—'}</div>
+            <div style={{ fontSize: '14pt', fontWeight: 1000, color: '#000', marginTop: '2px' }}>{getCustomerCode(order?.customer, nomenclatures, order)}</div>
           </div>
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontSize: '8pt', color: '#555', textTransform: 'uppercase', fontWeight: 600 }}>Дата відвантаження</div>

@@ -1,5 +1,6 @@
 import React from 'react'
 import { CheckCircle2 } from 'lucide-react'
+import { getCustomerCode } from '../../../utils/customerCodeUtils.js'
 
 export function MasterPrintForm({
   activeNaryadOrder,
@@ -13,7 +14,8 @@ export function MasterPrintForm({
   inventory,
   nomenclatures,
   rowMachines,
-  rowMachinesSplits
+  rowMachinesSplits,
+  customers = []
 }) {
   if (!activeNaryadOrder) return null
 
@@ -35,7 +37,7 @@ export function MasterPrintForm({
 
       {/* Client / Order Info */}
       <div className="print-info-box" style={{ border: '2px solid #000', padding: '10px 15px', marginBottom: '15px', fontSize: '0.85rem' }}>
-        <div>Замовник: <strong className="print-prod-info" style={{ fontSize: '1.2rem' }}>{activeNaryadOrder.customer}</strong></div>
+        <div>Замовник: <strong className="print-prod-info" style={{ fontSize: '1.2rem' }}>{getCustomerCode(activeNaryadOrder?.customer, customers, activeNaryadOrder)}</strong></div>
         {activeNaryadOrder.deadline && (
           <div style={{ marginTop: '5px' }}>Термін виконання: <strong>{new Date(activeNaryadOrder.deadline).toLocaleDateString('uk-UA')}</strong></div>
         )}

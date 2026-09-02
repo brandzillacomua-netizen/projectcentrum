@@ -1840,7 +1840,7 @@ const SettingsModule = () => {
     setUserForm({
       id: null, login: '', password: '', first_name: '', last_name: '', 
       position: companyPositions?.[0]?.name || 'Оператор', department: companyStructure?.[0]?.name || 'Цех №1', shift: 'Без зміни',
-      access_rights: { crm: true, crm_clients: true, dashboard: false, foreman_dashboard: false, manager: false, chat: false, master: false, warehouse: false, warehouse_boxes: false, cutter_restoration: false, preparation_dashboard: false, engineer: false, director: false, foreman: false, foreman2: false, operator: true, prep_terminal: false, shipping: false, supply: false, procurement: false, nomenclature: false, nomenclature_v2: false, shop2: false, machines: false, settings: false, kanban: false, reports: false, tumbling_terminal: false, tumbling_dashboard: false, reception_terminal: false, sorting_terminal: false, painting_terminal: false, pressing_terminal: false }
+      access_rights: { crm: true, crm_clients: true, dashboard: true, foreman_dashboard: false, manager: false, chat: false, master: false, warehouse: false, warehouse_boxes: false, cutter_restoration: false, preparation_dashboard: false, engineer: false, director: false, foreman: false, foreman2: false, operator: true, prep_terminal: false, shipping: false, supply: false, procurement: false, nomenclature: false, nomenclature_v2: false, shop2: false, machines: false, settings: false, kanban: false, reports: false, tumbling_terminal: false, tumbling_dashboard: false, reception_terminal: false, sorting_terminal: false, painting_terminal: false, pressing_terminal: false }
     })
     setShowMobileUserForm(false)
   }
@@ -1853,7 +1853,7 @@ const SettingsModule = () => {
       access_rights: {
         crm: rights.crm !== false, 
         crm_clients: rights.crm_clients !== false, 
-        dashboard: false, foreman_dashboard: false, manager: false, chat: false, master: false, warehouse: false, warehouse_boxes: false, cutter_restoration: false, preparation_dashboard: false, engineer: false,
+        dashboard: true, foreman_dashboard: false, manager: false, chat: false, master: false, warehouse: false, warehouse_boxes: false, cutter_restoration: false, preparation_dashboard: false, engineer: false,
         director: false, foreman: false, foreman2: false, operator: false, prep_terminal: false, shipping: false, 
         supply: false, procurement: false, nomenclature: false, nomenclature_v2: false, shop2: false, machines: false, settings: false, packaging: false, kanban: false, reports: false, tumbling_terminal: false, tumbling_dashboard: false, reception_terminal: false, sorting_terminal: false, painting_terminal: false, pressing_terminal: false,
         ...rights
@@ -2332,9 +2332,39 @@ const SettingsModule = () => {
                 </div>
 
                 <div style={{ marginTop: '6px' }}>
-                  <label className="form-label" style={{ marginBottom: '12px', color: '#ff9000', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <ShieldCheck size={14} /> ДОСТУПНІ МОДУЛІ В МЕС:
-                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                    <label className="form-label" style={{ margin: 0, color: '#ff9000', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <ShieldCheck size={14} /> ДОСТУПНІ МОДУЛІ В МЕС:
+                    </label>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setUserForm(prev => {
+                            const nextRights = { ...prev.access_rights }
+                            moduleList.forEach(m => { nextRights[m.id] = true })
+                            return { ...prev, access_rights: nextRights }
+                          })
+                        }}
+                        style={{ background: 'rgba(255,144,0,0.15)', border: '1px solid rgba(255,144,0,0.4)', color: '#ff9000', padding: '3px 8px', borderRadius: '6px', fontSize: '0.62rem', fontWeight: 900, cursor: 'pointer' }}
+                      >
+                        ✓ ОБРАТИ ВСІ
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setUserForm(prev => {
+                            const nextRights = { ...prev.access_rights }
+                            moduleList.forEach(m => { nextRights[m.id] = false })
+                            return { ...prev, access_rights: nextRights }
+                          })
+                        }}
+                        style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#888', padding: '3px 8px', borderRadius: '6px', fontSize: '0.62rem', fontWeight: 800, cursor: 'pointer' }}
+                      >
+                        ✗ ЗНЯТИ ВСІ
+                      </button>
+                    </div>
+                  </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', padding: '6px', background: 'rgba(0,0,0,0.2)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.03)' }}>
                     {moduleList.map(mod => (
                       <div key={mod.id} 
