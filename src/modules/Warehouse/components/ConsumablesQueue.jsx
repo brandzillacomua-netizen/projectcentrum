@@ -116,6 +116,7 @@ export const ConsumablesQueue = ({
           )
 
           const missingItems = []
+          const availableItems = []
           actionableReqs.forEach(req => {
             const parsedName = parseMaterialName(req.details)
             const nameLower = parsedName.toLowerCase()
@@ -140,7 +141,11 @@ export const ConsumablesQueue = ({
             const isSgp = packagingSource === 'SGP' || packagingSource === 'BZ' || (!packagingSource && inferredSgp)
             if (isSgp) return
             
-            if (totalOnWh < Number(req.quantity)) missingItems.push(req)
+            if (totalOnWh < Number(req.quantity)) {
+              missingItems.push(req)
+            } else {
+              availableItems.push(req)
+            }
           })
 
           const isAllIssued = reqList.every(r => r.status === 'issued')
@@ -160,6 +165,10 @@ export const ConsumablesQueue = ({
           if (missingItems.length === 0) {
             btnLabel = isAllIssued ? 'ПІДТВЕРДИТИ ВИДАЧУ' : 'ВИДАТИ'
             isAwaiting = false 
+          } else if (availableItems.length > 0) {
+            // Partial issuance ("Жовте світло") - allow issuing items that are in stock!
+            btnLabel = 'ВИДАТИ ЧАСТКОВО'
+            isAwaiting = false
           } else if ((isPartiallyIssued || allRemainingArePreparedSheets) && allMissingArePreparedSheets) {
             btnLabel = 'ОЧІКУЄМО ЛИСТИ'
             isAwaiting = true
