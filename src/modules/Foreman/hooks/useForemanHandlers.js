@@ -848,7 +848,7 @@ export function useForemanHandlers({
           const sheetsForCard = cardSheets > 0 ? cardSheets : Math.ceil((Number(batchItem.quantity) || 0) / unitsPerSheet)
           const qtyForCard = Number(batchItem.quantity) || 0
           if (sheetsForCard <= 0 || qtyForCard <= 0) continue
-          await createDovyпускMaterialRequests(task.id, task.order_id, part.nom, sheetsForCard, qtyForCard, batchItem.machine || selectedMachineName, createdCard?.id || null)
+          await createDovyпускMaterialRequests(task.id, task.order_id, part.nom, sheetsForCard, qtyForCard, batchItem.machine || selectedMachineName, createdCard?.id || null, 'all', selectedCutters)
         }
       }
 

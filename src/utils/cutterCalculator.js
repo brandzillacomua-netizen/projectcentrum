@@ -70,14 +70,48 @@ export const calculateCuttersForBatch = ({
           const cleanName = cutterNom.name.trim()
           let resolvedCutterNom = cutterNom
           const partSelectedCutters = task?.plan_snapshot?.[String(partNom.id)]?.selected_cutters || task?.plan_snapshot?.selectedCutters
-          if (partSelectedCutters) {
-            const invId = partSelectedCutters[cleanName] || partSelectedCutters[cleanName.toLowerCase()]
+          if (partSelectedCutters && typeof partSelectedCutters === 'object') {
+            const invId = partSelectedCutters[cleanName]
+              || partSelectedCutters[cleanName.toLowerCase()]
+              || partSelectedCutters[String(cutterNomId)]
+              || partSelectedCutters[String(cutterNom.id)]
             if (invId) {
               const inv = (inventory || []).find(i => String(i.id) === String(invId))
               if (inv) {
                 const specNom = nomenclatures.find(n => String(n.id) === String(inv.nomenclature_id))
                 if (specNom) resolvedCutterNom = specNom
+              } else {
+                const specNom = nomenclatures.find(n => String(n.id) === String(invId))
+                if (specNom) resolvedCutterNom = specNom
               }
+            }
+
+            if (resolvedCutterNom.type === 'cutter_type') {
+              for (const [k, v] of Object.entries(partSelectedCutters)) {
+                const candidate = nomenclatures.find(n =>
+                  (String(n.id) === String(v) || String(n.id) === String(k) || n.name.trim().toLowerCase() === String(k).trim().toLowerCase()) &&
+                  n.type === 'consumable' &&
+                  String(n.characteristic) === String(cutterNom.id)
+                )
+                if (candidate) {
+                  resolvedCutterNom = candidate
+                  break
+                }
+              }
+            }
+          }
+
+          if (resolvedCutterNom.type === 'cutter_type') {
+            const matchingConsumables = (nomenclatures || []).filter(n =>
+              n.type === 'consumable' && String(n.characteristic) === String(cutterNom.id)
+            )
+            if (matchingConsumables.length > 0) {
+              const sorted = [...matchingConsumables].sort((a, b) => {
+                const invA = (inventory || []).find(i => String(i.nomenclature_id) === String(a.id) && (i.warehouse === 'operational' || !i.warehouse))
+                const invB = (inventory || []).find(i => String(i.nomenclature_id) === String(b.id) && (i.warehouse === 'operational' || !i.warehouse))
+                return (Number(invB?.total_qty) || 0) - (Number(invA?.total_qty) || 0)
+              })
+              resolvedCutterNom = sorted[0]
             }
           }
 

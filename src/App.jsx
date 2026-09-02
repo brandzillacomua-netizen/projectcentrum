@@ -170,13 +170,11 @@ const getAllModules = (badgeCount = 0, chatBadgeCount = 0) => [
 const getAvailableModules = (currentUser, badgeCount, chatBadgeCount = 0) => {
   if (!currentUser) return [];
   const allModules = getAllModules(badgeCount, chatBadgeCount);
+  const rights = currentUser?.access_rights || {};
   const posLower = (currentUser?.position || '').toLowerCase();
   const roleLower = (currentUser?.role || '').toLowerCase();
-
-  const isFullAccessUser = posLower.includes('адмін') || roleLower === 'admin';
-  if (isFullAccessUser) return allModules;
-
-  const rights = currentUser?.access_rights || {};
+  const isAdmin = posLower.includes('адмін') || roleLower === 'admin' || currentUser?.login === 'admin@workshop.local';
+  const isDirector = posLower.includes('директор') || roleLower.includes('director') || rights.director === true || rights.director === 'true' || rights.director === 1;
 
   const checkRight = (id) => {
     if (!id) return false;
@@ -186,32 +184,14 @@ const getAvailableModules = (currentUser, badgeCount, chatBadgeCount = 0) => {
 
   return allModules.filter(m => {
     if (m.id === 'simulator') return false;
-
-    // Explicit exceptions that should bypass pillar hiding if explicitly checked
-    if ((m.id === 'kanban' && checkRight('kanban')) || (m.id === 'chat' && checkRight('chat'))) {
-      return true;
+    if (m.id === 'settings') {
+      if (isAdmin) return rights.settings !== false;
+      return checkRight('settings');
     }
-
-    // Direct check
-    if (checkRight(m.id)) return true;
-
-    // CRM Pillar modules — enabled by default unless explicitly disabled
-    if (m.pillar === 'crm') {
-      if (rights.crm === false && rights.crm_clients === false && rights.manager === false) return false;
-      return true;
+    if (m.id === 'foreman') {
+      return checkRight('foreman') || checkRight('foreman2');
     }
-
-    // Aliases & fallbacks
-    if (m.id === 'warehouse_fgp' && (checkRight('warehouse_fgp') || checkRight('warehouse'))) return true;
-    if (m.id === 'warehouse_boxes' && (checkRight('warehouse_boxes') || checkRight('warehouse'))) return true;
-    if (m.id === 'economy' && (checkRight('economy') || checkRight('director'))) return true;
-    if (m.id === 'engineer_v2' && (checkRight('engineer_v2') || checkRight('engineer'))) return true;
-    if (m.id === 'engineer' && (checkRight('engineer') || checkRight('engineer_v2'))) return true;
-    if (m.id === 'foreman' && (checkRight('foreman') || checkRight('foreman2') || checkRight('master'))) return true;
-    if (m.id === 'shop2_card_gen' && (checkRight('shop2_card_gen') || checkRight('shop2'))) return true;
-    if (m.id === 'shop1_foreman' && (checkRight('shop1_foreman') || checkRight('master') || checkRight('foreman'))) return true;
-
-    return false;
+    return checkRight(m.id);
   });
 }
 
@@ -2878,20 +2858,24 @@ const Portal = ({ chatUnreadCount }) => {
     return getAvailableModules(currentUser, 0, chatUnreadCount)
   }, [currentUser, chatUnreadCount])
 
-  // REDIRECT NON-ADMIN TO START PAGE ONLY ON INITIAL APP LOAD / LOGIN
+  const hasDashboardAccess = Boolean(
+    currentUser?.access_rights?.dashboard === true ||
+    currentUser?.access_rights?.dashboard === 'true' ||
+    currentUser?.access_rights?.dashboard === 1
+  );
+
+  // REDIRECT TO START PAGE OR FIRST MODULE IF USER HAS NO DASHBOARD ACCESS
   useEffect(() => {
-    if (!isAdmin && modules.length > 0 && location.pathname === '/') {
-      const redirectedAlready = sessionStorage.getItem('start_page_redirected')
-      if (!redirectedAlready) {
-        const userPosition = (companyPositions || []).find(p => p.name === currentUser?.position)
-        const targetPath = userPosition?.start_page
-        if (targetPath && modules.some(m => m.path === targetPath)) {
-          sessionStorage.setItem('start_page_redirected', 'true')
-          navigate(targetPath, { replace: true })
-        }
+    if (!hasDashboardAccess && modules.length > 0 && location.pathname === '/') {
+      const userPosition = (companyPositions || []).find(p => p.name === currentUser?.position);
+      const targetPath = userPosition?.start_page;
+      if (targetPath && modules.some(m => m.path === targetPath)) {
+        navigate(targetPath, { replace: true });
+      } else if (modules[0]?.path) {
+        navigate(modules[0].path, { replace: true });
       }
     }
-  }, [isAdmin, modules, location.pathname, companyPositions, currentUser?.position, navigate])
+  }, [hasDashboardAccess, modules, location.pathname, companyPositions, currentUser?.position, navigate]);
 
   const filteredModules = modules.filter(m => {
     const matchesSearch = m.title.toLowerCase().includes(portalSearch.toLowerCase()) ||
@@ -2943,10 +2927,24 @@ const Portal = ({ chatUnreadCount }) => {
   const hasModule = (id) => modules.some(m => m.id === id);
 
   // Quick Action availability based on permissions
-  const canCreateOrder = hasModule('crm') || hasModule('manager') || hasModule('director') || isAdmin;
-  const canCreateBatch = hasModule('master') || hasModule('foreman') || hasModule('director') || isAdmin;
-  const canRequestMaterial = hasModule('warehouse') || hasModule('supply') || hasModule('master') || hasModule('foreman') || hasModule('director') || isAdmin;
-  const canCallMaster = hasModule('operator') || hasModule('shop1') || hasModule('shop2_terminal') || hasModule('master') || isAdmin;
+  const canCreateOrder = hasModule('crm') || hasModule('manager') || hasModule('director');
+  const canCreateBatch = hasModule('master') || hasModule('foreman') || hasModule('director');
+  const canRequestMaterial = hasModule('warehouse') || hasModule('supply') || hasModule('master') || hasModule('foreman') || hasModule('director');
+  const canCallMaster = hasModule('operator') || hasModule('shop1') || hasModule('shop2_terminal') || hasModule('master');
+
+  if (!hasDashboardAccess && modules.length === 0) {
+    return (
+      <div style={{ background: '#050505', minHeight: 'calc(100vh - 64px)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '20px', padding: '20px', color: '#fff', textAlign: 'center' }}>
+        <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid #ef4444', color: '#ef4444', padding: '20px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '10px' }}>
+          <AlertTriangle size={40} />
+        </div>
+        <h1 style={{ fontSize: '1.8rem', fontWeight: 950, margin: 0 }}>Немає призначених модулів</h1>
+        <p style={{ color: '#888', fontSize: '0.9rem', maxWidth: '400px', margin: '0 0 20px' }}>
+          У вашому обліковому записі не обрано жодного доступного модуля. Зверніться до адміністратора в модулі «Система».
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="portal-container-v2" style={{ background: 'var(--bg)', minHeight: 'calc(100vh - 64px)', color: 'var(--text)', padding: '24px 28px 40px' }}>
@@ -3307,27 +3305,27 @@ const Portal = ({ chatUnreadCount }) => {
                   Склад Оперативний →
                 </Link>
               )}
-              {(hasModule('prep_terminal') || hasModule('preparation_dashboard') || hasModule('warehouse') || isAdmin) && (
+              {(hasModule('prep_terminal') || hasModule('preparation_dashboard') || hasModule('supply')) && (
                 <Link to="/preparation-dashboard" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)', textDecoration: 'none', padding: '8px 15px', borderRadius: '12px', fontSize: '0.82rem', fontWeight: 800, transition: '0.2s' }}>
                   Склад Виробництва
                 </Link>
               )}
-              {(hasModule('warehouse_fgp') || isAdmin) && (
+              {hasModule('warehouse_fgp') && (
                 <Link to="/warehouse-fgp" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)', textDecoration: 'none', padding: '8px 15px', borderRadius: '12px', fontSize: '0.82rem', fontWeight: 800, transition: '0.2s' }}>
                   Склад СГП
                 </Link>
               )}
-              {(hasModule('warehouse_boxes') || isAdmin) && (
+              {hasModule('warehouse_boxes') && (
                 <Link to="/warehouse-boxes" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)', textDecoration: 'none', padding: '8px 15px', borderRadius: '12px', fontSize: '0.82rem', fontWeight: 800, transition: '0.2s' }}>
                   Бокси фрез
                 </Link>
               )}
-              {(hasModule('supply') || isAdmin) && (
+              {hasModule('supply') && (
                 <Link to="/supply" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)', textDecoration: 'none', padding: '8px 15px', borderRadius: '12px', fontSize: '0.82rem', fontWeight: 800, transition: '0.2s' }}>
                   Постачання (Procurement)
                 </Link>
               )}
-              {(hasModule('economy') || isAdmin) && (
+              {hasModule('economy') && (
                 <Link to="/economy" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)', textDecoration: 'none', padding: '8px 15px', borderRadius: '12px', fontSize: '0.82rem', fontWeight: 800, transition: '0.2s' }}>
                   Економіка & Ціни
                 </Link>
@@ -3605,11 +3603,6 @@ const PermissionGuard = ({ id, children }) => {
 
   if (!currentUser) return children
 
-  const posLower = (currentUser?.position || '').toLowerCase()
-  const roleLower = (currentUser?.role || '').toLowerCase()
-  const isFullAccessUser = posLower.includes('адмін') || roleLower === 'admin'
-  if (isFullAccessUser) return children
-
   // Allow public call route
   if (id === 'public_call') return children
 
@@ -3817,20 +3810,22 @@ const AppSidebar = ({ isCollapsed, setIsCollapsed, chatUnreadCount, isMobileOpen
         {/* Right: Quick Action Icons (Chat 💬, Notifications 🔔, Theme 🌙/☀️) */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           {/* Chat Button */}
-          <Link
-            to="/chat"
-            onClick={() => setIsCollapsed(true)}
-            className="mobile-topbar-icon-btn"
-            title="Чат & Комунікація"
-            style={{ position: 'relative' }}
-          >
-            <MessageCircle size={18} color="#ff9000" />
-            {chatUnreadCount > 0 && (
-              <span className="mobile-unread-badge">
-                {chatUnreadCount}
-              </span>
-            )}
-          </Link>
+          {(currentUser?.access_rights?.chat === true || currentUser?.access_rights?.chat === 'true' || currentUser?.access_rights?.chat === 1) && (
+            <Link
+              to="/chat"
+              onClick={() => setIsCollapsed(true)}
+              className="mobile-topbar-icon-btn"
+              title="Чат & Комунікація"
+              style={{ position: 'relative' }}
+            >
+              <MessageCircle size={18} color="#ff9000" />
+              {chatUnreadCount > 0 && (
+                <span className="mobile-unread-badge">
+                  {chatUnreadCount}
+                </span>
+              )}
+            </Link>
+          )}
 
           {/* Notifications Button */}
           <Link
@@ -3915,46 +3910,48 @@ const AppSidebar = ({ isCollapsed, setIsCollapsed, chatUnreadCount, isMobileOpen
             borderBottom: '1px solid var(--glass-border, rgba(255, 255, 255, 0.05))',
             flexShrink: 0
           }}>
-            <Link
-              to="/chat"
-              style={{
-                flex: 1,
-                padding: '8px 10px',
-                borderRadius: '12px',
-                background: chatUnreadCount > 0 ? 'rgba(99, 102, 241, 0.12)' : 'rgba(255, 255, 255, 0.04)',
-                border: chatUnreadCount > 0 ? '1px solid rgba(99, 102, 241, 0.3)' : '1px solid var(--glass-border, rgba(255, 255, 255, 0.08))',
-                color: chatUnreadCount > 0 ? '#6366f1' : 'var(--text)',
-                fontSize: '0.82rem',
-                fontWeight: 800,
-                textDecoration: 'none',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '6px',
-                transition: 'all 0.2s ease'
-              }}
-              title="Чат & Комунікація"
-            >
-              <MessageCircle size={15} color={chatUnreadCount > 0 ? "#6366f1" : "var(--text-muted)"} />
-              <span>Чат</span>
-              {chatUnreadCount > 0 && (
-                <span style={{
-                  background: '#6366f1',
-                  color: '#ffffff',
-                  fontSize: '0.68rem',
-                  fontWeight: 900,
-                  padding: '2px 7px',
-                  borderRadius: '10px',
-                  lineHeight: 1,
-                  display: 'inline-flex',
+            {(currentUser?.access_rights?.chat === true || currentUser?.access_rights?.chat === 'true' || currentUser?.access_rights?.chat === 1) && (
+              <Link
+                to="/chat"
+                style={{
+                  flex: 1,
+                  padding: '8px 10px',
+                  borderRadius: '12px',
+                  background: chatUnreadCount > 0 ? 'rgba(99, 102, 241, 0.12)' : 'rgba(255, 255, 255, 0.04)',
+                  border: chatUnreadCount > 0 ? '1px solid rgba(99, 102, 241, 0.3)' : '1px solid var(--glass-border, rgba(255, 255, 255, 0.08))',
+                  color: chatUnreadCount > 0 ? '#6366f1' : 'var(--text)',
+                  fontSize: '0.82rem',
+                  fontWeight: 800,
+                  textDecoration: 'none',
+                  display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  boxShadow: '0 2px 6px rgba(99, 102, 241, 0.4)'
-                }}>
-                  {chatUnreadCount}
-                </span>
-              )}
-            </Link>
+                  gap: '6px',
+                  transition: 'all 0.2s ease'
+                }}
+                title="Чат & Комунікація"
+              >
+                <MessageCircle size={15} color={chatUnreadCount > 0 ? "#6366f1" : "var(--text-muted)"} />
+                <span>Чат</span>
+                {chatUnreadCount > 0 && (
+                  <span style={{
+                    background: '#6366f1',
+                    color: '#ffffff',
+                    fontSize: '0.68rem',
+                    fontWeight: 900,
+                    padding: '2px 7px',
+                    borderRadius: '10px',
+                    lineHeight: 1,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: '0 2px 6px rgba(99, 102, 241, 0.4)'
+                  }}>
+                    {chatUnreadCount}
+                  </span>
+                )}
+              </Link>
+            )}
 
             <Link
               to="/notifications"
@@ -4026,7 +4023,7 @@ const AppSidebar = ({ isCollapsed, setIsCollapsed, chatUnreadCount, isMobileOpen
         {/* Navigation Items */}
         <div className="sidebar-nav-container">
           {/* Main Dashboard Link */}
-          {(currentUser?.position === 'Адмін' || currentUser?.role === 'admin' || currentUser?.access_rights?.dashboard === true || currentUser?.access_rights?.dashboard === 'true' || currentUser?.access_rights?.dashboard === 1) && (
+          {(currentUser?.access_rights?.dashboard === true || currentUser?.access_rights?.dashboard === 'true' || currentUser?.access_rights?.dashboard === 1) && (
             <Link
               to="/"
               onClick={() => {

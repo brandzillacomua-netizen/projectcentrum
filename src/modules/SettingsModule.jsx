@@ -1847,17 +1847,21 @@ const SettingsModule = () => {
 
   const editUser = (user) => {
     const rights = user.access_rights || {}
+    const filledRights = {}
+    const isAdminUser = (user.position || '').toLowerCase().includes('адмін') || user.role === 'admin' || user.login === 'admin@workshop.local'
+    const isDirectorUser = (user.position || '').toLowerCase().includes('директор') || user.role === 'director' || rights.director === true
+    moduleList.forEach(m => {
+      const val = rights[m.id]
+      if (m.id === 'settings' && isAdminUser) {
+        filledRights[m.id] = rights[m.id] !== false
+      } else {
+        filledRights[m.id] = val === true || val === 'true' || val === 1
+      }
+    })
     setUserForm({ 
       ...user, 
       password: '••••••••',
-      access_rights: {
-        crm: rights.crm !== false, 
-        crm_clients: rights.crm_clients !== false, 
-        dashboard: true, foreman_dashboard: false, manager: false, chat: false, master: false, warehouse: false, warehouse_boxes: false, cutter_restoration: false, preparation_dashboard: false, engineer: false,
-        director: false, foreman: false, foreman2: false, operator: false, prep_terminal: false, shipping: false, 
-        supply: false, procurement: false, nomenclature: false, nomenclature_v2: false, shop2: false, machines: false, settings: false, packaging: false, kanban: false, reports: false, tumbling_terminal: false, tumbling_dashboard: false, reception_terminal: false, sorting_terminal: false, painting_terminal: false, pressing_terminal: false,
-        ...rights
-      }
+      access_rights: filledRights
     })
     setActiveTab('users')
     setShowMobileUserForm(true)
@@ -2324,7 +2328,24 @@ const SettingsModule = () => {
 
                 <div>
                   <label className="form-label">ШТАТНА ПОСАДА / РОЛЬ</label>
-                  <select style={inputStyle} value={userForm.position} onChange={e => setUserForm({...userForm, position: e.target.value})}>
+                  <select
+                    style={inputStyle}
+                    value={userForm.position}
+                    onChange={e => {
+                      const newPos = e.target.value
+                      const isNewAdmin = (newPos || '').toLowerCase().includes('адмін')
+                      const isNewDirector = (newPos || '').toLowerCase().includes('директор')
+                      setUserForm(prev => ({
+                        ...prev,
+                        position: newPos,
+                        access_rights: {
+                          ...prev.access_rights,
+                          ...(isNewAdmin ? { settings: true } : {}),
+                          ...(isNewDirector ? { director: true } : {})
+                        }
+                      }))
+                    }}
+                  >
                     {(availableFormPositions || []).map(p => (
                       <option key={p.id} value={p.name}>{p.name}</option>
                     ))}

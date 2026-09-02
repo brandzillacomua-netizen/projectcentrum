@@ -200,6 +200,7 @@ const ForemanWorkplace = () => {
   const [activeTaskId, setActiveTaskId] = useState(() => {
     return location.state?.taskId || localStorage.getItem('foreman_active_task_id') || null
   })
+  const [selectedDovypuskCutters, setSelectedDovypuskCutters] = useState({})
   const {
     activeView, setActiveView,
     selectedMachines, setSelectedMachines,
@@ -2325,21 +2326,77 @@ const ForemanWorkplace = () => {
                       {batchCutters.length > 0 ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                           {batchCutters.map((item, idx) => {
-                            const invItem = (inventory || []).find(i => String(i.nomenclature_id) === String(item.nomenclature_id) && (i.warehouse === 'operational' || !i.warehouse))
+                            const cutterKey = String(item.nomenclature_id || item.name)
+                            const categoryName = item.name
+
+                            const matchingOptions = (nomenclatures || []).filter(n => {
+                              if (n.type !== 'consumable') return false
+                              if (item.nomenclature_id && String(n.characteristic) === String(item.nomenclature_id)) return true
+                              const diaMatch = String(categoryName).match(/ф\s*([\d.,]+)/i)
+                              if (diaMatch) {
+                                const diaClean = diaMatch[1].replace(',', '.')
+                                const nLow = n.name.toLowerCase()
+                                return nLow.includes('фреза') && (nLow.includes(`${diaClean}х`) || nLow.includes(`${diaClean}x`))
+                              }
+                              return false
+                            })
+
+                            const options = matchingOptions.length > 0 ? matchingOptions : (nomenclatures || []).filter(n => n.type === 'consumable' && n.name.toLowerCase().includes('фреза'))
+
+                            const selectedNomId = selectedDovypuskCutters[cutterKey]
+                              || selectedDovypuskCutters[categoryName]
+                              || selectedDovypuskCutters[categoryName.toLowerCase()]
+                              || (item.nomenclature_id && nomenclatures.find(n => String(n.id) === String(item.nomenclature_id) && n.type === 'consumable')?.id)
+                              || (options[0]?.id || '')
+
+                            const chosenNom = nomenclatures.find(n => String(n.id) === String(selectedNomId))
+                            const invItem = (inventory || []).find(i => String(i.nomenclature_id) === String(chosenNom?.id || selectedNomId) && (i.warehouse === 'operational' || !i.warehouse))
                             const inStock = Number(invItem?.total_qty) || 0
                             const freeStock = Math.max(0, inStock - (Number(invItem?.reserved_qty) || 0))
                             const isAvailable = freeStock >= item.qty
 
                             return (
-                              <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#121215', padding: '10px 14px', borderRadius: '12px', border: '1px solid #1f1f23' }}>
-                                <div>
-                                  <div style={{ color: '#fff', fontWeight: 900, fontSize: '0.85rem' }}>{item.name}</div>
-                                  <div style={{ color: '#666', fontSize: '0.7rem', marginTop: '2px' }}>
-                                    Склад операт.: <strong style={{ color: isAvailable ? '#10b981' : '#ef4444' }}>{freeStock} од. вільних</strong> (всього {inStock})
+                              <div key={idx} style={{ background: '#121215', padding: '10px 14px', borderRadius: '12px', border: '1px solid #1f1f23', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <div>
+                                    <div style={{ color: '#fff', fontWeight: 900, fontSize: '0.85rem' }}>{categoryName}</div>
+                                    <div style={{ color: '#666', fontSize: '0.7rem', marginTop: '2px' }}>
+                                      Склад операт.: <strong style={{ color: isAvailable ? '#10b981' : '#ef4444' }}>{freeStock} од. вільних</strong> (всього {inStock})
+                                    </div>
+                                  </div>
+                                  <div style={{ background: 'rgba(255, 144, 0, 0.1)', border: '1px solid rgba(255, 144, 0, 0.3)', color: '#ff9000', padding: '4px 12px', borderRadius: '10px', fontWeight: 950, fontSize: '0.95rem' }}>
+                                    {item.qty} од.
                                   </div>
                                 </div>
-                                <div style={{ background: 'rgba(255, 144, 0, 0.1)', border: '1px solid rgba(255, 144, 0, 0.3)', color: '#ff9000', padding: '4px 12px', borderRadius: '10px', fontWeight: 950, fontSize: '0.95rem' }}>
-                                  {item.qty} од.
+
+                                <div style={{ marginTop: '4px' }}>
+                                  <label style={{ fontSize: '0.62rem', color: '#38bdf8', fontWeight: 800, textTransform: 'uppercase', display: 'block', marginBottom: '3px' }}>
+                                    Модель фрези (складська номенклатура):
+                                  </label>
+                                  <select
+                                    value={selectedNomId}
+                                    onChange={(e) => {
+                                      const val = e.target.value
+                                      setSelectedDovypuskCutters(prev => ({
+                                        ...prev,
+                                        [cutterKey]: val,
+                                        [categoryName]: val,
+                                        [categoryName.toLowerCase()]: val
+                                      }))
+                                    }}
+                                    style={{ width: '100%', background: '#000', border: '1px solid rgba(56, 189, 248, 0.4)', color: '#38bdf8', padding: '7px 10px', borderRadius: '8px', fontSize: '0.8rem', fontWeight: 800, outline: 'none' }}
+                                  >
+                                    <option value="">-- Оберіть модель фрези --</option>
+                                    {options.map(opt => {
+                                      const optInv = (inventory || []).find(i => String(i.nomenclature_id) === String(opt.id) && (i.warehouse === 'operational' || !i.warehouse))
+                                      const optFree = Math.max(0, (Number(optInv?.total_qty) || 0) - (Number(optInv?.reserved_qty) || 0))
+                                      return (
+                                        <option key={opt.id} value={opt.id}>
+                                          {opt.name} — [на СО: {optFree} шт.]
+                                        </option>
+                                      )
+                                    })}
+                                  </select>
                                 </div>
                               </div>
                             )
@@ -2361,7 +2418,7 @@ const ForemanWorkplace = () => {
                   onClick={() => {
                     const v = parseInt(document.getElementById('gen_count_input').value)
                     if (v > 0) {
-                      handleGenerateFromWorksheet(genModal.task, genModal.part, genModal.sheets, genModal.machineName, v, genModal.created, genModal.requirement, genModal.isRepair, genModal.targetTotal, 0, genModal.capacity, genModal.maxSheetsToGenerate)
+                      handleGenerateFromWorksheet(genModal.task, genModal.part, genModal.sheets, genModal.machineName, v, genModal.created, genModal.requirement, genModal.isRepair, genModal.targetTotal, 0, genModal.capacity, genModal.maxSheetsToGenerate, null, selectedDovypuskCutters)
                       setGenModal(null)
                     }
                   }}

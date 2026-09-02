@@ -833,7 +833,7 @@ export function createProductionActions({
                 const partSelectedCutters = overrideSelectedCutters
                   || task?.plan_snapshot?.[String(partNom?.id)]?.selected_cutters
                   || task?.plan_snapshot?.selectedCutters
-                if (partSelectedCutters) {
+                if (partSelectedCutters && typeof partSelectedCutters === 'object') {
                   const selectedVal = partSelectedCutters[cleanName]
                     || partSelectedCutters[cleanName.toLowerCase()]
                     || partSelectedCutters[String(cutterNomId)]
@@ -845,6 +845,58 @@ export function createProductionActions({
                       : nomenclatures.find(n => String(n.id) === String(selectedVal))
                     if (specNom) resolvedCutterNom = specNom
                   }
+
+                  // If still cutter_type, try matching by characteristic in partSelectedCutters
+                  if (resolvedCutterNom.type === 'cutter_type') {
+                    for (const [k, v] of Object.entries(partSelectedCutters)) {
+                      const candidate = nomenclatures.find(n =>
+                        (String(n.id) === String(v) || String(n.id) === String(k) || n.name.trim().toLowerCase() === String(k).trim().toLowerCase()) &&
+                        n.type === 'consumable' &&
+                        String(n.characteristic) === String(cutterNom.id)
+                      )
+                      if (candidate) {
+                        resolvedCutterNom = candidate
+                        break
+                      }
+                    }
+                  }
+                }
+
+                // If still cutter_type, resolve by characteristic in nomenclatures
+                if (resolvedCutterNom.type === 'cutter_type') {
+                  const matchingConsumables = (nomenclatures || []).filter(n =>
+                    n.type === 'consumable' && String(n.characteristic) === String(cutterNom.id)
+                  )
+                  if (matchingConsumables.length > 0) {
+                    const sorted = [...matchingConsumables].sort((a, b) => {
+                      const invA = (inventory || []).find(i => String(i.nomenclature_id) === String(a.id) && (i.warehouse === 'operational' || !i.warehouse))
+                      const invB = (inventory || []).find(i => String(i.nomenclature_id) === String(b.id) && (i.warehouse === 'operational' || !i.warehouse))
+                      return (Number(invB?.total_qty) || 0) - (Number(invA?.total_qty) || 0)
+                    })
+                    resolvedCutterNom = sorted[0]
+                  }
+                }
+
+                // Fallback by diameter matching if still cutter_type
+                if (resolvedCutterNom.type === 'cutter_type') {
+                  const diaMatch = cleanName.match(/ф\s*([\d.,]+)/i)
+                  if (diaMatch) {
+                    const diaClean = diaMatch[1].replace(',', '.')
+                    const byDia = (nomenclatures || []).filter(n => {
+                      if (n.type !== 'consumable') return false
+                      const nName = n.name.toLowerCase()
+                      return nName.includes('фреза') && (nName.includes(`${diaClean}х`) || nName.includes(`${diaClean}x`))
+                    })
+                    if (byDia.length > 0) {
+                      resolvedCutterNom = byDia[0]
+                    }
+                  }
+                }
+
+                // Strictly refuse to add cutter_type to material_requests
+                if (resolvedCutterNom.type === 'cutter_type') {
+                  console.warn('[DOVYPUSK] Cannot resolve cutter_type to consumable:', resolvedCutterNom)
+                  return
                 }
 
                 const resolvedName = resolvedCutterNom.name.trim()
@@ -872,6 +924,7 @@ export function createProductionActions({
                 const nom = invItem
                   ? nomenclatures?.find(n => String(n.id) === String(invItem.nomenclature_id))
                   : nomenclatures?.find(n => String(n.id) === String(selectedVal))
+                if (nom && nom.type === 'cutter_type') return // never accept cutter_type
                 const name = nom ? nom.name : invItem?.name
                 if (name && name.toLowerCase().includes('фреза') && name.toLowerCase() !== 'фреза') {
                   const cleanName = name.trim()
@@ -897,7 +950,7 @@ export function createProductionActions({
                 const key = cleanName.toLowerCase()
                 if (!machineSpecificCutters[key]) {
                   const consNom = nomenclatures.find(n => n.name.trim().toLowerCase() === key)
-                  if (consNom) {
+                  if (consNom && consNom.type !== 'cutter_type') {
                     const qtyPerSheet = Number(consNom.consumption_per_sheet) || 1
                     machineSpecificCutters[key] = {
                       name: cleanName,
@@ -912,7 +965,12 @@ export function createProductionActions({
         }
 
         Object.values(machineSpecificCutters).forEach(item => {
-          const consInvItem = inventory.find(i => String(i.nomenclature_id) === String(item.nomenclature_id) && i.warehouse === 'operational')
+          const finalNom = nomenclatures.find(n => String(n.id) === String(item.nomenclature_id))
+          if (finalNom && finalNom.type === 'cutter_type') {
+            console.warn('[DOVYPUSK] Refusing to insert cutter_type item:', item)
+            return
+          }
+          const consInvItem = inventory.find(i => String(i.nomenclature_id) === String(item.nomenclature_id) && (i.warehouse === 'operational' || !i.warehouse))
             || inventory.find(i => String(i.nomenclature_id) === String(item.nomenclature_id))
           requestsToInsert.push({
             order_id: orderId,
