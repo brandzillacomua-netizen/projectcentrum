@@ -4735,7 +4735,7 @@ const AppLayout = ({ children, chatUnreadCount }) => {
     return <>{children}</>
   }
 
-  const isTvDashboard = ['/preparation-dashboard', '/tumbling-dashboard', '/foreman-dashboard'].includes(location.pathname)
+  const isTvDashboard = ['/preparation-dashboard', '/tumbling-dashboard'].includes(location.pathname)
 
   return (
     <div className="app-shell">

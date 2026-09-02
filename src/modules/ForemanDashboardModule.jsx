@@ -1178,12 +1178,27 @@ const ForemanDashboardModule = () => {
       {/* ── NAV ── */}
       <nav style={{ flexShrink: 0, padding: '0 24px', height: '68px', background: 'var(--bg, #09090b)', borderBottom: '1px solid var(--glass-border, #27272a)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-          <Link to="/" style={{ color: '#71717a', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', transition: 'color 0.2s' }}
-            onMouseEnter={e => e.currentTarget.style.color = '#fff'}
-            onMouseLeave={e => e.currentTarget.style.color = '#71717a'}>
+          <Link
+            to="/"
+            style={{
+              color: 'var(--text, #f4f4f5)',
+              background: 'var(--card-bg, #18181b)',
+              border: '1px solid var(--glass-border, #27272a)',
+              padding: '7px 12px',
+              borderRadius: '9px',
+              textDecoration: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '0.82rem',
+              fontWeight: 800,
+              transition: 'all 0.2s',
+              boxShadow: 'var(--shadow, none)'
+            }}
+          >
             <ArrowLeft size={16} /> На головну
           </Link>
-          <div style={{ width: '1px', height: '24px', background: '#27272a' }} />
+          <div style={{ width: '1px', height: '24px', background: 'var(--glass-border, #27272a)' }} />
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <LayoutDashboard size={18} color="#ef4444" />
