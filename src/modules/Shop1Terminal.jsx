@@ -810,90 +810,70 @@ export default function Shop1Terminal() {
     if (!card) return []
     const task = tasks?.find(t => String(t.id) === String(card.task_id))
     const targetMachine = task?.machine_name || card.machine || ''
+    const cardNomId = String(card.nomenclature_id || '')
     
     const configuredCutters = []
+
+    const isGenericCutterName = (name) => {
+      if (!name) return true
+      const clean = String(name).trim().toLowerCase()
+      if (clean === 'фреза') return true
+      if (/^фреза\s+ф\d+/i.test(clean)) return true
+      const nom = nomenclatures?.find(n => n.name.trim().toLowerCase() === clean)
+      if (nom && nom.type === 'cutter_type') return true
+      return false
+    }
 
     const addCutter = (name) => {
       if (!name) return
       const cleanName = String(name).trim()
-      if (cleanName && cleanName.toLowerCase() !== 'фреза' && !configuredCutters.includes(cleanName)) {
+      if (cleanName && !isGenericCutterName(cleanName) && !configuredCutters.includes(cleanName)) {
         configuredCutters.push(cleanName)
       }
     }
 
-    // 0. Check material_requests for issued or pending cutter requests for this task, card or order
-    if (requests && requests.length > 0) {
-      const cardTaskReqs = requests.filter(r => 
-        (r.task_id && String(r.task_id) === String(card.task_id)) ||
-        (r.card_id && String(r.card_id) === String(card.id)) ||
-        (r.order_id && card.order_id && String(r.order_id) === String(card.order_id))
+    const partSelectedCutters = task?.plan_snapshot?.[cardNomId]?.selected_cutters 
+      || task?.plan_snapshot?.selectedCutters
+
+    const resolveCutterName = (cutterNom) => {
+      if (!cutterNom) return null
+      const genericName = cutterNom.name.trim()
+
+      if (cutterNom.type === 'consumable' && !isGenericCutterName(genericName)) {
+        return genericName
+      }
+
+      if (partSelectedCutters && typeof partSelectedCutters === 'object') {
+        const invId = partSelectedCutters[genericName]
+          || partSelectedCutters[genericName.toLowerCase()]
+          || partSelectedCutters[String(cutterNom.id)]
+        
+        if (invId) {
+          const inv = (inventory || []).find(i => String(i.id) === String(invId))
+          if (inv) {
+            const nom = nomenclatures?.find(n => String(n.id) === String(inv.nomenclature_id))
+            if (nom && !isGenericCutterName(nom.name)) return nom.name.trim()
+            if (inv.name && !isGenericCutterName(inv.name)) return inv.name.trim()
+          }
+          const nom = nomenclatures?.find(n => String(n.id) === String(invId))
+          if (nom && !isGenericCutterName(nom.name)) return nom.name.trim()
+        }
+      }
+
+      const matchingConsumable = nomenclatures?.find(n =>
+        n.type === 'consumable' &&
+        String(n.characteristic) === String(cutterNom.id) &&
+        !isGenericCutterName(n.name)
       )
-      cardTaskReqs.forEach(r => {
-        if (r.nomenclature_id) {
-          const nom = nomenclatures?.find(n => String(n.id) === String(r.nomenclature_id))
-          if (nom && nom.name && nom.name.toLowerCase().includes('фреза')) {
-            addCutter(nom.name)
-          }
-        } else if (r.details && r.details.toLowerCase().includes('фреза')) {
-          const match = r.details.match(/фреза[^\d]*\d+[\d\s.,xхXХx×]*/i)
-          if (match) addCutter(match[0])
-        }
-      })
+      if (matchingConsumable) {
+        return matchingConsumable.name.trim()
+      }
+
+      return null
     }
 
-    // 1. Get cutters defined in machineOperations for task parts
-    if (task && task.plan_snapshot) {
-      Object.entries(task.plan_snapshot).forEach(([key, val]) => {
-        if (key.startsWith('_') || ['materialSummary', 'selectedCutters', 'consumables'].includes(key)) return
-        if (val && typeof val === 'object') {
-          const partNomId = val.id || key
-          const partMachine = val.selected_machine || val.machine || targetMachine
-          
-          const allOpsForPart = (machineOperations || []).filter(o => String(o.nomenclature_id) === String(partNomId))
-          let opData = null
-          if (partMachine) {
-            opData = allOpsForPart.find(o =>
-              isMachineMatch(o.machine_type, partMachine) ||
-              isMachineMatch(o.machine_id, partMachine)
-            )
-          }
-          if (!opData && allOpsForPart.length > 0) {
-            opData = allOpsForPart[0]
-          }
-          
-          if (opData && opData.side2_cut_ops) {
-            const cutterOps = opData.side2_cut_ops.filter(op => op.startsWith('__CUTTER__Reference:') || op.startsWith('__CUTTER__:'))
-            cutterOps.forEach(op => {
-              const parts = op.split(':')
-              const cutterNomId = parts[1]
-              if (cutterNomId) {
-                const cutterNom = nomenclatures?.find(n => String(n.id) === String(cutterNomId))
-                if (cutterNom) {
-                  const genericName = cutterNom.name.trim()
-                  let resolvedName = genericName
-                  const partSelectedCutters = task.plan_snapshot?.[String(partNomId)]?.selected_cutters || task.plan_snapshot.selectedCutters
-                  if (partSelectedCutters) {
-                    const invId = partSelectedCutters[genericName] || partSelectedCutters[genericName.toLowerCase()]
-                    if (invId) {
-                      const inv = (inventory || []).find(i => String(i.id) === String(invId))
-                      if (inv) {
-                        const nom = nomenclatures?.find(n => String(n.id) === String(inv.nomenclature_id))
-                        if (nom) resolvedName = nom.name.trim()
-                        else if (inv.name) resolvedName = inv.name.trim()
-                      }
-                    }
-                  }
-                  addCutter(resolvedName)
-                }
-              }
-            })
-          }
-        }
-      })
-    }
-
-    // 1b. Check machine operations for the card's own nomenclature
-    const allOpsForCardNom = (machineOperations || []).filter(o => String(o.nomenclature_id) === String(card.nomenclature_id))
+    // 1. Get cutters defined in machineOperations ONLY for THIS card's nomenclature
+    const allOpsForCardNom = (machineOperations || []).filter(o => String(o.nomenclature_id) === cardNomId)
     let cardOpData = null
     if (targetMachine) {
       cardOpData = allOpsForCardNom.find(o =>
@@ -912,49 +892,51 @@ export default function Shop1Terminal() {
         if (cutterNomId) {
           const cutterNom = nomenclatures?.find(n => String(n.id) === String(cutterNomId))
           if (cutterNom) {
-            const genericName = cutterNom.name.trim()
-            let resolvedName = genericName
-            const partSelectedCutters = task?.plan_snapshot?.[String(card.nomenclature_id)]?.selected_cutters || task?.plan_snapshot?.selectedCutters
-            if (partSelectedCutters) {
-              const invId = partSelectedCutters[genericName] || partSelectedCutters[genericName.toLowerCase()]
-              if (invId) {
-                const inv = (inventory || []).find(i => String(i.id) === String(invId))
-                if (inv) {
-                  const nom = nomenclatures?.find(n => String(n.id) === String(inv.nomenclature_id))
-                  if (nom) resolvedName = nom.name.trim()
-                  else if (inv.name) resolvedName = inv.name.trim()
-                }
-              }
-            }
-            addCutter(resolvedName)
+            const resolved = resolveCutterName(cutterNom)
+            if (resolved) addCutter(resolved)
           }
         }
       })
     }
 
-    // 2. Check plan_snapshot selectedCutters & consumables
-    if (task && task.plan_snapshot) {
-      if (task.plan_snapshot.selectedCutters && typeof task.plan_snapshot.selectedCutters === 'object') {
-        Object.values(task.plan_snapshot.selectedCutters).forEach(invId => {
-          if (invId) {
-            const inv = (inventory || []).find(i => String(i.id) === String(invId))
-            if (inv) {
-              const nom = nomenclatures?.find(n => String(n.id) === String(inv.nomenclature_id))
-              const name = nom ? nom.name : inv.name
-              if (name && name.toLowerCase().includes('фреза')) {
-                addCutter(name)
-              }
+    // 2. If no cutters found via machineOperations for this part, check partSelectedCutters directly
+    if (configuredCutters.length === 0 && partSelectedCutters && typeof partSelectedCutters === 'object') {
+      Object.values(partSelectedCutters).forEach(invId => {
+        if (invId) {
+          const inv = (inventory || []).find(i => String(i.id) === String(invId))
+          if (inv) {
+            const nom = nomenclatures?.find(n => String(n.id) === String(inv.nomenclature_id))
+            const name = nom ? nom.name : inv.name
+            if (name && name.toLowerCase().includes('фреза')) {
+              addCutter(name)
+            }
+          } else {
+            const nom = nomenclatures?.find(n => String(n.id) === String(invId))
+            if (nom && nom.name && nom.name.toLowerCase().includes('фреза')) {
+              addCutter(nom.name)
             }
           }
-        })
-      }
-      if (Array.isArray(task.plan_snapshot.consumables)) {
-        task.plan_snapshot.consumables.forEach(c => {
-          if (c.name && c.name.toLowerCase().includes('фреза')) {
-            addCutter(c.name)
+        }
+      })
+    }
+
+    // 3. Check material_requests for issued or pending cutter requests for this SPECIFIC card or part
+    if (configuredCutters.length === 0 && requests && requests.length > 0) {
+      const cardTaskReqs = requests.filter(r => 
+        (r.card_id && String(r.card_id) === String(card.id)) ||
+        (r.task_id && String(r.task_id) === String(card.task_id) && String(r.nomenclature_id) === cardNomId)
+      )
+      cardTaskReqs.forEach(r => {
+        if (r.nomenclature_id) {
+          const nom = nomenclatures?.find(n => String(n.id) === String(r.nomenclature_id))
+          if (nom && nom.name && nom.name.toLowerCase().includes('фреза')) {
+            addCutter(nom.name)
           }
-        })
-      }
+        } else if (r.details && r.details.toLowerCase().includes('фреза')) {
+          const match = r.details.match(/фреза[^\d]*\d+[\d\s.,xхXХx×]*/i)
+          if (match) addCutter(match[0])
+        }
+      })
     }
 
     return configuredCutters
@@ -2571,7 +2553,7 @@ export default function Shop1Terminal() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             {currentCard.task_id && (
               <Link
-                to="/foreman"
+                to={`/foreman?task=${currentCard.task_id}`}
                 state={{ taskId: currentCard.task_id }}
                 style={{ background: '#3b82f615', border: '1px solid #3b82f640', color: '#3b82f6', padding: '10px 14px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', textDecoration: 'none' }}
                 title="Перейти до батьківського наряду">

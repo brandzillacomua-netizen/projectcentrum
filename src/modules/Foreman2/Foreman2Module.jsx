@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams, useLocation } from 'react-router-dom'
 import { ListTodo, Tablet } from 'lucide-react'
 import { useMES } from '../../MESContext.jsx'
 import { apiService } from '../../services/apiDispatcher.js'
@@ -25,7 +25,9 @@ import { getDisplayMaterial } from '../Foreman/utils/foremanHelpers.js'
 export default function Foreman2Module() {
   const mes = useMES()
   const [searchParams, setSearchParams] = useSearchParams()
-  const [activeTaskId, setActiveTaskId] = useState(() => searchParams.get('task') || localStorage.getItem('foreman2_active_task_id') || null)
+  const location = useLocation()
+  const urlTaskId = searchParams.get('task') || location.state?.taskId || null
+  const [activeTaskId, setActiveTaskId] = useState(() => urlTaskId || localStorage.getItem('foreman2_active_task_id') || null)
   const [reissuePart, setReissuePart] = useState(null)
   const [isQueueOpen, setIsQueueOpen] = useState(false)
   const [isCreateNaryadOpen, setIsCreateNaryadOpen] = useState(false)
@@ -85,6 +87,12 @@ export default function Foreman2Module() {
       alert('Помилка: ' + e.message)
     }
   }
+
+  useEffect(() => {
+    if (urlTaskId && String(urlTaskId) !== String(activeTaskId)) {
+      setActiveTaskId(String(urlTaskId))
+    }
+  }, [urlTaskId])
 
   useEffect(() => {
     if (activeTaskId) {

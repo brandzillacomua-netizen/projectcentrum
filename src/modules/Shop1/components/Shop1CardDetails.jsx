@@ -99,7 +99,7 @@ export function Shop1CardDetails({
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           {currentCard.task_id && (
             <Link
-              to="/foreman"
+              to={`/foreman?task=${currentCard.task_id}`}
               state={{ taskId: currentCard.task_id }}
               style={{ background: '#3b82f615', border: '1px solid #3b82f640', color: '#3b82f6', padding: '10px 14px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', textDecoration: 'none' }}
               title="Перейти до батьківського наряду"

@@ -197,8 +197,10 @@ const ForemanWorkplace = () => {
     (!c.called_employee_id || c.called_employee_id === currentUser?.id)
   )
 
+  const urlTaskId = searchParams.get('task') || location.state?.taskId || null
+
   const [activeTaskId, setActiveTaskId] = useState(() => {
-    return location.state?.taskId || localStorage.getItem('foreman_active_task_id') || null
+    return urlTaskId || localStorage.getItem('foreman_active_task_id') || null
   })
   const [selectedDovypuskCutters, setSelectedDovypuskCutters] = useState({})
   const {
@@ -287,6 +289,20 @@ const ForemanWorkplace = () => {
     const syncedIds = new Set(workCards.map(c => String(c.id)))
     setLocalGeneratedCards(prev => prev.filter(c => !syncedIds.has(String(c.id))))
   }, [workCards, localGeneratedCards.length])
+
+  useEffect(() => {
+    if (urlTaskId) {
+      if (String(urlTaskId) !== String(activeTaskId)) {
+        setActiveTaskId(String(urlTaskId))
+      }
+      const targetTaskObj = (tasks || []).find(t => String(t.id) === String(urlTaskId))
+      if (targetTaskObj && targetTaskObj.status === 'completed') {
+        setActiveTab('archive')
+      } else if (targetTaskObj) {
+        setActiveTab('active')
+      }
+    }
+  }, [urlTaskId, tasks])
 
   useEffect(() => {
     if (activeTaskId) {
