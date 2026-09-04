@@ -2226,31 +2226,68 @@ const SpecBuilderTab = () => {
         throw new Error(`Не знайдено номенклатуру: ${missingNames}. Оновіть сторінку та виберіть ці позиції повторно.`)
       }
 
-      // Sync activeParentId and all childIds to nomenclatures table so foreign key constraints on bom_items are satisfied
-      const idsToSync = [activeParentId, ...childIds]
+      // Sync activeParentId and all childIds to nomenclatures table so foreign key constraints on bom_items are 100% satisfied
+      const idsToSync = Array.from(new Set([activeParentId, ...childIds].map(String)))
+
+      // 1. Fetch DB V2 items for these IDs to guarantee we have authoritative records
+      const { data: dbV2Items } = await supabase
+        .from('nomenclatures_v2')
+        .select('*')
+        .in('id', idsToSync)
+
+      const syncPayloadMap = new Map()
+
+      if (dbV2Items && dbV2Items.length > 0) {
+        dbV2Items.forEach(v => {
+          syncPayloadMap.set(String(v.id), {
+            id: v.id,
+            name: v.name,
+            code: v.code || '',
+            unit: v.unit || 'шт',
+            type: (String(v.id) === String(activeParentId) || v.type === 'product' || v.type === 'assembly') ? 'product' : 'part',
+            status: v.status || 'active'
+          })
+        })
+      }
+
+      // 2. Add local memory items if any ID was missing from DB V2 response
       const allKnownNoms = [...(rawNoms || []), ...(nomenclatures || [])]
       if (selectedParent) allKnownNoms.push(selectedParent)
 
-      const itemsToSyncMap = new Map()
       idsToSync.forEach(id => {
-        const found = allKnownNoms.find(n => String(n.id) === String(id))
-        if (found) {
-          itemsToSyncMap.set(String(found.id), {
-            id: found.id,
-            name: found.name,
-            code: found.code || '',
-            unit: found.unit || 'шт',
-            type: (String(found.id) === String(activeParentId) || found.type === 'product' || found.type === 'assembly') ? 'product' : 'part',
-            status: 'active'
-          })
+        if (!syncPayloadMap.has(id)) {
+          const found = allKnownNoms.find(n => String(n.id) === id)
+          if (found) {
+            syncPayloadMap.set(id, {
+              id: found.id,
+              name: found.name,
+              code: found.code || '',
+              unit: found.unit || 'шт',
+              type: (id === String(activeParentId) || found.type === 'product' || found.type === 'assembly') ? 'product' : 'part',
+              status: 'active'
+            })
+          }
         }
       })
 
-      const syncPayload = Array.from(itemsToSyncMap.values())
+      // 3. Absolute fallback: if activeParentId is STILL missing, construct fallback item from pendingParent / selectedParent
+      if (!syncPayloadMap.has(String(activeParentId))) {
+        const pName = selectedParent?.name || pendingParent?.name || 'Виріб V2'
+        syncPayloadMap.set(String(activeParentId), {
+          id: activeParentId,
+          name: pName,
+          code: `V2-${String(activeParentId).substring(0, 8)}`,
+          unit: 'шт',
+          type: 'product',
+          status: 'active'
+        })
+      }
+
+      const syncPayload = Array.from(syncPayloadMap.values())
       if (syncPayload.length > 0) {
         const { error: syncErr } = await supabase.from('nomenclatures').upsert(syncPayload, { onConflict: 'id' })
         if (syncErr) {
-          console.warn('Sync to nomenclatures warning:', syncErr.message)
+          console.warn('Sync to nomenclatures error:', syncErr.message)
         }
       }
 
