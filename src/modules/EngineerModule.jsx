@@ -1192,8 +1192,6 @@ const NomCreateModal = ({ onClose, onCreated, supabase, refreshTable, prefilledN
         code: `V2-${nextCode}`,
         name: generatedName,
         group_id: wizardGroup?.id || null,
-        category: wizardGroup?.name || 'V2 Номенклатура',
-        type: wizardGroup?.id?.includes('frame') || wizardGroup?.id === 'cat_fg' ? 'product' : (wizardGroup?.id === 'cat_parts' ? 'part' : 'consumable'),
         unit: wizardParams.unit || 'шт',
         rule_type: wizardRuleType,
         rule_params: wizardParams,

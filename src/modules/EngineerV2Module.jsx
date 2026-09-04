@@ -1222,8 +1222,6 @@ const NomCreateModal = ({ onClose, onCreated, supabase, refreshTable, prefilledN
         code: `V2-${nextCode}`,
         name: generatedName,
         group_id: wizardGroup?.id || null,
-        category: wizardGroup?.name || 'V2 Номенклатура',
-        type: wizardGroup?.id?.includes('frame') || wizardGroup?.id === 'cat_fg' ? 'product' : (wizardGroup?.id === 'cat_parts' ? 'part' : 'consumable'),
         unit: wizardParams.unit || 'шт',
         rule_type: wizardRuleType,
         rule_params: wizardParams,
@@ -3312,7 +3310,7 @@ const CutterSettingsTab = () => {
         type: 'cutter_type',
         material_type: newCutterDiam.trim() || null
       }
-      const { data, error } = await supabase.from('nomenclatures_v2').insert([payload]).select()
+      const { data, error } = await supabase.from('nomenclatures').insert([payload]).select()
       if (error) throw error
       setNewCutterName('')
       setNewCutterDiam('')
@@ -3333,11 +3331,11 @@ const CutterSettingsTab = () => {
       if (assigned.length > 0) {
         if (!confirm(`Цей тип фрези призначено для ${assigned.length} фізичних фрез. Якщо видалити його, вони стануть не призначеними. Продовжити?`)) return
         for (const cutter of assigned) {
-          await supabase.from('nomenclatures_v2').update({ characteristic: null }).eq('id', cutter.id)
+          await supabase.from('nomenclatures').update({ characteristic: null }).eq('id', cutter.id)
         }
       }
       
-      const { error } = await supabase.from('nomenclatures_v2').delete().eq('id', id)
+      const { error } = await supabase.from('nomenclatures').delete().eq('id', id)
       if (error) throw error
       await refreshTable('nomenclatures')
       alert('Тип фрези видалено!')
