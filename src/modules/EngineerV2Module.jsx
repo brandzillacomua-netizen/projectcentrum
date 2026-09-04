@@ -1098,7 +1098,7 @@ const MachineOperationsTab = () => {
 }
 
 // ─── NOM QUICK-CREATE MODAL (EXACT ERP NOMENCLATURE V2.0 WIZARD) ─────────────
-const NomCreateModal = ({ onClose, onCreated, supabase, refreshTable, prefilledName = '' }) => {
+const NomCreateModal = ({ onClose, onCreated, supabase, refreshTable, prefilledName = '', defaultGroupId = null }) => {
   const [groups, setGroups] = useState(DEFAULT_ERP_GROUPS)
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
@@ -1162,11 +1162,26 @@ const NomCreateModal = ({ onClose, onCreated, supabase, refreshTable, prefilledN
   // Set default group once loaded
   useEffect(() => {
     if (groups.length > 0 && !wizardGroup) {
-      const defaultG = groups.find(g => g.id === 'grp_carbon_t300') || groups.find(g => g.id === 'grp_carbon_sheets') || groups[0]
+      const defaultG = defaultGroupId
+        ? (groups.find(g => g.id === defaultGroupId) || groups.find(g => g.id === 'grp_production_frames') || groups[0])
+        : (groups.find(g => g.id === 'grp_production_frames') || groups.find(g => g.id === 'grp_carbon_t300') || groups[0])
       setWizardGroup(defaultG)
-      setWizardRuleType(defaultG?.rule_type || 'carbon')
+      setWizardRuleType(defaultG?.rule_type || 'full_frame')
     }
-  }, [groups, wizardGroup])
+  }, [groups, wizardGroup, defaultGroupId])
+
+  // Auto-parse prefilledName if provided
+  useEffect(() => {
+    if (prefilledName && prefilledName.trim()) {
+      const numMatch = prefilledName.match(/\d+/)
+      const cleanName = prefilledName.replace(/\d+/g, '').replace(/^(рама|комплект|деталь|виріб)/gi, '').trim()
+      setWizardParams(prev => ({
+        ...prev,
+        projNum: numMatch ? numMatch[0] : prev.projNum,
+        name: cleanName || prev.name
+      }))
+    }
+  }, [prefilledName])
 
   // Generated Real-time Name
   const generatedName = useMemo(() => {
@@ -1258,7 +1273,7 @@ const NomCreateModal = ({ onClose, onCreated, supabase, refreshTable, prefilledN
     extras: ['(преференція)', '(0/45/90)']
   }
 
-  const prefixList = ['Комплект карбонової рами', 'Комплект карбонових елементів', 'Набір деталей рами']
+  const prefixList = ['Комплект карбонової рами', 'Комплект карбонових елементів', 'Набір деталей рами', 'Складова рами']
   const seriesList = ['Серія Серійний', 'Серія Продакшн', 'Серія Марун']
 
   return (
@@ -1969,6 +1984,7 @@ const SpecBuilderTab = () => {
   const [collapsedFolders, setCollapsedFolders] = useState({})
   const [expandedParents, setExpandedParents] = useState({})
   const [showNomCreate, setShowNomCreate] = useState(false)
+  const [nomCreateDefaultGroup, setNomCreateDefaultGroup] = useState(null)
   const [showParentCreate, setShowParentCreate] = useState(false)
   const [parentCreateType, setParentCreateType] = useState('product')
   const [dossierParentId, setDossierParentId] = useState(null)
@@ -2138,14 +2154,23 @@ const SpecBuilderTab = () => {
       let activeParentId = parentId
 
       if (parentId === 'temp-new') {
+        const nextCode = (nomenclatures || []).reduce((max, it) => {
+          const num = parseInt(String(it.code || '').replace(/\D/g, ''))
+          return !isNaN(num) && num > max ? num : max
+        }, 90000) + 1
+
         const payloadParent = { 
-          name: pendingParent.name, 
-          type: pendingParent.type, 
-          material_type: pendingParent.material_type 
+          code: `V2-${nextCode}`,
+          name: (pendingParent?.name || '').trim(), 
+          group_id: 'grp_production_frames',
+          unit: 'шт',
+          rule_type: 'full_frame',
+          rule_params: pendingParent?.material_type ? { material_type: pendingParent.material_type } : {},
+          status: 'active'
         }
         const { data: newParent, error: parentErr } = await supabase
           .from('nomenclatures_v2')
-          .insert(payloadParent)
+          .insert([payloadParent])
           .select()
           .single()
         if (parentErr) throw parentErr
@@ -2326,7 +2351,23 @@ const getItemFolderKey = (nom) => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       {showNomCreate && (
-        <NomCreateModal supabase={supabase} refreshTable={refreshTable} onClose={() => setShowNomCreate(false)} onCreated={() => {}} />
+        <NomCreateModal
+          supabase={supabase}
+          refreshTable={refreshTable}
+          prefilledName={parentSearch}
+          defaultGroupId={nomCreateDefaultGroup || 'grp_production_frames'}
+          onClose={() => { setShowNomCreate(false); setNomCreateDefaultGroup(null); }}
+          onCreated={(newItem) => {
+            if (newItem && newItem.id) {
+              setParentId(newItem.id);
+              setPendingParent(null);
+              setParentSearch('');
+              setRows([]);
+            }
+            setShowNomCreate(false);
+            setNomCreateDefaultGroup(null);
+          }}
+        />
       )}
 
       {showParentCreate && (
@@ -2486,6 +2527,28 @@ const getItemFolderKey = (nom) => {
           <div style={{ background: 'var(--card-bg, #ffffff)', border: '1px solid var(--border-color, #cbd5e1)', boxShadow: '0 4px 20px rgba(0,0,0,0.05)', borderRadius: '16px', padding: '24px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '10px' }}>
               <label style={{ fontSize: '0.75rem', color: 'var(--text-muted, #64748b)', fontWeight: 900, textTransform: 'uppercase', display: 'block' }}>Крок 1: Оберіть або Створіть виріб-батько</label>
+              <button
+                onClick={() => {
+                  setNomCreateDefaultGroup('grp_production_frames');
+                  setShowNomCreate(true);
+                }}
+                style={{
+                  padding: '8px 16px',
+                  background: 'linear-gradient(135deg, #ff9000 0%, #ea580c 100%)',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '10px',
+                  cursor: 'pointer',
+                  fontWeight: 900,
+                  fontSize: '0.82rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  boxShadow: '0 4px 12px rgba(234, 88, 12, 0.25)'
+                }}
+              >
+                <Sparkles size={15} /> + Створити новий виріб (Конструктор ERP)
+              </button>
             </div>
             <div style={{ position: 'relative', maxWidth: '600px' }}>
               <input
@@ -2513,46 +2576,21 @@ const getItemFolderKey = (nom) => {
                 <button onClick={() => { setParentId(''); setPendingParent(null); setParentSearch(''); setRows([]) }} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: '#555', cursor: 'pointer' }}><X size={16}/></button>
               )}
               {showParentDrop && !selectedParent && (
-                <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#111', border: '1px solid #3b82f6', borderRadius: '12px', zIndex: 9999, maxHeight: '300px', overflowY: 'auto', boxShadow: '0 12px 40px rgba(0,0,0,0.8)', marginTop: '5px' }}>
+                <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#111', border: '1px solid #ff9000', borderRadius: '12px', zIndex: 9999, maxHeight: '300px', overflowY: 'auto', boxShadow: '0 12px 40px rgba(0,0,0,0.8)', marginTop: '5px' }}>
                   {productNoms.length === 0 ? (
                     <div style={{ padding: '16px', color: 'var(--text-muted, #64748b)', fontSize: '0.85rem', textAlign: 'center' }}>
                       <p style={{ margin: '0 0 10px 0' }}>Не знайдено виробів з назвою «{parentSearch}»</p>
-                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
-                        <button
-                          onMouseDown={(e) => {
-                            e.preventDefault();
-                            setPendingParent({
-                              name: parentSearch.trim(),
-                              type: 'product',
-                              material_type: null
-                            });
-                            setParentId('temp-new');
-                            setParentSearch('');
-                            setRows([]);
-                            setShowParentDrop(false);
-                          }}
-                          style={{ padding: '6px 12px', background: 'rgba(245,158,11,0.15)', border: '1px solid #f59e0b40', color: '#f59e0b', borderRadius: '6px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700 }}
-                        >
-                          + Створити Готовий Виріб
-                        </button>
-                        <button
-                          onMouseDown={(e) => {
-                            e.preventDefault();
-                            setPendingParent({
-                              name: parentSearch.trim(),
-                              type: 'assembly',
-                              material_type: null
-                            });
-                            setParentId('temp-new');
-                            setParentSearch('');
-                            setRows([]);
-                            setShowParentDrop(false);
-                          }}
-                          style={{ padding: '6px 12px', background: 'rgba(167,139,250,0.15)', border: '1px solid #a78bfa40', color: '#a78bfa', borderRadius: '6px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700 }}
-                        >
-                          + Створити Вузол
-                        </button>
-                      </div>
+                      <button
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          setNomCreateDefaultGroup('grp_production_frames');
+                          setShowNomCreate(true);
+                          setShowParentDrop(false);
+                        }}
+                        style={{ padding: '8px 16px', background: 'linear-gradient(135deg, #ff9000, #ea580c)', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 900, display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                      >
+                        <Sparkles size={14} /> + Створити через Конструктор ERP
+                      </button>
                     </div>
                   ) : (
                     <>
@@ -2573,19 +2611,13 @@ const getItemFolderKey = (nom) => {
                         <button
                           onMouseDown={(e) => {
                             e.preventDefault();
-                            setPendingParent({
-                              name: parentSearch.trim(),
-                              type: 'product',
-                              material_type: null
-                            });
-                            setParentId('temp-new');
-                            setParentSearch('');
-                            setRows([]);
+                            setNomCreateDefaultGroup('grp_production_frames');
+                            setShowNomCreate(true);
                             setShowParentDrop(false);
                           }}
-                          style={{ padding: '4px 10px', background: 'transparent', border: 'none', color: '#f59e0b', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700 }}
+                          style={{ padding: '6px 12px', background: 'rgba(255,144,0,0.15)', border: '1px solid rgba(255,144,0,0.3)', color: '#ff9000', borderRadius: '6px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                         >
-                          + Створити «{parentSearch}»
+                          <Sparkles size={13} /> + Створити «{parentSearch}» через Конструктор ERP
                         </button>
                       </div>
                     </>
@@ -2594,41 +2626,19 @@ const getItemFolderKey = (nom) => {
               )}
             </div>
 
-            {/* Dropdown for quick creation of new items directly under the search field */}
+            {/* Quick action bar under search field */}
             {!selectedParent && parentSearch.trim().length > 0 && (
               <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <span style={{ fontSize: '0.8rem', color: 'var(--text-muted, #64748b)' }}>Створити нову номенклатуру:</span>
-                <select
-                  onChange={(e) => {
-                    const val = e.target.value
-                    if (val === 'product' || val === 'assembly') {
-                      setPendingParent({
-                        name: parentSearch.trim(),
-                        type: val,
-                        material_type: null
-                      })
-                      setParentId('temp-new')
-                      setParentSearch('')
-                      setRows([])
-                    }
+                <button
+                  onClick={() => {
+                    setNomCreateDefaultGroup('grp_production_frames');
+                    setShowNomCreate(true);
                   }}
-                  value=""
-                  style={{
-                    background: '#111',
-                    border: '1px solid #2a2a5a',
-                    color: '#a78bfa',
-                    padding: '8px 12px',
-                    borderRadius: '8px',
-                    fontSize: '0.8rem',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    outline: 'none'
-                  }}
+                  style={{ padding: '6px 14px', background: 'rgba(255,144,0,0.15)', border: '1px solid rgba(255,144,0,0.3)', color: '#ff9000', borderRadius: '8px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '5px' }}
                 >
-                  <option value="">— Оберіть тип (Виріб або Вузол) —</option>
-                  <option value="product">Готовий Виріб (Рама)</option>
-                  <option value="assembly">Вузол збірки</option>
-                </select>
+                  <Sparkles size={14} /> Створити в Конструкторі ERP («{parentSearch}»)
+                </button>
               </div>
             )}
 

@@ -1068,7 +1068,7 @@ const MachineOperationsTab = () => {
 }
 
 // ─── NOM QUICK-CREATE MODAL (EXACT ERP NOMENCLATURE V2.0 WIZARD) ─────────────
-const NomCreateModal = ({ onClose, onCreated, supabase, refreshTable, prefilledName = '' }) => {
+const NomCreateModal = ({ onClose, onCreated, supabase, refreshTable, prefilledName = '', defaultGroupId = null }) => {
   const [groups, setGroups] = useState(DEFAULT_ERP_GROUPS)
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
@@ -1132,11 +1132,26 @@ const NomCreateModal = ({ onClose, onCreated, supabase, refreshTable, prefilledN
   // Set default group once loaded
   useEffect(() => {
     if (groups.length > 0 && !wizardGroup) {
-      const defaultG = groups.find(g => g.id === 'grp_carbon_t300') || groups.find(g => g.id === 'grp_carbon_sheets') || groups[0]
+      const defaultG = defaultGroupId
+        ? (groups.find(g => g.id === defaultGroupId) || groups.find(g => g.id === 'grp_production_frames') || groups[0])
+        : (groups.find(g => g.id === 'grp_production_frames') || groups.find(g => g.id === 'grp_carbon_t300') || groups[0])
       setWizardGroup(defaultG)
-      setWizardRuleType(defaultG?.rule_type || 'carbon')
+      setWizardRuleType(defaultG?.rule_type || 'full_frame')
     }
-  }, [groups, wizardGroup])
+  }, [groups, wizardGroup, defaultGroupId])
+
+  // Auto-parse prefilledName if provided
+  useEffect(() => {
+    if (prefilledName && prefilledName.trim()) {
+      const numMatch = prefilledName.match(/\d+/)
+      const cleanName = prefilledName.replace(/\d+/g, '').replace(/^(рама|комплект|деталь|виріб)/gi, '').trim()
+      setWizardParams(prev => ({
+        ...prev,
+        projNum: numMatch ? numMatch[0] : prev.projNum,
+        name: cleanName || prev.name
+      }))
+    }
+  }, [prefilledName])
 
   // Generated Real-time Name
   const generatedName = useMemo(() => {
@@ -1228,7 +1243,7 @@ const NomCreateModal = ({ onClose, onCreated, supabase, refreshTable, prefilledN
     extras: ['(преференція)', '(0/45/90)']
   }
 
-  const prefixList = ['Комплект карбонової рами', 'Комплект карбонових елементів', 'Набір деталей рами']
+  const prefixList = ['Комплект карбонової рами', 'Комплект карбонових елементів', 'Набір деталей рами', 'Складова рами']
   const seriesList = ['Серія Серійний', 'Серія Продакшн', 'Серія Марун']
 
   return (
