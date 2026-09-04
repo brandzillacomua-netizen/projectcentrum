@@ -36,6 +36,7 @@ import {
   buildFlattenedGroupOptions 
 } from './NomenclatureV2'
 import { apiService } from '../services/apiDispatcher'
+import { ImportSpecTab } from './Engineer/components/ImportSpecTab'
 
 const MACHINE_TYPES = [
   'CNC 1200x800 - 4 листи (Малий)',
@@ -150,7 +151,8 @@ const useV2NomenclaturesData = (supabase) => {
   }
 
 const MachineOperationsTab = () => {
-  const { nomenclatures: rawNoms, machines, machineOperations, supabase, bomItems, refreshTable } = useMES()
+  const { nomenclatures: rawNoms, machines, machineOperations, supabase, bomItems, refreshTable, theme } = useMES()
+  const isLight = theme === 'light'
   const nomenclatures = useV2NomenclaturesData(supabase)
   const [selectedNom, setSelectedNom] = useState('')
   const [selectedMachine, setSelectedMachine] = useState('')
@@ -1747,7 +1749,10 @@ const NomCreateModal = ({ onClose, onCreated, supabase, refreshTable, prefilledN
 }
 
 // ─── BOM ROW COMPONENT ────────────────────────────────────────────────────────
+// ─── BOM ROW COMPONENT ────────────────────────────────────────────────────────
 const BomRow = ({ row, idx, nomenclatures, bomItems, onUpdate, onRemove, supabase, refreshTable, onExpandAssembly }) => {
+  const { theme } = useMES()
+  const isLight = theme === 'light'
   const [query, setQuery] = useState(row.nomName || '')
   const [showDrop, setShowDrop] = useState(false)
   const [showCreate, setShowCreate] = useState(false)
@@ -1796,9 +1801,9 @@ const BomRow = ({ row, idx, nomenclatures, bomItems, onUpdate, onRemove, supabas
           }}
         />
       )}
-      <div style={{ background: idx % 2 === 0 ? '#0e0e0e' : 'transparent', borderRadius: '8px', padding: '6px' }}>
+      <div style={{ background: isLight ? (idx % 2 === 0 ? '#f8fafc' : '#ffffff') : (idx % 2 === 0 ? '#0e0e0e' : 'transparent'), borderRadius: '8px', padding: '6px', borderBottom: isLight ? '1px solid #f1f5f9' : 'none' }}>
         <div style={{ display: 'grid', gridTemplateColumns: '28px 1fr 120px 90px 28px', gap: '8px', alignItems: 'center', padding: '4px 10px', position: 'relative' }}>
-          <span style={{ color: '#333', fontSize: '0.8rem', fontWeight: 700, textAlign: 'center' }}>{idx + 1}</span>
+          <span style={{ color: isLight ? '#64748b' : '#333', fontSize: '0.8rem', fontWeight: 700, textAlign: 'center' }}>{idx + 1}</span>
           <div style={{ position: 'relative' }}>
             <input
               ref={inputRef}
@@ -1806,10 +1811,32 @@ const BomRow = ({ row, idx, nomenclatures, bomItems, onUpdate, onRemove, supabas
               placeholder="Пошук або назва компонента..."
               onChange={e => { setQuery(e.target.value); setShowDrop(true); onUpdate(idx, { nomId: null, nomName: e.target.value }) }}
               onFocus={() => setShowDrop(true)}
-              style={{ width: '100%', padding: '8px 12px', background: row.nomId ? '#0f1f14' : '#111', border: `1px solid ${row.nomId ? '#16a34a40' : '#2a2a2a'}`, color: '#fff', borderRadius: '8px', fontSize: '0.85rem', boxSizing: 'border-box' }}
+              style={{
+                width: '100%',
+                padding: '8px 12px',
+                background: isLight ? (row.nomId ? '#f0fdf4' : '#ffffff') : (row.nomId ? '#0f1f14' : '#111'),
+                border: `1px solid ${row.nomId ? (isLight ? '#86efac' : '#16a34a40') : (isLight ? '#cbd5e1' : '#2a2a2a')}`,
+                color: isLight ? '#0f172a' : '#fff',
+                borderRadius: '8px',
+                fontSize: '0.85rem',
+                boxSizing: 'border-box'
+              }}
             />
             {showDrop && query.length >= 2 && (
-              <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#111', border: '1px solid #3b82f6', borderRadius: '10px', zIndex: 9999, maxHeight: '240px', overflowY: 'auto', boxShadow: '0 10px 40px rgba(0,0,0,0.8)', marginTop: '4px' }}>
+              <div style={{
+                position: 'absolute',
+                top: '100%',
+                left: 0,
+                right: 0,
+                background: isLight ? '#ffffff' : '#111',
+                border: '1px solid #3b82f6',
+                borderRadius: '10px',
+                zIndex: 9999,
+                maxHeight: '240px',
+                overflowY: 'auto',
+                boxShadow: isLight ? '0 10px 40px rgba(0,0,0,0.12)' : '0 10px 40px rgba(0,0,0,0.8)',
+                marginTop: '4px'
+              }}>
                 {filtered.map(n => (
                   <div
                     key={n.id}
@@ -1818,27 +1845,27 @@ const BomRow = ({ row, idx, nomenclatures, bomItems, onUpdate, onRemove, supabas
                       setShowDrop(false)
                       onUpdate(idx, { nomId: n.id, nomName: n.name, nomType: n.type, nomUnit: n.unit, group: autoClassify(n) })
                     }}
-                    style={{ padding: '10px 14px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #1a1a1a', transition: 'background 0.15s' }}
-                    onMouseEnter={e => e.currentTarget.style.background = '#1a1a1a'}
+                    style={{ padding: '10px 14px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: isLight ? '1px solid #f1f5f9' : '1px solid #1a1a1a', transition: 'background 0.15s' }}
+                    onMouseEnter={e => e.currentTarget.style.background = isLight ? '#f1f5f9' : '#1a1a1a'}
                     onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                   >
                     <div>
-                      <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#fff' }}>{n.name}</div>
-                      {n.material_type && <div style={{ fontSize: '0.7rem', color: '#555' }}>{n.material_type}</div>}
+                      <div style={{ fontSize: '0.85rem', fontWeight: 700, color: isLight ? '#0f172a' : '#fff' }}>{n.name}</div>
+                      {n.material_type && <div style={{ fontSize: '0.7rem', color: isLight ? '#64748b' : '#555' }}>{n.material_type}</div>}
                     </div>
                     <span style={{ fontSize: '0.65rem', fontWeight: 900, background: (TYPE_COLORS[n.type] || '#555') + '22', color: TYPE_COLORS[n.type] || '#888', padding: '2px 8px', borderRadius: '20px', whiteSpace: 'nowrap' }}>{TYPE_LABELS[n.type] || n.type}</span>
                   </div>
                 ))}
                 {filtered.length === 0 && (
                   <div style={{ padding: '12px 14px' }}>
-                    <div style={{ color: '#555', fontSize: '0.8rem', marginBottom: '10px' }}>Нічого не знайдено</div>
+                    <div style={{ color: isLight ? '#64748b' : '#555', fontSize: '0.8rem', marginBottom: '10px' }}>Нічого не знайдено</div>
                     <button onMouseDown={() => { setShowDrop(false); setShowCreate(true) }} style={{ background: 'rgba(124,58,237,0.15)', border: '1px solid #7c3aed40', color: '#a78bfa', borderRadius: '8px', padding: '7px 14px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <Plus size={14}/> Створити «{query}»
                     </button>
                   </div>
                 )}
                 {filtered.length > 0 && (
-                  <div style={{ padding: '8px 14px', borderTop: '1px solid #1a1a1a' }}>
+                  <div style={{ padding: '8px 14px', borderTop: isLight ? '1px solid #f1f5f9' : '1px solid #1a1a1a' }}>
                     <button onMouseDown={() => { setShowDrop(false); setShowCreate(true) }} style={{ background: 'transparent', border: 'none', color: '#7c3aed', fontSize: '0.75rem', cursor: 'pointer', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '5px' }}>
                       <Plus size={12}/> Не знайшли? Створити нову
                     </button>
@@ -1850,7 +1877,7 @@ const BomRow = ({ row, idx, nomenclatures, bomItems, onUpdate, onRemove, supabas
           <select
             value={row.group || 'Деталі'}
             onChange={e => onUpdate(idx, { group: e.target.value })}
-            style={{ padding: '8px 8px', background: '#111', border: '1px solid #2a2a2a', color: 'var(--text-muted, #64748b)', borderRadius: '8px', fontSize: '0.75rem' }}
+            style={{ padding: '8px 8px', background: isLight ? '#ffffff' : '#111', border: isLight ? '1px solid #cbd5e1' : '1px solid #2a2a2a', color: isLight ? '#334155' : 'var(--text-muted, #64748b)', borderRadius: '8px', fontSize: '0.75rem' }}
           >
             <option>Деталі</option>
             <option>Накладки</option>
@@ -1867,20 +1894,20 @@ const BomRow = ({ row, idx, nomenclatures, bomItems, onUpdate, onRemove, supabas
             step="1"
             value={row.qty}
             onChange={e => onUpdate(idx, { qty: e.target.value })}
-            style={{ padding: '8px 10px', background: '#111', border: '1px solid #2a2a2a', color: '#f59e0b', borderRadius: '8px', fontSize: '0.9rem', fontWeight: 700, textAlign: 'right' }}
+            style={{ padding: '8px 10px', background: isLight ? '#ffffff' : '#111', border: isLight ? '1px solid #cbd5e1' : '1px solid #2a2a2a', color: isLight ? '#d97706' : '#f59e0b', borderRadius: '8px', fontSize: '0.9rem', fontWeight: 700, textAlign: 'right' }}
           />
-          <button onClick={() => onRemove(idx)} style={{ background: 'transparent', border: 'none', color: '#3a1a1a', cursor: 'pointer', transition: 'color 0.2s' }} onMouseEnter={e => e.currentTarget.style.color = '#ef4444'} onMouseLeave={e => e.currentTarget.style.color = '#3a1a1a'}><Trash2 size={15}/></button>
+          <button onClick={() => onRemove(idx)} style={{ background: 'transparent', border: 'none', color: isLight ? '#94a3b8' : '#3a1a1a', cursor: 'pointer', transition: 'color 0.2s' }} onMouseEnter={e => e.currentTarget.style.color = '#ef4444'} onMouseLeave={e => e.currentTarget.style.color = isLight ? '#94a3b8' : '#3a1a1a'}><Trash2 size={15}/></button>
         </div>
 
         {row.nomId && row.nomType === 'assembly' && subItems.length > 0 && (
-          <div style={{ marginLeft: '36px', marginRight: '10px', marginTop: '6px', marginBottom: '4px', padding: '10px 14px', background: 'rgba(167,139,250,0.06)', border: '1px solid rgba(167,139,250,0.2)', borderRadius: '10px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <div style={{ marginLeft: '36px', marginRight: '10px', marginTop: '6px', marginBottom: '4px', padding: '10px 14px', background: isLight ? '#f5f3ff' : 'rgba(167,139,250,0.06)', border: isLight ? '1px solid #ddd6fe' : '1px solid rgba(167,139,250,0.2)', borderRadius: '10px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '0.75rem', color: '#a78bfa', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '5px' }}>📦 Вузол містить {subItems.length} компонент(ів):</span>
+              <span style={{ fontSize: '0.75rem', color: isLight ? '#6d28d9' : '#a78bfa', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '5px' }}>📦 Вузол містить {subItems.length} компонент(ів):</span>
               <button 
                 onClick={() => onExpandAssembly(row.nomId, Number(row.qty) || 1)}
-                style={{ padding: '3px 8px', background: 'rgba(167,139,250,0.15)', border: '1px solid rgba(167,139,250,0.3)', color: '#c084fc', borderRadius: '6px', cursor: 'pointer', fontSize: '0.7rem', fontWeight: 700, transition: 'all 0.2s' }}
-                onMouseEnter={e => e.currentTarget.style.background = 'rgba(167,139,250,0.25)'}
-                onMouseLeave={e => e.currentTarget.style.background = 'rgba(167,139,250,0.15)'}
+                style={{ padding: '3px 8px', background: isLight ? '#e9d5ff' : 'rgba(167,139,250,0.15)', border: '1px solid rgba(167,139,250,0.3)', color: isLight ? '#6b21a8' : '#c084fc', borderRadius: '6px', cursor: 'pointer', fontSize: '0.7rem', fontWeight: 700, transition: 'all 0.2s' }}
+                onMouseEnter={e => e.currentTarget.style.background = isLight ? '#ddd6fe' : 'rgba(167,139,250,0.25)'}
+                onMouseLeave={e => e.currentTarget.style.background = isLight ? '#e9d5ff' : 'rgba(167,139,250,0.15)'}
               >
                 💥 Розгорнути в окремі рядки
               </button>
@@ -1889,8 +1916,8 @@ const BomRow = ({ row, idx, nomenclatures, bomItems, onUpdate, onRemove, supabas
               {subItems.map(s => {
                 const subNom = nomenclatures.find(n => String(n.id) === String(s.child_id))
                 return (
-                  <span key={s.id} style={{ fontSize: '0.7rem', background: '#0a0a0a', border: '1px solid #1a1a1a', padding: '2px 8px', borderRadius: '6px', color: '#aaa' }}>
-                    {subNom ? subNom.name : 'компонент'} <strong style={{ color: '#fff' }}>x{s.quantity_per_parent}</strong>
+                  <span key={s.id} style={{ fontSize: '0.7rem', background: isLight ? '#ffffff' : '#0a0a0a', border: isLight ? '1px solid #e9d5ff' : '1px solid #1a1a1a', padding: '2px 8px', borderRadius: '6px', color: isLight ? '#4c1d95' : '#aaa' }}>
+                    {subNom ? subNom.name : 'компонент'} <strong style={{ color: isLight ? '#6b21a8' : '#fff' }}>x{s.quantity_per_parent}</strong>
                   </span>
                 )
               })}
@@ -1967,7 +1994,8 @@ function autoClassify(nom) {
 
 // ─── BOM SPEC BUILDER TAB ─────────────────────────────────────────────────────
 const SpecBuilderTab = () => {
-  const { nomenclatures: rawNoms, bomItems, supabase, refreshTable } = useMES()
+  const { nomenclatures: rawNoms, bomItems, supabase, refreshTable, theme } = useMES()
+  const isLight = theme === 'light'
   const nomenclatures = useV2NomenclaturesData(supabase)
 
   // Editor state
@@ -2180,10 +2208,8 @@ const SpecBuilderTab = () => {
         await supabase.from('nomenclatures').upsert([{
           id: newParent.id,
           name: newParent.name,
-          code: newParent.code || '',
           unit: newParent.unit || 'шт',
-          type: 'product',
-          status: 'active'
+          type: 'product'
         }], { onConflict: 'id' })
       } else if (pendingParent && selectedParent && pendingParent.name.trim() !== selectedParent.name.trim()) {
         const { error: renameErr } = await supabase
@@ -2242,10 +2268,8 @@ const SpecBuilderTab = () => {
           syncPayloadMap.set(String(v.id), {
             id: v.id,
             name: v.name,
-            code: v.code || '',
             unit: v.unit || 'шт',
-            type: (String(v.id) === String(activeParentId) || v.type === 'product' || v.type === 'assembly') ? 'product' : 'part',
-            status: v.status || 'active'
+            type: (String(v.id) === String(activeParentId) || v.type === 'product' || v.type === 'assembly') ? 'product' : 'part'
           })
         })
       }
@@ -2261,10 +2285,8 @@ const SpecBuilderTab = () => {
             syncPayloadMap.set(id, {
               id: found.id,
               name: found.name,
-              code: found.code || '',
               unit: found.unit || 'шт',
-              type: (id === String(activeParentId) || found.type === 'product' || found.type === 'assembly') ? 'product' : 'part',
-              status: 'active'
+              type: (id === String(activeParentId) || found.type === 'product' || found.type === 'assembly') ? 'product' : 'part'
             })
           }
         }
@@ -2276,10 +2298,8 @@ const SpecBuilderTab = () => {
         syncPayloadMap.set(String(activeParentId), {
           id: activeParentId,
           name: pName,
-          code: `V2-${String(activeParentId).substring(0, 8)}`,
           unit: 'шт',
-          type: 'product',
-          status: 'active'
+          type: 'product'
         })
       }
 
@@ -2287,7 +2307,8 @@ const SpecBuilderTab = () => {
       if (syncPayload.length > 0) {
         const { error: syncErr } = await supabase.from('nomenclatures').upsert(syncPayload, { onConflict: 'id' })
         if (syncErr) {
-          console.warn('Sync to nomenclatures error:', syncErr.message)
+          console.error('Sync to nomenclatures error:', syncErr)
+          throw new Error(`Помилка синхронізації номенклатури (${syncErr.message}). Специфікацію не збережено.`)
         }
       }
 
@@ -2741,22 +2762,22 @@ const getItemFolderKey = (nom) => {
           </div>
 
           {/* BOM Rows */}
-          <div style={{ background: 'var(--card-bg, #ffffff)', border: '1px solid var(--border-color, #cbd5e1)', boxShadow: '0 4px 20px rgba(0,0,0,0.05)', borderRadius: '16px' }}>
+          <div style={{ background: 'var(--card-bg, #ffffff)', border: '1px solid var(--border-color, #cbd5e1)', boxShadow: '0 4px 20px rgba(0,0,0,0.05)', borderRadius: '16px', overflow: 'hidden' }}>
             {/* Table header */}
-            <div style={{ display: 'grid', gridTemplateColumns: '28px 1fr 120px 90px 28px', gap: '8px', padding: '10px 10px', background: '#111', borderBottom: '1px solid #1a1a1a' }}>
-              <span style={{ fontSize: '0.65rem', color: '#444', fontWeight: 900, textAlign: 'center' }}>№</span>
-              <span style={{ fontSize: '0.65rem', color: '#444', fontWeight: 900 }}>ПОЗИЦІЯ / НОМЕНКЛАТУРА</span>
-              <span style={{ fontSize: '0.65rem', color: '#444', fontWeight: 900 }}>ГРУПА</span>
-              <span style={{ fontSize: '0.65rem', color: '#444', fontWeight: 900, textAlign: 'right' }}>К-СТЬ</span>
+            <div style={{ display: 'grid', gridTemplateColumns: '28px 1fr 120px 90px 28px', gap: '8px', padding: '10px 10px', background: isLight ? '#f1f5f9' : '#111', borderBottom: isLight ? '1px solid #cbd5e1' : '1px solid #1a1a1a' }}>
+              <span style={{ fontSize: '0.65rem', color: isLight ? '#475569' : '#444', fontWeight: 900, textAlign: 'center' }}>№</span>
+              <span style={{ fontSize: '0.65rem', color: isLight ? '#475569' : '#444', fontWeight: 900 }}>ПОЗИЦІЯ / НОМЕНКЛАТУРА</span>
+              <span style={{ fontSize: '0.65rem', color: isLight ? '#475569' : '#444', fontWeight: 900 }}>ГРУПА</span>
+              <span style={{ fontSize: '0.65rem', color: isLight ? '#475569' : '#444', fontWeight: 900, textAlign: 'right' }}>К-СТЬ</span>
               <span/>
             </div>
 
             {/* Rows grouped */}
             {rows.length === 0 ? (
-              <div style={{ padding: '50px', textAlign: 'center', color: '#2a2a2a' }}>
+              <div style={{ padding: '50px', textAlign: 'center', color: isLight ? '#64748b' : '#2a2a2a' }}>
                 <Layers size={48} style={{ marginBottom: '15px', opacity: 0.3 }}/>
                 <p style={{ fontSize: '0.9rem', fontWeight: 700 }}>Специфікація порожня</p>
-                <p style={{ fontSize: '0.8rem', color: '#2a2a2a' }}>Натисніть «+ Додати позицію» щоб почати</p>
+                <p style={{ fontSize: '0.8rem', color: isLight ? '#94a3b8' : '#2a2a2a' }}>Натисніть «+ Додати позицію» щоб почати</p>
               </div>
             ) : (
               <div style={{ padding: '8px' }}>
@@ -2771,7 +2792,7 @@ const getItemFolderKey = (nom) => {
                   <div key={groupName} style={{ marginBottom: '12px' }}>
                     <div style={{
                       fontSize: '0.65rem',
-                      color: groupName === 'Нові рядки' ? '#a78bfa' : '#555',
+                      color: groupName === 'Нові рядки' ? '#a78bfa' : (isLight ? '#475569' : '#555'),
                       fontWeight: 900,
                       textTransform: 'uppercase',
                       padding: '6px 10px',
@@ -2821,12 +2842,12 @@ const getItemFolderKey = (nom) => {
             )}
 
             {/* Footer actions */}
-            <div style={{ display: 'flex', gap: '10px', padding: '12px', borderTop: '1px solid #1a1a1a', background: '#0a0a0a' }}>
+            <div style={{ display: 'flex', gap: '10px', padding: '12px', borderTop: isLight ? '1px solid #cbd5e1' : '1px solid #1a1a1a', background: isLight ? '#f8fafc' : '#0a0a0a' }}>
               <button
                 onClick={addRow}
-                style={{ flex: 1, padding: '10px', background: 'transparent', border: '1px dashed #2a2a2a', color: '#4a4a6a', borderRadius: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'all 0.2s' }}
+                style={{ flex: 1, padding: '10px', background: 'transparent', border: isLight ? '1px dashed #cbd5e1' : '1px dashed #2a2a2a', color: isLight ? '#475569' : '#4a4a6a', borderRadius: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'all 0.2s' }}
                 onMouseEnter={e => { e.currentTarget.style.borderColor = '#7c3aed'; e.currentTarget.style.color = '#a78bfa' }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = '#2a2a2a'; e.currentTarget.style.color = '#4a4a6a' }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = isLight ? '#cbd5e1' : '#2a2a2a'; e.currentTarget.style.color = isLight ? '#475569' : '#4a4a6a' }}
               >
                 <Plus size={16}/> Додати позицію
               </button>
@@ -2869,10 +2890,10 @@ const getItemFolderKey = (nom) => {
 
           return (
             <div className="dossier-print-container" style={{ display: 'flex', flexDirection: 'column', gap: '20px', alignItems: 'center', width: '100%' }}>
-              <div className="no-print" style={{ width: '100%', maxWidth: '800px', background: '#0d0d14', border: '1px solid #1a1a2e', borderRadius: '18px', padding: '20px 25px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div className="no-print" style={{ width: '100%', maxWidth: '800px', background: isLight ? '#ffffff' : '#0d0d14', border: isLight ? '1px solid #cbd5e1' : '1px solid #1a1a2e', borderRadius: '18px', padding: '20px 25px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: isLight ? '0 4px 20px rgba(0,0,0,0.06)' : 'none' }}>
                 <div>
-                  <span style={{ fontSize: '0.7rem', color: '#6366f1', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Досьє на виріб</span>
-                  <h3 style={{ margin: '4px 0 0 0', fontSize: '1.4rem', fontWeight: 900, color: '#e0e7ff' }}>{dossierParent?.name}</h3>
+                  <span style={{ fontSize: '0.7rem', color: isLight ? '#4f46e5' : '#6366f1', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Досьє на виріб</span>
+                  <h3 style={{ margin: '4px 0 0 0', fontSize: '1.4rem', fontWeight: 900, color: isLight ? '#0f172a' : '#e0e7ff' }}>{dossierParent?.name}</h3>
                 </div>
                 <div style={{ display: 'flex', gap: '10px' }}>
                   <button
@@ -2889,7 +2910,7 @@ const getItemFolderKey = (nom) => {
                   </button>
                   <button
                     onClick={() => { setViewMode('catalog'); setDossierParentId(null) }}
-                    style={{ padding: '8px 16px', background: '#111', border: '1px solid #222', color: '#fff', borderRadius: '8px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700 }}
+                    style={{ padding: '8px 16px', background: isLight ? '#f1f5f9' : '#111', border: isLight ? '1px solid #cbd5e1' : '1px solid #222', color: isLight ? '#334155' : '#fff', borderRadius: '8px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700 }}
                   >
                     Назад
                   </button>
@@ -3366,7 +3387,8 @@ const getItemFolderKey = (nom) => {
 }
 
 const CutterSettingsTab = () => {
-  const { nomenclatures: rawNoms, supabase, refreshTable } = useMES()
+  const { nomenclatures: rawNoms, supabase, refreshTable, theme } = useMES()
+  const isLight = theme === 'light'
   const nomenclatures = useV2NomenclaturesData(supabase)
   const [newCutterName, setNewCutterName] = useState('')
   const [newCutterDiam, setNewCutterDiam] = useState('')
@@ -3540,7 +3562,8 @@ const CutterSettingsTab = () => {
 }
 
 const EngineerV2Module = () => {
-  const { tasks, orders, nomenclatures: rawNoms, approveEngineer, machineCalls, machines, currentUser, supabase } = useMES()
+  const { tasks, orders, nomenclatures: rawNoms, approveEngineer, machineCalls, machines, currentUser, supabase, theme } = useMES()
+  const isLight = theme === 'light'
   const nomenclatures = useV2NomenclaturesData(supabase)
   const isSuperAdmin = currentUser?.login === 'admin@workshop.local' || currentUser?.position === 'Адмін' || currentUser?.access_rights?.director
   const [activeTab, setActiveTab] = useState('tasks')
@@ -3570,7 +3593,7 @@ const EngineerV2Module = () => {
   }
 
   return (
-    <div className="engineer-module-v2" style={{ background: '#080808', minHeight: '100vh', color: '#fff', display: 'flex', flexDirection: 'column' }}>
+    <div className={`engineer-module-v2 ${isLight ? 'light-mode' : ''}`} style={{ background: isLight ? '#f8fafc' : '#080808', minHeight: '100vh', color: isLight ? '#0f172a' : '#fff', display: 'flex', flexDirection: 'column' }}>
       <nav className="module-nav" style={{ flexShrink: 0 }}>
         <Link to="/" className="back-link"><ArrowLeft size={18} /> <span className="hide-mobile">На головну</span></Link>
         <div className="module-title-group">
@@ -3737,6 +3760,169 @@ const EngineerV2Module = () => {
       <style dangerouslySetInnerHTML={{ __html: `
         .eng-task-card { transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
         .eng-task-card:hover { transform: translateY(-5px); border-color: #3b82f6; box-shadow: 0 15px 40px rgba(59, 130, 246, 0.15); }
+
+        /* --- LIGHT THEME COMPREHENSIVE OVERRIDES --- */
+        body.light-theme .engineer-module-v2,
+        .light-theme .engineer-module-v2,
+        .engineer-module-v2.light-mode {
+          background-color: #f8fafc !important;
+          color: #0f172a !important;
+        }
+
+        body.light-theme .engineer-module-v2 .module-nav,
+        .light-theme .engineer-module-v2 .module-nav,
+        .engineer-module-v2.light-mode .module-nav {
+          background-color: #ffffff !important;
+          border-bottom: 1px solid #e2e8f0 !important;
+          color: #0f172a !important;
+        }
+
+        body.light-theme .engineer-module-v2 .back-link,
+        .light-theme .engineer-module-v2 .back-link,
+        .engineer-module-v2.light-mode .back-link {
+          color: #475569 !important;
+        }
+
+        body.light-theme .engineer-module-v2 h1,
+        body.light-theme .engineer-module-v2 h2,
+        body.light-theme .engineer-module-v2 h3,
+        body.light-theme .engineer-module-v2 h4,
+        body.light-theme .engineer-module-v2 strong,
+        .light-theme .engineer-module-v2 h1,
+        .light-theme .engineer-module-v2 h2,
+        .light-theme .engineer-module-v2 h3,
+        .light-theme .engineer-module-v2 h4,
+        .light-theme .engineer-module-v2 strong,
+        .engineer-module-v2.light-mode h1,
+        .engineer-module-v2.light-mode h2,
+        .engineer-module-v2.light-mode h3,
+        .engineer-module-v2.light-mode h4,
+        .engineer-module-v2.light-mode strong {
+          color: #0f172a !important;
+        }
+
+        body.light-theme .engineer-module-v2 p,
+        body.light-theme .engineer-module-v2 label,
+        .light-theme .engineer-module-v2 p,
+        .light-theme .engineer-module-v2 label,
+        .engineer-module-v2.light-mode p,
+        .engineer-module-v2.light-mode label {
+          color: #334155;
+        }
+
+        body.light-theme .engineer-module-v2 .eng-task-card,
+        body.light-theme .engineer-module-v2 .glass-panel,
+        .light-theme .engineer-module-v2 .eng-task-card,
+        .light-theme .engineer-module-v2 .glass-panel,
+        .engineer-module-v2.light-mode .eng-task-card,
+        .engineer-module-v2.light-mode .glass-panel {
+          background: #ffffff !important;
+          border: 1px solid #e2e8f0 !important;
+          box-shadow: 0 4px 20px rgba(15, 23, 42, 0.05) !important;
+          color: #0f172a !important;
+        }
+
+        body.light-theme .engineer-module-v2 .spec-review,
+        .light-theme .engineer-module-v2 .spec-review,
+        .engineer-module-v2.light-mode .spec-review {
+          background: #f8fafc !important;
+          border: 1px solid #e2e8f0 !important;
+        }
+
+        body.light-theme .engineer-module-v2 div[style*="background: '#111'"],
+        body.light-theme .engineer-module-v2 div[style*="background: '#0a0a0a'"],
+        body.light-theme .engineer-module-v2 div[style*="background: '#0d0d0d'"],
+        body.light-theme .engineer-module-v2 div[style*="background: '#000'"],
+        body.light-theme .engineer-module-v2 div[style*="background: '#080808'"],
+        body.light-theme .engineer-module-v2 div[style*="background: '#18181b'"],
+        .light-theme .engineer-module-v2 div[style*="background: '#111'"],
+        .light-theme .engineer-module-v2 div[style*="background: '#0a0a0a'"],
+        .light-theme .engineer-module-v2 div[style*="background: '#0d0d0d'"],
+        .light-theme .engineer-module-v2 div[style*="background: '#000'"],
+        .light-theme .engineer-module-v2 div[style*="background: '#080808'"],
+        .light-theme .engineer-module-v2 div[style*="background: '#18181b'"],
+        .engineer-module-v2.light-mode div[style*="background: '#111'"],
+        .engineer-module-v2.light-mode div[style*="background: '#0a0a0a'"],
+        .engineer-module-v2.light-mode div[style*="background: '#0d0d0d'"],
+        .engineer-module-v2.light-mode div[style*="background: '#000'"],
+        .engineer-module-v2.light-mode div[style*="background: '#080808'"],
+        .engineer-module-v2.light-mode div[style*="background: '#18181b'"] {
+          background: #ffffff !important;
+          border-color: #e2e8f0 !important;
+          color: #0f172a !important;
+        }
+
+        body.light-theme .engineer-module-v2 input,
+        body.light-theme .engineer-module-v2 select,
+        body.light-theme .engineer-module-v2 textarea,
+        .light-theme .engineer-module-v2 input,
+        .light-theme .engineer-module-v2 select,
+        .light-theme .engineer-module-v2 textarea,
+        .engineer-module-v2.light-mode input,
+        .engineer-module-v2.light-mode select,
+        .engineer-module-v2.light-mode textarea {
+          background-color: #ffffff !important;
+          border: 1px solid #cbd5e1 !important;
+          color: #0f172a !important;
+        }
+
+        body.light-theme .engineer-module-v2 input::placeholder,
+        body.light-theme .engineer-module-v2 textarea::placeholder,
+        .light-theme .engineer-module-v2 input::placeholder,
+        .light-theme .engineer-module-v2 textarea::placeholder,
+        .engineer-module-v2.light-mode input::placeholder,
+        .engineer-module-v2.light-mode textarea::placeholder {
+          color: #94a3b8 !important;
+        }
+
+        body.light-theme .engineer-module-v2 select option,
+        .light-theme .engineer-module-v2 select option,
+        .engineer-module-v2.light-mode select option {
+          background-color: #ffffff !important;
+          color: #0f172a !important;
+        }
+
+        body.light-theme .engineer-module-v2 div[style*="position: 'absolute'"],
+        .light-theme .engineer-module-v2 div[style*="position: 'absolute'"],
+        .engineer-module-v2.light-mode div[style*="position: 'absolute'"] {
+          background-color: #ffffff !important;
+          border: 1px solid #cbd5e1 !important;
+          box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12) !important;
+          color: #0f172a !important;
+        }
+
+        body.light-theme .engineer-module-v2 button[style*="background: '#111'"],
+        body.light-theme .engineer-module-v2 button[style*="background: '#000'"],
+        .light-theme .engineer-module-v2 button[style*="background: '#111'"],
+        .light-theme .engineer-module-v2 button[style*="background: '#000'"],
+        .engineer-module-v2.light-mode button[style*="background: '#111'"],
+        .engineer-module-v2.light-mode button[style*="background: '#000'"] {
+          background: #f1f5f9 !important;
+          border: 1px solid #cbd5e1 !important;
+          color: #475569 !important;
+        }
+
+        body.light-theme .engineer-module-v2 button[style*="background: '#111'"]:hover,
+        .light-theme .engineer-module-v2 button[style*="background: '#111'"]:hover,
+        .engineer-module-v2.light-mode button[style*="background: '#111'"]:hover {
+          background: #e2e8f0 !important;
+          color: #0f172a !important;
+        }
+
+        body.light-theme .engineer-module-v2 span[style*="color: '#aaa'"],
+        body.light-theme .engineer-module-v2 span[style*="color: '#555'"],
+        body.light-theme .engineer-module-v2 span[style*="color: '#666'"],
+        body.light-theme .engineer-module-v2 div[style*="color: '#aaa'"],
+        body.light-theme .engineer-module-v2 div[style*="color: '#555'"],
+        body.light-theme .engineer-module-v2 div[style*="color: '#666'"],
+        .light-theme .engineer-module-v2 span[style*="color: '#aaa'"],
+        .light-theme .engineer-module-v2 span[style*="color: '#555'"],
+        .light-theme .engineer-module-v2 span[style*="color: '#666'"],
+        .engineer-module-v2.light-mode span[style*="color: '#aaa'"],
+        .engineer-module-v2.light-mode span[style*="color: '#555'"],
+        .engineer-module-v2.light-mode span[style*="color: '#666'"] {
+          color: #64748b !important;
+        }
       `}} />
     </div>
   )

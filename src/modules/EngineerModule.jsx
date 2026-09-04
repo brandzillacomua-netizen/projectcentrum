@@ -36,6 +36,7 @@ import {
   buildFlattenedGroupOptions 
 } from './NomenclatureV2'
 import { apiService } from '../services/apiDispatcher'
+import { ImportSpecTab } from './Engineer/components/ImportSpecTab'
 
 const MACHINE_TYPES = [
   'CNC 1200x800 - 4 листи (Малий)',
