@@ -483,6 +483,7 @@ const NomenclatureV2 = () => {
   const [groups, setGroups] = useState(DEFAULT_ERP_GROUPS);
   const [selectedGroup, setSelectedGroup] = useState(null);
   const [items, setItems] = useState([]);
+  const [selectedIds, setSelectedIds] = useState(new Set());
   
   // Modals
   const [isWizardOpen, setIsWizardOpen] = useState(false);
@@ -977,9 +978,35 @@ const NomenclatureV2 = () => {
       await supabase.from('nomenclatures_v2').delete().eq('id', itemId);
       await supabase.from('nomenclature_catalog_profiles').delete().eq('nomenclature_id', itemId);
       setItems(prev => prev.filter(it => it.id !== itemId));
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        next.delete(itemId);
+        return next;
+      });
       showToast('Позицію видалено');
     } catch (err) {
       alert('Помилка: ' + err.message);
+    }
+  };
+
+  const handleBatchDelete = async () => {
+    const count = selectedIds.size;
+    if (count === 0) return;
+    if (!window.confirm(`Ви дійсно бажаєте видалити обрані позиції (${count} шт.) з V2 каталогу та пов'язаних профілів?`)) return;
+
+    try {
+      const idsArray = Array.from(selectedIds);
+      for (let i = 0; i < idsArray.length; i += 100) {
+        const chunk = idsArray.slice(i, i + 100);
+        await supabase.from('nomenclatures_v2').delete().in('id', chunk);
+        await supabase.from('nomenclature_catalog_profiles').delete().in('nomenclature_id', chunk);
+      }
+
+      setItems(prev => prev.filter(it => !selectedIds.has(it.id)));
+      setSelectedIds(new Set());
+      showToast(`✅ Успішно видалено ${count} позицій з V2 каталогу!`);
+    } catch (err) {
+      alert('Помилка масового видалення: ' + err.message);
     }
   };
 
@@ -1155,11 +1182,59 @@ const NomenclatureV2 = () => {
             </div>
           </div>
 
+          {/* Batch Action Bar */}
+          {selectedIds.size > 0 && (
+            <div style={{
+              background: 'rgba(239, 68, 68, 0.12)',
+              border: '1px solid rgba(239, 68, 68, 0.35)',
+              borderRadius: '16px',
+              padding: '12px 24px',
+              display: 'flex',
+              alignItems: 'center',
+              justify: 'space-between',
+              boxShadow: '0 8px 25px rgba(239, 68, 68, 0.15)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.9rem', fontWeight: 900, color: '#ef4444' }}>
+                <CheckCircle2 size={18} />
+                <span>Обрано позицій для видалення: {selectedIds.size}</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <button
+                  onClick={() => setSelectedIds(new Set())}
+                  style={{ padding: '8px 16px', background: 'transparent', border: '1px solid var(--border, #333)', color: 'var(--text-secondary, #aaa)', borderRadius: '10px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 700 }}
+                >
+                  Скасувати вибір
+                </button>
+                <button
+                  onClick={handleBatchDelete}
+                  style={{ padding: '8px 20px', background: 'linear-gradient(135deg, #ef4444, #b91c1c)', border: 'none', color: '#fff', borderRadius: '10px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 15px rgba(239, 68, 68, 0.4)' }}
+                >
+                  <Trash2 size={16} /> Видалити обрані ({selectedIds.size})
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Table Container */}
           <div className="nom-v2-table-wrap" style={{ background: 'var(--card-bg, #0a0a0a)', border: '1px solid var(--border, #1a1a1a)', borderRadius: '20px', overflow: 'hidden', flex: 1, display: 'flex', flexDirection: 'column' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
               <thead>
                 <tr className="nom-v2-tr-head" style={{ background: 'var(--table-th-bg, #111)', borderBottom: '1px solid var(--border, #1a1a1a)' }}>
+                  <th style={{ padding: '16px 15px', width: '45px', textAlign: 'center' }}>
+                    <input
+                      type="checkbox"
+                      checked={visibleItems.length > 0 && visibleItems.every(it => selectedIds.has(it.id))}
+                      onChange={e => {
+                        if (e.target.checked) {
+                          setSelectedIds(new Set(visibleItems.map(it => it.id)));
+                        } else {
+                          setSelectedIds(new Set());
+                        }
+                      }}
+                      style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: '#ff9000' }}
+                      title="Обрати всі позиції у таблиці"
+                    />
+                  </th>
                   <th className="nom-v2-th" style={{ padding: '16px 20px', fontSize: '0.72rem', color: 'var(--text-secondary, #555)', textTransform: 'uppercase', fontWeight: 900, width: '120px' }}>Код V2</th>
                   <th className="nom-v2-th" style={{ padding: '16px 20px', fontSize: '0.72rem', color: 'var(--text-secondary, #555)', textTransform: 'uppercase', fontWeight: 900 }}>Стандартизована Назва</th>
                   <th className="nom-v2-th" style={{ padding: '16px 20px', fontSize: '0.72rem', color: 'var(--text-secondary, #555)', textTransform: 'uppercase', fontWeight: 900, width: '160px' }}>Матеріал (Лист)</th>
@@ -1172,7 +1247,7 @@ const NomenclatureV2 = () => {
               <tbody>
                 {visibleItems.length === 0 ? (
                   <tr>
-                    <td colSpan="7" style={{ padding: '60px', textAlign: 'center', color: '#444' }}>
+                    <td colSpan="8" style={{ padding: '60px', textAlign: 'center', color: '#444' }}>
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
                         <Package size={48} color="#222" />
                         <span style={{ fontSize: '0.9rem', color: '#666', fontWeight: 700 }}>
@@ -1193,8 +1268,26 @@ const NomenclatureV2 = () => {
                   const normQty = item.rule_params?.unitsPerSheet || item.units_per_sheet || null;
                   const cResVal = item.rule_params?.cutterResource === 'custom' ? item.rule_params?.customCutterResource : (item.rule_params?.cutterResource || item.cutter_resource || null);
                   const cRes = cResVal ? `${cResVal} л/фр` : null;
+                  const isSelected = selectedIds.has(item.id);
                   return (
-                    <tr key={item.id} style={{ borderBottom: '1px solid #111', transition: 'background 0.2s' }} className="table-row-hover">
+                    <tr key={item.id} style={{ borderBottom: '1px solid #111', background: isSelected ? 'rgba(255, 144, 0, 0.08)' : 'transparent', transition: 'background 0.2s' }} className="table-row-hover">
+                      <td style={{ padding: '16px 15px', textAlign: 'center' }}>
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={e => {
+                            e.stopPropagation();
+                            const next = new Set(selectedIds);
+                            if (e.target.checked) {
+                              next.add(item.id);
+                            } else {
+                              next.delete(item.id);
+                            }
+                            setSelectedIds(next);
+                          }}
+                          style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: '#ff9000' }}
+                        />
+                      </td>
                       <td style={{ padding: '16px 20px', fontWeight: 900, color: '#ff9000', fontSize: '0.85rem', fontFamily: 'monospace' }}>
                         {item.code}
                       </td>

@@ -2176,6 +2176,15 @@ const SpecBuilderTab = () => {
         if (parentErr) throw parentErr
         
         activeParentId = newParent.id
+
+        await supabase.from('nomenclatures').upsert([{
+          id: newParent.id,
+          name: newParent.name,
+          code: newParent.code || '',
+          unit: newParent.unit || 'шт',
+          type: 'product',
+          status: 'active'
+        }], { onConflict: 'id' })
       } else if (pendingParent && selectedParent && pendingParent.name.trim() !== selectedParent.name.trim()) {
         const { error: renameErr } = await supabase
           .from('nomenclatures_v2')
@@ -2203,19 +2212,46 @@ const SpecBuilderTab = () => {
       }))
 
       // Verify that components still exist before replacing the old BOM.
-      // A nomenclature can be deleted in another session while the editor is open.
       const childIds = Object.keys(agg)
-      const { data: existingChildren, error: childrenErr } = await supabase
-        .from('nomenclatures_v2')
-        .select('id')
-        .in('id', childIds)
-      if (childrenErr) throw childrenErr
+      const { data: existingV2 } = await supabase.from('nomenclatures_v2').select('id').in('id', childIds)
+      const { data: existingV1 } = await supabase.from('nomenclatures').select('id').in('id', childIds)
+      const existingSet = new Set([
+        ...(existingV2 || []).map(n => String(n.id)),
+        ...(existingV1 || []).map(n => String(n.id))
+      ])
 
-      const existingChildIds = new Set((existingChildren || []).map(n => String(n.id)))
-      const missingRows = Object.values(agg).filter(r => !existingChildIds.has(String(r.nomId)))
+      const missingRows = Object.values(agg).filter(r => !existingSet.has(String(r.nomId)))
       if (missingRows.length > 0) {
         const missingNames = missingRows.map(r => r.nomName || r.nomId).join(', ')
         throw new Error(`Не знайдено номенклатуру: ${missingNames}. Оновіть сторінку та виберіть ці позиції повторно.`)
+      }
+
+      // Sync activeParentId and all childIds to nomenclatures table so foreign key constraints on bom_items are satisfied
+      const idsToSync = [activeParentId, ...childIds]
+      const allKnownNoms = [...(rawNoms || []), ...(nomenclatures || [])]
+      if (selectedParent) allKnownNoms.push(selectedParent)
+
+      const itemsToSyncMap = new Map()
+      idsToSync.forEach(id => {
+        const found = allKnownNoms.find(n => String(n.id) === String(id))
+        if (found) {
+          itemsToSyncMap.set(String(found.id), {
+            id: found.id,
+            name: found.name,
+            code: found.code || '',
+            unit: found.unit || 'шт',
+            type: (String(found.id) === String(activeParentId) || found.type === 'product' || found.type === 'assembly') ? 'product' : 'part',
+            status: 'active'
+          })
+        }
+      })
+
+      const syncPayload = Array.from(itemsToSyncMap.values())
+      if (syncPayload.length > 0) {
+        const { error: syncErr } = await supabase.from('nomenclatures').upsert(syncPayload, { onConflict: 'id' })
+        if (syncErr) {
+          console.warn('Sync to nomenclatures warning:', syncErr.message)
+        }
       }
 
       const { error: deleteBomErr } = await supabase.from('bom_items').delete().eq('parent_id', activeParentId)
