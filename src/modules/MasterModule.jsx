@@ -17,6 +17,7 @@ import {
 import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
 import { apiService } from '../services/apiDispatcher'
+import { getNomUnitsPerSheet } from '../utils/unitsHelper'
 
 const MasterModule = () => {
   const { orders, tasks, createNaryad, nomenclatures, bomItems, machines } = useMES()
@@ -72,7 +73,7 @@ const MasterModule = () => {
       displayParts.forEach(part => {
         if (!part.nom) return
         const totalToProduce = item.quantity * (part.quantity_per_parent || 1)
-        const sheets = Math.ceil(totalToProduce / (part.nom.units_per_sheet || 1))
+        const sheets = Math.ceil(totalToProduce / getNomUnitsPerSheet(part.nom))
         const matKey = part.nom.material_type || 'Інші ТМЦ'
         
         if (!summary[matKey]) summary[matKey] = { name: matKey, sheets: 0 }
@@ -284,15 +285,19 @@ iveNaryadOrder(null)} className="no-print" style={{ background: 'transparent', b
                            <th style={{ padding: '12px 15px', textAlign: 'center', width: '22%', borderBottom: '1.5px solid #222' }}>МАТЕРІАЛ</th>
                            <th style={{ padding: '12px 15px', textAlign: 'center', width: '10%', borderBottom: '1.5px solid #222' }}>ШТ/Л</th>
                            <th style={{ padding: '12px 15px', textAlign: 'center', color: '#22c55e', width: '10%', borderBottom: '1.5px solid #222' }}>ЛИСТІВ</th>
-                           <th style={{ padding: '12px 15px', textAlign: 'center', color: '#3b82f6', width: '10%', borderBottom: '1.5px solid #222' }}>ЗА�                       <tbody>
+                           <th style={{ padding: '12px 15px', textAlign: 'center', color: '#3b82f6', width: '10%', borderBottom: '1.5px solid #222' }}>ЗАВ</th>
+                           <th style={{ padding: '12px 15px', textAlign: 'center', color: '#ff9000', width: '10%', borderBottom: '1.5px solid #222' }}>ЗАЛИШОК</th>
+                        </tr>
+                      </thead>
+                       <tbody>
                         {activeNaryadOrder.order_items?.map(item => {
                            const parts = getBOMParts(item.nomenclature_id)
                            const displayParts = parts.length > 0 ? parts : [{ nom: nomenclatures.find(n => n.id === item.nomenclature_id), quantity_per_parent: 1 }]
                            return displayParts.map((part, pIdx) => {
                               const totalToProduce = item.quantity * (part.quantity_per_parent || 1)
-                              const sheets = Math.ceil(totalToProduce / (part.nom?.units_per_sheet || 1))
+                              const sheets = Math.ceil(totalToProduce / getNomUnitsPerSheet(part.nom))
                               const loads = selectedMachine ? Math.ceil(sheets / selectedMachine.sheet_capacity) : 1
-                              const surplus = (sheets * (part.nom?.units_per_sheet || 1)) - totalToProduce
+                              const surplus = (sheets * getNomUnitsPerSheet(part.nom)) - totalToProduce
                               return (
                                 <tr key={`${item.id}-${pIdx}`} style={{ borderBottom: '1px solid #1a1a1a', background: pIdx % 2 === 0 ? 'transparent' : 'rgba(255,144,0,0.02)' }}>
                                    <td style={{ padding: '18px 15px' }}>
@@ -303,7 +308,7 @@ iveNaryadOrder(null)} className="no-print" style={{ background: 'transparent', b
                                    <td style={{ padding: '18px 15px', textAlign: 'center' }}>
                                       <div style={{ fontSize: '0.85rem', color: '#aaa', fontWeight: 700 }}>{part.nom?.material_type}</div>
                                    </td>
-                                   <td style={{ padding: '18px 15px', textAlign: 'center', color: '#555' }}>{part.nom?.units_per_sheet || 1}</td>
+                                   <td style={{ padding: '18px 15px', textAlign: 'center', color: '#555' }}>{getNomUnitsPerSheet(part.nom)}</td>
                                    <td style={{ padding: '18px 15px', textAlign: 'center', fontWeight: 1000, color: '#22c55e', fontSize: '1.2rem' }}>{sheets}</td>
                                    <td style={{ padding: '18px 15px', textAlign: 'center', fontWeight: 1000, color: '#3b82f6' }}>{loads}</td>
                                    <td style={{ padding: '18px 15px', textAlign: 'center', fontWeight: 900, color: '#ff9000' }}>{surplus > 0 ? `+${surplus}` : '0'}</td>

@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import { X, Calendar, CheckSquare, Square, Package, Wrench, Layers, AlertCircle, Copy } from 'lucide-react'
 import { apiService } from '../../../../services/apiDispatcher.js'
+import { getNomUnitsPerSheet } from '../../../../utils/unitsHelper.js'
 
 export default function CreateNaryadModal({
   isOpen,
@@ -176,7 +177,7 @@ export default function CreateNaryadModal({
         const inStockBZ = bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0
 
         const planQty = useStockBZ ? Math.max(0, totalNeeded - inStockBZ) : totalNeeded
-        const unitsPerSheet = Number(part.nom.units_per_sheet) || 1
+        const unitsPerSheet = getNomUnitsPerSheet(part.nom)
         const totalSheets = Math.ceil(planQty / unitsPerSheet)
 
         const isDefaultT700 = (part.nom.material_type || part.nom.name || '').toLowerCase().includes('т700') || (part.nom.material_type || part.nom.name || '').toLowerCase().includes('t700')

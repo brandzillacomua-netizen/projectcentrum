@@ -1,6 +1,7 @@
 import { supabase } from '../supabase'
 import { isMachineMatch } from '../utils/cutterCalculator'
 import { sendPushToUsers } from '../services/pushService'
+import { getNomUnitsPerSheet } from '../utils/unitsHelper'
 const getRequestQty = (r) => {
   if (r.quantity !== null && r.quantity !== undefined) return Number(r.quantity);
   const match = (r.details || '').match(/—\s*(\d+)/);
@@ -1021,7 +1022,7 @@ export function createProductionActions({
 
     if (isRework) {
       const partNom = nomenclatures.find(n => n.id === nomenclatureId)
-      const unitsPerSheet = partNom?.units_per_sheet || 1
+      const unitsPerSheet = getNomUnitsPerSheet(partNom)
       const sheets = Math.ceil(Number(quantity) / unitsPerSheet)
       await createDovyпускMaterialRequests(taskId, orderId, partNom, sheets, Number(quantity), machine, data?.id || null)
     }
@@ -1101,7 +1102,7 @@ export function createProductionActions({
           const snapshot = task?.plan_snapshot || {}
           const partSnapshot = snapshot[nomenclatureId] || {}
           const partNom = nomenclatures.find(n => n.id === nomenclatureId)
-          const unitsPerSheet = Number(partSnapshot.units_per_sheet) || Number(partNom?.units_per_sheet) || 1
+          const unitsPerSheet = getNomUnitsPerSheet(partNom, partSnapshot)
           const materialName = partSnapshot.material
 
           // Calculate total planned sheets for the whole task
@@ -1828,7 +1829,7 @@ export function createProductionActions({
           if (isManufactured) {
             totalPlanQty += totalToProduce
           }
-          const unitsPerSheet = Number(part.nom.units_per_sheet) || 1
+          const unitsPerSheet = getNomUnitsPerSheet(part.nom)
           let sheets = Math.ceil(totalToProduce / unitsPerSheet)
           const splits = (customRowMachinesSplits && customRowMachinesSplits[part.nom.id]) || []
           const selectedMachine = splits.length > 0 ? (splits[0]?.machine || machineName) : ((customRowMachines && customRowMachines[part.nom.id]) || machineName);

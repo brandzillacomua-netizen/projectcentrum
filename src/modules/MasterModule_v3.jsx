@@ -19,6 +19,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { useMES } from '../MESContext'
 import { apiService } from '../services/apiDispatcher'
 import { supabase } from '../supabase'
+import { getNomUnitsPerSheet } from '../utils/unitsHelper'
 
 const normalizeName = (s) => {
   if (!s) return '';
@@ -1148,7 +1149,7 @@ const MasterModule = () => {
           )
         )
 
-        const unitsPerSheet = Number(part.nom.units_per_sheet) || 1
+        const unitsPerSheet = getNomUnitsPerSheet(part.nom, snapshot)
         const sheets = Math.ceil(totalToProduce / unitsPerSheet)
         const unit = (part.nom.type === 'hardware' || part.nom.type === 'fastener') ? 'шт' : 'ЛИСТІВ'
 
@@ -1224,7 +1225,7 @@ const MasterModule = () => {
           return bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0
         })() : 0)
         const totalToProduce = snapshot ? snapshot.plan : (isReprintMode ? 0 : Math.max(0, totalNeeded - inStock))
-        const unitsPerSheet = Number(part.nom.units_per_sheet) || 1
+        const unitsPerSheet = getNomUnitsPerSheet(part.nom, snapshot)
         
         // Calculate sheets using splits if split mode is active
         const splits = rowMachinesSplits[part.nom.id] || []
@@ -1382,7 +1383,7 @@ const MasterModule = () => {
 
         if (totalToProduce <= 0) continue
 
-        const unitsPerSheet = Number(part.nom?.units_per_sheet) || 1
+        const unitsPerSheet = getNomUnitsPerSheet(part.nom, snapshot)
         const sheetsNeeded = Math.ceil(totalToProduce / unitsPerSheet)
 
         const splits = materialSplits[part.nom?.id] || {}
@@ -2186,7 +2187,7 @@ const displayParts = getDisplayPartsForOrderItem(it)
                         const inStock = snapshot ? (snapshot.stock || 0) : (isPartActiveBZ ? Math.min(totalNeeded, availableBZ) : 0)
                         const totalToProduce = snapshot ? snapshot.plan : Math.max(0, totalNeeded - inStock)
 
-                        const unitsPerSheet = Number(part.nom?.units_per_sheet) || 1
+                        const unitsPerSheet = getNomUnitsPerSheet(part.nom, snapshot)
                         const sheets = Math.ceil(totalToProduce / unitsPerSheet)
 
                         const sheets_t300 = snapshot
@@ -2711,7 +2712,7 @@ const displayParts = getDisplayPartsForOrderItem(it)
                               return bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0;
                             })() : 0);
                             const plan = snapshot ? snapshot.plan : Math.max(0, need - inStock);
-                            const unitsPerSheet = Number(part.nom?.units_per_sheet) || 1;
+                            const unitsPerSheet = getNomUnitsPerSheet(part.nom, snapshot);
                             const sheets = Math.ceil(plan / unitsPerSheet);
 
                             const sheets_t300 = snapshot
@@ -2821,7 +2822,7 @@ const displayParts = getDisplayPartsForOrderItem(it)
                         })() : 0)
                         const totalToProduce = snapshot ? snapshot.plan : Math.max(0, totalNeeded - inStock)
 
-                        const unitsPerSheet = Number(part.nom?.units_per_sheet) || 1
+                        const unitsPerSheet = getNomUnitsPerSheet(part.nom, snapshot)
                         const sheets = Math.ceil(totalToProduce / unitsPerSheet)
 
                         const isDefaultT700 = (part.nom?.material_type || part.nom?.name || '').toLowerCase().includes('т700') || (part.nom?.material_type || part.nom?.name || '').toLowerCase().includes('t700')
@@ -2899,7 +2900,7 @@ const displayParts = getDisplayPartsForOrderItem(it)
                               return bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0;
                             })();
                             const plan = snapshot ? snapshot.plan : Math.max(0, need - inStock);
-                            const unitsPerSheet = Number(part.nom?.units_per_sheet) || 1;
+                            const unitsPerSheet = getNomUnitsPerSheet(part.nom, snapshot);
                             const sheets = Math.ceil(plan / unitsPerSheet);
 
                             const sheets_t300 = snapshot

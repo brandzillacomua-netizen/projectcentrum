@@ -23,6 +23,7 @@ import { useMachineChange } from './Foreman2/features/machine-change/useMachineC
 import { getFinalScrapForTaskPart } from './VKYA/quality-hold/qualityHoldModel.js'
 import { useQualityLossTotals } from './VKYA/quality-hold/useQualityLossTotals.js'
 import { calculateCuttersForBatch } from '../utils/cutterCalculator'
+import { getNomUnitsPerSheet } from '../utils/unitsHelper'
 
 const uniqueById = (rows = []) => {
   return Array.from(new Map(rows.filter(Boolean).map(row => [String(row.id), row])).values())
@@ -1129,19 +1130,18 @@ const ForemanWorkplace = () => {
 
                               let need, stockBZ, plan, unitsPerSheet, sheets
                               const snapshot = task.plan_snapshot?.[String(nomId)]
+                              unitsPerSheet = getNomUnitsPerSheet(part.nom, snapshot)
 
                               if (snapshot) {
                                 need = snapshot.need
                                 stockBZ = snapshot.stock
                                 plan = snapshot.plan
-                                unitsPerSheet = snapshot.units_per_sheet
-                                sheets = snapshot.sheets
+                                sheets = snapshot.sheets || Math.ceil(plan / unitsPerSheet)
                               } else {
                                 need = (Number(item.quantity) || 0) * (Number(part.quantity_per_parent) || 1)
                                 const bzInv = (inventory || []).find(i => String(i.nomenclature_id) === String(nomId) && i.type === 'bz' && (!i.pocket_owner || i.pocket_owner === 'Не вказано'))
                                 stockBZ = bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0
                                 plan = Math.max(0, need - stockBZ)
-                                unitsPerSheet = Number(part.nom?.units_per_sheet) || 1
                                 sheets = Math.ceil(plan / unitsPerSheet)
                               }
 
@@ -1615,7 +1615,7 @@ const ForemanWorkplace = () => {
                       const qBzShop2 = (inventory || []).filter(i => String(i.nomenclature_id) === String(nom?.id) && i.type === 'bz_shop2').reduce((sum, i) => sum + (Number(i.total_qty) || 0), 0)
                       const qSgp = (inventory || []).filter(i => String(i.nomenclature_id) === String(nom?.id) && (i.type === 'finished' || i.warehouse === 'sgp' || i.warehouse === 'SGP')).reduce((sum, i) => sum + (Number(i.total_qty) || 0), 0)
 
-                      const unitsPerSheet = Number(nom?.units_per_sheet) || 1;
+                      const unitsPerSheet = getNomUnitsPerSheet(nom, task.plan_snapshot?.[String(nom?.id)]);
                       const plan = Number(snapshot?.plan || snapshot?.need || need) || 0;
                       const sheets = Number(snapshot?.sheets || snapshot?.count || snapshot?.sheets_count) || Math.ceil(plan / unitsPerSheet);
                       const loadCapacity = Number(snapshot?.load_capacity || snapshot?.custom_capacity) || findMachine(snapshot?.machine)?.sheet_capacity || 4;
@@ -1728,7 +1728,7 @@ const ForemanWorkplace = () => {
                                   <button
                                     onClick={() => {
                                       if (!canClickReissue) return
-                                      const unitsPerSheet = Number(nom?.units_per_sheet) || 1;
+                                      const unitsPerSheet = getNomUnitsPerSheet(nom, task.plan_snapshot?.[String(nom?.id)]);
                                       const sheetsNeeded = Math.ceil(shortage / unitsPerSheet);
                                       const activeCardMachine = activeCards[0]?.machine || (task.plan_snapshot?.[String(nom?.id)]?.machine);
                                       const resolvedMachine = findMachine(activeCardMachine) || findMachine(MACHINE_TYPES[0]);
@@ -1950,7 +1950,7 @@ const ForemanWorkplace = () => {
                 {(() => {
                   const globalTotalLoadings = genModal.splits.reduce((acc, s) => {
                     const cap = Number(s.load_capacity) || findMachine(s.machine)?.sheet_capacity || 1
-                    const unitsPerSheet = genModal.part.nom?.units_per_sheet || 1
+                    const unitsPerSheet = getNomUnitsPerSheet(genModal.part.nom, genModal.task?.plan_snapshot?.[String(genModal.part.nom?.id)])
                     const sSheets = Number(s.sheets) || Math.ceil(s.qty / unitsPerSheet)
                     return acc + Math.ceil(sSheets / cap)
                   }, 0)
@@ -1963,7 +1963,7 @@ const ForemanWorkplace = () => {
 
                   return genModal.splits.map((split, sIdx) => {
                     const cap = Number(split.load_capacity) || findMachine(split.machine)?.sheet_capacity || 1
-                    const unitsPerSheet = genModal.part.nom?.units_per_sheet || 1
+                    const unitsPerSheet = getNomUnitsPerSheet(genModal.part.nom, genModal.task?.plan_snapshot?.[String(genModal.part.nom?.id)])
                     const splitSheets = Number(split.sheets) || Math.ceil(split.qty / unitsPerSheet)
                     const capacityKey = `${genModal.part.nom?.id}_${sIdx}_cap`
                     const currentCapacity = customLoadingCapacities[capacityKey] ?? (Number(split.load_capacity) || cap)
@@ -2063,7 +2063,7 @@ const ForemanWorkplace = () => {
                         return matchesBaseMaterial(cardEntry?.material || cardNom?.material_type || cardNom?.name || '')
                       }).reduce((sum, card) => {
                         const cardNom = nomenclatures.find(n => String(n.id) === String(card.nomenclature_id))
-                        const cardUnitsPerSheet = Number(cardNom?.units_per_sheet) || Number((taskObj.plan_snapshot || {})[String(card.nomenclature_id)]?.units_per_sheet) || 1
+                        const cardUnitsPerSheet = getNomUnitsPerSheet(cardNom, (taskObj.plan_snapshot || {})[String(card.nomenclature_id)])
                         return sum + Math.ceil((Number(card.quantity) || 0) / cardUnitsPerSheet)
                       }, 0)
 
@@ -2593,7 +2593,7 @@ const ForemanWorkplace = () => {
                     need: Number(snapEntry.need) || 0,
                     plan: Number(snapEntry.plan) || 0,
                     sheets: Number(snapEntry.sheets) || 0,
-                    unitsPerSheet: Number(snapEntry.units_per_sheet) || (nom?.units_per_sheet || 1),
+                    unitsPerSheet: getNomUnitsPerSheet(nom, snapEntry),
                     material: snapEntry.material || nom?.material_type || 'тАФ'
                   })
                 })
@@ -2609,7 +2609,7 @@ const ForemanWorkplace = () => {
                     const bzInv = (inventory || []).find(i => String(i.nomenclature_id) === String(nomId) && i.type === 'bz' && (!i.pocket_owner || i.pocket_owner === '╨Э╨╡ ╨▓╨║╨░╨╖╨░╨╜╨╛'))
                     const stockBZ = bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0
                     const plan = Math.max(0, need - stockBZ)
-                    const unitsPerSheet = Number(part.nom?.units_per_sheet) || 1
+                    const unitsPerSheet = getNomUnitsPerSheet(part.nom)
                     const sheets = Math.ceil(plan / unitsPerSheet)
                     const material = part.nom?.material_type || 'тАФ'
 

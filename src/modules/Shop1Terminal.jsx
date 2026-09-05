@@ -7,6 +7,7 @@ import { useMES } from '../MESContext'
 import { supabase, getCurrentTime } from '../supabase'
 import { recordSortingHistoryGuaranteed } from '../services/sortingHistoryService'
 import { isMachineMatch } from '../utils/cutterCalculator'
+import { isRequestForCard, getPendingRequestsForCard } from '../utils/materialCardMatching.js'
 
 // Map Cyrillic keyboard characters to English QWERTY for barcode scanners under Ukrainian/Russian layout
 const cyrillicToLatinMap = {
@@ -392,19 +393,15 @@ export default function Shop1Terminal() {
 
   const checkCardMaterials = (card) => {
     if (!card) return false
-    // Попередження лише якщо картка дійсно очікує матеріали
-    if (card.status !== 'waiting_material') return false
+    const parentTask = (tasks || []).find(t => String(t.id) === String(card.task_id))
+    const pendingReqs = getPendingRequestsForCard(card, requests || [], parentTask, nomenclatures || [])
 
-    const pendingReqs = (requests || []).filter(r => 
-      (String(r.card_id) === String(card.id) || String(r.task_id) === String(card.task_id)) && 
-      r.status === 'pending'
-    )
-    if (pendingReqs.length > 0) {
+    if (pendingReqs.length > 0 && (card.status === 'waiting_material' || card.status === 'waiting-materials' || card.status === 'waiting-cutters')) {
       const materialList = pendingReqs.map((r, idx) => {
-        return `${idx + 1}. ${r.details || 'Матеріали'}`
+        return `${idx + 1}. ${r.details || 'Матеріали / фрези'}`
       }).join('\n')
       showAlert(
-        `Дана картка очікує забезпечення матеріалами від складу:\n\n${materialList}\n\nБудь ласка, зверніться до працівника складу для підтвердження видачі перед початком роботи.`,
+        `Дана картка очікує забезпечення матеріалами/фрезами від складу:\n\n${materialList}\n\nБудь ласка, зверніться до працівника складу для підтвердження видачі перед початком роботи.`,
         `⏳ Очікування забезпечення матеріалів`
       )
       return true
@@ -475,7 +472,7 @@ export default function Shop1Terminal() {
       ? prev.map(c => c.id === card.id ? { ...c, ...card } : c)
       : [card, ...prev])
 
-    const isNew = card.status === 'new' || card.status === 'waiting-materials' || card.status === 'waiting_material' || !card.operation || card.operation === 'Нова'
+    const isNew = card.status === 'new' || card.status === 'waiting-materials' || card.status === 'waiting_material' || card.status === 'waiting-cutters' || !card.operation || card.operation === 'Нова'
     const isInChain = CHAIN.includes(card.operation) || 
       String(card.operation).startsWith('Розкрій') || 
       String(card.operation).startsWith('Галтовка') || 
@@ -1030,7 +1027,7 @@ export default function Shop1Terminal() {
         if (String(parentTask.step || '').includes('[ЦЕХ №2]')) return
       }
 
-      const isNewForShop1 = c.status === 'new' && (CHAIN.includes(c.operation) || !c.operation || c.operation === 'Нова' || c.operation === 'Розкрій')
+      const isNewForShop1 = (c.status === 'new' || c.status === 'waiting-cutters' || c.status === 'waiting-materials' || c.status === 'waiting_material') && (CHAIN.includes(c.operation) || !c.operation || c.operation === 'Нова' || c.operation === 'Розкрій')
       const isInBufferForShop1 = c.status === 'at-buffer' && CHAIN.includes(c.operation)
       const isScanned = scannedIds.includes(c.id)
 
@@ -1076,7 +1073,7 @@ export default function Shop1Terminal() {
         }
       }
 
-      const isNewForShop1 = c.status === 'new' && (CHAIN.includes(c.operation) || !c.operation || c.operation === 'Нова' || c.operation === 'Розкрій')
+      const isNewForShop1 = (c.status === 'new' || c.status === 'waiting-cutters' || c.status === 'waiting-materials' || c.status === 'waiting_material') && (CHAIN.includes(c.operation) || !c.operation || c.operation === 'Нова' || c.operation === 'Розкрій')
       const isInBufferForShop1 = c.status === 'at-buffer' && CHAIN.includes(c.operation)
       const isScanned = scannedIds.includes(c.id)
 
@@ -1108,16 +1105,13 @@ export default function Shop1Terminal() {
     const nom = getNom(c)
     if (nom && nom.type && ['raw', 'material', 'hardware', 'fastener', 'consumable'].includes(nom.type)) return false
 
-    // 2.7. Гейт видимості (Киттинг / Склад): картка СТИХАЄ до підтвердження видачі сировини складом
-    const taskReqs = (requests || []).filter(r => 
-      String(r.task_id) === String(c.task_id) || 
-      (r.card_id && String(r.card_id) === String(c.id))
-    )
-    const hasPendingKitting = taskReqs.some(r => r.status === 'pending')
-    if (hasPendingKitting && c.status === 'new') return false
+    // 2.7. Гейт видимості (Киттинг / Склад): перевіряємо забезпечення конкретно цієї деталі/картки
+    const parentTask = tasks.find(t => String(t.id) === String(c.task_id))
+    const pendingForCard = getPendingRequestsForCard(c, requests || [], parentTask, nomenclatures || [])
+    const hasPendingKitting = pendingForCard.length > 0
+    if (hasPendingKitting && (c.status === 'new' || c.status === 'waiting-cutters' || c.status === 'waiting-materials' || c.status === 'waiting_material')) return false
 
     // 3. Перевірка батьківського наряду
-    const parentTask = tasks.find(t => String(t.id) === String(c.task_id))
     if (parentTask) {
       // Якщо наряд уже завершений (переданий в інший цех або закритий) — ховаємо його картки
       if (parentTask.status === 'completed') return false
@@ -1126,13 +1120,13 @@ export default function Shop1Terminal() {
     }
 
     // 4. Дозволені статуси та операції для Цеху №1
-    const isNewForShop1 = c.status === 'new' && (CHAIN.includes(c.operation) || !c.operation || c.operation === 'Нова' || c.operation === 'Розкрій')
+    const isNewForShop1 = (c.status === 'new' || c.status === 'waiting-cutters' || c.status === 'waiting-materials' || c.status === 'waiting_material') && (CHAIN.includes(c.operation) || !c.operation || c.operation === 'Нова' || c.operation === 'Розкрій')
     const isInBufferForShop1 = c.status === 'at-buffer' && CHAIN.includes(c.operation)
     const isScanned = scannedIds.includes(c.id)
 
     let matchesSection = true
     if (queueSectionFilter === 'Розкрій') {
-      matchesSection = c.status === 'new' && (c.operation === 'Розкрій' || !c.operation || c.operation === 'Нова')
+      matchesSection = (c.status === 'new' || c.status === 'waiting-cutters' || c.status === 'waiting-materials' || c.status === 'waiting_material') && (c.operation === 'Розкрій' || !c.operation || c.operation === 'Нова')
     } else if (queueSectionFilter === 'Галтовка') {
       matchesSection = c.status === 'at-buffer' && (c.operation === 'Розкрій' || c.operation?.startsWith('Галтовка'))
     } else if (queueSectionFilter === 'Прийомка') {
@@ -2406,8 +2400,9 @@ export default function Shop1Terminal() {
           const nom = getNom(card)
           const active = selectedCardId === card.id
         const isBuffer = card.status === 'at-buffer'
-        const statusColor = isBuffer ? '#f59e0b' : '#3b82f6'
-        const statusLabel = isBuffer ? `БУФЕР · ${card.operation}` : `НОВА · ${CHAIN.includes(card.operation) ? card.operation : 'Розкрій'}`
+        const isWaiting = card.status === 'waiting-cutters' || card.status === 'waiting-materials' || card.status === 'waiting_material'
+        const statusColor = isBuffer ? '#f59e0b' : (isWaiting ? '#06b6d4' : '#3b82f6')
+        const statusLabel = isBuffer ? `БУФЕР · ${card.operation}` : (isWaiting ? (card.status === 'waiting-cutters' ? 'ОЧІКУЄ ФРЕЗИ' : 'ОЧІКУЄ МАТЕРІАЛИ') : `НОВА · ${CHAIN.includes(card.operation) ? card.operation : 'Розкрій'}`)
 
         return (
           <div key={card.id}
@@ -2586,12 +2581,37 @@ export default function Shop1Terminal() {
 
         <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '24px', border: '1px solid #1a1a1a', padding: '25px 20px' }}>
 
-          {/* ── СТАН: NEW → Форма старту ──────────────────────────────────── */}
-          {(status === 'new' || (status === 'in-progress' && !CHAIN.includes(currentCard.operation))) && (() => {
+          {/* ── СТАН: NEW / WAITING → Форма старту ──────────────────────────────────── */}
+          {(status === 'new' || status === 'waiting-cutters' || status === 'waiting-materials' || status === 'waiting_material' || (status === 'in-progress' && !CHAIN.includes(currentCard.operation))) && (() => {
             const displayOp = CHAIN.includes(currentCard.operation) ? currentCard.operation : CHAIN[0]
             const machineSequenceConfig = getMachineSequenceConfig(selectedMachine)
+            const parentTask = tasks?.find(t => String(t.id) === String(currentCard.task_id))
+            const pendingReqsForCard = getPendingRequestsForCard(currentCard, requests || [], parentTask, nomenclatures || [])
+            const isWaiting = status === 'waiting-cutters' || status === 'waiting-materials' || status === 'waiting_material'
+
             return (
               <div style={{ maxWidth: '440px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+
+                {/* Банер готовності / очікування видачі */}
+                {isWaiting && pendingReqsForCard.length > 0 ? (
+                  <div style={{ background: '#eab30815', border: '1px solid #eab30840', borderRadius: '16px', padding: '14px 18px', textAlign: 'left' }}>
+                    <div style={{ color: '#eab308', fontSize: '0.8rem', fontWeight: 1000, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      ⏳ ОЧІКУЄТЬСЯ ВИДАЧА ЗІ СКЛАДУ
+                    </div>
+                    <div style={{ color: '#aaa', fontSize: '0.72rem', marginTop: '6px' }}>
+                      Склад ще не підтвердив видачу таких позицій:
+                    </div>
+                    <ul style={{ margin: '6px 0 0 16px', padding: 0, color: '#eab308', fontSize: '0.75rem', fontWeight: 700 }}>
+                      {pendingReqsForCard.map((r, i) => (
+                        <li key={r.id || i}>{r.details || 'Матеріали / фрези'}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : isWaiting ? (
+                  <div style={{ background: '#10b98115', border: '1px solid #10b98140', borderRadius: '14px', padding: '10px 16px', color: '#10b981', fontSize: '0.75rem', fontWeight: 900, textAlign: 'center' }}>
+                    ✅ МАТЕРІАЛИ ТА ФРЕЗИ ВИДАНО СКЛАДОМ · ГОТОВО ДО РОЗКРОЮ
+                  </div>
+                ) : null}
 
                 {/* Акцентована планова кількість */}
                 <div style={{ background: '#eab30810', border: '1px solid #eab30830', borderRadius: '18px', padding: '20px', textAlign: 'center', marginBottom: '8px' }}>

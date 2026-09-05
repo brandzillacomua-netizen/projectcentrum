@@ -2,6 +2,7 @@ import { asId, asNumber } from '../../utils/normalize.js'
 import { countAsProduced, getProducedQty, isBufferCard } from '../scrap/scrapCalculations.js'
 import { getSnapshotPartEntries } from '../task-loading/taskSelectors.js'
 import { getBestKnownProducedFromFlow } from './flowUtils.js'
+import { getNomUnitsPerSheet } from '../../../../utils/unitsHelper.js'
 
 export const getCardSheets = (card, unitsPerSheet) => {
   const explicit = asNumber(card?.actual_sheets || card?.actualSheets || card?.sheets)
@@ -34,7 +35,7 @@ export const calculatePartShortage = ({
 }) => {
   const nomId = asId(entry.nomId)
   const snapshot = entry.snapshot || {}
-  const unitsPerSheet = Math.max(1, asNumber(snapshot.units_per_sheet || entry.nom?.units_per_sheet, 1))
+  const unitsPerSheet = getNomUnitsPerSheet(entry.nom, snapshot)
   const need = asNumber(snapshot.need)
   const stockBZ = asNumber(snapshot.stock)
   const plan = asNumber(snapshot.plan, Math.max(0, need - stockBZ))
