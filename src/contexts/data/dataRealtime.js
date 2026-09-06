@@ -139,7 +139,8 @@ export function useDataRealtime(state, fetchers) {
       })
     })
 
-    let activeChannel = supabase.channel('mes-global-updates')
+    const primaryTopic = `mes-primary:${realtimeProfile}:${currentUser?.id || 'anon'}:${routeDataTableKey}`
+    let activeChannel = supabase.channel(primaryTopic)
 
     if (routeHasTable('work_cards')) {
       activeChannel = activeChannel.on('postgres_changes', { event: '*', schema: 'public', table: 'work_cards' }, (payload) => {
@@ -366,7 +367,24 @@ export function useDataRealtime(state, fetchers) {
       orderHydrationTimers.set(String(orderId), timer)
     }
 
-    let activeChannel2 = supabase.channel('mes-secondary-updates')
+    wsBatcher.registerHandler('material_requests', (batchEvents) => {
+      setRequests(prev => {
+        let next = [...prev]
+        batchEvents.forEach(payload => {
+          if (payload.eventType === 'UPDATE') {
+            next = next.map(r => r.id === payload.new.id ? { ...r, ...payload.new } : r)
+          } else if (payload.eventType === 'INSERT') {
+            next = next.some(r => r.id === payload.new.id) ? next : [payload.new, ...next]
+          } else if (payload.eventType === 'DELETE') {
+            next = next.filter(r => r.id !== payload.old.id)
+          }
+        })
+        return next
+      })
+    })
+
+    const secondaryTopic = `mes-secondary:${realtimeProfile}:${currentUser?.id || 'anon'}:${routeDataTableKey}`
+    let activeChannel2 = supabase.channel(secondaryTopic)
 
     if (routeHasTable('orders')) {
       activeChannel2 = activeChannel2
@@ -449,9 +467,10 @@ export function useDataRealtime(state, fetchers) {
 
     if (routeHasTable('material_requests')) {
       activeChannel2 = activeChannel2
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'material_requests' }, (payload) => {
-          setRequests(prev => prev.some(r => r.id === payload.new.id) ? prev : [payload.new, ...prev])
-          if (isLocalWrite('material_requests', payload.new)) {
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'material_requests' }, (payload) => {
+          wsBatcher.enqueue('material_requests', payload)
+
+          if (payload.eventType === 'INSERT' && isLocalWrite('material_requests', payload.new)) {
             const isPackaging = payload.new?.details?.includes('КОМПЛЕКТУВАННЯ')
             const orderId = payload.new?.order_id || payload.new?.task_id || 'unknown'
             let orderNum = 'новий'
@@ -506,12 +525,6 @@ export function useDataRealtime(state, fetchers) {
               }, 1500)
             }
           }
-        })
-        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'material_requests' }, (payload) => {
-          setRequests(prev => prev.map(r => r.id === payload.new.id ? { ...r, ...payload.new } : r))
-        })
-        .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'material_requests' }, (payload) => {
-          setRequests(prev => prev.filter(r => r.id !== payload.old.id))
         })
     }
 

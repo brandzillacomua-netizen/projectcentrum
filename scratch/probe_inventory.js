@@ -1,9 +1,8 @@
 import { supabase } from '../src/supabase.js'
 
 async function inspect() {
-  // We can't easily see constraints via JS, but we can try to find duplicates in other warehouses
-  const { data: allItems } = await supabase.from('inventory').select('name, type, warehouse').limit(100)
-  console.log('Current items sample:', allItems)
+  const { data: users } = await supabase.from('system_users').select('id, login').limit(2)
+  console.log('Users sample:', users)
 }
 
 inspect()

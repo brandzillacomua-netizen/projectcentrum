@@ -160,6 +160,55 @@ export default function GenerateCardsModal({
     return Number(req.qty) || Number(req.quantity) || 0
   }
 
+  const getKittingSheets = (taskObj, partNom) => {
+    const snapMat = (taskObj?.plan_snapshot || {})[String(partNom?.id)]?.material;
+    const baseMat = snapMat || partNom?.material_type || ''
+    const taskReqs = (materialRequests || []).filter(r => String(r.task_id) === String(taskObj?.id))
+    const extractThickness = (str) => {
+      const match = String(str || '').match(/(\d+(?:\.\d+)?)\s*мм/)
+      return match ? match[1] + 'мм' : null
+    }
+    const baseThickness = extractThickness(baseMat)
+    const sheetReqs = taskReqs.filter(r => {
+      const rNom = (nomenclatures || []).find(n => n.id === r.nomenclature_id)
+      const rName = rNom?.name || r.details || ''
+      const lowerName = rName.toLowerCase()
+      const isSheet = lowerName.includes('лист') || lowerName.includes('sheet')
+      if (!isSheet) return false
+      const reqThickness = extractThickness(lowerName)
+      if (baseThickness && reqThickness) {
+        return baseThickness === reqThickness
+      }
+      const activeMaterials = baseMat.split('+').map(m => m.trim().toLowerCase())
+      return activeMaterials.some(act => lowerName.includes(act) || act.includes(lowerName))
+    })
+    const issued = sheetReqs.filter(r => r.status === 'issued' || r.status === 'completed')
+      .reduce((sum, r) => sum + getRequestQty(r), 0)
+    const pending = sheetReqs.filter(r => r.status === 'pending')
+      .reduce((sum, r) => sum + getRequestQty(r), 0)
+    const materialRequiresSheets = /(?:т|t)\s*(?:300|700)|лист|sheet/i.test(baseMat)
+    return { issuedSheets: issued, pendingSheets: pending, hasKittingReqs: materialRequiresSheets || sheetReqs.length > 0 }
+  }
+
+  const singleKitting = useMemo(() => {
+    if (!part?.nom || isRepair) return { issuedSheets: 0, pendingSheets: 0, hasKittingReqs: false }
+    return getKittingSheets(task, part.nom)
+  }, [task, part, materialRequests, nomenclatures, isRepair])
+
+  const alreadyGeneratedSheets = useMemo(() => {
+    const unitsPerSheet = Math.max(1, Number(part?.unitsPerSheet) || 1)
+    return (part?.productionCards || []).reduce((sum, c) => {
+      const cardSheets = Number(c.actualSheets || c.sheets)
+      return sum + (cardSheets > 0 ? cardSheets : Math.ceil((Number(c.quantity) || 0) / unitsPerSheet))
+    }, 0)
+  }, [part])
+
+  const availableIssuedSheets = singleKitting.hasKittingReqs
+    ? Math.max(0, singleKitting.issuedSheets - alreadyGeneratedSheets)
+    : Math.max(0, (Number(part?.plannedSheets) || 0) - alreadyGeneratedSheets)
+
+  const isSingleKittingBlocked = singleKitting.hasKittingReqs && availableIssuedSheets <= 0 && singleKitting.pendingSheets > 0
+
   const MACHINE_TYPES = [...new Set(machines.map(m => m.name))]
 
   return (
@@ -235,36 +284,6 @@ export default function GenerateCardsModal({
 
                   currentGlobalSheets += cardSheets
                 })
-
-                const getKittingSheets = (taskObj, partNom) => {
-                  const snapMat = (taskObj.plan_snapshot || {})[String(partNom?.id)]?.material;
-                  const baseMat = snapMat || partNom?.material_type || ''
-                  const taskReqs = (materialRequests || []).filter(r => String(r.task_id) === String(taskObj.id))
-                  const extractThickness = (str) => {
-                    const match = str.match(/(\d+(?:\.\d+)?)\s*мм/)
-                    return match ? match[1] + 'мм' : null
-                  }
-                  const baseThickness = extractThickness(baseMat)
-                  const sheetReqs = taskReqs.filter(r => {
-                    const rNom = nomenclatures.find(n => n.id === r.nomenclature_id)
-                    const rName = rNom?.name || r.details || ''
-                    const lowerName = rName.toLowerCase()
-                    const isSheet = lowerName.includes('лист') || lowerName.includes('sheet')
-                    if (!isSheet) return false
-                    const reqThickness = extractThickness(lowerName)
-                    if (baseThickness && reqThickness) {
-                      return baseThickness === reqThickness
-                    }
-                    const activeMaterials = baseMat.split('+').map(m => m.trim().toLowerCase())
-                    return activeMaterials.some(act => lowerName.includes(act) || act.includes(lowerName))
-                  })
-                  const issued = sheetReqs.filter(r => r.status === 'issued' || r.status === 'completed')
-                    .reduce((sum, r) => sum + getRequestQty(r), 0)
-                  const pending = sheetReqs.filter(r => r.status === 'pending')
-                    .reduce((sum, r) => sum + getRequestQty(r), 0)
-                  const materialRequiresSheets = /(?:т|t)\s*(?:300|700)|лист|sheet/i.test(baseMat)
-                  return { issuedSheets: issued, pendingSheets: pending, hasKittingReqs: materialRequiresSheets || sheetReqs.length > 0 }
-                }
 
                 const { issuedSheets, pendingSheets, hasKittingReqs } = getKittingSheets(task, part.nom)
                 const generatedCount = cardsBelongingToThisSplitCount
@@ -552,20 +571,36 @@ export default function GenerateCardsModal({
                   </>
                 )}
 
-                <div style={{ fontSize: '0.65rem', color: '#eab308', background: 'rgba(234, 179, 8, 0.08)', padding: '8px 12px', borderRadius: '10px', border: '1px solid rgba(234, 179, 8, 0.2)', marginTop: '2px' }}>
-                  ⏳ Запит на листи та фрези відправиться на Склад. Картки з'являться в Цеху №1 одразу після підтвердження складом!
-                </div>
+                {isSingleKittingBlocked ? (
+                  <div style={{ fontSize: '0.78rem', color: '#ef4444', background: 'rgba(239, 68, 68, 0.1)', padding: '14px 18px', borderRadius: '14px', border: '1px solid rgba(239, 68, 68, 0.3)', marginTop: '8px', fontWeight: 800 }}>
+                    ⏳ Очікуємо погодження складу (немає листів). Видано: {singleKitting.issuedSheets} л. | Очікує видачі: {singleKitting.pendingSheets} листів з СО. Генерація заблокована до фактичної видачі.
+                  </div>
+                ) : (
+                  singleKitting.hasKittingReqs ? (
+                    <div style={{ fontSize: '0.78rem', color: '#10b981', background: 'rgba(16, 185, 129, 0.1)', padding: '10px 14px', borderRadius: '12px', border: '1px solid rgba(16, 185, 129, 0.3)', marginTop: '8px', fontWeight: 800 }}>
+                      ✓ Склад видав {singleKitting.issuedSheets} л. Доступно для генерації цієї партії: {availableIssuedSheets} листів.
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: '0.65rem', color: '#eab308', background: 'rgba(234, 179, 8, 0.08)', padding: '8px 12px', borderRadius: '10px', border: '1px solid rgba(234, 179, 8, 0.2)', marginTop: '2px' }}>
+                      ⏳ Запит на листи та фрези відправиться на Склад. Картки з'являться в Цеху №1 одразу після підтвердження складом!
+                    </div>
+                  )
+                )}
               </div>
             </div>
 
             <button
-              disabled={isGenerating || !machineName}
+              disabled={isGenerating || !machineName || isSingleKittingBlocked}
               onClick={() => {
                 if (!machineName) {
                   alert('Будь ласка, спочатку оберіть верстат!')
                   return
                 }
                 if (total > 0) {
+                  const allowedSheets = singleKitting.hasKittingReqs
+                    ? availableIssuedSheets
+                    : (Number(config.maxSheetsToGenerate) > 0 ? config.maxSheetsToGenerate : null)
+
                   onGenerate(
                     task,
                     part,
@@ -578,9 +613,7 @@ export default function GenerateCardsModal({
                     null,
                     0,
                     capacity,
-                    // Pass null when maxSheetsToGenerate is 0 (new task, no cards yet),
-                    // so handleGenerateCards doesn't cap sheetsRemaining to 0
-                    Number(config.maxSheetsToGenerate) > 0 ? config.maxSheetsToGenerate : null,
+                    allowedSheets,
                     null,
                     selectedCutters
                   )
@@ -588,21 +621,25 @@ export default function GenerateCardsModal({
               }}
               style={{
                 width: '100%',
-                background: machineName ? '#10b981' : '#222',
-                color: machineName ? '#fff' : '#666',
+                background: (machineName && !isSingleKittingBlocked) ? '#10b981' : '#222',
+                color: (machineName && !isSingleKittingBlocked) ? '#fff' : (isSingleKittingBlocked ? '#ef4444' : '#666'),
                 padding: '20px',
                 borderRadius: '20px',
                 fontSize: '1rem',
                 fontWeight: 950,
-                cursor: (isGenerating || !machineName) ? 'not-allowed' : 'pointer',
-                border: machineName ? 'none' : '1px solid #333',
+                cursor: (isGenerating || !machineName || isSingleKittingBlocked) ? 'not-allowed' : 'pointer',
+                border: (machineName && !isSingleKittingBlocked) ? 'none' : '1px solid #333',
                 textTransform: 'uppercase',
                 letterSpacing: '1px',
-                boxShadow: machineName ? '0 10px 20px -5px rgba(16, 185, 129, 0.4)' : 'none',
-                opacity: (isGenerating || !machineName) ? 0.5 : 1
+                boxShadow: (machineName && !isSingleKittingBlocked) ? '0 10px 20px -5px rgba(16, 185, 129, 0.4)' : 'none',
+                opacity: (isGenerating || !machineName || isSingleKittingBlocked) ? 0.6 : 1
               }}
             >
-              {isGenerating ? 'ОБРОБКА ТА СТВОРЕННЯ ЗАПИТУ...' : (machineName ? 'ПІДТВЕРДИТИ ТА ЗГЕНЕРУВАТИ ПАРТІЮ' : 'ОБЕРІТЬ ВЕРСТАТ ДЛЯ ПРОДОВЖЕННЯ')}
+              {isGenerating ? 'ОБРОБКА ТА СТВОРЕННЯ ЗАПИТУ...' : (
+                isSingleKittingBlocked ? `ОЧІКУЄМО ВИДАЧУ ${singleKitting.pendingSheets} ЛИСТІВ ЗІ СКЛАДУ` : (
+                  machineName ? 'ПІДТВЕРДИТИ ТА ЗГЕНЕРУВАТИ ПАРТІЮ' : 'ОБЕРІТЬ ВЕРСТАТ ДЛЯ ПРОДОВЖЕННЯ'
+                )
+              )}
             </button>
           </>
         )}

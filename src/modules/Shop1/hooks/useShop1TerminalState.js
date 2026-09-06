@@ -162,6 +162,8 @@ export function useShop1TerminalState() {
     workCards,
     setWorkCards,
     requests,
+    tasks,
+    nomenclatures,
     supabase,
     scannedIds,
     setScannedIds,
@@ -462,6 +464,7 @@ export function useShop1TerminalState() {
     handleArchiveStageScrap: workflow.handleArchiveStageScrap,
     processCardScan: scanner.processCardScan,
     handleManualEntry: scanner.handleManualEntry,
+    requests,
     CHAIN
   };
 }

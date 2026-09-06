@@ -185,6 +185,9 @@ export default function Shop1Terminal() {
               isProcessing={isProcessing}
               reworkCount={reworkCount}
               scrapCount={scrapCount}
+              requests={s.requests || []}
+              tasks={tasks || []}
+              nomenclatures={nomenclatures || []}
             />
           ) : (
             <Shop1Dashboard

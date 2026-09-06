@@ -158,6 +158,8 @@ export function useCardGeneration({ mes }) {
         const bzInThisLoading = Math.max(0, qtyInThisLoading - reqInThisLoading)
 
         const prefix = isRepair ? '[REDO] ' : ''
+        const hasCutterNeeds = Array.isArray(selectedCutters) && selectedCutters.length > 0
+        const initialStatus = isRepair ? 'waiting-materials' : (hasCutterNeeds ? 'waiting-cutters' : 'new')
         cardsBatch.push({
           operation: 'Розкрій',
           machine: selectedMachineName || 'Не вказано',
@@ -166,7 +168,7 @@ export function useCardGeneration({ mes }) {
           quantity: qtyInThisLoading,
           bufferQty: bzInThisLoading,
           actualSheets: sheetsInThisLoading,
-          status: 'waiting-cutters',
+          status: initialStatus,
           is_rework: isRepair
         })
 

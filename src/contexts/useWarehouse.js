@@ -1,5 +1,6 @@
 import { supabase } from '../supabase'
 import { getRequestSheetSpec, inventoryMatchesRequest } from '../modules/Warehouse/utils/materialInventoryMatching.js'
+import { isRequestForCard } from '../utils/materialCardMatching.js'
 
 /**
  * Warehouse / Supply chain actions
@@ -500,18 +501,30 @@ export function createWarehouseActions({
     try {
       const taskIdToCheck = req.task_id
       if (taskIdToCheck) {
-        const { data: pendingReqs } = await supabase
-          .from('material_requests')
-          .select('id')
-          .eq('task_id', taskIdToCheck)
-          .eq('status', 'pending')
-        
-         if (!pendingReqs || pendingReqs.length === 0) {
-          await supabase
-            .from('work_cards')
-            .update({ status: 'new' })
-            .eq('task_id', taskIdToCheck)
-            .in('status', ['waiting-materials', 'waiting-cutters'])
+        const [
+          { data: pendingReqs },
+          { data: candidateCards },
+          { data: taskData },
+          { data: nomData }
+        ] = await Promise.all([
+          supabase.from('material_requests').select('*').eq('task_id', taskIdToCheck).eq('status', 'pending'),
+          supabase.from('work_cards').select('*').eq('task_id', taskIdToCheck).in('status', ['waiting-materials', 'waiting-cutters']),
+          supabase.from('tasks').select('*').eq('id', taskIdToCheck).maybeSingle(),
+          supabase.from('nomenclatures').select('id, name')
+        ])
+
+        if (candidateCards && candidateCards.length > 0) {
+          const cardsToActivate = candidateCards.filter(card => {
+            const cardPending = (pendingReqs || []).filter(r => isRequestForCard(r, card, taskData, nomData || []))
+            return cardPending.length === 0
+          }).map(c => c.id)
+
+          if (cardsToActivate.length > 0) {
+            await supabase
+              .from('work_cards')
+              .update({ status: 'new' })
+              .in('id', cardsToActivate)
+          }
         }
       }
     } catch (err) {
@@ -757,7 +770,7 @@ export function createWarehouseActions({
         try {
           const { data: allPending } = await supabase
             .from('material_requests')
-            .select('id, task_id, card_id')
+            .select('*')
             .in('task_id', uniqueTaskIds)
             .eq('status', 'pending')
 
@@ -784,6 +797,36 @@ export function createWarehouseActions({
               .update({ status: 'new' })
               .in('id', cardsToUpdate)
               .in('status', ['waiting-materials', 'waiting-cutters'])
+          }
+
+          // Per-part card activation for tasks with partial pending requests
+          const partialTasks = uniqueTaskIds.filter(tId => pendingTaskIds.has(tId))
+          if (partialTasks.length > 0) {
+            const [
+              { data: candidateCards },
+              { data: partialTasksData },
+              { data: nomData }
+            ] = await Promise.all([
+              supabase.from('work_cards').select('*').in('task_id', partialTasks).in('status', ['waiting-materials', 'waiting-cutters']),
+              supabase.from('tasks').select('*').in('id', partialTasks),
+              supabase.from('nomenclatures').select('id, name')
+            ])
+
+            if (candidateCards && candidateCards.length > 0) {
+              const taskMap = new Map((partialTasksData || []).map(t => [String(t.id), t]))
+              const cardsToActivate = candidateCards.filter(card => {
+                const pTask = taskMap.get(String(card.task_id))
+                const cardPending = (allPending || []).filter(r => isRequestForCard(r, card, pTask, nomData || []))
+                return cardPending.length === 0
+              }).map(c => c.id)
+
+              if (cardsToActivate.length > 0) {
+                await supabase
+                  .from('work_cards')
+                  .update({ status: 'new' })
+                  .in('id', cardsToActivate)
+              }
+            }
           }
         } catch (err) {
           console.error('Error updating work cards for tasks in batch:', err)

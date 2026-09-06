@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { CHAIN, translateCyrillic } from '../../utils/shop1Helpers';
+import { getPendingRequestsForCard } from '../../../../utils/materialCardMatching.js';
 
 export function useShop1Queue({
   workCards,
@@ -120,7 +121,7 @@ export function useShop1Queue({
         }
       }
 
-      const isNewForShop1 = c.status === 'new' && (CHAIN.includes(c.operation) || !c.operation || c.operation === 'Нова' || c.operation === 'Розкрій');
+      const isNewForShop1 = (c.status === 'new' || c.status === 'waiting-cutters' || c.status === 'waiting-materials' || c.status === 'waiting_material') && (CHAIN.includes(c.operation) || !c.operation || c.operation === 'Нова' || c.operation === 'Розкрій');
       const isInBufferForShop1 = c.status === 'at-buffer' && CHAIN.includes(c.operation);
       const isScanned = (scannedIds || []).includes(c.id);
 
@@ -143,26 +144,23 @@ export function useShop1Queue({
     const nom = getNom(c);
     if (nom && nom.type && ['raw', 'material', 'hardware', 'fastener', 'consumable'].includes(nom.type)) return false;
 
-    const taskReqs = (requests || []).filter(r => 
-      String(r.task_id) === String(c.task_id) || 
-      (r.card_id && String(r.card_id) === String(c.id))
-    );
-    const hasPendingKitting = taskReqs.some(r => r.status === 'pending');
-    if (hasPendingKitting && c.status === 'new') return false;
-
     const parentTask = (tasks || []).find(t => String(t.id) === String(c.task_id));
+    const pendingReqsForCard = getPendingRequestsForCard(c, requests || [], parentTask, nomenclatures || []);
+    const hasPendingKitting = pendingReqsForCard.length > 0;
+    if (hasPendingKitting && (c.status === 'new' || c.status === 'waiting-cutters' || c.status === 'waiting-materials' || c.status === 'waiting_material')) return false;
+
     if (parentTask) {
       if (parentTask.status === 'completed') return false;
       if (String(parentTask.step || '').includes('[ЦЕХ №2]')) return false;
     }
 
-    const isNewForShop1 = c.status === 'new' && (CHAIN.includes(c.operation) || !c.operation || c.operation === 'Нова' || c.operation === 'Розкрій');
+    const isNewForShop1 = (c.status === 'new' || c.status === 'waiting-cutters' || c.status === 'waiting-materials' || c.status === 'waiting_material') && (CHAIN.includes(c.operation) || !c.operation || c.operation === 'Нова' || c.operation === 'Розкрій');
     const isInBufferForShop1 = c.status === 'at-buffer' && CHAIN.includes(c.operation);
     const isScanned = (scannedIds || []).includes(c.id);
 
     let matchesSection = true;
     if (queueSectionFilter === 'Розкрій') {
-      matchesSection = c.status === 'new' && (c.operation === 'Розкрій' || !c.operation || c.operation === 'Нова');
+      matchesSection = (c.status === 'new' || c.status === 'waiting-cutters' || c.status === 'waiting-materials' || c.status === 'waiting_material') && (c.operation === 'Розкрій' || !c.operation || c.operation === 'Нова');
     } else if (queueSectionFilter === 'Галтовка') {
       matchesSection = c.status === 'at-buffer' && (c.operation === 'Розкрій' || c.operation?.startsWith('Галтовка'));
     } else if (queueSectionFilter === 'Прийомка') {

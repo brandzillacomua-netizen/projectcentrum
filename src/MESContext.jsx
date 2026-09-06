@@ -34,6 +34,18 @@ export const MESProvider = ({ children }) => {
     localStorage.setItem('app-theme', next)
   }
 
+  // ── USER AUTH STATUS LOG ──
+  useEffect(() => {
+    if (data.currentUser?.login) {
+      const token = localStorage.getItem('BACKEND_TOKEN')
+      if (token) {
+        console.log(`%c[Centrum Auth] 🛡️ Активна JWT сесія підтверджена! Користувач: "${data.currentUser.login}" (${data.currentUser.position || 'Працівник'})`, 'color: #22c55e; font-weight: bold; font-size: 13px;')
+      } else {
+        console.log(`%c[Centrum Auth] ℹ️ Сесія без JWT (старий режим). Користувач: "${data.currentUser.login}"`, 'color: #eab308; font-weight: bold; font-size: 13px;')
+      }
+    }
+  }, [data.currentUser?.id, data.currentUser?.login])
+
   // ── USER PRESENCE HEARTBEAT ──
   useEffect(() => {
     if (!data.currentUser?.id) return

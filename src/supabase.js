@@ -3,7 +3,8 @@ import { createClient } from '@supabase/supabase-js'
 export const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://centrum-gateway.brandzilla-com-ua.workers.dev'
 export const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh1cnp1dGp5dGxjdnRidmlobnJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQwMjc4NzksImV4cCI6MjA4OTYwMzg3OX0.0GETYIfUpEDVcpcMoZcAe3dLXtiafNNE1eegbbK1XUI'
 
-const SUPABASE_READ_CONCURRENCY = 6
+const SUPABASE_OPERATIONAL_CONCURRENCY = 6
+const SUPABASE_ANALYTICAL_CONCURRENCY = 2
 const SUPABASE_READ_TIMEOUT_MS = 30 * 1000
 const SUPABASE_WRITE_TIMEOUT_MS = 15 * 1000
 const SUPABASE_READ_ONLY_RPCS = new Set([
@@ -16,24 +17,50 @@ const SUPABASE_READ_ONLY_RPCS = new Set([
   'shop1_naryad_report',
   'verify_user_password'
 ])
-let activeSupabaseReads = 0
-const pendingSupabaseReads = []
+const SUPABASE_HEAVY_ANALYTICAL_RPCS = new Set([
+  'mes_monthly_report',
+  'mes_monthly_naryad_detail',
+  'shop1_naryad_report'
+])
 
-const acquireSupabaseReadSlot = () => new Promise(resolve => {
-  const start = () => {
-    activeSupabaseReads += 1
-    let released = false
-    resolve(() => {
-      if (released) return
-      released = true
-      activeSupabaseReads = Math.max(0, activeSupabaseReads - 1)
-      const next = pendingSupabaseReads.shift()
-      if (next) next()
-    })
+let activeOperationalReads = 0
+const pendingOperationalReads = []
+
+let activeAnalyticalReads = 0
+const pendingAnalyticalReads = []
+
+const acquireSupabaseReadSlot = (isAnalytical = false) => new Promise(resolve => {
+  if (isAnalytical) {
+    const start = () => {
+      activeAnalyticalReads += 1
+      let released = false
+      resolve(() => {
+        if (released) return
+        released = true
+        activeAnalyticalReads = Math.max(0, activeAnalyticalReads - 1)
+        const next = pendingAnalyticalReads.shift()
+        if (next) next()
+      })
+    }
+
+    if (activeAnalyticalReads < SUPABASE_ANALYTICAL_CONCURRENCY) start()
+    else pendingAnalyticalReads.push(start)
+  } else {
+    const start = () => {
+      activeOperationalReads += 1
+      let released = false
+      resolve(() => {
+        if (released) return
+        released = true
+        activeOperationalReads = Math.max(0, activeOperationalReads - 1)
+        const next = pendingOperationalReads.shift()
+        if (next) next()
+      })
+    }
+
+    if (activeOperationalReads < SUPABASE_OPERATIONAL_CONCURRENCY) start()
+    else pendingOperationalReads.push(start)
   }
-
-  if (activeSupabaseReads < SUPABASE_READ_CONCURRENCY) start()
-  else pendingSupabaseReads.push(start)
 })
 
 const trackedSupabaseFetch = async (...args) => {
@@ -54,6 +81,7 @@ const trackedSupabaseFetch = async (...args) => {
   }
   const isReadRequest = ['GET', 'HEAD'].includes(requestMethod)
     || (requestMethod === 'POST' && SUPABASE_READ_ONLY_RPCS.has(rpcName))
+  const isAnalyticalRequest = Boolean(rpcName && SUPABASE_HEAVY_ANALYTICAL_RPCS.has(rpcName))
   let releaseReadSlot = () => {}
   let readTimeout = null
   let writeTimeout = null
@@ -128,7 +156,7 @@ const trackedSupabaseFetch = async (...args) => {
   // The deadline includes time spent waiting in the per-tab queue. If the
   // database is unavailable, every queued bootstrap read expires together
   // instead of blocking the tab for N × 20 seconds.
-  if (isReadRequest) releaseReadSlot = await acquireSupabaseReadSlot()
+  if (isReadRequest) releaseReadSlot = await acquireSupabaseReadSlot(isAnalyticalRequest)
 
   const startedAt = performance.now()
   const health = window.__mesApiHealth || {
@@ -467,3 +495,8 @@ export const supabase = new Proxy(rawSupabase, {
     return Reflect.get(target, prop, receiver)
   }
 })
+
+if (typeof window !== 'undefined') {
+  window.supabase = supabase
+}
+

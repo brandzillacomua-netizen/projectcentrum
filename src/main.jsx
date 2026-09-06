@@ -4,8 +4,13 @@ import { BrowserRouter } from 'react-router-dom'
 import App from './App'
 import { AppErrorBoundary, ConnectionStatus, ServiceWorkerUpdateManager } from './components/SystemResilience'
 import { sentryLogger } from './services/sentryLogger'
+import { supabase } from './supabase'
 import './index.css'
 import './light.css'
+
+if (typeof window !== 'undefined') {
+  window.supabase = supabase
+}
 
 // Initialize Sentry passive/active tracking engine
 sentryLogger.initSentry()

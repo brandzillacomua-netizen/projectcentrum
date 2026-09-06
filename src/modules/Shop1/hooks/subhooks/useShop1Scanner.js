@@ -5,11 +5,14 @@ import {
   translateCyrillic,
   CHAIN
 } from '../../utils/shop1Helpers';
+import { getPendingRequestsForCard } from '../../../../utils/materialCardMatching.js';
 
 export function useShop1Scanner({
   workCards,
   setWorkCards,
   requests,
+  tasks = [],
+  nomenclatures = [],
   supabase,
   scannedIds,
   setScannedIds,
@@ -57,19 +60,17 @@ export function useShop1Scanner({
 
   const checkCardMaterials = (card) => {
     if (!card) return false;
-    if (card.status !== 'waiting_material') return false;
+    if (card.status !== 'waiting_material' && card.status !== 'waiting-materials' && card.status !== 'waiting-cutters') return false;
 
-    const pendingReqs = (requests || []).filter(r =>
-      (String(r.card_id) === String(card.id) || String(r.task_id) === String(card.task_id)) &&
-      r.status === 'pending'
-    );
+    const parentTask = (tasks || []).find(t => String(t.id) === String(card.task_id));
+    const pendingReqs = getPendingRequestsForCard(card, requests || [], parentTask, nomenclatures || []);
     if (pendingReqs.length > 0) {
       const materialList = pendingReqs.map((r, idx) => {
-        return `${idx + 1}. ${r.details || 'Матеріали'}`;
+        return `${idx + 1}. ${r.details || 'Матеріали / фрези'}`;
       }).join('\n');
       if (typeof showAlert === 'function') {
         showAlert(
-          `Дана картка очікує забезпечення матеріалами від складу:\n\n${materialList}\n\nБудь ласка, зверніться до працівника складу для підтвердження видачі перед початком роботи.`,
+          `Дана картка очікує забезпечення складом:\n\n${materialList}\n\nБудь ласка, зверніться до працівника складу для підтвердження видачі перед початком роботи.`,
           `⏳ Очікування забезпечення матеріалів`
         );
       }
@@ -147,7 +148,7 @@ export function useShop1Scanner({
         : [card, ...prev]);
     }
 
-    const isNew = card.status === 'new' || card.status === 'waiting-materials' || card.status === 'waiting_material' || !card.operation || card.operation === 'Нова';
+    const isNew = card.status === 'new' || card.status === 'waiting-materials' || card.status === 'waiting_material' || card.status === 'waiting-cutters' || !card.operation || card.operation === 'Нова';
     const isInChain = CHAIN.includes(card.operation) ||
       String(card.operation).startsWith('Розкрій') ||
       String(card.operation).startsWith('Галтовка') ||

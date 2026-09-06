@@ -11,7 +11,49 @@ const USER_CACHE_KEY = 'MES_SESSION_USER'
 export function createAuthActions({ currentUser, setCurrentUser, setSystemUsers, clearAllData, setSessionLoading }) {
 
   const login = async (loginName, password) => {
-    // ── Step 1: Authenticate via Supabase (primary, fast) ──────────────────
+    const cleanLogin = String(loginName || '').trim().toLowerCase()
+    const email = cleanLogin.includes('@') ? cleanLogin : `${cleanLogin}@centrum.local`
+
+    // ── Спроба 1: Офіційний Supabase Auth (випуск персонального JWT) ─────────
+    try {
+      console.log(`[useAuth] 🔑 Спроба входу для: "${cleanLogin}" (email: "${email}")...`)
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      })
+
+      if (!authError && authData?.session) {
+        const token = authData.session.access_token
+        localStorage.setItem('BACKEND_TOKEN', token)
+        console.log(`[useAuth] 🛡️ Supabase Auth JWT успішно отримано! (UID: ${authData.session.user?.id})`)
+
+        const { data: profile, error: profErr } = await supabase
+          .from('system_users')
+          .select('id, login, first_name, last_name, position, access_rights, department, shift, notification_settings, avatar')
+          .eq('login', cleanLogin)
+          .maybeSingle()
+
+        if (profile) {
+          const cleanUser = { ...profile, token }
+          localStorage.setItem('MES_SESSION_LOGIN', cleanUser.login)
+          localStorage.setItem(USER_CACHE_KEY, JSON.stringify(cleanUser))
+          if (setSessionLoading) setSessionLoading(false)
+          setCurrentUser(cleanUser)
+          sentryLogger.setUserContext(cleanUser)
+          console.log(`[useAuth] ✅ Успішний вхід за персональним JWT для користувача: ${cleanUser.login} (${cleanUser.position})`)
+          return { success: true, user: cleanUser }
+        } else {
+          console.warn('[useAuth] Профіль у system_users не знайдено, помилка:', profErr)
+        }
+      } else {
+        console.warn(`[useAuth] ⚠️ Supabase Auth не спрацював (${authError?.message || 'Немає сесії'}). Переходимо на RPC fallback...`)
+      }
+    } catch (authErr) {
+      console.warn('[useAuth] Supabase Auth signIn помилка, перехід на RPC:', authErr?.message || authErr)
+    }
+
+    // ── Спроба 2 (Graceful Fallback): Перевірка через RPC verify_user_password ──
+    console.log(`[useAuth] 🔄 Виконуємо перевірку через RPC verify_user_password...`)
     const loginPromise = supabase
       .rpc('verify_user_password', { login_name: loginName, plain_password: password })
       .maybeSingle()
@@ -45,17 +87,20 @@ export function createAuthActions({ currentUser, setCurrentUser, setSystemUsers,
     if (setSessionLoading) setSessionLoading(false)
     setCurrentUser(cleanUser)
     sentryLogger.setUserContext(cleanUser)
+    console.log(`[useAuth] ℹ️ Успішний вхід через RPC verify_user_password (старий режим): ${cleanUser.login}`)
 
     return { success: true, user: cleanUser }
   }
 
   const logout = () => {
     sentryLogger.setUserContext(null)
+    supabase.auth.signOut().catch(() => {})
     if (clearAllData) {
       clearAllData()
     } else {
       setCurrentUser(null)
       localStorage.removeItem('MES_SESSION_LOGIN')
+      localStorage.removeItem('BACKEND_TOKEN')
       localStorage.removeItem(USER_CACHE_KEY)
     }
   }
