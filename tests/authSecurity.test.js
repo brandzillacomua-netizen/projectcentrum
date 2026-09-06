@@ -23,6 +23,12 @@ describe('Enterprise Auth & User Governance Security Tests', () => {
   })
 
   it('login sanitizes user object and NEVER stores plaintext password in localStorage', async () => {
+    // Mock signInWithPassword so unit tests don't make real network calls in CI
+    const authSpy = vi.spyOn(supabase.auth, 'signInWithPassword').mockResolvedValue({
+      data: null,
+      error: new Error('Invalid login credentials')
+    })
+
     // Mock verify_user_password RPC response returning a user with potential password field
     const rpcSpy = vi.spyOn(supabase, 'rpc').mockReturnValue({
       maybeSingle: vi.fn().mockResolvedValue({
@@ -60,6 +66,38 @@ describe('Enterprise Auth & User Governance Security Tests', () => {
     expect(cachedUser.password).toBeUndefined()
 
     rpcSpy.mockRestore()
+    authSpy.mockRestore()
+  })
+
+  it('login succeeds with JWT and sets BACKEND_TOKEN and MES_SESSION_STRICT', async () => {
+    const authSpy = vi.spyOn(supabase.auth, 'signInWithPassword').mockResolvedValue({
+      data: { session: { access_token: 'fake-jwt-token-123', user: { id: 'uuid-123' } } },
+      error: null
+    })
+    const fromSpy = vi.spyOn(supabase, 'from').mockReturnValue({
+      select: vi.fn().mockReturnThis(),
+      ilike: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockResolvedValue({
+        data: { id: 1, login: 'test_admin', position: 'Адмін' },
+        error: null
+      })
+    })
+
+    const auth = createAuthActions({
+      currentUser,
+      setCurrentUser,
+      setSystemUsers,
+      clearAllData,
+      setSessionLoading
+    })
+
+    const res = await auth.login('test_admin', 'Secret123!')
+    expect(res.success).toBe(true)
+    expect(localStorage.getItem('BACKEND_TOKEN')).toBe('fake-jwt-token-123')
+    expect(localStorage.getItem('MES_SESSION_STRICT')).toBe('true')
+
+    authSpy.mockRestore()
+    fromSpy.mockRestore()
   })
 
   it('upsertUser attempts rpc_admin_upsert_user with caller ID and payload', async () => {
