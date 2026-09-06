@@ -30,7 +30,7 @@ export function createAuthActions({ currentUser, setCurrentUser, setSystemUsers,
         const { data: profile, error: profErr } = await supabase
           .from('system_users')
           .select('id, login, first_name, last_name, position, access_rights, department, shift, notification_settings, avatar')
-          .eq('login', cleanLogin)
+          .ilike('login', cleanLogin)
           .maybeSingle()
 
         if (profile) {

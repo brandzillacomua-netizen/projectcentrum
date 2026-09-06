@@ -35,20 +35,24 @@ BEGIN
       AND su.password IS NOT NULL
       AND su.password <> ''
   LOOP
-    v_email := LOWER(TRIM(r.login)) || '@centrum.local';
+    -- Якщо логін вже містить email (наприклад admin@workshop.local), використовуємо його без дублювання
+    IF POSITION('@' IN r.login) > 0 THEN
+      v_email := LOWER(TRIM(r.login));
+    ELSE
+      v_email := LOWER(TRIM(r.login)) || '@centrum.local';
+    END IF;
 
-    -- Перевіряємо чи вже існує користувач з таким email в auth.users
-    SELECT id INTO v_existing_uuid FROM auth.users WHERE email = v_email;
-    
+    -- Детермінований стабільний UUID на основі ID користувача
+    BEGIN
+      v_user_uuid := extensions.uuid_generate_v5(extensions.uuid_ns_url(), 'centrum:user:' || r.id::text);
+    EXCEPTION WHEN OTHERS THEN
+      v_user_uuid := md5('centrum:user:' || r.id::text)::uuid;
+    END;
+
+    -- Перевіряємо чи вже існує користувач з таким email або старим ID в auth.users
+    SELECT id INTO v_existing_uuid FROM auth.users WHERE email = v_email OR id = v_user_uuid LIMIT 1;
     IF v_existing_uuid IS NOT NULL THEN
       v_user_uuid := v_existing_uuid;
-    ELSE
-      -- Детермінований стабільний UUID на основі ID користувача
-      BEGIN
-        v_user_uuid := extensions.uuid_generate_v5(extensions.uuid_ns_url(), 'centrum:user:' || r.id::text);
-      EXCEPTION WHEN OTHERS THEN
-        v_user_uuid := md5('centrum:user:' || r.id::text)::uuid;
-      END;
     END IF;
 
     -- 1. Створення або оновлення в auth.users
