@@ -29,10 +29,12 @@ window.addEventListener('error', (event) => {
   const msg = String(event.error?.message || event.message || '')
   const stack = String(event.error?.stack || '')
 
-  // Ignore strictly the known Chrome DevTools Live Metrics bug (Chromium #338604729)
-  // Pinpoint filter: MUST contain reading 'startTime' AND reportAllChanges in stack
-  if (msg.includes("reading 'startTime'") && stack.includes('reportAllChanges')) {
-    return
+  // Ignore strictly the known Chrome DevTools Live Metrics bug (Chromium #338604729 / #543499029)
+  // Pinpoint filter: MUST contain reading 'startTime' AND (reportAllChanges in stack OR VM script)
+  if (msg.includes("reading 'startTime'") && (stack.includes('reportAllChanges') || msg.includes('reportAllChanges') || !event.filename || String(event.filename).includes('VM'))) {
+    event.preventDefault?.()
+    event.stopImmediatePropagation?.()
+    return true
   }
 
   if (event.message && (event.message.includes('Failed to fetch dynamically imported module') || event.message.includes('Importing a module script failed'))) {

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 
 export const moduleList = [
   { id: 'crm', label: 'CRM Воронка Лідів & Угод' },
@@ -165,6 +165,17 @@ export function useSettingsUsers({
     }))
   }
 
+  // Live ticker for online presence & relative time (updates every 15 seconds)
+  const [nowTick, setNowTick] = useState(() => Date.now())
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        setNowTick(Date.now())
+      }
+    }, 15000)
+    return () => clearInterval(interval)
+  }, [])
+
   const filteredUsers = useMemo(() => {
     const list = (systemUsers || []).filter(u => {
       const matchSearch = 
@@ -177,15 +188,15 @@ export function useSettingsUsers({
       const matchPos = filterPosition === 'all' || u.position === filterPosition
       const matchShift = filterShift === 'all' || u.shift === filterShift
 
-      const isOnline = u.last_seen && (Date.now() - new Date(u.last_seen).getTime() < 120000)
+      const isOnline = u.last_seen && (nowTick - new Date(u.last_seen).getTime() < 120000)
       const matchOnline = !filterOnlyOnline || isOnline
 
       return matchSearch && matchDept && matchPos && matchShift && matchOnline
     })
 
     return [...list].sort((a, b) => {
-      const aOnline = a.last_seen && (Date.now() - new Date(a.last_seen).getTime() < 120000)
-      const bOnline = b.last_seen && (Date.now() - new Date(b.last_seen).getTime() < 120000)
+      const aOnline = a.last_seen && (nowTick - new Date(a.last_seen).getTime() < 120000)
+      const bOnline = b.last_seen && (nowTick - new Date(b.last_seen).getTime() < 120000)
       
       if (aOnline && !bOnline) return -1
       if (!aOnline && bOnline) return 1
@@ -194,7 +205,7 @@ export function useSettingsUsers({
       const bName = `${b.last_name || ''} ${b.first_name || ''} ${b.login || ''}`.trim()
       return aName.localeCompare(bName, 'uk')
     })
-  }, [systemUsers, userSearch, filterDepartment, filterPosition, filterShift, filterOnlyOnline])
+  }, [systemUsers, userSearch, filterDepartment, filterPosition, filterShift, filterOnlyOnline, nowTick])
 
   const distinctPositions = useMemo(() => {
     const roles = (systemUsers || []).map(u => u.position).filter(Boolean)
@@ -327,6 +338,7 @@ export function useSettingsUsers({
     moduleList,
     renderUserAvatar,
     getRoleStyle,
-    isAdmin
+    isAdmin,
+    nowTick
   }
 }

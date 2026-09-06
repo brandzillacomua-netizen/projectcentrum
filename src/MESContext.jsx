@@ -58,13 +58,21 @@ export const MESProvider = ({ children }) => {
       if (cancelled || inFlight || document.visibilityState !== 'visible' || !navigator.onLine) return
       inFlight = true
       try {
-        const { error } = await supabase
-          .from('system_users')
-          .update({ last_seen: new Date().toISOString() })
-          .eq('id', data.currentUser.id)
-        if (error) throw error
+        // 1. Спроба через швидкісний атомарний RPC
+        const { error: rpcErr } = await supabase.rpc('rpc_touch_user_presence', {
+          p_user_id: data.currentUser.id
+        })
+
+        // 2. Фолбек на прямий UPDATE, якщо RPC ще не прогрітий у схемі
+        if (rpcErr) {
+          const { error } = await supabase
+            .from('system_users')
+            .update({ last_seen: new Date().toISOString() })
+            .eq('id', data.currentUser.id)
+          if (error) throw error
+        }
       } catch (err) {
-        console.error('Failed to update presence:', err)
+        console.warn('[Presence] Не вдалося оновити статус присутності:', err?.message || err)
       } finally {
         inFlight = false
       }
@@ -76,7 +84,7 @@ export const MESProvider = ({ children }) => {
       timer = setTimeout(async () => {
         await updatePresence()
         schedulePresence()
-      }, 60000 + Math.floor(Math.random() * 30000))
+      }, 45000 + Math.floor(Math.random() * 15000))
     }
 
     const handleVisibility = () => {

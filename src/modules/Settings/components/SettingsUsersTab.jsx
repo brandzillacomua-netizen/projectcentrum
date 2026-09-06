@@ -52,7 +52,8 @@ export function SettingsUsersTab(props) {
     formatLastSeen,
     getStructureTypeIcon,
     typeColors,
-    renderUserAvatar
+    renderUserAvatar,
+    nowTick
   } = props
 
   const inputStyle = { width: '100%', background: '#000', border: '1px solid rgba(255,255,255,0.06)', color: '#fff', padding: '12px', borderRadius: '12px', fontSize: '0.85rem', fontWeight: 600, outline: 'none' }
@@ -416,7 +417,7 @@ export function SettingsUsersTab(props) {
               const roleStyle = getRoleStyle(user.position)
               const deptNode = (companyStructure || []).find(s => s.name === user.department)
               const allowedModulesCount = Object.values(user.access_rights || {}).filter(Boolean).length
-              const isOnline = user.last_seen && (Date.now() - new Date(user.last_seen).getTime() < 120000)
+              const isOnline = user.last_seen && ((nowTick || Date.now()) - new Date(user.last_seen).getTime() < 120000)
 
               return (
                 <div key={user.id} className="dossier-card" style={{ 

@@ -671,10 +671,9 @@ export function useDataRealtime(state, fetchers) {
           setSystemUsers(prev => {
             const existing = prev.find(u => u.id === payload.new.id)
             if (existing) {
-              const keys = ['login', 'first_name', 'last_name', 'position', 'access_rights', 'department', 'shift', 'notification_settings', 'avatar']
+              const keys = ['login', 'first_name', 'last_name', 'position', 'access_rights', 'department', 'shift', 'notification_settings', 'avatar', 'last_seen']
               const hasChanges = keys.some(k => JSON.stringify(existing[k]) !== JSON.stringify(payload.new[k]))
               if (!hasChanges) {
-                existing.last_seen = payload.new.last_seen
                 return prev
               }
             }

@@ -35,12 +35,20 @@ export function createAuthActions({ currentUser, setCurrentUser, setSystemUsers,
           .maybeSingle()
 
         if (profile) {
-          const cleanUser = { ...profile, token }
+          const nowIso = new Date().toISOString()
+          const cleanUser = { ...profile, last_seen: nowIso, token }
           localStorage.setItem('MES_SESSION_LOGIN', cleanUser.login)
           localStorage.setItem(USER_CACHE_KEY, JSON.stringify(cleanUser))
           if (setSessionLoading) setSessionLoading(false)
           setCurrentUser(cleanUser)
           sentryLogger.setUserContext(cleanUser)
+          
+          // Миттєвий тач присутності на бекенді при вході
+          Promise.resolve(supabase.rpc('rpc_touch_user_presence', { p_user_id: cleanUser.id })).catch(() => {})
+          if (setSystemUsers) {
+            setSystemUsers(prev => prev.map(u => u.id === cleanUser.id ? { ...u, last_seen: nowIso } : u))
+          }
+
           console.log(`[useAuth] ✅ Успішний вхід за персональним JWT для користувача: ${cleanUser.login} (${cleanUser.position})`)
           return { success: true, user: cleanUser }
         } else {
