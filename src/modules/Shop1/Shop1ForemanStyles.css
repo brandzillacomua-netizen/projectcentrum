@@ -1,0 +1,998 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800;900&display=swap');
+
+/* --- DARK THEME (DEFAULT) --- */
+.shop1-foreman-module {
+  background: #050505;
+  min-height: 100vh;
+  color: #fff;
+  padding: 30px 20px;
+  font-family: 'Outfit', sans-serif;
+}
+
+.shop1-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 25px;
+}
+
+.shop1-back-btn {
+  background: #111;
+  border: 1px solid #222;
+  border-radius: 12px;
+  width: 42px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #888;
+  text-decoration: none;
+  transition: all 0.2s;
+}
+
+.shop1-back-btn:hover {
+  background: #222;
+  color: #fff;
+}
+
+.shop1-header-title {
+  color: #eab308;
+}
+
+.shop1-header-subtitle {
+  color: #666;
+}
+
+.shop1-tab-container {
+  background: #0d0d0d;
+  border: 1px solid #1a1a1a;
+}
+
+.tab-btn {
+  background: rgba(255, 255, 255, 0.02);
+  color: #888;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  font-weight: 900;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s;
+}
+
+.tab-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+}
+
+.tab-btn.active {
+  background: #eab308;
+  color: #000;
+  box-shadow: 0 4px 12px rgba(234, 179, 8, 0.2);
+}
+
+.form-input {
+  width: 100%;
+  background: #09090b;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  color: #fff;
+  padding: 12px;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  box-sizing: border-box;
+  outline: none;
+  margin-top: 6px;
+}
+
+.form-input:focus {
+  border-color: #eab308;
+}
+
+.machine-card {
+  background: #0d0d0d;
+  border: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.machine-card.working {
+  border-color: rgba(34, 197, 94, 0.2);
+  box-shadow: 0 4px 20px rgba(34, 197, 94, 0.03);
+}
+
+.machine-card.paused {
+  border-color: rgba(239, 68, 68, 0.2);
+  box-shadow: 0 4px 20px rgba(239, 68, 68, 0.03);
+}
+
+.machine-name {
+  color: #fff;
+}
+
+.machine-meta {
+  color: #555;
+}
+
+.machine-status-badge.working {
+  background: rgba(34, 197, 94, 0.08);
+  color: #22c55e;
+  border: 1px solid rgba(34, 197, 94, 0.2);
+}
+
+.machine-status-badge.paused {
+  background: rgba(239, 68, 68, 0.08);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.machine-status-badge.idle {
+  background: rgba(255, 255, 255, 0.03);
+  color: #666;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.active-card-box {
+  background: #050507;
+  border: 1px solid rgba(255, 255, 255, 0.02);
+}
+
+.card-task-label, .card-field-label {
+  color: #444;
+}
+
+.card-detail-name {
+  color: #ddd;
+}
+
+.card-number-tag {
+  color: #555;
+}
+
+.card-field-val {
+  color: #888;
+}
+
+.machine-idle-text {
+  color: #444;
+}
+
+.machine-card-footer {
+  color: #555;
+  border-top-color: rgba(255, 255, 255, 0.03);
+}
+
+/* Shift Calendar */
+.month-nav-btn {
+  background: #111;
+  border: 1px solid #222;
+  color: #fff;
+  border-radius: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.calendar-month-title {
+  color: #fff;
+}
+
+.calendar-legend {
+  color: #aaa;
+}
+
+.calendar-grid-wrapper {
+  background: #0d0d0d;
+  border: 1px solid #1a1a1a;
+}
+
+.calendar-table-head-row {
+  background: #070707;
+  border-bottom: 2px solid #1a1a1a;
+}
+
+.sticky-head-cell {
+  background: #070707 !important;
+  color: #eab308;
+  border-bottom: 2px solid #1a1a1a;
+}
+
+.shift-calendar-table th {
+  color: #666;
+}
+
+.accordion-row {
+  background: #111;
+}
+
+.accordion-cell {
+  color: #eab308;
+  border-bottom: 1px solid #1a1a1a;
+}
+
+.accordion-count {
+  color: #666;
+}
+
+.sticky-user-cell {
+  background: #0d0d0d !important;
+}
+
+.sticky-user-cell.master {
+  background: #15130b !important;
+}
+
+.user-name {
+  color: #fff;
+}
+
+.user-name.master {
+  color: #ff9000;
+}
+
+.user-position {
+  color: #555;
+}
+
+/* Shift Reports */
+.report-filter-panel {
+  background: #0d0d0d;
+  border: 1px solid #1a1a1a;
+}
+
+.filter-label-box {
+  border-right: 1px solid #1a1a1a;
+  color: #666;
+}
+
+.report-filter-input {
+  color: #fff;
+  color-scheme: dark;
+}
+
+.date-sep {
+  color: #333;
+}
+
+.clear-date-btn {
+  color: #ef4444;
+  border-left: 1px solid #1a1a1a;
+}
+
+.report-period-select {
+  background: #0d0d0d;
+  border-left: 1px solid #1a1a1a;
+  color: #eab308;
+}
+
+.shift-stat-card {
+  background: #0d0d0d;
+  border: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.shift-card-title {
+  color: #fff;
+}
+
+.shift-timing-info {
+  color: #666;
+}
+
+.shift-timing-info .time-val {
+  color: #bbb;
+}
+
+.shift-modal-overlay {
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(10px);
+}
+
+.shift-modal-content {
+  background: #0a0a0b;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.modal-shift-title {
+  color: #fff;
+}
+
+.modal-shift-subtitle {
+  color: #555;
+}
+
+.btn-close-modal {
+  background: rgba(255, 255, 255, 0.03);
+  color: #888;
+}
+
+.shift-report-detail-item {
+  background: rgba(255, 255, 255, 0.015);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.card-detail-nom-name {
+  color: #fff;
+}
+
+.card-detail-meta {
+  color: #555;
+}
+
+.card-detail-date {
+  color: #444;
+}
+
+/* Nariad Reports */
+.nariad-catalog-panel {
+  background: #0a0a0b;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.nariad-search-input {
+  background: #0d0d0d;
+  border: 1px solid #1a1a1a;
+  color: #fff;
+}
+
+.nariad-catalog-count {
+  color: #555;
+}
+
+.nariad-catalog-card {
+  background: #0d0d0d;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.nariad-catalog-card.selected {
+  background: rgba(234, 179, 8, 0.06);
+  border-color: rgba(234, 179, 8, 0.25);
+}
+
+.nariad-card-num {
+  color: #fff;
+}
+
+.nariad-catalog-card.selected .nariad-card-num {
+  color: #eab308;
+}
+
+.nariad-card-cust {
+  color: #666;
+}
+
+.nariad-card-meta {
+  color: #444;
+}
+
+.nariad-empty-hint {
+  color: #555;
+}
+
+.nariad-page-btn {
+  background: #111;
+  border: 1px solid #222;
+  color: #aaa;
+}
+
+.nariad-page-info {
+  color: #555;
+}
+
+/* Staff Management */
+.staff-form-card, .staff-list-card {
+  background: #0d0d0d;
+  border: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.card-heading {
+  color: #fff;
+}
+
+.field-label {
+  color: #666;
+}
+
+.access-rights-box {
+  background: #050505;
+  border: 1px solid rgba(255, 255, 255, 0.03);
+  color: #aaa;
+}
+
+.staff-user-card {
+  background: #050507;
+  border: 1px solid rgba(255, 255, 255, 0.02);
+}
+
+.staff-user-card.master {
+  background: rgba(234, 179, 8, 0.03);
+  border-color: rgba(234, 179, 8, 0.15);
+}
+
+.staff-name {
+  color: #fff;
+}
+
+.staff-login {
+  color: #555;
+}
+
+.staff-meta {
+  color: #777;
+}
+
+.edit-user-btn {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  color: #aaa;
+}
+
+.reset-pass-btn {
+  background: rgba(239, 68, 68, 0.05);
+  border: 1px solid rgba(239, 68, 68, 0.1);
+  color: #f87171;
+}
+
+.hover-scale {
+  transition: transform 0.2s, background-color 0.2s;
+}
+
+.hover-scale:hover {
+  transform: translateY(-2px);
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* --- LIGHT THEME OVERRIDES --- */
+.light-theme .shop1-foreman-module,
+body.light-theme .shop1-foreman-module {
+  background: #f8fafc !important;
+  color: #0f172a !important;
+}
+
+.light-theme .shop1-back-btn,
+body.light-theme .shop1-back-btn {
+  background: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+.light-theme .shop1-back-btn:hover,
+body.light-theme .shop1-back-btn:hover {
+  background: #f1f5f9 !important;
+  border-color: #94a3b8 !important;
+}
+
+.light-theme .shop1-header-title,
+body.light-theme .shop1-header-title {
+  color: #d97706 !important;
+}
+
+.light-theme .shop1-header-subtitle,
+body.light-theme .shop1-header-subtitle {
+  color: #64748b !important;
+}
+
+.light-theme .shop1-header-divider,
+body.light-theme .shop1-header-divider {
+  background: #e2e8f0 !important;
+}
+
+.light-theme .shop1-tab-container,
+body.light-theme .shop1-tab-container {
+  background: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
+}
+
+.light-theme .tab-btn,
+body.light-theme .tab-btn {
+  background: #f1f5f9 !important;
+  color: #475569 !important;
+}
+
+.light-theme .tab-btn:hover,
+body.light-theme .tab-btn:hover {
+  background: #e2e8f0 !important;
+  color: #0f172a !important;
+}
+
+.light-theme .tab-btn.active,
+body.light-theme .tab-btn.active {
+  background: #eab308 !important;
+  color: #000000 !important;
+  box-shadow: 0 4px 12px rgba(234, 179, 8, 0.3) !important;
+}
+
+.light-theme .shop1-section-title,
+body.light-theme .shop1-section-title {
+  color: #475569 !important;
+}
+
+.light-theme .form-input,
+body.light-theme .form-input {
+  background: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+.light-theme .form-input:focus,
+body.light-theme .form-input:focus {
+  border-color: #d97706 !important;
+  box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.1) !important;
+}
+
+/* Machine Monitor Light Theme */
+.light-theme .machine-card,
+body.light-theme .machine-card {
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.04) !important;
+}
+
+.light-theme .machine-name,
+body.light-theme .machine-name {
+  color: #0f172a !important;
+}
+
+.light-theme .machine-meta,
+body.light-theme .machine-meta {
+  color: #64748b !important;
+}
+
+.light-theme .active-card-box,
+body.light-theme .active-card-box {
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
+}
+
+.light-theme .card-task-label,
+body.light-theme .card-task-label,
+.light-theme .card-field-label,
+body.light-theme .card-field-label {
+  color: #64748b !important;
+}
+
+.light-theme .card-detail-name,
+body.light-theme .card-detail-name {
+  color: #0f172a !important;
+}
+
+.light-theme .card-number-tag,
+body.light-theme .card-number-tag,
+.light-theme .card-field-val,
+body.light-theme .card-field-val {
+  color: #334155 !important;
+}
+
+.light-theme .machine-idle-text,
+body.light-theme .machine-idle-text,
+.light-theme .machine-card-footer,
+body.light-theme .machine-card-footer {
+  color: #64748b !important;
+  border-color: #e2e8f0 !important;
+}
+
+/* Shift Calendar Light Theme */
+.light-theme .month-nav-btn,
+body.light-theme .month-nav-btn {
+  background: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+.light-theme .calendar-month-title,
+body.light-theme .calendar-month-title {
+  color: #0f172a !important;
+}
+
+.light-theme .calendar-legend,
+body.light-theme .calendar-legend {
+  color: #334155 !important;
+}
+
+.light-theme .calendar-grid-wrapper,
+body.light-theme .calendar-grid-wrapper {
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+}
+
+.light-theme .calendar-table-head-row,
+body.light-theme .calendar-table-head-row {
+  background: #f1f5f9 !important;
+  border-bottom: 2px solid #cbd5e1 !important;
+}
+
+.light-theme .sticky-head-cell,
+body.light-theme .sticky-head-cell {
+  background: #f1f5f9 !important;
+  color: #d97706 !important;
+  border-bottom: 2px solid #cbd5e1 !important;
+}
+
+.light-theme .shift-calendar-table th,
+body.light-theme .shift-calendar-table th {
+  color: #334155 !important;
+}
+
+.light-theme .accordion-row,
+body.light-theme .accordion-row {
+  background: #f1f5f9 !important;
+}
+
+.light-theme .accordion-cell,
+body.light-theme .accordion-cell {
+  color: #d97706 !important;
+  border-bottom: 1px solid #cbd5e1 !important;
+}
+
+.light-theme .accordion-count,
+body.light-theme .accordion-count {
+  color: #64748b !important;
+}
+
+.light-theme .sticky-user-cell,
+body.light-theme .sticky-user-cell {
+  background: #ffffff !important;
+  border-right: 1px solid #cbd5e1 !important;
+}
+
+.light-theme .sticky-user-cell.master,
+body.light-theme .sticky-user-cell.master {
+  background: #fff7ed !important;
+}
+
+.light-theme .user-name,
+body.light-theme .user-name {
+  color: #0f172a !important;
+}
+
+.light-theme .user-name.master,
+body.light-theme .user-name.master {
+  color: #d97706 !important;
+}
+
+.light-theme .user-position,
+body.light-theme .user-position {
+  color: #64748b !important;
+}
+
+.light-theme .calendar-day-badge,
+body.light-theme .calendar-day-badge {
+  color: #334155;
+}
+
+/* Shift Reports Light Theme */
+.light-theme .report-filter-panel,
+body.light-theme .report-filter-panel {
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+}
+
+.light-theme .filter-label-box,
+body.light-theme .filter-label-box {
+  border-right: 1px solid #cbd5e1 !important;
+  color: #64748b !important;
+}
+
+.light-theme .report-filter-input,
+body.light-theme .report-filter-input {
+  color: #0f172a !important;
+  color-scheme: light !important;
+}
+
+.light-theme .date-sep,
+body.light-theme .date-sep {
+  color: #cbd5e1 !important;
+}
+
+.light-theme .clear-date-btn,
+body.light-theme .clear-date-btn {
+  border-left-color: #cbd5e1 !important;
+}
+
+.light-theme .report-period-select,
+body.light-theme .report-period-select {
+  background: #ffffff !important;
+  border-left: 1px solid #cbd5e1 !important;
+  color: #d97706 !important;
+}
+
+.light-theme .shift-stat-card,
+body.light-theme .shift-stat-card {
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.04) !important;
+}
+
+.light-theme .shift-card-title,
+body.light-theme .shift-card-title {
+  color: #0f172a !important;
+}
+
+.light-theme .shift-timing-info,
+body.light-theme .shift-timing-info {
+  color: #475569 !important;
+}
+
+.light-theme .shift-timing-info .time-val,
+body.light-theme .shift-timing-info .time-val {
+  color: #0f172a !important;
+}
+
+.light-theme .shift-modal-overlay,
+body.light-theme .shift-modal-overlay {
+  background: rgba(15, 23, 42, 0.6) !important;
+}
+
+.light-theme .shift-modal-content,
+body.light-theme .shift-modal-content {
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #0f172a !important;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15) !important;
+}
+
+.light-theme .modal-shift-title,
+body.light-theme .modal-shift-title {
+  color: #0f172a !important;
+}
+
+.light-theme .modal-shift-subtitle,
+body.light-theme .modal-shift-subtitle {
+  color: #64748b !important;
+}
+
+.light-theme .btn-close-modal,
+body.light-theme .btn-close-modal {
+  background: #f1f5f9 !important;
+  color: #475569 !important;
+}
+
+.light-theme .shift-report-detail-item,
+body.light-theme .shift-report-detail-item {
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
+}
+
+.light-theme .card-detail-nom-name,
+body.light-theme .card-detail-nom-name {
+  color: #0f172a !important;
+}
+
+.light-theme .card-detail-meta,
+body.light-theme .card-detail-meta {
+  color: #64748b !important;
+}
+
+.light-theme .card-detail-date,
+body.light-theme .card-detail-date {
+  color: #475569 !important;
+}
+
+/* Nariad Reports Light Theme */
+.light-theme .nariad-catalog-panel,
+body.light-theme .nariad-catalog-panel {
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+}
+
+.light-theme .nariad-search-input,
+body.light-theme .nariad-search-input {
+  background: #f8fafc !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+.light-theme .nariad-catalog-count,
+body.light-theme .nariad-catalog-count {
+  color: #64748b !important;
+}
+
+.light-theme .nariad-catalog-card,
+body.light-theme .nariad-catalog-card {
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
+}
+
+.light-theme .nariad-catalog-card.selected,
+body.light-theme .nariad-catalog-card.selected {
+  background: #fff7ed !important;
+  border-color: #fdba74 !important;
+}
+
+.light-theme .nariad-card-num,
+body.light-theme .nariad-card-num {
+  color: #0f172a !important;
+}
+
+.light-theme .nariad-catalog-card.selected .nariad-card-num,
+body.light-theme .nariad-catalog-card.selected .nariad-card-num {
+  color: #d97706 !important;
+}
+
+.light-theme .nariad-card-cust,
+body.light-theme .nariad-card-cust {
+  color: #475569 !important;
+}
+
+.light-theme .nariad-card-meta,
+body.light-theme .nariad-card-meta {
+  color: #64748b !important;
+}
+
+.light-theme .nariad-empty-hint,
+body.light-theme .nariad-empty-hint {
+  color: #64748b !important;
+}
+
+.light-theme .nariad-page-btn,
+body.light-theme .nariad-page-btn {
+  background: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+.light-theme .nariad-page-info,
+body.light-theme .nariad-page-info {
+  color: #64748b !important;
+}
+
+/* Staff Management Light Theme */
+.light-theme .staff-form-card,
+body.light-theme .staff-form-card,
+.light-theme .staff-list-card,
+body.light-theme .staff-list-card {
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.04) !important;
+}
+
+.light-theme .card-heading,
+body.light-theme .card-heading {
+  color: #0f172a !important;
+}
+
+.light-theme .field-label,
+body.light-theme .field-label {
+  color: #64748b !important;
+}
+
+.light-theme .access-rights-box,
+body.light-theme .access-rights-box {
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
+  color: #334155 !important;
+}
+
+.light-theme .staff-user-card,
+body.light-theme .staff-user-card {
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
+}
+
+.light-theme .staff-user-card.master,
+body.light-theme .staff-user-card.master {
+  background: #fff7ed !important;
+  border-color: #fed7aa !important;
+}
+
+.light-theme .staff-name,
+body.light-theme .staff-name {
+  color: #0f172a !important;
+}
+
+.light-theme .staff-login,
+body.light-theme .staff-login {
+  color: #64748b !important;
+}
+
+.light-theme .staff-meta,
+body.light-theme .staff-meta {
+  color: #475569 !important;
+}
+
+.light-theme .edit-user-btn,
+body.light-theme .edit-user-btn {
+  background: #f1f5f9 !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #334155 !important;
+}
+
+.light-theme .reset-pass-btn,
+body.light-theme .reset-pass-btn {
+  background: #fef2f2 !important;
+  border: 1px solid #fecaca !important;
+  color: #ef4444 !important;
+}
+
+/* Nariad Report Detailed Light Theme */
+.light-theme .report-product-names,
+body.light-theme .report-product-names {
+  color: #475569 !important;
+}
+
+.light-theme .nariad-widget-card,
+body.light-theme .nariad-widget-card {
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.04) !important;
+}
+
+.light-theme .widget-card-title,
+body.light-theme .widget-card-title {
+  color: #64748b !important;
+}
+
+.light-theme .widget-card-row,
+body.light-theme .widget-card-row {
+  border-bottom-color: #e2e8f0 !important;
+  color: #0f172a !important;
+}
+
+.light-theme .widget-card-item,
+body.light-theme .widget-card-item {
+  border-bottom-color: #f1f5f9 !important;
+  color: #475569 !important;
+}
+
+.light-theme .widget-item-name,
+body.light-theme .widget-item-name {
+  color: #334155 !important;
+}
+
+.light-theme .nariad-analytics-box,
+body.light-theme .nariad-analytics-box {
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.04) !important;
+}
+
+.light-theme .analytics-stat-card,
+body.light-theme .analytics-stat-card {
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
+}
+
+.light-theme .analytics-label,
+body.light-theme .analytics-label {
+  color: #64748b !important;
+}
+
+.light-theme .analytics-sub,
+body.light-theme .analytics-sub {
+  color: #64748b !important;
+  border-color: #e2e8f0 !important;
+}
+
+.light-theme .analytics-row,
+body.light-theme .analytics-row {
+  color: #334155 !important;
+}
+
+.light-theme .nariad-log-box,
+body.light-theme .nariad-log-box {
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.04) !important;
+}
+
+.light-theme .log-heading,
+body.light-theme .log-heading {
+  color: #0f172a !important;
+}
+
+.light-theme .nariad-filter-bar,
+body.light-theme .nariad-filter-bar {
+  background: #f1f5f9 !important;
+  border: 1px solid #cbd5e1 !important;
+}
+

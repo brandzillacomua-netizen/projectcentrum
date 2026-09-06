@@ -1,1173 +1,49 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react'
+import React from 'react'
 import { Link } from 'react-router-dom'
-import {
-  ArrowLeft,
-  LayoutDashboard,
-  RefreshCw,
-  ChevronDown,
-  ChevronUp,
-  AlertTriangle,
-  CheckCircle2,
-  Clock,
-  Layers,
-  TrendingUp,
-  Package,
-  Search
-} from 'lucide-react'
-import { useMES } from '../MESContext'
-import { supabase } from '../supabase'
-import { useQualityLossTotals } from './VKYA/quality-hold/useQualityLossTotals.js'
-
-// ─────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────
-
-const renderVal = (val = 0, type = 'normal', demand = 0, onClick = null, title = '') => {
-  if (val === 0 && !demand) {
-    return <span style={{ color: 'var(--text-muted, #64748b)', fontWeight: 400 }}>0</span>
-  }
-  let color = 'var(--text, #1e293b)'
-  let bg = 'var(--chip-bg, rgba(0,0,0,0.03))'
-  let border = '1px solid var(--glass-border, rgba(0,0,0,0.08))'
-
-  if (type === 'sum') {
-    color = '#ff9000'; bg = 'rgba(255,144,0,0.08)'; border = '1px solid rgba(255,144,0,0.2)'
-  } else if (type === 'sgp' || type === 'bz') {
-    color = '#10b981'; bg = 'rgba(16,185,129,0.08)'; border = '1px solid rgba(16,185,129,0.2)'
-  } else if (type === 'scrap') {
-    color = '#ef4444'; bg = 'rgba(239,68,68,0.08)'; border = '1px solid rgba(239,68,68,0.2)'
-  }
-
-  const displayVal = type === 'sum' && demand > 0 ? `${val} / ${demand}` : val
-  const isClickable = typeof onClick === 'function' && val > 0
-
-  return (
-    <span
-      className={type === 'sum' ? 'wip-sum-badge' : ''}
-      onClick={isClickable ? (e) => { e.stopPropagation(); onClick(); } : undefined}
-      title={title || (isClickable ? `Клікніть, щоб відкрити ${val} шт карток на цьому етапі` : '')}
-      style={{
-        fontWeight: 'bold', color, background: bg, border, padding: '2px 6px',
-        borderRadius: '4px', display: 'inline-block', minWidth: '24px',
-        textAlign: 'center', whiteSpace: 'nowrap',
-        cursor: isClickable ? 'pointer' : 'default',
-        transition: 'all 0.15s ease-in-out',
-        ...(isClickable ? { boxShadow: '0 1px 4px rgba(0,0,0,0.2)' } : {})
-      }}
-      onMouseEnter={e => {
-        if (isClickable) {
-          e.currentTarget.style.transform = 'scale(1.16)'
-          e.currentTarget.style.boxShadow = '0 0 12px rgba(255, 144, 0, 0.7)'
-          e.currentTarget.style.zIndex = '10'
-        }
-      }}
-      onMouseLeave={e => {
-        if (isClickable) {
-          e.currentTarget.style.transform = 'scale(1)'
-          e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.2)'
-          e.currentTarget.style.zIndex = 'auto'
-        }
-      }}
-    >
-      {displayVal}
-    </span>
-  )
-}
-
-const getGroupTotals = (rows) => {
-  const r = { qCutWait: 0, qCut: 0, qCutBuf: 0, qGalt: 0, qGaltBuf: 0, qPriy: 0, qSortAct: 0, qSort: 0, qMalWait: 0, qMal: 0, qMalBuf: 0, qPresWait: 0, qPres: 0, qPresBuf: 0, qDoopWait: 0, qDoop: 0, qDoopBuf: 0, qSgp: 0, qBz: 0, qScrap: 0, sum: 0 }
-  rows.forEach(row => {
-    Object.keys(r).forEach(k => { r[k] += row[k] || 0 })
-  })
-  return r
-}
-
-const fetchWorkCardHistoryByCardIds = async (cardIds = []) => {
-  const rows = []
-  const chunkSize = 25
-  const pageSize = 1000
-
-  for (let i = 0; i < cardIds.length; i += chunkSize) {
-    const chunk = cardIds.slice(i, i + chunkSize)
-    for (let from = 0; ; from += pageSize) {
-      const to = from + pageSize - 1
-      const { data, error } = await supabase
-        .from('work_card_history')
-        .select('id, card_id, nomenclature_id, scrap_qty, created_at, completed_at')
-        .in('card_id', chunk)
-        .gt('scrap_qty', 0)
-        .order('created_at', { ascending: true })
-        .range(from, to)
-
-      if (error) throw error
-      rows.push(...(data || []))
-      if (!data || data.length < pageSize) break
-    }
-  }
-
-  return Array.from(new Map(rows.filter(Boolean).map(row => [String(row.id), row])).values())
-}
-
-const fetchWorkCardsByTaskIds = async (taskIds = [], columns = '*') => {
-  const rows = []
-  const chunkSize = 25
-  const pageSize = 1000
-
-  for (let i = 0; i < taskIds.length; i += chunkSize) {
-    const chunk = taskIds.slice(i, i + chunkSize)
-    for (let from = 0; ; from += pageSize) {
-      const to = from + pageSize - 1
-      const { data, error } = await supabase
-        .from('work_cards')
-        .select(columns)
-        .in('task_id', chunk)
-        .order('created_at', { ascending: true })
-        .range(from, to)
-
-      if (error) throw error
-      rows.push(...(data || []))
-      if (!data || data.length < pageSize) break
-    }
-  }
-
-  return Array.from(new Map(rows.filter(Boolean).map(row => [String(row.id), row])).values())
-}
-
-const normalizeStage = (value) => String(value || '').toLowerCase().replace(/\s+/g, '')
-
-const FLOW_STAGE = {
-  cut: ['\u0440\u043e\u0437\u043a\u0440\u0456\u0439'],
-  tumbling: ['\u0433\u0430\u043b\u0442\u043e\u0432\u043a\u0430'],
-  reception: ['\u043f\u0440\u0438\u0439\u043e\u043c', '\u043f\u0440\u0438\u0439\u043c'],
-  sorting: ['\u0441\u043e\u0440\u0442\u0443\u0432\u0430\u043d\u043d\u044f'],
-  painting: ['\u0444\u0430\u0440\u0431\u0443\u0432\u0430\u043d\u043d\u044f', '\u043c\u0430\u043b\u044f\u0440\u043a\u0430'],
-  pressing: ['\u043f\u0440\u0435\u0441\u0443\u0432\u0430\u043d\u043d\u044f'],
-  finishing: ['\u0434\u043e\u043e\u043f\u0440\u0430\u0446\u044e\u0432\u0430\u043d\u043d\u044f'],
-  sgp: ['\u0441\u0433\u043f', '\u043f\u0430\u043a\u0443\u0432\u0430\u043d\u043d\u044f'],
-  bz: ['\u0431\u0437', 'bz']
-}
-
-const flowStageMatches = (stageName, keys) => {
-  const stage = normalizeStage(stageName)
-  return keys.some(key => (FLOW_STAGE[key] || [key]).some(needle => stage.includes(needle)))
-}
-
-const sumFlowField = (rows, field, stageKeys = null) => {
-  return rows.reduce((sum, row) => {
-    if (stageKeys && !flowStageMatches(row.stage_name, stageKeys)) return sum
-    return sum + (Number(row[field]) || 0)
-  }, 0)
-}
-
-const getBestKnownProducedFromFlow = (rows) => {
-  const finalGood = sumFlowField(rows, 'total_good', ['sgp'])
-  if (finalGood > 0) return finalGood
-
-  const priority = ['finishing', 'pressing', 'painting', 'sorting', 'reception', 'tumbling', 'cut']
-  return Math.max(0, ...priority.map(key => sumFlowField(rows, 'total_good', [key])))
-}
-
-// ─────────────────────────────────────────────────────────────
-// WIP Table component (reusable for overview & per-order)
-// ─────────────────────────────────────────────────────────────
-const WipTable = ({ groupedData, maxHeight = 'calc(100vh - 320px)', emptyText = 'Немає даних', onCellClick = null }) => {
-  const [isFull, setIsFull] = React.useState(false)
-
-  const renderTable = (scrollMaxHeight) => (
-    <div style={{ borderRadius: '16px', border: '1px solid var(--glass-border, #27272a)', background: 'var(--bg, #09090b)', overflow: 'auto', maxHeight: scrollMaxHeight, width: '100%' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem', color: '#f4f4f5', minWidth: '800px' }}>
-        <thead>
-          <tr style={{ background: 'var(--card-bg, #18181b)', color: '#a1a1aa', textAlign: 'center', borderBottom: '2px solid #27272a' }}>
-            <th className="wip-col-nomenclature" style={TH_STICKY}>Номенклатура</th>
-            <th className="wip-col-sum" style={TH_SUM}>Сума</th>
-            <th style={TH}>Очік. Розкрій</th>
-            <th style={TH}>Розкрій</th>
-            <th style={TH}>Буфер Розкр.</th>
-            <th style={TH}>Галтовка</th>
-            <th style={TH}>Буфер Галт.</th>
-            <th style={TH}>Прийомка</th>
-            <th style={TH}>Сортування</th>
-            <th style={TH}>Буфер Цех2</th>
-            <th style={TH}>Очік. Малярка</th>
-            <th style={TH}>Малярка</th>
-            <th style={TH}>Буфер Мал.</th>
-            <th style={TH}>Очік. Прес.</th>
-            <th style={TH}>Пресування</th>
-            <th style={TH}>Буфер Прес.</th>
-            <th style={TH}>Очік. Доопр.</th>
-            <th style={TH}>Доопрац.</th>
-            <th style={TH}>Буфер Доопр.</th>
-            <th style={{ ...TH, color: '#10b981', background: '#12251e' }}>СГП</th>
-            <th style={{ ...TH, color: '#10b981', background: '#12251e' }}>БЗ</th>
-            <th style={{ ...TH, color: '#ef4444', background: '#221414', borderRight: 'none' }}>Брак</th>
-          </tr>
-        </thead>
-        <tbody>
-          {groupedData.length === 0 ? (
-            <tr>
-              <td colSpan={22} style={{ padding: '40px', textAlign: 'center', color: '#52525b', fontStyle: 'italic' }}>
-                {emptyText}
-              </td>
-            </tr>
-          ) : (
-            groupedData.map(group => {
-              const gt = getGroupTotals(group.rows)
-              return (
-                <React.Fragment key={group.id}>
-                  {/* Group header */}
-                  <tr style={{ background: 'var(--group-head-bg, #1c1917)', borderBottom: '2px solid var(--glass-border, #27272a)' }}>
-                    <td colSpan={22} style={{ padding: '12px 16px', fontWeight: 'bold', color: 'var(--text, #fff)', position: 'sticky', left: 0, background: 'var(--group-head-bg, #1c1917)', zIndex: 2 }}>
-                      <span style={{ color: '#ff9000', marginRight: '8px' }}>📦</span>
-                      {group.name}{group.code ? ` (${group.code})` : ''}
-                      {group.trend && (
-                        <span style={{ color: '#a1a1aa', fontSize: '0.75rem', fontWeight: 'normal', marginLeft: '12px' }}>
-                          Потенційний тренд: <strong style={{ color: '#fff' }}>{group.trend.potential}</strong> / {group.trend.demand || 0} компл.
-                          {' '}| На СГП: <strong style={{ color: '#10b981' }}>{group.trend.actual} компл.</strong>
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-
-                  {/* Rows */}
-                  {group.rows.map(row => (
-                    <tr key={row.id} style={{ background: 'var(--bg, #09090b)', borderBottom: '1px solid #1f1f22', transition: 'background 0.15s' }}>
-                      <td className="wip-col-nomenclature" style={{ ...TD_STICKY, paddingLeft: '28px' }}>
-                        {row.name}
-                        {row.code && <span style={{ display: 'block', fontSize: '0.68rem', color: '#52525b', marginTop: '1px' }}>Код: {row.code}</span>}
-                      </td>
-                      <td className="wip-col-sum" style={TD_SUM}>{renderVal(row.sum, 'sum', row.demand, onCellClick ? () => onCellClick(row, 'sum', 'Усі етапи (Сума)', group) : null)}</td>
-                      <td style={TD}>{renderVal(row.qCutWait, 'normal', 0, onCellClick ? () => onCellClick(row, 'qCutWait', 'Очік. Розкрій', group) : null)}</td>
-                      <td style={TD}>{renderVal(row.qCut, 'normal', 0, onCellClick ? () => onCellClick(row, 'qCut', 'Розкрій', group) : null)}</td>
-                      <td style={TD}>{renderVal(row.qCutBuf, 'normal', 0, onCellClick ? () => onCellClick(row, 'qCutBuf', 'Буфер Розкр.', group) : null)}</td>
-                      <td style={TD}>{renderVal(row.qGalt, 'normal', 0, onCellClick ? () => onCellClick(row, 'qGalt', 'Галтовка', group) : null)}</td>
-                      <td style={TD}>{renderVal(row.qGaltBuf, 'normal', 0, onCellClick ? () => onCellClick(row, 'qGaltBuf', 'Буфер Галт.', group) : null)}</td>
-                      <td style={TD}>{renderVal(row.qPriy, 'normal', 0, onCellClick ? () => onCellClick(row, 'qPriy', 'Прийомка', group) : null)}</td>
-                      <td style={TD}>{renderVal(row.qSortAct, 'normal', 0, onCellClick ? () => onCellClick(row, 'qSortAct', 'Сортування (в роботі)', group) : null)}</td>
-                      <td style={TD}>{renderVal(row.qSort, 'normal', 0, onCellClick ? () => onCellClick(row, 'qSort', 'Сортування / Буфер Цех2', group) : null)}</td>
-                      <td style={TD}>{renderVal(row.qMalWait, 'normal', 0, onCellClick ? () => onCellClick(row, 'qMalWait', 'Очік. Малярка', group) : null)}</td>
-                      <td style={TD}>{renderVal(row.qMal, 'normal', 0, onCellClick ? () => onCellClick(row, 'qMal', 'Малярка', group) : null)}</td>
-                      <td style={TD}>{renderVal(row.qMalBuf, 'normal', 0, onCellClick ? () => onCellClick(row, 'qMalBuf', 'Буфер Мал.', group) : null)}</td>
-                      <td style={TD}>{renderVal(row.qPresWait, 'normal', 0, onCellClick ? () => onCellClick(row, 'qPresWait', 'Очік. Прес.', group) : null)}</td>
-                      <td style={TD}>{renderVal(row.qPres, 'normal', 0, onCellClick ? () => onCellClick(row, 'qPres', 'Пресування', group) : null)}</td>
-                      <td style={TD}>{renderVal(row.qPresBuf, 'normal', 0, onCellClick ? () => onCellClick(row, 'qPresBuf', 'Буфер Прес.', group) : null)}</td>
-                      <td style={TD}>{renderVal(row.qDoopWait, 'normal', 0, onCellClick ? () => onCellClick(row, 'qDoopWait', 'Очік. Доопр.', group) : null)}</td>
-                      <td style={TD}>{renderVal(row.qDoop, 'normal', 0, onCellClick ? () => onCellClick(row, 'qDoop', 'Доопрацювання', group) : null)}</td>
-                      <td style={TD}>{renderVal(row.qDoopBuf, 'normal', 0, onCellClick ? () => onCellClick(row, 'qDoopBuf', 'Буфер Доопр.', group) : null)}</td>
-                      <td style={{ ...TD, background: 'rgba(16,185,129,0.03)' }}>{renderVal(row.qSgp, 'sgp', 0, onCellClick ? () => onCellClick(row, 'qSgp', 'СГП (Пакування)', group) : null)}</td>
-                      <td style={{ ...TD, background: 'rgba(16,185,129,0.03)' }}>{renderVal(row.qBz, 'bz', 0, onCellClick ? () => onCellClick(row, 'qBz', 'БЗ (Склад)', group) : null)}</td>
-                      <td style={{ ...TD, background: 'rgba(239,68,68,0.03)', borderRight: 'none' }}>{renderVal(row.qScrap, 'scrap', 0, onCellClick ? () => onCellClick(row, 'qScrap', 'Брак', group) : null)}</td>
-                    </tr>
-                  ))}
-
-                  {/* Subtotals */}
-                  <tr style={{ background: 'var(--subtotal-bg, #141416)', fontWeight: 'bold', borderTop: '1px solid var(--glass-border, #27272a)', borderBottom: '1px solid var(--glass-border, #27272a)', color: 'var(--text-muted, #a1a1aa)', fontSize: '0.76rem' }}>
-                    <td className="wip-col-nomenclature" style={{ ...TD_STICKY, fontStyle: 'italic', paddingLeft: '28px', color: '#52525b' }}>Підсумок по виробу:</td>
-                    <td className="wip-col-sum" style={{ ...TD_SUM, background: '#251a12' }}>{renderVal(gt.sum, 'sum')}</td>
-                    <td style={TD}>{renderVal(gt.qCutWait)}</td>
-                    <td style={TD}>{renderVal(gt.qCut)}</td>
-                    <td style={TD}>{renderVal(gt.qCutBuf)}</td>
-                    <td style={TD}>{renderVal(gt.qGalt)}</td>
-                    <td style={TD}>{renderVal(gt.qGaltBuf)}</td>
-                    <td style={TD}>{renderVal(gt.qPriy)}</td>
-                    <td style={TD}>{renderVal(gt.qSortAct)}</td>
-                    <td style={TD}>{renderVal(gt.qSort)}</td>
-                    <td style={TD}>{renderVal(gt.qMalWait)}</td>
-                    <td style={TD}>{renderVal(gt.qMal)}</td>
-                    <td style={TD}>{renderVal(gt.qMalBuf)}</td>
-                    <td style={TD}>{renderVal(gt.qPresWait)}</td>
-                    <td style={TD}>{renderVal(gt.qPres)}</td>
-                    <td style={TD}>{renderVal(gt.qPresBuf)}</td>
-                    <td style={TD}>{renderVal(gt.qDoopWait)}</td>
-                    <td style={TD}>{renderVal(gt.qDoop)}</td>
-                    <td style={TD}>{renderVal(gt.qDoopBuf)}</td>
-                    <td style={{ ...TD, background: 'rgba(16,185,129,0.08)' }}>{renderVal(gt.qSgp, 'sgp')}</td>
-                    <td style={{ ...TD, background: 'rgba(16,185,129,0.08)' }}>{renderVal(gt.qBz, 'bz')}</td>
-                    <td style={{ ...TD, background: 'rgba(239,68,68,0.08)', borderRight: 'none' }}>{renderVal(gt.qScrap, 'scrap')}</td>
-                  </tr>
-                </React.Fragment>
-              )
-            })
-          )}
-
-          {/* Grand total */}
-          {groupedData.length > 1 && (() => {
-            const allRows = groupedData.flatMap(g => g.rows)
-            const gt = getGroupTotals(allRows)
-            return (
-              <tr style={{ background: 'var(--card-bg, #18181b)', fontWeight: 'bold', borderTop: '2px solid #ff9000', color: '#fff', fontSize: '0.8rem' }}>
-                <td className="wip-col-nomenclature" style={{ ...TD_STICKY, textTransform: 'uppercase', letterSpacing: '0.5px', fontSize: '0.72rem' }}>ЗАГАЛЬНИЙ WIP РАЗОМ:</td>
-                <td className="wip-col-sum" style={{ ...TD_SUM, background: '#2e2014', color: '#ff9000' }}>{renderVal(gt.sum, 'sum')}</td>
-                <td style={TD}>{renderVal(gt.qCutWait)}</td>
-                <td style={TD}>{renderVal(gt.qCut)}</td>
-                <td style={TD}>{renderVal(gt.qCutBuf)}</td>
-                <td style={TD}>{renderVal(gt.qGalt)}</td>
-                <td style={TD}>{renderVal(gt.qGaltBuf)}</td>
-                <td style={TD}>{renderVal(gt.qPriy)}</td>
-                <td style={TD}>{renderVal(gt.qSortAct)}</td>
-                <td style={TD}>{renderVal(gt.qSort)}</td>
-                <td style={TD}>{renderVal(gt.qMalWait)}</td>
-                <td style={TD}>{renderVal(gt.qMal)}</td>
-                <td style={TD}>{renderVal(gt.qMalBuf)}</td>
-                <td style={TD}>{renderVal(gt.qPresWait)}</td>
-                <td style={TD}>{renderVal(gt.qPres)}</td>
-                <td style={TD}>{renderVal(gt.qPresBuf)}</td>
-                <td style={TD}>{renderVal(gt.qDoopWait)}</td>
-                <td style={TD}>{renderVal(gt.qDoop)}</td>
-                <td style={TD}>{renderVal(gt.qDoopBuf)}</td>
-                <td style={{ ...TD, background: 'rgba(16,185,129,0.12)' }}>{renderVal(gt.qSgp, 'sgp')}</td>
-                <td style={{ ...TD, background: 'rgba(16,185,129,0.12)' }}>{renderVal(gt.qBz, 'bz')}</td>
-                <td style={{ ...TD, background: 'rgba(239,68,68,0.12)', borderRight: 'none' }}>{renderVal(gt.qScrap, 'scrap')}</td>
-              </tr>
-            )
-          })()}
-        </tbody>
-      </table>
-    </div>
-  )
-
-  return (
-    <div style={{ position: 'relative' }}>
-      {/* Mobile-only toggle full screen button */}
-      <div className="mobile-fullscreen-btn-container" style={{ display: 'none', marginBottom: '8px', justifyContent: 'flex-end' }}>
-        <button
-          onClick={() => setIsFull(true)}
-          style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
-        >
-          <span>🖥️</span> На весь екран
-        </button>
-      </div>
-
-      {renderTable(maxHeight)}
-
-      {/* Full screen modal */}
-      {isFull && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'var(--bg, #09090b)', zIndex: 99999, padding: '16px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-            <span style={{ fontSize: '0.85rem', fontWeight: 900, textTransform: 'uppercase', color: '#ff9000' }}>WIP Таблиця (Повноекранний аналіз)</span>
-            <button
-              onClick={() => setIsFull(false)}
-              style={{ background: '#27272a', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '8px', fontSize: '0.8rem', fontWeight: 800, cursor: 'pointer' }}
-            >
-              Закрити ✕
-            </button>
-          </div>
-          <div style={{ flex: 1, overflow: 'auto' }}>
-            {renderTable('100%')}
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// Table cell style constants
-const TH = { padding: '11px 10px', fontWeight: 600, borderRight: '1px solid #27272a', position: 'sticky', top: 0, background: 'var(--card-bg, #18181b)', zIndex: 10, whiteSpace: 'nowrap', fontSize: '0.72rem' }
-const TH_STICKY = { ...TH, textAlign: 'left', color: '#f4f4f5', position: 'sticky', top: 0, left: 0, zIndex: 40, minWidth: '200px', maxWidth: '200px', width: '200px' }
-const TH_SUM = { ...TH, background: 'var(--sum-head-bg, #251b14)', color: '#ea580c', position: 'sticky', top: 0, left: '200px', zIndex: 40, minWidth: '110px', maxWidth: '110px', width: '110px' }
-const TD = { padding: '10px 10px', textAlign: 'center', borderRight: '1px solid #1f1f22' }
-const TD_STICKY = { ...TD, textAlign: 'left', fontWeight: 'bold', color: '#f4f4f5', borderRight: '1px solid #27272a', position: 'sticky', left: 0, background: 'var(--bg, #09090b)', zIndex: 2, minWidth: '200px', maxWidth: '200px', width: '200px' }
-const TD_SUM = { ...TD, background: 'var(--sum-cell-bg, #1c130d)', borderRight: '1px solid var(--glass-border, #27272a)', fontWeight: 'bold', position: 'sticky', left: '200px', zIndex: 2, minWidth: '110px', maxWidth: '110px', width: '110px' }
-
-// ─────────────────────────────────────────────────────────────
-// Main Module
-// ─────────────────────────────────────────────────────────────
+import { ArrowLeft, LayoutDashboard, RefreshCw, Search } from 'lucide-react'
+import { useForemanDashboardData } from './ForemanDashboard/hooks/useForemanDashboardData.jsx'
+import WipTable from './ForemanDashboard/components/WipTable'
+import OrderDetailView from './ForemanDashboard/components/OrderDetailView'
+import CellCardsModal from './ForemanDashboard/components/modals/CellCardsModal'
+import InspectCardModal from './ForemanDashboard/components/modals/InspectCardModal'
 
 const ForemanDashboardModule = () => {
   const {
-    currentUser, workCards, inventory, nomenclatures, fetchData,
-    orders, bomItems, tasks, workCardHistory, workCardScrapTotals = [], workCardFlowTotals = [], fetchModuleData
-  } = useMES()
-
-  const [selectedTaskId, setSelectedTaskId] = useState(null)
-  const [isRefreshing, setIsRefreshing] = useState(false)
-  const [searchQuery, setSearchQuery] = useState('')
-  const [expandedBottlenecks, setExpandedBottlenecks] = useState({})
-  const [selectedCellModal, setSelectedCellModal] = useState(null)
-  const [inspectCardModal, setInspectCardModal] = useState(null)
-
-  const handleCellClick = (row, stageKey, stageName, group) => {
-    const nomId = String(row.nomId || row.id.split('_')[0] || '')
-    const rowParentId = String(row.parentId || '')
-    // Filter to only cards that belong to this specific product group
-    // (taskParentMap[c.task_id] === rowParentId), or cards whose task has no
-    // parent mapping but is in the active filter set (e.g. at-shop2-buffer cards).
-    const nomCards = (dashboardCards || []).filter(c => {
-      if (String(c.nomenclature_id) !== nomId) return false
-      if (!c.task_id) return false
-      const tp = globalTaskParentMap[c.task_id]
-      // If taskParentMap has a mapping for this card's task, enforce it matches this parent
-      if (tp && tp !== rowParentId) return false
-      return true
-    })
-
-    const matchOpsAndStatus = (ops, statuses) => {
-      const opArr = Array.isArray(ops) ? ops : [ops]
-      const stArr = Array.isArray(statuses) ? statuses : [statuses]
-      return nomCards.filter(c => {
-        const isMatchOp = opArr.some(op => op === 'Галтовка' ? (c.operation === 'Галтовка' || c.operation?.startsWith('Галтовка')) : c.operation === op)
-        return isMatchOp && stArr.includes(c.status)
-      })
-    }
-
-    let matchingCards = []
-    if (stageKey === 'qCutWait') matchingCards = matchOpsAndStatus(['Розкрій'], ['new', 'waiting-materials', 'waiting-machines'])
-    else if (stageKey === 'qCut') matchingCards = matchOpsAndStatus(['Розкрій'], ['in-progress', 'paused', 'hold'])
-    else if (stageKey === 'qCutBuf') matchingCards = matchOpsAndStatus(['Розкрій'], ['at-buffer'])
-    else if (stageKey === 'qGalt') matchingCards = matchOpsAndStatus(['Галтовка'], ['in-progress'])
-    else if (stageKey === 'qGaltBuf') matchingCards = matchOpsAndStatus(['Галтовка'], ['at-buffer'])
-    else if (stageKey === 'qPriy') matchingCards = matchOpsAndStatus(['Прийомка'], ['new', 'in-progress', 'at-buffer'])
-    else if (stageKey === 'qSortAct') matchingCards = matchOpsAndStatus(['Сортування'], ['new', 'in-progress', 'at-buffer'])
-    else if (stageKey === 'qSort') matchingCards = nomCards.filter(c => c.status === 'at-shop2-buffer')
-    else if (stageKey === 'qMalWait') matchingCards = matchOpsAndStatus(['Фарбування', 'Малярка'], ['new'])
-    else if (stageKey === 'qMal') matchingCards = matchOpsAndStatus(['Фарбування', 'Малярка'], ['in-progress'])
-    else if (stageKey === 'qMalBuf') matchingCards = matchOpsAndStatus(['Фарбування', 'Малярка'], ['at-buffer'])
-    else if (stageKey === 'qPresWait') matchingCards = matchOpsAndStatus(['Пресування'], ['new'])
-    else if (stageKey === 'qPres') matchingCards = matchOpsAndStatus(['Пресування'], ['in-progress'])
-    else if (stageKey === 'qPresBuf') matchingCards = matchOpsAndStatus(['Пресування'], ['at-buffer'])
-    else if (stageKey === 'qDoopWait') matchingCards = matchOpsAndStatus(['Доопрацювання'], ['new'])
-    else if (stageKey === 'qDoop') matchingCards = matchOpsAndStatus(['Доопрацювання'], ['in-progress'])
-    else if (stageKey === 'qDoopBuf') matchingCards = matchOpsAndStatus(['Доопрацювання'], ['at-buffer'])
-    else if (stageKey === 'qSgp') matchingCards = nomCards.filter(c => ['пакування', 'сгп'].some(o => (c.operation || '').toLowerCase().includes(o)) && c.status === 'completed')
-    else if (stageKey === 'qBz') matchingCards = nomCards.filter(c => c.operation === 'Склад БЗ')
-    else if (stageKey === 'qScrap') matchingCards = nomCards.filter(c => Number(c.scrap_qty || 0) > 0)
-    else matchingCards = nomCards
-
-    setSelectedCellModal({
-      row,
-      group,
-      stageKey,
-      stageName,
-      cards: matchingCards,
-      val: row[stageKey] || 0
-    })
-  }
-
-  // Extra state for per-order drill-down
-  const [orderAllCards, setOrderAllCards] = useState({}) // taskId -> cards[]
-  const [loadingCards, setLoadingCards] = useState({})
-  const qualityLossTaskIds = useMemo(() => tasks.map(task => task.id).filter(Boolean), [tasks])
-  const qualityLoss = useQualityLossTotals(supabase, qualityLossTaskIds)
-
-  // ── Load data on mount ──
-  useEffect(() => {
-    fetchModuleData('foreman')
-    if (typeof fetchData === 'function') {
-      // Don't fetch work_cards/work_card_history globally — they are loaded
-      // per-task via loadAllTasksCards to avoid pulling the entire table
-      fetchData(['orders', 'tasks', 'inventory', 'nomenclatures', 'bom_items', 'work_card_scrap_totals', 'work_card_flow_totals'])
-    }
-  }, [])
-
-  // ── relevantTasks — same filter as ForemanWorkplace ──
-  const relevantTasks = useMemo(() => {
-    return tasks.filter(t => {
-      const stepName = (t.step || '').toLowerCase()
-      const isLaser = stepName.includes('розкрій') || stepName.includes('різка')
-
-      const hasActiveShop2Task = tasks.some(s2 =>
-        String(s2.order_id) === String(t.order_id) &&
-        s2.batch_index === t.batch_index &&
-        (s2.step?.includes('Пресування') || s2.step?.includes('ЦЕХ №2') || s2.step?.includes('Доопрацювання')) &&
-        s2.status !== 'completed'
-      )
-
-      if (t.status !== 'completed' || hasActiveShop2Task) {
-        return (t.warehouse_conf === 'true' || t.warehouse_conf === 'partial') && t.engineer_conf && t.director_conf && isLaser
-      }
-      // Show recently completed (last 3 days)
-      const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000)
-      const isRecent = (t.completed_at && new Date(t.completed_at) > threeDaysAgo) ||
-        (t.updated_at && new Date(t.updated_at) > threeDaysAgo)
-      return isRecent && (isLaser || !t.step)
-    }).sort((a, b) => {
-      if (a.status === 'completed' && b.status !== 'completed') return 1
-      if (a.status !== 'completed' && b.status === 'completed') return -1
-      return new Date(b.created_at) - new Date(a.created_at)
-    })
-  }, [tasks])
-
-  // ── Active (non-completed) tasks ──
-  const activeTasks = useMemo(() => {
-    return relevantTasks.filter(t => {
-      if (t.status !== 'completed') return true
-      const hasActiveShop2Task = tasks.some(s2 =>
-        String(s2.order_id) === String(t.order_id) &&
-        s2.batch_index === t.batch_index &&
-        (s2.step?.includes('Пресування') || s2.step?.includes('ЦЕХ №2') || s2.step?.includes('Доопрацювання')) &&
-        s2.status !== 'completed'
-      )
-      return hasActiveShop2Task
-    })
-  }, [relevantTasks, tasks])
-
-  // ── Orders map ──
-  const ordersMap = useMemo(() => {
-    const m = {}
-    orders.forEach(o => { m[o.id] = o })
-    return m
-  }, [orders])
-
-  // ── Global taskParentMap — task_id → parent nomenclature_id (string) ──
-  // Used by handleCellClick to scope popup cards to the correct product group.
-  const globalTaskParentMap = useMemo(() => {
-    const m = {}
-    tasks.forEach(task => {
-      const o = ordersMap[task.order_id]
-      if (!o) return
-      const pId = o.nomenclature_id || o.order_items?.[0]?.nomenclature_id
-      if (pId) m[task.id] = String(pId)
-    })
-    return m
-  }, [tasks, ordersMap])
-
-  // Extra state for per-order drill-down and overall WIP
-  const [allTasksCards, setAllTasksCards] = useState([])
-  const [allCardsHistory, setAllCardsHistory] = useState([])
-  const [loadingAllData, setLoadingAllData] = useState(false)
-  const dashboardCards = useMemo(() => {
-    return Array.from(new Map([...(workCards || []), ...(allTasksCards || [])].filter(Boolean).map(card => [String(card.id), card])).values())
-  }, [workCards, allTasksCards])
-  const flowTotalsRows = useMemo(() => {
-    return (workCardFlowTotals || []).filter(Boolean)
-  }, [workCardFlowTotals])
-  const flowTotalsByTaskNom = useMemo(() => {
-    const cache = {}
-    flowTotalsRows.forEach(row => {
-      const tid = row.task_id
-      const nid = row.nomenclature_id ? String(row.nomenclature_id) : null
-      if (!tid || !nid) return
-      if (!cache[tid]) cache[tid] = {}
-      if (!cache[tid][nid]) cache[tid][nid] = []
-      cache[tid][nid].push(row)
-    })
-    return cache
-  }, [flowTotalsRows])
-  const scrapTotalsHistoryRows = useMemo(() => {
-    return (workCardScrapTotals || [])
-      .filter(row => (Number(row.total_scrap) || 0) > 0)
-      .map(row => ({
-        id: `scrap-total-${row.id || `${row.card_id}-${row.nomenclature_id}`}`,
-        card_id: row.card_id,
-        task_id: row.task_id,
-        order_id: row.order_id,
-        nomenclature_id: row.nomenclature_id,
-        scrap_qty: Number(row.total_scrap) || 0,
-        created_at: row.last_scrap_at || row.updated_at,
-        completed_at: row.last_scrap_at || row.updated_at,
-        is_scrap_total: true
-      }))
-  }, [workCardScrapTotals])
-  const flowScrapHistoryRows = useMemo(() => {
-    return flowTotalsRows
-      .filter(row => (Number(row.total_scrap) || 0) > 0)
-      .map(row => ({
-        id: `flow-scrap-total-${row.id || `${row.card_id}-${row.nomenclature_id}-${row.stage_name}`}`,
-        card_id: row.card_id,
-        task_id: row.task_id,
-        order_id: row.order_id,
-        nomenclature_id: row.nomenclature_id,
-        scrap_qty: Number(row.total_scrap) || 0,
-        created_at: row.last_event_at || row.updated_at,
-        completed_at: row.last_event_at || row.updated_at,
-        is_scrap_total: true
-      }))
-  }, [flowTotalsRows])
-  const totalsHistoryRows = useMemo(() => {
-    return scrapTotalsHistoryRows.length > 0 ? scrapTotalsHistoryRows : flowScrapHistoryRows
-  }, [scrapTotalsHistoryRows, flowScrapHistoryRows])
-  const dashboardHistory = useMemo(() => {
-    const sourceRows = totalsHistoryRows.length > 0
-      ? totalsHistoryRows
-      : [...(workCardHistory || []), ...(allCardsHistory || [])]
-    return Array.from(new Map(sourceRows.filter(Boolean).map(row => [String(row.id || `${row.card_id}-${row.created_at || row.completed_at || Math.random()}`), row])).values())
-  }, [workCardHistory, allCardsHistory, totalsHistoryRows])
-
-  const loadAllTasksCards = async (taskList) => {
-    if (!taskList || taskList.length === 0) {
-      setAllTasksCards([])
-      setAllCardsHistory([])
-      return
-    }
-    try {
-      const orderIds = Array.from(new Set(taskList.map(t => t.order_id).filter(Boolean)))
-      const allTaskIdsForOrders = tasks
-        .filter(t => orderIds.includes(t.order_id))
-        .map(t => t.id)
-
-      const taskIds = allTaskIdsForOrders.length > 0 ? allTaskIdsForOrders : taskList.map(t => t.id)
-
-      const cards = await fetchWorkCardsByTaskIds(taskIds, 'id, task_id, nomenclature_id, status, quantity, operation, used_in_shop2_qty, card_info, created_at')
-
-      if (cards) {
-        setAllTasksCards(cards)
-        const cardIds = cards.map(c => c.id)
-        if (totalsHistoryRows.length > 0) {
-          setAllCardsHistory(totalsHistoryRows)
-        } else if (cardIds.length > 0) {
-          const history = await fetchWorkCardHistoryByCardIds(cardIds)
-          setAllCardsHistory(history)
-        } else {
-          setAllCardsHistory([])
-        }
-      }
-    } catch (e) {
-      console.error(e)
-    }
-  }
-
-  // ── Load all cards and history for all relevant tasks ──
-  useEffect(() => {
-    setLoadingAllData(true)
-    loadAllTasksCards(relevantTasks).finally(() => setLoadingAllData(false))
-  }, [relevantTasks, totalsHistoryRows.length])
-
-  // ── Load all cards for a specific task (for drill-down) ──
-  useEffect(() => {
-    if (!selectedTaskId) return
-    if (orderAllCards[selectedTaskId]) return // already loaded
-    setLoadingCards(prev => ({ ...prev, [selectedTaskId]: true }))
-    fetchWorkCardsByTaskIds([selectedTaskId], '*')
-      .then(data => {
-        setOrderAllCards(prev => ({ ...prev, [selectedTaskId]: data || [] }))
-        setLoadingCards(prev => ({ ...prev, [selectedTaskId]: false }))
-      })
-      .catch(error => {
-        console.error(error)
-        setLoadingCards(prev => ({ ...prev, [selectedTaskId]: false }))
-      })
-  }, [selectedTaskId])
-
-  // ── Index cards by task_id for O(1) lookups (instead of O(n) filter everywhere) ──
-  const cardsByTaskId = useMemo(() => {
-    const map = {}
-    dashboardCards.forEach(c => {
-      if (!map[c.task_id]) map[c.task_id] = []
-      map[c.task_id].push(c)
-    })
-    return map
-  }, [dashboardCards])
-
-  const taskScopeIdsMap = useMemo(() => {
-    const map = {}
-    relevantTasks.forEach(task => {
-      const scopedIds = tasks
-        .filter(t => String(t.order_id) === String(task.order_id))
-        .map(t => t.id)
-        .filter(Boolean)
-      map[task.id] = scopedIds.length > 0 ? scopedIds : [task.id]
-    })
-    return map
-  }, [relevantTasks, tasks])
-
-  // ── Production cache: task_id -> nom_id -> produced qty ──
-  const productionCache = useMemo(() => {
-    const cache = {}
-
-    relevantTasks.forEach(task => {
-      cache[task.id] = {}
-      const scopeIds = taskScopeIdsMap[task.id] || [task.id]
-      const taskCards = scopeIds.flatMap(taskId => cardsByTaskId[taskId] || [])
-      const snapshot = task.plan_snapshot || {}
-
-      Object.keys(snapshot).forEach(nid => {
-        const nomCards = taskCards.filter(c => String(c.nomenclature_id) === nid)
-        const flowRows = scopeIds.flatMap(taskId => flowTotalsByTaskNom[taskId]?.[nid] || [])
-
-        const getQ = (ops, statuses) => {
-          return nomCards.filter(c => {
-            const isMatchOp = ops.some(op => {
-              if (op === 'Галтовка') return c.operation === 'Галтовка' || c.operation?.startsWith('Галтовка')
-              if (op === 'Сортування') return c.operation === 'Сортування' || c.operation?.startsWith('Сортування') || c.operation?.includes('Сортування')
-              return c.operation === op
-            })
-            return isMatchOp && statuses.includes(c.status)
-          }).reduce((s, c) => s + (Number(c.quantity) || 0), 0)
-        }
-
-        const qCutWait = getQ(['Розкрій'], ['new', 'waiting-materials', 'waiting-machines'])
-        const qCut = getQ(['Розкрій'], ['in-progress', 'paused', 'hold'])
-        const qCutBuf = getQ(['Розкрій'], ['at-buffer'])
-        const qGalt = getQ(['Галтовка'], ['in-progress'])
-        const qGaltBuf = getQ(['Галтовка'], ['at-buffer'])
-        const qPriy = getQ(['Прийомка'], ['new', 'in-progress', 'at-buffer'])
-        const qSortAct = getQ(['Сортування'], ['new', 'in-progress', 'at-buffer'])
-        const qSort = nomCards.filter(c => c.status === 'at-shop2-buffer')
-          .reduce((s, c) => s + Math.max(0, (Number(c.quantity) || 0) - (Number(c.used_in_shop2_qty) || 0)), 0)
-
-        const groupProduced = nomCards.filter(c => {
-          const op = (c.operation || '').toLowerCase()
-          const isShop1 = ['розкрій', 'галтовка', 'прийомка', 'сортування'].some(o => op.includes(o))
-          return isShop1 && (c.status === 'completed' || c.status === 'at-shop2-buffer')
-        }).reduce((s, c) => s + (Number(c.quantity) || 0), 0)
-
-        const totalShop2Qty = nomCards.filter(c => {
-          const op = (c.operation || '').toLowerCase()
-          return ['пресування', 'фарбування', 'малярка', 'доопрацювання', 'пакування', 'сгп'].some(o => op.includes(o))
-        }).reduce((s, c) => s + (Number(c.quantity) || 0), 0)
-
-        const bzCardsQty = nomCards.filter(c => c.operation === 'Склад БЗ').reduce((s, c) => s + (Number(c.quantity) || 0), 0)
-
-        const flowBzQty = sumFlowField(flowRows, 'total_bz')
-        const qBz = flowRows.length > 0
-          ? flowBzQty
-          : Math.max(0, groupProduced - qSort - totalShop2Qty) + bzCardsQty
-
-        const sum = qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriy + qSortAct + qSort + qBz
-
-        const snap = snapshot[nid] || {}
-        const need = Number(snap.need) || 0
-        const initialStock = Number(snap.stock) || 0
-        const plannedReserve = Math.max(0, ((Number(snap.sheets) || 0) * (Number(snap.units_per_sheet) || 1)) + (Number(snap.stock) || 0) - need)
-        const flowProducedRaw = getBestKnownProducedFromFlow(flowRows)
-        const flowScrapQty = sumFlowField(flowRows, 'total_scrap')
-        const flowProducedNet = Math.max(0, flowProducedRaw - flowScrapQty + plannedReserve)
-        const earlyWipQty = qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriy + qSortAct
-        const nonReissueEarlyWip = Math.max(0, flowScrapQty - plannedReserve) > 0 ? 0 : earlyWipQty
-        const sgpProducedFromCards = Math.max(0, groupProduced - qSort)
-        const sgpForProgress = need > 0
-          ? Math.min(need, sgpProducedFromCards, Math.max(0, need - nonReissueEarlyWip))
-          : sgpProducedFromCards
-        cache[task.id][nid] = groupProduced > 0 ? sgpForProgress : (flowProducedRaw > 0 ? Math.min(need || flowProducedNet, flowProducedNet) : sum)
-      })
-    })
-    return cache
-  }, [cardsByTaskId, relevantTasks, flowTotalsByTaskNom, taskScopeIdsMap])
-
-  // ── Scrap cache ──
-  const scrapCache = useMemo(() => {
-    const cache = {}
-    if (qualityLoss.isAvailable) {
-      qualityLoss.rows.forEach(row => {
-        const tid = row.task_id
-        const nid = row.nomenclature_id ? String(row.nomenclature_id) : null
-        if (!tid || !nid) return
-        if (!cache[tid]) cache[tid] = {}
-        cache[tid][nid] = (cache[tid][nid] || 0) + (Number(row.total_scrap) || 0)
-      })
-      return cache
-    }
-    const cardMap = {}
-    dashboardCards.forEach(c => { cardMap[c.id] = c })
-
-    dashboardHistory.forEach(h => {
-      if (!h.card_id && (!h.task_id || !h.nomenclature_id)) return
-      const card = cardMap[h.card_id]
-      const tid = h.task_id || card?.task_id
-      const nid = h.nomenclature_id ? String(h.nomenclature_id) : (card?.nomenclature_id ? String(card.nomenclature_id) : null)
-      if (!tid || !nid) return
-      if (!cache[tid]) cache[tid] = {}
-      cache[tid][nid] = (cache[tid][nid] || 0) + (Number(h.scrap_qty) || 0)
-    })
-    return cache
-  }, [dashboardHistory, dashboardCards, qualityLoss.rows, qualityLoss.isAvailable])
-
-  const scopedScrapCache = useMemo(() => {
-    const cache = {}
-    const cardMap = {}
-    dashboardCards.forEach(c => { cardMap[c.id] = c })
-    const lossRows = qualityLoss.isAvailable ? qualityLoss.rows : dashboardHistory
-
-    relevantTasks.forEach(task => {
-      const scopeSet = new Set(taskScopeIdsMap[task.id] || [task.id])
-      cache[task.id] = {}
-
-      lossRows.forEach(h => {
-        if (!h.card_id && (!h.task_id || !h.nomenclature_id)) return
-        const card = cardMap[h.card_id]
-        const tid = h.task_id || card?.task_id
-        const nid = h.nomenclature_id ? String(h.nomenclature_id) : (card?.nomenclature_id ? String(card.nomenclature_id) : null)
-        if (!tid || !nid || !scopeSet.has(tid)) return
-        const loss = qualityLoss.isAvailable ? Number(h.total_scrap) || 0 : Number(h.scrap_qty) || 0
-        cache[task.id][nid] = (cache[task.id][nid] || 0) + loss
-      })
-    })
-
-    return cache
-  }, [dashboardHistory, dashboardCards, relevantTasks, taskScopeIdsMap, qualityLoss.rows, qualityLoss.isAvailable])
-
-  // ── Task status map ──
-  const taskStatusMap = useMemo(() => {
-    const map = {}
-    relevantTasks.forEach(task => {
-      const shop2Tasks = tasks.filter(s2 =>
-        String(s2.order_id) === String(task.order_id) &&
-        s2.batch_index === task.batch_index &&
-        (s2.step?.includes('Пресування') || s2.step?.includes('ЦЕХ №2') || s2.step?.includes('Доопрацювання'))
-      )
-      // Shop 2 is considered "active" only if it has non-completed cards
-      // If all cards are done (or no cards but task not yet closed), check actual card state
-      const hasActiveShop2Task = shop2Tasks.some(s2 => {
-        if (s2.status === 'completed') return false
-        const s2Cards = (cardsByTaskId[s2.id] || []).filter(c => c.operation !== 'Склад БЗ')
-        // If no cards in Shop 2 task yet → it's still waiting/active
-        if (s2Cards.length === 0) return s2.status === 'waiting' || s2.status === 'in-progress'
-        // If all Shop 2 cards are completed → treat as done
-        return s2Cards.some(c => c.status !== 'completed')
-      })
-
-      const snapshot = task.plan_snapshot || {}
-      const taskProd = productionCache[task.id] || {}
-      const taskScrap = scopedScrapCache[task.id] || {}
-      const scopeIds = taskScopeIdsMap[task.id] || [task.id]
-      const taskCards = scopeIds
-        .flatMap(taskId => cardsByTaskId[taskId] || [])
-        .filter(c => c.operation !== 'Склад БЗ')
-      const hasAggregateData = Object.values(taskProd).some(qty => (Number(qty) || 0) > 0) ||
-        Object.values(taskScrap).some(qty => (Number(qty) || 0) > 0)
-
-      if (task.status === 'completed' && !hasActiveShop2Task) { map[task.id] = 'completed'; return }
-      if (taskCards.length === 0 && !hasAggregateData && task.status !== 'completed') { map[task.id] = 'new'; return }
-
-      let allDone = true
-      let hasShortage = false
-
-      Object.keys(snapshot).forEach(nomIdStr => {
-        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-        if (!uuidRegex.test(nomIdStr)) return
-        const snap = snapshot[nomIdStr]
-        if (!snap || snap.need === 0) return
-        const produced = taskProd[nomIdStr] || 0
-        if (produced < snap.need) allDone = false
-
-        // Shortage check — only flag if actual production is still below need
-        // If produced >= need, never show shortage regardless of scrap math
-        const need = snap.need || 0
-        const stock = snap.stock || 0
-        const sheets = snap.sheets || 0
-        const units = snap.units_per_sheet || 1
-        const scrap = taskScrap[nomIdStr] || 0
-        const totalBZ = (sheets * units) + stock - need
-        if (produced < need && (totalBZ - scrap) < 0) hasShortage = true
-      })
-
-      // Cards still actively being processed in Shop 1 pipeline (not yet sorted/transferred)
-      const hasActivePipelineCards = taskCards.some(c =>
-        c.operation !== 'Склад БЗ' &&
-        c.status !== 'completed' &&
-        c.status !== 'at-shop2-buffer'
-      )
-      // Cards in Shop 2 buffer — only relevant if we haven't yet produced enough
-      const hasBufferCards = taskCards.some(c => c.status === 'at-shop2-buffer')
-
-      // Ready: all produced AND no cards still in Shop 1 pipeline
-      // at-shop2-buffer cards are OK to ignore when allDone=true because their output is already in SGP
-      const hasActiveCards = hasActivePipelineCards || (hasBufferCards && !allDone)
-
-      // Ready: all produced AND no cards in pipeline AND no active Shop 2 work
-      // hasActiveShop2Task is smart: true only when Shop2 has non-completed cards OR has no cards but is still in-progress/waiting
-      if (allDone && !hasActiveCards && !hasActiveShop2Task) map[task.id] = 'ready'
-      else if (hasShortage) map[task.id] = 'shortage'
-      else if (hasActiveShop2Task || hasActiveCards) map[task.id] = 'in_progress'
-      else map[task.id] = 'in_progress'
-    })
-    return map
-  }, [relevantTasks, cardsByTaskId, productionCache, scopedScrapCache, taskScopeIdsMap, tasks])
-
-  // ── Per-task progress (actual / demand sets) ──
-  const taskProgressMap = useMemo(() => {
-    const map = {}
-    relevantTasks.forEach(task => {
-      const order = ordersMap[task.order_id]
-      const planned = Number(task.planned_sets) || Number(order?.quantity) || 0
-      const taskProd = productionCache[task.id] || {}
-      const snapshot = task.plan_snapshot || {}
-
-      // Min sets approach: find bottleneck part
-      let minSets = Infinity
-      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-      const snapKeys = Object.keys(snapshot).filter(k => uuidRegex.test(k))
-
-      if (snapKeys.length > 0) {
-        snapKeys.forEach(nomIdStr => {
-          const snap = snapshot[nomIdStr]
-          if (!snap || !snap.need) return
-          const nom = nomenclatures.find(n => String(n.id) === nomIdStr)
-          if (nom?.type !== 'part') return
-          const qtyPer = planned > 0 ? Math.round(snap.need / planned) : 1
-          if (qtyPer <= 0) return
-          const produced = taskProd[nomIdStr] || 0
-          const sets = Math.floor(produced / qtyPer)
-          if (sets < minSets) minSets = sets
-        })
-      }
-
-      map[task.id] = {
-        actual: minSets === Infinity ? 0 : Math.min(planned, minSets),
-        demand: planned
-      }
-    })
-    return map
-  }, [relevantTasks, productionCache, nomenclatures, ordersMap])
-
-  // ── Build WIP rows for a given set of tasks (overview or single) ──
-  const buildWipGroups = (filterTaskIds) => {
-    if (!nomenclatures || !bomItems || !orders) return []
-
-    // For the given task IDs, find all tasks that belong to the same orders
-    const selectedTasks = tasks.filter(t => filterTaskIds.includes(t.id))
-    const orderIds = Array.from(new Set(selectedTasks.map(t => t.order_id).filter(Boolean)))
-    const allTasksForOrders = tasks.filter(t => orderIds.includes(t.order_id))
-    const allTaskIdsForOrders = allTasksForOrders.map(t => t.id)
-
-    const filterSet = new Set(allTaskIdsForOrders)
-    const filteredCards = dashboardCards.filter(c => c.task_id && filterSet.has(c.task_id))
-
-    // Build parent->children map from snapshots or static BOM
-    const parentToChildren = {}
-    const childToParents = {}
-    const taskParentMap = {}
-
-    allTaskIdsForOrders.forEach(taskId => {
-      const task = tasks.find(t => t.id === taskId)
-      if (!task) return
-      const order = ordersMap[task.order_id]
-      if (!order) return
-
-      let parentId = order.nomenclature_id
-      if (!parentId && order.order_items?.length > 0) parentId = order.order_items[0].nomenclature_id
-      if (!parentId) return
-      parentId = String(parentId)
-      taskParentMap[taskId] = parentId
-
-      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-      const taskWithSnap = task.plan_snapshot && Object.keys(task.plan_snapshot).some(k => uuidRegex.test(k)) ? task : null
-
-      if (!parentToChildren[parentId]) parentToChildren[parentId] = {}
-      if (taskWithSnap) {
-        const plannedSets = Number(task.planned_sets) || 1
-        Object.entries(task.plan_snapshot).forEach(([childId, entry]) => {
-          if (!uuidRegex.test(childId)) return
-          const need = Number(entry.need) || 0
-          const qtyPer = plannedSets > 0 ? Math.round(need / plannedSets) : need
-          parentToChildren[parentId][childId] = qtyPer
-          if (!childToParents[childId]) childToParents[childId] = new Set()
-          childToParents[childId].add(parentId)
-        })
-      } else {
-        bomItems.filter(b => String(b.parent_id) === parentId).forEach(b => {
-          const childId = String(b.child_id)
-          parentToChildren[parentId][childId] = Number(b.quantity_per_parent) || 1
-          if (!childToParents[childId]) childToParents[childId] = new Set()
-          childToParents[childId].add(parentId)
-        })
-      }
-    })
-
-    // Build groups
-    const groups = {}
-    const productNoms = nomenclatures.filter(n => n.type === 'product')
-    productNoms.forEach(prod => {
-      if (parentToChildren[String(prod.id)]) {
-        groups[prod.id] = { id: prod.id, name: prod.name, code: prod.code || '', rows: [], trend: null }
-      }
-    })
-
-    const parts = nomenclatures.filter(n => n.type === 'part')
-
-    parts.forEach(nom => {
-      const parentIds = childToParents[nom.id] ? Array.from(childToParents[nom.id]) : []
-      if (parentIds.length === 0) return
-
-      parentIds.forEach(parentId => {
-        if (!groups[parentId]) return
-
-        const qtyPerProduct = parentToChildren[parentId]?.[nom.id] || 1
-
-        // Demand: sum across orders for this parent
-        const demandForParent = (() => {
-          let d = 0
-          filterTaskIds.forEach(taskId => {
-            if (taskParentMap[taskId] !== parentId) return
-            const task = tasks.find(t => t.id === taskId)
-            d += Number(task?.planned_sets) || 0
-          })
-          return d * qtyPerProduct
-        })()
-
-        const getQ = (ops, statuses) => {
-          const opArr = Array.isArray(ops) ? ops : [ops]
-          const stArr = Array.isArray(statuses) ? statuses : [statuses]
-          return filteredCards.filter(c => {
-            if (String(c.nomenclature_id) !== String(nom.id)) return false
-            if (c.task_id && taskParentMap[c.task_id] && taskParentMap[c.task_id] !== parentId) return false
-            const isMatchOp = opArr.some(op => op === 'Галтовка' ? (c.operation === 'Галтовка' || c.operation?.startsWith('Галтовка')) : c.operation === op)
-            return isMatchOp && stArr.includes(c.status)
-          }).reduce((s, c) => s + (Number(c.quantity) || 0), 0)
-        }
-
-        const qCutWait = getQ(['Розкрій'], ['new', 'waiting-materials', 'waiting-machines'])
-        const qCut = getQ(['Розкрій'], ['in-progress', 'paused', 'hold'])
-        const qCutBuf = getQ(['Розкрій'], ['at-buffer'])
-        const qGalt = getQ(['Галтовка'], ['in-progress'])
-        const qGaltBuf = getQ(['Галтовка'], ['at-buffer'])
-        const qPriy = getQ(['Прийомка'], ['new', 'in-progress', 'at-buffer'])
-        const qSortAct = getQ(['Сортування'], ['new', 'in-progress', 'at-buffer'])
-        // at-shop2-buffer cards: do NOT restrict by taskParentMap — the card's nomenclature
-        // is already matched to this product group via BOM (childToParents). A card's order may
-        // have a different nomenclature_id than the BOM parent (e.g. order 260826-1 is "Рама F10"
-        // but contains KR-325 parts that belong to "Рама KHARAK 15" per BOM).
-        const qSort = filteredCards.filter(c => {
-          if (String(c.nomenclature_id) !== String(nom.id)) return false
-          return c.status === 'at-shop2-buffer'
-        }).reduce((s, c) => s + Math.max(0, (Number(c.quantity) || 0) - (Number(c.used_in_shop2_qty) || 0)), 0)
-
-        const qMalWait = getQ(['Фарбування', 'Малярка'], ['new'])
-        const qMal = getQ(['Фарбування', 'Малярка'], ['in-progress'])
-        const qMalBuf = getQ(['Фарбування', 'Малярка'], ['at-buffer'])
-        const qPresWait = getQ(['Пресування'], ['new'])
-        const qPres = getQ(['Пресування'], ['in-progress'])
-        const qPresBuf = getQ(['Пресування'], ['at-buffer'])
-        const qDoopWait = getQ(['Доопрацювання'], ['new'])
-        const qDoop = getQ(['Доопрацювання'], ['in-progress'])
-        const qDoopBuf = getQ(['Доопрацювання'], ['at-buffer'])
-
-        // Find booked BZ from plan snapshot – only for orders belonging to THIS parent product group.
-        // Iterating all orderIds caused stock to accumulate across unrelated orders (every order that
-        // happens to share the same filteredCards scope), producing phantom totals.
-        let initialStock = 0
-        let plannedReserve = 0
-        const orderTasks = tasks.filter(t => {
-          if (!t.order_id || !orderIds.includes(t.order_id)) return false
-          // Only include tasks whose order belongs to the current parent product group
-          const o = ordersMap[t.order_id]
-          if (!o) return false
-          const oPid = o.nomenclature_id || o.order_items?.[0]?.nomenclature_id
-          return String(oPid) === String(parentId)
-        })
-        const ordersWithTasks = Array.from(new Set(orderTasks.map(t => t.order_id)))
-        ordersWithTasks.forEach(oid => {
-          const taskWithSnap = orderTasks.find(t => t.order_id === oid && t.plan_snapshot && t.plan_snapshot[String(nom.id)])
-          if (taskWithSnap) {
-            const snapEntry = taskWithSnap.plan_snapshot[String(nom.id)] || {}
-            const stock = Number(snapEntry.stock) || 0
-            const sheets = Number(snapEntry.sheets) || 0
-            const units = Number(snapEntry.units_per_sheet) || 1
-            const need = Number(snapEntry.need) || 0
-            initialStock += stock
-            plannedReserve += Math.max(0, (sheets * units) + stock - need)
-          }
-        })
-
-        // Shop 2 completed cards + booked BZ go to SGP (capped at demand)
-        const completedShop2Qty = filteredCards.filter(c => {
-          if (String(c.nomenclature_id) !== String(nom.id)) return false
-          if (c.task_id && taskParentMap[c.task_id] && taskParentMap[c.task_id] !== parentId) return false
-          const op = (c.operation || '').toLowerCase()
-          const isShop2 = ['пресування', 'фарбування', 'малярка', 'доопрацювання', 'пакування', 'сгп'].some(o => op.includes(o))
-          return isShop2 && c.status === 'completed'
-        }).reduce((s, c) => s + (Number(c.quantity) || 0), 0)
-
-        const totalPotentialSgp = completedShop2Qty + initialStock
-        const flowRowsForThisPart = flowTotalsRows.filter(row => {
-          if (String(row.nomenclature_id) !== String(nom.id)) return false
-          if (!row.task_id || !filterSet.has(row.task_id)) return false
-          return !taskParentMap[row.task_id] || taskParentMap[row.task_id] === parentId
-        })
-        const flowScrapQty = sumFlowField(flowRowsForThisPart, 'total_scrap')
-        const flowSgpQty = sumFlowField(flowRowsForThisPart, 'total_good', ['sgp'])
-        const netSgpQty = Math.max(0, flowSgpQty - flowScrapQty)
-
-        // Shop 1 completed or at-shop2-buffer cards count as total produced by Shop 1
-        const groupProduced = filteredCards.filter(c => {
-          if (String(c.nomenclature_id) !== String(nom.id)) return false
-          if (c.task_id && taskParentMap[c.task_id] && taskParentMap[c.task_id] !== parentId) return false
-          const op = (c.operation || '').toLowerCase()
-          const isShop1 = ['розкрій', 'галтовка', 'прийомка', 'сортування'].some(o => op.includes(o))
-          return isShop1 && (c.status === 'completed' || c.status === 'at-shop2-buffer')
-        }).reduce((s, c) => s + (Number(c.quantity) || 0), 0)
-
-        const sgpProduced = Math.max(0, groupProduced - qSort)
-        const producedForSgp = groupProduced > 0 ? sgpProduced : netSgpQty
-        const earlyWipQty = qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriy + qSortAct + qMalWait + qMal + qMalBuf + qPresWait + qPres + qPresBuf + qDoopWait + qDoop + qDoopBuf
-        const nonReissueEarlyWip = Math.max(0, flowScrapQty - plannedReserve) > 0 ? 0 : earlyWipQty
-        const qSgp = demandForParent > 0
-          ? Math.min(demandForParent, producedForSgp, Math.max(0, demandForParent - nonReissueEarlyWip))
-          : Math.max(0, producedForSgp)
-
-        // All Shop 2 cards for this task
-        const totalShop2Qty = filteredCards.filter(c => {
-          if (String(c.nomenclature_id) !== String(nom.id)) return false
-          if (c.task_id && taskParentMap[c.task_id] && taskParentMap[c.task_id] !== parentId) return false
-          const op = (c.operation || '').toLowerCase()
-          return ['пресування', 'фарбування', 'малярка', 'доопрацювання', 'пакування', 'сгп'].some(o => op.includes(o))
-        }).reduce((s, c) => s + (Number(c.quantity) || 0), 0)
-
-        // qBz is newly produced BZ (not yet in Shop 2) + excess SGP
-        // IMPORTANT: flowBzQty already includes the plan_snapshot BZ stock reservation,
-        // so we must NOT add initialStock on top of it — that would double-count.
-        const bzExcess = Math.max(0, totalPotentialSgp - demandForParent)
-        const flowBzQty = sumFlowField(flowRowsForThisPart, 'total_bz')
-        const qBz = groupProduced > 0
-          ? initialStock + Math.max(0, sgpProduced - demandForParent)
-          : (flowRowsForThisPart.length > 0
-            ? Math.max(flowBzQty, Math.max(0, netSgpQty - demandForParent))
-            : Math.max(0, groupProduced - qSort - totalShop2Qty) + bzExcess)
-
-        // Scrap from task card history
-        const cardIdsForThisPart = new Set(filteredCards.filter(c => {
-          if (String(c.nomenclature_id) !== String(nom.id)) return false
-          if (c.task_id && taskParentMap[c.task_id] && taskParentMap[c.task_id] !== parentId) return false
-          return true
-        }).map(c => c.id))
-        const qScrapByScope = dashboardHistory.filter(h => {
-          if (String(h.nomenclature_id) !== String(nom.id)) return false
-          if (!h.task_id || !filterSet.has(h.task_id)) return false
-          return !taskParentMap[h.task_id] || taskParentMap[h.task_id] === parentId
-        }).reduce((s, h) => s + (Number(h.scrap_qty) || 0), 0)
-        const qScrapByCard = dashboardHistory.filter(h => h.card_id && cardIdsForThisPart.has(h.card_id)).reduce((s, h) => s + (Number(h.scrap_qty) || 0), 0)
-        const qScrap = qScrapByScope || qScrapByCard || flowScrapQty
-
-        const sum = qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriy + qSortAct + qSort + qMalWait + qMal + qMalBuf + qPresWait + qPres + qPresBuf + qDoopWait + qDoop + qDoopBuf + qSgp + qBz
-
-        const matchSearch = !searchQuery ||
-          nom.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          (nom.code || '').toLowerCase().includes(searchQuery.toLowerCase())
-
-        if (matchSearch && (demandForParent > 0 || qSort > 0)) {
-          groups[parentId].rows.push({
-            id: nom.id + '_' + parentId,
-            nomId: nom.id,
-            parentId,
-            name: nom.name,
-            code: nom.code || '',
-            demand: demandForParent,
-            qtyPerProduct,
-            qCutWait, qCut, qCutBuf, qGalt, qGaltBuf, qPriy,
-            qSortAct, qSort, qMalWait, qMal, qMalBuf, qPresWait, qPres,
-            qPresBuf, qDoopWait, qDoop, qDoopBuf, qSgp, qBz, qScrap, sum
-          })
-        }
-      })
-    })
-
-    return Object.values(groups).filter(g => g.rows.length > 0)
-  }
-
-  // ── Overview WIP groups (all active tasks) ──
-  const overviewGroups = useMemo(() => {
-    if (!selectedTaskId) {
-      return buildWipGroups(activeTasks.map(t => t.id))
-    }
-    return buildWipGroups([selectedTaskId])
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedTaskId, dashboardCards, dashboardHistory, flowTotalsRows, inventory, nomenclatures, bomItems, tasks, orders, searchQuery])
-
-  // ── Refresh ──
-  const handleRefresh = async () => {
-    setIsRefreshing(true)
-    try {
-      await fetchData(['orders', 'tasks', 'inventory', 'nomenclatures', 'bom_items', 'work_card_scrap_totals', 'work_card_flow_totals'])
-      await loadAllTasksCards(relevantTasks)
-      // Clear per-order card cache
-      setOrderAllCards({})
-    } catch (e) {
-      console.error(e)
-    } finally {
-      setIsRefreshing(false)
-    }
-  }
-
-  // ─── Render ───────────────────────────────────────────────
+    currentUser,
+    workCards,
+    inventory,
+    nomenclatures,
+    orders,
+    bomItems,
+    tasks,
+    selectedTaskId,
+    setSelectedTaskId,
+    isRefreshing,
+    searchQuery,
+    setSearchQuery,
+    expandedBottlenecks,
+    setExpandedBottlenecks,
+    selectedCellModal,
+    setSelectedCellModal,
+    inspectCardModal,
+    setInspectCardModal,
+    orderAllCards,
+    loadingCards,
+    relevantTasks,
+    activeTasks,
+    ordersMap,
+    dashboardCards,
+    flowTotalsRows,
+    dashboardHistory,
+    cardsByTaskId,
+    productionCache,
+    scrapCache,
+    taskStatusMap,
+    taskProgressMap,
+    overviewGroups,
+    handleCellClick,
+    handleRefresh
+  } = useForemanDashboardData()
 
   const selectedTask = selectedTaskId ? relevantTasks.find(t => t.id === selectedTaskId) : null
   const selectedOrder = selectedTask ? ordersMap[selectedTask.order_id] : null
@@ -1176,14 +52,14 @@ const ForemanDashboardModule = () => {
     <div className="foreman-dashboard-module" style={{ background: 'var(--bg, #09090b)', minHeight: '100vh', color: 'var(--text, #f4f4f5)', display: 'flex', flexDirection: 'column', fontFamily: 'Inter, system-ui, sans-serif' }}>
 
       {/* ── NAV ── */}
-      <nav style={{ flexShrink: 0, padding: '0 24px', height: '68px', background: 'var(--bg, #09090b)', borderBottom: '1px solid var(--glass-border, #27272a)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <nav style={{ flexShrink: 0, padding: '0 24px', height: '68px', background: 'var(--card-bg, #18181b)', borderBottom: '1px solid var(--glass-border, rgba(0,0,0,0.08))', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
           <Link
             to="/"
             style={{
               color: 'var(--text, #f4f4f5)',
-              background: 'var(--card-bg, #18181b)',
-              border: '1px solid var(--glass-border, #27272a)',
+              background: 'var(--bg, #09090b)',
+              border: '1px solid var(--glass-border, rgba(0,0,0,0.12))',
               padding: '7px 12px',
               borderRadius: '9px',
               textDecoration: 'none',
@@ -1198,16 +74,16 @@ const ForemanDashboardModule = () => {
           >
             <ArrowLeft size={16} /> На головну
           </Link>
-          <div style={{ width: '1px', height: '24px', background: 'var(--glass-border, #27272a)' }} />
+          <div style={{ width: '1px', height: '24px', background: 'var(--glass-border, rgba(0,0,0,0.12))' }} />
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <LayoutDashboard size={18} color="#ef4444" />
             </div>
             <div>
-              <div style={{ fontSize: '0.95rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', lineHeight: 1.1 }}>
+              <div style={{ fontSize: '0.95rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', lineHeight: 1.1, color: 'var(--text, #f4f4f5)' }}>
                 Дашборд Нарядів
               </div>
-              <div style={{ fontSize: '0.62rem', color: '#71717a', fontWeight: 600, letterSpacing: '0.05em' }}>
+              <div style={{ fontSize: '0.62rem', color: 'var(--text-muted, #71717a)', fontWeight: 600, letterSpacing: '0.05em' }}>
                 FOREMAN · ВИРОБНИЦТВО ЦЕХ №1
               </div>
             </div>
@@ -1217,29 +93,27 @@ const ForemanDashboardModule = () => {
           <button
             onClick={handleRefresh}
             disabled={isRefreshing}
-            style={{ background: 'var(--card-bg, #18181b)', border: '1px solid var(--glass-border, #27272a)', color: '#fff', padding: '8px 14px', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', transition: 'all 0.2s' }}
-
-
+            style={{ background: 'var(--bg, #09090b)', border: '1px solid var(--glass-border, rgba(0,0,0,0.12))', color: 'var(--text, #f4f4f5)', padding: '8px 14px', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', transition: 'all 0.2s' }}
           >
             <RefreshCw size={14} style={{ animation: isRefreshing ? 'spin 1s linear infinite' : 'none' }} />
             Оновити
           </button>
           <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: '0.82rem', fontWeight: 800 }}>{currentUser?.first_name} {currentUser?.last_name}</div>
+            <div style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text, #f4f4f5)' }}>{currentUser?.first_name} {currentUser?.last_name}</div>
             <div style={{ fontSize: '0.6rem', color: '#ef4444', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{currentUser?.position}</div>
           </div>
         </div>
       </nav>
 
       {/* ── TABS ── */}
-      <div style={{ display: 'flex', overflowX: 'auto', gap: '8px', padding: '14px 24px', background: 'var(--bg, #09090b)', borderBottom: '1px solid var(--glass-border, #27272a)', scrollbarWidth: 'none' }}>
+      <div style={{ display: 'flex', overflowX: 'auto', gap: '8px', padding: '14px 24px', background: 'var(--card-bg, #18181b)', borderBottom: '1px solid var(--glass-border, rgba(0,0,0,0.08))', scrollbarWidth: 'none' }}>
         {/* Overview tab */}
         <button
           onClick={() => setSelectedTaskId(null)}
           style={{
-            background: selectedTaskId === null ? 'rgba(239,68,68,0.12)' : '#18181b',
-            color: selectedTaskId === null ? '#ef4444' : '#71717a',
-            border: `1px solid ${selectedTaskId === null ? 'rgba(239,68,68,0.4)' : '#27272a'}`,
+            background: selectedTaskId === null ? 'rgba(239,68,68,0.15)' : 'var(--bg, #09090b)',
+            color: selectedTaskId === null ? '#ef4444' : 'var(--text-muted, #71717a)',
+            border: `1px solid ${selectedTaskId === null ? 'rgba(239,68,68,0.4)' : 'var(--glass-border, rgba(0,0,0,0.12))'}`,
             padding: '8px 18px', borderRadius: '10px', fontWeight: 800, fontSize: '0.78rem',
             cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.2s', flexShrink: 0,
             display: 'flex', alignItems: 'center', gap: '7px'
@@ -1248,8 +122,8 @@ const ForemanDashboardModule = () => {
           <LayoutDashboard size={14} />
           ЗАГАЛЬНА ТАБЛИЦЯ
           <span style={{
-            background: selectedTaskId === null ? '#ef4444' : '#27272a',
-            color: '#fff', borderRadius: '6px', padding: '1px 7px', fontSize: '0.7rem', fontWeight: 900
+            background: selectedTaskId === null ? '#ef4444' : 'var(--glass-border, rgba(0,0,0,0.15))',
+            color: selectedTaskId === null ? '#fff' : 'var(--text, #f4f4f5)', borderRadius: '6px', padding: '1px 7px', fontSize: '0.7rem', fontWeight: 900
           }}>
             {activeTasks.length}
           </span>
@@ -1292,9 +166,9 @@ const ForemanDashboardModule = () => {
                 key={task.id}
                 onClick={() => setSelectedTaskId(task.id)}
                 style={{
-                  background: isActive ? `${tabColor}18` : 'var(--tab-inactive-bg, #18181b)',
+                  background: isActive ? `${tabColor}18` : 'var(--bg, #09090b)',
                   color: isActive ? tabColor : 'var(--text-muted, #71717a)',
-                  border: `1px solid ${isActive ? tabColor + '60' : 'var(--glass-border, #27272a)'}`,
+                  border: `1px solid ${isActive ? tabColor + '60' : 'var(--glass-border, rgba(0,0,0,0.12))'}`,
                   padding: '8px 16px', borderRadius: '10px', fontWeight: 800, fontSize: '0.78rem',
                   cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.2s', flexShrink: 0,
                   display: 'flex', alignItems: 'center', gap: '6px'
@@ -1311,7 +185,6 @@ const ForemanDashboardModule = () => {
 
       {/* ── CONTENT ── */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
-
         {selectedTask === null ? (
           /* ═══════════════════ OVERVIEW MODE ═══════════════════ */
           <div>
@@ -1324,100 +197,15 @@ const ForemanDashboardModule = () => {
                 { label: 'Потреба в довипуску', value: activeTasks.filter(t => taskStatusMap[t.id] === 'shortage').length, color: '#ef4444', icon: '⚠️' },
                 { label: 'Нові (без карток)', value: activeTasks.filter(t => taskStatusMap[t.id] === 'new').length, color: '#3b82f6', icon: '🆕' },
               ].map(stat => (
-                <div key={stat.label} style={{ background: 'var(--card-bg, #18181b)', border: '1px solid var(--glass-border, #27272a)', borderRadius: '14px', padding: '16px 18px', display: 'flex', gap: '12px', alignItems: 'center' }}>
+                <div key={stat.label} style={{ background: 'var(--card-bg, #18181b)', border: '1px solid var(--glass-border, rgba(0,0,0,0.08))', borderRadius: '14px', padding: '16px 18px', display: 'flex', gap: '12px', alignItems: 'center' }}>
                   <div style={{ fontSize: '1.6rem', lineHeight: 1 }}>{stat.icon}</div>
                   <div>
                     <div style={{ fontSize: '1.4rem', fontWeight: 950, color: stat.color, lineHeight: 1.1 }}>{stat.value}</div>
-                    <div style={{ fontSize: '0.66rem', color: '#52525b', fontWeight: 700, marginTop: '2px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{stat.label}</div>
+                    <div style={{ fontSize: '0.66rem', color: 'var(--text-muted, #52525b)', fontWeight: 700, marginTop: '2px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{stat.label}</div>
                   </div>
                 </div>
               ))}
             </div>
-
-            {/* Order cards grid - Temporarily hidden per user request */}
-            {/* 
-            {activeTasks.length > 0 && (
-              <div style={{ marginBottom: '28px' }}>
-                <div style={{ fontSize: '0.8rem', fontWeight: 900, color: 'var(--text-muted, #52525b)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <TrendingUp size={14} color="#ef4444" />
-                  ОГЛЯД НАРЯДІВ
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '14px' }}>
-                  {(() => {
-                    const sortedActiveTasks = [...activeTasks].sort((a, b) => {
-                      const aShortage = taskStatusMap[a.id] === 'shortage'
-                      const bShortage = taskStatusMap[b.id] === 'shortage'
-                      if (aShortage && !bShortage) return -1
-                      if (!aShortage && bShortage) return 1
-                      return new Date(b.created_at) - new Date(a.created_at)
-                    })
-                    return sortedActiveTasks.map(task => {
-                      const order = ordersMap[task.order_id]
-                      const displayNum = order?.order_num || task.id.split('-')[0]
-                      const batchSuffix = task.batch_index ? `/${task.batch_index}` : ''
-                      const status = taskStatusMap[task.id]
-                      const progress = taskProgressMap[task.id] || { actual: 0, demand: 0 }
-                      const pct = progress.demand > 0 ? Math.min(100, Math.round((progress.actual / progress.demand) * 100)) : 0
-                      const prodNames = (order?.order_items || []).map(it => nomenclatures.find(n => n.id === it.nomenclature_id)?.name).filter(Boolean).join(', ') || '—'
-
-                      const accentColor = status === 'ready' ? '#10b981'
-                        : status === 'shortage' ? '#ef4444'
-                          : status === 'new' ? '#3b82f6' : '#eab308'
-
-                      const statusBadge = status === 'ready'
-                        ? <span style={{ background: 'rgba(16,185,129,0.15)', color: '#10b981', border: '1px solid rgba(16,185,129,0.3)', padding: '2px 8px', borderRadius: '6px', fontSize: '0.62rem', fontWeight: 900 }}>🟢 ГОТОВО</span>
-                        : status === 'shortage'
-                          ? <span style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', padding: '2px 8px', borderRadius: '6px', fontSize: '0.62rem', fontWeight: 900 }}>🔴 НЕСТАЧА</span>
-                          : status === 'new'
-                            ? <span style={{ background: 'rgba(59,130,246,0.15)', color: '#3b82f6', border: '1px solid rgba(59,130,246,0.3)', padding: '2px 8px', borderRadius: '6px', fontSize: '0.62rem', fontWeight: 900 }}>🔵 НОВИЙ</span>
-                            : <span style={{ background: 'rgba(234,179,8,0.15)', color: '#eab308', border: '1px solid rgba(234,179,8,0.3)', padding: '2px 8px', borderRadius: '6px', fontSize: '0.62rem', fontWeight: 900 }}>🟡 В РОБОТІ</span>
-
-                      return (
-                        <div
-                          key={task.id}
-                          onClick={() => setSelectedTaskId(task.id)}
-                          style={{
-                            background: 'var(--card-bg, linear-gradient(145deg, #141417, #111113))',
-                            border: `1px solid ${accentColor}30`,
-                            borderRadius: '18px', cursor: 'pointer', overflow: 'hidden',
-                            transition: 'all 0.2s', boxShadow: '0 4px 16px rgba(0,0,0,0.3)'
-                          }}
-                          onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = `0 8px 28px rgba(0,0,0,0.4), 0 0 0 1px ${accentColor}50` }}
-                          onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.3)' }}
-                        >
-                          <div style={{ height: '3px', background: `linear-gradient(90deg, ${accentColor}, transparent)` }} />
-                          <div style={{ padding: '16px 18px' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
-                              <div>
-                                <div style={{ fontSize: '1.1rem', fontWeight: 950, color: 'var(--text, #fff)', lineHeight: 1.2 }}>
-                                  Наряд №{displayNum}{batchSuffix}
-                                </div>
-                                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted, #71717a)', marginTop: '2px', fontWeight: 600 }}>{order?.customer || '—'}</div>
-                              </div>
-                              {statusBadge}
-                            </div>
-                            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted, #a1a1aa)', marginBottom: '12px', fontWeight: 600, lineHeight: 1.3 }}>{prodNames}</div>
-                            <div style={{ marginBottom: '10px' }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', fontWeight: 800, marginBottom: '4px' }}>
-                                <span style={{ color: 'var(--text-muted, #52525b)' }}>Виконання</span>
-                                <span style={{ color: accentColor }}>{progress.actual} / {progress.demand} компл. ({pct}%)</span>
-                              </div>
-                              <div style={{ height: '6px', background: 'var(--border, #1f1f23)', borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--glass-border, #27272a)' }}>
-                                <div style={{ width: `${pct}%`, height: '100%', background: `linear-gradient(90deg, ${accentColor}, ${accentColor}99)`, borderRadius: '6px', transition: 'width 0.5s ease', boxShadow: `0 0 6px ${accentColor}60` }} />
-                              </div>
-                            </div>
-                            <div style={{ fontSize: '0.64rem', color: 'var(--text-muted, #3f3f46)', fontWeight: 700, textAlign: 'right', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                              Клікніть для деталей →
-                            </div>
-                          </div>
-                        </div>
-                      )
-                    })
-                  })()}
-                </div>
-              </div>
-            )}
-            */}
 
             {/* Search */}
             <div style={{ display: 'flex', gap: '12px', marginBottom: '16px', alignItems: 'center' }}>
@@ -1428,9 +216,9 @@ const ForemanDashboardModule = () => {
                   placeholder="Пошук деталі..."
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
-                  style={{ width: '100%', padding: '10px 12px 10px 36px', background: 'var(--card-bg, #18181b)', border: '1px solid var(--glass-border, #27272a)', borderRadius: '10px', color: 'var(--text, #fff)', fontSize: '0.82rem', outline: 'none', boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '10px 12px 10px 36px', background: 'var(--card-bg, #18181b)', border: '1px solid var(--glass-border, rgba(0,0,0,0.12))', borderRadius: '10px', color: 'var(--text, #f4f4f5)', fontSize: '0.82rem', outline: 'none', boxSizing: 'border-box' }}
                   onFocus={e => e.target.style.borderColor = '#ef4444'}
-                  onBlur={e => e.target.style.borderColor = 'var(--glass-border, #27272a)'}
+                  onBlur={e => e.target.style.borderColor = 'var(--glass-border, rgba(0,0,0,0.12))'}
                 />
               </div>
               <div style={{ fontSize: '0.72rem', color: 'var(--text-muted, #64748b)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
@@ -1457,7 +245,7 @@ const ForemanDashboardModule = () => {
             bomItems={bomItems}
             inventory={inventory}
             productionCache={productionCache}
-            scrapCache={scopedScrapCache}
+            scrapCache={scrapCache}
             taskStatusMap={taskStatusMap}
             taskProgressMap={taskProgressMap}
             orderAllCards={orderAllCards[selectedTaskId] || []}
@@ -1473,321 +261,31 @@ const ForemanDashboardModule = () => {
       </div>
 
       {/* ── Cell Cards Detail Modal ────────────────────────────────────── */}
-      {selectedCellModal && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
-          background: 'rgba(0, 0, 0, 0.75)', backdropFilter: 'blur(8px)',
-          zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          padding: '20px', boxSizing: 'border-box'
-        }}
-          onClick={() => setSelectedCellModal(null)}
-        >
-          <div
-            style={{
-              background: 'var(--card-bg, #121215)', border: '1px solid var(--border, #27272a)', borderRadius: '24px',
-              maxWidth: '900px', width: '100%', maxHeight: '85vh', display: 'flex',
-              flexDirection: 'column', boxShadow: '0 20px 50px rgba(0,0,0,0.6)',
-              overflow: 'hidden', color: 'var(--text, #f4f4f5)'
-            }}
-            onClick={e => e.stopPropagation()}
-          >
-            {/* Modal Header */}
-            <div style={{
-              padding: '20px 24px', borderBottom: '1px solid var(--border, #27272a)',
-              background: 'var(--bg, #09090b)',
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center'
-            }}>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Package size={20} color="#ff9000" />
-                  <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 900, color: 'var(--text, #fff)' }}>
-                    {selectedCellModal.row?.name}
-                    {selectedCellModal.row?.code && <span style={{ fontSize: '0.8rem', color: 'var(--text-muted, #a1a1aa)', fontWeight: 600, marginLeft: '8px' }}>({selectedCellModal.row.code})</span>}
-                  </h3>
-                </div>
-                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted, #71717a)', marginTop: '4px', fontWeight: 700 }}>
-                  Етап: <span style={{ color: '#ff9000' }}>{selectedCellModal.stageName}</span> | Всього на етапі: <strong style={{ color: 'var(--text, #fff)' }}>{selectedCellModal.val} шт</strong> ({selectedCellModal.cards.length} карток)
-                </div>
-              </div>
-              <button
-                onClick={() => setSelectedCellModal(null)}
-                style={{
-                  background: 'var(--border, #27272a)', border: 'none', color: 'var(--text, #fff)',
-                  width: '32px', height: '32px', borderRadius: '50%',
-                  fontWeight: 900, cursor: 'pointer', display: 'flex',
-                  alignItems: 'center', justifyContent: 'center', fontSize: '1rem'
-                }}
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* Modal Content / Cards List */}
-            <div style={{ padding: '20px 24px', overflowY: 'auto', flex: 1, background: 'var(--card-bg, #121215)' }}>
-              {selectedCellModal.cards.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted, #71717a)' }}>
-                  <Layers size={36} style={{ margin: '0 auto 12px', opacity: 0.4 }} />
-                  <p style={{ margin: 0, fontSize: '0.88rem' }}>Фізичних робочих карток на цьому етапі зараз немає.</p>
-                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted, #52525b)', marginTop: '4px', display: 'block' }}>
-                    Показник розраховано за первинним планом або складом БЗ.
-                  </span>
-                </div>
-              ) : (
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', color: 'var(--text, #f4f4f5)' }}>
-                  <thead>
-                    <tr style={{ background: 'var(--bg, #18181b)', color: 'var(--text-muted, #a1a1aa)', textAlign: 'left', borderBottom: '1px solid var(--border, #27272a)' }}>
-                      <th style={{ padding: '12px' }}>№ Картки / Системний номер</th>
-                      <th style={{ padding: '12px' }}>Наряд</th>
-                      <th style={{ padding: '12px' }}>Операція</th>
-                      <th style={{ padding: '12px', textAlign: 'center' }}>Статус</th>
-                      <th style={{ padding: '12px', textAlign: 'center' }}>Кількість</th>
-                      <th style={{ padding: '12px', textAlign: 'right' }}>Дія</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {selectedCellModal.cards.map(c => {
-                      const task = tasks.find(t => String(t.id) === String(c.task_id))
-                      const ord = ordersMap[c.order_id] || (task ? ordersMap[task.order_id] : null) || orders.find(o => String(o.id) === String(c.order_id))
-                      const orderNumText = ord?.order_num ? `Наряд № ${ord.order_num}` : (c.order_id ? `№ ${String(c.order_id).substring(0, 8)}` : 'Без наряду')
-
-                      const infoParts = (c.card_info || '').split(' ')
-                      const cardNumBadge = infoParts[0] && (infoParts[0].includes('/') || infoParts[0].includes('[')) ? infoParts[0] : (c.card_number || `№ ${String(c.id).substring(0, 8)}`)
-                      const sysHexNum = `#${String(c.id).substring(0, 8).toUpperCase()}`
-                      const restCardInfo = infoParts.slice(cardNumBadge === infoParts[0] ? 1 : 0).join(' ')
-
-                      return (
-                        <tr
-                          key={c.id}
-                          onClick={() => setInspectCardModal(c)}
-                          style={{
-                            borderBottom: '1px solid var(--border, #1f1f23)', transition: 'background 0.15s',
-                            cursor: 'pointer'
-                          }}
-                          onMouseEnter={e => e.currentTarget.style.background = 'var(--hover-bg, rgba(255,255,255,0.05))'}
-                          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                        >
-                          <td style={{ padding: '12px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                              <span style={{
-                                background: 'rgba(255, 144, 0, 0.15)', color: '#ff9000',
-                                border: '1px solid rgba(255, 144, 0, 0.3)', padding: '2px 8px',
-                                borderRadius: '6px', fontSize: '0.75rem', fontWeight: 900
-                              }}>
-                                {cardNumBadge.startsWith('№') ? cardNumBadge : `№ ${cardNumBadge}`}
-                              </span>
-                              <span style={{ fontWeight: 900, color: 'var(--text, #fff)', fontFamily: 'monospace', fontSize: '0.88rem', letterSpacing: '0.5px' }}>
-                                {sysHexNum}
-                              </span>
-                            </div>
-                            {restCardInfo && <div style={{ fontSize: '0.68rem', color: 'var(--text-muted, #71717a)', marginTop: '4px' }}>{restCardInfo}</div>}
-                          </td>
-                          <td style={{ padding: '12px' }}>
-                            <div style={{ fontWeight: 900, color: 'var(--text, #fff)', fontSize: '0.88rem' }}>{orderNumText}</div>
-                            <div style={{ fontSize: '0.68rem', color: 'var(--text-muted, #71717a)' }}>{ord?.customer || '—'}</div>
-                          </td>
-                          <td style={{ padding: '12px' }}>
-                            <span style={{ background: 'var(--border, #27272a)', color: 'var(--text, #fff)', padding: '3px 8px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 800 }}>
-                              {c.operation || '—'}
-                            </span>
-                          </td>
-                          <td style={{ padding: '12px', textAlign: 'center' }}>
-                            <span style={{
-                              background: c.status === 'completed' ? 'rgba(16,185,129,0.15)' : c.status === 'at-shop2-buffer' ? 'rgba(255,144,0,0.15)' : 'rgba(59,130,246,0.15)',
-                              color: c.status === 'completed' ? '#10b981' : c.status === 'at-shop2-buffer' ? '#ff9000' : '#3b82f6',
-                              border: c.status === 'completed' ? '1px solid rgba(16,185,129,0.3)' : c.status === 'at-shop2-buffer' ? '1px solid rgba(255,144,0,0.3)' : '1px solid rgba(59,130,246,0.3)',
-                              padding: '2px 8px', borderRadius: '6px', fontSize: '0.68rem', fontWeight: 900
-                            }}>
-                              {c.status}
-                            </span>
-                          </td>
-                          <td style={{ padding: '12px', textAlign: 'center', fontWeight: 900, color: 'var(--text, #fff)', fontSize: '0.9rem' }}>
-                            {c.quantity} шт
-                          </td>
-                          <td style={{ padding: '12px', textAlign: 'right' }}>
-                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  setInspectCardModal(c)
-                                }}
-                                style={{
-                                  background: 'var(--border, #27272a)',
-                                  color: 'var(--text, #fff)', border: '1px solid var(--border, #3f3f46)', padding: '6px 10px',
-                                  borderRadius: '8px', fontSize: '0.72rem', fontWeight: 800,
-                                  cursor: 'pointer'
-                                }}
-                              >
-                                🔎 Деталі
-                              </button>
-                              {['розкрій', 'галтовка', 'прийомка', 'сортування'].some(o => (c.operation || '').toLowerCase().includes(o)) ? (
-                                <Link
-                                  to="/shop1"
-                                  onClick={(e) => e.stopPropagation()}
-                                  style={{
-                                    background: 'linear-gradient(135deg, #0284c7, #2563eb)',
-                                    color: '#fff', textDecoration: 'none', padding: '6px 10px',
-                                    borderRadius: '8px', fontSize: '0.72rem', fontWeight: 800,
-                                    boxShadow: '0 2px 6px rgba(2,132,199,0.3)'
-                                  }}
-                                >
-                                  🚀 Термінал Цеху 1
-                                </Link>
-                              ) : (
-                                <Link
-                                  to="/shop2"
-                                  onClick={(e) => e.stopPropagation()}
-                                  style={{
-                                    background: 'linear-gradient(135deg, #ff9000, #ea580c)',
-                                    color: '#fff', textDecoration: 'none', padding: '6px 10px',
-                                    borderRadius: '8px', fontSize: '0.72rem', fontWeight: 800,
-                                    boxShadow: '0 2px 6px rgba(255,144,0,0.3)'
-                                  }}
-                                >
-                                  🚀 Термінал Цеху 2
-                                </Link>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      <CellCardsModal
+        selectedCellModal={selectedCellModal}
+        onClose={() => setSelectedCellModal(null)}
+        onInspectCard={(c) => setInspectCardModal(c)}
+        tasks={tasks}
+        ordersMap={ordersMap}
+        orders={orders}
+      />
 
       {/* ── Individual Work Card Inspector Modal ──────────────────────── */}
-      {inspectCardModal && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
-          background: 'rgba(0, 0, 0, 0.85)', backdropFilter: 'blur(10px)',
-          zIndex: 100000, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          padding: '20px', boxSizing: 'border-box'
-        }}
-          onClick={() => setInspectCardModal(null)}
-        >
-          <div
-            style={{
-              background: 'var(--card-bg, #16161a)', border: '1px solid #ff9000', borderRadius: '24px',
-              maxWidth: '600px', width: '100%', padding: '24px', boxShadow: '0 0 30px rgba(255,144,0,0.2)',
-              color: 'var(--text, #fff)'
-            }}
-            onClick={e => e.stopPropagation()}
-          >
-            {(() => {
-              const infoParts = (inspectCardModal.card_info || '').split(' ')
-              const cardNumBadge = infoParts[0] && (infoParts[0].includes('/') || infoParts[0].includes('[')) ? infoParts[0] : (inspectCardModal.card_number || `№ ${String(inspectCardModal.id).substring(0, 8)}`)
-              const sysHexNum = `#${String(inspectCardModal.id).substring(0, 8).toUpperCase()}`
-
-              return (
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span style={{
-                        background: 'rgba(255, 144, 0, 0.15)', color: '#ff9000',
-                        border: '1px solid rgba(255, 144, 0, 0.3)', padding: '2px 8px',
-                        borderRadius: '6px', fontSize: '0.72rem', fontWeight: 900
-                      }}>
-                        № КАРТКИ: {cardNumBadge.startsWith('№') ? cardNumBadge.substring(1).trim() : cardNumBadge}
-                      </span>
-                    </div>
-                    <h2 style={{ margin: '6px 0 0', fontSize: '1.3rem', fontWeight: 950, color: 'var(--text, #fff)', fontFamily: 'monospace' }}>
-                      СИСТЕМНИЙ НОМЕР: <span style={{ color: '#ff9000' }}>{sysHexNum}</span>
-                    </h2>
-                  </div>
-                  <button
-                    onClick={() => setInspectCardModal(null)}
-                    style={{ background: 'var(--border, #27272a)', border: 'none', color: 'var(--text, #fff)', width: '30px', height: '30px', borderRadius: '50%', cursor: 'pointer', fontWeight: 900 }}
-                  >
-                    ✕
-                  </button>
-                </div>
-              )
-            })()}
-
-            <div style={{ background: 'var(--bg, #0d0d0f)', borderRadius: '16px', padding: '16px', border: '1px solid var(--border, #27272a)', marginBottom: '20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '0.8rem' }}>
-              <div>
-                <div style={{ color: 'var(--text-muted, #71717a)', fontSize: '0.68rem', fontWeight: 700 }}>ОПЕРАЦІЯ</div>
-                <div style={{ fontWeight: 900, color: '#ff9000', fontSize: '0.95rem', marginTop: '2px' }}>{inspectCardModal.operation || '—'}</div>
-              </div>
-              <div>
-                <div style={{ color: 'var(--text-muted, #71717a)', fontSize: '0.68rem', fontWeight: 700 }}>СТАТУС</div>
-                <div style={{ fontWeight: 900, color: '#10b981', marginTop: '2px' }}>{inspectCardModal.status}</div>
-              </div>
-              <div>
-                <div style={{ color: 'var(--text-muted, #71717a)', fontSize: '0.68rem', fontWeight: 700 }}>КІЛЬКІСТЬ</div>
-                <div style={{ fontWeight: 900, color: 'var(--text, #fff)', fontSize: '1.1rem', marginTop: '2px' }}>{inspectCardModal.quantity} шт</div>
-              </div>
-              <div>
-                <div style={{ color: 'var(--text-muted, #71717a)', fontSize: '0.68rem', fontWeight: 700 }}>БРАК / ВІДХОДИ</div>
-                <div style={{ fontWeight: 900, color: inspectCardModal.scrap_qty > 0 ? '#ef4444' : 'var(--text-muted, #71717a)', marginTop: '2px' }}>{inspectCardModal.scrap_qty || 0} шт</div>
-              </div>
-            </div>
-
-            {(() => {
-              const task = tasks.find(t => String(t.id) === String(inspectCardModal.task_id))
-              const ord = ordersMap[inspectCardModal.order_id] || (task ? ordersMap[task.order_id] : null) || orders.find(o => String(o.id) === String(inspectCardModal.order_id))
-              const orderNumText = ord?.order_num ? `№ ${ord.order_num}` : (inspectCardModal.order_id ? `№ ${String(inspectCardModal.order_id).substring(0, 8)}` : '—')
-
-              return (
-                <div style={{ fontSize: '0.82rem', color: 'var(--text-muted, #a1a1aa)', marginBottom: '20px', lineHeight: 1.6 }}>
-                  <div><strong>Наряд:</strong> <span style={{ color: '#ff9000', fontWeight: 900 }}>{orderNumText}</span></div>
-                  <div><strong>Замовник:</strong> {ord?.customer || '—'}</div>
-                  <div><strong>Створено:</strong> {inspectCardModal.created_at ? new Date(inspectCardModal.created_at).toLocaleString('uk-UA') : '—'}</div>
-                  {inspectCardModal.completed_at && <div><strong>Завершено:</strong> {new Date(inspectCardModal.completed_at).toLocaleString('uk-UA')}</div>}
-                </div>
-              )
-            })()}
-
-            {(() => {
-              const op = String(inspectCardModal.operation || '').toLowerCase()
-              const isShop1Card = ['розкрій', 'галтовка', 'прийомка', 'сортування'].some(o => op.includes(o))
-
-              return (
-                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                  {isShop1Card ? (
-                    <Link
-                      to="/shop1"
-                      style={{
-                        flex: 1, textAlign: 'center', background: 'linear-gradient(135deg, #0284c7, #2563eb)',
-                        color: '#fff', textDecoration: 'none', padding: '12px 16px', borderRadius: '12px',
-                        fontWeight: 900, fontSize: '0.85rem', boxShadow: '0 4px 15px rgba(2,132,199,0.3)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
-                      }}
-                    >
-                      🚀 Перейти до Терміналу Цеху №1
-                    </Link>
-                  ) : (
-                    <Link
-                      to="/shop2"
-                      style={{
-                        flex: 1, textAlign: 'center', background: 'linear-gradient(135deg, #ff9000, #ea580c)',
-                        color: '#fff', textDecoration: 'none', padding: '12px 16px', borderRadius: '12px',
-                        fontWeight: 900, fontSize: '0.85rem', boxShadow: '0 4px 15px rgba(255,144,0,0.3)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
-                      }}
-                    >
-                      🚀 Перейти до Терміналу Цеху №2
-                    </Link>
-                  )}
-                </div>
-              )
-            })()}
-          </div>
-        </div>
-      )}
+      <InspectCardModal
+        inspectCardModal={inspectCardModal}
+        onClose={() => setInspectCardModal(null)}
+        tasks={tasks}
+        ordersMap={ordersMap}
+        orders={orders}
+      />
 
       <style>{`
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: #0a0a0d; }
-        ::-webkit-scrollbar-thumb { background: #27272a; border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: #3f3f46; }
+        ::-webkit-scrollbar-track { background: var(--bg, #0a0a0d); }
+        ::-webkit-scrollbar-thumb { background: var(--glass-border, #27272a); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-muted, #3f3f46); }
 
-        /* Mobile specific overrides */
         @media (max-width: 768px) {
           .mobile-fullscreen-btn-container {
             display: flex !important;
@@ -1811,17 +309,12 @@ const ForemanDashboardModule = () => {
             padding: 6px 10px !important;
             font-size: 0.75rem !important;
           }
-          /* Hide user name on small devices to free up screen real estate */
           nav > div:last-child > div:last-child {
             display: none !important;
           }
-          
-          /* Make stats and cards grid layout fit mobile viewports */
           div[style*="gridTemplateColumns"] {
             grid-template-columns: 1fr !important;
           }
-          
-          /* Scale down padding and text sizes of order preview cards */
           div[style*="borderRadius: '18px'"] {
             border-radius: 12px !important;
           }
@@ -1834,8 +327,6 @@ const ForemanDashboardModule = () => {
           div[style*="fontSize: '0.8rem'"] {
             font-size: 0.72rem !important;
           }
-          
-          /* Compact tabs navigation bar */
           div[style*="padding: '14px 24px'"] {
             padding: 8px 12px !important;
             gap: 4px !important;
@@ -1844,13 +335,9 @@ const ForemanDashboardModule = () => {
             padding: 6px 12px !important;
             font-size: 0.72rem !important;
           }
-          
-          /* General page container padding */
           div[style*="padding: '24px'"] {
             padding: 12px !important;
           }
-
-          /* Compact table styles for mobile screens */
           table {
             font-size: 0.62rem !important;
             min-width: 700px !important;
@@ -1858,7 +345,6 @@ const ForemanDashboardModule = () => {
           th, td {
             padding: 5px 6px !important;
           }
-          /* Override sticky Nomenclature column on mobile */
           .wip-col-nomenclature {
             position: sticky !important;
             left: 0 !important;
@@ -1871,8 +357,6 @@ const ForemanDashboardModule = () => {
           th.wip-col-nomenclature {
             z-index: 40 !important;
           }
-
-          /* Override sticky Sum column on mobile */
           .wip-col-sum {
             position: sticky !important;
             left: 110px !important;
@@ -1884,8 +368,6 @@ const ForemanDashboardModule = () => {
           th.wip-col-sum {
             z-index: 40 !important;
           }
-
-          /* Compact orange sum badge sizing to fit the sum column bounds on mobile */
           .wip-sum-badge {
             font-size: 0.5rem !important;
             padding: 1px 3px !important;
@@ -1893,637 +375,6 @@ const ForemanDashboardModule = () => {
           }
         }
       `}</style>
-    </div>
-  )
-}
-
-// ─────────────────────────────────────────────────────────────
-// Order Detail View component
-// ─────────────────────────────────────────────────────────────
-const OrderDetailView = ({
-  task, order, tasks, workCards, allTasksCards, cardsByTaskId, allCardsHistory, flowTotalsRows = [], nomenclatures, bomItems, inventory,
-  productionCache, scrapCache, taskStatusMap, taskProgressMap,
-  orderAllCards, isLoadingCards, wipGroups, searchQuery, setSearchQuery
-}) => {
-  if (!task || !order) return <div style={{ padding: '20px', color: '#52525b' }}>Наряд не знайдено...</div>
-
-  const status = taskStatusMap[task.id]
-  const progress = taskProgressMap[task.id] || { actual: 0, demand: 0 }
-  const pct = progress.demand > 0 ? Math.min(100, Math.round((progress.actual / progress.demand) * 100)) : 0
-
-  const [taskHistory, setTaskHistory] = useState([])
-  const [loadingHistory, setLoadingHistory] = useState(false)
-  const [expandedCardsState, setExpandedCardsState] = useState({})
-
-  useEffect(() => {
-    if (!task?.id || !orderAllCards || orderAllCards.length === 0) {
-      setTaskHistory([])
-      return
-    }
-    setLoadingHistory(true)
-    const cardIds = orderAllCards.map(c => c.id)
-    let cancelled = false
-    fetchWorkCardHistoryByCardIds(cardIds)
-      .then(data => {
-        if (!cancelled) {
-          setTaskHistory(data.sort((a, b) => new Date(a.completed_at || a.created_at || 0) - new Date(b.completed_at || b.created_at || 0)))
-        }
-      })
-      .catch(error => console.warn('Error loading task history:', error?.message || error))
-      .finally(() => {
-        if (!cancelled) setLoadingHistory(false)
-      })
-    return () => { cancelled = true }
-  }, [task?.id, orderAllCards])
-
-  const accentColor = status === 'ready' ? '#10b981'
-    : status === 'shortage' ? '#ef4444'
-      : status === 'new' ? '#3b82f6'
-        : status === 'completed' ? '#10b981'
-          : '#eab308'
-
-  const displayNum = order.order_num || task.id.split('-')[0]
-  const batchSuffix = task.batch_index ? `/${task.batch_index}` : ''
-
-  const prodNames = (order?.order_items || [])
-    .map(it => nomenclatures.find(n => n.id === it.nomenclature_id)?.name)
-    .filter(Boolean).join(', ') || '—'
-
-  const dateStr = task.created_at
-    ? new Date(task.created_at).toLocaleDateString('uk-UA', { day: '2-digit', month: '2-digit', year: 'numeric' })
-    : '—'
-
-  // Build bottlenecks list from snapshot
-  const bottlenecks = useMemo(() => {
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    const snapshot = task.plan_snapshot || {}
-    const taskProd = productionCache[task.id] || {}
-    const taskScrap = scrapCache[task.id] || {}
-    const list = []
-
-    Object.keys(snapshot).filter(k => uuidRegex.test(k)).forEach(nomIdStr => {
-      const snap = snapshot[nomIdStr]
-      if (!snap || !snap.need) return
-      const nom = nomenclatures.find(n => String(n.id) === nomIdStr)
-      if (nom?.type !== 'part') return
-
-      const need = snap.need || 0
-      const produced = taskProd[nomIdStr] || 0
-      const stock = Number(snap.stock) || 0
-      const sheets = Number(snap.sheets) || 0
-      const units = Number(snap.units_per_sheet) || 1
-      const scrap = taskScrap[nomIdStr] || 0
-      const plannedReserve = Math.max(0, (sheets * units) + stock - need)
-      const shortage = Math.max(0, scrap - plannedReserve)
-      const sgpGap = Math.max(0, need - produced)
-      const qtyPer = progress.demand > 0 ? Math.round(need / progress.demand) : 1
-      const potential = qtyPer > 0 ? Math.floor(produced / qtyPer) : 0
-
-      if (shortage > 0) {
-        list.push({ name: nom.name, code: nom.code, potential, qty: produced, needed: need, shortage, qtyPer, scrap, plannedReserve, sgpGap })
-      }
-    })
-    list.sort((a, b) => a.potential - b.potential)
-    return list
-  }, [task, productionCache, scrapCache, nomenclatures, progress.demand])
-
-  // Per-part detail table from workCards
-  const partDetails = useMemo(() => {
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    const snapshot = task.plan_snapshot || {}
-
-    // Get all task IDs for the same order
-    const orderTasks = tasks.filter(t => t.order_id === task.order_id)
-    const orderTaskIdSet = new Set(orderTasks.map(t => t.id))
-    const allTaskCards = orderTasks.flatMap(t => cardsByTaskId[t.id] || [])
-
-    const parts = []
-    Object.keys(snapshot).filter(k => uuidRegex.test(k)).forEach(nomIdStr => {
-      const snap = snapshot[nomIdStr]
-      if (!snap) return
-      const nom = nomenclatures.find(n => String(n.id) === nomIdStr)
-      if (!nom || nom.type !== 'part') return
-
-      const nomCards = allTaskCards.filter(c => String(c.nomenclature_id) === nomIdStr)
-
-      const getQFromCards = (ops, statuses) => {
-        const opArr = Array.isArray(ops) ? ops : [ops]
-        const stArr = Array.isArray(statuses) ? statuses : [statuses]
-        return nomCards.filter(c => {
-          const isMatchOp = opArr.some(op => {
-            if (op === 'Галтовка') return c.operation === 'Галтовка' || c.operation?.startsWith('Галтовка')
-            if (op === 'Сортування') return c.operation === 'Сортування' || c.operation?.startsWith('Сортування') || c.operation?.includes('Сортування')
-            return c.operation === op
-          })
-          return isMatchOp && stArr.includes(c.status)
-        }).reduce((s, c) => s + (Number(c.quantity) || 0), 0)
-      }
-
-      const qCutWait = getQFromCards(['Розкрій'], ['new', 'waiting-materials', 'waiting-machines'])
-      const qCut = getQFromCards(['Розкрій'], ['in-progress', 'paused', 'hold'])
-      const qCutBuf = getQFromCards(['Розкрій'], ['at-buffer'])
-      const qGalt = getQFromCards(['Галтовка'], ['in-progress'])
-      const qGaltBuf = getQFromCards(['Галтовка'], ['at-buffer'])
-      const qPriy = getQFromCards(['Прийомка'], ['new', 'in-progress', 'at-buffer'])
-      const qSortAct = getQFromCards(['Сортування'], ['new', 'in-progress', 'at-buffer'])
-      const qSort = nomCards.filter(c => c.status === 'at-shop2-buffer')
-        .reduce((s, c) => s + Math.max(0, (Number(c.quantity) || 0) - (Number(c.used_in_shop2_qty) || 0)), 0)
-      const qMalWait = getQFromCards(['Фарбування', 'Малярка'], ['new'])
-      const qMal = getQFromCards(['Фарбування', 'Малярка'], ['in-progress'])
-      const qMalBuf = getQFromCards(['Фарбування', 'Малярка'], ['at-buffer'])
-      const qPresWait = getQFromCards(['Пресування'], ['new'])
-      const qPres = getQFromCards(['Пресування'], ['in-progress'])
-      const qPresBuf = getQFromCards(['Пресування'], ['at-buffer'])
-      const qDoopWait = getQFromCards(['Доопрацювання'], ['new'])
-      const qDoop = getQFromCards(['Доопрацювання'], ['in-progress'])
-      const qDoopBuf = getQFromCards(['Доопрацювання'], ['at-buffer'])
-
-      const groupProduced = nomCards.filter(c => {
-        const op = (c.operation || '').toLowerCase()
-        const isShop1 = ['розкрій', 'галтовка', 'прийомка', 'сортування'].some(o => op.includes(o))
-        return isShop1 && (c.status === 'completed' || c.status === 'at-shop2-buffer')
-      }).reduce((s, c) => s + (Number(c.quantity) || 0), 0)
-
-      const totalShop2Qty = nomCards.filter(c => {
-        const op = (c.operation || '').toLowerCase()
-        return ['пресування', 'фарбування', 'малярка', 'доопрацювання', 'пакування', 'сгп'].some(o => op.includes(o))
-      }).reduce((s, c) => s + (Number(c.quantity) || 0), 0)
-
-      const completedShop2Qty = nomCards.filter(c => {
-        const op = (c.operation || '').toLowerCase()
-        const isShop2 = ['пресування', 'фарбування', 'малярка', 'доопрацювання', 'пакування', 'сгп'].some(o => op.includes(o))
-        return isShop2 && c.status === 'completed'
-      }).reduce((s, c) => s + (Number(c.quantity) || 0), 0)
-
-      const initialStock = Number(snap.stock) || 0
-      const plannedReserve = Math.max(0, ((Number(snap.sheets) || 0) * (Number(snap.units_per_sheet) || 1)) + initialStock - (snap.need || 0))
-      const totalPotentialSgp = completedShop2Qty + initialStock
-      const flowRowsForThisPart = flowTotalsRows.filter(row =>
-        String(row.nomenclature_id) === nomIdStr && row.task_id && orderTaskIdSet.has(row.task_id)
-      )
-      const flowSgpQty = sumFlowField(flowRowsForThisPart, 'total_good', ['sgp'])
-      const flowScrapQty = sumFlowField(flowRowsForThisPart, 'total_scrap')
-      const netSgpQty = Math.max(0, flowSgpQty - flowScrapQty)
-      const sgpProduced = Math.max(0, groupProduced - qSort)
-      const producedForSgp = groupProduced > 0 ? sgpProduced : netSgpQty
-      const earlyWipQty = qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriy + qSortAct + qMalWait + qMal + qMalBuf + qPresWait + qPres + qPresBuf + qDoopWait + qDoop + qDoopBuf
-      const nonReissueEarlyWip = Math.max(0, flowScrapQty - plannedReserve) > 0 ? 0 : earlyWipQty
-      const qSgp = (snap.need || 0) > 0
-        ? Math.min(snap.need || 0, producedForSgp, Math.max(0, (snap.need || 0) - nonReissueEarlyWip))
-        : Math.max(0, producedForSgp)
-
-      // qBz is newly produced BZ + excess SGP
-      const bzExcess = Math.max(0, totalPotentialSgp - (snap.need || 0))
-      const flowBzQty = sumFlowField(flowRowsForThisPart, 'total_bz')
-      const qBz = groupProduced > 0
-        ? initialStock + Math.max(0, sgpProduced - (snap.need || 0))
-        : (flowRowsForThisPart.length > 0
-          ? initialStock + Math.max(flowBzQty, Math.max(0, netSgpQty - (snap.need || 0)))
-          : Math.max(0, groupProduced - qSort - totalShop2Qty) + bzExcess)
-
-      const cardIdsForThisPart = new Set(nomCards.map(c => c.id))
-      const scrapByScope = allCardsHistory.filter(h =>
-        String(h.nomenclature_id) === nomIdStr && h.task_id && orderTaskIdSet.has(h.task_id)
-      ).reduce((s, h) => s + (Number(h.scrap_qty) || 0), 0)
-      const scrapByCard = allCardsHistory.filter(h => h.card_id && cardIdsForThisPart.has(h.card_id)).reduce((s, h) => s + (Number(h.scrap_qty) || 0), 0)
-      const scrap = scrapByScope || scrapByCard || flowScrapQty
-
-      const sum = qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriy + qSortAct + qSort + qMalWait + qMal + qMalBuf + qPresWait + qPres + qPresBuf + qDoopWait + qDoop + qDoopBuf + qBz + qSgp
-
-      const matchSearch = !searchQuery ||
-        nom.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (nom.code || '').toLowerCase().includes(searchQuery.toLowerCase())
-
-      if (matchSearch) {
-        parts.push({
-          id: nomIdStr, name: nom.name, code: nom.code || '',
-          demand: snap.need || 0,
-          qCutWait, qCut, qCutBuf, qGalt, qGaltBuf, qPriy,
-          qSortAct, qSort, qMalWait, qMal, qMalBuf, qPresWait, qPres,
-          qPresBuf, qDoopWait, qDoop, qDoopBuf, qBz, qSgp, qScrap: scrap, sum
-        })
-      }
-    })
-    return parts
-  }, [task, orderAllCards, nomenclatures, allCardsHistory, flowTotalsRows, searchQuery])
-
-  const detailGroup = partDetails.length > 0
-    ? [{ id: 'detail', name: prodNames, code: '', rows: partDetails, trend: { potential: progress.actual, actual: progress.actual, demand: progress.demand } }]
-    : []
-
-  return (
-    <div>
-      {/* Header card */}
-      <div style={{ background: 'var(--card-bg, linear-gradient(145deg, #141417, #111113))', border: `1px solid ${accentColor}30`, borderRadius: '20px', overflow: 'hidden', marginBottom: '24px', boxShadow: `0 8px 32px rgba(0,0,0,0.3), 0 0 0 1px ${accentColor}15` }}>
-        <div style={{ height: '4px', background: `linear-gradient(90deg, ${accentColor}, ${accentColor}40)` }} />
-        <div style={{ padding: '22px 24px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
-            <div>
-              {/* Status badge */}
-              <div style={{ marginBottom: '8px' }}>
-                {status === 'ready' && <span style={{ background: 'rgba(16,185,129,0.15)', color: '#10b981', border: '1px solid rgba(16,185,129,0.3)', padding: '3px 12px', borderRadius: '8px', fontSize: '0.7rem', fontWeight: 900, letterSpacing: '0.08em' }}>✅ ГОТОВО ДО ЗАКРИТТЯ</span>}
-                {status === 'shortage' && <span style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', padding: '3px 12px', borderRadius: '8px', fontSize: '0.7rem', fontWeight: 900, letterSpacing: '0.08em' }}>⚠️ ПОТРІБЕН ДОВИПУСК</span>}
-                {status === 'new' && <span style={{ background: 'rgba(59,130,246,0.15)', color: '#3b82f6', border: '1px solid rgba(59,130,246,0.3)', padding: '3px 12px', borderRadius: '8px', fontSize: '0.7rem', fontWeight: 900, letterSpacing: '0.08em' }}>🆕 НОВИЙ (картки не створено)</span>}
-                {status === 'in_progress' && <span style={{ background: 'rgba(234,179,8,0.15)', color: '#eab308', border: '1px solid rgba(234,179,8,0.3)', padding: '3px 12px', borderRadius: '8px', fontSize: '0.7rem', fontWeight: 900, letterSpacing: '0.08em' }}>⚙️ В РОБОТІ</span>}
-                {status === 'completed' && <span style={{ background: 'rgba(16,185,129,0.15)', color: '#10b981', border: '1px solid rgba(16,185,129,0.3)', padding: '3px 12px', borderRadius: '8px', fontSize: '0.7rem', fontWeight: 900, letterSpacing: '0.08em' }}>✓ НАРЯД ВИКОНАНО</span>}
-              </div>
-              <div style={{ fontSize: '1.8rem', fontWeight: 950, color: '#fff', lineHeight: 1.1 }}>
-                Наряд №{displayNum}{batchSuffix}
-              </div>
-              <div style={{ fontSize: '0.85rem', color: '#71717a', marginTop: '4px', fontWeight: 600 }}>
-                <span style={{ color: '#a1a1aa' }}>ВИРІБ:</span> <span style={{ color: accentColor }}>{prodNames}</span>
-                <span style={{ margin: '0 10px', color: '#27272a' }}>|</span>
-                <span>{order.customer || '—'}</span>
-                <span style={{ margin: '0 10px', color: '#27272a' }}>|</span>
-                <span style={{ color: '#52525b' }}>від {dateStr}</span>
-                {task.batch_index && (
-                  <span style={{ marginLeft: '10px', background: '#eab308', color: '#000', padding: '1px 8px', borderRadius: '5px', fontSize: '0.72rem', fontWeight: 900 }}>ПАРТІЯ #{task.batch_index}</span>
-                )}
-              </div>
-            </div>
-            {/* Progress stats */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, auto)', gap: '12px', textAlign: 'center' }}>
-              {[
-                { label: 'На СГП', value: progress.actual, color: '#10b981' },
-                { label: 'Потреба', value: progress.demand, color: '#a1a1aa' },
-                { label: 'Виконано', value: `${pct}%`, color: accentColor },
-              ].map(s => (
-                <div key={s.label} style={{ background: '#0f0f12', border: '1px solid var(--glass-border, #27272a)', borderRadius: '12px', padding: '12px 16px' }}>
-                  <div style={{ fontSize: '1.4rem', fontWeight: 950, color: s.color, lineHeight: 1 }}>{s.value}</div>
-                  <div style={{ fontSize: '0.62rem', color: '#52525b', fontWeight: 800, textTransform: 'uppercase', marginTop: '4px', letterSpacing: '0.08em' }}>{s.label}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Progress bar */}
-          <div style={{ marginTop: '16px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', fontWeight: 800, marginBottom: '6px' }}>
-              <span style={{ color: '#52525b' }}>ВИКОНАННЯ НАРЯДУ</span>
-              <span style={{ color: accentColor }}>{pct}%</span>
-            </div>
-            <div style={{ height: '10px', background: '#0f0f12', borderRadius: '10px', overflow: 'hidden', border: '1px solid var(--glass-border, #27272a)', position: 'relative' }}>
-              <div style={{ width: `${pct}%`, height: '100%', background: `linear-gradient(90deg, ${accentColor}, ${accentColor}99)`, borderRadius: '10px', transition: 'width 0.6s ease', boxShadow: `0 0 10px ${accentColor}50` }} />
-              {pct > 0 && pct < 100 && (
-                <div style={{ position: 'absolute', left: `${pct}%`, top: '50%', transform: 'translateY(-50%)', width: '2px', height: '14px', background: '#fff', opacity: 0.4 }} />
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Bottlenecks panel */}
-      {bottlenecks.length > 0 && (
-        <div style={{ background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '16px', padding: '18px 20px', marginBottom: '20px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
-            <AlertTriangle size={16} color="#ef4444" />
-            <span style={{ fontSize: '0.8rem', fontWeight: 900, color: '#ef4444', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-              Вузькі місця — потрібен довипуск ({bottlenecks.length})
-            </span>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '10px' }}>
-            {bottlenecks.map(b => (
-              <div key={b.name} style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)', borderRadius: '12px', padding: '12px 14px' }}>
-                <div style={{ fontSize: '0.82rem', fontWeight: 800, color: '#fff', marginBottom: '6px' }}>{b.name}{b.code ? ` (${b.code})` : ''}</div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem' }}>
-                  <span style={{ color: '#9ca3af' }}>СГП: <strong style={{ color: '#fca5a5' }}>{b.qty}</strong> / {b.needed} шт.</span>
-                  <span style={{ color: '#ef4444', fontWeight: 700 }}>Довипуск: {b.shortage}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', marginTop: '5px', color: '#71717a' }}>
-                  <span>Брак: {b.scrap}</span>
-                  <span>Запас: {b.plannedReserve}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Search */}
-      <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '14px' }}>
-        <div style={{ position: 'relative', flex: 1, maxWidth: '400px' }}>
-          <Search size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#52525b' }} />
-          <input
-            type="text"
-            placeholder="Пошук деталі..."
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            style={{ width: '100%', padding: '10px 12px 10px 36px', background: 'var(--card-bg, #18181b)', border: '1px solid var(--glass-border, #27272a)', borderRadius: '10px', color: '#fff', fontSize: '0.82rem', outline: 'none', boxSizing: 'border-box' }}
-            onFocus={e => e.target.style.borderColor = '#ef4444'}
-            onBlur={e => e.target.style.borderColor = '#27272a'}
-          />
-        </div>
-        <div style={{ fontSize: '0.72rem', color: '#3f3f46', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-          РУХ ДЕТАЛЕЙ ПО ОПЕРАЦІЯХ
-        </div>
-        {isLoadingCards && (
-          <div style={{ fontSize: '0.72rem', color: '#52525b', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <RefreshCw size={12} style={{ animation: 'spin 1s linear infinite' }} /> Завантаження...
-          </div>
-        )}
-      </div>
-
-      {/* Detail WIP table */}
-      <WipTable
-        groupedData={detailGroup}
-        maxHeight="calc(100vh - 420px)"
-        emptyText={isLoadingCards ? 'Завантаження деталей наряду...' : 'Немає деталей для відображення. Перевірте план-знімок наряду.'}
-      />
-
-      {/* ─── CARD FLOW VISUALIZATION SECTION ─── */}
-      <div style={{ marginTop: '35px', background: '#111115', border: '1px solid var(--glass-border, #27272a)', borderRadius: '24px', padding: '25px', boxShadow: '0 10px 40px rgba(0,0,0,0.4)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
-          <h3 style={{ margin: 0, fontSize: '1.15rem', color: '#ff9000', fontWeight: 950, display: 'flex', alignItems: 'center', gap: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-            <span>📊</span> ХРОНОЛОГІЯ ТА СТАТУС РУХУ КАРТ (ПО ВСІХ КАРТКАХ ДЕТАЛІ)
-          </h3>
-          <div style={{ fontSize: '0.72rem', color: '#71717a', fontWeight: 600 }}>
-            Аналітика вузьких місць за часовими інтервалами всього наряду
-          </div>
-        </div>
-
-        {loadingHistory ? (
-          <div style={{ padding: '30px', textAlign: 'center', color: '#71717a', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-            <RefreshCw size={14} className="animate-spin" style={{ animation: 'spin 1s linear infinite' }} /> Завантаження історії руху карт...
-          </div>
-        ) : partDetails.length === 0 ? (
-          <div style={{ padding: '20px', textAlign: 'center', color: '#52525b', fontSize: '0.8rem', fontStyle: 'italic' }}>
-            Дані про рух деталей відсутні
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-            {partDetails.map(part => {
-              // 1. Get ALL cards for this nomenclature inside the active task/order
-              const partCards = orderAllCards.filter(c => String(c.nomenclature_id) === String(part.id))
-              if (partCards.length === 0) return null
-
-              const cardIds = partCards.map(c => c.id)
-              const cardHistory = taskHistory.filter(h => cardIds.includes(h.card_id))
-
-              // 2. Define stages config with custom bright gradient colors
-              const stagesConfig = [
-                { key: 'Cutting', label: 'Розкрій', ops: ['Розкрій', 'Різка'], color: '#f97316' },
-                { key: 'Tumbling', label: 'Галтовка', ops: ['Галтовка', 'Галтовка (Вібростіл)', 'Галтовка (Мийка)', 'Галтовка (Галтовка)', 'Галтовка (Сушка)'], color: '#06b6d4' },
-                { key: 'Acceptance', label: 'Прийомка', ops: ['Прийомка'], color: '#10b981' },
-                { key: 'Sorting', label: 'Сортування', ops: ['Сортування'], color: '#8b5cf6' },
-                { key: 'Pressing', label: 'Пресування', ops: ['Пресування'], color: '#eab308' },
-                { key: 'Painting', label: 'Фарбування', ops: ['Фарбування', 'Малярка'], color: '#ec4899' },
-                { key: 'Rework', label: 'Доопрацювання', ops: ['Доопрацювання'], color: '#ef4444' },
-                { key: 'Sgp', label: 'СГП/Пак', ops: ['Пакування', 'Пакування/СГП', 'СГП'], color: '#6366f1' }
-              ]
-
-              // 3. Sum history durations by stage across ALL cards of this part
-              const stageDurations = {}
-              stagesConfig.forEach(s => { stageDurations[s.key] = 0 })
-
-              cardHistory.forEach(h => {
-                const matchedStage = stagesConfig.find(s => s.ops.some(op => h.stage_name === op || h.stage_name?.startsWith(op)))
-                if (matchedStage && h.started_at && h.completed_at) {
-                  const diff = new Date(h.completed_at) - new Date(h.started_at)
-                  if (diff > 0) {
-                    stageDurations[matchedStage.key] += diff
-                  }
-                }
-              })
-
-              // Add currently running active session to the calculations
-              partCards.forEach(c => {
-                if (c.status === 'in-progress' && c.started_at) {
-                  const matchedStage = stagesConfig.find(s => s.ops.some(op => c.operation === op || c.operation?.startsWith(op)))
-                  if (matchedStage) {
-                    const diff = new Date() - new Date(c.started_at)
-                    if (diff > 0) {
-                      stageDurations[matchedStage.key] += diff
-                    }
-                  }
-                }
-              })
-
-              const totalDurationMs = Object.values(stageDurations).reduce((sum, v) => sum + v, 0)
-
-              // Helper to format duration
-              const formatMs = (ms) => {
-                if (ms <= 0) return '0хв'
-                const totalMins = Math.round(ms / 60000)
-                const hrs = Math.floor(totalMins / 60)
-                const mins = totalMins % 60
-                return hrs > 0 ? `${hrs}г ${mins}хв` : `${mins}хв`
-              }
-
-              // Determine bottleneck (longest stage)
-              let bottleneckStage = null
-              let maxMs = 0
-              Object.entries(stageDurations).forEach(([key, ms]) => {
-                if (ms > maxMs) {
-                  maxMs = ms
-                  bottleneckStage = stagesConfig.find(s => s.key === key)
-                }
-              })
-
-              const bottleneckPct = totalDurationMs > 0 ? Math.round((maxMs / totalDurationMs) * 100) : 0
-
-              return (
-                <div key={part.id} style={{ background: '#18181c', border: '1px solid #2d2d39', borderRadius: '20px', padding: '20px', transition: 'all 0.2s', boxShadow: '0 4px 20px rgba(0,0,0,0.2)' }}>
-
-                  {/* Part Title and Overall info */}
-                  {(() => {
-                    const totalQty = partCards.reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
-                    const activePartCards = partCards.filter(c => c.operation !== 'Склад БЗ' && c.operation !== 'Склад BZ')
-                    const avgCardDurationMs = activePartCards.length > 0 ? totalDurationMs / activePartCards.length : 0
-                    const activePartCardsQty = activePartCards.reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
-                    const avgPartDurationMs = activePartCardsQty > 0 ? totalDurationMs / activePartCardsQty : 0
-
-                    return (
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px', flexWrap: 'wrap', gap: '15px' }}>
-                        <div>
-                          <strong style={{ fontSize: '1.05rem', color: '#fff', letterSpacing: '-0.2px' }}>{part.name}</strong>
-                          <span style={{ fontSize: '0.75rem', color: '#71717a', marginLeft: '12px' }}>Код: {part.code || '—'}</span>
-                          <div style={{ display: 'flex', gap: '12px', marginTop: '6px', fontSize: '0.68rem', color: '#a1a1aa' }}>
-                            <span>Всього деталей: <strong style={{ color: '#fff' }}>{totalQty} шт</strong></span>
-                            <span style={{ color: '#3f3f46' }}>|</span>
-                            <span>Сер. час на карту: <strong style={{ color: '#10b981' }}>{formatMs(avgCardDurationMs)}</strong></span>
-                            <span style={{ color: '#3f3f46' }}>|</span>
-                            <span>Сер. час на 1 шт: <strong style={{ color: '#06b6d4' }}>{formatMs(avgPartDurationMs)}</strong></span>
-                          </div>
-                        </div>
-                        <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
-                          <div style={{ textTransform: 'uppercase', fontSize: '0.66rem', color: '#52525b', fontWeight: 800, textAlign: 'right' }}>
-                            <div>Загальний час робіт:</div>
-                            <strong style={{ color: '#ff9000', fontSize: '0.85rem' }}>{formatMs(totalDurationMs)}</strong>
-                          </div>
-                          <span style={{ background: 'rgba(255, 144, 0, 0.1)', border: '1px solid rgba(255, 144, 0, 0.2)', color: '#ff9000', padding: '4px 10px', borderRadius: '6px', fontSize: '0.65rem', fontWeight: 900 }}>
-                            {partCards.length} КАРТ(И)
-                          </span>
-                        </div>
-                      </div>
-                    )
-                  })()}
-
-                  {/* ── STACKED TIME TIMELINE BAR ── */}
-                  <div style={{ marginBottom: '16px' }}>
-                    <div style={{ height: '24px', background: 'var(--bg, #09090b)', borderRadius: '12px', border: '1px solid var(--glass-border, #27272a)', overflow: 'hidden', display: 'flex', width: '100%', position: 'relative' }}>
-                      {totalDurationMs === 0 ? (
-                        <div style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#444', fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                          ⏳ Очікування запуску першої операції
-                        </div>
-                      ) : (
-                        stagesConfig.map(s => {
-                          const ms = stageDurations[s.key] || 0
-                          if (ms <= 0) return null
-                          const pct = (ms / totalDurationMs) * 100
-                          return (
-                            <div
-                              key={s.key}
-                              style={{
-                                width: `${pct}%`,
-                                height: '100%',
-                                background: s.color,
-                                transition: 'width 0.4s ease',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                minWidth: pct > 8 ? '50px' : '6px',
-                                position: 'relative'
-                              }}
-                              title={`${s.label}: ${formatMs(ms)} (${Math.round(pct)}%)`}
-                            >
-                              {pct > 12 && (
-                                <span style={{ color: '#000', fontSize: '0.62rem', fontWeight: 950, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                  {s.label} ({Math.round(pct)}%)
-                                </span>
-                              )}
-                            </div>
-                          )
-                        })
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Timeline breakdown legend */}
-                  {totalDurationMs > 0 && (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px 20px', fontSize: '0.72rem', color: '#a1a1aa', padding: '10px 12px', background: '#0f0f13', borderRadius: '12px', border: '1px solid var(--glass-border, #27272a)', marginBottom: '16px' }}>
-                      {stagesConfig.map(s => {
-                        const ms = stageDurations[s.key] || 0
-                        if (ms <= 0) return null
-                        const pct = Math.round((ms / totalDurationMs) * 100)
-                        return (
-                          <div key={s.key} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <div style={{ width: '10px', height: '10px', borderRadius: '3px', background: s.color }} />
-                            <span>{s.label}: <strong style={{ color: '#fff' }}>{formatMs(ms)}</strong> ({pct}%)</span>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
-
-                  {/* ── BOTTLENECK ANALYSIS NOTE ── */}
-                  {totalDurationMs > 0 && bottleneckStage && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(239, 68, 68, 0.06)', border: '1px solid rgba(239, 68, 68, 0.15)', padding: '10px 14px', borderRadius: '12px', marginBottom: '16px' }}>
-                      <span style={{ fontSize: '0.95rem' }}>⚠️</span>
-                      <div style={{ fontSize: '0.72rem', color: '#ef4444', fontWeight: 700 }}>
-                        Вузьке місце наряду: деталь пролежала/провела найдовше на етапі <strong style={{ textTransform: 'uppercase', textDecoration: 'underline', color: '#fff' }}>{bottleneckStage.label}</strong> — <strong style={{ color: '#fff' }}>{formatMs(maxMs)}</strong> ({bottleneckPct}% від усього часу виробництва).
-                      </div>
-                    </div>
-                  )}
-
-                  {/* ── DETAILED INDIVIDUAL CARDS TRACKING (COLLAPSIBLE) ── */}
-                  <div style={{ borderTop: '1px dashed #2d2d39', paddingTop: '14px', marginTop: '10px' }}>
-                    {(() => {
-                      const isExpanded = !!expandedCardsState[part.id]
-                      return (
-                        <>
-                          <button
-                            onClick={() => setExpandedCardsState(prev => ({ ...prev, [part.id]: !prev[part.id] }))}
-                            style={{
-                              background: 'transparent',
-                              border: 'none',
-                              color: '#a1a1aa',
-                              fontSize: '0.74rem',
-                              fontWeight: 800,
-                              cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '6px',
-                              padding: '4px 0',
-                              transition: 'color 0.2s'
-                            }}
-                            onMouseEnter={e => e.currentTarget.style.color = '#ff9000'}
-                            onMouseLeave={e => e.currentTarget.style.color = '#a1a1aa'}
-                          >
-                            <span>{isExpanded ? '📂' : '📁'}</span>
-                            {isExpanded ? 'Сховати список карток' : 'Показати список карток'} ({partCards.length})
-                            <span style={{ fontSize: '0.62rem', marginLeft: '2px', color: '#ff9000' }}>{isExpanded ? '▲' : '▼'}</span>
-                          </button>
-
-                          {isExpanded && (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '12px', paddingLeft: '6px' }}>
-                              {partCards.map(c => {
-                                const historyRows = cardHistory.filter(h => h.card_id === c.id)
-                                const cDuration = historyRows.reduce((sum, h) => {
-                                  if (h.started_at && h.completed_at) {
-                                    const diff = new Date(h.completed_at) - new Date(h.started_at)
-                                    return sum + (diff > 0 ? diff : 0)
-                                  }
-                                  return sum
-                                }, 0)
-
-                                const cPct = c.status === 'completed' ? '🟢 ЗАВЕРШЕНО'
-                                  : c.status === 'at-buffer' ? '🔵 В БУФЕРІ'
-                                    : c.status === 'in-progress' ? '🟡 В РОБОТІ'
-                                      : '⚪ ОЧІКУЄ'
-
-                                const currentOp = c.operation || 'Створення'
-
-                                return (
-                                  <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#0a0a0c', border: '1px solid #1f1f25', padding: '10px 14px', borderRadius: '10px', fontSize: '0.74rem' }}>
-                                    <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
-                                      <strong style={{ color: '#ff9000', fontFamily: 'monospace' }}>#{c.id.slice(-8).toUpperCase()}</strong>
-                                      <span style={{ color: '#888' }}>К-сть: <strong>{c.quantity || 0} шт</strong></span>
-                                      <span style={{ color: '#52525b' }}>|</span>
-                                      <span style={{ color: '#ddd' }}>Етап: <strong>{currentOp}</strong></span>
-                                    </div>
-                                    <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
-                                      <span style={{ fontSize: '0.7rem', fontWeight: 800, color: c.status === 'completed' ? '#10b981' : (c.status === 'in-progress' ? '#f59e0b' : '#3b82f6') }}>{cPct}</span>
-                                      <span style={{ color: '#888', fontSize: '0.68rem' }}>Час карти: <strong style={{ color: '#fff' }}>{formatMs(cDuration)}</strong></span>
-                                    </div>
-                                  </div>
-                                )
-                              })}
-                            </div>
-                          )}
-                        </>
-                      )
-                    })()}
-                  </div>
-
-
-
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </div>
-
-      <style>{`
-        .hide-scrollbar::-webkit-scrollbar { display: none; }
-        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-      `}</style>
-
-      {/* Link to Foreman */}
-      <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end' }}>
-        <Link
-          to={`/foreman?task=${task.id}`}
-          style={{
-            background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#ef4444',
-            padding: '10px 20px', borderRadius: '12px', textDecoration: 'none', fontWeight: 900,
-            fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '8px', transition: 'all 0.2s'
-          }}
-          onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.2)'}
-          onMouseLeave={e => e.currentTarget.style.background = 'rgba(239,68,68,0.1)'}
-        >
-          Відкрити в Foreman →
-        </Link>
-      </div>
     </div>
   )
 }

@@ -1,5 +1,6 @@
 import { supabase } from '../supabase'
 import { apiService } from '../services/apiDispatcher'
+import { sentryLogger } from '../services/sentryLogger'
 
 const USER_CACHE_KEY = 'MES_SESSION_USER'
 
@@ -35,51 +36,75 @@ export function createAuthActions({ currentUser, setCurrentUser, setSystemUsers,
       return { success: false, error: 'Невірний логін або пароль' }
     }
 
-    // ── Step 2: Fire-and-forget Rust backend sync (non-blocking) ────────────
-    let token = null
-    apiService.submitLogin(loginName, password)
-      .then(backendRes => {
-        const t = backendRes?.token || backendRes?.accessToken || backendRes?.data?.token
-        if (t) {
-          localStorage.setItem('BACKEND_TOKEN', t)
-          setCurrentUser(prev => prev ? { ...prev, token: t } : prev)
-        }
-      })
-      .catch(() => {}) // silently ignore — Supabase is master
-
-    const userWithToken = { ...data, token }
     // Cache BEFORE setCurrentUser so App.jsx gate never sees sessionLoading=true
-    localStorage.setItem('MES_SESSION_LOGIN', data.login)
-    localStorage.setItem(USER_CACHE_KEY, JSON.stringify(data))
+    const cleanUser = { ...data }
+    delete cleanUser.password
+    localStorage.setItem('MES_SESSION_LOGIN', cleanUser.login)
+    localStorage.setItem(USER_CACHE_KEY, JSON.stringify(cleanUser))
     // Immediately unblock the session gate — no spinner after login
     if (setSessionLoading) setSessionLoading(false)
-    setCurrentUser(userWithToken)
+    setCurrentUser(cleanUser)
+    sentryLogger.setUserContext(cleanUser)
 
-    return { success: true, user: userWithToken }
+    return { success: true, user: cleanUser }
   }
 
   const logout = () => {
+    sentryLogger.setUserContext(null)
     if (clearAllData) {
       clearAllData()
     } else {
       setCurrentUser(null)
       localStorage.removeItem('MES_SESSION_LOGIN')
-      localStorage.removeItem('BACKEND_TOKEN')
       localStorage.removeItem(USER_CACHE_KEY)
     }
   }
 
   const upsertUser = async (userData) => {
-    await apiService.submitUserAction(userData, null, currentUser?.token)
     const payload = { ...userData }
     if (!payload.id) delete payload.id
-    delete payload.token // Remove frontend-only token property before saving to DB
+    if (payload.token) delete payload.token
     
     // Avoid overwriting password if it is unchanged
     if (!payload.password || payload.password === '••••••••') {
       delete payload.password
     }
 
+    const adminId = currentUser?.id || null
+
+    // ── 1. Спроба виконати через атомарний Enterprise RPC ──
+    try {
+      const { data: rpcRes, error: rpcErr } = await supabase.rpc('rpc_admin_upsert_user', {
+        p_admin_id: adminId,
+        p_user_payload: payload
+      })
+
+      if (!rpcErr && rpcRes?.success && rpcRes?.data) {
+        const result = rpcRes.data
+        setSystemUsers(prev => {
+          const idx = prev.findIndex(u => u.id === result.id)
+          if (idx >= 0) { const next = [...prev]; next[idx] = result; return next }
+          return [...prev, result]
+        })
+        if (currentUser && currentUser.id === result.id) {
+          setCurrentUser(result)
+          sentryLogger.setUserContext(result)
+        }
+        return { data: result, error: null }
+      }
+
+      // Якщо помилка валідації або прав — повертаємо без фолбеку
+      if (rpcRes && !rpcRes.success && rpcRes.error) {
+        return { data: null, error: new Error(rpcRes.error) }
+      }
+      if (rpcErr && rpcErr.code !== 'PGRST202') {
+        return { data: null, error: rpcErr }
+      }
+    } catch (e) {
+      console.warn('[useAuth] rpc_admin_upsert_user fallback:', e?.message || e)
+    }
+
+    // ── 2. Graceful Fallback для прямої таблиці ──
     let query = supabase.from('system_users')
     if (payload.id) {
       query = query.update(payload).eq('id', payload.id)
@@ -97,12 +122,40 @@ export function createAuthActions({ currentUser, setCurrentUser, setSystemUsers,
         if (idx >= 0) { const next = [...prev]; next[idx] = result; return next }
         return [...prev, result]
       })
-      if (currentUser && currentUser.id === result.id) setCurrentUser(result)
+      if (currentUser && currentUser.id === result.id) {
+        setCurrentUser(result)
+        sentryLogger.setUserContext(result)
+      }
     }
     return { data: result, error }
   }
 
   const deleteUser = async (id) => {
+    const adminId = currentUser?.id || null
+
+    // ── 1. Спроба виконати через атомарний Enterprise RPC ──
+    try {
+      const { data: rpcRes, error: rpcErr } = await supabase.rpc('rpc_admin_delete_user', {
+        p_admin_id: adminId,
+        p_target_user_id: id
+      })
+
+      if (!rpcErr && rpcRes?.success) {
+        setSystemUsers(prev => prev.filter(u => u.id !== id))
+        return { error: null }
+      }
+
+      if (rpcRes && !rpcRes.success && rpcRes.error) {
+        return { error: new Error(rpcRes.error) }
+      }
+      if (rpcErr && rpcErr.code !== 'PGRST202') {
+        return { error: rpcErr }
+      }
+    } catch (e) {
+      console.warn('[useAuth] rpc_admin_delete_user fallback:', e?.message || e)
+    }
+
+    // ── 2. Graceful Fallback ──
     const { error } = await supabase.from('system_users').delete().eq('id', id)
     if (!error) setSystemUsers(prev => prev.filter(u => u.id !== id))
     return { error }

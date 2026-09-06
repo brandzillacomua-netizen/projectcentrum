@@ -1,30 +1,31 @@
 import React from 'react'
-import { Plus, Trash2, Save, Layers, Briefcase, Building, Edit3 } from 'lucide-react'
+import { Building, Briefcase, Plus, Edit3, Save, Layers, Trash2 } from 'lucide-react'
 
-export function SettingsStructureTab({
-  companyStructure,
-  companyPositions,
-  systemUsers,
-  structureSubTab,
-  setStructureSubTab,
-  structureForm,
-  setStructureForm,
-  positionForm,
-  setPositionForm,
-  handleSaveStructure,
-  editStructure,
-  handleDeleteStructure,
-  handleSavePosition,
-  editPosition,
-  handleDeletePosition,
-  typeLabels,
-  typeColors,
-  getStructureTypeIcon
-}) {
+export function SettingsStructureTab(props) {
+  const {
+    structureSubTab,
+    setStructureSubTab,
+    structureForm,
+    setStructureForm,
+    handleSaveStructure,
+    editStructure,
+    handleDeleteStructure,
+    companyStructure,
+    positionForm,
+    setPositionForm,
+    handleSavePosition,
+    editPosition,
+    handleDeletePosition,
+    companyPositions,
+    getStructureTypeIcon,
+    typeLabels
+  } = props
+
   const inputStyle = { width: '100%', background: '#000', border: '1px solid rgba(255,255,255,0.06)', color: '#fff', padding: '12px', borderRadius: '12px', fontSize: '0.85rem', fontWeight: 600, outline: 'none' }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%' }}>
+      
       {/* Sub-tab Navigation */}
       <div style={{ display: 'flex', gap: '10px', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '10px' }}>
         <button 

@@ -1,267 +1,50 @@
-import React, { useState, useMemo, useEffect } from 'react'
+import React from 'react'
 import { Warehouse as WarehouseIcon, ArrowLeft, Search, Check, AlertCircle, Box, QrCode, ChevronDown, Layers3 } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { useMES } from '../MESContext'
-import { useWarehouseComputed } from './Warehouse/hooks/useWarehouseComputed'
-import { useWarehouseHandlers } from './Warehouse/hooks/useWarehouseHandlers'
-import { ScannerPanel } from './Warehouse/components/ScannerPanel'
-import { KittingModal } from './Warehouse/components/KittingModal'
-import { MaterialDetailModal } from './Warehouse/components/MaterialDetailModal'
-import { useManualInventoryIssue } from './Warehouse/ManualIssue/useManualInventoryIssue'
-import { ManualInventoryIssueUI, ManualIssueJournalButton } from './Warehouse/ManualIssue/ManualInventoryIssueUI'
+import { ScannerPanel } from './Warehouse/components/ScannerPanel.jsx'
+import { KittingModal } from './Warehouse/components/KittingModal.jsx'
+import { MaterialDetailModal } from './Warehouse/components/MaterialDetailModal.jsx'
+import { ManualInventoryIssueUI, ManualIssueJournalButton } from './Warehouse/ManualIssue/ManualInventoryIssueUI.jsx'
+import { useWarehouseBoxesData } from './Warehouse/hooks/useWarehouseBoxesData.jsx'
 
 const WarehouseBoxesModule = () => {
   const {
-    inventory, requests, issueMaterials, issueMaterialsBatch,
-    nomenclatures, receptionDocs, confirmReception,
-    orders, tasks, approveWarehouse, createPurchaseRequest,
-    purchaseRequests, receiveInventory, currentUser, fetchData,
-    fetchModuleData, refreshTable, machineOperations, workCards
-  } = useMES()
-
-  const [checkedCutters, setCheckedCutters] = useState({})
-  const [searchQuery, setSearchQuery] = useState('')
-  const [isProcessing, setIsProcessing] = useState(false)
-  const [editingInvId, setEditingInvId] = useState(null)
-  const [editingInvTotal, setEditingInvTotal] = useState('')
-  const [editingInvReserved, setEditingInvReserved] = useState('')
-  const [savingInv, setSavingInv] = useState(false)
-
-  // Scanning & kitting modal states (Identical to WarehouseModuleV2)
-  const [isScanning, setIsScanning] = useState(false)
-  const [cameraError, setCameraError] = useState(null)
-  const [manualCardInput, setManualCardInput] = useState('')
-  const [kittingBoxItem, setKittingBoxItem] = useState(null)
-  const [scannedCard, setScannedCard] = useState(null)
-  const [scannedRequests, setScannedRequests] = useState([])
-
-  // Local interactive states
-  const [selectedOrderNum, setSelectedOrderNum] = useState('all')
-  const [filterStatus, setFilterStatus] = useState('pending') // 'all', 'pending', 'prepared'
-  const [boxNumberState, setBoxNumberState] = useState({}) 
-  const [checkedSheets, setCheckedSheets] = useState({})
-  const [expandedGroups, setExpandedGroups] = useState({})
-
-  // Screen size check for responsive UI layout
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
-  useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < 768)
-    window.addEventListener('resize', handleResize)
-    return () => window.removeEventListener('resize', handleResize)
-  }, [])
-
-  // Dummy state values needed for compatibility
-  const [editingQty] = useState({})
-  const [savingQty] = useState(new Set())
-  const [shortages, setShortages] = useState(null)
-  const [newItem] = useState({ name: '', unit: 'шт', total_qty: '', type: 'raw', pocket_owner: '' })
-
-  // Active tab context is boxes
-  const activeTab = 'boxes'
-
-  const { cardsWithBoxes } = useWarehouseComputed({
-    requests, tasks, receptionDocs, nomenclatures, inventory,
-    activeTab, machineOperations, workCards, searchQuery
-  })
-
-  const handlers = useWarehouseHandlers({
-    inventory, nomenclatures, orders, tasks, requests,
-    purchaseRequests, receptionDocs, workCards, machineOperations, activeTab, currentUser,
-    issueMaterials, issueMaterialsBatch, approveWarehouse,
-    confirmReception, createPurchaseRequest, receiveInventory,
-    fetchData, fetchModuleData,
-    setShortages, setIsProcessing,
-    setSavingQty: () => {},
-    setEditingQty: () => {},
-    setEditingInvId, setEditingInvTotal, setEditingInvReserved, setSavingInv,
-    checkedCutters, setCheckedCutters,
-    editingQty, savingQty,
-    editingInvTotal, editingInvReserved, savingInv,
-    scannedCard, scannedRequests, shortages, isProcessing, newItem,
-    setIsScanning, setScannedCard, setKittingBoxItem, setScannedRequests, setCameraError, setManualCardInput
-  })
-
-  const manualIssue = useManualInventoryIssue({
     nomenclatures,
-    inventory,
-    currentUser,
-    sourceModule: 'warehouse_boxes',
-    refreshTable
-  })
-
-  // Process & group all cards with boxes
-  const allBoxes = useMemo(() => {
-    return cardsWithBoxes.map(box => {
-      const parentOrder = (orders || []).find(o => String(o.id) === String(box.card.order_id || box.task?.order_id))
-      const orderNum = parentOrder ? parentOrder.order_num : 'Інші'
-      const cardNum = box.card.card_info?.split(' ')[0] || `№${box.card.id.substring(0, 8)}`
-      const partName = box.nom?.name || 'Без деталі'
-      
-      return {
-        ...box,
-        orderNum,
-        cardNum,
-        partName
-      }
-    })
-  }, [cardsWithBoxes, orders])
-
-
-
-  // Filter boxes by search query, selected order, and tab status
-  const filteredBoxes = useMemo(() => {
-    return allBoxes.filter(box => {
-      const search = searchQuery.toLowerCase().trim()
-      if (search) {
-        const matchesSearch = box.cardNum.toLowerCase().includes(search) || 
-                              box.partName.toLowerCase().includes(search) || 
-                              box.orderNum.toLowerCase().includes(search)
-        if (!matchesSearch) return false
-      }
-
-      if (selectedOrderNum !== 'all' && box.orderNum !== selectedOrderNum) {
-        return false
-      }
-
-      if (filterStatus === 'pending' && box.isPrepared) return false
-      if (filterStatus === 'prepared' && !box.isPrepared) return false
-
-      return true
-    }).sort((a, b) => {
-      const getIndex = (box) => {
-        const match = (box.cardNum || '').match(/^(\d+)\/(\d+)$/)
-        return match ? parseInt(match[1], 10) : 999
-      }
-      return getIndex(a) - getIndex(b)
-    })
-  }, [allBoxes, searchQuery, selectedOrderNum, filterStatus])
-
-  // List of unique orders for selector
-  const orderList = useMemo(() => {
-    const ordersMap = {}
-    allBoxes.forEach(box => {
-      if (!ordersMap[box.orderNum]) {
-        ordersMap[box.orderNum] = {
-          orderNum: box.orderNum,
-          total: 0,
-          pending: 0,
-          prepared: 0,
-          issued: 0
-        }
-      }
-      ordersMap[box.orderNum].total += 1
-      if (box.isPrepared) {
-        ordersMap[box.orderNum].prepared += 1
-      } else {
-        ordersMap[box.orderNum].pending += 1
-      }
-      if (box.isIssued) {
-        ordersMap[box.orderNum].issued += 1
-      }
-    })
-    return Object.values(ordersMap).sort((a, b) => b.pending - a.pending)
-  }, [allBoxes])
-
-  // Group the work queue by nomenclature. A stable id keeps accordions open while
-  // filters or live warehouse data update.
-  const nomenclatureGroups = useMemo(() => {
-    const groups = new Map()
-
-    filteredBoxes.forEach(box => {
-      const nomenclatureId = box.nom?.id || box.card?.nomenclature_id || box.partName
-      const key = String(nomenclatureId || 'without-nomenclature')
-      if (!groups.has(key)) {
-        groups.set(key, {
-          key,
-          name: box.partName,
-          items: [],
-          prepared: 0,
-          pending: 0
-        })
-      }
-
-      const group = groups.get(key)
-      group.items.push(box)
-      if (box.isPrepared) group.prepared += 1
-      else group.pending += 1
-    })
-
-    return Array.from(groups.values()).sort((a, b) => {
-      if (a.pending !== b.pending) return b.pending - a.pending
-      return a.name.localeCompare(b.name, 'uk')
-    })
-  }, [filteredBoxes])
-
-  useEffect(() => {
-    if (nomenclatureGroups.length === 0) return
-    setExpandedGroups(previous => {
-      const hasVisibleOpenGroup = nomenclatureGroups.some(group => previous[group.key])
-      if (hasVisibleOpenGroup) return previous
-      const firstPending = nomenclatureGroups.find(group => group.pending > 0) || nomenclatureGroups[0]
-      return { ...previous, [firstPending.key]: true }
-    })
-  }, [nomenclatureGroups])
-
-  const toggleGroup = (groupKey) => {
-    setExpandedGroups(previous => ({ ...previous, [groupKey]: !previous[groupKey] }))
-  }
-
-  const normalizeScannedCardId = (rawValue) => {
-    let value = String(rawValue || '').trim()
-    if (!value) return ''
-
-    try {
-      value = decodeURIComponent(value)
-    } catch (e) {}
-
-    if (value.includes('CENTRUM_CARD_')) {
-      value = value.split('CENTRUM_CARD_').pop().trim()
-    }
-
-    try {
-      const url = new URL(value)
-      const queryId = url.searchParams.get('card_id') || url.searchParams.get('cardId') || url.searchParams.get('id')
-      value = queryId || url.pathname.split('/').filter(Boolean).pop() || value
-    } catch (e) {}
-
-    value = value.replace(/^CENTRUM_CARD_/i, '').replace(/^#/, '').trim()
-    const uuidMatch = value.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i)
-    return uuidMatch ? uuidMatch[0] : value
-  }
-
-  const handleBoxCardScan = async (rawValue) => {
-    if (manualIssue.handleScannedCode(rawValue)) {
-      setIsScanning(false)
-      return
-    }
-
-    const cardId = normalizeScannedCardId(rawValue)
-    if (!cardId) {
-      alert('Не вдалося зчитати код картки.')
-      return
-    }
-
-    const boxItem = allBoxes.find(box => {
-      const cardNum = box.card.card_info?.split(' ')[0]
-      return String(box.card.id) === String(cardId) ||
-        String(cardNum) === String(cardId)
-    })
-
-    if (!boxItem) {
-      await handlers.handleCardScan(cardId)
-      return
-    }
-
-    if (boxItem.isPrepared) {
-      await handlers.handleCardScan(boxItem.card.id)
-      return
-    }
-
-    setKittingBoxItem(boxItem)
-  }
+    checkedCutters,
+    searchQuery,
+    setSearchQuery,
+    isProcessing,
+    isScanning,
+    setIsScanning,
+    cameraError,
+    manualCardInput,
+    setManualCardInput,
+    kittingBoxItem,
+    setKittingBoxItem,
+    scannedCard,
+    setScannedCard,
+    scannedRequests,
+    setScannedRequests,
+    selectedOrderNum,
+    setSelectedOrderNum,
+    filterStatus,
+    setFilterStatus,
+    checkedSheets,
+    setCheckedSheets,
+    expandedGroups,
+    isMobile,
+    handlers,
+    manualIssue,
+    allBoxes,
+    filteredBoxes,
+    orderList,
+    nomenclatureGroups,
+    toggleGroup,
+    handleBoxCardScan
+  } = useWarehouseBoxesData()
 
   return (
-    <div style={{ background: '#080808', minHeight: '100vh', color: '#fff', display: 'flex', flexDirection: 'column', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+    <div className="warehouse-boxes-module" style={{ background: '#080808', minHeight: '100vh', color: '#fff', display: 'flex', flexDirection: 'column', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
       
       {/* Header */}
       <nav style={{
@@ -589,174 +372,173 @@ const WarehouseBoxesModule = () => {
                         padding: isMobile ? '10px' : '14px',
                         borderTop: '1px solid #242424'
                       }}>
-              {group.items.map(boxItem => {
-                const cardId = boxItem.card.id
-                const isAllChecked = boxItem.cutters.every(c => checkedCutters[cardId]?.[c.nomenclature_id])
-                const isSheetChecked = !!checkedSheets[cardId] || boxItem.isPrepared
-                
-                const canSubmit = isAllChecked && isSheetChecked
+                        {group.items.map(boxItem => {
+                          const cardId = boxItem.card.id
+                          const isAllChecked = boxItem.cutters.every(c => checkedCutters[cardId]?.[c.nomenclature_id])
+                          const isSheetChecked = !!checkedSheets[cardId] || boxItem.isPrepared
+                          const canSubmit = isAllChecked && isSheetChecked
 
-                return (
-                  <div
-                    key={cardId}
-                    style={{
-                      background: boxItem.isPrepared ? 'rgba(16, 185, 129, 0.01)' : '#111',
-                      border: boxItem.isPrepared ? '1px solid rgba(16, 185, 129, 0.15)' : '1px solid #222',
-                      borderRadius: '16px',
-                      padding: isMobile ? '14px' : '18px',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '12px',
-                      transition: 'all 0.2s',
-                      boxShadow: '0 4px 15px rgba(0,0,0,0.2)'
-                    }}
-                  >
-                    {/* Card Header */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid #222', paddingBottom: '8px' }}>
-                      <div>
-                        <div style={{ fontSize: '0.62rem', color: '#ff9000', fontWeight: 900, textTransform: 'uppercase' }}>
-                          НАРЯД #{boxItem.orderNum}
-                        </div>
-                        <strong style={{ fontSize: '0.95rem', color: '#fff' }}>Картка {boxItem.cardNum}</strong>
-                      </div>
-                      
-                      {boxItem.isIssued ? (
-                        <span style={{ background: 'rgba(59, 130, 246, 0.12)', color: '#3b82f6', padding: '3px 8px', borderRadius: '6px', fontSize: '0.62rem', fontWeight: 950 }}>
-                          ВИДАНО
-                        </span>
-                      ) : boxItem.isPrepared ? (
-                        <span style={{ background: 'rgba(16, 185, 129, 0.12)', color: '#10b981', padding: '3px 8px', borderRadius: '6px', fontSize: '0.62rem', fontWeight: 900 }}>
-                          ЗІБРАНО
-                        </span>
-                      ) : (
-                        <span style={{ background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', padding: '3px 8px', borderRadius: '6px', fontSize: '0.62rem', fontWeight: 900 }}>
-                          ОЧІКУЄ
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Part name */}
-                    <div>
-                      <div style={{ fontSize: '0.58rem', color: '#555', fontWeight: 900, textTransform: 'uppercase' }}>Деталь</div>
-                      <div style={{ fontSize: '0.78rem', color: '#ccc', fontWeight: 700, marginTop: '2px', wordBreak: 'break-all', whiteSpace: 'normal' }}>
-                        {boxItem.partName}
-                      </div>
-                    </div>
-
-                    {/* Machine and sheets count */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', background: '#0a0a0a', padding: '8px 12px', borderRadius: '10px', border: '1px solid #1a1a1a' }}>
-                      <div>
-                        <div style={{ fontSize: '0.55rem', color: '#444', fontWeight: 800 }}>ВЕРСТАТ</div>
-                        <div style={{ fontSize: '0.72rem', color: '#fff', fontWeight: 700 }}>{boxItem.card.machine || '—'}</div>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: '0.55rem', color: '#444', fontWeight: 800 }}>ЛИСТИ</div>
-                        <div style={{ fontSize: '0.72rem', color: '#ff9000', fontWeight: 900 }}>{boxItem.cardSheets} л.</div>
-                      </div>
-                    </div>
-
-                    {/* Filling Checklists */}
-                    <div>
-                      <div style={{ fontSize: '0.6rem', color: '#888', fontWeight: 800, marginBottom: '6px' }}>СПИСОК НАПОВНЕННЯ:</div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        {/* Sheets check */}
-                        <div 
-                          onClick={() => !boxItem.isPrepared && setCheckedSheets(prev => ({ ...prev, [cardId]: !prev[cardId] }))}
-                          style={{ 
-                            display: 'flex', 
-                            alignItems: 'center', 
-                            justifyContent: 'space-between', 
-                            background: isSheetChecked ? 'rgba(16, 185, 129, 0.04)' : '#0a0a0a', 
-                            padding: '8px 12px', 
-                            borderRadius: '8px', 
-                            border: isSheetChecked ? '1px solid rgba(16, 185, 129, 0.15)' : '1px solid #222',
-                            cursor: boxItem.isPrepared ? 'default' : 'pointer'
-                          }}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <input 
-                              type="checkbox" 
-                              checked={isSheetChecked}
-                              disabled={boxItem.isPrepared}
-                              onChange={() => {}} 
-                              style={{ cursor: boxItem.isPrepared ? 'default' : 'pointer' }}
-                            />
-                            <span style={{ fontSize: '0.7rem', color: isSheetChecked ? '#aaa' : '#fff' }}>
-                              {boxItem.activeMaterialName}
-                            </span>
-                          </div>
-                          <strong style={{ fontSize: '0.72rem', color: isSheetChecked ? '#10b981' : '#fff' }}>
-                            {boxItem.cardSheets} л.
-                          </strong>
-                        </div>
-
-                        {/* Cutters checks */}
-                        {boxItem.cutters.map(cutter => {
-                          const isChecked = !!checkedCutters[cardId]?.[cutter.nomenclature_id] || boxItem.isPrepared
                           return (
-                            <div 
-                              key={cutter.nomenclature_id}
-                              onClick={() => !boxItem.isPrepared && handlers.handleToggleCutterCheck(cardId, cutter.nomenclature_id)}
-                              style={{ 
-                                display: 'flex', 
-                                alignItems: 'center', 
-                                justifyContent: 'space-between', 
-                                background: isChecked ? 'rgba(16, 185, 129, 0.04)' : '#0a0a0a', 
-                                padding: '8px 12px', 
-                                borderRadius: '8px', 
-                                border: isChecked ? '1px solid rgba(16, 185, 129, 0.15)' : '1px solid #222',
-                                cursor: boxItem.isPrepared ? 'default' : 'pointer'
+                            <div
+                              key={cardId}
+                              style={{
+                                background: boxItem.isPrepared ? 'rgba(16, 185, 129, 0.01)' : '#111',
+                                border: boxItem.isPrepared ? '1px solid rgba(16, 185, 129, 0.15)' : '1px solid #222',
+                                borderRadius: '16px',
+                                padding: isMobile ? '14px' : '18px',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '12px',
+                                transition: 'all 0.2s',
+                                boxShadow: '0 4px 15px rgba(0,0,0,0.2)'
                               }}
                             >
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <input 
-                                  type="checkbox" 
-                                  checked={isChecked}
-                                  disabled={boxItem.isPrepared}
-                                  onChange={() => {}} 
-                                  style={{ cursor: boxItem.isPrepared ? 'default' : 'pointer' }}
-                                />
-                                <span style={{ fontSize: '0.7rem', color: isChecked ? '#aaa' : '#fff', wordBreak: 'break-word', whiteSpace: 'normal', display: 'inline-block' }}>
-                                  {cutter.name}
-                                </span>
+                              {/* Card Header */}
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid #222', paddingBottom: '8px' }}>
+                                <div>
+                                  <div style={{ fontSize: '0.62rem', color: '#ff9000', fontWeight: 900, textTransform: 'uppercase' }}>
+                                    НАРЯД #{boxItem.orderNum}
+                                  </div>
+                                  <strong style={{ fontSize: '0.95rem', color: '#fff' }}>Картка {boxItem.cardNum}</strong>
+                                </div>
+                                
+                                {boxItem.isIssued ? (
+                                  <span style={{ background: 'rgba(59, 130, 246, 0.12)', color: '#3b82f6', padding: '3px 8px', borderRadius: '6px', fontSize: '0.62rem', fontWeight: 950 }}>
+                                    ВИДАНО
+                                  </span>
+                                ) : boxItem.isPrepared ? (
+                                  <span style={{ background: 'rgba(16, 185, 129, 0.12)', color: '#10b981', padding: '3px 8px', borderRadius: '6px', fontSize: '0.62rem', fontWeight: 900 }}>
+                                    ЗІБРАНО
+                                  </span>
+                                ) : (
+                                  <span style={{ background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', padding: '3px 8px', borderRadius: '6px', fontSize: '0.62rem', fontWeight: 900 }}>
+                                    ОЧІКУЄ
+                                  </span>
+                                )}
                               </div>
-                              <strong style={{ fontSize: '0.72rem', color: isChecked ? '#10b981' : '#fff', whiteSpace: 'nowrap' }}>
-                                {cutter.qty} шт
-                              </strong>
+
+                              {/* Part name */}
+                              <div>
+                                <div style={{ fontSize: '0.58rem', color: '#555', fontWeight: 900, textTransform: 'uppercase' }}>Деталь</div>
+                                <div style={{ fontSize: '0.78rem', color: '#ccc', fontWeight: 700, marginTop: '2px', wordBreak: 'break-all', whiteSpace: 'normal' }}>
+                                  {boxItem.partName}
+                                </div>
+                              </div>
+
+                              {/* Machine and sheets count */}
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', background: '#0a0a0a', padding: '8px 12px', borderRadius: '10px', border: '1px solid #1a1a1a' }}>
+                                <div>
+                                  <div style={{ fontSize: '0.55rem', color: '#444', fontWeight: 800 }}>ВЕРСТАТ</div>
+                                  <div style={{ fontSize: '0.72rem', color: '#fff', fontWeight: 700 }}>{boxItem.card.machine || '—'}</div>
+                                </div>
+                                <div>
+                                  <div style={{ fontSize: '0.55rem', color: '#444', fontWeight: 800 }}>ЛИСТИ</div>
+                                  <div style={{ fontSize: '0.72rem', color: '#ff9000', fontWeight: 900 }}>{boxItem.cardSheets} л.</div>
+                                </div>
+                              </div>
+
+                              {/* Filling Checklists */}
+                              <div>
+                                <div style={{ fontSize: '0.6rem', color: '#888', fontWeight: 800, marginBottom: '6px' }}>СПИСОК НАПОВНЕННЯ:</div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                  {/* Sheets check */}
+                                  <div 
+                                    onClick={() => !boxItem.isPrepared && setCheckedSheets(prev => ({ ...prev, [cardId]: !prev[cardId] }))}
+                                    style={{ 
+                                      display: 'flex', 
+                                      alignItems: 'center', 
+                                      justifyContent: 'space-between', 
+                                      background: isSheetChecked ? 'rgba(16, 185, 129, 0.04)' : '#0a0a0a', 
+                                      padding: '8px 12px', 
+                                      borderRadius: '8px', 
+                                      border: isSheetChecked ? '1px solid rgba(16, 185, 129, 0.15)' : '1px solid #222',
+                                      cursor: boxItem.isPrepared ? 'default' : 'pointer'
+                                    }}
+                                  >
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                      <input 
+                                        type="checkbox" 
+                                        checked={isSheetChecked}
+                                        disabled={boxItem.isPrepared}
+                                        onChange={() => {}} 
+                                        style={{ cursor: boxItem.isPrepared ? 'default' : 'pointer' }}
+                                      />
+                                      <span style={{ fontSize: '0.7rem', color: isSheetChecked ? '#aaa' : '#fff' }}>
+                                        {boxItem.activeMaterialName}
+                                      </span>
+                                    </div>
+                                    <strong style={{ fontSize: '0.72rem', color: isSheetChecked ? '#10b981' : '#fff' }}>
+                                      {boxItem.cardSheets} л.
+                                    </strong>
+                                  </div>
+
+                                  {/* Cutters checks */}
+                                  {boxItem.cutters.map(cutter => {
+                                    const isChecked = !!checkedCutters[cardId]?.[cutter.nomenclature_id] || boxItem.isPrepared
+                                    return (
+                                      <div 
+                                        key={cutter.nomenclature_id}
+                                        onClick={() => !boxItem.isPrepared && handlers.handleToggleCutterCheck(cardId, cutter.nomenclature_id)}
+                                        style={{ 
+                                          display: 'flex', 
+                                          alignItems: 'center', 
+                                          justifyContent: 'space-between', 
+                                          background: isChecked ? 'rgba(16, 185, 129, 0.04)' : '#0a0a0a', 
+                                          padding: '8px 12px', 
+                                          borderRadius: '8px', 
+                                          border: isChecked ? '1px solid rgba(16, 185, 129, 0.15)' : '1px solid #222',
+                                          cursor: boxItem.isPrepared ? 'default' : 'pointer'
+                                        }}
+                                      >
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                          <input 
+                                            type="checkbox" 
+                                            checked={isChecked}
+                                            disabled={boxItem.isPrepared}
+                                            onChange={() => {}} 
+                                            style={{ cursor: boxItem.isPrepared ? 'default' : 'pointer' }}
+                                          />
+                                          <span style={{ fontSize: '0.7rem', color: isChecked ? '#aaa' : '#fff', wordBreak: 'break-word', whiteSpace: 'normal', display: 'inline-block' }}>
+                                            {cutter.name}
+                                          </span>
+                                        </div>
+                                        <strong style={{ fontSize: '0.72rem', color: isChecked ? '#10b981' : '#fff', whiteSpace: 'nowrap' }}>
+                                          {cutter.qty} шт
+                                        </strong>
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              </div>
+
+                              {/* Save Button */}
+                              {!boxItem.isPrepared && (
+                                <button
+                                  disabled={isProcessing || !canSubmit}
+                                  onClick={() => handlers.handlePrepareBox(boxItem, null)}
+                                  style={{
+                                    width: '100%',
+                                    padding: '10px',
+                                    background: canSubmit ? '#ff9000' : '#1a1a1a',
+                                    color: canSubmit ? '#000' : '#555',
+                                    border: 'none',
+                                    borderRadius: '8px',
+                                    fontWeight: 900,
+                                    fontSize: '0.75rem',
+                                    cursor: (isProcessing || !canSubmit) ? 'not-allowed' : 'pointer',
+                                    transition: 'all 0.2s',
+                                    marginTop: '2px'
+                                  }}
+                                >
+                                  {!isAllChecked || !isSheetChecked 
+                                    ? 'Позначте вміст' 
+                                    : `Завершити комплектацію боксу`
+                                  }
+                                </button>
+                              )}
                             </div>
                           )
                         })}
-                      </div>
-                    </div>
-
-                    {/* Save Button */}
-                    {!boxItem.isPrepared && (
-                      <button
-                        disabled={isProcessing || !canSubmit}
-                        onClick={() => handlers.handlePrepareBox(boxItem, null)}
-                        style={{
-                          width: '100%',
-                          padding: '10px',
-                          background: canSubmit ? '#ff9000' : '#1a1a1a',
-                          color: canSubmit ? '#000' : '#555',
-                          border: 'none',
-                          borderRadius: '8px',
-                          fontWeight: 900,
-                          fontSize: '0.75rem',
-                          cursor: (isProcessing || !canSubmit) ? 'not-allowed' : 'pointer',
-                          transition: 'all 0.2s',
-                          marginTop: '2px'
-                        }}
-                      >
-                        {!isAllChecked || !isSheetChecked 
-                          ? 'Позначте вміст' 
-                          : `Завершити комплектацію боксу`
-                        }
-                      </button>
-                    )}
-                  </div>
-                )
-              })}
                       </div>
                     )}
                   </section>

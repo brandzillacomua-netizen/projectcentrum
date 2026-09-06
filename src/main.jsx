@@ -3,8 +3,12 @@ import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import App from './App'
 import { AppErrorBoundary, ConnectionStatus, ServiceWorkerUpdateManager } from './components/SystemResilience'
+import { sentryLogger } from './services/sentryLogger'
 import './index.css'
 import './light.css'
+
+// Initialize Sentry passive/active tracking engine
+sentryLogger.initSentry()
 
 // Handle dynamic import / chunk load errors automatically.
 window.addEventListener('vite:preloadError', () => {
@@ -17,6 +21,15 @@ window.addEventListener('vite:preloadError', () => {
 })
 
 window.addEventListener('error', (event) => {
+  const msg = String(event.error?.message || event.message || '')
+  const stack = String(event.error?.stack || '')
+
+  // Ignore strictly the known Chrome DevTools Live Metrics bug (Chromium #338604729)
+  // Pinpoint filter: MUST contain reading 'startTime' AND reportAllChanges in stack
+  if (msg.includes("reading 'startTime'") && stack.includes('reportAllChanges')) {
+    return
+  }
+
   if (event.message && (event.message.includes('Failed to fetch dynamically imported module') || event.message.includes('Importing a module script failed'))) {
     const lastReload = sessionStorage.getItem('last-chunk-reload')
     const now = Date.now()
@@ -24,6 +37,8 @@ window.addEventListener('error', (event) => {
       sessionStorage.setItem('last-chunk-reload', String(now))
       window.location.reload()
     }
+  } else if (event.error) {
+    sentryLogger.captureException(event.error, {}, { source: 'window.onerror' })
   }
 }, true)
 
@@ -38,6 +53,9 @@ window.addEventListener('unhandledrejection', (event) => {
       sessionStorage.setItem('last-chunk-reload', String(now))
       window.location.reload()
     }
+  } else if (event.reason) {
+    const errorObj = event.reason instanceof Error ? event.reason : new Error(String(event.reason))
+    sentryLogger.captureException(errorObj, {}, { source: 'unhandledrejection' })
   }
 })
 

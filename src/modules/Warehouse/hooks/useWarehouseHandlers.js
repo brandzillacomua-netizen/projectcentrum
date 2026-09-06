@@ -2,6 +2,7 @@ import { supabase as supabaseClient } from '../../../supabase'
 import { apiService } from '../../../services/apiDispatcher'
 import { normalize, parseMaterialName } from './useWarehouseComputed'
 import { availableInventoryForRequest, inventoryMatchesRequest } from '../utils/materialInventoryMatching.js'
+import { deductInventoryAtomic } from '../../../services/atomicInventoryService.js'
 
 export const useWarehouseHandlers = ({
   nomenclatures,
@@ -128,13 +129,11 @@ export const useWarehouseHandlers = ({
         const qtyToDeduct = cutter.qty
 
         if (invItem) {
-          const nextTotal = Math.max(0, (Number(invItem.total_qty) || 0) - qtyToDeduct)
-          await supabaseClient.from('inventory')
-            .update({ 
-              total_qty: nextTotal, 
-              updated_at: new Date().toISOString() 
-            })
-            .eq('id', invItem.id)
+          await deductInventoryAtomic(supabaseClient, {
+            inventoryId: invItem.id,
+            deductTotal: qtyToDeduct,
+            releaseReserved: 0
+          })
         }
 
         const { data: existingReq } = await supabaseClient
@@ -548,25 +547,19 @@ export const useWarehouseHandlers = ({
         const qtyToDeduct = Number(req.displayQty ?? req.quantity ?? 0) || 0
 
         if (invItem) {
-          const nextTotal = Math.max(0, (Number(invItem.total_qty) || 0) - qtyToDeduct)
           // Card-level cutter rows are synthetic, while their stock was
           // reserved earlier by the task-level issued request. Release that
           // reservation when the physical cutter is handed out for the card.
           const wasReserved = req.status === 'issued' || Boolean(req.reservation_request_id)
-          const reservedQtyToRelease = req.reservation_request_id
-            ? Math.min(qtyToDeduct, Math.max(0, Number(req.reservation_quantity) || 0))
-            : qtyToDeduct
-          const nextReserved = wasReserved 
-            ? Math.max(0, (Number(invItem.reserved_qty) || 0) - reservedQtyToRelease)
-            : (Number(invItem.reserved_qty) || 0)
+          const reservedQtyToRelease = wasReserved
+            ? (req.reservation_request_id ? Math.min(qtyToDeduct, Math.max(0, Number(req.reservation_quantity) || 0)) : qtyToDeduct)
+            : 0
 
-          await supabaseClient.from('inventory')
-            .update({ 
-              total_qty: nextTotal, 
-              reserved_qty: nextReserved, 
-              updated_at: new Date().toISOString() 
-            })
-            .eq('id', invItem.id)
+          await deductInventoryAtomic(supabaseClient, {
+            inventoryId: invItem.id,
+            deductTotal: qtyToDeduct,
+            releaseReserved: reservedQtyToRelease
+          })
         }
 
         if (req.isSheet) {
@@ -698,11 +691,12 @@ export const useWarehouseHandlers = ({
       // Release inventory reservations for any issued requests before deleting
       const issuedToRelease = (allReqsInGroup || []).filter(r => idsToDelete.includes(r.id) && r.status === 'issued' && r.inventory_id)
       for (const req of issuedToRelease) {
-        const { data: invRow } = await supabaseClient.from('inventory').select('id,reserved_qty').eq('id', req.inventory_id).maybeSingle()
-        if (invRow) {
-          await supabaseClient.from('inventory').update({
-            reserved_qty: Math.max(0, (Number(invRow.reserved_qty) || 0) - (Number(req.quantity) || 0))
-          }).eq('id', invRow.id)
+        if (req.inventory_id) {
+          await deductInventoryAtomic(supabaseClient, {
+            inventoryId: req.inventory_id,
+            deductTotal: 0,
+            releaseReserved: Number(req.quantity) || 0
+          })
         }
       }
 
@@ -759,19 +753,11 @@ export const useWarehouseHandlers = ({
         }
       })
       for (const [inventoryId, qty] of Object.entries(releaseByInventory)) {
-        const { data: invRow, error: invError } = await supabaseClient
-          .from('inventory')
-          .select('id,reserved_qty')
-          .eq('id', inventoryId)
-          .maybeSingle()
-        if (invError) throw invError
-        if (invRow) {
-          const { error: releaseError } = await supabaseClient
-            .from('inventory')
-            .update({ reserved_qty: Math.max(0, (Number(invRow.reserved_qty) || 0) - qty) })
-            .eq('id', inventoryId)
-          if (releaseError) throw releaseError
-        }
+        await deductInventoryAtomic(supabaseClient, {
+          inventoryId,
+          deductTotal: 0,
+          releaseReserved: qty
+        })
       }
 
       const chunkSize = 100

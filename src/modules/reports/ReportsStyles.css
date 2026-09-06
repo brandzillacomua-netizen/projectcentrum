@@ -1,0 +1,317 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800;900&display=swap');
+
+.reports-module {
+  background: #050505;
+  min-height: 100vh;
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  font-family: 'Outfit', sans-serif;
+}
+
+.reports-nav {
+  padding: 0 20px;
+  height: 70px;
+  background: #0a0a0a;
+  border-bottom: 1px solid #222;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.reports-nav-back {
+  color: #888;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+}
+.reports-nav-back:hover {
+  color: #fff;
+}
+
+.reports-nav-title {
+  font-size: 1rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  margin: 0;
+  letter-spacing: 0.5px;
+  color: #ffffff;
+}
+
+.reports-nav-export-btn {
+  background: rgba(255, 144, 0, 0.1);
+  color: #ff9000;
+  border: 1px solid rgba(255, 144, 0, 0.2);
+  padding: 8px 15px;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.reports-tabs-bar {
+  display: flex;
+  background: #111;
+  padding: 5px;
+  border-radius: 12px;
+  border: 1px solid #222;
+  flex-wrap: wrap;
+}
+
+.report-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  gap: 20px;
+}
+
+.report-tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border: none;
+  background: transparent;
+  color: #555;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 800;
+  font-size: 0.75rem;
+  transition: 0.2s;
+}
+
+.report-tab:hover:not(.active) {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.report-tab.active {
+  background: #222;
+  color: #ff9000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.reports-search-input {
+  background: #0a0a0a;
+  border: 1px solid #222;
+  color: #fff;
+  padding: 10px 15px 10px 35px;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  width: 200px;
+  outline: none;
+}
+
+.reports-filter-select {
+  background: #0a0a0a;
+  border: 1px solid #222;
+  color: #fff;
+  padding: 10px 15px;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  outline: none;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.period-picker-container {
+  display: flex;
+  align-items: center;
+  background: #0a0a0a;
+  border-radius: 10px;
+  border: 1px solid #222;
+  overflow: hidden;
+}
+
+.period-picker-label {
+  display: flex;
+  align-items: center;
+  padding: 0 15px;
+  border-right: 1px solid #222;
+  cursor: pointer;
+  user-select: none;
+}
+
+.period-picker-label span {
+  font-size: 0.75rem;
+  color: #666;
+  text-transform: uppercase;
+  font-weight: 800;
+}
+
+.period-date-input {
+  background: transparent;
+  border: none;
+  color: #fff;
+  color-scheme: dark;
+  padding: 10px 12px;
+  font-size: 0.85rem;
+  outline: none;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.period-clear-btn {
+  background: transparent;
+  border: none;
+  padding: 10px 15px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  color: #ef4444;
+  border-left: 1px solid #222;
+}
+
+.period-quick-select {
+  background: #0a0a0a;
+  border: none;
+  border-left: 1px solid #222;
+  color: #ff9000;
+  padding: 10px 15px;
+  font-size: 0.8rem;
+  outline: none;
+  cursor: pointer;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* LIGHT THEME OVERRIDES */
+.light-theme .reports-module,
+body.light-theme .reports-module {
+  background: var(--bg, #f0f2f7) !important;
+  color: var(--text, #0f172a) !important;
+}
+
+.light-theme .reports-nav,
+body.light-theme .reports-nav {
+  background: #ffffff !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+}
+
+.light-theme .reports-nav-back,
+body.light-theme .reports-nav-back {
+  color: #64748b !important;
+}
+
+.light-theme .reports-nav-back:hover,
+body.light-theme .reports-nav-back:hover {
+  color: #0f172a !important;
+}
+
+.light-theme .reports-nav-title,
+body.light-theme .reports-nav-title {
+  color: #0f172a !important;
+}
+
+.light-theme .reports-nav-export-btn,
+body.light-theme .reports-nav-export-btn {
+  background: rgba(255, 144, 0, 0.12) !important;
+  color: #d97706 !important;
+  border: 1px solid rgba(255, 144, 0, 0.25) !important;
+}
+
+.light-theme .reports-tabs-bar,
+body.light-theme .reports-tabs-bar {
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.05) !important;
+}
+
+.light-theme .report-tab,
+body.light-theme .report-tab {
+  color: #64748b !important;
+}
+
+.light-theme .report-tab:hover:not(.active),
+body.light-theme .report-tab:hover:not(.active) {
+  color: #0f172a !important;
+  background: rgba(0, 0, 0, 0.05) !important;
+}
+
+.light-theme .report-tab.active,
+body.light-theme .report-tab.active {
+  background: #ffffff !important;
+  color: #d97706 !important;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.1) !important;
+}
+
+.light-theme .reports-search-input,
+body.light-theme .reports-search-input {
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #0f172a !important;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04) !important;
+}
+
+.light-theme .reports-filter-select,
+body.light-theme .reports-filter-select {
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #0f172a !important;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04) !important;
+}
+
+.light-theme .reports-filter-select option,
+body.light-theme .reports-filter-select option {
+  background: #ffffff !important;
+  color: #0f172a !important;
+}
+
+.light-theme .period-picker-container,
+body.light-theme .period-picker-container {
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04) !important;
+}
+
+.light-theme .period-picker-label,
+body.light-theme .period-picker-label {
+  border-right: 1px solid #e2e8f0 !important;
+}
+
+.light-theme .period-picker-label span,
+body.light-theme .period-picker-label span {
+  color: #64748b !important;
+}
+
+.light-theme .period-date-input,
+body.light-theme .period-date-input {
+  color: #0f172a !important;
+  color-scheme: light !important;
+}
+
+.light-theme .period-clear-btn,
+body.light-theme .period-clear-btn {
+  border-left: 1px solid #e2e8f0 !important;
+}
+
+.light-theme .period-quick-select,
+body.light-theme .period-quick-select {
+  background: #ffffff !important;
+  border-left: 1px solid #e2e8f0 !important;
+  color: #d97706 !important;
+}
+.light-theme .period-quick-select option,
+body.light-theme .period-quick-select option {
+  background: #ffffff !important;
+  color: #0f172a !important;
+}
+

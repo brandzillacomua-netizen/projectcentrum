@@ -8,7 +8,7 @@
  *   - Для відправки -> викликаємо Supabase Edge Function "send-push"
  */
 
-import { supabase, supabaseAnonKey } from '../supabase';
+import { supabase, supabaseAnonKey, supabaseUrl } from '../supabase.js';
 
 // ─── VAPID PUBLIC KEY ─────────────────────────────────────────────────────────
 // Публічний ключ (приватний зберігається в Supabase Secrets як VAPID_PRIVATE_KEY)
@@ -153,7 +153,7 @@ export async function isPushSubscribed() {
  */
 export async function sendPushToUser(userId, title, body, path = '/', notifData = {}) {
   try {
-    const response = await fetch('https://hurzutjytlcvtbvihnry.supabase.co/functions/v1/send-push', {
+    const response = await fetch(`${supabaseUrl}/functions/v1/send-push`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

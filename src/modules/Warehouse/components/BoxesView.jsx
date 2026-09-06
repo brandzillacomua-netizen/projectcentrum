@@ -62,7 +62,7 @@ export const BoxesView = ({
   const groupList = Object.values(groups)
 
   return (
-    <div style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '25px' }}>
+    <div className="warehouse-boxes-view" style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '25px' }}>
       {groupList.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '60px', color: '#555', fontSize: '0.85rem' }}>
           Не знайдено боксів для підготовки
@@ -77,35 +77,31 @@ export const BoxesView = ({
           return (
             <div 
               key={g.orderNum} 
+              className="naryad-group-card"
               style={{ 
-                background: '#0a0a0a', 
                 borderRadius: '24px', 
-                border: '1px solid #1a1a1a', 
                 overflow: 'hidden',
-                boxShadow: '0 4px 30px rgba(0,0,0,0.3)',
                 marginBottom: '5px'
               }}
             >
               <div 
                 onClick={() => setExpandedNaryads(prev => ({ ...prev, [g.orderNum]: !isExpanded }))}
+                className="naryad-group-header"
                 style={{ 
                   padding: '16px 15px', 
-                  background: '#111', 
                   display: 'flex', 
                   justifyContent: 'space-between', 
                   alignItems: 'center', 
                   cursor: 'pointer',
-                  borderBottom: isExpanded ? '1px solid #1a1a1a' : 'none',
+                  borderBottom: isExpanded ? '1px solid rgba(255,255,255,0.08)' : 'none',
                   transition: 'background 0.2s'
                 }}
-                onMouseEnter={e => e.currentTarget.style.background = '#151515'}
-                onMouseLeave={e => e.currentTarget.style.background = '#111'}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
                   <span style={{ fontSize: '1.2rem' }}>📦</span>
                   <div>
-                    <div style={{ fontSize: '1.05rem', fontWeight: 900, color: '#fff' }}>НАРЯД #{g.orderNum}</div>
-                    <div style={{ fontSize: '0.75rem', color: '#666', marginTop: '2px' }}>
+                    <div className="naryad-group-title" style={{ fontSize: '1.05rem', fontWeight: 900 }}>НАРЯД #{g.orderNum}</div>
+                    <div className="naryad-group-subtitle" style={{ fontSize: '0.75rem', marginTop: '2px' }}>
                       Зібрано: <strong style={{ color: preparedNaryadCards === totalNaryadCards ? '#10b981' : '#ff9000' }}>{preparedNaryadCards} / {totalNaryadCards}</strong> боксів
                     </div>
                   </div>
@@ -124,7 +120,7 @@ export const BoxesView = ({
               </div>
 
               {isExpanded && (
-                <div style={{ padding: '15px 10px', display: 'flex', flexDirection: 'column', gap: '25px' }}>
+                <div className="naryad-group-body" style={{ padding: '15px 10px', display: 'flex', flexDirection: 'column', gap: '25px' }}>
                   {Object.entries(g.nomenclatures).map(([nomName, boxList]) => {
                     const totalNom = boxList.length
                     const pendingNom = boxList.filter(b => !b.isPrepared).length
@@ -146,19 +142,16 @@ export const BoxesView = ({
                       <div key={nomName} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                         <div 
                           onClick={() => setExpandedNomenclatures(prev => ({ ...prev, [nomKey]: !isNomExpanded }))}
+                          className="nom-group-card"
                           style={{
                             display: 'flex',
                             flexDirection: 'column',
                             gap: '4px',
-                            background: 'rgba(59, 130, 246, 0.03)',
                             padding: '12px 18px',
                             borderRadius: '16px',
-                            border: '1px solid rgba(59, 130, 246, 0.12)',
                             cursor: 'pointer',
                             transition: 'background 0.2s'
                           }}
-                          onMouseEnter={e => e.currentTarget.style.background = 'rgba(59, 130, 246, 0.06)'}
-                          onMouseLeave={e => e.currentTarget.style.background = 'rgba(59, 130, 246, 0.03)'}
                         >
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <div style={{ fontSize: '0.62rem', color: '#3b82f6', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
@@ -169,7 +162,7 @@ export const BoxesView = ({
                             </span>
                           </div>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-                            <span style={{ fontSize: '0.92rem', color: '#fff', fontWeight: 800 }}>
+                            <span className="nom-group-title" style={{ fontSize: '0.92rem', fontWeight: 800 }}>
                               {nomName}
                             </span>
                             <span style={{ 
@@ -184,33 +177,32 @@ export const BoxesView = ({
                             </span>
                           </div>
 
-                          <div style={{ 
+                          <div className="nom-details-box" style={{ 
                             display: 'flex', 
                             flexDirection: 'column',
                             gap: '10px', 
                             marginTop: '12px', 
                             paddingTop: '12px', 
-                            borderTop: '1px dashed rgba(59, 130, 246, 0.15)',
                             fontSize: '0.75rem'
                           }}>
-                            <div style={{ color: '#888', display: 'flex', alignItems: 'flex-start', gap: '8px', flexWrap: 'wrap' }}>
+                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', flexWrap: 'wrap' }}>
                               <span style={{ opacity: 0.8 }}>⚡</span> 
-                              <span style={{ color: '#aaa', minWidth: '90px', fontWeight: 700 }}>Усього листів:</span>
+                              <span className="nom-detail-label" style={{ minWidth: '90px', fontWeight: 700 }}>Усього листів:</span>
                               <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                                 {Object.entries(sheetsSummary).map(([mat, qty]) => (
-                                  <span key={mat} style={{ background: 'rgba(255,255,255,0.06)', padding: '3px 8px', borderRadius: '6px', color: '#eee', fontWeight: 800 }}>
+                                  <span key={mat} className="nom-badge-pill" style={{ padding: '3px 8px', borderRadius: '6px', fontWeight: 800 }}>
                                     {qty} л. ({mat.replace(/лист\s*/gi, '')})
                                   </span>
                                 ))}
                               </div>
                             </div>
-                            <div style={{ color: '#888', display: 'flex', alignItems: 'flex-start', gap: '8px', flexWrap: 'wrap' }}>
+                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', flexWrap: 'wrap' }}>
                               <span style={{ opacity: 0.8 }}>🛠️</span> 
-                              <span style={{ color: '#aaa', minWidth: '90px', fontWeight: 700 }}>Усього фрез:</span>
+                              <span className="nom-detail-label" style={{ minWidth: '90px', fontWeight: 700 }}>Усього фрез:</span>
                               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flex: 1, minWidth: '200px' }}>
                                 {Object.entries(cuttersSummary).map(([cName, qty]) => (
-                                  <div key={cName} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.03)', padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)', maxWidth: '400px' }}>
-                                    <span style={{ color: '#888', fontSize: '0.72rem', flex: 1, marginRight: '10px' }}>{cName.replace(/фреза\s*/gi, '')}</span>
+                                  <div key={cName} className="cutter-summary-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 12px', borderRadius: '8px', maxWidth: '400px' }}>
+                                    <span className="cutter-summary-name" style={{ fontSize: '0.72rem', flex: 1, marginRight: '10px' }}>{cName.replace(/фреза\s*/gi, '')}</span>
                                     <span style={{ color: '#10b981', fontWeight: 900, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>{qty} шт</span>
                                   </div>
                                 ))}
@@ -232,21 +224,19 @@ export const BoxesView = ({
                               return (
                                 <div 
                                   key={cardId} 
+                                  className={`box-item-card ${boxItem.isPrepared ? 'prepared' : ''}`}
                                   style={{ 
-                                    background: boxItem.isPrepared ? 'rgba(16, 185, 129, 0.02)' : '#121212', 
                                     padding: '18px', 
                                     borderRadius: '20px', 
-                                    border: boxItem.isPrepared ? '1px solid rgba(16, 185, 129, 0.15)' : '1px solid #1e1e1e',
                                     display: 'flex', 
                                     flexDirection: 'column', 
                                     gap: '15px',
-                                    boxShadow: '0 4px 15px rgba(0,0,0,0.1)',
                                     justifyContent: 'space-between'
                                   }}
                                 >
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid #1e1e1e', paddingBottom: '10px' }}>
+                                  <div className="box-item-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', paddingBottom: '10px' }}>
                                     <div>
-                                      <strong style={{ fontSize: '1.05rem', color: '#fff' }}>Картка {cardNum}</strong>
+                                      <strong className="card-num-title" style={{ fontSize: '1.05rem' }}>Картка {cardNum}</strong>
                                     </div>
                                     {boxItem.isPrepared ? (
                                       <span style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', padding: '4px 10px', borderRadius: '8px', fontSize: '0.68rem', fontWeight: 900, textTransform: 'uppercase' }}>
@@ -259,32 +249,31 @@ export const BoxesView = ({
                                     )}
                                   </div>
 
-                                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', background: '#090909', padding: '10px 15px', borderRadius: '14px', border: '1px solid #151515' }}>
+                                  <div className="box-specs-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', padding: '10px 15px', borderRadius: '14px' }}>
                                     <div>
-                                      <div style={{ fontSize: '0.6rem', color: '#444', fontWeight: 800 }}>ВЕРСТАТ</div>
-                                      <div style={{ fontSize: '0.75rem', color: '#aaa', fontWeight: 700 }}>{boxItem.card.machine || '—'}</div>
+                                      <div className="box-spec-label" style={{ fontSize: '0.6rem', fontWeight: 800 }}>ВЕРСТАТ</div>
+                                      <div className="box-spec-val" style={{ fontSize: '0.75rem', fontWeight: 700 }}>{boxItem.card.machine || '—'}</div>
                                     </div>
                                     <div>
-                                      <div style={{ fontSize: '0.6rem', color: '#444', fontWeight: 800 }}>ЛИСТИ</div>
-                                      <div style={{ fontSize: '0.75rem', color: '#aaa', fontWeight: 700 }}>{boxItem.cardSheets} л.</div>
+                                      <div className="box-spec-label" style={{ fontSize: '0.6rem', fontWeight: 800 }}>ЛИСТИ</div>
+                                      <div className="box-spec-val" style={{ fontSize: '0.75rem', fontWeight: 700 }}>{boxItem.cardSheets} л.</div>
                                     </div>
                                   </div>
 
                                   <div>
-                                    <div style={{ fontSize: '0.68rem', color: '#888', fontWeight: 800, marginBottom: '8px' }}>
+                                    <div className="box-check-section-title" style={{ fontSize: '0.68rem', fontWeight: 800, marginBottom: '8px' }}>
                                       СПИСОК НАПОВНЕННЯ БОКСУ:
                                     </div>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                       <div 
                                         onClick={() => !boxItem.isPrepared && setCheckedSheets(prev => ({ ...prev, [cardId]: !prev[cardId] }))}
+                                        className={`box-check-item ${isSheetChecked ? 'checked' : ''}`}
                                         style={{ 
                                           display: 'flex', 
                                           alignItems: 'flex-start', 
                                           justifyContent: 'space-between', 
-                                          background: isSheetChecked ? 'rgba(16, 185, 129, 0.04)' : '#0d0d0d', 
                                           padding: '10px 14px', 
                                           borderRadius: '10px', 
-                                          border: isSheetChecked ? '1px solid rgba(16, 185, 129, 0.15)' : '1px solid #1e1e1e',
                                           cursor: boxItem.isPrepared ? 'default' : 'pointer',
                                           transition: 'all 0.15s'
                                         }}
@@ -297,11 +286,11 @@ export const BoxesView = ({
                                             onChange={() => {}} 
                                             style={{ accentColor: '#10b981', marginTop: '2px', cursor: boxItem.isPrepared ? 'default' : 'pointer' }}
                                           />
-                                          <span style={{ fontSize: '0.76rem', color: isSheetChecked ? '#aaa' : '#888', fontWeight: isSheetChecked ? 700 : 500 }}>
+                                          <span className="check-item-name" style={{ fontSize: '0.76rem', fontWeight: isSheetChecked ? 700 : 500 }}>
                                             {boxItem.activeMaterialName}
                                           </span>
                                         </div>
-                                        <strong style={{ fontSize: '0.8rem', color: isSheetChecked ? '#10b981' : '#fff', whiteSpace: 'nowrap' }}>
+                                        <strong style={{ fontSize: '0.8rem', color: isSheetChecked ? '#10b981' : undefined, whiteSpace: 'nowrap' }}>
                                           {boxItem.cardSheets} л.
                                         </strong>
                                       </div>
@@ -312,14 +301,13 @@ export const BoxesView = ({
                                           <div 
                                             key={cutter.nomenclature_id}
                                             onClick={() => !boxItem.isPrepared && handleToggleCutterCheck(cardId, cutter.nomenclature_id)}
+                                            className={`box-check-item ${isChecked ? 'checked' : ''}`}
                                             style={{ 
                                               display: 'flex', 
                                               alignItems: 'flex-start', 
                                               justifyContent: 'space-between', 
-                                              background: isChecked ? 'rgba(16, 185, 129, 0.04)' : '#0d0d0d', 
                                               padding: '10px 14px', 
                                               borderRadius: '10px', 
-                                              border: isChecked ? '1px solid rgba(16, 185, 129, 0.15)' : '1px solid #1e1e1e',
                                               cursor: boxItem.isPrepared ? 'default' : 'pointer',
                                               transition: 'all 0.15s'
                                             }}
@@ -332,11 +320,11 @@ export const BoxesView = ({
                                                 onChange={() => {}} 
                                                 style={{ accentColor: '#10b981', marginTop: '2px', cursor: boxItem.isPrepared ? 'default' : 'pointer' }}
                                               />
-                                              <span style={{ fontSize: '0.76rem', color: isChecked ? '#aaa' : '#888', fontWeight: isChecked ? 700 : 500, lineHeight: '1.3' }}>
+                                              <span className="check-item-name" style={{ fontSize: '0.76rem', fontWeight: isChecked ? 700 : 500, lineHeight: '1.3' }}>
                                                 {cutter.name}
                                               </span>
                                             </div>
-                                            <strong style={{ fontSize: '0.8rem', color: isChecked ? '#10b981' : '#fff', whiteSpace: 'nowrap' }}>
+                                            <strong style={{ fontSize: '0.8rem', color: isChecked ? '#10b981' : undefined, whiteSpace: 'nowrap' }}>
                                               {cutter.qty} шт
                                             </strong>
                                           </div>
@@ -349,12 +337,13 @@ export const BoxesView = ({
                                     <button
                                       disabled={isProcessing || !canSubmit}
                                       onClick={() => handlePrepareBox(boxItem, null)}
+                                      className="box-submit-btn"
                                       style={{
                                         width: '100%',
                                         padding: '12px',
-                                        background: canSubmit ? '#10b981' : '#1a1a1a',
-                                        color: canSubmit ? '#000' : '#444',
-                                        border: canSubmit ? 'none' : '1px solid #222',
+                                        background: canSubmit ? '#10b981' : undefined,
+                                        color: canSubmit ? '#000' : undefined,
+                                        border: canSubmit ? 'none' : undefined,
                                         borderRadius: '12px',
                                         fontWeight: 900,
                                         fontSize: '0.8rem',

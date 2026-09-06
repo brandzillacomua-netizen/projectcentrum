@@ -1,1648 +1,291 @@
-import React, { useState, useEffect } from 'react'
-import { useScrapReasons } from '../hooks/useScrapReasons'
-import {
-  Tablet, ArrowLeft, Play, CheckCircle, Scan, Timer, AlertTriangle,
-  X, ClipboardList, Camera, Menu, RefreshCw, Box, Layers, Gauge, Package, Eye, Search, QrCode
-} from 'lucide-react'
-import { Link } from 'react-router-dom'
-import { useMES } from '../MESContext'
-import { apiService } from '../services/apiDispatcher'
-import { supabase } from '../supabase'
-
-const cyrillicToLatinMap = {
-  'й':'q', 'ц':'w', 'у':'e', 'к':'r', 'е':'t', 'н':'y', 'г':'u', 'ш':'i', 'щ':'o', 'з':'p', 'х':'[', 'ї':']',
-  'ф':'a', 'ы':'s', 'і':'s', 'в':'d', 'а':'f', 'п':'g', 'р':'h', 'о':'j', 'л':'k', 'д':'l', 'ж':';', 'є':'\'',
-  'я':'z', 'ч':'x', 'с':'c', 'м':'v', 'и':'b', 'т':'n', 'ь':'m', 'б':',', 'ю':'.', '.':'/',
-  'Й':'Q', 'Ц':'W', 'У':'E', 'К':'R', 'Е':'T', 'Н':'Y', 'Г':'U', 'Ш':'I', 'Щ':'O', 'З':'P', 'Х':'{', 'Ї':'}',
-  'Ф':'A', 'Ы':'S', 'І':'S', 'В':'D', 'А':'F', 'П':'G', 'Р':'H', 'О':'J', 'Л':'K', 'Д':'L', 'Ж':':', 'Є':'"',
-  'Я':'Z', 'Ч':'X', 'С':'C', 'М':'V', 'И':'B', 'Т':'N', 'Ь':'M', 'Б':'<', 'Ю':'>', ',':'?',
-  '?':'/', 'ё':'`', 'Ё':'~', '№':'#'
-}
-
-const translateCyrillic = (str) => {
-  return String(str || '').split('').map(char => cyrillicToLatinMap[char] || char).join('')
-}
+import React from 'react'
+import { Camera, RefreshCw, Search, QrCode, X } from 'lucide-react'
+import { useShop2TerminalState } from './Shop2/hooks/useShop2TerminalState'
+import { Shop2Header } from './Shop2/components/Shop2Header'
+import { Shop2QueueList } from './Shop2/components/Shop2QueueList'
+import { Shop2ActiveCardsTable } from './Shop2/components/Shop2ActiveCardsTable'
+import { Shop2Dashboard } from './Shop2/components/Shop2Dashboard'
+import { Shop2CardDetails } from './Shop2/components/Shop2CardDetails'
+import { Shop2QCModal } from './Shop2/components/modals/Shop2QCModal'
+import { Shop2MachineCallModal } from './Shop2/components/modals/Shop2MachineCallModal'
+import { Shop2AdminCardModal } from './Shop2/components/modals/Shop2AdminCardModal'
+import { Shop2ScrapModal } from './Shop2/components/modals/Shop2ScrapModal'
+import { Shop2StorageExplorerModal } from './Shop2/components/modals/Shop2StorageExplorerModal'
+import { Shop2DetailStageModal } from './Shop2/components/modals/Shop2DetailStageModal'
 
 const Shop2Terminal = () => {
-  const { names: scrapReasons } = useScrapReasons()
-
-  const handleManualEntry = async (e) => {
-    if (e) e.preventDefault()
-    if (!manualId) return
-
-    const cleanInput = translateCyrillic(manualId.trim()).replace('CENTRUM_CARD_', '').replace('#', '').trim()
-
-    const isMachineQR = await handleMachineQRScan(cleanInput)
-    if (isMachineQR) {
-      setManualId('')
-      setIsScanning(false)
-      return
-    }
-
-    setIsProcessing(true)
-
-    let card = workCards.find(c => 
-      c.card_info?.includes('[ЦЕХ №2]') && (
-        String(c.id).trim() === cleanInput || 
-        String(c.id).toUpperCase().startsWith(cleanInput.toUpperCase()) ||
-        String(c.id).toUpperCase().endsWith(cleanInput.toUpperCase())
-      )
-    )
-    
-    if (!card) {
-      if (typeof fetchData === 'function') {
-        try { await fetchData(['work_cards']) } catch (e) { }
-      }
-      card = workCards.find(c => 
-        c.card_info?.includes('[ЦЕХ №2]') && (
-          String(c.id).trim() === cleanInput || 
-          String(c.id).toUpperCase().startsWith(cleanInput.toUpperCase()) ||
-          String(c.id).toUpperCase().endsWith(cleanInput.toUpperCase())
-        )
-      )
-    }
-
-    if (!card) {
-      setScanError(`Картку №${cleanInput} не знайдено в Цеху №2`)
-    } else {
-      setScannedCardIds(prev => prev.includes(card.id) ? prev : [...prev, card.id])
-      setSelectedCardId(card.id)
-      setManualId('')
-      setIsScanning(false)
-      setScanError(null)
-      window.scrollTo({ top: 0, behavior: 'smooth' })
-    }
-    setIsProcessing(false)
-  }
-
-  const { workCards, orders, nomenclatures, inventory, startWorkCard, confirmBuffer, fetchData, refreshTable, operators, getFilteredOperators, getFilteredManagers, managers, workCardHistory, handoverToSGP, currentUser, systemUsers, tasks } = useMES()
-
-  const shop2TaskIdsSet = React.useMemo(() => {
-    const set = new Set()
-    ;(tasks || []).forEach(t => {
-      const step = String(t.step || '').toLowerCase()
-      const name = String(t.name || '').toLowerCase()
-      if (step.includes('цех №2') || step.includes('цех 2') || step.includes('пресування') || step.includes('фарбування') || step.includes('маляр') ||
-          name.includes('цех №2') || name.includes('цех 2') || name.includes('пресування') || name.includes('фарбування') || name.includes('маляр')) {
-        set.add(String(t.id))
-      }
-    })
-    return set
-  }, [tasks])
-
-  const isShop2Card = React.useCallback((card) => {
-    if (!card) return false
-    if (shop2TaskIdsSet.has(String(card.task_id))) return true
-    const info = String(card.card_info || '')
-    if (info.includes('[SHOP:2]') || info.includes('[ЦЕХ №2]') || info.includes('[ЦЕХ 2]')) return true
-    const op = String(card.operation || '')
-    if (['Пресування', 'Фарбування', 'Малярка', 'Доопрацювання', 'Пакування'].includes(op)) return true
-    return false
-  }, [shop2TaskIdsSet])
-  const [selectedCardId, setSelectedCardId] = useState(null)
-  const [manualId, setManualId] = useState('')
-  const [selectedStage, setSelectedStage] = useState('')
-  const [selectedOperator, setSelectedOperator] = useState('')
-  const [selectedManager, setSelectedManager] = useState('')
-  const [selectedShift, setSelectedShift] = useState('')
-  const [selectedMachine, setSelectedMachine] = useState('')
-  const [currentTime, setCurrentTime] = useState(new Date())
-  const [isProcessing, setIsProcessing] = useState(false)
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false)
-  const [isSyncing, setIsSyncing] = useState(false)
-  const [scanError, setScanError] = useState(null)
-
-  const [selectedCallMasterId, setSelectedCallMasterId] = useState('')
-  const [selectedCallEngineerId, setSelectedCallEngineerId] = useState('')
-  const [selectedCallQCId, setSelectedCallQCId] = useState('')
-
-  const callMasters = (systemUsers || []).filter(u => u.access_rights?.master || u.access_rights?.foreman || (u.position && u.position.toLowerCase().includes('майстер')))
-  const callEngineers = (systemUsers || []).filter(u => u.access_rights?.engineer || (u.position && u.position.toLowerCase().includes('інженер')))
-  const callQCs = (systemUsers || []).filter(u => u.access_rights?.brak || (u.position && (u.position.toLowerCase().includes('вкя') || u.position.toLowerCase().includes('якост'))))
-
-  const [scannedCardIds, setScannedCardIds] = useState(() => {
-    try { const saved = localStorage.getItem('centrum_shop2_scanned'); return saved ? JSON.parse(saved) : [] }
-    catch (e) { return [] }
-  })
-
-  const [isScanning, setIsScanning] = useState(false)
-  const [showScrapModal, setShowScrapModal] = useState(false)
-  const [scrapCounts, setScrapCounts] = useState({})
-  const [detailStage, setDetailStage] = useState(null)
-  const [detailTab, setDetailTab] = useState('work')
-  const [showStorageExplorer, setShowStorageExplorer] = useState(false)
-  const [activeExplorerTab, setActiveExplorerTab] = useState('semi')
-  const [bufferSearchQuery, setBufferSearchQuery] = useState('')
-  // Admin Manual Card State
-  const isAdmin = currentUser?.position === 'Адмін' || currentUser?.role === 'admin'
-  const [showAdminCardModal, setShowAdminCardModal] = useState(false)
-  const [adminNomId, setAdminNomId] = useState('')
-  const [adminTaskId, setAdminTaskId] = useState('')
-  const [adminQty, setAdminQty] = useState('')
-  const [adminStage, setAdminStage] = useState('Пресування')
-  const [nomSearchText, setNomSearchText] = useState('')
-  const [showNomDropdown, setShowNomDropdown] = useState(false)
-
-  const handleCreateAdminCard = async () => {
-    if (!adminNomId) {
-      alert('Будь ласка, оберіть номенклатуру!')
-      return
-    }
-    const finalQty = Number(adminQty) || 0
-    if (finalQty <= 0) {
-      alert('Кількість має бути більшою за 0!')
-      return
-    }
-
-    setIsProcessing(true)
-    try {
-      let selectedTask = null
-      let selectedOrder = null
-      if (adminTaskId) {
-        selectedTask = tasks.find(t => String(t.id) === String(adminTaskId))
-        if (selectedTask) {
-          selectedOrder = orders.find(o => String(o.id) === String(selectedTask.order_id))
-        }
-      }
-
-      const orderNum = selectedOrder?.order_num || ''
-      const batchIndexText = selectedTask?.batch_index ? `/${selectedTask.batch_index}` : ''
-      const orderText = orderNum ? ` Наряд №${orderNum}${batchIndexText}` : ''
-
-      const payload = {
-        task_id: adminTaskId || null,
-        order_id: selectedTask?.order_id || null,
-        nomenclature_id: adminNomId,
-        quantity: finalQty,
-        operation: adminStage,
-        status: 'new',
-        machine: '—',
-        is_rework: false,
-        estimated_time: 0,
-        card_info: `[ЦЕХ №2] [ADMIN_MANUAL] [NEED:0] [BZ:0] [РУЧНИЙ ЗАПУСК]${orderText}`
-      }
-
-      const { data, error } = await supabase.from('work_cards').insert([payload]).select().single()
-      if (error) throw error
-
-      alert(`Картку запуску в Цеху №2 на ${finalQty} шт. створено успішно!`)
-      setShowAdminCardModal(false)
-      setAdminNomId('')
-      setAdminTaskId('')
-      setAdminQty('')
-      setAdminStage('Пресування')
-      setNomSearchText('')
-      setShowNomDropdown(false)
-
-      if (typeof fetchData === 'function') {
-        await fetchData(['work_cards'])
-      }
-    } catch (err) {
-      alert('Помилка створення картки: ' + err.message)
-    } finally {
-      setIsProcessing(false)
-    }
-  }
-
-  const renderAdminCardModal = () => {
-    if (!showAdminCardModal) return null
-    const parts = (nomenclatures || []).filter(n => n.type === 'part').sort((a, b) => (a.name || '').localeCompare(b.name || ''))
-    const activeShop2Tasks = (tasks || [])
-      .filter(t => t.status !== 'completed' && (t.step?.includes('Пресування') || t.step?.includes('ЦЕХ №2') || t.step?.includes('Доопрацювання')))
-      .map(t => {
-        const o = orders.find(ord => ord.id === t.order_id)
-        return {
-          id: t.id,
-          label: `Наряд №${o?.order_num || '—'}${t.batch_index ? `/${t.batch_index}` : ''} (${o?.customer || '—'})`
-        }
-      })
-
-    return (
-      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10030, padding: '20px', backdropFilter: 'blur(6px)' }}>
-        <div style={{ background: '#111', width: '100%', maxWidth: '550px', borderRadius: '30px', border: '1px solid #333', overflow: 'hidden', boxShadow: '0 20px 50px rgba(0,0,0,0.5)' }}>
-          <div style={{ padding: '25px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#181818', borderBottom: '1px solid #222' }}>
-            <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 950, color: '#8b5cf6', letterSpacing: '0.5px' }}>СТВОРЕННЯ КАРТКИ ЦЕХУ №2 (АДМІН)</h3>
-            <button onClick={() => { setShowAdminCardModal(false); setNomSearchText(''); setShowNomDropdown(false); }} style={{ background: 'transparent', border: 'none', color: '#555', cursor: 'pointer' }}><X size={24} /></button>
-          </div>
-          <div style={{ padding: '30px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            <div style={{ position: 'relative' }}>
-              <label style={{ color: '#555', fontSize: '0.7rem', fontWeight: 900, textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>Номенклатура (деталь) *</label>
-              <div style={{ position: 'relative' }}>
-                <input
-                  type="text"
-                  placeholder="🔍 Оберіть або почніть писати назву деталі..."
-                  value={nomSearchText}
-                  onFocus={() => setShowNomDropdown(true)}
-                  onChange={e => {
-                    setNomSearchText(e.target.value)
-                    setShowNomDropdown(true)
-                    const match = parts.find(p => p.name === e.target.value)
-                    if (match) setAdminNomId(match.id)
-                    else setAdminNomId('')
-                  }}
-                  style={{ width: '100%', background: '#000', border: '1px solid #333', color: '#fff', padding: '12px', paddingRight: '40px', borderRadius: '12px', fontSize: '0.9rem', fontWeight: 700 }}
-                />
-                <div
-                  onClick={() => setShowNomDropdown(!showNomDropdown)}
-                  style={{ position: 'absolute', right: '15px', top: '50%', transform: 'translateY(-50%)', color: '#8b5cf6', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 900 }}
-                >
-                  ▼
-                </div>
-              </div>
-
-              {showNomDropdown && (
-                <>
-                  <div style={{ position: 'fixed', inset: 0, zIndex: 10039 }} onClick={() => setShowNomDropdown(false)} />
-                  <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#111', border: '1px solid #333', borderRadius: '12px', marginTop: '5px', maxHeight: '200px', overflowY: 'auto', zIndex: 10040, boxShadow: '0 10px 25px rgba(0,0,0,0.5)' }}>
-                    {parts.filter(p =>
-                      (p.name || '').toLowerCase().includes(nomSearchText.toLowerCase()) ||
-                      (p.nomenclature_code || '').toLowerCase().includes(nomSearchText.toLowerCase())
-                    ).map(p => (
-                      <div
-                        key={p.id}
-                        onClick={() => {
-                          setAdminNomId(p.id)
-                          setNomSearchText(p.name)
-                          setShowNomDropdown(false)
-                        }}
-                        style={{ padding: '12px', cursor: 'pointer', fontSize: '0.85rem', color: '#fff', borderBottom: '1px solid #222', background: adminNomId === p.id ? '#8b5cf633' : 'transparent', transition: 'background 0.2s' }}
-                      >
-                        {p.name} {p.nomenclature_code ? `(${p.nomenclature_code})` : ''}
-                      </div>
-                    ))}
-                    {parts.filter(p =>
-                      (p.name || '').toLowerCase().includes(nomSearchText.toLowerCase()) ||
-                      (p.nomenclature_code || '').toLowerCase().includes(nomSearchText.toLowerCase())
-                    ).length === 0 && (
-                      <div style={{ padding: '12px', color: '#555', textAlign: 'center', fontSize: '0.85rem' }}>Нічого не знайдено</div>
-                    )}
-                  </div>
-                </>
-              )}
-            </div>
-
-            <div>
-              <label style={{ color: '#555', fontSize: '0.7rem', fontWeight: 900, textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>Наряд / Наказ (необов'язково)</label>
-              <select value={adminTaskId} onChange={e => setAdminTaskId(e.target.value)} style={{ width: '100%', background: '#000', border: '1px solid #333', color: '#fff', padding: '12px', borderRadius: '12px', fontSize: '0.9rem', fontWeight: 700 }}>
-                <option value="">— Без прив'язки до наряду (загальний запас) —</option>
-                {activeShop2Tasks.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
-              </select>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-              <div>
-                <label style={{ color: '#555', fontSize: '0.7rem', fontWeight: 900, textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>Кількість деталей *</label>
-                <input type="number" value={adminQty} onChange={e => setAdminQty(e.target.value)} placeholder="0" style={{ width: '100%', background: '#000', border: '1px solid #333', color: '#fff', padding: '12px', borderRadius: '12px', fontSize: '0.9rem', fontWeight: 700 }} />
-              </div>
-              <div>
-                <label style={{ color: '#555', fontSize: '0.7rem', fontWeight: 900, textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>Технологічний етап *</label>
-                <select value={adminStage} onChange={e => setAdminStage(e.target.value)} style={{ width: '100%', background: '#000', border: '1px solid #333', color: '#fff', padding: '12px', borderRadius: '12px', fontSize: '0.9rem', fontWeight: 700 }}>
-                  <option value="Пресування">Пресування</option>
-                  <option value="Фарбування">Фарбування</option>
-                  <option value="Доопрацювання">Доопрацювання</option>
-                </select>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', gap: '15px', marginTop: '20px' }}>
-              <button onClick={() => { setShowAdminCardModal(false); setNomSearchText(''); setShowNomDropdown(false); }} style={{ flex: 1, background: '#1a1a1a', border: '1px solid #333', color: '#888', padding: '14px', borderRadius: '14px', fontWeight: 900, cursor: 'pointer' }}>СКАСУВАТИ</button>
-              <button disabled={isProcessing} onClick={handleCreateAdminCard} style={{ flex: 1, background: '#8b5cf6', color: '#fff', border: 'none', padding: '14px', borderRadius: '14px', fontWeight: 900, cursor: 'pointer', opacity: isProcessing ? 0.5 : 1 }}>СТВОРІТИ КАРТКУ</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  // Корекція браку ВКЯ
-  const [showQCModal, setShowQCModal] = useState(false)
-  const [qcScrapCount, setQcScrapCount] = useState(0)
-  const [qcInspector, setQcInspector] = useState('')
-  const [qcReason, setQcReason] = useState('Биття цанги')
-  const [qcCustomReason, setQcCustomReason] = useState('')
-
-  // Етапи лише для Цеху №2
-  const shop2Stages = ['Пресування', 'Фарбування', 'Доопрацювання']
-
-  // Emergency Machine Call Modal state
-  const [machineCallModal, setMachineCallModal] = useState(null)
-  const [machineCallSuccess, setMachineCallSuccess] = useState('')
-
-  const handleMachineQRScan = async (text) => {
-    const cleanText = translateCyrillic(text)
-    const match = String(cleanText || '').match(/\/machines\/([a-f0-9-]+)\/call/i)
-    if (match) {
-      const machineId = match[1]
-      try {
-        const { data: mData, error } = await supabase.from('machines').select('*').eq('id', machineId).maybeSingle()
-        if (mData) {
-          setMachineCallModal({
-            id: mData.id,
-            name: mData.name,
-            type: mData.type,
-            sequence_number: mData.sequence_number,
-            floor: mData.floor,
-            inventory_no: mData.inventory_no
-          })
-        } else {
-          alert('Верстат з таким ID не знайдено в базі.')
-        }
-      } catch (err) {
-        console.error(err)
-      }
-      return true
-    }
-    return false
-  }
-
-  const handleCreateCall = async (role, employeeId = null) => {
-    try {
-      const operatorName = selectedOperator || 'Оператор терміналу'
-      const emp = (systemUsers || []).find(u => u.id === employeeId)
-      const empName = emp ? `${emp.first_name || ''} ${emp.last_name || ''}`.trim() : null
-      const { error } = await supabase.from('machine_calls').insert({
-        machine_id: machineCallModal.id,
-        called_role: role === 'qc' ? 'quality' : role, // Map 'qc' to 'quality' for DB consistency
-        operator_name: operatorName,
-        called_employee_id: employeeId || null,
-        called_employee_name: empName || null,
-        status: 'pending'
-      })
-      if (error) throw error
-      const label = role === 'master' ? 'Майстра' : role === 'engineer' ? 'Інженера' : 'ВКЯ'
-      setMachineCallSuccess(`Виклик для ${label} надіслано!`)
-      setTimeout(() => {
-        setMachineCallSuccess('')
-        setMachineCallModal(null)
-      }, 2000)
-    } catch (err) {
-      alert('Помилка надсилання виклику: ' + err.message)
-    }
-  }
-
-  useEffect(() => {
-    if (!machineCallModal) {
-      setSelectedCallMasterId('')
-      setSelectedCallEngineerId('')
-      setSelectedCallQCId('')
-    }
-  }, [machineCallModal])
-
-  useEffect(() => { localStorage.setItem('centrum_shop2_scanned', JSON.stringify(scannedCardIds)) }, [scannedCardIds])
-  useEffect(() => { const timer = setInterval(() => setCurrentTime(new Date()), 1000); return () => clearInterval(timer) }, [])
-
-  // Скидаємо вибір етапу та підставляємо майстра при зміні карти
-  useEffect(() => {
-    const card = workCards.find(c => String(c.id) === String(selectedCardId))
-    if (card) {
-      setSelectedStage(card.operation || '')
-      const fullName = [currentUser?.first_name, currentUser?.last_name].filter(Boolean).join(' ')
-      const displayName = fullName || currentUser?.login || ''
-      const managerName = currentUser?.position ? `${displayName} (${currentUser.position})` : displayName
-      if (managerName) setSelectedManager(managerName)
-      
-      setSelectedShift('')
-      setSelectedOperator('')
-    } else {
-      setSelectedShift('')
-      setSelectedOperator('')
-    }
-
-    // Скидаємо поля БРАК ВКЯ при кожній зміні картки
-    setShowQCModal(false)
-    setQcScrapCount(0)
-    setQcInspector('')
-    setQcReason('Биття цанги')
-    setQcCustomReason('')
-  }, [selectedCardId, currentUser])
-
-  // ── РЕАЛЬНИЙ ЧАС (ЦЕНТРАЛІЗОВАНО В MESContext) ────────────────
-  useEffect(() => {
-    // Оновлення тепер приходять через payload в MESContext миттєво
-    return () => { }
-  }, [])
-
-  useEffect(() => {
-    let html5QrCode = null
-    if (isScanning && window.Html5Qrcode) {
-      html5QrCode = new window.Html5Qrcode("reader")
-      const config = { fps: 15, qrbox: { width: 260, height: 260 } }
-      const stopAndClose = async () => {
-        if (html5QrCode && html5QrCode.isScanning) await html5QrCode.stop().catch(() => { })
-        setIsScanning(false)
-      }
-      html5QrCode.start({ facingMode: "environment" }, config, async (decodedText) => {
-        const isMachineQR = await handleMachineQRScan(decodedText)
-        if (isMachineQR) {
-          await stopAndClose()
-          return
-        }
-
-        try {
-          const qrData = JSON.parse(decodedText)
-          if (qrData.type === 'work_card_shop2') {
-            const cardIdStr = qrData.id
-            await stopAndClose()
-            let foundCard = workCards.find(c => String(c.id).trim() === String(cardIdStr).trim())
-            if (!foundCard) {
-              setIsSyncing(true)
-              try { if (typeof fetchData === 'function') await fetchData('work_cards') } catch (e) { }
-              setIsSyncing(false)
-              setScanError(`Картку №${cardIdStr} не знайдено в базі.`)
-            } else {
-              setScannedCardIds(prev => prev.includes(foundCard.id) ? prev : [...prev, foundCard.id])
-              setSelectedCardId(foundCard.id)
-              setScanError(null)
-              window.scrollTo({ top: 0, behavior: 'smooth' })
-            }
-          } else {
-            setScanError("Це не картка Цеху №2! Скануйте лише картки другого цеху.")
-          }
-        } catch (e) {
-          setScanError("Невірний формат QR. Це точно картка Цеху №2?")
-        }
-      }).catch(err => { setScanError("Помилка камери: " + err); setIsScanning(false) })
-    }
-    return () => { if (html5QrCode && html5QrCode.isScanning) html5QrCode.stop().catch(() => { }) }
-  }, [isScanning, workCards])
-
-  // ── Global Scanner Keydown Listener ───────────────────────────────────────
-  useEffect(() => {
-    let buffer = ''
-    let lastKeyTime = Date.now()
-
-    const handleGlobalKeyDown = async (e) => {
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
-        return
-      }
-
-      const currentTime = Date.now()
-      if (currentTime - lastKeyTime > 100) {
-        buffer = ''
-      }
-      lastKeyTime = currentTime
-
-      if (e.key === 'Enter') {
-        if (buffer.length > 3) {
-          const scannedText = buffer.trim()
-          buffer = ''
-
-          const isMachineQR = await handleMachineQRScan(scannedText)
-          if (isMachineQR) {
-            e.preventDefault()
-            return
-          }
-
-          try {
-            const qrData = JSON.parse(scannedText)
-            if (qrData.type === 'work_card_shop2') {
-              const cardIdStr = qrData.id
-              let foundCard = workCards.find(c => String(c.id).trim() === String(cardIdStr).trim())
-              if (!foundCard) {
-                setIsSyncing(true)
-                try { if (typeof fetchData === 'function') await fetchData('work_cards') } catch (e) { }
-                setIsSyncing(false)
-              }
-              foundCard = workCards.find(c => String(c.id).trim() === String(cardIdStr).trim())
-              if (foundCard) {
-                setScannedCardIds(prev => prev.includes(foundCard.id) ? prev : [...prev, foundCard.id])
-                setSelectedCardId(foundCard.id)
-                setScanError(null)
-                window.scrollTo({ top: 0, behavior: 'smooth' })
-              }
-            }
-          } catch (e) {
-            // Not valid JSON, ignore
-          }
-        }
-        buffer = ''
-      } else if (e.key.length === 1) {
-        const char = cyrillicToLatinMap[e.key] || e.key
-        buffer += char
-      }
-    }
-
-    window.addEventListener('keydown', handleGlobalKeyDown)
-    return () => window.removeEventListener('keydown', handleGlobalKeyDown)
-  }, [workCards])
-
-  const currentCard = workCards.find(c => String(c.id) === String(selectedCardId))
-
-  const getNomFromCard = (card) => {
-    if (!card) return null
-    const nom = nomenclatures.find(n => String(n.id) === String(card.nomenclature_id))
-    if (nom) return nom
-
-    // Heuristic Fallback for corrupted cards (previous Number(id) bug)
-    // 1. Try to find by quantity and task/order from card_info
-    const info = card.card_info || ''
-    const orderNumMatch = info.match(/Наряд №(\d+)/)
-    const orderNum = orderNumMatch ? orderNumMatch[1] : null
-
-    if (orderNum) {
-      const order = orders.find(o => String(o.order_num) === String(orderNum) || String(o.id) === String(orderNum))
-      if (order?.order_items) {
-        // Find item with same quantity
-        const match = order.order_items.find(it => Number(it.quantity) === Number(card.quantity))
-        if (match) return nomenclatures.find(n => String(n.id) === String(match.nomenclature_id))
-      }
-    }
-
-    return null
-  }
-
-  const formatElapsedTime = (startIso) => {
-    if (!startIso) return '00:00:00'
-    const start = new Date(startIso)
-    const diff = Math.floor((currentTime - start) / 1000)
-    if (isNaN(diff) || diff < 0) return '00:00:00'
-    const h = Math.floor(diff / 3600).toString().padStart(2, '0')
-    const m = Math.floor((diff % 3600) / 60).toString().padStart(2, '0')
-    const s = (diff % 60).toString().padStart(2, '0')
-    return `${h}:${m}:${s}`
-  }
-  const formatPlanned = (mins) => {
-    if (!mins || mins <= 0) return '—'
-    const h = Math.floor(mins / 60)
-    const m = Math.round(mins % 60)
-    if (h > 0) return `${h}год ${m}хв`
-    return `${m}хв`
-  }
-  const getPlannedTime = (card) => {
-    if (!card) return 0
-    // Priority 1: Direct estimated time (if in minutes)
-    if (card.estimated_time) return Number(card.estimated_time)
-    // Priority 2: estimated_seconds (from machine module logic)
-    if (card.estimated_seconds) return Number(card.estimated_seconds) / 60
-    // Priority 3: Calculation from nomenclature
-    const nom = getNomFromCard(card)
-    if (nom?.time_per_unit) return (Number(nom.time_per_unit) * Number(card.quantity))
-    return 0
-  }
-  const formatMachine = (name) => {
-    if (!name) return '—'
-    const match = name.match(/№\s*(\S+)/)
-    return match ? `№${match[1]}` : name
-  }
-
-  const matchesStage = (cardOp, stageName) => {
-    const op = (cardOp || '').toLowerCase()
-    const sk = (stageName || '').toLowerCase()
-    return op === sk || op.includes(sk) || sk.includes(op)
-  }
-
-  // Тільки картки Цеху №2
-  const queuedCards = workCards.filter(c =>
-    c.card_info?.includes('[ЦЕХ №2]') &&
-    (c.status === 'new' || c.status === 'at-buffer' || scannedCardIds.some(sid => String(sid) === String(c.id))) &&
-    c.status !== 'in-progress' && c.status !== 'waiting-buffer' && c.status !== 'completed'
-  )
-
-  const handleStartOperation = async () => {
-    if (!currentCard || !selectedOperator) return
-    const stage = selectedStage || currentCard.operation
-    setIsProcessing(true)
-    try {
-      await apiService.submitOperatorAction('start', currentCard.task_id, currentCard.id, selectedOperator, {
-        stage_name: stage,
-        machine_name: selectedMachine,
-        manager_name: selectedManager,
-        shift_name: selectedShift
-      }, startWorkCard)
-      if (!scannedCardIds.includes(currentCard.id)) setScannedCardIds(prev => [...prev, currentCard.id])
-    } catch (e) { alert('Помилка при старті: ' + e.message) }
-    finally { setIsProcessing(false) }
-  }
-
-  const submitCompletion = async () => {
-    if (!currentCard) return
-    const nom = getNomFromCard(currentCard)
-    setScrapCounts({ [nom?.id]: 0 })
-    setShowScrapModal(true)
-  }
-
-  const handleFinalFinish = async () => {
-    if (!currentCard) return
-    const totalScrap = Object.values(scrapCounts || {}).reduce((sum, qty) => sum + (Number(qty) || 0), 0)
-    if (totalScrap < 0 || totalScrap > Number(currentCard.quantity || 0)) {
-      alert(`Кількість браку має бути від 0 до ${currentCard.quantity || 0} шт.`)
-      return
-    }
-    setIsProcessing(true)
-    try {
-      await apiService.submitBufferConfirmation(currentCard.id, scrapCounts, confirmBuffer)
-      setSelectedCardId(null)
-      setShowScrapModal(false)
-      setScannedCardIds(prev => prev.filter(id => id !== currentCard.id))
-      fetchData(['work_cards', 'work_card_history', 'inventory']) // Refresh history for local stats
-    } catch (e) { alert('Помилка при завершенні: ' + e.message) }
-    finally { setIsProcessing(false) }
-  }
-
-  const updateInventoryStock = async (nomId, qty, type = 'semi') => {
-    if (!nomId || qty <= 0) return { error: null }
-    try {
-      const { data: existing, error: lookupError } = await supabase.from('inventory')
-        .select('*')
-        .eq('nomenclature_id', nomId)
-        .eq('type', type)
-        .limit(1).maybeSingle()
-      if (lookupError) throw lookupError
-
-      if (existing) {
-        const { error } = await supabase.from('inventory').update({
-          total_qty: (Number(existing.total_qty) || 0) + Number(qty),
-          updated_at: new Date().toISOString()
-        }).eq('id', existing.id)
-        if (error) throw error
-      } else {
-        const nom = nomenclatures.find(n => n.id === nomId)
-        const { error } = await supabase.from('inventory').insert([{
-          name: nom?.name || 'Деталь',
-          unit: nom?.unit || 'шт',
-          total_qty: Number(qty),
-          type: type,
-          nomenclature_id: nomId
-        }])
-        if (error) throw error
-      }
-      return { error: null }
-    } catch (e) {
-      console.warn(`Stock update failed for type ${type}:`, e)
-      throw e
-    }
-  }
-
-  const handleQCScrapOverride = async () => {
-    if (!currentCard || qcScrapCount <= 0) return
-    if (qcScrapCount > currentCard.quantity) {
-      alert('Кількість браку не може перевищувати поточну кількість деталей у картці!')
-      return
-    }
-    setIsProcessing(true)
-    try {
-      const inspectorName = qcInspector || 'відповідальний ВКЯ'
-      const operatorName = selectedOperator || currentCard.operator_name || currentCard.card_info?.match(/\[OPERATOR:([^\]]+)\]/)?.[1] || 'Оператор Цеху №2'
-      const stageName = currentCard.operation || selectedStage || 'Пресування [ЦЕХ №2]'
-      const newQty = Math.max(0, currentCard.quantity - qcScrapCount)
-
-      const promises = []
-
-      // 1. Запис у work_card_history з точним етапом, оператором та інспектором ВКЯ
-      promises.push(
-        supabase.from('work_card_history').insert([{
-          card_id: currentCard.id,
-          nomenclature_id: currentCard.nomenclature_id,
-          stage_name: stageName,
-          operator_name: operatorName,
-          qty_at_start: currentCard.quantity,
-          qty_completed: newQty,
-          scrap_qty: qcScrapCount,
-          started_at: new Date().toISOString(),
-          completed_at: new Date().toISOString(),
-          is_archived_scrap: true,
-          shift_name: selectedShift || currentCard.shift_name,
-          manager_name: selectedManager || currentCard.manager_name,
-          machine_name: selectedMachine || currentCard.machine,
-          qc_scrap_reason: qcReason,
-          qc_scrap_comment: qcReason === 'Інше (коментар)' ? qcCustomReason : null,
-          card_info: `[ЦЕХ №2] ${currentCard.card_info || ''} [QC_INSPECTOR:${inspectorName}] [VKYA_SOURCE_STATUS:${currentCard.status || ''}] [VKYA_SOURCE_OPERATION:${stageName}]`.trim()
-        }])
-      )
-
-      // 2. Оновлюємо кількість картки (якщо залишилося 0, закриваємо її)
-      const updatePayload = { quantity: newQty }
-      if (newQty === 0) {
-        updatePayload.status = 'completed'
-      }
-      promises.push(
-        supabase.from('work_cards').update(updatePayload).eq('id', currentCard.id)
-      )
-      promises.push(updateInventoryStock(currentCard.nomenclature_id, qcScrapCount, 'scrap_ready'))
-
-      const results = await Promise.all(promises)
-      for (const res of results) {
-        if (res?.error) throw res.error
-      }
-
-      setShowQCModal(false)
-      setQcScrapCount(0)
-      setQcInspector('')
-      setQcReason('Биття цанги')
-      setQcCustomReason('')
-      fetchData(['work_cards', 'work_card_history', 'inventory', 'tasks']).catch(() => {})
-      if (newQty === 0) {
-        setSelectedCardId(null)
-        setScannedCardIds(prev => prev.filter(id => id !== currentCard.id))
-      }
-      setIsProcessing(false)
-      alert(`✅ Успішно списано ${qcScrapCount} шт у брак за рішенням ВКЯ!`)
-    } catch (e) {
-      console.error('QC error:', e)
-      setIsProcessing(false)
-      alert('Помилка фіксації браку ВКЯ: ' + e.message)
-    } finally { setIsProcessing(false) }
-  }
-
-  const SpecCard = ({ icon: Icon, label, value, color = "#8b5cf6" }) => (
-    <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid #1a1a1a', padding: '18px', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '8px', minWidth: '130px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#555', fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase' }}>
-        <Icon size={14} /> {label}
-      </div>
-      <div style={{ fontSize: '1.2rem', fontWeight: 900, color }}>{value}</div>
-    </div>
-  )
-
-  const renderQueue = () => (
-    <div className="tasks-scroll" style={{ flex: 1, overflowY: 'auto', padding: '0 15px 25px' }}>
-      {queuedCards.length === 0 && (
-        <div style={{ textAlign: 'center', padding: '40px 10px', color: '#444', fontSize: '0.8rem' }}>Немає карток в черзі для Цеху №2. Відскануйте першу...</div>
-      )}
-      {queuedCards.map(card => {
-        const nom = getNomFromCard(card)
-        const isActive = String(selectedCardId) === String(card.id)
-        return (
-          <div key={card.id} onClick={() => { setSelectedCardId(card.id); setIsDrawerOpen(false); setScanError(null); }} style={{ background: isActive ? '#8b5cf6' : '#1a1a1a', borderRadius: '12px', padding: '15px', marginBottom: '10px', cursor: 'pointer', border: '1px solid', borderColor: isActive ? '#8b5cf6' : '#333', transition: '0.2s', color: isActive ? '#fff' : '#fff' }}>
-            <div style={{ marginBottom: '4px' }}>
-              <strong style={{ display: 'block', fontSize: '0.9rem', fontWeight: 800 }}>{nom?.name || 'Без назви'}</strong>
-              <span style={{ fontSize: '0.65rem', color: '#8b5cf6', fontWeight: 800 }}>#{card.id.slice(-8).toUpperCase()}</span>
-              <div style={{ fontSize: '0.65rem', opacity: 0.7 }}>{card.quantity} шт | Етап: {card.status === 'at-buffer' ? `Буфер ${card.operation?.toLowerCase()}` : (card.operation || '—')}</div>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
-              <span style={{ fontSize: '0.6rem', background: isActive ? 'rgba(0,0,0,0.2)' : 'rgba(139, 92, 246, 0.1)', color: isActive ? '#fff' : '#8b5cf6', padding: '2px 6px', borderRadius: '4px', fontWeight: 900, textTransform: 'uppercase' }}>ОЧІКУЄ</span>
-              <span style={{ fontSize: '0.65rem', fontWeight: 800 }}>{card.estimated_time || 0} хв</span>
-            </div>
-          </div>
-        )
-      })}
-    </div>
-  )
-
-  
-  const calculateTotalBufferParts = () => {
-    let totalBufferPartsCount = 0;
-
-    (workCards || []).forEach(card => {
-      if (isShop2Card(card)) return
-      const op = String(card.operation || '')
-      const status = String(card.status || '')
-      const isSortedOrBuffer = status === 'at-shop2-buffer'
-
-      if (isSortedOrBuffer) {
-        const qty = Number(card.quantity || 0)
-        const used = Number(card.used_in_shop2_qty || 0)
-        totalBufferPartsCount += Math.max(0, qty - used)
-      }
-    })
-
-    return totalBufferPartsCount
-  }
-
-  const renderStorageExplorer = () => {
-    // 1. Collect all active buffer cards for Route 1 (at-shop2-buffer) & Route 2 (VKYA return / rework)
-    const bufferCards = (workCards || []).filter(c => {
-      if (isShop2Card(c)) return false
-      const status = String(c.status || '')
-      return status === 'at-shop2-buffer'
-    })
-
-    // 2. Group buffer items by Task ID / Order
-    const taskGroups = {}
-
-    bufferCards.forEach(card => {
-      const qty = Number(card.quantity || 0)
-      const used = Number(card.used_in_shop2_qty || 0)
-      const avail = Math.max(0, qty - used)
-      if (avail <= 0) return
-
-      const taskId = card.task_id || 'unassigned'
-      if (!taskGroups[taskId]) {
-        const taskObj = (tasks || []).find(t => String(t.id) === String(taskId))
-        const orderObj = (orders || []).find(o => String(o.id) === String(card.order_id || taskObj?.order_id))
-        const rawNum = orderObj?.order_num || taskObj?.order_num || card.card_info?.match(/Наряд №(\d+(?:-\d+)?)/)?.[1] || 'Вільний запас'
-        const orderNumStr = String(rawNum)
-        const displayNum = orderNumStr.startsWith('№') || orderNumStr.includes('Вільний') || orderNumStr.includes('Загальний')
-          ? orderNumStr
-          : `Наряд №${orderNumStr}`
-
-        taskGroups[taskId] = {
-          taskId,
-          orderNum: displayNum,
-          items: {}
-        }
-      }
-
-      const nomId = card.nomenclature_id
-      if (!taskGroups[taskId].items[nomId]) {
-        const nom = (nomenclatures || []).find(n => String(n.id) === String(nomId))
-        
-        // Calculate Shop 2 scrap for this part / order
-        let scrapQty = 0
-        ;(workCards || []).forEach(sc => {
-          if (isShop2Card(sc) && String(sc.nomenclature_id) === String(nomId)) {
-            if (!card.order_id || String(sc.order_id) === String(card.order_id)) {
-              scrapQty += Number(sc.scrap_qty || 0)
-            }
-          }
-        })
-
-        taskGroups[taskId].items[nomId] = {
-          nomId,
-          name: nom?.name || 'Деталь',
-          unit: nom?.unit || 'шт',
-          material: nom?.material_type || nom?.material || '—',
-          rawReceived: 0,
-          total_qty: 0,
-          scrapQty,
-          cardCount: 0,
-          updated_at: card.created_at
-        }
-      }
-      taskGroups[taskId].items[nomId].rawReceived += qty
-      taskGroups[taskId].items[nomId].total_qty += avail
-      taskGroups[taskId].items[nomId].cardCount += 1
-    })
-
-    const rawGroupList = Object.values(taskGroups).filter(g => Object.keys(g.items).length > 0)
-
-    // Calculate Summary KPIs
-    let totalBufferPartsCount = 0
-    let totalNomenclaturesCount = 0
-    const nomSet = new Set()
-
-    rawGroupList.forEach(group => {
-      Object.values(group.items).forEach(item => {
-        if (item.total_qty > 0) {
-          totalBufferPartsCount += item.total_qty
-          nomSet.add(item.nomId)
-        }
-      })
-    })
-    totalNomenclaturesCount = nomSet.size
-
-    const streamingIncoming = (workCards || [])
-      .filter(c => c.status === 'at-shop2-buffer')
-      .reduce((a, c) => a + (Number(c.quantity) || 0) - (Number(c.used_in_shop2_qty) || 0), 0)
-
-    const totalIncoming = (inventory || [])
-      .filter(i => i.type === 'semi_shop2' || i.type === 'bz_shop2')
-      .reduce((a, i) => a + (Number(i.total_qty) || 0), 0)
-
-    const totalTakenInShop2 = (workCards || [])
-      .filter(c => c.card_info?.includes('[ЦЕХ №2]') && (c.status === 'in-progress' || c.status === 'at-buffer' || c.status === 'waiting-buffer'))
-      .reduce((a, c) => a + (Number(c.quantity) || 0), 0)
-
-    const netAvailableForRK = streamingIncoming > 0 ? streamingIncoming : Math.max(0, totalIncoming - totalTakenInShop2)
-
-    // Filter groups by bufferSearchQuery if present
-    const q = String(bufferSearchQuery || '').trim().toLowerCase()
-    const groupList = rawGroupList.map(group => {
-      if (!q) return group
-      const matchesGroupTitle = group.orderNum.toLowerCase().includes(q)
-      if (matchesGroupTitle) return group
-      
-      const filteredItems = {}
-      Object.entries(group.items).forEach(([nid, item]) => {
-        if (item.name.toLowerCase().includes(q) || (item.material && item.material.toLowerCase().includes(q))) {
-          filteredItems[nid] = item
-        }
-      })
-      return { ...group, items: filteredItems }
-    }).filter(g => Object.keys(g.items).length > 0)
-
-    return (
-      <div style={{
-        position: 'fixed', inset: 0, zIndex: 10000,
-        background: 'var(--bg-primary, #0a0a0a)',
-        display: 'flex', flexDirection: 'column',
-        color: 'var(--text-primary, #ffffff)'
-      }}>
-        {/* Header */}
-        <div style={{
-          padding: '18px 25px',
-          background: 'var(--card-bg, #ffffff)',
-          borderBottom: '1px solid var(--border-color, #e2e8f0)',
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-            <div style={{ background: 'rgba(139, 92, 246, 0.12)', border: '1px solid rgba(139, 92, 246, 0.3)', padding: '10px', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Package size={22} color="#8b5cf6" />
-            </div>
-            <div>
-              <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 950, letterSpacing: '-0.01em', color: 'var(--text-primary, #0f172a)' }}>
-                БУФЕР ЦЕХУ №2
-              </h2>
-              <div style={{ fontSize: '0.64rem', color: 'var(--text-muted, #64748b)', fontWeight: 850, textTransform: 'uppercase', marginTop: '2px', letterSpacing: '0.5px' }}>
-                Надходження деталей з Розкрою / Сортування / ВКЯ
-              </div>
-            </div>
-          </div>
-
-          {/* Search Control Bar */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, maxWidth: '420px' }}>
-            <div style={{ position: 'relative', width: '100%' }}>
-              <Search size={16} color="var(--text-muted, #64748b)" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)' }} />
-              <input
-                type="text"
-                placeholder="Пошук по деталях або № наряду..."
-                value={bufferSearchQuery}
-                onChange={e => setBufferSearchQuery(e.target.value)}
-                style={{
-                  width: '100%',
-                  background: 'var(--bg-secondary, #f8fafc)',
-                  border: '1px solid var(--border-color, #cbd5e1)',
-                  color: 'var(--text-primary, #0f172a)',
-                  padding: '9px 14px 9px 38px',
-                  borderRadius: '12px',
-                  fontSize: '0.8rem',
-                  fontWeight: 700,
-                  outline: 'none'
-                }}
-              />
-              {bufferSearchQuery && (
-                <X
-                  size={14}
-                  color="var(--text-muted, #64748b)"
-                  onClick={() => setBufferSearchQuery('')}
-                  style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', cursor: 'pointer' }}
-                />
-              )}
-            </div>
-          </div>
-
-          <button onClick={() => setShowStorageExplorer(false)} style={{ background: 'var(--bg-secondary, #f1f5f9)', border: '1px solid var(--border-color, #cbd5e1)', color: 'var(--text-primary, #0f172a)', width: '40px', height: '40px', borderRadius: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <X size={20} />
-          </button>
-        </div>
-
-        {/* Summary KPI Bar — EXACTLY 2 CARDS */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
-          gap: '14px',
-          padding: '14px 25px',
-          background: 'var(--bg-secondary, #f8fafc)',
-          borderBottom: '1px solid var(--border-color, #e2e8f0)'
-        }}>
-          {/* Card 1: Нарядів у буфері */}
-          <div style={{ background: 'var(--card-bg, #ffffff)', border: '1px solid var(--border-color, #e2e8f0)', borderRadius: '12px', padding: '14px 20px', display: 'flex', alignItems: 'center', gap: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.03)' }}>
-            <ClipboardList size={22} color="#8b5cf6" />
-            <div>
-              <div style={{ color: 'var(--text-muted, #64748b)', fontSize: '0.62rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px' }}>НАРЯДІВ У БУФЕРІ</div>
-              <div style={{ color: 'var(--text-primary, #0f172a)', fontSize: '1.25rem', fontWeight: 950, marginTop: '2px' }}>{rawGroupList.filter(g => g.taskId !== 'unassigned').length} нарядів</div>
-            </div>
-          </div>
-
-          {/* Card 2: Вільних деталей у буфері */}
-          <div style={{ background: 'var(--card-bg, #ffffff)', border: '1px solid rgba(139, 92, 246, 0.4)', borderRadius: '12px', padding: '14px 20px', display: 'flex', alignItems: 'center', gap: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.03)' }}>
-            <Play size={22} color="#8b5cf6" />
-            <div>
-              <div style={{ color: '#8b5cf6', fontSize: '0.62rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px' }}>ВІЛЬНИХ ДЕТАЛЕЙ У БУФЕРІ</div>
-              <div style={{ color: '#8b5cf6', fontSize: '1.25rem', fontWeight: 950, marginTop: '2px' }}>{totalBufferPartsCount.toLocaleString('uk-UA')} шт</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Content Container */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '22px 25px', background: 'var(--bg-primary, #f1f5f9)' }}>
-          {groupList.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '70px 20px', color: 'var(--text-muted, #64748b)' }}>
-              <Package size={52} style={{ marginBottom: '16px', opacity: 0.15 }} />
-              <div style={{ fontWeight: 900, fontSize: '0.95rem' }}>
-                {bufferSearchQuery ? 'Нічого не знайдено за вашим запитом' : 'НЕМАЄ ДЕТАЛЕЙ В БУФЕРІ'}
-              </div>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '22px' }}>
-              {groupList.map(group => {
-                const totalGroupQty = Object.values(group.items).reduce((sum, item) => sum + item.total_qty, 0)
-                const isUnassigned = group.taskId === 'unassigned'
-                const itemCount = Object.keys(group.items).length
-
-                return (
-                  <div
-                    key={group.taskId}
-                    style={{
-                      background: isUnassigned ? 'rgba(234, 179, 8, 0.05)' : 'var(--card-bg, #ffffff)',
-                      border: isUnassigned ? '1px solid rgba(234, 179, 8, 0.35)' : '1px solid var(--border-color, #e2e8f0)',
-                      borderRadius: '20px',
-                      padding: '20px',
-                      boxShadow: '0 4px 20px rgba(0,0,0,0.04)'
-                    }}
-                  >
-                    {/* Task Header */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', paddingBottom: '12px', borderBottom: '1px solid var(--border-color, #f1f5f9)', flexWrap: 'wrap', gap: '10px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <div style={{
-                          background: isUnassigned ? 'rgba(234, 179, 8, 0.15)' : 'rgba(139, 92, 246, 0.12)',
-                          border: `1px solid ${isUnassigned ? 'rgba(234, 179, 8, 0.4)' : 'rgba(139, 92, 246, 0.3)'}`,
-                          color: isUnassigned ? '#d97706' : '#8b5cf6',
-                          padding: '6px 14px',
-                          borderRadius: '10px',
-                          fontSize: '0.82rem',
-                          fontWeight: 950,
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '8px'
-                        }}>
-                          {isUnassigned ? '📦' : '📋'} {group.orderNum}
-                        </div>
-                        {isUnassigned && (
-                          <span style={{ color: 'var(--text-muted, #64748b)', fontSize: '0.66rem', fontWeight: 800 }}>
-                            (Складський резерв БЗ без прив'язки до наряду)
-                          </span>
-                        )}
-                      </div>
-                      <div style={{ color: 'var(--text-muted, #64748b)', fontSize: '0.74rem', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <span>{itemCount} найменувань</span>
-                        <span>•</span>
-                        <span>Усього в буфері: <strong style={{ color: isUnassigned ? '#d97706' : '#8b5cf6', fontSize: '0.95rem', fontWeight: 950 }}>{totalGroupQty.toLocaleString('uk-UA')} шт</strong></span>
-                      </div>
-                    </div>
-
-                    {/* Part Grid */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px' }}>
-                      {Object.values(group.items).filter(item => item.total_qty > 0).map(item => (
-                        <div
-                          key={item.nomId}
-                          style={{
-                            background: 'var(--bg-secondary, #f8fafc)',
-                            borderRadius: '14px',
-                            padding: '14px 16px',
-                            border: '1px solid var(--border-color, #e2e8f0)',
-                            display: 'flex',
-                            justify: 'space-between',
-                            alignItems: 'center'
-                          }}
-                        >
-                          <div style={{ flex: 1, minWidth: 0, paddingRight: '12px' }}>
-                            <div style={{ fontSize: '0.84rem', fontWeight: 900, color: 'var(--text-primary, #0f172a)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.name}>
-                              {item.name}
-                            </div>
-                            <div style={{ fontSize: '0.62rem', color: 'var(--text-muted, #64748b)', fontWeight: 850, marginTop: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {item.material !== '—' ? `${item.material} · ` : ''}{item.cardCount > 0 ? `${item.cardCount} карток` : 'в наявності'}
-                            </div>
-                          </div>
-                          <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                            <div style={{ fontSize: '1.45rem', fontWeight: 1000, color: isUnassigned ? '#d97706' : '#8b5cf6', lineHeight: 1, fontFamily: 'monospace' }}>
-                              {item.total_qty.toLocaleString('uk-UA')}
-                            </div>
-                            <div style={{ fontSize: '0.52rem', color: 'var(--text-muted, #64748b)', fontWeight: 900, marginTop: '3px', textTransform: 'uppercase' }}>ВІЛЬНІ ДЕТАЛІ</div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-      </div>
-    )
-  }
-
-  const renderScrapModal = () => {
-    if (!currentCard) return null
-    const nom = getNomFromCard(currentCard)
-    const currentScrap = scrapCounts[nom?.id] || 0
-
-    return (
-      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.96)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10020, padding: '20px' }}>
-        <div style={{ background: '#111', width: '100%', maxWidth: '500px', borderRadius: '32px', border: '1px solid #333', overflow: 'hidden' }}>
-          <div style={{ padding: '25px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#1a1a1a' }}>
-            <h3 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 950 }}>ЗАВЕРШЕННЯ ЕТАПУ (ЦЕХ №2)</h3>
-            <button onClick={() => setShowScrapModal(false)} style={{ background: 'transparent', border: 'none', color: '#555' }}><X size={26} /></button>
-          </div>
-          <div style={{ padding: '30px', textAlign: 'center' }}>
-            <h2 style={{ margin: '0 0 20px', fontSize: '1.4rem' }}>{nom?.name || 'Деталь'}</h2>
-            <div style={{ background: '#000', padding: '25px', borderRadius: '24px' }}>
-              <label style={{ color: '#ef4444', fontWeight: 900, display: 'block', marginBottom: '15px', fontSize: '0.75rem' }}>КІЛЬКІСТЬ БРАКОВАНИХ ДЕТАЛЕЙ</label>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '20px' }}>
-                <button onClick={() => setScrapCounts(p => ({ ...p, [nom?.id]: Math.max(0, currentScrap - 1) }))} style={{ width: '60px', height: '60px', background: '#1a1a1a', border: '1px solid #333', color: '#fff', borderRadius: '15px', fontSize: '1.5rem' }}>-</button>
-                <input type="number" min="0" max={currentCard.quantity || 0} value={currentScrap === 0 ? '' : currentScrap} placeholder="0" onChange={e => { const val = e.target.value; const qty = val === '' ? 0 : Math.min(Number(currentCard.quantity || 0), Math.max(0, parseInt(val) || 0)); setScrapCounts(p => ({ ...p, [nom?.id]: qty })) }} style={{ background: 'transparent', border: 'none', color: '#fff', fontSize: '3.5rem', width: '120px', textAlign: 'center', fontWeight: 900 }} />
-                <button onClick={() => setScrapCounts(p => ({ ...p, [nom?.id]: Math.min(Number(currentCard.quantity || 0), currentScrap + 1) }))} style={{ width: '60px', height: '60px', background: '#1a1a1a', border: '1px solid #333', color: '#fff', borderRadius: '15px', fontSize: '1.5rem' }}>+</button>
-              </div>
-            </div>
-            <button disabled={isProcessing} onClick={handleFinalFinish} style={{ width: '100%', background: '#10b981', color: '#fff', border: 'none', padding: '20px', borderRadius: '18px', fontSize: '1.3rem', fontWeight: 900, marginTop: '30px', cursor: 'pointer', opacity: isProcessing ? 0.5 : 1 }}>ПІДТВЕРДИТИ</button>
-          </div>
-        </div>
-      </div>
-    )
-  }
+  const state = useShop2TerminalState()
 
   return (
     <div className="operator-terminal-shop2" style={{ background: '#0a0a0a', height: '100vh', display: 'flex', flexDirection: 'column', color: '#fff', overflow: 'hidden' }}>
-      <header className="terminal-nav" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 20px', height: '70px', background: '#000', borderBottom: '2px solid #8b5cf6', flexShrink: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-          <button onClick={() => setIsDrawerOpen(true)} className="burger-btn-labeled mobile-only">
-            <Menu size={20} />
-            <span>Черга</span>
-            {queuedCards.length > 0 && (
-              <span className="queue-badge" style={{
-                background: '#ef4444',
-                color: '#fff',
-                borderRadius: '50%',
-                fontSize: '10px',
-                fontWeight: 900,
-                width: '18px',
-                height: '18px',
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                lineHeight: 1
-              }}>
-                {queuedCards.length}
-              </span>
-            )}
-          </button>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <Tablet size={20} color="#8b5cf6" />
-          <h1 style={{ fontSize: '1rem', fontWeight: 800, margin: 0 }} className="hide-mobile">ТЕРМІНАЛ ЦЕХУ №2 (ОПЕРАТОР)</h1>
-
-          <button
-            onClick={() => setShowStorageExplorer(true)}
-            style={{
-              background: '#8b5cf620', color: '#8b5cf6', border: '1px solid #8b5cf644',
-              padding: '6px 12px', borderRadius: '10px', fontSize: '0.65rem',
-              fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px',
-              marginLeft: '15px'
-            }}
-          >
-            <Package size={14} /> БУФЕР
-          </button>
-          {isAdmin && (
-            <button
-              onClick={() => setShowAdminCardModal(true)}
-              style={{
-                background: 'rgba(139, 92, 246, 0.1)', color: '#a78bfa', border: '1px solid rgba(139, 92, 246, 0.4)',
-                padding: '6px 12px', borderRadius: '10px', fontSize: '0.65rem',
-                fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px',
-                marginLeft: '10px'
-              }}
-            >
-              + РУЧНА КАРТКА
-            </button>
-          )}
-        </div>
-        <div style={{ fontWeight: 900, fontFamily: 'monospace', fontSize: '1.2rem', color: '#8b5cf6' }}>{currentTime.toLocaleTimeString()}</div>
-      </header>
+      <Shop2Header
+        currentTime={state.currentTime}
+        setIsDrawerOpen={state.setIsDrawerOpen}
+        queuedCardsCount={state.queuedCards.length}
+        setShowStorageExplorer={state.setShowStorageExplorer}
+        isAdmin={state.isAdmin}
+        setShowAdminCardModal={state.setShowAdminCardModal}
+      />
 
       <div className="main-layout-responsive" style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+        {/* Desktop Side Panel */}
         <div className="side-panel hide-mobile" style={{ width: '300px', background: '#121212', borderRight: '1px solid #222', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
           <div style={{ padding: '20px', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 800, color: '#555', display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <ClipboardList size={16} /> ЧЕРГА ЦЕХ №2 ({queuedCards.length})
+            📋 ЧЕРГА ЦЕХ №2 ({state.queuedCards.length})
           </div>
-          {renderQueue()}
+          <Shop2QueueList
+            queuedCards={state.queuedCards}
+            selectedCardId={state.selectedCardId}
+            setSelectedCardId={state.setSelectedCardId}
+            getNomFromCard={state.getNomFromCard}
+            onSelectCard={() => state.setScanError(null)}
+          />
           <div style={{ padding: '15px', borderTop: '1px solid #1a1a1a' }}>
-            <button onClick={() => setIsScanning(true)}
-              style={{ width: '100%', background: '#8b5cf615', border: '1px solid #8b5cf630', color: '#8b5cf6', padding: '14px', borderRadius: '12px', fontWeight: 900, fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+            <button
+              onClick={() => state.setIsScanning(true)}
+              style={{ width: '100%', background: '#8b5cf615', border: '1px solid #8b5cf630', color: '#8b5cf6', padding: '14px', borderRadius: '12px', fontWeight: 900, fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+            >
               <Camera size={18} /> СКАНУВАТИ
             </button>
           </div>
         </div>
 
-        {isDrawerOpen && <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 99999 }} onClick={() => setIsDrawerOpen(false)} />}
-        <div style={{ position: 'fixed', left: isDrawerOpen ? 0 : '-300px', top: 0, bottom: 0, width: '300px', background: '#121212', zIndex: 100000, transition: '0.3s', display: 'flex', flexDirection: 'column' }}>
+        {/* Mobile Drawer */}
+        {state.isDrawerOpen && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 99999 }} onClick={() => state.setIsDrawerOpen(false)} />
+        )}
+        <div style={{ position: 'fixed', left: state.isDrawerOpen ? 0 : '-300px', top: 0, bottom: 0, width: '300px', background: '#121212', zIndex: 100000, transition: '0.3s', display: 'flex', flexDirection: 'column' }}>
           <div style={{ padding: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #222' }}>
             <span style={{ fontSize: '0.8rem', fontWeight: 900 }}>ОБЕРІТЬ КАРТУ</span>
-            <X size={20} onClick={() => setIsDrawerOpen(false)} style={{ cursor: 'pointer' }} />
+            <X size={20} onClick={() => state.setIsDrawerOpen(false)} style={{ cursor: 'pointer' }} />
           </div>
-          {renderQueue()}
+          <Shop2QueueList
+            queuedCards={state.queuedCards}
+            selectedCardId={state.selectedCardId}
+            setSelectedCardId={state.setSelectedCardId}
+            getNomFromCard={state.getNomFromCard}
+            onSelectCard={() => { state.setIsDrawerOpen(false); state.setScanError(null) }}
+          />
           <div style={{ padding: '15px', borderTop: '1px solid #1a1a1a' }}>
-            <button onClick={() => setIsScanning(true)}
-              style={{ width: '100%', background: '#8b5cf615', border: '1px solid #8b5cf630', color: '#8b5cf6', padding: '14px', borderRadius: '12px', fontWeight: 900, fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+            <button
+              onClick={() => state.setIsScanning(true)}
+              style={{ width: '100%', background: '#8b5cf615', border: '1px solid #8b5cf630', color: '#8b5cf6', padding: '14px', borderRadius: '12px', fontWeight: 900, fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+            >
               <Camera size={18} /> СКАНУВАТИ
             </button>
           </div>
         </div>
 
+        {/* Main Content Area */}
         <div className="content-panel" style={{ flex: 1, padding: '20px 15px', background: '#0a0a0a', overflowY: 'auto', position: 'relative' }}>
-
-          {scanError && (
+          {state.scanError && (
             <div style={{ background: '#ef444422', border: '1px solid #ef444455', color: '#ef4444', padding: '15px', borderRadius: '15px', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontWeight: 800, fontSize: '0.8rem' }}>{scanError}</span>
-              <X size={18} style={{ cursor: 'pointer' }} onClick={() => setScanError(null)} />
+              <span style={{ fontWeight: 800, fontSize: '0.8rem' }}>{state.scanError}</span>
+              <X size={18} style={{ cursor: 'pointer' }} onClick={() => state.setScanError(null)} />
             </div>
           )}
 
-          {currentCard ? (
-            <div style={{ maxWidth: '900px', margin: '0 auto' }}>
-              <div style={{ marginBottom: '35px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
-                    {currentCard.status === 'new' && (
-                      <div style={{ background: '#8b5cf6', color: 'white', padding: '4px 10px', borderRadius: '6px', fontSize: '0.65rem', fontWeight: 900 }}>НОВА КАРТА ЦЕХ №2</div>
-                    )}
-                    {currentCard.status === 'at-buffer' && (
-                      <div style={{ background: '#eab308', color: 'white', padding: '4px 10px', borderRadius: '6px', fontSize: '0.65rem', fontWeight: 900 }}>ОЧІКУЄ ЕТАПУ</div>
-                    )}
-                    {currentCard.status === 'in-progress' && (
-                      <div style={{ background: '#3b82f6', color: 'white', padding: '4px 10px', borderRadius: '6px', fontSize: '0.65rem', fontWeight: 900 }}>У РОБОТІ</div>
-                    )}
-                    <div style={{ fontSize: '0.7rem', color: '#555', fontWeight: 800 }}>
-                      ЗАМОВЛЕННЯ №{orders?.find(o => o.id === currentCard.order_id)?.order_num || '—'} · #{currentCard.id.slice(-8).toUpperCase()}
-                    </div>
-                  </div>
-                  <h2 style={{ fontSize: '2.5rem', margin: 0, fontWeight: 950, letterSpacing: '-0.02em', lineHeight: 1 }}>
-                    {getNomFromCard(currentCard)?.name || (currentCard.card_info?.split('] ').pop() || `Картка #${currentCard.id.slice(0, 8)}`)}
-                  </h2>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  {currentCard.task_id && (
-                    <Link
-                      to="/shop2"
-                      state={{ taskId: currentCard.task_id }}
-                      style={{ background: '#8b5cf615', border: '1px solid #8b5cf640', color: '#8b5cf6', padding: '10px 14px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', textDecoration: 'none' }}
-                      title="Перейти до батьківського наряду">
-                      📋 <span className="hide-mobile">НАРЯД</span>
-                    </Link>
-                  )}
-                  <button onClick={() => setShowQCModal(true)}
-                    style={{ background: '#ef4444', border: 'none', color: '#ffffff', padding: '10px 16px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: 950, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', boxShadow: '0 4px 15px rgba(239, 68, 68, 0.4)' }}
-                    title="Фіксація браку ВКЯ">
-                    🛡️ БРАК ВКЯ
-                  </button>
-                  <button onClick={() => setSelectedCardId(null)} style={{ background: '#111', border: 'none', color: '#555', padding: '10px', borderRadius: '12px', cursor: 'pointer' }}>
-                    <X size={24} />
-                  </button>
-                </div>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', marginBottom: '30px' }}>
-                <SpecCard icon={ClipboardList} label="Замовлення" value={`№${orders?.find(o => o.id === currentCard.order_id)?.order_num || '—'}`} color="#f43f5e" />
-                <SpecCard icon={Layers} label="Матеріал" value={getNomFromCard(currentCard)?.material_type || '—'} color="#10b981" />
-                <SpecCard
-                  icon={Box}
-                  label="Кількість"
-                  value={((() => {
-                    const need = currentCard.card_info?.match(/\[NEED:(\d+)\]/)?.[1]
-                    const bz = currentCard.card_info?.match(/\[BZ:(\d+)\]/)?.[1] || currentCard.buffer_qty
-                    if (need && bz) return `${currentCard.quantity} шт (${need}+${bz} БЗ)`
-                    return `${currentCard.quantity} шт`
-                  }))()}
-                  color="#3b82f6"
-                />
-                <SpecCard icon={Gauge} label="Етап" value={currentCard.status === 'at-buffer' ? `Буфер ${currentCard.operation?.toLowerCase()}` : (currentCard.operation || '—')} />
-              </div>
-
-              <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '28px', border: '1px solid #1a1a1a', padding: '40px' }}>
-                {currentCard.status === 'completed' ? (
-                  // ── КАРТКА ЗАВЕРШЕНА — не допускаємо жодних дій ──
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{
-                      width: '80px', height: '80px', borderRadius: '50%',
-                      background: '#10b98122', border: '2px solid #10b98155',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      margin: '0 auto 25px'
-                    }}>
-                      <CheckCircle size={40} color="#10b981" />
-                    </div>
-                    <div style={{ color: '#10b981', fontSize: '1.6rem', fontWeight: 950, marginBottom: '10px' }}>
-                      ПЕРЕДАНО НА СГП
-                    </div>
-                    <div style={{ color: '#444', fontSize: '0.85rem', fontWeight: 700, marginBottom: '30px' }}>
-                      Ця картка вже завершена і передана на склад готової продукції.
-                    </div>
-                    <div style={{
-                      background: '#ef444411', border: '1px solid #ef444433',
-                      borderRadius: '16px', padding: '15px 20px',
-                      color: '#ef4444', fontSize: '0.8rem', fontWeight: 800
-                    }}>
-                      ⛔ Повторні дії по цій картці заблоковані. Наряд закрито.
-                    </div>
-                    <button
-                      onClick={() => { setSelectedCardId(null); setScannedCardIds(prev => prev.filter(id => String(id) !== String(currentCard.id))) }}
-                      style={{ marginTop: '25px', background: '#222', border: 'none', color: '#888', padding: '12px 30px', borderRadius: '14px', cursor: 'pointer', fontWeight: 800 }}
-                    >
-                      Закрити
-                    </button>
-                  </div>
-                ) : (currentCard.status === 'new' || currentCard.status === 'at-buffer') ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '25px', maxWidth: '500px', margin: '0 auto' }}>
-                    {currentCard.status === 'at-buffer' && currentCard.operator_name && (
-                      <div style={{ background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.3)', borderRadius: '15px', padding: '15px', color: '#10b981', fontWeight: 800, fontSize: '0.85rem', textAlign: 'center' }}>
-                        👤 ВИКОНАВЕЦЬ: {currentCard.operator_name} {currentCard.shift_name ? `(${currentCard.shift_name})` : ''}
-                      </div>
-                    )}
-                    <div>
-                      <label style={{ color: '#555', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', display: 'block', marginBottom: '10px' }}>Поточний етап (ЦЕХ №2)</label>
-                      <select value={selectedStage || currentCard.operation} onChange={(e) => setSelectedStage(e.target.value)} style={{ width: '100%', background: '#111', border: '1px solid #333', color: '#fff', padding: '15px', borderRadius: '15px', fontSize: '1.1rem', fontWeight: 700 }}>
-                        {shop2Stages.map(s => <option key={s} value={s}>{s}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label style={{ color: '#555', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', display: 'block', marginBottom: '10px' }}>Майстер</label>
-                      <select value={selectedManager} onChange={(e) => setSelectedManager(e.target.value)} style={{ width: '100%', background: '#111', border: '1px solid #333', color: '#fff', padding: '15px', borderRadius: '15px', fontSize: '1.1rem', fontWeight: 700 }}>
-                        <option value="">— Оберіть майстра —</option>
-                        {getFilteredManagers('Цех №2').map(o => <option key={o} value={o}>{o}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label style={{ color: '#555', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', display: 'block', marginBottom: '10px' }}>Зміна</label>
-                      <select value={selectedShift} onChange={(e) => setSelectedShift(e.target.value)} style={{ width: '100%', background: '#111', border: '1px solid #333', color: '#fff', padding: '15px', borderRadius: '15px', fontSize: '1.1rem', fontWeight: 700 }}>
-                        <option value="">— Оберіть зміну —</option>
-                        <option value="Зміна 1">Зміна 1</option>
-                        <option value="Зміна 2">Зміна 2</option>
-                        <option value="Зміна 3">Зміна 3</option>
-                        <option value="Зміна 4">Зміна 4</option>
-                        <option value="Без зміни">Без зміни</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label style={{ color: '#555', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', display: 'block', marginBottom: '10px' }}>Відповідальний оператор</label>
-                      <select value={selectedOperator} onChange={(e) => setSelectedOperator(e.target.value)} disabled={!selectedShift} style={{ width: '100%', background: '#111', border: '1px solid #333', color: '#fff', padding: '15px', borderRadius: '15px', fontSize: '1.1rem', fontWeight: 700, opacity: selectedShift ? 1 : 0.5, cursor: selectedShift ? 'pointer' : 'not-allowed' }}>
-                        <option value="">{selectedShift ? '— Оберіть оператора —' : '— Спочатку оберіть зміну —'}</option>
-                        {getFilteredOperators('Цех №2', selectedShift, selectedStage || currentCard.operation).map(o => <option key={o} value={o}>{o}</option>)}
-                      </select>
-                    </div>
-                    <button
-                      disabled={isProcessing || !selectedOperator || (currentCard.status === 'at-buffer' && (selectedStage || currentCard.operation) === currentCard.operation)}
-                      onClick={handleStartOperation}
-                      style={{
-                        background: '#8b5cf6',
-                        color: '#fff',
-                        border: 'none',
-                        padding: '22px',
-                        borderRadius: '18px',
-                        fontSize: '1.4rem',
-                        fontWeight: 900,
-                        cursor: (isProcessing || !selectedOperator || (currentCard.status === 'at-buffer' && (selectedStage || currentCard.operation) === currentCard.operation)) ? 'not-allowed' : 'pointer',
-                        transition: '0.2s',
-                        opacity: (isProcessing || !selectedOperator || (currentCard.status === 'at-buffer' && (selectedStage || currentCard.operation) === currentCard.operation)) ? 0.3 : 1
-                      }}
-                    >
-                      {currentCard.status === 'at-buffer' && (selectedStage || currentCard.operation) === currentCard.operation ? 'ЕТАП ЗАВЕРШЕНО (В БУФЕРІ)' : 'ВЗЯТИ В РОБОТУ'}
-                    </button>
-                    {currentCard.status === 'at-buffer' && (
-                      <button
-                        disabled={isProcessing}
-                        onClick={async () => {
-                          if (isProcessing) return
-                          setIsProcessing(true)
-                          try {
-                            await handoverToSGP(currentCard.id)
-                            setSelectedCardId(null)
-                            setScannedCardIds(prev => prev.filter(id => String(id) !== String(currentCard.id)))
-                          } catch (e) {
-                            alert('Помилка передачі: ' + e.message)
-                          } finally {
-                            setIsProcessing(false)
-                          }
-                        }}
-                        style={{
-                          background: isProcessing ? '#555' : '#f43f5e',
-                          color: '#fff', border: 'none', padding: '15px',
-                          borderRadius: '18px', fontSize: '1rem', fontWeight: 900,
-                          cursor: isProcessing ? 'not-allowed' : 'pointer',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-                          opacity: isProcessing ? 0.5 : 1
-                        }}
-                      >
-                        <Package size={18} /> {isProcessing ? 'ПЕРЕДАЧА...' : 'ПЕРЕДАТИ НА СКЛАД СГП'}
-                      </button>
-                    )}
-                    <div style={{ textAlign: 'center', fontSize: '0.7rem', color: '#444', fontWeight: 700 }}>Робоча картка автоматично збережеться в базу</div>
-                  </div>
-                ) : (
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ color: '#8b5cf6', fontSize: '0.75rem', fontWeight: 800, marginBottom: '20px' }}>ЧАС В РОБОТІ</div>
-                    <div style={{ fontSize: '6.5rem', fontWeight: 1000, color: '#fff', fontFamily: 'monospace', letterSpacing: '-2px' }}>{formatElapsedTime(currentCard.started_at)}</div>
-                    <div style={{ color: '#555', marginBottom: '30px', fontWeight: 800 }}>ОПЕРАТОР: {currentCard.operator_name}</div>
-                    <button onClick={submitCompletion} style={{ background: '#ec4899', color: '#fff', border: 'none', padding: '22px 70px', borderRadius: '18px', fontSize: '1.4rem', fontWeight: 900, cursor: 'pointer', boxShadow: '0 10px 40px rgba(236, 72, 153, 0.3)' }}>ЗАВЕРШИТИ ЕТАП</button>
-                  </div>
-                )}
-              </div>
-            </div>
+          {state.currentCard ? (
+            <Shop2CardDetails
+              currentCard={state.currentCard}
+              getNomFromCard={state.getNomFromCard}
+              orders={state.orders}
+              setSelectedCardId={state.setSelectedCardId}
+              setShowQCModal={state.setShowQCModal}
+              selectedStage={state.selectedStage}
+              setSelectedStage={state.setSelectedStage}
+              shop2Stages={state.shop2Stages}
+              selectedManager={state.selectedManager}
+              setSelectedManager={state.setSelectedManager}
+              getFilteredManagers={state.getFilteredManagers}
+              selectedShift={state.selectedShift}
+              setSelectedShift={state.setSelectedShift}
+              selectedOperator={state.selectedOperator}
+              setSelectedOperator={state.setSelectedOperator}
+              getFilteredOperators={state.getFilteredOperators}
+              handleStartOperation={state.handleStartOperation}
+              isProcessing={state.isProcessing}
+              handoverToSGP={state.handoverToSGP}
+              setScannedCardIds={state.setScannedCardIds}
+              setIsProcessing={state.setIsProcessing}
+              formatElapsedTime={state.formatElapsedTime}
+              submitCompletion={state.submitCompletion}
+            />
           ) : (
             <div style={{ width: '100%', padding: '0 10px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
-                <h2 style={{ margin: 0, fontSize: '1.8rem', fontWeight: 950 }}>МОНІТОРИНГ ЦЕХУ №2</h2>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px', marginBottom: '50px' }}>
-                {/* ───── КАРТКА ВХІДНОГО БУФЕРА ───── */}
-                {(() => {
-                  const bufferQty = calculateTotalBufferParts()
-
-                  return (
-                    <div onClick={() => setShowStorageExplorer(true)} style={{ background: 'var(--card-bg, #ffffff)', border: '1px solid var(--border-color, rgba(139, 92, 246, 0.3))', borderRadius: '24px', padding: '20px', cursor: 'pointer', transition: '0.3s', boxShadow: '0 10px 30px -10px rgba(139, 92, 246, 0.15)' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-                        <span style={{ color: '#8b5cf6', fontSize: '0.7rem', fontWeight: 950, textTransform: 'uppercase' }}>ВХІДНИЙ БУФЕР</span>
-                        <Package size={14} color="#8b5cf6" />
-                      </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', alignItems: 'flex-end', width: '100%' }}>
-                        <div>
-                          <div style={{ fontSize: '0.6rem', color: '#8b5cf6', fontWeight: 800 }}>ВІЛЬНІ ДЕТАЛІ</div>
-                          <div style={{ fontSize: '1.8rem', fontWeight: 1000, color: 'var(--text-primary, #0f172a)', lineHeight: 1 }}>{bufferQty.toLocaleString('uk-UA')}</div>
-                        </div>
-                        <div style={{ borderLeft: '1px solid var(--border-color, #e2e8f0)', paddingLeft: '8px', gridColumn: 'span 2' }}>
-                          <div style={{ fontSize: '0.55rem', color: 'var(--text-muted, #64748b)', fontWeight: 800 }}>СТАН БУФЕРА</div>
-                          <div style={{ fontSize: '0.75rem', fontWeight: 800, color: bufferQty > 0 ? '#8b5cf6' : 'var(--text-muted, #64748b)', marginTop: '4px' }}>
-                            {bufferQty > 0 ? 'Вільні для нових карток' : 'Буфер порожній'}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })()}
-
-                {shop2Stages.map(stage => {
-                  const stageCards = workCards.filter(c => isShop2Card(c) && matchesStage(c.operation, stage))
-                  const workQty = stageCards.filter(c => c.status === 'in-progress').reduce((acc, c) => acc + (c.quantity || 0), 0)
-                  const bufferQty = stageCards.filter(c => ['at-buffer', 'waiting-buffer'].includes(c.status)).reduce((acc, c) => acc + (c.quantity || 0), 0)
-                  const scrapQty = workCardHistory.filter(h => isShop2Card(h) && matchesStage(h.stage_name, stage)).reduce((acc, h) => acc + (Number(h.scrap_qty) || 0), 0)
-
-                  return (
-                    <div key={stage} onClick={() => setDetailStage(stage)} style={{ background: '#111', border: '1px solid #222', borderRadius: '24px', padding: '20px', cursor: 'pointer', transition: '0.3s' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-                        <span style={{ color: '#555', fontSize: '0.7rem', fontWeight: 900, textTransform: 'uppercase' }}>{stage}</span>
-                        <Layers size={14} color="#8b5cf6" />
-                      </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', alignItems: 'flex-end', width: '100%' }}>
-                        <div>
-                          <div style={{ fontSize: '0.6rem', color: '#3b82f6', fontWeight: 800 }}>В РОБОТІ</div>
-                          <div style={{ fontSize: '1.3rem', fontWeight: 950, color: workQty > 0 ? '#fff' : '#222' }}>{workQty}</div>
-                        </div>
-                        <div style={{ borderLeft: '1px solid #222', paddingLeft: '8px' }}>
-                          <div style={{ fontSize: '0.6rem', color: '#10b981', fontWeight: 800 }}>БУФЕР</div>
-                          <div style={{ fontSize: '1.3rem', fontWeight: 950, color: bufferQty > 0 ? '#10b981' : '#222' }}>{bufferQty}</div>
-                        </div>
-                        <div style={{ borderLeft: '1px solid #222', paddingLeft: '8px' }}>
-                          <div style={{ fontSize: '0.6rem', color: '#ef4444', fontWeight: 800 }}>БРАК</div>
-                          <div style={{ fontSize: '1.3rem', fontWeight: 950, color: scrapQty > 0 ? '#ef4444' : '#222' }}>{scrapQty}</div>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-
-                <div style={{ background: '#111', borderRadius: '24px', border: '1px solid #222', overflowX: 'auto' }}>
-                  <div style={{ padding: '25px', borderBottom: '1px solid #222', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 900 }}>ДЕТАЛІ В ПРОЦЕСІ (ЦЕХ №2)</h3>
-                    {isSyncing && <RefreshCw className="animate-spin" size={16} color="#8b5cf6" />}
-                  </div>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '1200px' }}>
-                  <thead style={{ background: '#0a0a0a', fontSize: '0.65rem', fontWeight: 900, color: '#555', textTransform: 'uppercase' }}>
-                    <tr>
-                      <th style={{ padding: '12px 15px' }}>ДЕТАЛЬ</th>
-                      <th style={{ padding: '12px 15px' }}>ЕТАП</th>
-                      <th style={{ padding: '12px 15px' }}>К-СТЬ</th>
-                      <th style={{ padding: '12px 15px' }}>БРАК ЦЕХУ 2</th>
-                      <th style={{ padding: '12px 15px' }}>ВИХІД СГП</th>
-                      <th style={{ padding: '12px 15px' }}>МАЙСТЕР</th>
-                      <th style={{ padding: '12px 15px' }}>ЗМІНА</th>
-                      <th style={{ padding: '12px 15px' }}>ОПЕРАТОР</th>
-                      <th style={{ padding: '12px 15px' }}>ВЕРСТАТ</th>
-                      <th style={{ padding: '12px 15px' }}>ПЛАН. ЧАС</th>
-                      <th style={{ padding: '12px 15px' }}>ЧАС</th>
-                      <th style={{ padding: '12px 15px' }}></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {workCards.filter(c => isShop2Card(c) && (c.status === 'in-progress' || c.status === 'at-buffer')).map(card => {
-                      const scrap = Number(card.scrap_qty || 0)
-                      const netYield = Math.max(0, Number(card.quantity || 0) - scrap)
-                      return (
-                        <tr key={card.id} 
-                          onClick={() => setSelectedCardId(card.id)}
-                          style={{ borderBottom: '1px solid #1a1a1a', fontSize: '0.85rem', cursor: 'pointer' }}>
-                          <td style={{ padding: '12px 15px', fontWeight: 800, whiteSpace: 'nowrap', fontSize: '0.75rem' }}>
-                            {getNomFromCard(card)?.name || (card.card_info?.split('] ').pop() || `Картка #${card.id.slice(0, 8)}`)}
-                          </td>
-                          <td style={{ padding: '12px 15px' }}><span style={{ color: card.status === 'at-buffer' ? '#10b981' : '#8b5cf6', fontWeight: 900, fontSize: '0.7rem' }}>{card.operation?.toUpperCase()}</span></td>
-                          <td style={{ padding: '12px 15px', fontWeight: 900 }}>{card.quantity} шт</td>
-                          
-                          {/* БРАК ЦЕХУ 2 */}
-                          <td style={{ padding: '12px 15px' }}>
-                            <span style={{ color: scrap > 0 ? '#ef4444' : '#555', fontWeight: 900, fontSize: '0.8rem' }}>
-                              {scrap > 0 ? `${scrap} шт` : '0'}
-                            </span>
-                          </td>
-
-                          {/* ВИХІД СГП */}
-                          <td style={{ padding: '12px 15px' }}>
-                            <span style={{ color: '#10b981', fontWeight: 950, fontSize: '0.85rem', background: 'rgba(16, 185, 129, 0.1)', padding: '2px 8px', borderRadius: '6px' }}>
-                              {netYield} шт
-                            </span>
-                          </td>
-
-                          <td style={{ padding: '12px 15px', color: '#888' }}>{card.manager_name || '—'}</td>
-                          <td style={{ padding: '12px 15px', color: '#888' }}>{card.shift_name || '—'}</td>
-                          <td style={{ padding: '12px 15px', color: '#aaa' }}>{card.operator_name || '—'}</td>
-                          <td style={{ padding: '12px 15px', color: '#eab308', fontWeight: 800 }}>{formatMachine(card.machine)}</td>
-                          <td style={{ padding: '12px 15px', color: '#3b82f6', fontWeight: 700 }}>{formatPlanned(getPlannedTime(card))}</td>
-                          <td style={{ padding: '12px 15px', color: '#10b981' }}>{formatElapsedTime(card.started_at)}</td>
-                          <td style={{ padding: '12px 15px', textAlign: 'right' }}>
-                            <button onClick={(e) => { e.stopPropagation(); setSelectedCardId(card.id) }}
-                              style={{ background: '#eab308', border: 'none', color: '#000', padding: '10px', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                              title="Відкрити">
-                              <Eye size={18} />
-                            </button>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                    {workCards.filter(c => isShop2Card(c) && (c.status === 'in-progress' || c.status === 'at-buffer')).length === 0 && (
-                      <tr><td colSpan="12" style={{ padding: '40px', textAlign: 'center', color: '#333', fontSize: '0.8rem' }}>Немає активних процесів у другому цеху</td></tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
+              <Shop2Dashboard
+                calculateTotalBufferParts={state.calculateTotalBufferParts}
+                setShowStorageExplorer={state.setShowStorageExplorer}
+                shop2Stages={state.shop2Stages}
+                workCards={state.workCards}
+                workCardHistory={state.workCardHistory}
+                isShop2Card={state.isShop2Card}
+                matchesStage={state.matchesStage}
+                setDetailStage={state.setDetailStage}
+                isSyncing={state.isSyncing}
+                setSelectedCardId={state.setSelectedCardId}
+                getNomFromCard={state.getNomFromCard}
+              />
             </div>
           )}
         </div>
       </div>
 
-      {isScanning && (
-        <div style={{ position: 'fixed', inset: 0, background: '#000', zIndex: 10001, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-          <button onClick={() => setIsScanning(false)} style={{ position: 'absolute', top: 30, right: 30, color: '#fff', background: '#1a1a1a', border: 'none', padding: '15px', borderRadius: '50%' }}><X size={32} /></button>
-          <div style={{ width: '90%', maxWidth: '500px', border: '4px solid #8b5cf6', borderRadius: '32px', overflow: 'hidden' }} id="reader"></div>
-          <div style={{ marginTop: '20px', color: '#555', fontWeight: 700 }}>Тримайте код в центрі рамки</div>
-        </div>
-      )}
+      {/* Floating Controls */}
+      <div className="floating-controls-container">
+        <form
+          onSubmit={state.handleManualEntry}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            background: 'rgba(10, 10, 10, 0.95)',
+            border: '1px solid #222',
+            padding: '10px 14px',
+            borderRadius: '24px',
+            boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
+            backdropFilter: 'blur(10px)'
+          }}
+        >
+          <Search size={16} color="#6b7280" />
+          <input
+            type="text"
+            placeholder="Введіть системний номер..."
+            value={state.manualId}
+            onChange={e => state.setManualId(e.target.value)}
+            disabled={state.isProcessing}
+            style={{ background: 'transparent', border: 'none', color: '#fff', fontSize: '0.85rem', fontWeight: 700, outline: 'none', width: '100%' }}
+          />
+          <button
+            type="submit"
+            disabled={state.isProcessing}
+            style={{ background: '#8b5cf6', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '16px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', flexShrink: 0 }}
+          >
+            {state.isProcessing ? <RefreshCw size={12} className="anim-spin" /> : 'ЗНАЙТИ'}
+          </button>
+        </form>
 
-      {renderScrapModal && currentCard && showScrapModal && renderScrapModal()}
-      {showStorageExplorer && renderStorageExplorer()}
-      {detailStage && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.95)', zIndex: 10030, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-          <div style={{ width: '100%', maxWidth: '700px', background: '#111', borderRadius: '32px', border: '1px solid #333', overflow: 'hidden' }}>
-            <div style={{ padding: '25px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#1a1a1a' }}>
-              <h2 style={{ margin: 0, color: '#8b5cf6', fontSize: '1.2rem', fontWeight: 950 }}>{detailStage.toUpperCase()}</h2>
-              <button onClick={() => setDetailStage(null)} style={{ background: '#222', border: 'none', color: '#fff', padding: '10px', borderRadius: '10px' }}><X size={20} /></button>
-            </div>
-            <div style={{ display: 'flex', padding: '15px', gap: '10px' }}>
-              <button onClick={() => setDetailTab('work')} style={{ flex: 1, padding: '15px', borderRadius: '15px', border: 'none', background: detailTab === 'work' ? '#8b5cf6' : '#222', color: '#fff', fontWeight: 900 }}>В РОБОТІ</button>
-              <button onClick={() => setDetailTab('buffer')} style={{ flex: 1, padding: '15px', borderRadius: '15px', border: 'none', background: detailTab === 'buffer' ? '#10b981' : '#222', color: '#fff', fontWeight: 900 }}>БУФЕР</button>
-            </div>
-            <div style={{ padding: '0 15px 25px', maxHeight: '450px', overflowY: 'auto' }}>
-              {(() => {
-                if (detailTab === 'buffer') {
-                  const bufferCards = workCards.filter(c => isShop2Card(c) && matchesStage(c.operation, detailStage) && c.status === 'at-buffer');
-                  if (bufferCards.length === 0) return <div style={{ textAlign: 'center', padding: '50px', color: '#444', fontSize: '0.85rem' }}>Буфер пустий</div>;
+        <button
+          onClick={() => state.setIsScanning(true)}
+          className="hover-lift"
+          style={{ 
+            background: '#8b5cf6', 
+            border: 'none', 
+            color: '#000', 
+            width: '64px',
+            height: '64px',
+            borderRadius: '50%', 
+            display: 'flex', 
+            justifyContent: 'center',
+            alignItems: 'center', 
+            cursor: 'pointer',
+            boxShadow: '0 10px 30px rgba(139,92,246,0.4)',
+            transition: 'all 0.2s',
+            flexShrink: 0
+          }}
+        >
+          <QrCode size={32} />
+        </button>
+      </div>
 
-                  return (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      {bufferCards.map((c) => {
-                        const nom = getNomFromCard(c);
-                        return (
-                          <div key={c.id} style={{ background: 'rgba(255,255,255,0.02)', padding: '15px 20px', borderRadius: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #1a1a1a' }}>
-                            <div>
-                              <div style={{ fontWeight: 800, fontSize: '0.9rem' }}>{nom?.name || 'Деталь'}</div>
-                              <div style={{ fontSize: '0.65rem', color: '#555', marginTop: '4px' }}>Картка №{c.id.slice(-8).toUpperCase()}</div>
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                              <div style={{ fontWeight: 1000, fontSize: '1.3rem', color: '#10b981' }}>{c.quantity} <small style={{ fontSize: '0.6rem', opacity: 0.3 }}>шт</small></div>
-                              <button
-                                disabled={isProcessing}
-                                onClick={async () => {
-                                  if (isProcessing) return
-                                  setIsProcessing(true)
-                                  try {
-                                    await handoverToSGP(c.id)
-                                  } finally {
-                                    setIsProcessing(false)
-                                  }
-                                }}
-                                style={{ background: isProcessing ? '#555' : '#3b82f6', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '8px', fontSize: '0.7rem', fontWeight: 900, cursor: isProcessing ? 'not-allowed' : 'pointer', opacity: isProcessing ? 0.7 : 1 }}
-                              >
-                                {isProcessing ? 'ПЕРЕДАЧА...' : 'ВІДПРАВИТИ НА СГП'}
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  );
-                } else {
-                  const agg = {};
-                  workCards.filter(c => isShop2Card(c) && matchesStage(c.operation, detailStage) && c.status === 'in-progress').forEach(c => {
-                    const nom = getNomFromCard(c);
-                    const name = nom?.name || 'Деталь';
-                    agg[name] = (agg[name] || 0) + (c.quantity || 0);
-                  });
-                  const items = Object.entries(agg);
-                  if (items.length === 0) return <div style={{ textAlign: 'center', padding: '50px', color: '#444', fontSize: '0.85rem' }}>Дані відсутні</div>;
-                  return (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      {items.map(([name, qty], idx) => (
-                        <div key={idx} style={{ background: 'rgba(255,255,255,0.02)', padding: '15px 20px', borderRadius: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #1a1a1a' }}>
-                          <div style={{ fontWeight: 800, fontSize: '0.9rem' }}>{name}</div>
-                          <div style={{ fontWeight: 1000, fontSize: '1.3rem', color: '#8b5cf6' }}>{qty} <small style={{ fontSize: '0.6rem', opacity: 0.3 }}>шт</small></div>
-                        </div>
-                      ))}
-                    </div>
-                  );
-                }
-              })()}
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Modals */}
+      <Shop2QCModal
+        showQCModal={state.showQCModal}
+        setShowQCModal={state.setShowQCModal}
+        currentCard={state.currentCard}
+        getNomFromCard={state.getNomFromCard}
+        qcInspector={state.qcInspector}
+        setQcInspector={state.setQcInspector}
+        qcReason={state.qcReason}
+        setQcReason={state.setQcReason}
+        qcCustomReason={state.qcCustomReason}
+        setQcCustomReason={state.setQcCustomReason}
+        scrapReasons={state.scrapReasons}
+        qcScrapCount={state.qcScrapCount}
+        setQcScrapCount={state.setQcScrapCount}
+        handleQCScrapOverride={state.handleQCScrapOverride}
+        isProcessing={state.isProcessing}
+      />
 
-      <style>{`
+      <Shop2MachineCallModal
+        machineCallModal={state.machineCallModal}
+        setMachineCallModal={state.setMachineCallModal}
+        machineCallSuccess={state.machineCallSuccess}
+        selectedCallMasterId={state.selectedCallMasterId}
+        setSelectedCallMasterId={state.setSelectedCallMasterId}
+        selectedCallEngineerId={state.selectedCallEngineerId}
+        setSelectedCallEngineerId={state.setSelectedCallEngineerId}
+        selectedCallQCId={state.selectedCallQCId}
+        setSelectedCallQCId={state.setSelectedCallQCId}
+        callMasters={state.callMasters}
+        callEngineers={state.callEngineers}
+        callQCs={state.callQCs}
+        handleCreateCall={state.handleCreateCall}
+      />
+
+      <Shop2AdminCardModal
+        showAdminCardModal={state.showAdminCardModal}
+        setShowAdminCardModal={state.setShowAdminCardModal}
+        nomenclatures={state.nomenclatures}
+        tasks={state.tasks}
+        orders={state.orders}
+        adminNomId={state.adminNomId}
+        setAdminNomId={state.setAdminNomId}
+        adminTaskId={state.adminTaskId}
+        setAdminTaskId={state.setAdminTaskId}
+        adminQty={state.adminQty}
+        setAdminQty={state.setAdminQty}
+        adminStage={state.adminStage}
+        setAdminStage={state.setAdminStage}
+        nomSearchText={state.nomSearchText}
+        setNomSearchText={state.setNomSearchText}
+        showNomDropdown={state.showNomDropdown}
+        setShowNomDropdown={state.setShowNomDropdown}
+        handleCreateAdminCard={state.handleCreateAdminCard}
+        isProcessing={state.isProcessing}
+      />
+
+      <Shop2ScrapModal
+        showScrapModal={state.showScrapModal}
+        setShowScrapModal={state.setShowScrapModal}
+        currentCard={state.currentCard}
+        getNomFromCard={state.getNomFromCard}
+        scrapCounts={state.scrapCounts}
+        setScrapCounts={state.setScrapCounts}
+        handleFinalFinish={state.handleFinalFinish}
+        isProcessing={state.isProcessing}
+      />
+
+      <Shop2StorageExplorerModal
+        showStorageExplorer={state.showStorageExplorer}
+        setShowStorageExplorer={state.setShowStorageExplorer}
+        workCards={state.workCards}
+        isShop2Card={state.isShop2Card}
+        tasks={state.tasks}
+        orders={state.orders}
+        nomenclatures={state.nomenclatures}
+        inventory={state.inventory}
+        bufferSearchQuery={state.bufferSearchQuery}
+        setBufferSearchQuery={state.setBufferSearchQuery}
+        calculateTotalBufferParts={state.calculateTotalBufferParts}
+      />
+
+      <Shop2DetailStageModal
+        detailStage={state.detailStage}
+        setDetailStage={state.setDetailStage}
+        detailTab={state.detailTab}
+        setDetailTab={state.setDetailTab}
+        workCards={state.workCards}
+        isShop2Card={state.isShop2Card}
+        matchesStage={state.matchesStage}
+        getNomFromCard={state.getNomFromCard}
+        handoverToSGP={state.handoverToSGP}
+        isProcessing={state.isProcessing}
+        setIsProcessing={state.setIsProcessing}
+      />
+
+      <style dangerouslySetInnerHTML={{
+        __html: `
         .floating-controls-container {
           position: fixed;
           bottom: 30px;
@@ -1674,377 +317,6 @@ const Shop2Terminal = () => {
             border: 1px solid #222 !important;
           }
         }
-      `}</style>
-
-      {/* Floating Controls (Search and Scan QR) */}
-      <div className="floating-controls-container">
-        {/* Floating Search Form */}
-        <form onSubmit={handleManualEntry} style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          background: 'rgba(10, 10, 10, 0.95)',
-          border: '1px solid #222',
-          padding: '10px 14px',
-          borderRadius: '24px',
-          boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
-          backdropFilter: 'blur(10px)'
-        }}>
-          <Search size={16} color="#6b7280" />
-          <input
-            type="text"
-            placeholder="Введіть системний номер..."
-            value={manualId}
-            onChange={e => setManualId(e.target.value)}
-            disabled={isProcessing}
-            style={{ background: 'transparent', border: 'none', color: '#fff', fontSize: '0.85rem', fontWeight: 700, outline: 'none', width: '100%' }}
-          />
-          <button type="submit" disabled={isProcessing} style={{ background: '#8b5cf6', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '16px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-            {isProcessing ? <RefreshCw size={12} className="anim-spin" /> : 'ЗНАЙТИ'}
-          </button>
-        </form>
-
-        {/* Floating Round QR Scan Button */}
-        <button onClick={() => setIsScanning(true)}
-          className="hover-lift"
-          style={{ 
-            background: '#8b5cf6', 
-            border: 'none', 
-            color: '#000', 
-            width: '64px',
-            height: '64px',
-            borderRadius: '50%', 
-            display: 'flex', 
-            justifyContent: 'center',
-            alignItems: 'center', 
-            cursor: 'pointer',
-            boxShadow: '0 10px 30px rgba(139,92,246,0.4)',
-            transition: 'all 0.2s',
-            flexShrink: 0
-          }}>
-          <QrCode size={32} />
-        </button>
-      </div>
-
-      {machineCallModal && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(0,0,0,0.85)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 9999,
-          padding: '20px'
-        }}>
-          <div style={{
-            background: '#141414',
-            border: '1px solid #333',
-            borderRadius: '24px',
-            width: '100%',
-            maxWidth: '450px',
-            padding: '30px',
-            boxShadow: '0 20px 40px rgba(0,0,0,0.6)',
-            position: 'relative'
-          }}>
-            <button 
-              onClick={() => setMachineCallModal(null)}
-              style={{
-                position: 'absolute',
-                top: '20px',
-                right: '20px',
-                background: 'none',
-                border: 'none',
-                color: '#888',
-                cursor: 'pointer',
-                padding: '5px'
-              }}
-            >
-              <X size={24} />
-            </button>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '25px' }}>
-              <div style={{ background: '#ef444415', padding: '12px', borderRadius: '16px', color: '#ef4444' }}>
-                <AlertTriangle size={32} />
-              </div>
-              <div>
-                <h3 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 800, color: '#fff' }}>
-                  {machineCallModal.type}
-                </h3>
-                <p style={{ margin: '4px 0 0 0', color: '#f59e0b', fontWeight: 800, fontSize: '0.95rem' }}>
-                  Пор. №{machineCallModal.sequence_number || '—'} 
-                  {machineCallModal.inventory_no ? ` | Інв. ${machineCallModal.inventory_no}` : ''}
-                  {machineCallModal.floor ? ` | Поверх ${machineCallModal.floor}` : ''}
-                </p>
-              </div>
-            </div>
-
-            {machineCallSuccess ? (
-              <div style={{
-                background: '#10b98115',
-                border: '1px solid #10b98130',
-                color: '#10b981',
-                padding: '20px',
-                borderRadius: '16px',
-                textAlign: 'center',
-                fontWeight: 800,
-                fontSize: '1.1rem',
-                margin: '20px 0'
-              }}>
-                {machineCallSuccess}
-              </div>
-            ) : (
-              <>
-                <p style={{ color: '#aaa', fontSize: '0.9rem', marginBottom: '20px', lineHeight: '1.5' }}>
-                  Оберіть кого саме викликати до верстату. Виклик з'явиться на дашборді майстра та інженерів в реальному часі.
-                </p>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                  {/* Master Call */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <button
-                      onClick={() => handleCreateCall('master', selectedCallMasterId)}
-                      style={{
-                        background: '#f59e0b',
-                        color: '#000',
-                        border: 'none',
-                        padding: '16px',
-                        borderRadius: '16px',
-                        fontSize: '1.1rem',
-                        fontWeight: 900,
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '10px',
-                        boxShadow: '0 4px 12px rgba(245,158,11,0.2)',
-                        width: '100%'
-                      }}
-                    >
-                      <span>ВИКЛИКАТИ МАЙСТРА</span>
-                    </button>
-                    <select
-                      value={selectedCallMasterId}
-                      onChange={e => setSelectedCallMasterId(e.target.value)}
-                      style={{
-                        background: '#18181b',
-                        border: '1px solid #27272a',
-                        borderRadius: '10px',
-                        color: '#fff',
-                        padding: '10px',
-                        fontSize: '0.9rem',
-                        outline: 'none'
-                      }}
-                    >
-                      <option value="">-- Всі майстри (Загальний виклик) --</option>
-                      {callMasters.map(u => (
-                        <option key={u.id} value={u.id}>
-                          {u.first_name || ''} {u.last_name || ''} {u.position ? ` (${u.position})` : ''}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Engineer Call */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <button
-                      onClick={() => handleCreateCall('engineer', selectedCallEngineerId)}
-                      style={{
-                        background: '#3b82f6',
-                        color: '#fff',
-                        border: 'none',
-                        padding: '16px',
-                        borderRadius: '16px',
-                        fontSize: '1.1rem',
-                        fontWeight: 900,
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '10px',
-                        boxShadow: '0 4px 12px rgba(59,130,246,0.2)',
-                        width: '100%'
-                      }}
-                    >
-                      <span>ВИКЛИКАТИ ІНЖЕНЕРА</span>
-                    </button>
-                    <select
-                      value={selectedCallEngineerId}
-                      onChange={e => setSelectedCallEngineerId(e.target.value)}
-                      style={{
-                        background: '#18181b',
-                        border: '1px solid #27272a',
-                        borderRadius: '10px',
-                        color: '#fff',
-                        padding: '10px',
-                        fontSize: '0.9rem',
-                        outline: 'none'
-                      }}
-                    >
-                      <option value="">-- Всі інженери (Загальний виклик) --</option>
-                      {callEngineers.map(u => (
-                        <option key={u.id} value={u.id}>
-                          {u.first_name || ''} {u.last_name || ''} {u.position ? ` (${u.position})` : ''}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* QC Call */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <button
-                      onClick={() => handleCreateCall('qc', selectedCallQCId)}
-                      style={{
-                        background: '#ef4444',
-                        color: '#fff',
-                        border: 'none',
-                        padding: '16px',
-                        borderRadius: '16px',
-                        fontSize: '1.1rem',
-                        fontWeight: 900,
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '10px',
-                        boxShadow: '0 4px 12px rgba(239,68,68,0.2)',
-                        width: '100%'
-                      }}
-                    >
-                      <span>ВИКЛИКАТИ ВКЯ</span>
-                    </button>
-                    <select
-                      value={selectedCallQCId}
-                      onChange={e => setSelectedCallQCId(e.target.value)}
-                      style={{
-                        background: '#18181b',
-                        border: '1px solid #27272a',
-                        borderRadius: '10px',
-                        color: '#fff',
-                        padding: '10px',
-                        fontSize: '0.9rem',
-                        outline: 'none'
-                      }}
-                    >
-                      <option value="">-- Всі фахівці ВКЯ (Загальний виклик) --</option>
-                      {callQCs.map(u => (
-                        <option key={u.id} value={u.id}>
-                          {u.first_name || ''} {u.last_name || ''} {u.position ? ` (${u.position})` : ''}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ── Модалка корекції браку від ВКЯ ─────────────────────────────────── */}
-      {showQCModal && currentCard && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.95)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 10025, padding: '40px 20px', overflowY: 'auto' }}>
-          <div style={{ background: '#111', width: '100%', maxWidth: '460px', borderRadius: '26px', border: '1px solid #ef444440', overflow: 'hidden', boxShadow: '0 20px 60px rgba(239,68,68,0.15)', margin: 'auto 0' }}>
-            <div style={{ padding: '20px 22px', background: '#161616', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #ef444420' }}>
-              <div>
-                <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 950, color: '#ef4444', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  🛡️ ВІДДІЛ ВКЯ · ФІКСАЦІЯ БРАКУ
-                </h3>
-                <div style={{ fontSize: '0.6rem', color: '#888', marginTop: '2px' }}>
-                  Виявлено додатковий дефект на етапі
-                </div>
-              </div>
-              <button onClick={() => setShowQCModal(false)} style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer' }}><X size={22} /></button>
-            </div>
-            <div style={{ padding: '24px 22px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
-              <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 900 }}>{getNomFromCard(currentCard)?.name}</h3>
-
-              {/* Інспектор ВКЯ */}
-              <div>
-                <label style={{ fontSize: '0.6rem', fontWeight: 900, color: '#555', textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>ПІБ Інспектора ВКЯ (або відповідального)</label>
-                <input
-                  type="text"
-                  placeholder="Введіть ваше прізвище..."
-                  value={qcInspector}
-                  onChange={e => setQcInspector(e.target.value)}
-                  style={{ width: '100%', background: '#000', border: '1px solid #333', color: '#fff', padding: '12px', borderRadius: '12px', fontSize: '0.9rem', fontWeight: 700 }}
-                />
-              </div>
-
-              {/* Причина браку */}
-              <div>
-                <label style={{ fontSize: '0.6rem', fontWeight: 900, color: '#555', textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>Причина браку</label>
-                <select
-                  value={qcReason}
-                  onChange={e => {
-                    setQcReason(e.target.value)
-                    if (e.target.value !== 'Інше (коментар)') {
-                      setQcCustomReason('')
-                    }
-                  }}
-                  style={{ width: '100%', background: '#000', border: '1px solid #333', color: '#fff', padding: '12px', borderRadius: '12px', fontSize: '0.9rem', fontWeight: 700 }}
-                >
-                  {scrapReasons.map(reason => <option key={reason} value={reason}>{reason}</option>)}
-                </select>
-              </div>
-
-              {/* Коментар до причини браку */}
-              {qcReason === 'Інше (коментар)' && (
-                <div>
-                  <label style={{ fontSize: '0.6rem', fontWeight: 900, color: '#555', textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>Опишіть іншу причину браку</label>
-                  <input
-                    type="text"
-                    placeholder="Введіть коментар..."
-                    value={qcCustomReason}
-                    onChange={e => setQcCustomReason(e.target.value)}
-                    style={{ width: '100%', background: '#000', border: '1px solid #333', color: '#fff', padding: '12px', borderRadius: '12px', fontSize: '0.9rem', fontWeight: 700 }}
-                  />
-                </div>
-              )}
-
-              {/* Лічильник додаткового браку */}
-              <div style={{ background: '#0d0d0d', borderRadius: '14px', padding: '18px', textAlign: 'center', border: '1px solid #ef444422' }}>
-                <label style={{ color: '#ef4444', fontWeight: 900, fontSize: '0.7rem', textTransform: 'uppercase', display: 'block', marginBottom: '12px' }}>
-                  КІЛЬКІСТЬ ВИЯВЛЕНОГО БРАКУ
-                </label>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '14px' }}>
-                  <button onClick={() => setQcScrapCount(v => Math.max(0, v - 1))}
-                    style={{ width: '46px', height: '46px', background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#fff', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}>−</button>
-                  <input type="number" min={0} max={currentCard.quantity} value={qcScrapCount === 0 ? '' : qcScrapCount} placeholder="0"
-                    onChange={e => {
-                      const val = e.target.value;
-                      setQcScrapCount(val === '' ? 0 : Math.max(0, Math.min(currentCard.quantity, parseInt(val) || 0)))
-                    }}
-                    style={{ background: 'transparent', border: 'none', color: '#ef4444', fontSize: '3.2rem', width: '90px', textAlign: 'center', fontWeight: 900 }} />
-                  <button onClick={() => setQcScrapCount(v => Math.min(currentCard.quantity, v + 1))}
-                    style={{ width: '46px', height: '46px', background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#fff', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}>+</button>
-                </div>
-                <div style={{ marginTop: '10px', fontSize: '0.72rem', color: '#555' }}>
-                  Залишиться в картці: <strong style={{ color: '#10b981' }}>{Math.max(0, (currentCard.quantity || 0) - qcScrapCount)} шт</strong>
-                </div>
-              </div>
-
-              <button onClick={handleQCScrapOverride} disabled={isProcessing || qcScrapCount <= 0}
-                style={{
-                  background: '#ef4444', color: '#fff', border: 'none', padding: '16px', borderRadius: '14px',
-                  fontSize: '1.05rem', fontWeight: 1000, cursor: 'pointer',
-                  boxShadow: '0 10px 30px rgba(239,68,68,0.3)',
-                  opacity: (isProcessing || qcScrapCount <= 0) ? 0.5 : 1
-                }}>
-                {isProcessing ? 'ЗБЕРЕЖЕННЯ...' : '⚠️ ПЕРЕДАТИ В КАРАНТИН ВКЯ'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {renderAdminCardModal()}
-
-      <style dangerouslySetInnerHTML={{
-        __html: `
         .animate-spin { animation: spin 1s linear infinite; }
         @keyframes spin { 100% { transform: rotate(360deg); } }
         ::-webkit-scrollbar { width: 6px; }
@@ -2054,4 +326,5 @@ const Shop2Terminal = () => {
     </div>
   )
 }
+
 export default Shop2Terminal

@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { supabase } from '../../../../supabase.js'
-import { getNomUnitsPerSheet } from '../../../../utils/unitsHelper.js'
 
 export function useMachineChange({
   tasks,
@@ -132,7 +131,7 @@ export function useMachineChange({
         if (!partInfo || typeof partInfo !== 'object') continue
         const partNom = nomenclatures.find(n => String(n.id) === String(partId))
         if (partNom && partNom.type !== 'part') continue
-        const unitsPerSheet = getNomUnitsPerSheet(partNom, partInfo)
+        const unitsPerSheet = Number(partInfo.units_per_sheet || partNom?.units_per_sheet) || 1
         const plannedSheets = Number(partInfo.sheets) || Math.ceil((Number(partInfo.plan) || 0) / unitsPerSheet)
         const cardsForPart = productionCards.filter(card => String(card.nomenclature_id) === String(partId))
         const existingSelections = currentSnapshot[partId]?.selected_cutters || currentSnapshot.selectedCutters || {}

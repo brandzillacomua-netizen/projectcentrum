@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { QrCode, X, Keyboard } from 'lucide-react'
+import { triggerHapticAudioFeedback } from '../../../services/scannerDebounceGuard'
 
 export const ScannerPanel = ({
   isScanning,
@@ -63,6 +64,8 @@ export const ScannerPanel = ({
         if (scanHandledRef.current) return
         scanHandledRef.current = true
 
+        triggerHapticAudioFeedback(true)
+
         let cardId = decodedText.trim()
         if (cardId.startsWith('CENTRUM_CARD_')) {
           cardId = cardId.replace('CENTRUM_CARD_', '').trim()
@@ -76,6 +79,7 @@ export const ScannerPanel = ({
           await Promise.resolve(handleCardScan(cardId))
         } catch (err) {
           console.error('Card scan handler error:', err)
+          triggerHapticAudioFeedback(false)
           setLocalError(err?.message || String(err))
           scanHandledRef.current = false
         }
@@ -216,6 +220,7 @@ export const ScannerPanel = ({
                 onKeyDown={e => {
                   if (e.key === 'Enter' && manualCardInput.trim()) {
                     setIsScanning(false)
+                    triggerHapticAudioFeedback(true)
                     handleCardScan(manualCardInput.trim())
                   }
                 }}
@@ -225,7 +230,13 @@ export const ScannerPanel = ({
               />
               <button
                 type="button"
-                onClick={() => { if (manualCardInput.trim()) { setIsScanning(false); handleCardScan(manualCardInput.trim()) } }}
+                onClick={() => { 
+                  if (manualCardInput.trim()) { 
+                    setIsScanning(false); 
+                    triggerHapticAudioFeedback(true);
+                    handleCardScan(manualCardInput.trim()) 
+                  } 
+                }}
                 style={{ padding: '12px 18px', background: color, color: '#000', border: 'none', borderRadius: '12px', fontWeight: 1000, cursor: 'pointer', fontSize: '0.85rem' }}
               >
                 ОК

@@ -7,25 +7,62 @@ import { getOrderForTask, getTaskDisplayName, isRelevantForemanTask } from './ta
 import { useQualityLossTotals } from '../../../VKYA/quality-hold/useQualityLossTotals.js'
 
 const fetchHistoryForCards = async (cardIds) => {
-  const rows = []
-  const chunkSize = 25
-  const pageSize = 1000
+  if (!cardIds?.length) return []
+  const chunkSize = 60
+  const chunks = []
   for (let i = 0; i < cardIds.length; i += chunkSize) {
-    const chunk = cardIds.slice(i, i + chunkSize)
-    for (let from = 0; ; from += pageSize) {
-      const to = from + pageSize - 1
-      const { data, error } = await supabase
-        .from('work_card_history')
-        .select('id,card_id,nomenclature_id,scrap_qty,stage_name,operator_name,qty_at_start,qty_completed,created_at,completed_at')
-        .in('card_id', chunk)
-        .order('created_at', { ascending: true })
-        .range(from, to)
-      if (error) throw error
-      rows.push(...(data || []))
-      if (!data || data.length < pageSize) break
+    chunks.push(cardIds.slice(i, i + chunkSize))
+  }
+
+  const results = await Promise.all(
+    chunks.map(async (chunk) => {
+      const chunkRows = []
+      const pageSize = 1000
+      for (let from = 0; ; from += pageSize) {
+        const to = from + pageSize - 1
+        const { data, error } = await supabase
+          .from('work_card_history')
+          .select('id,card_id,nomenclature_id,scrap_qty,stage_name,operator_name,qty_at_start,qty_completed,created_at,completed_at')
+          .in('card_id', chunk)
+          .order('created_at', { ascending: true })
+          .range(from, to)
+        if (error) throw error
+        chunkRows.push(...(data || []))
+        if (!data || data.length < pageSize) break
+      }
+      return chunkRows
+    })
+  )
+
+  const rows = results.flat()
+  return Array.from(new Map(rows.filter(Boolean).map(row => [String(row.id), row])).values())
+}
+
+const fetchHistoryForTasksOrCards = async (taskIds, cardIds) => {
+  if (taskIds?.length) {
+    const chunkSize = 50
+    const chunks = []
+    for (let i = 0; i < taskIds.length; i += chunkSize) {
+      chunks.push(taskIds.slice(i, i + chunkSize))
+    }
+    const results = await Promise.all(
+      chunks.map(chunk =>
+        supabase
+          .from('work_card_history')
+          .select('id,card_id,nomenclature_id,scrap_qty,stage_name,operator_name,qty_at_start,qty_completed,created_at,completed_at')
+          .in('task_id', chunk)
+          .order('created_at', { ascending: true })
+          .limit(10000)
+          .then(res => res.data || [])
+      )
+    )
+    const directRows = results.flat()
+    if (directRows.length > 0) {
+      return Array.from(new Map(directRows.filter(Boolean).map(row => [String(row.id), row])).values())
     }
   }
-  return Array.from(new Map(rows.filter(Boolean).map(row => [String(row.id), row])).values())
+
+  return fetchHistoryForCards(cardIds)
 }
 
 export function useForeman2Data({ mes }) {
@@ -90,7 +127,7 @@ export function useForeman2Data({ mes }) {
         if (cardsError) throw cardsError
 
         const cardIds = (cards || []).map(card => card.id)
-        const history = cardIds.length > 0 ? await fetchHistoryForCards(cardIds) : []
+        const history = cardIds.length > 0 ? await fetchHistoryForTasksOrCards(taskIds, cardIds) : []
 
         if (!cancelled) {
           setDbCards(cards || [])

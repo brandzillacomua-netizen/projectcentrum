@@ -1,643 +1,195 @@
-import React, { useEffect, useMemo, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, BriefcaseBusiness, Calendar, CheckCircle2, CheckSquare, ChevronLeft, Edit3, FolderKanban, Plus, Search, Trash2, Users, X } from 'lucide-react'
-import { useMES } from '../MESContext'
-import { ChecklistEditor } from './KanbanModule'
-
-const getSavedProjectColumns = (projectId) => {
-  if (!projectId) return null
-  try {
-    const raw = localStorage.getItem('centrum_project_columns')
-    if (raw) {
-      const parsed = JSON.parse(raw)
-      if (parsed[projectId] && Array.isArray(parsed[projectId]) && parsed[projectId].length > 0) {
-        return parsed[projectId]
-      }
-    }
-  } catch (e) {}
-  return null
-}
-
-const DEFAULT_COLUMNS = [
-  { id: 'todo', title: 'В ЧЕРЗІ', color: '#8b5cf6' },
-  { id: 'in_progress', title: 'В РОБОТІ', color: '#3b82f6' },
-  { id: 'review', title: 'ПЕРЕВІРКА', color: '#f59e0b' },
-  { id: 'done', title: 'ВИКОНАНО', color: '#10b981' },
-]
-const COLORS = ['#8b5cf6', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#ec4899', '#06b6d4', '#f97316', '#a855f7']
-const emptyProject = { name: '', description: '', color: COLORS[0], member_logins: [], department_ids: [], columns: DEFAULT_COLUMNS }
-const emptyTask = { title: '', description: '', priority: 'medium', color: '', assignees: [], deadline: '', checklist: [] }
-const taskId = () => Math.random().toString(36).slice(2) + Date.now().toString(36)
-
-const userName = u => [u?.last_name, u?.first_name].filter(Boolean).join(' ') || u?.login || 'Користувач'
-const asArray = value => Array.isArray(value) ? value : []
-
-const isDirectorUser = user => {
-  const pos = (user?.position || '').toLowerCase()
-  const rights = user?.access_rights || user?.rights || {}
-  return !!(rights.director || ['адмін', 'директор', 'керівник підприємства'].some(word => pos.includes(word)))
-}
-
-const isManagerUser = user => {
-  const pos = (user?.position || '').toLowerCase()
-  const rights = user?.access_rights || user?.rights || {}
-  return !!(rights.director || rights.master || rights.foreman || rights.manager ||
-    ['адмін', 'директор', 'начальник', 'майстер', 'керівник', 'менедж'].some(word => pos.includes(word)))
-}
+import React from 'react'
+import { CheckSquare, Plus, Search, X } from 'lucide-react'
+import { useTaskProjectsData, DEFAULT_COLUMNS, getSavedProjectColumns } from './TaskProjects/hooks/useTaskProjectsData.js'
+import TaskProjectsHeader from './TaskProjects/components/TaskProjectsHeader.jsx'
+import TaskProjectsGrid from './TaskProjects/components/TaskProjectsGrid.jsx'
+import TaskProjectsBoard from './TaskProjects/components/TaskProjectsBoard.jsx'
+import TaskProjectsModal from './TaskProjects/components/modals/TaskProjectsModal.jsx'
+import TaskProjectsTaskModal from './TaskProjects/components/modals/TaskProjectsTaskModal.jsx'
 
 export default function TaskProjectsModule() {
-  const {
-    taskProjects = [], managementTasks = [], systemUsers = [], companyStructure = [], currentUser,
-    addTaskProject, updateTaskProject, deleteTaskProject,
-    addManagementTask, updateManagementTask, deleteManagementTask,
-  } = useMES()
-  const isDirector = isDirectorUser(currentUser)
-  const canCreateProject = isDirector || isManagerUser(currentUser)
-  const [searchParams, setSearchParams] = useSearchParams()
-  const urlProjectId = searchParams.get('project')
-  const savedProjectId = localStorage.getItem('centrum_active_project_id')
-  
-  const [activeId, setActiveIdState] = useState(() => urlProjectId || savedProjectId || null)
+  const tp = useTaskProjectsData()
 
-  useEffect(() => {
-    if (urlProjectId && urlProjectId !== activeId) {
-      setActiveIdState(urlProjectId)
-      localStorage.setItem('centrum_active_project_id', urlProjectId)
-    }
-  }, [urlProjectId])
-
-  const setActiveId = (id) => {
-    setActiveIdState(id)
-    if (id) {
-      localStorage.setItem('centrum_active_project_id', id)
-      setSearchParams({ project: id }, { replace: true })
-    } else {
-      localStorage.removeItem('centrum_active_project_id')
-      setSearchParams({}, { replace: true })
-    }
-  }
-  const [projectModal, setProjectModal] = useState(false)
-  const [editingProject, setEditingProject] = useState(null)
-  const [projectForm, setProjectForm] = useState(emptyProject)
-  const [taskModal, setTaskModal] = useState(false)
-  const [taskForm, setTaskForm] = useState(emptyTask)
-  const [editingTask, setEditingTask] = useState(null)
-  const [query, setQuery] = useState('')
-  const [saving, setSaving] = useState(false)
-  
-  const [addMenuOpen, setAddMenuOpen] = useState(false)
-  const [selectingProject, setSelectingProject] = useState(false)
-  const [targetProjectId, setTargetProjectId] = useState(null)
-
-  const userDepartmentIds = useMemo(() => {
-    const dept = (currentUser?.department || '').toLowerCase().trim()
-    if (!dept) return []
-    return companyStructure.filter(d => {
-      const name = (d.name || d.label || '').toLowerCase().trim()
-      return name && (name === dept || name.includes(dept) || dept.includes(name))
-    }).map(d => String(d.id))
-  }, [currentUser, companyStructure])
-
-  const visibleProjects = useMemo(() => taskProjects.filter(project => {
-    if (project.status === 'archived') return false
-    if (isDirector || project.created_by === currentUser?.login) return true
-    if (asArray(project.member_logins).includes(currentUser?.login)) return true
-    return asArray(project.department_ids).some(id => userDepartmentIds.includes(String(id)))
-  }), [taskProjects, isDirector, currentUser, userDepartmentIds])
-
-  const activeProject = visibleProjects.find(p => p.id === activeId)
-  const projectTasks = useMemo(() => managementTasks.filter(t => String(t.project_id || '') === String(activeId || '')), [managementTasks, activeId])
-  const filteredProjects = visibleProjects.filter(p => `${p.name} ${p.description}`.toLowerCase().includes(query.toLowerCase()))
-
-  const openProjectForm = project => {
-    setEditingProject(project || null)
-    setProjectForm(project ? {
-      name: project.name || '', description: project.description || '', color: project.color || COLORS[0],
-      member_logins: asArray(project.member_logins), department_ids: asArray(project.department_ids).map(String),
-      columns: Array.isArray(project.columns) && project.columns.length > 0 ? project.columns : DEFAULT_COLUMNS,
-    } : emptyProject)
-    setProjectModal(true)
-  }
-
-  const saveProject = async e => {
-    e.preventDefault()
-    if (!projectForm.name.trim() || saving) return
-    setSaving(true)
-    const payload = { ...projectForm, name: projectForm.name.trim(), description: projectForm.description.trim() }
-    const result = editingProject ? await updateTaskProject(editingProject.id, payload) : await addTaskProject(payload)
-    setSaving(false)
-    if (result?.error) return alert(`Не вдалося зберегти проєкт: ${result.error.message}`)
-    setProjectModal(false)
-  }
-
-  const openTaskFormForProject = projectId => {
-    setTargetProjectId(projectId)
-    openTaskForm()
-  }
-
-  const closeTaskModal = () => {
-    setTaskModal(false)
-    setTargetProjectId(null)
-  }
-
-  const openTaskForm = task => {
-    setEditingTask(task || null)
-    setTaskForm(task ? {
-      title: task.title || '', description: task.description || '', priority: task.priority || 'medium',
-      color: task.color || '', assignees: asArray(task.assignees).length ? task.assignees : (task.assigned_to ? [task.assigned_to] : []),
-      deadline: task.deadline ? String(task.deadline).slice(0, 10) : '', checklist: asArray(task.checklist),
-    } : emptyTask)
-    setTaskModal(true)
-  }
-
-  const saveTask = async e => {
-    e.preventDefault()
-    if (!taskForm.title.trim() || saving) return
-    setSaving(true)
-    const payload = {
-      ...taskForm, title: taskForm.title.trim(), description: taskForm.description.trim(),
-      deadline: taskForm.deadline || null, project_id: activeProject?.id || targetProjectId,
-      assignees: taskForm.assignees, assigned_to: taskForm.assignees[0] || null, is_collective: false,
-    }
-    const result = editingTask
-      ? await updateManagementTask(editingTask.id, payload)
-      : await addManagementTask({ status: 'todo', department: 'all', ...payload })
-    setSaving(false)
-    if (result?.error) return alert(`Не вдалося зберегти задачу: ${result.error.message}`)
-    closeTaskModal()
-  }
-
-  const removeProject = async project => {
-    if (!confirm(`Видалити проєкт «${project.name}» разом з усіма його задачами?`)) return
-    const { error } = await deleteTaskProject(project.id)
-    if (error) alert(`Не вдалося видалити проєкт: ${error.message}`)
-    else setActiveId(null)
-  }
-
-  const projectMembers = project => {
-    const direct = asArray(project.member_logins).length
-    const depts = asArray(project.department_ids).length
-    return `${direct} люд. · ${depts} відд.`
-  }
-
-  const targetProject = activeProject || visibleProjects.find(p => p.id === targetProjectId)
-  const allowedLogins = new Set(asArray(targetProject?.member_logins))
-  const allowedDeptNames = new Set(companyStructure.filter(d => asArray(targetProject?.department_ids).map(String).includes(String(d.id))).map(d => d.name))
-  const assignableUsers = targetProject ? systemUsers.filter(u => allowedLogins.has(u.login) || allowedDeptNames.has(u.department)) : systemUsers
-
-  const [isAddingCol, setIsAddingCol] = useState(false)
-  const [newColTitle, setNewColTitle] = useState('')
-  const [newColColor, setNewColColor] = useState(COLORS[0])
-
-  const handleAddColumnSubmit = async () => {
-    if (!newColTitle.trim() || !activeProject) return
-    const projectColumns = Array.isArray(activeProject?.columns) && activeProject.columns.length > 0 ? activeProject.columns : DEFAULT_COLUMNS
-    const newCol = {
-      id: 'col_' + Date.now().toString(36),
-      title: newColTitle.trim().toUpperCase(),
-      color: newColColor
-    }
-    const updatedCols = [...projectColumns, newCol]
-    await updateTaskProject(activeProject.id, { columns: updatedCols })
-    setNewColTitle('')
-    setIsAddingCol(false)
-  }
-
-  if (activeProject) {
-    const isOwnerOrManager = isDirector || activeProject.created_by === currentUser?.login
-    const projectColumns = (Array.isArray(activeProject?.columns) && activeProject.columns.length > 0)
-      ? activeProject.columns
-      : (getSavedProjectColumns(activeProject?.id) || DEFAULT_COLUMNS)
+  if (tp.activeProject) {
+    const isOwnerOrManager = tp.isDirector || tp.activeProject.created_by === tp.currentUser?.login
+    const projectColumns = (Array.isArray(tp.activeProject?.columns) && tp.activeProject.columns.length > 0)
+      ? tp.activeProject.columns
+      : (getSavedProjectColumns(tp.activeProject?.id) || DEFAULT_COLUMNS)
     const doneColumnId = projectColumns.find(c => c.id === 'done' || (c.title || '').toLowerCase().includes('виконан') || (c.title || '').toLowerCase().includes('готов'))?.id || projectColumns[projectColumns.length - 1]?.id
-    const completed = projectTasks.filter(t => t.status === doneColumnId).length
-    const pct = projectTasks.length ? Math.round(completed / projectTasks.length * 100) : 0
-    const gridColsCount = isOwnerOrManager ? projectColumns.length + 1 : projectColumns.length
+    const completed = tp.projectTasks.filter(t => t.status === doneColumnId).length
+    const pct = tp.projectTasks.length ? Math.round(completed / tp.projectTasks.length * 100) : 0
 
-    return <div className="tp-root">
-      <header className="tp-header">
-        <div className="tp-heading">
-          <button className="tp-icon-btn" onClick={() => setActiveId(null)}><ChevronLeft size={20} /></button>
-          <span className="tp-project-dot" style={{ background: activeProject.color }} />
-          <div><h1>{activeProject.name}</h1><p>{activeProject.description || 'Проєктна канбан-дошка'}</p></div>
+    return (
+      <div className="tp-root">
+        <TaskProjectsHeader
+          activeProject={tp.activeProject}
+          setActiveId={tp.setActiveId}
+          pct={pct}
+          isOwnerOrManager={isOwnerOrManager}
+          openProjectForm={tp.openProjectForm}
+        />
+
+        <TaskProjectsBoard
+          activeProject={tp.activeProject}
+          projectTasks={tp.projectTasks}
+          projectColumns={projectColumns}
+          isOwnerOrManager={isOwnerOrManager}
+          updateManagementTask={tp.updateManagementTask}
+          updateTaskProject={tp.updateTaskProject}
+          systemUsers={tp.systemUsers}
+          currentUser={tp.currentUser}
+          openTaskForm={tp.openTaskForm}
+          deleteManagementTask={tp.deleteManagementTask}
+          isAddingCol={tp.isAddingCol}
+          setIsAddingCol={tp.setIsAddingCol}
+          newColTitle={tp.newColTitle}
+          setNewColTitle={tp.setNewColTitle}
+          newColColor={tp.newColColor}
+          setNewColColor={tp.setNewColColor}
+          handleAddColumnSubmit={tp.handleAddColumnSubmit}
+        />
+
+        {!tp.taskModal && !tp.projectModal && (
+          <button className="tp-floating-add" onClick={() => tp.openTaskForm()} title="Створити задачу">
+            <Plus size={25} />
+          </button>
+        )}
+
+        {tp.taskModal && (
+          <TaskProjectsTaskModal
+            form={tp.taskForm}
+            setForm={tp.setTaskForm}
+            users={tp.assignableUsers}
+            editing={tp.editingTask}
+            saving={tp.saving}
+            onSubmit={tp.saveTask}
+            onClose={tp.closeTaskModal}
+            project={tp.activeProject}
+          />
+        )}
+
+        {tp.projectModal && (
+          <TaskProjectsModal
+            projectForm={tp.projectForm}
+            setProjectForm={tp.setProjectForm}
+            saveProject={tp.saveProject}
+            saving={tp.saving}
+            editingProject={tp.editingProject}
+            systemUsers={tp.systemUsers}
+            companyStructure={tp.companyStructure}
+            onClose={() => tp.setProjectModal(false)}
+            onDelete={() => tp.removeProject(tp.activeProject)}
+          />
+        )}
+
+        <Styles />
+      </div>
+    )
+  }
+
+  return (
+    <div className="tp-root">
+      <TaskProjectsHeader
+        activeProject={null}
+        setActiveId={tp.setActiveId}
+      />
+
+      <div className="tp-toolbar">
+        <div className="tp-search">
+          <Search size={16} />
+          <input placeholder="Пошук проєктів…" value={tp.query} onChange={e => tp.setQuery(e.target.value)} />
         </div>
-        <div className="tp-header-actions">
-          <div className="tp-progress"><span>{pct}%</span><i><b style={{ width: `${pct}%`, background: activeProject.color }} /></i></div>
-          {isOwnerOrManager && <button className="tp-secondary" onClick={() => openProjectForm(activeProject)}><Edit3 size={15} /> Налаштувати</button>}
-        </div>
-      </header>
-      <main className="tp-board" style={{ gridTemplateColumns: `repeat(${gridColsCount}, minmax(270px, 1fr))` }}>
-        {projectColumns.map((column, colIndex) => {
-          const tasks = projectTasks.filter(t => t.status === column.id)
-          return <section className="tp-column" key={column.id} onDragOver={e => e.preventDefault()} onDrop={e => updateManagementTask(e.dataTransfer.getData('taskId'), { status: column.id })}>
-            <div className="tp-column-head">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
-                <span style={{ color: column.color, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{column.title}</span>
-                <b>{tasks.length}</b>
-              </div>
-              {isOwnerOrManager && (
-                <div className="tp-col-controls" onMouseDown={e => e.stopPropagation()}>
-                  <input
-                    type="color"
-                    value={column.color || '#3b82f6'}
-                    onMouseDown={e => e.stopPropagation()}
-                    onChange={async e => {
-                      const newColor = e.target.value
-                      const updated = projectColumns.map((c, i) => i === colIndex ? { ...c, color: newColor } : c)
-                      await updateTaskProject(activeProject.id, { columns: updated })
-                    }}
-                    title="Змінити колір"
-                    className="tp-col-color-picker"
-                  />
-                  <button
-                    type="button"
-                    onMouseDown={e => e.stopPropagation()}
-                    onClick={async e => {
-                      e.stopPropagation()
-                      e.preventDefault()
-                      const newTitle = prompt('Нова назва колонки:', column.title)
-                      if (newTitle && newTitle.trim() && newTitle.trim() !== column.title) {
-                        const updated = projectColumns.map((c, i) => i === colIndex ? { ...c, title: newTitle.trim().toUpperCase() } : c)
-                        await updateTaskProject(activeProject.id, { columns: updated })
-                      }
-                    }}
-                    title="Перейменувати колонку"
-                  >
-                    <Edit3 size={12} />
+        <span>{tp.filteredProjects.length} проєктів</span>
+      </div>
+
+      <TaskProjectsGrid
+        filteredProjects={tp.filteredProjects}
+        managementTasks={tp.managementTasks}
+        setActiveId={tp.setActiveId}
+        projectMembers={tp.projectMembers}
+        canCreateProject={tp.canCreateProject}
+      />
+
+      {tp.projectModal && (
+        <TaskProjectsModal
+          projectForm={tp.projectForm}
+          setProjectForm={tp.setProjectForm}
+          saveProject={tp.saveProject}
+          saving={tp.saving}
+          editingProject={tp.editingProject}
+          systemUsers={tp.systemUsers}
+          companyStructure={tp.companyStructure}
+          onClose={() => tp.setProjectModal(false)}
+        />
+      )}
+
+      {tp.taskModal && (
+        <TaskProjectsTaskModal
+          form={tp.taskForm}
+          setForm={tp.setTaskForm}
+          users={tp.assignableUsers}
+          editing={tp.editingTask}
+          saving={tp.saving}
+          onSubmit={tp.saveTask}
+          onClose={tp.closeTaskModal}
+          project={tp.targetProject}
+        />
+      )}
+
+      {!tp.taskModal && !tp.projectModal && (
+        <button className="tp-floating-add" onClick={() => tp.setAddMenuOpen(!tp.addMenuOpen)} title="Створити...">
+          <Plus size={24} style={{ transform: tp.addMenuOpen ? 'rotate(45deg)' : 'none', transition: 'transform 0.2s' }} />
+        </button>
+      )}
+
+      {tp.addMenuOpen && (
+        <>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 99998 }} onClick={() => { tp.setAddMenuOpen(false); tp.setSelectingProject(false); }} />
+          <div className="tp-add-popup">
+            {!tp.selectingProject ? (
+              <>
+                {tp.canCreateProject && (
+                  <button className="tp-menu-item" onClick={() => { tp.openProjectForm(); tp.setAddMenuOpen(false); }}>
+                    <Plus size={16} color="#ff9000" />
+                    <span>Створити проєкт</span>
                   </button>
-                  {colIndex > 0 && (
-                    <button
-                      type="button"
-                      onMouseDown={e => e.stopPropagation()}
-                      onClick={async e => {
-                        e.stopPropagation()
-                        e.preventDefault()
-                        const updated = [...projectColumns]
-                        const temp = updated[colIndex - 1]
-                        updated[colIndex - 1] = updated[colIndex]
-                        updated[colIndex] = temp
-                        await updateTaskProject(activeProject.id, { columns: updated })
-                      }}
-                      title="Вліво"
-                    >
-                      ←
+                )}
+                <button className="tp-menu-item" onClick={() => { tp.setSelectingProject(true); }}>
+                  <CheckSquare size={16} color="#3b82f6" />
+                  <span>Створити задачу по проєкту</span>
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="tp-popup-header">
+                  <span>Оберіть проєкт для задачі:</span>
+                  <button className="tp-popup-close" onClick={() => tp.setSelectingProject(false)}><X size={14} /></button>
+                </div>
+                <div className="tp-popup-list">
+                  {tp.visibleProjects.map(p => (
+                    <button key={p.id} className="tp-menu-item" onClick={() => { tp.openTaskFormForProject(p.id); tp.setAddMenuOpen(false); tp.setSelectingProject(false); }}>
+                      <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: p.color, flexShrink: 0 }} />
+                      <span className="tp-popup-project-name">{p.name}</span>
                     </button>
-                  )}
-                  {colIndex < projectColumns.length - 1 && (
-                    <button
-                      type="button"
-                      onMouseDown={e => e.stopPropagation()}
-                      onClick={async e => {
-                        e.stopPropagation()
-                        e.preventDefault()
-                        const updated = [...projectColumns]
-                        const temp = updated[colIndex + 1]
-                        updated[colIndex + 1] = updated[colIndex]
-                        updated[colIndex] = temp
-                        await updateTaskProject(activeProject.id, { columns: updated })
-                      }}
-                      title="Вправо"
-                    >
-                      →
-                    </button>
-                  )}
-                  {projectColumns.length > 1 && (
-                    <button
-                      type="button"
-                      onMouseDown={e => e.stopPropagation()}
-                      onClick={async e => {
-                        e.stopPropagation()
-                        e.preventDefault()
-                        if (!confirm(`Видалити колонку «${column.title}»?`)) return
-                        const updated = projectColumns.filter((_, i) => i !== colIndex)
-                        await updateTaskProject(activeProject.id, { columns: updated })
-                      }}
-                      title="Видалити"
-                      className="tp-col-del"
-                    >
-                      <Trash2 size={12} />
-                    </button>
+                  ))}
+                  {tp.visibleProjects.length === 0 && (
+                    <div className="tp-popup-empty">Немає активних проєктів</div>
                   )}
                 </div>
-              )}
-            </div>
-            <div className="tp-cards">
-              {tasks.map(task => {
-                const assignee = systemUsers.find(u => u.login === task.assigned_to)
-                const checklist = asArray(task.checklist)
-                const checklistDone = checklist.filter(i => i.done).length
-                const canDelete = isOwnerOrManager || task.created_by === currentUser?.login
-                return <article className="tp-task" key={task.id} draggable={isOwnerOrManager || task.created_by === currentUser?.login} onDragStart={e => e.dataTransfer.setData('taskId', task.id)} onClick={() => openTaskForm(task)} style={{ borderLeftColor: task.color || column.color, cursor: 'pointer' }}>
-                  <div className={`tp-priority p-${task.priority || 'medium'}`}>{task.priority === 'urgent' ? 'ТЕРМІНОВО' : task.priority === 'high' ? 'ВИСОКИЙ' : task.priority === 'low' ? 'НИЗЬКИЙ' : 'СЕРЕДНІЙ'}</div>
-                  <h3>{task.title}</h3>{task.description && <p>{task.description}</p>}
-                  {!!checklist.length && <div className="tp-check-progress"><i><b style={{ width: `${Math.round(checklistDone / checklist.length * 100)}%` }} /></i><span><CheckSquare size={12} /> {checklistDone}/{checklist.length}</span></div>}
-                  <footer>
-                    <span><Users size={13} /> {asArray(task.assignees).length > 1 ? `${userName(assignee)} +${task.assignees.length - 1}` : assignee ? userName(assignee) : 'Не призначено'}</span>
-                    {task.deadline && <span><Calendar size={13} /> {new Date(task.deadline).toLocaleDateString('uk-UA')}</span>}
-                  </footer>
-                  <div className="tp-task-actions">
-                    <button onClick={e => { e.stopPropagation(); openTaskForm(task) }} title="Редагувати"><Edit3 size={13} /></button>
-                    {canDelete && <button onClick={e => { e.stopPropagation(); confirm('Видалити задачу?') && deleteManagementTask(task.id) }} title="Видалити"><Trash2 size={13} /></button>}
-                  </div>
-                </article>
-              })}
-              {!tasks.length && <div className="tp-empty-column">Перетягніть задачу сюди</div>}
-            </div>
-          </section>
-        })}
+              </>
+            )}
+          </div>
+        </>
+      )}
 
-        {isOwnerOrManager && (
-          isAddingCol ? (
-            <div className="tp-new-column-card">
-              <span style={{ fontSize: '0.72rem', color: '#ff9000', fontWeight: 900 }}>НОВА КОЛОНКА</span>
-              <input
-                autoFocus
-                placeholder="Назва колонки..."
-                value={newColTitle}
-                onChange={e => setNewColTitle(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter') handleAddColumnSubmit()
-                  if (e.key === 'Escape') setIsAddingCol(false)
-                }}
-              />
-              <div className="tp-new-col-colors">
-                {COLORS.map(c => (
-                  <button
-                    key={c}
-                    type="button"
-                    className={newColColor === c ? 'active' : ''}
-                    style={{ background: c }}
-                    onClick={() => setNewColColor(c)}
-                  />
-                ))}
-              </div>
-              <div className="tp-new-col-actions">
-                <button className="tp-primary-sm" onClick={handleAddColumnSubmit}>Додати</button>
-                <button className="tp-secondary-sm" onClick={() => setIsAddingCol(false)}><X size={14} /></button>
-              </div>
-            </div>
-          ) : (
-            <button className="tp-add-column-card" onClick={() => setIsAddingCol(true)}>
-              <Plus size={22} />
-              <span>Додати колонку</span>
-            </button>
-          )
-        )}
-      </main>
-      {!taskModal && !projectModal && <button className="tp-floating-add" onClick={() => openTaskForm()} title="Створити задачу"><Plus size={25} /></button>}
-      {taskModal && <ProjectTaskModal form={taskForm} setForm={setTaskForm} users={assignableUsers} editing={editingTask} saving={saving} onSubmit={saveTask} onClose={closeTaskModal} project={activeProject} />}
-      {projectModal && <ProjectModal {...{ projectForm, setProjectForm, saveProject, saving, editingProject, systemUsers, companyStructure }} onClose={() => setProjectModal(false)} onDelete={() => removeProject(activeProject)} />}
       <Styles />
     </div>
-  }
-
-  return <div className="tp-root">
-    <header className="tp-header">
-      <div className="tp-heading" style={{ display: 'flex', alignItems: 'center', flex: 1, width: '100%' }}>
-        <Link className="tp-icon-btn" to="/tasks" style={{ width: 'auto', padding: '0 16px', display: 'flex', alignItems: 'center', gap: '8px', textDecoration: 'none' }}>
-          <ArrowLeft size={18} />
-          <span style={{ fontSize: '0.82rem', fontWeight: 800, textTransform: 'none', letterSpacing: 'normal' }}>до задач</span>
-        </Link>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginLeft: 'auto' }}>
-          <div className="tp-logo"><BriefcaseBusiness size={20} /></div>
-          <div>
-            <h1 style={{ margin: 0, fontSize: '1rem', letterSpacing: '1.5px', textAlign: 'left' }}>ПРОЄКТИ</h1>
-            <p style={{ margin: 0, color: '#666', fontSize: '.72rem', textAlign: 'left', lineHeight: '1.2', whiteSpace: 'normal' }}>
-              Окремі команди<br />та канбан-дошки
-            </p>
-          </div>
-        </div>
-      </div>
-    </header>
-    <div className="tp-toolbar"><div className="tp-search"><Search size={16} /><input placeholder="Пошук проєктів…" value={query} onChange={e => setQuery(e.target.value)} /></div><span>{filteredProjects.length} проєктів</span></div>
-    <main className="tp-grid">
-      {filteredProjects.map(project => {
-        const tasks = managementTasks.filter(t => String(t.project_id || '') === String(project.id))
-        const done = tasks.filter(t => t.status === 'done').length
-        const pct = tasks.length ? Math.round(done / tasks.length * 100) : 0
-        return <article className="tp-project" key={project.id} onClick={() => setActiveId(project.id)} style={{ '--pc': project.color }}>
-          <div className="tp-project-icon"><FolderKanban size={24} /></div><h2>{project.name}</h2><p>{project.description || 'Без опису'}</p>
-          <div className="tp-project-meta"><span><Users size={14} /> {projectMembers(project)}</span><span><CheckCircle2 size={14} /> {done}/{tasks.length}</span></div>
-          <div className="tp-project-progress"><i style={{ width: `${pct}%` }} /></div>
-        </article>
-      })}
-      {!filteredProjects.length && <div className="tp-empty"><FolderKanban size={44} /><h2>Проєктів поки немає</h2><p>{canCreateProject ? 'Створіть перший проєкт і сформуйте його команду.' : 'Вас ще не додано до жодного активного проєкту.'}</p></div>}
-    </main>
-    {projectModal && <ProjectModal {...{ projectForm, setProjectForm, saveProject, saving, editingProject, systemUsers, companyStructure }} onClose={() => setProjectModal(false)} />}
-    {taskModal && <ProjectTaskModal form={taskForm} setForm={setTaskForm} users={assignableUsers} editing={editingTask} saving={saving} onSubmit={saveTask} onClose={closeTaskModal} project={targetProject} />}
-    {!taskModal && !projectModal && (
-      <button className="tp-floating-add" onClick={() => setAddMenuOpen(!addMenuOpen)} title="Створити...">
-        <Plus size={24} style={{ transform: addMenuOpen ? 'rotate(45deg)' : 'none', transition: 'transform 0.2s' }} />
-      </button>
-    )}
-    {addMenuOpen && (
-      <>
-        <div style={{ position: 'fixed', inset: 0, zIndex: 99998 }} onClick={() => { setAddMenuOpen(false); setSelectingProject(false); }} />
-        <div className="tp-add-popup">
-          {!selectingProject ? (
-            <>
-              {canCreateProject && (
-                <button className="tp-menu-item" onClick={() => { openProjectForm(); setAddMenuOpen(false); }}>
-                  <Plus size={16} color="#ff9000" />
-                  <span>Створити проєкт</span>
-                </button>
-              )}
-              <button className="tp-menu-item" onClick={() => { setSelectingProject(true); }}>
-                <CheckSquare size={16} color="#3b82f6" />
-                <span>Створити задачу по проєкту</span>
-              </button>
-            </>
-          ) : (
-            <>
-              <div className="tp-popup-header">
-                <span>Оберіть проєкт для задачі:</span>
-                <button className="tp-popup-close" onClick={() => setSelectingProject(false)}><X size={14} /></button>
-              </div>
-              <div className="tp-popup-list">
-                {visibleProjects.map(p => (
-                  <button key={p.id} className="tp-menu-item" onClick={() => { openTaskFormForProject(p.id); setAddMenuOpen(false); setSelectingProject(false); }}>
-                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: p.color, flexShrink: 0 }} />
-                    <span className="tp-popup-project-name">{p.name}</span>
-                  </button>
-                ))}
-                {visibleProjects.length === 0 && (
-                  <div className="tp-popup-empty">Немає активних проєктів</div>
-                )}
-              </div>
-            </>
-          )}
-        </div>
-      </>
-    )}
-    <Styles />
-  </div>
+  )
 }
 
-function ProjectTaskModal({ form, setForm, users, editing, saving, onSubmit, onClose, project }) {
-  const [newItem, setNewItem] = useState('')
-  const userOptions = users.map(u => ({ value: u.login, label: userName(u), meta: u.department || '' }))
-  const addItem = (text, parentId = null) => {
-    if (!text.trim()) return
-    setForm(prev => ({ ...prev, checklist: [...prev.checklist, { id: taskId(), text: text.trim(), done: false, parent_id: parentId }] }))
-  }
-  const removeItem = id => setForm(prev => ({ ...prev, checklist: prev.checklist.filter(item => String(item.id) !== String(id) && String(item.parent_id) !== String(id)) }))
-  const updateChecklistItem = (id, updates) => setForm(prev => ({ ...prev, checklist: prev.checklist.map(item => String(item.id) === String(id) ? { ...item, ...updates } : item) }))
-  const toggleItem = id => {
-    const item = form.checklist.find(entry => String(entry.id) === String(id))
-    if (item) updateChecklistItem(id, { done: !item.done })
-  }
-  const titleText = editing 
-    ? (project ? `Редагувати задачу | ${project.name}` : 'Редагувати задачу')
-    : (project ? `Нова задача | ${project.name}` : 'Нова задача')
-  return <Modal title={titleText} onClose={onClose} wide>
-    <form onSubmit={onSubmit} className="tp-form tp-task-form">
-      <label>НАЗВА ЗАДАЧІ *<input required autoFocus placeholder="Коротко опишіть задачу…" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} /></label>
-      <label>ДЕТАЛЬНИЙ ОПИС<textarea rows="3" placeholder="Що саме потрібно зробити…" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} /></label>
-      <div className="tp-form-row"><label>ПРІОРИТЕТ<select value={form.priority} onChange={e => setForm({ ...form, priority: e.target.value })}><option value="low">Низький</option><option value="medium">Середній</option><option value="high">Високий</option><option value="urgent">Нагально!</option></select></label><label>ДЕДЛАЙН<input type="date" value={form.deadline} onChange={e => setForm({ ...form, deadline: e.target.value })} /></label></div>
-      <div><span className="tp-label">КОЛІР ПЛАШКИ</span><div className="tp-colors"><button type="button" className={!form.color ? 'active auto-color' : 'auto-color'} onClick={() => setForm({ ...form, color: '' })}>Авто</button>{COLORS.map(c => <button type="button" key={c} className={form.color === c ? 'active' : ''} style={{ background: c }} onClick={() => setForm({ ...form, color: c })} />)}</div></div>
-      <SearchPicker label="ВИКОНАВЦІ З КОМАНДИ ПРОЄКТУ" placeholder="Пошук за прізвищем…" options={userOptions} selected={form.assignees} onToggle={value => setForm(prev => ({ ...prev, assignees: prev.assignees.includes(value) ? prev.assignees.filter(v => v !== value) : [...prev.assignees, value] }))} />
-      <div className="tp-check-builder"><span className="tp-label"><CheckSquare size={13} /> ЧЕКЛІСТ (ПУНКТИ)</span><ChecklistEditor items={form.checklist} newItem={newItem} setNewItem={setNewItem} onAdd={() => { addItem(newItem); setNewItem('') }} onToggle={toggleItem} onAddSubItem={(parentId, text) => addItem(text, parentId)} onRemove={removeItem} canEdit={true} systemUsers={users} onUpdateAssignee={(itemId, assignees) => updateChecklistItem(itemId, { assignees, assignee: assignees[0] || null })} onUpdateDeadline={(itemId, deadline) => updateChecklistItem(itemId, { deadline: deadline || null })} /></div>
-      <div className="tp-modal-actions"><button type="button" className="tp-secondary" onClick={onClose}>Скасувати</button><button className="tp-primary" disabled={saving}>{saving ? 'Збереження…' : editing ? 'ЗБЕРЕГТИ' : 'СТВОРИТИ ЗАДАЧУ'}</button></div>
-    </form>
-  </Modal>
-}
-
-function Modal({ title, onClose, children }) {
-  return <div className="tp-overlay" onMouseDown={e => e.target === e.currentTarget && onClose()}><div className="tp-modal"><header><h2>{title}</h2><button onClick={onClose}><X size={18} /></button></header>{children}</div></div>
-}
-
-function ProjectModal({ projectForm, setProjectForm, saveProject, saving, editingProject, systemUsers, companyStructure, onClose, onDelete }) {
-  const toggle = (field, value) => setProjectForm(prev => ({ ...prev, [field]: prev[field].includes(value) ? prev[field].filter(v => v !== value) : [...prev[field], value] }))
-  const cols = projectForm.columns || DEFAULT_COLUMNS
-
-  return <Modal title={editingProject ? 'Налаштування проєкту' : 'Новий проєкт'} onClose={onClose}><form onSubmit={saveProject} className="tp-form">
-    <label>Назва<input required autoFocus value={projectForm.name} onChange={e => setProjectForm({ ...projectForm, name: e.target.value })} /></label>
-    <label>Опис<textarea rows="3" value={projectForm.description} onChange={e => setProjectForm({ ...projectForm, description: e.target.value })} /></label>
-    <div><span className="tp-label">Колір проєкту</span><div className="tp-colors">{COLORS.map(c => <button type="button" key={c} className={projectForm.color === c ? 'active' : ''} style={{ background: c }} onClick={() => setProjectForm({ ...projectForm, color: c })} />)}</div></div>
-    
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-        <span className="tp-label">СТОВПЦІ КАНБАН-ДОШКИ ({cols.length})</span>
-        <button
-          type="button"
-          onClick={() => {
-            const newColId = 'col_' + Date.now().toString(36)
-            const nextColor = COLORS[cols.length % COLORS.length]
-            setProjectForm(prev => ({
-              ...prev,
-              columns: [...(prev.columns || DEFAULT_COLUMNS), { id: newColId, title: 'НОВИЙ СТОВПЕЦЬ', color: nextColor }]
-            }))
-          }}
-          style={{ background: 'rgba(255,144,0,0.1)', border: '1px solid rgba(255,144,0,0.3)', color: '#ff9000', padding: '4px 10px', borderRadius: '8px', fontSize: '0.72rem', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
-        >
-          <Plus size={13} /> Додати стовпець
-        </button>
-      </div>
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '200px', overflowY: 'auto', paddingRight: '4px' }}>
-        {cols.map((col, index) => (
-          <div key={col.id || index} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--bg, #111)', padding: '6px 10px', borderRadius: '10px', border: '1px solid var(--glass-border, #222)' }}>
-            <input
-              type="color"
-              value={col.color || '#3b82f6'}
-              onChange={e => {
-                const val = e.target.value
-                setProjectForm(prev => ({
-                  ...prev,
-                  columns: (prev.columns || DEFAULT_COLUMNS).map((c, i) => i === index ? { ...c, color: val } : c)
-                }))
-              }}
-              style={{ width: '24px', height: '24px', border: 'none', background: 'none', cursor: 'pointer', padding: 0 }}
-              title="Змінити колір стовпця"
-            />
-            <input
-              type="text"
-              value={col.title}
-              placeholder="Назва стовпця..."
-              onChange={e => {
-                const val = e.target.value
-                setProjectForm(prev => ({
-                  ...prev,
-                  columns: (prev.columns || DEFAULT_COLUMNS).map((c, i) => i === index ? { ...c, title: val } : c)
-                }))
-              }}
-              style={{ flex: 1, background: 'transparent', border: '1px solid #252525', padding: '5px 8px', borderRadius: '7px', fontSize: '0.78rem', color: '#fff', outline: 'none' }}
-            />
-            {index > 0 && (
-              <button
-                type="button"
-                title="Вліво"
-                onClick={() => {
-                  setProjectForm(prev => {
-                    const list = [...(prev.columns || DEFAULT_COLUMNS)]
-                    const temp = list[index - 1]
-                    list[index - 1] = list[index]
-                    list[index] = temp
-                    return { ...prev, columns: list }
-                  })
-                }}
-                style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', padding: '2px 4px', fontSize: '0.9rem', fontWeight: 900 }}
-              >
-                ←
-              </button>
-            )}
-            {index < cols.length - 1 && (
-              <button
-                type="button"
-                title="Вправо"
-                onClick={() => {
-                  setProjectForm(prev => {
-                    const list = [...(prev.columns || DEFAULT_COLUMNS)]
-                    const temp = list[index + 1]
-                    list[index + 1] = list[index]
-                    list[index] = temp
-                    return { ...prev, columns: list }
-                  })
-                }}
-                style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', padding: '2px 4px', fontSize: '0.9rem', fontWeight: 900 }}
-              >
-                →
-              </button>
-            )}
-            {cols.length > 1 && (
-              <button
-                type="button"
-                title="Видалити стовпець"
-                onClick={() => {
-                  setProjectForm(prev => ({
-                    ...prev,
-                    columns: (prev.columns || DEFAULT_COLUMNS).filter((_, i) => i !== index)
-                  }))
-                }}
-                style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px' }}
-              >
-                <Trash2 size={13} />
-              </button>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-
-    <SearchPicker label="Додати відділи" placeholder="Почніть вводити назву відділу…" options={companyStructure.map(d => ({ value: String(d.id), label: d.name || d.label }))} selected={projectForm.department_ids} onToggle={value => toggle('department_ids', value)} />
-    <SearchPicker label="Додати окремих людей" placeholder="Введіть ім’я або прізвище…" options={systemUsers.map(u => ({ value: u.login, label: userName(u), meta: u.department || '' }))} selected={projectForm.member_logins} onToggle={value => toggle('member_logins', value)} />
-    <div className="tp-modal-actions">{editingProject && onDelete && <button type="button" className="tp-danger" onClick={onDelete}><Trash2 size={15} /> Видалити</button>}<button className="tp-primary" disabled={saving}>{saving ? 'Збереження…' : 'Зберегти проєкт'}</button></div>
-  </form></Modal>
-}
-
-function SearchPicker({ label, placeholder, options, selected, onToggle }) {
-  const [search, setSearch] = useState('')
-  const normalized = search.trim().toLocaleLowerCase('uk-UA')
-  const chosen = options.filter(option => selected.includes(option.value))
-  const results = normalized ? options.filter(option => !selected.includes(option.value) && `${option.label} ${option.meta || ''}`.toLocaleLowerCase('uk-UA').includes(normalized)).slice(0, 8) : []
-  return <div className="tp-picker">
-    <span className="tp-label">{label}</span>
-    {!!chosen.length && <div className="tp-chips">{chosen.map(option => <button type="button" key={option.value} onClick={() => onToggle(option.value)} title="Прибрати"><span>{option.label}</span><X size={12} /></button>)}</div>}
-    <div className="tp-picker-search"><Search size={15} /><input value={search} onChange={e => setSearch(e.target.value)} placeholder={placeholder} /></div>
-    {normalized && <div className="tp-picker-results">{results.map(option => <button type="button" key={option.value} onClick={() => { onToggle(option.value); setSearch('') }}><span>{option.label}</span>{option.meta && <small>{option.meta}</small>}<Plus size={14} /></button>)}{!results.length && <div>Нічого не знайдено</div>}</div>}
-  </div>
-}
-
-function Styles() { return <style>{`
+function Styles() {
+  return (
+    <style>{`
   .tp-root{min-height:100vh;background:var(--bg, #050505);color:var(--text, #eee);font-family:Inter,system-ui,sans-serif}
   .tp-header{height:78px;padding:0 34px;border-bottom:1px solid var(--glass-border, #171717);display:flex;align-items:center;justify-content:space-between;background:var(--card-bg, #080808);gap:20px}
   .tp-heading,.tp-header-actions{display:flex;align-items:center;gap:14px}
@@ -774,4 +326,6 @@ function Styles() { return <style>{`
   .tp-popup-project-name{overflow:hidden;text-overflow:ellipsis;flex:1}
   .tp-popup-empty{padding:10px;font-size:0.72rem;color:var(--text-muted, #555);text-align:center}
   @media(max-width:800px){.tp-header{height:auto;padding:14px 16px;align-items:flex-start;flex-direction:column}.tp-header-actions{width:100%;flex-wrap:wrap}.tp-toolbar,.tp-grid{padding-left:16px;padding-right:16px}.tp-board{grid-template-columns:repeat(4,82vw);padding:14px}.tp-column{min-height:70vh}.tp-form-row,.tp-options{grid-template-columns:1fr}.tp-progress{display:none}.tp-heading p{max-width:240px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}
-`}</style> }
+`}</style>
+  )
+}

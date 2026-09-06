@@ -1,7 +1,6 @@
 import { useRef, useState } from 'react'
 import { supabase } from '../../../../supabase.js'
 import { apiService } from '../../../../services/apiDispatcher.js'
-import { getNomUnitsPerSheet } from '../../../../utils/unitsHelper.js'
 
 export function useCardGeneration({ mes }) {
   const [isGenerating, setIsGenerating] = useState(false)
@@ -69,7 +68,7 @@ export function useCardGeneration({ mes }) {
     let machineObj = machines.find(m => m.name === baseName) || machines.find(m => m.name === selectedMachineName)
     
     const capacity = customCapacity !== null ? Number(customCapacity) : (Number(machineObj?.sheet_capacity) || 1)
-    const unitsPerSheet = getNomUnitsPerSheet(resolvedPartNom, task?.plan_snapshot?.[String(nomId)])
+    const unitsPerSheet = Number(resolvedPartNom?.units_per_sheet || part?.unitsPerSheet) || 1
 
     const maxCardsForThisSplit = Math.ceil(sheets / capacity)
     const displayTotal = globalTotalCards || maxCardsForThisSplit
@@ -149,9 +148,6 @@ export function useCardGeneration({ mes }) {
 
       const totalCardsForTask = Math.max(startSeqForThisBatch + finalCount - 1, 1)
 
-      const hasCutterNeeds = Boolean(selectedCutters && Object.keys(selectedCutters).length > 0)
-      const initialStatus = isRepair ? 'waiting-materials' : (hasCutterNeeds ? 'waiting-cutters' : 'new')
-
       for (let i = 1; i <= finalCount; i++) {
         const currentSeqNum = startSeqForThisBatch + (i - 1)
         const currentSeq = `${currentSeqNum}/${totalCardsForTask}`
@@ -170,7 +166,7 @@ export function useCardGeneration({ mes }) {
           quantity: qtyInThisLoading,
           bufferQty: bzInThisLoading,
           actualSheets: sheetsInThisLoading,
-          status: initialStatus,
+          status: 'waiting-cutters',
           is_rework: isRepair
         })
 

@@ -7,12 +7,19 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
+    "lint:ci": "eslint . --max-warnings=2000",
     "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "validate:migrations": "node scripts/validate-migrations.mjs",
+    "ci": "node scripts/validate-migrations.mjs && npm test && npm run build",
     "inspect": "node inspect_users.cjs",
     "load:test:staging": "node scripts/loadtest-readonly.mjs"
   },
   "dependencies": {
+    "@sentry/react": "^10.73.0",
     "@supabase/supabase-js": "^2.49.1",
+    "@tanstack/react-virtual": "^3.14.10",
     "date-fns": "^4.1.0",
     "emoji-picker-react": "^4.19.1",
     "lucide-react": "^0.477.0",
@@ -30,6 +37,7 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.3",
     "globals": "^17.7.0",
-    "vite": "^6.2.0"
+    "vite": "^6.2.0",
+    "vitest": "^5.0.0"
   }
 }

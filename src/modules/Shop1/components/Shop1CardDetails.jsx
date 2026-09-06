@@ -1,62 +1,69 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
-import { ChevronRight, X, ArrowRight, Play, Square, Pause } from 'lucide-react'
-import { CHAIN, MACHINE_TYPES } from '../hooks/useShop1Data'
+import { ChevronRight, X, ArrowRight } from 'lucide-react'
+import { MACHINE_TYPES, getMachineSequenceConfig } from '../utils/shop1Helpers'
 
 export function Shop1CardDetails({
   currentCard,
   setSelectedCardId,
+  orders,
+  getNom,
+  CHAIN,
+  nextStageFor,
+  qcScrapTotal,
+  qcScrapEntries,
+  selectedManager,
+  setSelectedManager,
+  selectedShift,
+  setSelectedShift,
   selectedOperator,
   setSelectedOperator,
   selectedMachine,
   setSelectedMachine,
   machineNumber,
   setMachineNumber,
-  selectedManager,
-  setSelectedManager,
-  selectedShift,
-  setSelectedShift,
-  galtPriority,
-  setGaltPriority,
-  getNom,
-  getCardTimeMetrics,
-  formatSec,
-  formatTime,
-  orders,
-  tasks,
-  workCardHistory,
   getFilteredManagers,
   getFilteredOperators,
   handleStart,
   handleResumeCard,
   handleStartNext,
-  setShowCompleteModal,
+  handleAcceptToStock,
+  setShowQCModal,
   setShowPauseModal,
   setShowShiftChangeModal,
-  setShowQCModal,
+  setShowCompleteModal,
+  setShowSortingModal,
+  setScrapCount,
+  setReworkCount,
+  setFinalOperator,
+  setCuttersUsed,
+  setPauseReason,
+  setCustomPauseReason,
+  getCardTimeMetrics,
+  formatSec,
+  formatTime,
+  selectedCardHistory,
+  workCardHistory,
   isProcessing,
-  systemUsers,
-  formatUserName
+  reworkCount,
+  scrapCount
 }) {
   if (!currentCard) return null
+
   const nom = getNom(currentCard)
   const chainIdx = CHAIN.indexOf(currentCard.operation)
-  const next = (() => {
-    const op = currentCard?.operation || ''
-    if (op === 'Галтовка') return 'Прийомка'
-    const i = CHAIN.indexOf(op)
-    return i >= 0 && i < CHAIN.length - 1 ? CHAIN[i + 1] : null
-  })()
+  const next = nextStageFor(currentCard)
   const isFinal = currentCard.operation === CHAIN[CHAIN.length - 1]
   const { status } = currentCard
 
   const labelStyle = { fontSize: '0.6rem', fontWeight: 900, color: '#555', textTransform: 'uppercase', marginBottom: '6px', display: 'block' }
   const selectStyle = { width: '100%', background: '#1a1a1a', border: '1px solid #333', color: '#fff', padding: '12px', borderRadius: '12px', fontSize: '0.9rem', fontWeight: 700 }
-  const btnPrimary = { background: '#eab308', color: '#000', border: 'none', padding: '15px', borderRadius: '14px', fontSize: '1rem', fontWeight: 1000, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }
-  const btnGreen = { background: '#10b981', color: '#fff', border: 'none', padding: '15px', borderRadius: '14px', fontSize: '1rem', fontWeight: 1000, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }
+  const btnPrimary = { background: '#eab308', color: '#000', border: 'none', padding: '15px', borderRadius: '14px', fontSize: '1rem', fontWeight: 1000, cursor: 'pointer' }
+  const btnGreen = { background: '#10b981', color: '#fff', border: 'none', padding: '15px', borderRadius: '14px', fontSize: '1rem', fontWeight: 1000, cursor: 'pointer' }
 
   return (
-    <div style={{ maxWidth: '820px', margin: '0 auto' }}>
+    <div className="s1-card-detail-view" style={{ width: '100%', maxWidth: '1400px', margin: '0 auto', padding: '0 12px 140px', boxSizing: 'border-box' }}>
+
       {/* Хлібні крихти ланцюжка */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '16px', flexWrap: 'wrap' }}>
         {CHAIN.map((s, i) => {
@@ -64,17 +71,12 @@ export function Shop1CardDetails({
           const isDone = i < chainIdx
           return (
             <React.Fragment key={s}>
-              <span style={{
-                fontSize: '0.6rem',
-                fontWeight: 950,
-                textTransform: 'uppercase',
-                padding: '3px 9px',
-                borderRadius: '5px',
+              <span className={`s1-chain-pill ${isCurrent ? 'current' : isDone ? 'done' : 'inactive'}`} style={{
+                fontSize: '0.6rem', fontWeight: 900, textTransform: 'uppercase',
+                padding: '3px 9px', borderRadius: '5px',
                 background: isCurrent ? '#eab308' : isDone ? '#10b98120' : '#1a1a1a',
                 color: isCurrent ? '#000' : isDone ? '#10b981' : '#333'
-              }}>
-                {s}
-              </span>
+              }}>{s}</span>
               {i < CHAIN.length - 1 && <ChevronRight size={10} color="#2a2a2a" />}
             </React.Fragment>
           )
@@ -102,33 +104,43 @@ export function Shop1CardDetails({
               to={`/foreman?task=${currentCard.task_id}`}
               state={{ taskId: currentCard.task_id }}
               style={{ background: '#3b82f615', border: '1px solid #3b82f640', color: '#3b82f6', padding: '10px 14px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', textDecoration: 'none' }}
-              title="Перейти до батьківського наряду"
-            >
+              title="Перейти до батьківського наряду">
               📋 <span className="hide-mobile">НАРЯД</span>
             </Link>
           )}
-          <button
-            onClick={() => setShowQCModal(true)}
+          <button onClick={() => setShowQCModal(true)}
             style={{ background: '#ef444415', border: '1px solid #ef444440', color: '#ef4444', padding: '10px 14px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
-            title="Внести додатковий брак ВКЯ"
-          >
+            title="Внести додатковий брак ВКЯ">
             🛡️ <span className="hide-mobile">БРАК ВКЯ</span>
           </button>
-          <button
-            onClick={() => setSelectedCardId(null)}
-            style={{ background: '#111', border: 'none', color: '#555', padding: '10px', borderRadius: '12px', cursor: 'pointer' }}
-          >
+          <button className="s1-close-btn" onClick={() => setSelectedCardId(null)}
+            style={{ background: '#111', border: 'none', color: '#555', padding: '10px', borderRadius: '12px', cursor: 'pointer' }}>
             <X size={22} />
           </button>
         </div>
       </div>
 
+      {qcScrapTotal > 0 && (
+        <div style={{ background: '#ef444415', border: '1px solid #ef444455', borderRadius: '16px', padding: '14px 16px', marginBottom: '18px' }}>
+          <div style={{ color: '#ef4444', fontSize: '0.78rem', fontWeight: 1000 }}>🛡️ ВКЯ ВЖЕ ВНЕСЛО БРАК: {qcScrapTotal} ШТ</div>
+          {(qcScrapEntries || []).slice(0, 3).map(row => (
+            <div key={row.id} style={{ color: '#fca5a5', fontSize: '0.68rem', fontWeight: 800, marginTop: '6px' }}>
+              {row.completed_at ? new Date(row.completed_at).toLocaleString('uk-UA') : 'Дата не вказана'} · {row.qc_scrap_reason || row.qc_scrap_comment || 'Причина не вказана'} · {Number(row.scrap_qty) || 0} шт · Відповідальний: {row.operator_name || 'не вказаний'}
+            </div>
+          ))}
+          <div style={{ color: '#888', fontSize: '0.64rem', marginTop: '8px' }}>Поточна кількість картки вже зменшена на цей брак. Повторно його не вносьте.</div>
+        </div>
+      )}
+
       <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '24px', border: '1px solid #1a1a1a', padding: '25px 20px' }}>
+
         {/* ── СТАН: NEW → Форма старту ──────────────────────────────────── */}
         {(status === 'new' || (status === 'in-progress' && !CHAIN.includes(currentCard.operation))) && (() => {
           const displayOp = CHAIN.includes(currentCard.operation) ? currentCard.operation : CHAIN[0]
+          const machineSequenceConfig = getMachineSequenceConfig(selectedMachine)
           return (
             <div style={{ maxWidth: '440px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+
               {/* Акцентована планова кількість */}
               <div style={{ background: '#eab30810', border: '1px solid #eab30830', borderRadius: '18px', padding: '20px', textAlign: 'center', marginBottom: '8px' }}>
                 <div style={{ fontSize: '0.65rem', fontWeight: 950, color: '#eab308', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '6px' }}>ПЛАНОВА КІЛЬКІСТЬ</div>
@@ -174,32 +186,21 @@ export function Shop1CardDetails({
                   <div>
                     <label style={labelStyle}>Верстат / обладнання</label>
                     <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                      <input
-                        type="text"
-                        placeholder="Оберіть або введіть тип верстата..."
-                        value={selectedMachine}
-                        onChange={e => setSelectedMachine(e.target.value)}
+                      <input type="text" placeholder="Оберіть або введіть тип верстата..."
+                        value={selectedMachine} onChange={e => setSelectedMachine(e.target.value)}
                         list="machine-types-list"
-                        style={{ ...selectStyle, cursor: 'text', flex: 1 }}
-                      />
+                        style={{ ...selectStyle, cursor: 'text', flex: 1 }} />
                       <datalist id="machine-types-list">
                         {MACHINE_TYPES.map(t => <option key={t} value={t} />)}
                       </datalist>
-                      <div style={{ position: 'relative', width: '90px' }}>
-                        <span style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#555', fontWeight: 1000, fontSize: '1.1rem' }}>№</span>
-                        <input
-                          type="text"
-                          placeholder="1-88"
-                          value={machineNumber}
-                          onChange={e => setMachineNumber(e.target.value)}
+                      <div style={{ position: 'relative', width: '100px' }}>
+                        <span style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#eab308', fontWeight: 1000, fontSize: '1.1rem', zIndex: 1 }}>{machineSequenceConfig.prefix || '№'}</span>
+                        <input type="number" min={machineSequenceConfig.min} max={machineSequenceConfig.max || undefined} step="1"
+                          placeholder={machineSequenceConfig.max ? `${machineSequenceConfig.min}-${machineSequenceConfig.max}` : `${machineSequenceConfig.min}+`}
+                          value={machineNumber} onChange={e => setMachineNumber(e.target.value.replace(/\D/g, ''))}
                           style={{
-                            ...selectStyle,
-                            fontSize: '1.2rem',
-                            fontWeight: 1000,
-                            color: '#eab308',
-                            paddingLeft: '32px',
-                            width: '100%',
-                            cursor: 'text',
+                            ...selectStyle, fontSize: '1.2rem', fontWeight: 1000, color: '#eab308',
+                            paddingLeft: machineSequenceConfig.prefix.length > 1 ? '40px' : '32px', width: '100%', cursor: 'text',
                             borderColor: machineNumber ? '#eab308' : '#333'
                           }}
                           onKeyDown={e => {
@@ -212,17 +213,13 @@ export function Shop1CardDetails({
                     </div>
                   </div>
                 )}
-
                 {(() => {
-                  const isStartDisabled = !selectedOperator || !selectedShift || isProcessing || 
+                  const isStartDisabled = !selectedOperator || !selectedShift || isProcessing ||
                     (displayOp === 'Розкрій' && (!selectedMachine?.trim() || !machineNumber?.trim()))
                   return (
-                    <button
-                      onClick={handleStart}
-                      disabled={isStartDisabled}
-                      style={{ ...btnPrimary, marginTop: '10px', height: '64px', fontSize: '1.2rem', opacity: isStartDisabled ? 0.45 : 1 }}
-                    >
-                      <Play size={18} /> ▶ ВЗЯТИ В РОБОТУ · {displayOp?.toUpperCase()}
+                    <button onClick={handleStart} disabled={isStartDisabled}
+                      style={{ ...btnPrimary, marginTop: '10px', height: '64px', fontSize: '1.2rem', opacity: isStartDisabled ? 0.45 : 1 }}>
+                      ▶ ВЗЯТИ В РОБОТУ · {displayOp?.toUpperCase()}
                     </button>
                   )
                 })()}
@@ -231,7 +228,7 @@ export function Shop1CardDetails({
           )
         })()}
 
-        {/* ── СТАН: IN-PROGRESS або PAUSED (якщо вже в CHAIN) → Таймер + завершити ── */}
+        {/* ── СТАН: IN-PROGRESS або PAUSED ────────────────────────────────── */}
         {((status === 'in-progress' || status === 'paused') && CHAIN.includes(currentCard.operation)) && (() => {
           const opName = currentCard.operation?.toUpperCase()
           const isPaused = status === 'paused'
@@ -285,12 +282,12 @@ export function Shop1CardDetails({
                 </div>
               )}
 
-              <div style={{ 
-                margin: '20px auto 10px', 
-                padding: '12px 20px', 
-                background: 'rgba(255,255,255,0.02)', 
-                border: '1px solid #222', 
-                borderRadius: '16px', 
+              <div style={{
+                margin: '20px auto 10px',
+                padding: '12px 20px',
+                background: 'rgba(255,255,255,0.02)',
+                border: '1px solid #222',
+                borderRadius: '16px',
                 maxWidth: '380px',
                 display: 'flex',
                 justifyContent: 'space-between',
@@ -310,12 +307,12 @@ export function Shop1CardDetails({
                 </div>
               </div>
 
-              {/* Попередні оператори */}
               {currentCard.operation === 'Розкрій' && (() => {
-                const stageRunStart = currentCard.card_info?.match(/\[ORIGINAL_START:([^\]]+)\]/)?.[1] || currentCard.started_at
+                const stageRunStart = currentCard.card_info?.match(/\[ORIGINAL_START:([^\]]+)\]/)?.[1]
+                  || currentCard.started_at
                 const stageRunStartMs = stageRunStart ? new Date(stageRunStart).getTime() : 0
 
-                const shiftHistory = (workCardHistory || []).filter(h =>
+                const shiftHistory = (selectedCardHistory.length > 0 ? selectedCardHistory : workCardHistory || []).filter(h =>
                   String(h.card_id) === String(currentCard.id) &&
                   h.stage_name === 'Розкрій (перезмінка)' &&
                   h.completed_at && new Date(h.completed_at).getTime() >= stageRunStartMs
@@ -370,39 +367,64 @@ export function Shop1CardDetails({
                 <button
                   onClick={handleResumeCard}
                   disabled={isProcessing}
-                  style={{ background: '#10b981', color: '#000', border: 'none', padding: '20px', width: '100%', borderRadius: '18px', fontSize: '1.25rem', fontWeight: 1000, cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 8px 25px rgba(16,185,129,0.3)' }}
+                  style={{
+                    background: '#10b981', color: '#000', border: 'none', padding: '20px', width: '100%',
+                    borderRadius: '18px', fontSize: '1.25rem', fontWeight: 1000, cursor: 'pointer',
+                    boxShadow: '0 8px 24px rgba(16,185,129,0.25)', display: 'flex', alignItems: 'center',
+                    justifyContent: 'center', gap: '10px'
+                  }}
                 >
-                  ▶ ВІДНОВИТИ РОБОТУ ВЕРСТАТА
+                  ▶️ ЗАПУСТИТИ ВЕРСТАТ (ПРОДОВЖИТИ)
                 </button>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                  <div style={{ display: 'flex', gap: '15px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                     {currentCard.operation === 'Розкрій' && (
                       <button
                         onClick={() => setShowShiftChangeModal(true)}
-                        disabled={isProcessing}
-                        style={{ flex: 1, background: '#1f1f1f', border: '1px solid #333', color: '#fff', padding: '18px', borderRadius: '16px', fontSize: '1rem', fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s' }}
+                        style={{
+                          background: 'transparent', color: '#f59e0b', border: '2px solid #f59e0b40',
+                          padding: '14px', borderRadius: '14px', fontSize: '0.9rem', fontWeight: 900,
+                          cursor: 'pointer', letterSpacing: '0.04em', display: 'flex', alignItems: 'center',
+                          justifyContent: 'center', gap: '8px', transition: 'all 0.2s'
+                        }}
                       >
-                        👥 ПЕРЕЗМІНКА
+                        🔄 ПЕРЕЗМІНКА
                       </button>
                     )}
                     {currentCard.operation === 'Розкрій' && (
                       <button
-                        onClick={() => setShowPauseModal(true)}
-                        disabled={isProcessing}
-                        style={{ flex: 1, background: '#ef444410', border: '1px solid #ef444430', color: '#ef4444', padding: '18px', borderRadius: '16px', fontSize: '1rem', fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                        onClick={() => {
+                          setPauseReason('Поломка верстата')
+                          setCustomPauseReason('')
+                          setShowPauseModal(true)
+                        }}
+                        style={{
+                          background: 'transparent', color: '#ef4444', border: '2px solid #ef444440',
+                          padding: '14px', borderRadius: '14px', fontSize: '0.9rem', fontWeight: 900,
+                          cursor: 'pointer', letterSpacing: '0.04em', display: 'flex', alignItems: 'center',
+                          justifyContent: 'center', gap: '8px', transition: 'all 0.2s'
+                        }}
                       >
-                        <Pause size={18} /> ЗУПИНИТИ (ПАУЗА)
+                        🛑 ЗУПИНИТИ ВЕРСТАТ (ПАУЗА)
                       </button>
                     )}
                   </div>
 
-                  <button
-                    onClick={() => setShowCompleteModal(true)}
-                    disabled={isProcessing}
-                    style={{ ...btnGreen, height: '72px', fontSize: '1.3rem', width: '100%', borderRadius: '20px', boxShadow: '0 12px 30px rgba(16,185,129,0.25)' }}
-                  >
-                    <Square size={20} /> ✓ ЗАВЕРШИТИ ЕТАП ТА ЗДАТИ В БУФЕР
+                  <button onClick={() => {
+                    if (currentCard.operation === 'Сортування') {
+                      setScrapCount(0)
+                      setReworkCount(0)
+                      setShowSortingModal(true)
+                    } else {
+                      setScrapCount(0)
+                      setFinalOperator('')
+                      setCuttersUsed(0)
+                      setShowCompleteModal(true)
+                    }
+                  }}
+                    style={{ background: '#8b5cf6', color: '#fff', border: 'none', padding: '22px', width: '100%', borderRadius: '18px', fontSize: '1.3rem', fontWeight: 1000, cursor: 'pointer', boxShadow: '0 10px 30px rgba(139,92,246,0.3)' }}>
+                    {currentCard.operation === 'Сортування' ? '🚀 ЗАВЕРШИТИ СОРТУВАННЯ → ЦЕХ №2' : isFinal ? '✓ ПРИЙНЯТО' : `ЗАВЕРШИТИ ${opName}`}
                   </button>
                 </div>
               )}
@@ -410,144 +432,181 @@ export function Shop1CardDetails({
           )
         })()}
 
-        {/* ── СТАН: AT-BUFFER → Передача далі ───────────────────────────── */}
-        {status === 'at-buffer' && (() => {
-          const isGaltBuf = currentCard.operation === 'Розкрій'
-          const isSortingBuf = currentCard.operation === 'Прийомка'
+        {/* ── СТАН: AT-BUFFER(Сортування) ────────────────────────────────── */}
+        {status === 'at-buffer' && currentCard.operation === 'Сортування' && (() => {
           return (
-            <div style={{ textAlign: 'center', maxWidth: '520px', margin: '0 auto' }}>
-              <div style={{ background: '#f59e0b10', border: '1px solid #f59e0b30', borderRadius: '20px', padding: '24px 20px', marginBottom: '24px' }}>
-                <div style={{ fontSize: '0.65rem', fontWeight: 950, color: '#f59e0b', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '6px' }}>
-                  ДЕТАЛЕЙ У БУФЕРІ
+            <div style={{ maxWidth: '460px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '22px' }}>
+              <div style={{ background: '#8b5cf610', border: '1px solid #8b5cf630', borderRadius: '24px', padding: '24px', textAlign: 'center' }}>
+                <div style={{ fontSize: '0.65rem', fontWeight: 950, color: '#8b5cf6', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: '8px' }}>
+                  🔵 СОРТУВАННЯ — ГОТОВО ДО ВІДПРАВКИ В ЦЕХ №2
                 </div>
                 <div style={{ fontSize: '3.5rem', fontWeight: 1000, color: '#fff', lineHeight: 1 }}>
                   {currentCard.quantity} <small style={{ fontSize: '1.2rem', opacity: 0.3 }}>шт</small>
                 </div>
-                <div style={{ fontSize: '0.72rem', color: '#555', fontWeight: 800, marginTop: '8px', textTransform: 'uppercase' }}>
-                  після етапу: <strong style={{ color: '#fff' }}>{currentCard.operation}</strong>
+                <div style={{ fontSize: '0.7rem', color: '#8b5cf6', marginTop: '8px', fontWeight: 700 }}>
+                  Відскануйте картку для підтвердження сортування
                 </div>
               </div>
 
-              {isGaltBuf ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                  <div style={{ fontSize: '0.85rem', color: '#aaa', fontWeight: 700, marginBottom: '5px' }}>
-                    Ці деталі знаходяться в буфері розкрою. Оберіть пріоритет галтовки перед початком етапу:
-                  </div>
-                  <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
-                    {[1, 2, 3].map(p => {
-                      const colors = { 1: '#ef4444', 2: '#3b82f6', 3: '#10b981' }
-                      const names = { 1: 'ВИСОКИЙ', 2: 'СЕРЕДНІЙ', 3: 'НИЗЬКИЙ' }
-                      const activePri = galtPriority === p
-                      return (
-                        <button
-                          key={p}
-                          onClick={() => setGaltPriority(p)}
-                          style={{
-                            flex: 1,
-                            background: activePri ? colors[p] : '#111',
-                            color: activePri ? '#000' : '#888',
-                            border: `1px solid ${activePri ? colors[p] : '#333'}`,
-                            padding: '12px',
-                            borderRadius: '12px',
-                            fontSize: '0.8rem',
-                            fontWeight: 950,
-                            cursor: 'pointer',
-                            transition: 'all 0.2s'
-                          }}
-                        >
-                          {names[p]}
-                        </button>
-                      )
-                    })}
-                  </div>
-                  <button
-                    onClick={handleStartNext}
-                    disabled={isProcessing}
-                    style={{ ...btnPrimary, height: '64px', fontSize: '1.15rem' }}
-                  >
-                    ▶ ЗАПУСТИТИ ГАЛТОВКУ
-                  </button>
+              <div style={{ background: '#0d0d0d', borderRadius: '20px', padding: '20px', textAlign: 'center', border: '1px solid #ef444422' }}>
+                <label style={{ color: '#ef4444', fontWeight: 900, fontSize: '0.7rem', textTransform: 'uppercase', display: 'block', marginBottom: '12px' }}>
+                  КІЛЬКІСТЬ БРАКУ ПРИ СОРТУВАННІ
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '14px' }}>
+                  <button onClick={() => setScrapCount(v => Math.max(0, v - 1))}
+                    style={{ width: '46px', height: '46px', background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#fff', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}>−</button>
+                  <input type="number" min={0} max={currentCard.quantity - reworkCount} value={scrapCount === 0 ? '' : scrapCount} placeholder="0"
+                    onChange={e => {
+                      const val = e.target.value
+                      setScrapCount(val === '' ? 0 : Math.max(0, Math.min(currentCard.quantity - reworkCount, parseInt(val) || 0)))
+                    }}
+                    style={{ background: 'transparent', border: 'none', color: '#ef4444', fontSize: '3.2rem', width: '90px', textAlign: 'center', fontWeight: 900 }} />
+                  <button onClick={() => setScrapCount(v => Math.min(currentCard.quantity - reworkCount, v + 1))}
+                    style={{ width: '46px', height: '46px', background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#fff', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}>+</button>
                 </div>
-              ) : isSortingBuf ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                    <div>
-                      <label style={labelStyle}>Зміна</label>
-                      <select value={selectedShift} onChange={e => setSelectedShift(e.target.value)} style={selectStyle}>
-                        <option value="">— Оберіть зміну —</option>
-                        <option value="Зміна 1">Зміна 1</option>
-                        <option value="Зміна 2">Зміна 2</option>
-                        <option value="Зміна 3">Зміна 3</option>
-                        <option value="Зміна 4">Зміна 4</option>
-                        <option value="Без зміни">Без зміни</option>
-                      </select>
-                    </div>
+              </div>
 
-                    <div>
-                      <label style={labelStyle}>Оператор сортування</label>
-                      <select value={selectedOperator} onChange={e => setSelectedOperator(e.target.value)} disabled={!selectedShift} style={{ ...selectStyle, opacity: selectedShift ? 1 : 0.5 }}>
-                        <option value="">{selectedShift ? '— Оберіть оператора —' : '— Спочатку оберіть зміну —'}</option>
-                        {getFilteredOperators('Цех №1', selectedShift, 'Сортування').map(o => <option key={o} value={o}>{o}</option>)}
-                      </select>
-                    </div>
+              <div style={{ background: '#0d0d0d', borderRadius: '20px', padding: '20px', textAlign: 'center', border: '1px solid #f59e0b22' }}>
+                <label style={{ color: '#f59e0b', fontWeight: 900, fontSize: '0.7rem', textTransform: 'uppercase', display: 'block', marginBottom: '12px' }}>
+                  КІЛЬКІСТЬ НА ДООПРАЦЮВАННЯ (ДОДАТКОВА КАРТКА)
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '14px' }}>
+                  <button onClick={() => setReworkCount(v => Math.max(0, v - 1))}
+                    style={{ width: '46px', height: '46px', background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#fff', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}>−</button>
+                  <input type="number" min={0} max={currentCard.quantity - scrapCount} value={reworkCount === 0 ? '' : reworkCount} placeholder="0"
+                    onChange={e => {
+                      const val = e.target.value
+                      setReworkCount(val === '' ? 0 : Math.max(0, Math.min(currentCard.quantity - scrapCount, parseInt(val) || 0)))
+                    }}
+                    style={{ background: 'transparent', border: 'none', color: '#f59e0b', fontSize: '3.2rem', width: '90px', textAlign: 'center', fontWeight: 900 }} />
+                  <button onClick={() => setReworkCount(v => Math.min(currentCard.quantity - scrapCount, v + 1))}
+                    style={{ width: '46px', height: '46px', background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#fff', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}>+</button>
+                </div>
+              </div>
+
+              <div style={{ marginBottom: '15px' }}>
+                <label style={labelStyle}>Зміна</label>
+                <select value={selectedShift} onChange={e => setSelectedShift(e.target.value)} style={selectStyle}>
+                  <option value="">— Оберіть зміну —</option>
+                  <option value="Зміна 1">Зміна 1</option>
+                  <option value="Зміна 2">Зміна 2</option>
+                  <option value="Зміна 3">Зміна 3</option>
+                  <option value="Зміна 4">Зміна 4</option>
+                  <option value="Без зміни">Без зміни</option>
+                </select>
+              </div>
+
+              <div style={{ marginBottom: '20px' }}>
+                <label style={labelStyle}>Відповідальний за сортування</label>
+                <select value={selectedOperator} onChange={e => setSelectedOperator(e.target.value)} disabled={!selectedShift} style={{ ...selectStyle, opacity: selectedShift ? 1 : 0.5, cursor: selectedShift ? 'pointer' : 'not-allowed' }}>
+                  <option value="">{selectedShift ? '— Оберіть оператора —' : '— Спочатку оберіть зміну —'}</option>
+                  {getFilteredOperators('Сортування', selectedShift, 'Сортування').map(o => <option key={o} value={o}>{o}</option>)}
+                </select>
+              </div>
+
+              <button onClick={() => setShowSortingModal(true)} disabled={!selectedOperator || !selectedShift || isProcessing}
+                style={{
+                  ...btnPrimary, width: '100%', height: '64px', fontSize: '1.2rem',
+                  opacity: (!selectedOperator || !selectedShift || isProcessing) ? 0.5 : 1
+                }}>
+                🚀 ПІДТВЕРДИТИ СОРТУВАННЯ ({Math.max(0, currentCard.quantity - scrapCount - reworkCount)} шт)
+              </button>
+            </div>
+          )
+        })()}
+
+        {/* ── СТАН: AT-BUFFER ────────────────────────────────────────────── */}
+        {status === 'at-buffer' && currentCard.operation !== 'Сортування' && (() => {
+          const nextOp = next
+          return (
+            <div style={{ maxWidth: '440px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <div style={{ background: '#f59e0b10', border: '1px solid #f59e0b30', borderRadius: '24px', padding: '24px', textAlign: 'center' }}>
+                <div style={{ fontSize: '0.65rem', fontWeight: 950, color: '#f59e0b', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: '8px' }}>
+                  БУФЕР · ОЧІКУЄ {nextOp?.toUpperCase()}
+                </div>
+                <div style={{ fontSize: '3.5rem', fontWeight: 1000, color: '#fff', lineHeight: 1 }}>
+                  {currentCard.quantity} <small style={{ fontSize: '1.2rem', opacity: 0.3 }}>шт</small>
+                </div>
+              </div>
+
+              {nextOp === 'Прийомка' ? (
+                <div className="s1-action-card" style={{ background: '#111', padding: '24px', borderRadius: '20px', border: '1px solid #222' }}>
+                  <div style={{ fontSize: '0.7rem', color: '#10b981', fontWeight: 900, marginBottom: '20px', textTransform: 'uppercase', textAlign: 'center' }}>
+                    📦 ПРИЙНЯТИ НА СКЛАД НФ (ПРИЙОМКА)
                   </div>
-
-                  <button
-                    onClick={handleStartNext}
-                    disabled={!selectedOperator || !selectedShift || isProcessing}
-                    style={{ ...btnPrimary, height: '64px', fontSize: '1.15rem', opacity: (!selectedOperator || !selectedShift || isProcessing) ? 0.5 : 1 }}
-                  >
-                    ▶ ВЗЯТИ НА СОРТУВАННЯ
+                  <div style={{ marginBottom: '15px' }}>
+                    <label style={labelStyle}>Зміна</label>
+                    <select value={selectedShift} onChange={e => setSelectedShift(e.target.value)} style={selectStyle}>
+                      <option value="">— Оберіть зміну —</option>
+                      <option value="Зміна 1">Зміна 1</option>
+                      <option value="Зміна 2">Зміна 2</option>
+                      <option value="Зміна 3">Зміна 3</option>
+                      <option value="Зміна 4">Зміна 4</option>
+                      <option value="Без зміни">Без зміни</option>
+                    </select>
+                  </div>
+                  <div style={{ marginBottom: '20px' }}>
+                    <label style={labelStyle}>Відповідальний за прийомку</label>
+                    <select value={selectedOperator} onChange={e => setSelectedOperator(e.target.value)} disabled={!selectedShift} style={{ ...selectStyle, opacity: selectedShift ? 1 : 0.5, cursor: selectedShift ? 'pointer' : 'not-allowed' }}>
+                      <option value="">{selectedShift ? '— Оберіть оператора —' : '— Спочатку оберіть зміну —'}</option>
+                      {getFilteredOperators('Прийомка', selectedShift, 'Прийомка').map(o => <option key={o} value={o}>{o}</option>)}
+                    </select>
+                  </div>
+                  <button onClick={handleAcceptToStock} disabled={!selectedOperator || !selectedShift || isProcessing}
+                    style={{
+                      background: '#10b981', color: '#fff', border: 'none', width: '100%',
+                      height: '64px', borderRadius: '16px', fontSize: '1.3rem', fontWeight: 1000,
+                      cursor: 'pointer', transition: 'all 0.2s',
+                      boxShadow: '0 10px 30px rgba(16,185,129,0.2)',
+                      opacity: (!selectedOperator || isProcessing) ? 0.5 : 1
+                    }}>
+                    ✅ ВІДПРАВИТИ В ПРИЙОМКУ
                   </button>
+                  <div style={{ textAlign: 'center', marginTop: '14px', fontSize: '0.65rem', color: '#444', fontWeight: 600 }}>
+                    Картка перейде в Прийомку, де її відсканують для взяття в роботу на Сортування
+                  </div>
                 </div>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                  {next === 'Прийомка' ? (
-                    <button
-                      onClick={handleStartNext}
-                      disabled={isProcessing}
-                      style={{ ...btnGreen, height: '64px', fontSize: '1.15rem' }}
-                    >
-                      ✓ ПРИЙНЯТИ НА СКЛАД
-                    </button>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                        <div>
-                          <label style={labelStyle}>Зміна</label>
-                          <select value={selectedShift} onChange={e => setSelectedShift(e.target.value)} style={selectStyle}>
-                            <option value="">— Оберіть зміну —</option>
-                            <option value="Зміна 1">Зміна 1</option>
-                            <option value="Зміна 2">Зміна 2</option>
-                            <option value="Зміна 3">Зміна 3</option>
-                            <option value="Зміна 4">Зміна 4</option>
-                            <option value="Без зміни">Без зміни</option>
-                          </select>
-                        </div>
+                <div className="s1-action-card" style={{ background: '#111', padding: '24px', borderRadius: '20px', border: '1px solid #222' }}>
+                  <div style={{ fontSize: '0.7rem', color: '#555', fontWeight: 800, marginBottom: '20px', textTransform: 'uppercase', textAlign: 'center' }}>
+                    НАСТУПНИЙ ЕТАП: <span style={{ color: '#f59e0b' }}>{nextOp}</span>
+                  </div>
 
-                        <div>
-                          <label style={labelStyle}>Відповідальний оператор</label>
-                          <select value={selectedOperator} onChange={e => setSelectedOperator(e.target.value)} disabled={!selectedShift} style={{ ...selectStyle, opacity: selectedShift ? 1 : 0.5 }}>
-                            <option value="">{selectedShift ? '— Оберіть оператора —' : '— Спочатку оберіть зміну —'}</option>
-                            {getFilteredOperators('Цех №1', selectedShift, next).map(o => <option key={o} value={o}>{o}</option>)}
-                          </select>
-                        </div>
-                      </div>
+                  <div style={{ marginBottom: '15px' }}>
+                    <label style={labelStyle}>Зміна</label>
+                    <select value={selectedShift} onChange={e => setSelectedShift(e.target.value)} style={selectStyle}>
+                      <option value="">— Оберіть зміну —</option>
+                      <option value="Зміна 1">Зміна 1</option>
+                      <option value="Зміна 2">Зміна 2</option>
+                      <option value="Зміна 3">Зміна 3</option>
+                      <option value="Зміна 4">Зміна 4</option>
+                      <option value="Без зміни">Без зміни</option>
+                    </select>
+                  </div>
 
-                      <button
-                        onClick={handleStartNext}
-                        disabled={!selectedOperator || !selectedShift || isProcessing}
-                        style={{ ...btnPrimary, height: '64px', fontSize: '1.15rem', opacity: (!selectedOperator || !selectedShift || isProcessing) ? 0.5 : 1 }}
-                      >
-                        ▶ ЗАПУСТИТИ НАСТУПНИЙ ЕТАП ({next})
-                      </button>
+                  {!nextOp?.startsWith('Галтовка') && (
+                    <div style={{ marginBottom: '20px' }}>
+                      <label style={labelStyle}>Відповідальний за {nextOp}</label>
+                      <select value={selectedOperator} onChange={e => setSelectedOperator(e.target.value)} disabled={!selectedShift} style={{ ...selectStyle, opacity: selectedShift ? 1 : 0.5, cursor: selectedShift ? 'pointer' : 'not-allowed' }}>
+                        <option value="">{selectedShift ? '— Оберіть оператора —' : '— Спочатку оберіть зміну —'}</option>
+                        {getFilteredOperators('Цех №1', selectedShift, nextOp).map(o => <option key={o} value={o}>{o}</option>)}
+                      </select>
                     </div>
                   )}
+
+                  <button onClick={handleStartNext} disabled={((nextOp?.startsWith('Галтовка') ? !selectedShift : !selectedOperator) || isProcessing)}
+                    style={{
+                      ...btnGreen, width: '100%', height: '64px', fontSize: '1.2rem',
+                      opacity: ((nextOp?.startsWith('Галтовка') ? !selectedShift : !selectedOperator) || isProcessing) ? 0.5 : 1
+                    }}>
+                    ▶ ВЗЯТИ В {nextOp?.toUpperCase()}
+                  </button>
                 </div>
               )}
             </div>
           )
         })()}
+
       </div>
     </div>
   )

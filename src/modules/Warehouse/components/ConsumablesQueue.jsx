@@ -48,7 +48,7 @@ export const ConsumablesQueue = ({
   if (Object.keys(groupedRequests).length === 0) return null
 
   return (
-    <div className="content-card glass-panel" style={{ borderLeft: '4px solid #ff9000', marginBottom: '30px', padding: '20px' }}>
+    <div className="content-card glass-panel consumables-queue-container" style={{ borderLeft: '4px solid #ff9000', marginBottom: '30px', padding: '20px' }}>
       <h3 style={{ fontSize: '0.8rem', color: '#ff9000', marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '8px' }}>
         <Bell size={16} /> ЗАЯВКИ НА КОМПЛЕКТАЦІЮ
       </h3>
@@ -60,7 +60,6 @@ export const ConsumablesQueue = ({
           const orderId = firstReq.order_id
           const taskId = firstReq.task_id
 
-          // card-specific reissue group?
           const isCardGroup = key.startsWith('card-')
           const reissueCard = isCardGroup
             ? (workCards || []).find(c => String(c.id) === String(firstReq.card_id))
@@ -166,7 +165,6 @@ export const ConsumablesQueue = ({
             btnLabel = isAllIssued ? 'ПІДТВЕРДИТИ ВИДАЧУ' : 'ВИДАТИ'
             isAwaiting = false 
           } else if (availableItems.length > 0) {
-            // Partial issuance ("Жовте світло") - allow issuing items that are in stock!
             btnLabel = 'ВИДАТИ ЧАСТКОВО'
             isAwaiting = false
           } else if ((isPartiallyIssued || allRemainingArePreparedSheets) && allMissingArePreparedSheets) {
@@ -189,13 +187,13 @@ export const ConsumablesQueue = ({
             isAwaiting = false
           }
 
-          const btnColor = isAwaiting ? '#1a1a1a' : (btnLabel === 'ПРИЙОМКА' ? '#0ea5e9' : '#ff9000')
-          const textColor = isAwaiting ? '#444' : '#000'
+          const btnColor = isAwaiting ? undefined : (btnLabel === 'ПРИЙОМКА' ? '#0ea5e9' : '#ff9000')
+          const textColor = isAwaiting ? undefined : '#000'
 
           return (
-            <div key={key} style={{ minWidth: '300px', background: '#111', padding: '15px', borderRadius: '15px', border: isCardGroup ? '1px solid #333' : '1px solid #222' }}>
+            <div key={key} className="consumable-card" style={{ minWidth: '300px', padding: '15px', borderRadius: '15px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                <strong style={{ fontSize: '0.75rem', color: isCardGroup ? '#f59e0b' : '#fff' }}>{cardLabel}</strong>
+                <strong className="consumable-card-title" style={{ fontSize: '0.75rem', color: isCardGroup ? '#f59e0b' : undefined }}>{cardLabel}</strong>
                 {currentUser?.login === 'admin@workshop.local' && (
                   <button
                     type="button"
@@ -236,12 +234,11 @@ export const ConsumablesQueue = ({
                     const isEditing = editingQty.hasOwnProperty(r.id)
                     const isSaving = savingQty.has(r.id)
                     return (
-                      <li key={r.id} style={{
+                      <li key={r.id} className="consumable-item-row" style={{
                         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                        fontSize: '0.78rem', color: '#888', padding: '4px 0',
-                        borderBottom: '1px solid #1a1a1a'
+                        fontSize: '0.78rem', padding: '4px 0'
                       }}>
-                        <span style={{ flex: 1, marginRight: '8px' }}>
+                        <span className="consumable-item-name" style={{ flex: 1, marginRight: '8px' }}>
                           {displayName}
                           {nom?.description &&
                             !normalize(displayName).includes(normalize(nom.description)) &&
@@ -267,9 +264,10 @@ export const ConsumablesQueue = ({
                               onChange={e => setEditingQty(prev => ({ ...prev, [r.id]: e.target.value }))}
                               onKeyDown={e => { if (e.key === 'Enter') handleSaveConsumableQty(r.id); if (e.key === 'Escape') setEditingQty(prev => { const n={...prev}; delete n[r.id]; return n }) }}
                               autoFocus
+                              className="consumable-input"
                               style={{
-                                width: '60px', background: '#000', border: '1px solid #ff9000',
-                                color: '#fff', borderRadius: '5px', padding: '3px 6px',
+                                width: '60px',
+                                borderRadius: '5px', padding: '3px 6px',
                                 fontSize: '0.78rem', outline: 'none'
                               }}
                             />
@@ -284,7 +282,7 @@ export const ConsumablesQueue = ({
                           </span>
                         ) : (
                           <span style={{ display: 'flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap' }}>
-                            <strong style={{ color: isConsumable ? '#f59e0b' : '#aaa' }}>{r.quantity} од.</strong>
+                            <strong style={{ color: isConsumable ? '#f59e0b' : undefined }}>{r.quantity} од.</strong>
                             {isConsumable && currentUser?.position === 'Адмін' && (
                               <button
                                 onClick={() => setEditingQty(prev => ({ ...prev, [r.id]: String(r.quantity) }))}
@@ -330,10 +328,10 @@ export const ConsumablesQueue = ({
                     handleReserveOrder(taskId, orderId, displayNum, actionableReqs)
                   }
                 }}
+                className={`consumable-action-btn ${isAwaiting ? 'awaiting' : ''}`}
                 style={{
                   width: '100%', padding: '12px',
                   background: btnColor, color: textColor,
-                  border: isAwaiting ? '1px solid #222' : 'none',
                   borderRadius: '10px', fontWeight: 900,
                   cursor: (isAwaiting || processingTasks.has(taskId)) ? 'not-allowed' : 'pointer',
                   fontSize: '0.8rem', textTransform: 'uppercase',

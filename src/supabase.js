@@ -1,10 +1,11 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = 'https://hurzutjytlcvtbvihnry.supabase.co'
-export const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh1cnp1dGp5dGxjdnRidmlobnJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQwMjc4NzksImV4cCI6MjA4OTYwMzg3OX0.0GETYIfUpEDVcpcMoZcAe3dLXtiafNNE1eegbbK1XUI'
+export const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://centrum-gateway.brandzilla-com-ua.workers.dev'
+export const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh1cnp1dGp5dGxjdnRidmlobnJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQwMjc4NzksImV4cCI6MjA4OTYwMzg3OX0.0GETYIfUpEDVcpcMoZcAe3dLXtiafNNE1eegbbK1XUI'
 
 const SUPABASE_READ_CONCURRENCY = 6
 const SUPABASE_READ_TIMEOUT_MS = 30 * 1000
+const SUPABASE_WRITE_TIMEOUT_MS = 15 * 1000
 const SUPABASE_READ_ONLY_RPCS = new Set([
   'chat_unread_counts',
   'mes_fulfillment_queue',
@@ -55,9 +56,11 @@ const trackedSupabaseFetch = async (...args) => {
     || (requestMethod === 'POST' && SUPABASE_READ_ONLY_RPCS.has(rpcName))
   let releaseReadSlot = () => {}
   let readTimeout = null
+  let writeTimeout = null
   let detachCallerAbort = null
   let fetchArgs = args
   let readAbortController = null
+  let writeAbortController = null
 
   if (isReadRequest) {
     readAbortController = new AbortController()
@@ -88,6 +91,37 @@ const trackedSupabaseFetch = async (...args) => {
     fetchArgs = [args[0], {
       ...(args[1] || {}),
       signal: readAbortController.signal
+    }]
+  } else {
+    // Write requests (mutations) have a safe 15s timeout to prevent infinite hangs during network dropouts
+    writeAbortController = new AbortController()
+    const callerAbortSignal = args[1]?.signal || args[0]?.signal || null
+
+    const abortFromCaller = () => {
+      if (!writeAbortController.signal.aborted) {
+        writeAbortController.abort(callerAbortSignal?.reason)
+      }
+    }
+
+    if (callerAbortSignal?.aborted) {
+      abortFromCaller()
+    } else if (callerAbortSignal) {
+      callerAbortSignal.addEventListener('abort', abortFromCaller, { once: true })
+      detachCallerAbort = () => callerAbortSignal.removeEventListener('abort', abortFromCaller)
+    }
+
+    writeTimeout = setTimeout(() => {
+      if (!writeAbortController.signal.aborted) {
+        writeAbortController.abort(new DOMException(
+          `Supabase write timed out after ${SUPABASE_WRITE_TIMEOUT_MS}ms`,
+          'TimeoutError'
+        ))
+      }
+    }, SUPABASE_WRITE_TIMEOUT_MS)
+
+    fetchArgs = [args[0], {
+      ...(args[1] || {}),
+      signal: writeAbortController.signal
     }]
   }
 
@@ -126,6 +160,7 @@ const trackedSupabaseFetch = async (...args) => {
     throw error
   } finally {
     if (readTimeout) clearTimeout(readTimeout)
+    if (writeTimeout) clearTimeout(writeTimeout)
     if (detachCallerAbort) detachCallerAbort()
     health.active = Math.max(0, health.active - 1)
     releaseReadSlot()
@@ -179,14 +214,14 @@ export const rawSupabase = createClient(supabaseUrl, supabaseAnonKey, {
   global: {
     fetch: trackedSupabaseFetch,
     headers: {
-      'x-mes-secret': 'CentrumMES2026SecretKey_a9f8'
+      'x-mes-secret': import.meta.env.VITE_MES_SECRET || 'CentrumMES2026SecretKey_a9f8'
     }
   },
   realtime: {
     // Keep heartbeat timers alive when a terminal/browser tab is backgrounded.
     // Without the worker browsers may throttle timers and leave the UI looking
     // connected while the websocket has already gone stale.
-    worker: true,
+    worker: typeof window !== 'undefined' && typeof window.Worker !== 'undefined',
     heartbeatCallback: (status, latency) => {
       if (typeof window === 'undefined') return
 
@@ -203,39 +238,68 @@ export const rawSupabase = createClient(supabaseUrl, supabaseAnonKey, {
 })
 
 // Sync time drift and patch Date globally to use synchronized time
-const OriginalDate = window.Date;
+const OriginalDate = typeof window !== 'undefined' ? window.Date : (typeof globalThis !== 'undefined' ? globalThis.Date : Date);
 
-// Global time drift tracking
-window.timeDrift = window.timeDrift || 0;
+if (typeof window !== 'undefined') {
+  window.timeDrift = window.timeDrift || 0;
+}
 
 const PatchedDate = function(...args) {
+  const drift = (typeof window !== 'undefined' && window.timeDrift) || 0;
   if (!(this instanceof PatchedDate)) {
-    return new OriginalDate(OriginalDate.now() + (window.timeDrift || 0)).toString();
+    return new OriginalDate(OriginalDate.now() + drift).toString();
   }
   if (args.length === 0) {
-    return new OriginalDate(OriginalDate.now() + (window.timeDrift || 0));
+    return new OriginalDate(OriginalDate.now() + drift);
   }
   return new OriginalDate(...args);
 };
 
 PatchedDate.prototype = OriginalDate.prototype;
 PatchedDate.now = function () {
-  return OriginalDate.now() + (window.timeDrift || 0);
+  const drift = (typeof window !== 'undefined' && window.timeDrift) || 0;
+  return OriginalDate.now() + drift;
 };
 
 if (OriginalDate.parse) PatchedDate.parse = OriginalDate.parse;
 if (OriginalDate.UTC) PatchedDate.UTC = OriginalDate.UTC;
 
-window.Date = PatchedDate;
+if (typeof window !== 'undefined') {
+  window.Date = PatchedDate;
+}
 
 export function getCurrentTime() {
   return new PatchedDate();
 }
-window.getCurrentTime = getCurrentTime;
+if (typeof window !== 'undefined') {
+  window.getCurrentTime = getCurrentTime;
+}
 
 // Sync time immediately on load and every 5 minutes
 async function syncTimeDrift() {
-  // 1. Try same-origin first (highly reliable in browser, bypasses cross-origin CORS limitations)
+  // 1. Primary: Supabase REST date header (authoritative backend server time, zero 3rd-party latency)
+  try {
+    const start = OriginalDate.now();
+    const response = await fetch(`${supabaseUrl}/auth/v1/health`, {
+      method: 'GET',
+      headers: {
+        'apikey': supabaseAnonKey,
+        'Authorization': `Bearer ${supabaseAnonKey}`
+      }
+    });
+    const serverDate = response.headers.get('date');
+    if (serverDate) {
+      const serverTimeMs = new OriginalDate(serverDate).getTime();
+      const latency = (OriginalDate.now() - start) / 2;
+      window.timeDrift = (serverTimeMs + latency) - OriginalDate.now();
+      console.log('[Time Sync] Server drift synchronized via Supabase header:', window.timeDrift, 'ms');
+      return;
+    }
+  } catch (e) {
+    console.warn('[Time Sync] Supabase server time sync warning:', e?.message || e);
+  }
+
+  // 2. Fallback: Try same-origin header in production browser
   if (typeof window !== 'undefined' && window.location && window.location.origin) {
     try {
       const start = OriginalDate.now();
@@ -255,63 +319,15 @@ async function syncTimeDrift() {
       console.warn('[Time Sync] Same-origin sync failed:', e);
     }
   }
-
-  // 2. Fallback: Try UTC-based time APIs (parse strictly as UTC to avoid local timezone offset shifts)
-  const apis = [
-    {
-      url: 'https://worldtimeapi.org/api/timezone/Etc/UTC',
-      parse: (json) => json.unixtime * 1000
-    },
-    {
-      url: 'https://timeapi.io/api/Time/current/zone?timeZone=UTC',
-      parse: (json) => new OriginalDate(json.dateTime + 'Z').getTime()
-    }
-  ];
-
-  for (const api of apis) {
-    try {
-      const start = OriginalDate.now();
-      const response = await fetch(api.url);
-      if (!response.ok) continue;
-      const json = await response.json();
-      const serverTimeMs = api.parse(json);
-      if (serverTimeMs) {
-        const latency = (OriginalDate.now() - start) / 2;
-        window.timeDrift = (serverTimeMs + latency) - OriginalDate.now();
-        console.log('[Time Sync] Server drift synchronized via UTC API:', window.timeDrift, 'ms');
-        return;
-      }
-    } catch (e) {
-      console.warn('[Time Sync] API sync failed:', api.url, e);
-    }
-  }
-
-  // 3. Fallback: Try Supabase date header (last resort)
-  try {
-    const start = OriginalDate.now();
-    const response = await fetch(`${supabaseUrl}/rest/v1/`, {
-      method: 'GET',
-      headers: {
-        'apikey': supabaseAnonKey
-      }
-    });
-    const serverDate = response.headers.get('date');
-    if (serverDate) {
-      const serverTimeMs = new OriginalDate(serverDate).getTime();
-      const latency = (OriginalDate.now() - start) / 2;
-      window.timeDrift = (serverTimeMs + latency) - OriginalDate.now();
-      console.log('[Time Sync] Server drift synchronized via Supabase header:', window.timeDrift, 'ms');
-    }
-  } catch (e) {
-    console.warn('[Time Sync] Failed to sync time drift:', e);
-  }
 }
 
 syncTimeDrift();
 setInterval(syncTimeDrift, 5 * 60 * 1000);
 
 // Global set to keep track of record IDs created/updated by this client session
-window.myConfirmedWrites = window.myConfirmedWrites || new Set()
+if (typeof window !== 'undefined') {
+  window.myConfirmedWrites = window.myConfirmedWrites || new Set()
+}
 
 function generateUUID() {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {

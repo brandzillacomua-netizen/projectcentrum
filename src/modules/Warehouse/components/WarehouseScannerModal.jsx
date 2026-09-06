@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react'
 import { QrCode, X } from 'lucide-react'
+import { triggerHapticAudioFeedback } from '../../../services/scannerDebounceGuard'
 
 export function WarehouseScannerModal({
   isScanning, setIsScanning,
@@ -32,6 +33,7 @@ export function WarehouseScannerModal({
             if (cardId.startsWith('CENTRUM_CARD_')) {
               cardId = cardId.replace('CENTRUM_CARD_', '').trim()
             }
+            triggerHapticAudioFeedback(true)
             if (html5QrCode && html5QrCode.isScanning) {
               await html5QrCode.stop().catch(() => {})
               html5QrCode = null
@@ -85,6 +87,7 @@ export function WarehouseScannerModal({
                 onKeyDown={e => {
                   if (e.key === 'Enter' && manualCardInput.trim()) {
                     setIsScanning(false)
+                    triggerHapticAudioFeedback(true)
                     handleCardScan(manualCardInput.trim())
                   }
                 }}
@@ -93,7 +96,13 @@ export function WarehouseScannerModal({
                 autoFocus
               />
               <button
-                onClick={() => { if (manualCardInput.trim()) { setIsScanning(false); handleCardScan(manualCardInput.trim()) } }}
+                onClick={() => { 
+                  if (manualCardInput.trim()) { 
+                    setIsScanning(false); 
+                    triggerHapticAudioFeedback(true);
+                    handleCardScan(manualCardInput.trim()) 
+                  } 
+                }}
                 style={{ padding: '10px 16px', background: '#ff9000', color: '#000', border: 'none', borderRadius: '10px', fontWeight: 900, cursor: 'pointer', fontSize: '0.85rem' }}
               >
                 OK

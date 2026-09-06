@@ -1,4 +1,5 @@
 import React from 'react'
+import { sentryLogger } from '../services/sentryLogger'
 
 const STATUS_META = {
   offline: {
@@ -16,7 +17,7 @@ const STATUS_META = {
 export class AppErrorBoundary extends React.Component {
   constructor(props) {
     super(props)
-    this.state = { error: null }
+    this.state = { error: null, errorInfo: null, showDetails: false }
   }
 
   static getDerivedStateFromError(error) {
@@ -24,32 +25,153 @@ export class AppErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    console.error('[AppErrorBoundary] Unhandled render error:', error, errorInfo)
+    this.setState({ errorInfo })
+    sentryLogger.captureException(error, errorInfo, { source: 'AppErrorBoundary' })
   }
 
   handleReload = () => {
     window.location.reload()
   }
 
+  handleSoftReset = () => {
+    this.setState({ error: null, errorInfo: null })
+  }
+
+  toggleDetails = () => {
+    this.setState(prev => ({ showDetails: !prev.showDetails }))
+  }
+
   render() {
     if (!this.state.error) return this.props.children
 
     return (
-      <main style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 24, background: '#f8fafc' }}>
-        <section style={{ width: 'min(560px, 100%)', padding: 28, borderRadius: 16, background: '#fff', boxShadow: '0 16px 45px rgba(15, 23, 42, 0.14)' }}>
-          <h1 style={{ margin: '0 0 12px', fontSize: 24, color: '#0f172a' }}>Інтерфейс тимчасово зупинився</h1>
-          <p style={{ margin: '0 0 20px', lineHeight: 1.5, color: '#475569' }}>
-            Дані в базі не втрачено. Перезавантажте застосунок, щоб відновити роботу.
+      <main style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 24, background: '#090d16', color: '#f8fafc', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+        <section style={{ width: 'min(620px, 100%)', padding: 32, borderRadius: 20, background: '#111827', border: '1px solid rgba(239, 68, 68, 0.3)', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 18 }}>
+            <div style={{ width: 44, height: 44, borderRadius: 12, background: 'rgba(239, 68, 68, 0.15)', display: 'grid', placeItems: 'center', color: '#ef4444', fontSize: 24 }}>
+              ⚠️
+            </div>
+            <div>
+              <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: '#f8fafc' }}>Інтерфейс терміналу зупинився</h1>
+              <p style={{ margin: '4px 0 0', fontSize: 13, color: '#94a3b8' }}>Зафіксовано необроблену виняткову ситуацію JavaScript</p>
+            </div>
+          </div>
+
+          <p style={{ margin: '0 0 20px', lineHeight: 1.6, color: '#cbd5e1', fontSize: 14 }}>
+            Дані цеху та збережені операції в базі Supabase <strong>не втрачено</strong>. Ви можете відновити робочий екран або перезавантажити сторінку терміналу.
           </p>
-          <button
-            type="button"
-            onClick={this.handleReload}
-            style={{ border: 0, borderRadius: 10, padding: '11px 18px', color: '#fff', background: '#0f766e', cursor: 'pointer', fontWeight: 700 }}
-          >
-            Перезавантажити
-          </button>
+
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 20 }}>
+            <button
+              type="button"
+              onClick={this.handleSoftReset}
+              style={{ border: 0, borderRadius: 10, padding: '12px 22px', color: '#fff', background: '#2563eb', cursor: 'pointer', fontWeight: 800, fontSize: 14, boxShadow: '0 4px 14px rgba(37, 99, 235, 0.4)' }}
+            >
+              Відновити робоче місце
+            </button>
+            <button
+              type="button"
+              onClick={this.handleReload}
+              style={{ border: '1px solid rgba(255, 255, 255, 0.2)', borderRadius: 10, padding: '12px 22px', color: '#e2e8f0', background: 'transparent', cursor: 'pointer', fontWeight: 700, fontSize: 14 }}
+            >
+              Перезавантажити термінал
+            </button>
+            <button
+              type="button"
+              onClick={this.toggleDetails}
+              style={{ border: 0, borderRadius: 10, padding: '12px 16px', color: '#94a3b8', background: 'rgba(255,255,255,0.05)', cursor: 'pointer', fontWeight: 600, fontSize: 13, marginLeft: 'auto' }}
+            >
+              {this.state.showDetails ? 'Сховати деталі' : 'Технічні деталі'}
+            </button>
+          </div>
+
+          {this.state.showDetails && (
+            <div style={{ padding: 16, borderRadius: 12, background: '#030712', border: '1px solid #1f2937', fontSize: 12, color: '#f87171', fontFamily: 'monospace', overflowX: 'auto', maxHeight: 200 }}>
+              <strong>{this.state.error?.name}: {this.state.error?.message}</strong>
+              <pre style={{ margin: '8px 0 0', whiteSpace: 'pre-wrap', color: '#94a3b8', fontSize: 11 }}>
+                {this.state.error?.stack}
+              </pre>
+            </div>
+          )}
         </section>
       </main>
+    )
+  }
+}
+
+export class ModuleErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props)
+    this.state = { error: null, errorInfo: null }
+  }
+
+  static getDerivedStateFromError(error) {
+    return { error }
+  }
+
+  componentDidCatch(error, errorInfo) {
+    this.setState({ errorInfo })
+    sentryLogger.captureException(error, errorInfo, { source: 'ModuleErrorBoundary', moduleName: this.props.moduleName })
+  }
+
+  handleReset = () => {
+    this.setState({ error: null, errorInfo: null })
+  }
+
+  render() {
+    if (!this.state.error) return this.props.children
+
+    return (
+      <div style={{
+        padding: '24px',
+        margin: '24px auto',
+        maxWidth: '680px',
+        borderRadius: '16px',
+        border: '1px solid rgba(239, 68, 68, 0.3)',
+        background: 'rgba(17, 24, 39, 0.95)',
+        color: '#f8fafc',
+        boxShadow: '0 12px 32px rgba(0, 0, 0, 0.4)',
+        textAlign: 'center'
+      }}>
+        <h3 style={{ margin: '0 0 10px', fontSize: '1.2rem', color: '#ef4444', fontWeight: 800 }}>
+          Виникла помилка у модулі {this.props.moduleName ? `«${this.props.moduleName}»` : ''}
+        </h3>
+        <p style={{ margin: '0 0 18px', fontSize: '0.9rem', color: '#94a3b8', lineHeight: 1.5 }}>
+          {this.state.error?.message || 'Помилка виконання JavaScript у цьому компоненті.'}
+        </p>
+        <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+          <button
+            type="button"
+            onClick={this.handleReset}
+            style={{
+              border: 0,
+              borderRadius: '8px',
+              padding: '10px 20px',
+              color: '#fff',
+              background: '#2563eb',
+              cursor: 'pointer',
+              fontWeight: 800
+            }}
+          >
+            Спробувати знову
+          </button>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            style={{
+              border: '1px solid rgba(255,255,255,0.2)',
+              borderRadius: '8px',
+              padding: '10px 20px',
+              color: '#94a3b8',
+              background: 'transparent',
+              cursor: 'pointer',
+              fontWeight: 700
+            }}
+          >
+            Перезавантажити сторінку
+          </button>
+        </div>
+      </div>
     )
   }
 }

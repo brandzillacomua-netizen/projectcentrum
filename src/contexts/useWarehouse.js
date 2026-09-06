@@ -1,6 +1,5 @@
 import { supabase } from '../supabase'
 import { getRequestSheetSpec, inventoryMatchesRequest } from '../modules/Warehouse/utils/materialInventoryMatching.js'
-import { isRequestForCard } from '../utils/materialCardMatching.js'
 
 /**
  * Warehouse / Supply chain actions
@@ -503,37 +502,16 @@ export function createWarehouseActions({
       if (taskIdToCheck) {
         const { data: pendingReqs } = await supabase
           .from('material_requests')
-          .select('*')
+          .select('id')
           .eq('task_id', taskIdToCheck)
           .eq('status', 'pending')
         
-        if (!pendingReqs || pendingReqs.length === 0) {
+         if (!pendingReqs || pendingReqs.length === 0) {
           await supabase
             .from('work_cards')
             .update({ status: 'new' })
             .eq('task_id', taskIdToCheck)
             .in('status', ['waiting-materials', 'waiting-cutters'])
-        } else {
-          // If some requests in the task are still pending (e.g. another part's sheets),
-          // check if any specific cards or parts have NO pending requests and can be activated.
-          const { data: waitingCards } = await supabase
-            .from('work_cards')
-            .select('*')
-            .eq('task_id', taskIdToCheck)
-            .in('status', ['waiting-materials', 'waiting-cutters'])
-
-          const parentTask = (tasks || []).find(t => String(t.id) === String(taskIdToCheck))
-          const cardsToActivate = (waitingCards || []).filter(c => {
-            const cardPending = pendingReqs.filter(r => isRequestForCard(r, c, parentTask, nomenclatures))
-            return cardPending.length === 0
-          })
-
-          if (cardsToActivate.length > 0) {
-            await supabase
-              .from('work_cards')
-              .update({ status: 'new' })
-              .in('id', cardsToActivate.map(c => c.id))
-          }
         }
       }
     } catch (err) {
@@ -779,7 +757,7 @@ export function createWarehouseActions({
         try {
           const { data: allPending } = await supabase
             .from('material_requests')
-            .select('*')
+            .select('id, task_id, card_id')
             .in('task_id', uniqueTaskIds)
             .eq('status', 'pending')
 
@@ -796,30 +774,6 @@ export function createWarehouseActions({
                 .eq('task_id', tId)
                 .in('status', ['waiting-materials', 'waiting-cutters'])
             ))
-          }
-
-          // For tasks with some pending requests (e.g. multi-part tasks where one part is pending),
-          // check if cards belonging to ready parts can be activated.
-          const partialTasks = uniqueTaskIds.filter(tId => pendingTaskIds.has(tId))
-          if (partialTasks.length > 0) {
-            const { data: waitingCards } = await supabase
-              .from('work_cards')
-              .select('*')
-              .in('task_id', partialTasks)
-              .in('status', ['waiting-materials', 'waiting-cutters'])
-
-            const cardsToActivate = (waitingCards || []).filter(c => {
-              const parentTask = (tasks || []).find(t => String(t.id) === String(c.task_id))
-              const cardPending = (allPending || []).filter(r => isRequestForCard(r, c, parentTask, nomenclatures))
-              return cardPending.length === 0
-            })
-
-            if (cardsToActivate.length > 0) {
-              await supabase
-                .from('work_cards')
-                .update({ status: 'new' })
-                .in('id', cardsToActivate.map(c => c.id))
-            }
           }
 
           const uniqueCardIds = [...new Set(relevantRequests.map(r => r.card_id).filter(Boolean))]

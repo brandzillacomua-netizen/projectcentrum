@@ -1,33 +1,15 @@
 import React, { useState, useMemo, useEffect } from 'react'
-import {
-  Warehouse as WarehouseIcon,
-  ArrowLeft,
-  Package,
-  Plus,
-  Truck,
-  Layers,
-  Archive,
-  AlertTriangle,
-  Search,
-  History,
-  Pencil,
-  Trash2,
-  Check,
-  X,
-  FolderOpen,
-  QrCode,
-  CheckCircle2
-} from 'lucide-react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Warehouse as WarehouseIcon, Package, FolderOpen, History, Plus, Search } from 'lucide-react'
+import { useSearchParams } from 'react-router-dom'
 import { useMES } from '../MESContext'
 import { supabase } from '../supabase'
-import { IconSO, IconSGP } from '../components/WarehouseIcons'
 
 // Hooks
 import { getMaterialType, useWarehouseComputed } from './Warehouse/hooks/useWarehouseComputed'
 import { useWarehouseHandlers } from './Warehouse/hooks/useWarehouseHandlers'
+import { useManualInventoryIssue } from './Warehouse/ManualIssue/useManualInventoryIssue'
 
-// Components
+// Existing Modals & Views
 import { ScannerPanel } from './Warehouse/components/ScannerPanel'
 import { ShortageModal } from './Warehouse/components/ShortageModal'
 import { MaterialDetailModal } from './Warehouse/components/MaterialDetailModal'
@@ -36,26 +18,30 @@ import { ConsumablesQueue } from './Warehouse/components/ConsumablesQueue'
 import { BoxesView } from './Warehouse/components/BoxesView'
 import { RegistryView } from './Warehouse/components/RegistryView'
 import { ReserveAnalysisModal } from './Warehouse/components/ReserveAnalysisModal'
-import { useManualInventoryIssue } from './Warehouse/ManualIssue/useManualInventoryIssue'
-import { ManualInventoryIssueUI, ManualIssueJournalButton } from './Warehouse/ManualIssue/ManualInventoryIssueUI'
+import { ManualInventoryIssueUI } from './Warehouse/ManualIssue/ManualInventoryIssueUI'
+
+// Extracted Sub-components
+import { WarehouseHeaderNav } from './Warehouse/components/WarehouseHeaderNav.jsx'
+import { WarehousePendingReceptionBanner } from './Warehouse/components/WarehousePendingReceptionBanner.jsx'
+import { WarehouseReceptionPanel } from './Warehouse/components/WarehouseReceptionPanel.jsx'
+import { WarehouseTabsBar } from './Warehouse/components/WarehouseTabsBar.jsx'
+import { WarehouseCategoryFoldersBar } from './Warehouse/components/WarehouseCategoryFoldersBar.jsx'
+import { WarehouseAddInventoryForm } from './Warehouse/components/WarehouseAddInventoryForm.jsx'
+import { WarehouseInventoryTable } from './Warehouse/components/WarehouseInventoryTable.jsx'
+import { WarehouseFloatingControls } from './Warehouse/components/WarehouseFloatingControls.jsx'
+import { WarehouseDeleteConfirmModal } from './Warehouse/components/modals/WarehouseDeleteConfirmModal.jsx'
 
 const WarehouseModuleV2 = () => {
   const [searchParams, setSearchParams] = useSearchParams()
   const {
-    inventory, requests, issueMaterials, issueMaterialsBatch,
-    nomenclatures, receptionDocs, confirmReception,
+    inventory, requests, receptionDocs, confirmReception,
     orders, tasks, approveWarehouse, createPurchaseRequest,
-    purchaseRequests, receiveInventory, currentUser, fetchModuleData,
-    fetchData, managers, refreshTable, machineOperations, workCards
+    purchaseRequests, currentUser, fetchData, managers, refreshTable, machineOperations, workCards
   } = useMES()
 
   // Load warehouse-specific data on mount
   useEffect(() => { 
     if (typeof fetchData === 'function') {
-      // Critical/global data is already restored by useData + IndexedDB and
-      // kept current via realtime. Re-fetching every large table here caused a
-      // multi-second main-thread stall on each warehouse entry. Only reception
-      // documents are latency-sensitive for this screen.
       fetchData(['reception_docs'])
     }
   }, [])
@@ -101,26 +87,22 @@ const WarehouseModuleV2 = () => {
   const [scannedCard, setScannedCard] = useState(null)
   const [scannedRequests, setScannedRequests] = useState([])
   const [kittingBoxItem, setKittingBoxItem] = useState(null)
-  const [isIssuingCard, setIsIssuingCard] = useState(false)
+  const [isIssuingCard] = useState(false)
   const [cameraError, setCameraError] = useState(null)
   const [manualCardInput, setManualCardInput] = useState('')
   const [manualSearchInput, setManualSearchInput] = useState('')
   const [reserveAnalysisItem, setReserveAnalysisItem] = useState(null)
-
-  const itemsPerPage = 8
-  const [currentPage, setCurrentPage] = useState(1)
 
   // Computed values
   const {
     cardsWithBoxes,
     filteredInventory,
     groupedPocketInventory,
-    pendingRequests,
     groupedRequests
   } = useWarehouseComputed({
     inventory,
     requests,
-    nomenclatures,
+    nomenclatures: useMES().nomenclatures,
     receptionDocs,
     tasks,
     workCards,
@@ -129,6 +111,8 @@ const WarehouseModuleV2 = () => {
     searchQuery,
     selectedPocketOwner
   })
+
+  const { nomenclatures } = useMES()
 
   // Handlers Hook
   const handlers = useWarehouseHandlers({
@@ -141,7 +125,7 @@ const WarehouseModuleV2 = () => {
     activeTab,
     fetchData,
     refreshTable,
-    issueMaterialsBatch,
+    issueMaterialsBatch: useMES().issueMaterialsBatch,
     createPurchaseRequest,
     approveWarehouse,
     setIsScanning,
@@ -286,150 +270,20 @@ const WarehouseModuleV2 = () => {
 
   return (
     <div className="warehouse-module-v2" style={{ background: '#080808', minHeight: '100vh', color: '#fff', display: 'flex', flexDirection: 'column' }}>
-      <nav className="module-nav" style={{ 
-        flexShrink: 0, 
-        padding: window.innerWidth < 768 ? '10px 15px' : '15px 25px', 
-        background: '#111', 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'space-between', 
-        borderBottom: '1px solid #222',
-        width: '100%',
-        boxSizing: 'border-box'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: window.innerWidth < 768 ? '8px' : '20px', width: '100%', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: window.innerWidth < 768 ? '8px' : '20px' }}>
-            <Link to="/" className="back-link" style={{ color: '#555', transition: '0.3s', display: 'flex', alignItems: 'center' }}><ArrowLeft size={18} /> <span className="hide-mobile" style={{ marginLeft: '5px' }}>Назад</span></Link>
-            <div className="module-title-group" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <IconSO className="text-secondary" size={20} color="#10b981" />
-              <h1 className="hide-mobile" style={{ margin: 0, fontSize: '1.1rem', fontWeight: 950, letterSpacing: '-0.02em' }}>СКЛАД ОПЕРАТИВНИЙ</h1>
-              <span className="pillar-badge-erp hide-mobile" style={{ padding: '3px 8px', borderRadius: '12px', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase' }}>
-                ERP WMS Pillar
-              </span>
-              <h1 className="mobile-only" style={{ margin: 0, fontSize: '0.85rem', fontWeight: 950 }}>СКЛАД</h1>
-              <button
-                type="button"
-                onClick={() => {
-                  const url = new URL(window.location.href)
-                  url.searchParams.delete('tab')
-                  url.searchParams.set('tab', activeTab)
-                  navigator.clipboard.writeText(url.toString())
-                  alert('Посилання скопійовано!')
-                }}
-                style={{
-                  background: 'rgba(255, 144, 0, 0.1)',
-                  border: '1px solid rgba(255, 144, 0, 0.3)',
-                  color: '#ff9000',
-                  padding: '5px 8px',
-                  borderRadius: '6px',
-                  fontSize: '0.65rem',
-                  fontWeight: 900,
-                  cursor: 'pointer',
-                  marginLeft: '5px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px'
-                }}
-              >
-                <span>🔗</span>
-                <span className="hide-mobile">Копіювати посилання</span>
-                <span className="mobile-only">ЛІНК</span>
-              </button>
-            </div>
-          </div>
-          
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <button
-              type="button"
-              onClick={() => setShowReception(!showReception)}
-              className="warehouse-nav-btn reception-btn"
-              style={{
-                height: '42px',
-                padding: window.innerWidth < 768 ? '0 12px' : '0 16px',
-                borderRadius: '12px',
-                border: showReception ? 'none' : '1px solid rgba(14, 165, 233, 0.4)',
-                background: showReception 
-                  ? 'linear-gradient(135deg, #0ea5e9, #0284c7)' 
-                  : (pendingDocs.length > 0 ? 'rgba(14, 165, 233, 0.2)' : 'rgba(14, 165, 233, 0.08)'),
-                color: showReception ? '#000' : '#0ea5e9',
-                fontSize: '0.8rem',
-                fontWeight: 900,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                cursor: 'pointer',
-                position: 'relative',
-                whiteSpace: 'nowrap',
-                boxShadow: pendingDocs.length > 0 ? '0 0 15px rgba(14, 165, 233, 0.4)' : 'none',
-                animation: pendingDocs.length > 0 ? 'pulse-blue 2s infinite' : 'none',
-                transition: 'all 0.2s'
-              }}
-            >
-              <Truck size={17} /> 
-              <span className="hide-mobile">ПРИЙОМКА</span>
-              <span className="mobile-only">ПРИЙОМКА</span>
-              {pendingDocs.length > 0 && (
-                <span className="badge-count anim-pulse" style={{ position: 'absolute', top: '-5px', right: '-5px', background: '#ef4444', color: '#fff', borderRadius: '50%', fontSize: '10px', width: '18px', height: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
-                  {pendingDocs.length}
-                </span>
-              )}
-            </button>
-
-            <ManualIssueJournalButton onClick={manualIssue.openJournal} compact={window.innerWidth < 900} />
-          </div>
-        </div>
-        <div className="hide-mobile" style={{ color: '#555', fontSize: '0.75rem', fontWeight: 600 }}>
-          {currentUser?.first_name} {currentUser?.last_name}
-        </div>
-      </nav>
+      <WarehouseHeaderNav
+        currentUser={currentUser}
+        activeTab={activeTab}
+        showReception={showReception}
+        setShowReception={setShowReception}
+        pendingDocsCount={pendingDocs.length}
+        manualIssue={manualIssue}
+      />
 
       <div className="module-content" style={{ padding: '20px', overflowY: 'auto', flex: 1 }}>
-
-        {pendingDocs.length > 0 && (
-          <div style={{
-            background: 'linear-gradient(135deg, rgba(14, 165, 233, 0.15), rgba(2, 132, 199, 0.05))',
-            border: '1px solid rgba(14, 165, 233, 0.3)',
-            borderRadius: '20px',
-            padding: '15px 25px',
-            marginBottom: '25px',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            boxShadow: '0 4px 20px rgba(14, 165, 233, 0.15)',
-            // Lightweight compositor-only attention pulse: no scaling or
-            // animated box-shadow, so initial data rendering stays smooth.
-            animation: 'warehouse-reception-attention 1.4s ease-in-out infinite',
-            willChange: 'opacity',
-            flexWrap: 'wrap',
-            gap: '15px'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-              <div style={{ background: '#0ea5e9', padding: '12px', borderRadius: '14px', color: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Truck size={22} />
-              </div>
-              <div>
-                <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: '#fff' }}>
-                  У ВАС Є НОВІ ПОСТАВКИ ДЛЯ ПРИЙОМКИ!
-                </h4>
-                <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: '#888' }}>
-                  Очікує підтвердження: <strong style={{ color: '#0ea5e9' }}>{pendingDocs.length}</strong> документ(ів)
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={() => setShowReception(true)}
-              style={{
-                background: '#0ea5e9', color: '#000', border: 'none',
-                padding: '12px 24px', borderRadius: '12px', fontWeight: 900,
-                fontSize: '0.8rem', cursor: 'pointer', textTransform: 'uppercase',
-                boxShadow: '0 4px 12px rgba(14, 165, 233, 0.3)', transition: '0.2s',
-                letterSpacing: '0.05em'
-              }}
-            >
-              Відкрити прийомку
-            </button>
-          </div>
-        )}
+        <WarehousePendingReceptionBanner
+          pendingDocsCount={pendingDocs.length}
+          onOpenReception={() => setShowReception(true)}
+        />
 
         {/* Scanner Overlay Panel */}
         <ScannerPanel
@@ -443,76 +297,15 @@ const WarehouseModuleV2 = () => {
 
         <ManualInventoryIssueUI controller={manualIssue} />
 
-        {showReception && (
-          <div className="content-card glass-panel" style={{ background: '#111', border: '1px solid #333', borderRadius: '24px', padding: '25px', marginBottom: '30px' }}>
-            <h3 style={{ fontSize: '0.85rem', color: '#0ea5e9', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <Truck size={18} /> ОЧІКУЮТЬ ПРИЙОМКИ НА СО
-            </h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-              {pendingDocs.map(doc => (
-                <div key={doc.id} style={{ padding: '15px 20px', background: '#000', borderRadius: '18px', border: '1px solid #1a1a1a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: '0.65rem', color: '#0ea5e9', fontWeight: 900, textTransform: 'uppercase', marginBottom: '10px', letterSpacing: '0.05em' }}>
-                      ДОКУМЕНТ #{String(doc.id).substring(0, 8)}
-                    </div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                      {(Array.isArray(doc.items) ? doc.items : []).map((it, idx) => {
-                        const nom = (nomenclatures || []).find(n => n.id === it.nomenclature_id)
-                        const itemName = nom
-                          ? (nom.name + (nom.material_type ? ` (${nom.material_type})` : ''))
-                          : (it.reqDetails || it.details || it.name || `Позиція ${idx + 1}`)
-                        const itemQty = it.qty ?? it.missingAmount ?? it.needed ?? it.quantity ?? '?'
-                        return (
-                          <div key={idx} style={{ background: '#0a0a0a', padding: '5px 10px', borderRadius: '8px', border: '1px solid #222', display: 'flex', gap: '8px', alignItems: 'center' }}>
-                            <span style={{ fontSize: '0.72rem', color: '#888', fontWeight: 700 }}>
-                              {itemName}
-                            </span>
-                            <strong style={{ fontSize: '0.85rem', color: '#fff' }}>{itemQty}</strong>
-                          </div>
-                        )
-                      })}
-                    </div>
-                    <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          if (window.confirm('Перенаправити прийомку на Склад Виробництва (СВ)?')) {
-                            const { error } = await supabase.from('reception_docs').update({ target_warehouse: 'production' }).eq('id', doc.id)
-                            if (!error) refreshTable('reception_docs')
-                          }
-                        }}
-                        style={{ background: 'rgba(255, 144, 0, 0.05)', border: '1px solid rgba(255, 144, 0, 0.3)', color: '#ff9000', padding: '4px 10px', borderRadius: '6px', fontSize: '0.65rem', fontWeight: 800, cursor: 'pointer', transition: '0.2s' }}
-                      >
-                        Перенаправити на СВ
-                      </button>
-                    </div>
-                  </div>
-                  <button
-                    disabled={processingDocs.has(doc.id)}
-                    onClick={async () => {
-                      setProcessingDocs(prev => new Set(prev).add(doc.id))
-                      try {
-                        await confirmReception(doc.id)
-                      } finally {
-                        setProcessingDocs(prev => {
-                          const next = new Set(prev)
-                          next.delete(doc.id)
-                          return next
-                        })
-                      }
-                    }}
-                    style={{ marginLeft: '15px', background: '#10b981', color: '#000', border: 'none', padding: '10px 20px', borderRadius: '10px', fontWeight: 1000, cursor: processingDocs.has(doc.id) ? 'not-allowed' : 'pointer', fontSize: '0.8rem', opacity: processingDocs.has(doc.id) ? 0.5 : 1 }}
-                  >
-                    {processingDocs.has(doc.id) ? 'ОБРОБКА...' : 'ПРИЙНЯТИ'}
-                  </button>
-                </div>
-              ))}
-              {pendingDocs.length === 0 && (
-                <p style={{ color: '#333', fontSize: '0.8rem', textAlign: 'center' }}>Немає активних документів на прийомку</p>
-              )}
-            </div>
-          </div>
-        )}
+        <WarehouseReceptionPanel
+          showReception={showReception}
+          pendingDocs={pendingDocs}
+          nomenclatures={nomenclatures}
+          processingDocs={processingDocs}
+          setProcessingDocs={setProcessingDocs}
+          confirmReception={confirmReception}
+          refreshTable={refreshTable}
+        />
 
         {/* Consumables requests queue list */}
         <ConsumablesQueue
@@ -538,77 +331,15 @@ const WarehouseModuleV2 = () => {
         />
 
         {/* Tabs Bar */}
-        <div style={{ display: 'flex', gap: '10px', marginBottom: '25px', overflowX: 'auto', paddingBottom: '5px' }}>
-          {tabs.map(tab => (
-            <button
-              key={tab.id}
-              className={`warehouse-tab-btn ${activeTab === tab.id ? 'active' : ''}`}
-              onClick={() => {
-                setActiveTab(tab.id)
-                setNewItem({ ...newItem, type: tab.id, pocket_owner: '' })
-                setSearchParams({ tab: tab.id })
-                setSelectedPocketOwner('')
-              }}
-              style={{
-                position: 'relative',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '10px',
-                background: activeTab === tab.id ? '#ff9000' : '#111',
-                color: activeTab === tab.id ? '#000' : '#555',
-                border: '1px solid #222',
-                padding: '12px 20px',
-                borderRadius: '14px',
-                fontSize: '0.85rem',
-                fontWeight: 800,
-                cursor: 'pointer',
-                transition: '0.2s',
-                whiteSpace: 'nowrap'
-              }}
-            >
-              {tab.icon}
-              <span>{tab.label}</span>
-              {tab.count > 0 && (
-                <span className="tab-count-badge" style={{
-                  marginLeft: '5px',
-                  background: activeTab === tab.id ? '#000' : '#ff9000',
-                  color: activeTab === tab.id ? '#ff9000' : '#000',
-                  fontSize: '0.7rem',
-                  padding: '2px 8px',
-                  borderRadius: '8px',
-                  minWidth: '20px',
-                  textAlign: 'center',
-                  fontWeight: 1000,
-                  boxShadow: activeTab === tab.id ? 'none' : '0 2px 5px rgba(255,144,0,0.3)'
-                }}>
-                  {tab.count}
-                </span>
-              )}
-            </button>
-          ))}
-
-          <Link
-            to="/warehouse-fgp"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              background: 'rgba(16, 185, 129, 0.1)',
-              color: '#10b981',
-              border: '1px solid rgba(16, 185, 129, 0.3)',
-              padding: '12px 20px',
-              borderRadius: '14px',
-              fontSize: '0.85rem',
-              fontWeight: 900,
-              textDecoration: 'none',
-              whiteSpace: 'nowrap',
-              marginLeft: 'auto'
-            }}
-          >
-            <IconSGP size={20} color="#10b981" />
-            <span>Склад Готової Продукції (СГП) →</span>
-          </Link>
-        </div>
+        <WarehouseTabsBar
+          tabs={tabs}
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          setNewItem={setNewItem}
+          newItem={newItem}
+          setSearchParams={setSearchParams}
+          setSelectedPocketOwner={setSelectedPocketOwner}
+        />
 
         {/* Main Content card */}
         <div className="content-card glass-panel" style={{ padding: '25px 25px 120px', borderRadius: '24px', background: 'rgba(20,20,20,0.6)', border: '1px solid #222' }}>
@@ -646,88 +377,21 @@ const WarehouseModuleV2 = () => {
             </div>
           </div>
 
-          {['raw', 'sheets', 'cutters', 'hardware'].includes(activeTab) && (
-            <div style={{ display: 'flex', gap: '8px', marginBottom: '22px', flexWrap: 'wrap', alignItems: 'center', background: '#0a0a0a', padding: '10px 14px', borderRadius: '16px', border: '1px solid #1f1f1f' }}>
-              <span style={{ fontSize: '.72rem', color: '#666', fontWeight: 850, marginRight: '4px' }}>Папки склада:</span>
-              {[
-                { id: 'raw', label: '📁 Всі позиції СО', count: (inventory || []).filter(i => (i.warehouse === 'operational' || !i.warehouse) && Number(i.total_qty) > 0).length, color: '#ff9000' },
-                { id: 'sheets', label: '📄 Папка «Листи»', count: (inventory || []).filter(i => (i.warehouse === 'operational' || !i.warehouse) && Number(i.total_qty) > 0 && (i.name || '').toLowerCase().includes('лист') && !(i.name || '').toLowerCase().includes('гума') && !(i.name || '').toLowerCase().includes('накладка')).length, color: '#38bdf8' },
-                { id: 'cutters', label: '✂️ Папка «Фрези»', count: (inventory || []).filter(i => (i.warehouse === 'operational' || !i.warehouse) && Number(i.total_qty) > 0 && (i.name || '').toLowerCase().includes('фреза')).length, color: '#10b981' },
-                { id: 'hardware', label: '🔩 Папка «Метизи»', count: (inventory || []).filter(i => (i.warehouse === 'operational' || !i.warehouse) && Number(i.total_qty) > 0 && (i.type === 'hardware' || (i.name || '').toLowerCase().includes('гайка') || (i.name || '').toLowerCase().includes('гвинт'))).length, color: '#a855f7' }
-              ].map(folder => (
-                <button
-                  key={folder.id}
-                  type="button"
-                  className={`folder-tab-btn ${activeTab === folder.id ? 'active' : ''}`}
-                  onClick={() => {
-                    setActiveTab(folder.id)
-                    setSearchParams({ tab: folder.id })
-                  }}
-                  style={{
-                    background: activeTab === folder.id ? folder.color : '#141414',
-                    color: activeTab === folder.id ? '#000' : '#ccc',
-                    border: activeTab === folder.id ? `1px solid ${folder.color}` : '1px solid #282828',
-                    padding: '8px 14px',
-                    borderRadius: '11px',
-                    fontSize: '.78rem',
-                    fontWeight: 900,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    transition: 'all 0.2s ease'
-                  }}
-                >
-                  <span>{folder.label}</span>
-                  <span style={{
-                    background: activeTab === folder.id ? 'rgba(0,0,0,0.2)' : '#222',
-                    color: activeTab === folder.id ? '#000' : folder.color,
-                    fontSize: '.7rem',
-                    padding: '2px 7px',
-                    borderRadius: '99px',
-                    fontWeight: 1000
-                  }}>
-                    {folder.count}
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
+          <WarehouseCategoryFoldersBar
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            setSearchParams={setSearchParams}
+            inventory={inventory}
+          />
 
-          {showAdd && (
-            <form
-              onSubmit={handlers.handleAddInventory}
-              className="stack-mobile"
-              style={{ display: 'flex', gap: '10px', padding: '15px', background: '#111', borderRadius: '15px', marginBottom: '20px', alignItems: 'center', flexWrap: 'wrap' }}
-            >
-              <input
-                style={{ flex: 2, minWidth: '200px', background: '#000', border: '1px solid #333', color: '#fff', padding: '10px', borderRadius: '8px' }}
-                placeholder="Назва товару..." value={newItem.name}
-                onChange={e => setNewItem({ ...newItem, name: e.target.value })} required
-              />
-              <input
-                style={{ flex: 1, minWidth: '100px', background: '#000', border: '1px solid #333', color: '#fff', padding: '10px', borderRadius: '8px' }}
-                type="number" placeholder="Кількість" value={newItem.total_qty}
-                onChange={e => setNewItem({ ...newItem, total_qty: e.target.value })} required
-              />
-              {activeTab === 'pocket' && (
-                <select
-                  value={newItem.pocket_owner || ''}
-                  onChange={e => setNewItem({ ...newItem, pocket_owner: e.target.value })}
-                  style={{ flex: 1, minWidth: '150px', background: '#000', border: '1px solid #333', color: '#fff', padding: '10px', borderRadius: '8px' }}
-                  required
-                >
-                  <option value="">-- Оберіть майстра --</option>
-                  {(managers || []).filter(m => m.toLowerCase().includes('майстер')).map((m, idx) => (
-                    <option key={idx} value={m}>{m}</option>
-                  ))}
-                </select>
-              )}
-              <button type="submit" style={{ background: '#ff9000', color: '#000', border: 'none', padding: '10px 30px', borderRadius: '8px', fontWeight: 900, cursor: 'pointer' }}>
-                ДОДАТИ
-              </button>
-            </form>
-          )}
+          <WarehouseAddInventoryForm
+            showAdd={showAdd}
+            activeTab={activeTab}
+            newItem={newItem}
+            setNewItem={setNewItem}
+            managers={managers}
+            handleAddInventory={handlers.handleAddInventory}
+          />
 
           {activeTab === 'registry' && (
             <RegistryView
@@ -738,422 +402,24 @@ const WarehouseModuleV2 = () => {
             />
           )}
 
-          {activeTab !== 'registry' && activeTab !== 'boxes' && (
-            <>
-              <div className="table-responsive-container hide-mobile">
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr style={{ borderBottom: '1px solid #222', textAlign: 'left' }}>
-                      <th className="sticky-col" style={{ padding: '15px', fontSize: '0.7rem', color: '#555' }}>НАЙМЕНУВАННЯ</th>
-                      <th style={{ padding: '15px', fontSize: '0.7rem', color: '#555', textAlign: 'center' }}>НАЯВНІСТЬ</th>
-                      <th style={{ padding: '15px', fontSize: '0.7rem', color: '#555', textAlign: 'center' }}>ВІЛЬНО</th>
-                      <th style={{ padding: '15px', fontSize: '0.7rem', color: '#555', textAlign: 'center' }}>РЕЗЕРВ</th>
-                      <th style={{ padding: '15px', fontSize: '0.7rem', color: '#555', textAlign: 'right' }}>ОСТАННЄ ОНОВЛЕННЯ</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredInventory.length === 0 ? (
-                      <tr>
-                        <td colSpan={5} style={{ padding: '40px', textAlign: 'center', color: '#333', fontSize: '0.85rem' }}>
-                          Позицій не знайдено
-                        </td>
-                      </tr>
-                    ) : activeTab === 'pocket' ? (
-                      Object.entries(groupedPocketInventory).map(([owner, items]) => (
-                        <React.Fragment key={owner}>
-                          <tr style={{ background: 'rgba(255, 144, 0, 0.04)', borderBottom: '1px solid #222' }}>
-                            <td colSpan={5} style={{ padding: '12px 15px', fontWeight: 900, color: '#ff9000', fontSize: '0.85rem', letterSpacing: '0.03em' }}>
-                              👤 МАЙСТЕР: {owner.toUpperCase()}
-                            </td>
-                          </tr>
-                          {items.map(item => (
-                            <tr key={item.id} style={{ borderBottom: '1px solid #151515' }}>
-                              <td className="sticky-col" style={{ padding: '15px 15px 15px 30px', fontWeight: 800 }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                  <span>{item.name}</span>
-                                  {isAdmin && editingInvId !== item.id && (
-                                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setEditingInvId(item.id)
-                                          setEditingInvTotal(String(item.total_qty || 0))
-                                          setEditingInvReserved(String(item.reserved_qty || 0))
-                                        }}
-                                        style={{ background: 'transparent', border: 'none', color: '#555', cursor: 'pointer', display: 'inline-flex', padding: '4px' }}
-                                        title="Редагувати запаси"
-                                      >
-                                        <Pencil size={12} />
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => handleDeleteInventoryItem(item)}
-                                        style={{ background: 'transparent', border: 'none', color: '#ef4444', opacity: 0.7, cursor: 'pointer', display: 'inline-flex', padding: '4px' }}
-                                        title="Видалити позицію зі складу"
-                                      >
-                                        <Trash2 size={13} />
-                                      </button>
-                                    </div>
-                                  )}
-                                </div>
-                              </td>
-                              <td style={{ padding: '15px', textAlign: 'center', color: '#ff9000', fontWeight: 900 }}>
-                                {editingInvId === item.id ? (
-                                  <input
-                                    type="number"
-                                    value={editingInvTotal}
-                                    onChange={e => setEditingInvTotal(e.target.value)}
-                                    onKeyDown={e => { if (e.key === 'Enter') handlers.handleSaveInventoryQty(item.id) }}
-                                    style={{ width: '80px', background: '#000', border: '1px solid #ff9000', color: '#fff', textAlign: 'center', borderRadius: '6px', padding: '4px' }}
-                                  />
-                                ) : (
-                                  <>{item.total_qty || 0} <small style={{ color: '#444', fontWeight: 400 }}>{item.unit}</small></>
-                                )}
-                              </td>
-                              <td style={{ padding: '15px', textAlign: 'center', color: '#10b981', fontWeight: 900 }}>
-                                {editingInvId === item.id ? (Number(editingInvTotal) || 0) - (Number(editingInvReserved) || 0) : Math.max(0, (item.total_qty || 0) - getItemReservedQty(item))}
-                              </td>
-                              <td style={{ padding: '15px', textAlign: 'center', color: getItemReservedQty(item) > 0 ? '#3b82f6' : '#222', fontWeight: 800 }}>
-                                {editingInvId === item.id ? (
-                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                                    <input
-                                      type="number"
-                                      value={editingInvReserved}
-                                      onChange={e => setEditingInvReserved(e.target.value)}
-                                      onKeyDown={e => { if (e.key === 'Enter') handlers.handleSaveInventoryQty(item.id) }}
-                                      style={{ width: '80px', background: '#000', border: '1px solid #3b82f6', color: '#fff', textAlign: 'center', borderRadius: '6px', padding: '4px' }}
-                                    />
-                                    <button
-                                      type="button"
-                                      onClick={() => handlers.handleSaveInventoryQty(item.id)}
-                                      disabled={savingInv}
-                                      style={{ background: '#10b981', border: 'none', borderRadius: '6px', padding: '5px 10px', color: '#000', fontWeight: 900, cursor: 'pointer' }}
-                                    >
-                                      {savingInv ? '...' : <Check size={14} />}
-                                    </button>
-                                    <button type="button" onClick={() => setEditingInvId(null)} style={{ background: '#222', border: 'none', borderRadius: '6px', padding: '5px 10px', color: '#fff', cursor: 'pointer' }}><X size={14} /></button>
-                                  </div>
-                                ) : (
-                                    getItemReservedQty(item) > 0 ? (
-                                      <span 
-                                        onClick={() => setReserveAnalysisItem(item)}
-                                        style={{ textDecoration: 'underline', cursor: 'pointer', color: '#3b82f6', fontWeight: 900 }}
-                                        title="Аналіз резерву"
-                                      >
-                                        {getItemReservedQty(item)}
-                                      </span>
-                                    ) : (
-                                      0
-                                    )
-                                  )}
-                              </td>
-                              <td style={{ padding: '15px', textAlign: 'right', color: '#333', fontSize: '0.7rem' }}>
-                                {item.updated_at ? `${new Date(item.updated_at).toLocaleDateString()} ${new Date(item.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : '—'}
-                              </td>
-                            </tr>
-                          ))}
-                        </React.Fragment>
-                      ))
-                    ) : (
-                      filteredInventory.map(item => (
-                        <tr key={item.id} style={{ borderBottom: '1px solid #151515' }}>
-                          <td className="sticky-col" style={{ padding: '15px', fontWeight: 800 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                              <span>{item.name}</span>
-                              {item.type?.startsWith('scrap') && (() => {
-                                const types = {
-                                  'scrap': { label: 'Прийомка', color: '#555' },
-                                  'scrap_ready': { label: 'До обробки', color: '#ef4444' },
-                                  'scrap_cat_1': { label: 'Кат. 1', color: '#10b981' },
-                                  'scrap_cat_2': { label: 'Кат. 2', color: '#eab308' },
-                                  'scrap_cat_3': { label: 'Кат. 3', color: '#f97316' },
-                                  'scrap_cat_4': { label: 'Кат. 4', color: '#ef4444' },
-                                }
-                                const t = types[item.type] || { label: item.type, color: '#333' }
-                                return (
-                                  <span style={{ fontSize: '0.6rem', color: t.color, border: `1px solid ${t.color}40`, padding: '2px 6px', borderRadius: '4px', textTransform: 'uppercase', fontWeight: 900 }}>
-                                    {t.label}
-                                  </span>
-                                )
-                              })()}
-                              {isAdmin && editingInvId !== item.id && (
-                                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setEditingInvId(item.id)
-                                      setEditingInvTotal(String(item.total_qty || 0))
-                                      setEditingInvReserved(String(item.reserved_qty || 0))
-                                    }}
-                                    style={{ background: 'transparent', border: 'none', color: '#555', cursor: 'pointer', display: 'inline-flex', padding: '4px' }}
-                                    title="Редагувати запаси"
-                                  >
-                                    <Pencil size={12} />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDeleteInventoryItem(item)}
-                                    style={{ background: 'transparent', border: 'none', color: '#ef4444', opacity: 0.7, cursor: 'pointer', display: 'inline-flex', padding: '4px' }}
-                                    title="Видалити позицію зі складу"
-                                  >
-                                    <Trash2 size={13} />
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          </td>
-                          <td style={{ padding: '15px', textAlign: 'center', color: activeTab === 'scrap' ? '#ef4444' : '#ff9000', fontWeight: 900 }}>
-                            {editingInvId === item.id ? (
-                              <input
-                                type="number"
-                                value={editingInvTotal}
-                                onChange={e => setEditingInvTotal(e.target.value)}
-                                onKeyDown={e => { if (e.key === 'Enter') handlers.handleSaveInventoryQty(item.id) }}
-                                style={{ width: '80px', background: '#000', border: '1px solid #ff9000', color: '#fff', textAlign: 'center', borderRadius: '6px', padding: '4px' }}
-                              />
-                            ) : (
-                              <>{item.total_qty || 0} <small style={{ color: '#444', fontWeight: 400 }}>{item.unit}</small></>
-                            )}
-                          </td>
-                          <td style={{ padding: '15px', textAlign: 'center', color: '#10b981', fontWeight: 900 }}>
-                            {editingInvId === item.id ? (Number(editingInvTotal) || 0) - (Number(editingInvReserved) || 0) : Math.max(0, (item.total_qty || 0) - getItemReservedQty(item))}
-                          </td>
-                          <td style={{ padding: '15px', textAlign: 'center', color: getItemReservedQty(item) > 0 ? '#3b82f6' : '#222', fontWeight: 800 }}>
-                            {editingInvId === item.id ? (
-                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                                <input
-                                  type="number"
-                                  value={editingInvReserved}
-                                  onChange={e => setEditingInvReserved(e.target.value)}
-                                  onKeyDown={e => { if (e.key === 'Enter') handlers.handleSaveInventoryQty(item.id) }}
-                                  style={{ width: '80px', background: '#000', border: '1px solid #3b82f6', color: '#fff', textAlign: 'center', borderRadius: '6px', padding: '4px' }}
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => handlers.handleSaveInventoryQty(item.id)}
-                                  disabled={savingInv}
-                                  style={{ background: '#10b981', border: 'none', borderRadius: '6px', padding: '5px 10px', color: '#000', fontWeight: 900, cursor: 'pointer' }}
-                                >
-                                  {savingInv ? '...' : <Check size={14} />}
-                                </button>
-                                <button type="button" onClick={() => setEditingInvId(null)} style={{ background: '#222', border: 'none', borderRadius: '6px', padding: '5px 10px', color: '#fff', cursor: 'pointer' }}><X size={14} /></button>
-                              </div>
-                            ) : (
-                                getItemReservedQty(item) > 0 ? (
-                                  <span 
-                                    onClick={() => setReserveAnalysisItem(item)}
-                                    style={{ textDecoration: 'underline', cursor: 'pointer', color: '#3b82f6', fontWeight: 900 }}
-                                    title="Аналіз резерву"
-                                  >
-                                    {getItemReservedQty(item)}
-                                  </span>
-                                ) : (
-                                  0
-                                )
-                              )}
-                          </td>
-                          <td style={{ padding: '15px', textAlign: 'right', color: '#333', fontSize: '0.7rem' }}>
-                            {item.updated_at ? `${new Date(item.updated_at).toLocaleDateString()} ${new Date(item.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : '—'}
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="mobile-only">
-                {activeTab === 'pocket' ? (
-                  Object.entries(groupedPocketInventory).map(([owner, items]) => (
-                    <div key={owner} style={{ marginBottom: '20px' }}>
-                      <div style={{ fontWeight: 900, color: '#ff9000', fontSize: '0.85rem', marginBottom: '10px', padding: '8px 12px', background: 'rgba(255, 144, 0, 0.04)', borderRadius: '10px', letterSpacing: '0.03em' }}>
-                        👤 МАЙСТЕР: {owner.toUpperCase()}
-                      </div>
-                      {items.map(item => (
-                        <div key={item.id} style={{ background: '#111', padding: '15px', borderRadius: '16px', border: '1px solid #222', marginBottom: '10px' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', alignItems: 'center' }}>
-                            <strong>{item.name}</strong>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <span style={{ fontSize: '0.7rem', color: '#444' }}>{item.unit}</span>
-                              {currentUser?.login === 'admin@workshop.local' && editingInvId !== item.id && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setEditingInvId(item.id)
-                                    setEditingInvTotal(String(item.total_qty || 0))
-                                    setEditingInvReserved(String(item.reserved_qty || 0))
-                                  }}
-                                  style={{ background: 'transparent', border: 'none', color: '#555', cursor: 'pointer', padding: '4px' }}
-                                >
-                                  <Pencil size={12} />
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                          <div style={{ display: 'flex', gap: '20px', flexDirection: editingInvId === item.id ? 'column' : 'row' }}>
-                            {editingInvId === item.id ? (
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }}>
-                                <div>
-                                  <label style={{ fontSize: '0.65rem', color: '#555', display: 'block', marginBottom: '4px' }}>НАЯВНІСТЬ</label>
-                                  <input
-                                    type="number"
-                                    value={editingInvTotal}
-                                    onChange={e => setEditingInvTotal(e.target.value)}
-                                    style={{ width: '100%', background: '#000', border: '1px solid #ff9000', color: '#fff', borderRadius: '6px', padding: '8px', boxSizing: 'border-box' }}
-                                  />
-                                </div>
-                                <div>
-                                  <label style={{ fontSize: '0.65rem', color: '#555', display: 'block', marginBottom: '4px' }}>РЕЗЕРВ</label>
-                                  <input
-                                    type="number"
-                                    value={editingInvReserved}
-                                    onChange={e => setEditingInvReserved(e.target.value)}
-                                    style={{ width: '100%', background: '#000', border: '1px solid #3b82f6', color: '#fff', borderRadius: '6px', padding: '8px', boxSizing: 'border-box' }}
-                                  />
-                                </div>
-                                <div style={{ display: 'flex', gap: '10px', marginTop: '5px' }}>
-                                  <button
-                                    type="button"
-                                    onClick={() => handlers.handleSaveInventoryQty(item.id)}
-                                    disabled={savingInv}
-                                    style={{ flex: 1, background: '#10b981', color: '#000', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 900, cursor: 'pointer' }}
-                                  >
-                                    {savingInv ? '...' : 'ЗБЕРЕГТИ'}
-                                  </button>
-                                  <button type="button" onClick={() => setEditingInvId(null)} style={{ flex: 1, background: '#222', color: '#fff', border: 'none', padding: '10px', borderRadius: '8px', cursor: 'pointer' }}>СКАСУВАТИ</button>
-                                </div>
-                              </div>
-                            ) : (
-                              <>
-                                <div>
-                                  <div style={{ fontSize: '0.6rem', color: '#555' }}>НАЯВНІСТЬ</div>
-                                  <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#ff9000' }}>{item.total_qty || 0}</div>
-                                </div>
-                                {activeTab !== 'bz' && (
-                                  <div>
-                                    <div style={{ fontSize: '0.6rem', color: '#555' }}>ВІЛЬНО</div>
-                                    <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#10b981' }}>{(item.total_qty || 0) - (item.reserved_qty || 0)}</div>
-                                  </div>
-                                )}
-                                {activeTab !== 'bz' && (
-                                  <div>
-                                    <div style={{ fontSize: '0.6rem', color: '#555' }}>РЕЗЕРВ</div>
-                                    <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#3b82f6' }}>
-                                  {Number(item.reserved_qty) > 0 ? (
-                                    <span 
-                                      onClick={() => setReserveAnalysisItem(item)}
-                                      style={{ textDecoration: 'underline', cursor: 'pointer' }}
-                                    >
-                                      {item.reserved_qty}
-                                    </span>
-                                  ) : (
-                                    0
-                                  )}
-                                </div>
-                                  </div>
-                                )}
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ))
-                ) : (
-                  filteredInventory.map(item => (
-                    <div key={item.id} style={{ background: '#111', padding: '15px', borderRadius: '16px', border: '1px solid #222', marginBottom: '10px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', alignItems: 'center' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                          <strong>{item.name}</strong>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span style={{ fontSize: '0.7rem', color: '#444' }}>{item.unit}</span>
-                          {currentUser?.login === 'admin@workshop.local' && editingInvId !== item.id && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setEditingInvId(item.id)
-                                setEditingInvTotal(String(item.total_qty || 0))
-                                setEditingInvReserved(String(item.reserved_qty || 0))
-                              }}
-                              style={{ background: 'transparent', border: 'none', color: '#555', cursor: 'pointer', padding: '4px' }}
-                            >
-                              <Pencil size={12} />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                      <div style={{ display: 'flex', gap: '20px', flexDirection: editingInvId === item.id ? 'column' : 'row' }}>
-                        {editingInvId === item.id ? (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }}>
-                            <div>
-                              <label style={{ fontSize: '0.65rem', color: '#555', display: 'block', marginBottom: '4px' }}>НАЯВНІСТЬ</label>
-                              <input
-                                type="number"
-                                value={editingInvTotal}
-                                onChange={e => setEditingInvTotal(e.target.value)}
-                                style={{ width: '100%', background: '#000', border: '1px solid #ff9000', color: '#fff', borderRadius: '6px', padding: '8px', boxSizing: 'border-box' }}
-                              />
-                            </div>
-                            <div>
-                              <label style={{ fontSize: '0.65rem', color: '#555', display: 'block', marginBottom: '4px' }}>РЕЗЕРВ</label>
-                              <input
-                                type="number"
-                                value={editingInvReserved}
-                                onChange={e => setEditingInvReserved(e.target.value)}
-                                style={{ width: '100%', background: '#000', border: '1px solid #3b82f6', color: '#fff', borderRadius: '6px', padding: '8px', boxSizing: 'border-box' }}
-                              />
-                            </div>
-                            <div style={{ display: 'flex', gap: '10px', marginTop: '5px' }}>
-                              <button
-                                type="button"
-                                onClick={() => handlers.handleSaveInventoryQty(item.id)}
-                                disabled={savingInv}
-                                style={{ flex: 1, background: '#10b981', color: '#000', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 900, cursor: 'pointer' }}
-                              >
-                                {savingInv ? '...' : 'ЗБЕРЕГТИ'}
-                              </button>
-                              <button type="button" onClick={() => setEditingInvId(null)} style={{ flex: 1, background: '#222', color: '#fff', border: 'none', padding: '10px', borderRadius: '8px', cursor: 'pointer' }}>СКАСУВАТИ</button>
-                            </div>
-                          </div>
-                        ) : (
-                          <>
-                            <div>
-                              <div style={{ fontSize: '0.6rem', color: '#555' }}>НАЯВНІСТЬ</div>
-                              <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#ff9000' }}>{item.total_qty || 0}</div>
-                            </div>
-                            {activeTab !== 'bz' && (
-                              <div>
-                                <div style={{ fontSize: '0.6rem', color: '#555' }}>ВІЛЬНО</div>
-                                <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#10b981' }}>{(item.total_qty || 0) - (item.reserved_qty || 0)}</div>
-                              </div>
-                            )}
-                            {activeTab !== 'bz' && (
-                              <div>
-                                <div style={{ fontSize: '0.6rem', color: '#555' }}>РЕЗЕРВ</div>
-                                <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#3b82f6' }}>
-                                  {Number(item.reserved_qty) > 0 ? (
-                                    <span 
-                                      onClick={() => setReserveAnalysisItem(item)}
-                                      style={{ textDecoration: 'underline', cursor: 'pointer' }}
-                                    >
-                                      {item.reserved_qty}
-                                    </span>
-                                  ) : (
-                                    0
-                                  )}
-                                </div>
-                              </div>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </>
-          )}
+          <WarehouseInventoryTable
+            activeTab={activeTab}
+            filteredInventory={filteredInventory}
+            groupedPocketInventory={groupedPocketInventory}
+            isAdmin={isAdmin}
+            editingInvId={editingInvId}
+            setEditingInvId={setEditingInvId}
+            editingInvTotal={editingInvTotal}
+            setEditingInvTotal={setEditingInvTotal}
+            editingInvReserved={editingInvReserved}
+            setEditingInvReserved={setEditingInvReserved}
+            savingInv={savingInv}
+            getItemReservedQty={getItemReservedQty}
+            handleSaveInventoryQty={handlers.handleSaveInventoryQty}
+            handleDeleteInventoryItem={handleDeleteInventoryItem}
+            setReserveAnalysisItem={setReserveAnalysisItem}
+            currentUser={currentUser}
+          />
 
           {activeTab === 'boxes' && (
             <BoxesView
@@ -1245,198 +511,22 @@ const WarehouseModuleV2 = () => {
       `}</style>
 
       {/* Floating Controls (Search and Scan QR) */}
-      <div className="warehouse-floating-controls">
-        {/* Floating Search Form */}
-        <form 
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (manualSearchInput.trim()) {
-              handleWarehouseScan(manualSearchInput.trim())
-              setManualSearchInput('')
-            }
-          }}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            background: 'rgba(10, 10, 10, 0.95)',
-            border: '1px solid #222',
-            padding: '5px 6px 5px 18px',
-            borderRadius: '28px',
-            boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
-            backdropFilter: 'blur(10px)',
-            height: '56px',
-            boxSizing: 'border-box',
-            width: window.innerWidth < 768 ? '100%' : '380px'
-          }}
-        >
-          <Search size={18} color="#6b7280" style={{ marginRight: '10px' }} />
-          <input
-            type="text"
-            placeholder="Введіть системний номер..."
-            value={manualSearchInput}
-            onChange={e => setManualSearchInput(e.target.value)}
-            disabled={isProcessing}
-            style={{ 
-              background: 'transparent', 
-              border: 'none', 
-              color: '#fff', 
-              fontSize: '0.88rem', 
-              fontWeight: 900, 
-              outline: 'none', 
-              width: '100%',
-              fontFamily: 'inherit'
-            }}
-          />
-          <button 
-            type="submit" 
-            disabled={isProcessing} 
-            style={{ 
-              background: '#ff9000', 
-              color: '#000', 
-              border: 'none', 
-              padding: '0 20px', 
-              borderRadius: '22px', 
-              fontSize: '0.82rem', 
-              fontWeight: 950, 
-              cursor: 'pointer', 
-              height: '42px',
-              display: 'flex', 
-              alignItems: 'center', 
-              flexShrink: 0 
-            }}
-          >
-            ЗНАЙТИ
-          </button>
-        </form>
+      <WarehouseFloatingControls
+        manualSearchInput={manualSearchInput}
+        setManualSearchInput={setManualSearchInput}
+        isProcessing={isProcessing}
+        handleWarehouseScan={handleWarehouseScan}
+        setIsScanning={setIsScanning}
+        setShowReception={setShowReception}
+      />
 
-        {/* Floating Round QR Scan Button */}
-        <button 
-          onClick={() => {
-            setIsScanning(true)
-            setShowReception(false)
-          }}
-          className="hover-lift"
-          style={{ 
-            background: '#ff9000', 
-            border: 'none', 
-            color: '#000', 
-            width: '56px',
-            height: '56px',
-            borderRadius: '50%', 
-            display: 'flex', 
-            justifyContent: 'center',
-            alignItems: 'center', 
-            cursor: 'pointer',
-            boxShadow: '0 10px 25px rgba(255, 144, 0, 0.4)',
-            transition: 'all 0.2s',
-            flexShrink: 0
-          }}
-          onMouseEnter={e => {
-            e.currentTarget.style.transform = 'scale(1.05)'
-            e.currentTarget.style.boxShadow = '0 10px 30px rgba(255, 144, 0, 0.55)'
-          }}
-          onMouseLeave={e => {
-            e.currentTarget.style.transform = 'scale(1)'
-            e.currentTarget.style.boxShadow = '0 10px 25px rgba(255, 144, 0, 0.4)'
-          }}
-        >
-          <QrCode size={26} />
-        </button>
-
-        {/* Delete Confirmation Modal */}
-        {itemToDelete && (
-          <div style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: 'rgba(0, 0, 0, 0.82)',
-            backdropFilter: 'blur(10px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 10000,
-            padding: '20px'
-          }}>
-            <div style={{
-              background: '#111',
-              border: '1px solid rgba(239, 68, 68, 0.4)',
-              borderRadius: '24px',
-              padding: '28px',
-              maxWidth: '460px',
-              width: '100%',
-              boxShadow: '0 25px 60px rgba(0,0,0,0.9), 0 0 35px rgba(239,68,68,0.2)'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '20px' }}>
-                <div style={{ background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)', padding: '12px', borderRadius: '16px', color: '#ef4444', display: 'flex' }}>
-                  <AlertTriangle size={26} />
-                </div>
-                <div>
-                  <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 900, color: '#fff' }}>
-                    ПІДТВЕРДЖЕННЯ ВИДАЛЕННЯ
-                  </h3>
-                  <span style={{ fontSize: '0.68rem', color: '#ef4444', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    Дія незворотна
-                  </span>
-                </div>
-              </div>
-
-              <div style={{ background: '#080808', border: '1px solid #222', borderRadius: '16px', padding: '16px', marginBottom: '24px' }}>
-                <p style={{ margin: '0 0 8px 0', fontSize: '0.82rem', color: '#888' }}>
-                  Ви дійсно бажаєте безповоротно видалити позицію зі склада?
-                </p>
-                <div style={{ fontSize: '0.95rem', fontWeight: 900, color: '#fff', wordBreak: 'break-word', lineHeight: '1.4' }}>
-                  {itemToDelete.name}
-                </div>
-                <div style={{ display: 'flex', gap: '15px', marginTop: '12px', fontSize: '0.78rem', color: '#555' }}>
-                  <span>Наявність: <strong style={{ color: '#ff9000' }}>{itemToDelete.total_qty || 0} {itemToDelete.unit || 'шт'}</strong></span>
-                  <span>ID: <code style={{ color: '#444' }}>{String(itemToDelete.id).substring(0, 8)}</code></span>
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-                <button
-                  type="button"
-                  disabled={isDeleting}
-                  onClick={() => setItemToDelete(null)}
-                  style={{
-                    background: '#1a1a1a',
-                    color: '#ccc',
-                    border: '1px solid #333',
-                    padding: '12px 22px',
-                    borderRadius: '12px',
-                    fontWeight: 800,
-                    fontSize: '0.82rem',
-                    cursor: 'pointer'
-                  }}
-                >
-                  Скасувати
-                </button>
-                <button
-                  type="button"
-                  disabled={isDeleting}
-                  onClick={confirmDeleteInventoryItem}
-                  style={{
-                    background: 'linear-gradient(135deg, #ef4444, #dc2626)',
-                    color: '#fff',
-                    border: 'none',
-                    padding: '12px 24px',
-                    borderRadius: '12px',
-                    fontWeight: 900,
-                    fontSize: '0.82rem',
-                    cursor: isDeleting ? 'wait' : 'pointer',
-                    boxShadow: '0 4px 15px rgba(239, 68, 68, 0.4)',
-                    opacity: isDeleting ? 0.6 : 1
-                  }}
-                >
-                  {isDeleting ? 'Видалення...' : 'Видалити остаточно'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
+      {/* Delete Confirmation Modal */}
+      <WarehouseDeleteConfirmModal
+        itemToDelete={itemToDelete}
+        setItemToDelete={setItemToDelete}
+        isDeleting={isDeleting}
+        confirmDeleteInventoryItem={confirmDeleteInventoryItem}
+      />
     </div>
   )
 }

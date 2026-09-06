@@ -23,3 +23,60 @@
 .monthly-start span { color: #666; font-size: .74rem; }
 .monthly-start button { display: flex; align-items: center; gap: 7px; margin-top: 8px; padding: 10px 14px; border: 1px solid #ff9000; border-radius: 9px; background: #ff9000; color: #090909; font-weight: 900; cursor: pointer; }
 .monthly-table .product-cell { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #d4d4d8; font-weight: 700; }
+
+/* LIGHT THEME OVERRIDES */
+.light-theme .monthly-detail-section,
+body.light-theme .monthly-detail-section {
+  border-color: #e2e8f0;
+  background: #ffffff;
+}
+.light-theme .part-table th,
+body.light-theme .part-table th {
+  background: #f8fafc !important;
+  color: #64748b !important;
+}
+.light-theme .part-table td,
+body.light-theme .part-table td {
+  border-top-color: #e2e8f0 !important;
+  color: #334155 !important;
+}
+.light-theme .part-table td:first-child,
+body.light-theme .part-table td:first-child {
+  color: #0f172a !important;
+}
+.light-theme .cutter-grid > div,
+body.light-theme .cutter-grid > div {
+  background: #f1f5f9;
+  color: #2563eb;
+}
+.light-theme .cutter-grid span,
+body.light-theme .cutter-grid span {
+  color: #64748b;
+}
+.light-theme .cutter-grid b,
+body.light-theme .cutter-grid b {
+  color: #0f172a;
+}
+.light-theme .drilldown-loading,
+.light-theme .drilldown-error,
+body.light-theme .drilldown-loading,
+body.light-theme .drilldown-error {
+  background: #ffffff;
+  border-color: #e2e8f0;
+  color: #64748b;
+}
+.light-theme .monthly-start,
+body.light-theme .monthly-start {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  color: #64748b;
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.05);
+}
+.light-theme .monthly-start b,
+body.light-theme .monthly-start b {
+  color: #0f172a;
+}
+.light-theme .monthly-start span,
+body.light-theme .monthly-start span {
+  color: #64748b;
+}

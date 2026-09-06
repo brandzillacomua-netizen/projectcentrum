@@ -10,10 +10,6 @@ export default defineConfig({
   ],
   server: {
     proxy: {
-      '/api': {
-        target: 'http://localhost:8080',
-        changeOrigin: true,
-      },
       '/fortnet-api': {
         target: 'http://192.168.1.100:8090',
         changeOrigin: true,
@@ -27,11 +23,14 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
-          // Vendor chunks — cached by browser separately from app code
           'vendor-react': ['react', 'react-dom', 'react-router-dom'],
           'vendor-supabase': ['@supabase/supabase-js'],
-          'vendor-ui': ['lucide-react', 'qrcode.react'],
+          'vendor-ui': ['lucide-react'],
+          'vendor-qrcode': ['qrcode.react'],
           'vendor-utils': ['date-fns'],
+          'vendor-virtual': ['@tanstack/react-virtual'],
+          'vendor-excel': ['xlsx'],
+          'vendor-emoji': ['emoji-picker-react']
         }
       }
     }

@@ -1,7 +1,6 @@
 import React from 'react'
 import { CheckCircle2 } from 'lucide-react'
 import { getCustomerCode } from '../../../utils/customerCodeUtils.js'
-import { getNomUnitsPerSheet } from '../../../utils/unitsHelper.js'
 
 export function MasterPrintForm({
   activeNaryadOrder,
@@ -71,7 +70,7 @@ export function MasterPrintForm({
                   return bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0
                 })()
                 const totalToProduce = Math.max(0, totalNeeded - inStock)
-                const unitsPerSheet = getNomUnitsPerSheet(part.nom, snapshot)
+                const unitsPerSheet = Number(part.nom.units_per_sheet) || 1
                 const sheets = Math.ceil(totalToProduce / unitsPerSheet)
                 const mName = rowMachines[part.nom.id] || '—'
 

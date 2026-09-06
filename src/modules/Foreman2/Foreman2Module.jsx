@@ -19,8 +19,8 @@ import { useAdminCardDelete } from './features/admin-card-delete/useAdminCardDel
 import MaterialCorrectionModal from './features/material-correction/MaterialCorrectionModal.jsx'
 import { useMaterialCorrection } from './features/material-correction/useMaterialCorrection.js'
 import CreateNaryadModal from './features/create-naryad/CreateNaryadModal.jsx'
-import ForemanPrintQueue from '../Foreman/components/ForemanPrintQueue.jsx'
-import { getDisplayMaterial } from '../Foreman/utils/foremanHelpers.js'
+import ForemanPrintQueue from './components/ForemanPrintQueue.jsx'
+import { getDisplayMaterial } from './utils/foremanHelpers.js'
 
 export default function Foreman2Module() {
   const mes = useMES()

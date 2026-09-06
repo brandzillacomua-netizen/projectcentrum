@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { X, Loader2 } from 'lucide-react'
-import { findMachineByName, MACHINE_TYPES } from '../../../Foreman/utils/foremanHelpers.js'
-import { getNomUnitsPerSheet } from '../../../../utils/unitsHelper.js'
+import { findMachineByName, MACHINE_TYPES } from '../../utils/foremanHelpers.js'
 
 export default function MachineChangeModal({
   isOpen,
@@ -36,7 +35,7 @@ export default function MachineChangeModal({
   const snapshotEntry = task.plan_snapshot?.[String(partId)]
   const totalSheetsPlanned = snapshotEntry?.sheets || 0
 
-  const unitsPerSheetForPart = getNomUnitsPerSheet(nomenclatures?.find(n => String(n.id) === String(partId)), snapshotEntry)
+  const unitsPerSheetForPart = Number(snapshotEntry?.units_per_sheet) || Number(nomenclatures?.find(n => String(n.id) === String(partId))?.units_per_sheet) || 1
   const knownCards = Array.from(new Map([...(workCards || []), ...(archiveCards || [])].map(card => [String(card.id), card])).values())
   const partCards = knownCards.filter(c =>
     String(c.task_id) === String(task.id) &&
