@@ -54,10 +54,20 @@ export function useDataState() {
 
   const [currentUser, setCurrentUser] = useState(() => {
     try {
+      const isStrict = localStorage.getItem('MES_SESSION_STRICT') === 'true'
+      const token = localStorage.getItem('BACKEND_TOKEN')
+      // STRICT ENTERPRISE AUTH: Будь-яка стара сесія без JWT токена або без мітки
+      // суворого режиму вважається недійсною і примусово розлогінюється на /login.
+      if (!token || !isStrict) {
+        localStorage.removeItem(USER_CACHE_KEY)
+        localStorage.removeItem('MES_SESSION_LOGIN')
+        localStorage.removeItem('BACKEND_TOKEN')
+        localStorage.removeItem('MES_SESSION_STRICT')
+        return null
+      }
       const cached = localStorage.getItem(USER_CACHE_KEY)
       if (cached) {
         const parsed = JSON.parse(cached)
-        const token = localStorage.getItem('BACKEND_TOKEN')
         return { ...parsed, token }
       }
     } catch (e) {

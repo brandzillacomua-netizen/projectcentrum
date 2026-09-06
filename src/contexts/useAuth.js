@@ -25,6 +25,7 @@ export function createAuthActions({ currentUser, setCurrentUser, setSystemUsers,
       if (!authError && authData?.session) {
         const token = authData.session.access_token
         localStorage.setItem('BACKEND_TOKEN', token)
+        localStorage.setItem('MES_SESSION_STRICT', 'true')
         console.log(`[useAuth] 🛡️ Supabase Auth JWT успішно отримано! (UID: ${authData.session.user?.id})`)
 
         const { data: profile, error: profErr } = await supabase
@@ -95,13 +96,14 @@ export function createAuthActions({ currentUser, setCurrentUser, setSystemUsers,
   const logout = () => {
     sentryLogger.setUserContext(null)
     supabase.auth.signOut().catch(() => {})
+    localStorage.removeItem('MES_SESSION_LOGIN')
+    localStorage.removeItem('BACKEND_TOKEN')
+    localStorage.removeItem(USER_CACHE_KEY)
+    localStorage.removeItem('MES_SESSION_STRICT')
     if (clearAllData) {
       clearAllData()
     } else {
       setCurrentUser(null)
-      localStorage.removeItem('MES_SESSION_LOGIN')
-      localStorage.removeItem('BACKEND_TOKEN')
-      localStorage.removeItem(USER_CACHE_KEY)
     }
   }
 

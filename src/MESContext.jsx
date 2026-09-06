@@ -103,6 +103,18 @@ export const MESProvider = ({ children }) => {
     setSessionLoading: data.setSessionLoading
   })
 
+  // ── STRICT JWT ENFORCEMENT GUARD ──
+  useEffect(() => {
+    if (data.currentUser?.id) {
+      const token = localStorage.getItem('BACKEND_TOKEN')
+      const isStrict = localStorage.getItem('MES_SESSION_STRICT') === 'true'
+      if (!token || !isStrict) {
+        console.warn('[Centrum Auth] ⚠️ Виявлено сесію старого режиму без JWT. Примусовий вихід на екран авторизації...')
+        authActions.logout()
+      }
+    }
+  }, [data.currentUser?.id])
+
   // ── CUSTOMERS ──
   const searchCustomers = async (query) => {
     if (!query) return []

@@ -171,7 +171,25 @@ const trackedSupabaseFetch = async (...args) => {
   health.active += 1
   health.total += 1
   health.maxActive = Math.max(health.maxActive, health.active)
-  window.__mesApiHealth = health
+  // Enterprise JWT Attachment: Ensure Bearer token is attached if available
+  if (typeof window !== 'undefined') {
+    const token = localStorage.getItem('BACKEND_TOKEN')
+    if (token) {
+      const existingHeaders = fetchArgs[1]?.headers || (fetchArgs[0] instanceof Request ? fetchArgs[0].headers : null)
+      const headers = new Headers(existingHeaders || {})
+      const currentAuth = headers.get('Authorization')
+      if (!currentAuth || currentAuth === `Bearer ${supabaseAnonKey}`) {
+        headers.set('Authorization', `Bearer ${token}`)
+        fetchArgs = [
+          fetchArgs[0],
+          {
+            ...(fetchArgs[1] || {}),
+            headers
+          }
+        ]
+      }
+    }
+  }
 
   try {
     const response = await fetch(...fetchArgs)
@@ -237,13 +255,12 @@ const wrapRealtimeChannel = (channel, topic) => {
 
 export const rawSupabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
-    lock: false
+    lock: false,
+    autoRefreshToken: true,
+    persistSession: true
   },
   global: {
-    fetch: trackedSupabaseFetch,
-    headers: {
-      'x-mes-secret': import.meta.env.VITE_MES_SECRET || 'CentrumMES2026SecretKey_a9f8'
-    }
+    fetch: trackedSupabaseFetch
   },
   realtime: {
     // Keep heartbeat timers alive when a terminal/browser tab is backgrounded.
@@ -264,6 +281,20 @@ export const rawSupabase = createClient(supabaseUrl, supabaseAnonKey, {
     }
   }
 })
+ 
+if (typeof window !== 'undefined') {
+  rawSupabase.auth.onAuthStateChange((event, session) => {
+    if (session?.access_token) {
+      localStorage.setItem('BACKEND_TOKEN', session.access_token)
+      localStorage.setItem('MES_SESSION_STRICT', 'true')
+    } else if (event === 'SIGNED_OUT') {
+      localStorage.removeItem('BACKEND_TOKEN')
+      localStorage.removeItem('MES_SESSION_USER')
+      localStorage.removeItem('MES_SESSION_LOGIN')
+      localStorage.removeItem('MES_SESSION_STRICT')
+    }
+  })
+}
 
 // Sync time drift and patch Date globally to use synchronized time
 const OriginalDate = typeof window !== 'undefined' ? window.Date : (typeof globalThis !== 'undefined' ? globalThis.Date : Date);
