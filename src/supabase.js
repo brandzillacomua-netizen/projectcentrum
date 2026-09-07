@@ -1,6 +1,11 @@
 import { createClient } from '@supabase/supabase-js'
 
-export const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://centrum-gateway.brandzilla-com-ua.workers.dev'
+const RAW_SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://hurzutjytlcvtbvihnry.supabase.co'
+// If Cloudflare Worker hits daily 100k limits, Cloudflare returns HTTP 429 without CORS.
+// Direct Supabase origin guarantees zero rate limits, native CORS, and high reliability.
+export const supabaseUrl = RAW_SUPABASE_URL.includes('brandzilla-com-ua.workers.dev')
+  ? 'https://hurzutjytlcvtbvihnry.supabase.co'
+  : RAW_SUPABASE_URL
 export const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh1cnp1dGp5dGxjdnRidmlobnJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQwMjc4NzksImV4cCI6MjA4OTYwMzg3OX0.0GETYIfUpEDVcpcMoZcAe3dLXtiafNNE1eegbbK1XUI'
 
 const SUPABASE_OPERATIONAL_CONCURRENCY = 6
@@ -64,6 +69,13 @@ const acquireSupabaseReadSlot = (isAnalytical = false) => new Promise(resolve =>
 })
 
 const trackedSupabaseFetch = async (...args) => {
+  // Normalize URL to direct Supabase origin if it points to the blocked Cloudflare worker
+  if (typeof args[0] === 'string' && args[0].includes('brandzilla-com-ua.workers.dev')) {
+    args[0] = args[0].replace('https://centrum-gateway.brandzilla-com-ua.workers.dev', 'https://hurzutjytlcvtbvihnry.supabase.co')
+  } else if (args[0] && typeof args[0].url === 'string' && args[0].url.includes('brandzilla-com-ua.workers.dev')) {
+    args[0] = new Request(args[0].url.replace('https://centrum-gateway.brandzilla-com-ua.workers.dev', 'https://hurzutjytlcvtbvihnry.supabase.co'), args[0])
+  }
+
   const requestMethod = String(args[1]?.method || args[0]?.method || 'GET').toUpperCase()
   let rpcName = null
   try {
