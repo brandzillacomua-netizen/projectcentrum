@@ -32,8 +32,9 @@ export const shop2CardService = {
 
   /**
    * Submit batch creation of Shop 2 work cards and deduct quantity from source buffer cards
+   * Uses atomic PostgreSQL RPC transaction with fallback
    */
-  async createShop2CardsBatch({ taskId, orderId, nomenclatureId, cardsBatch }) {
+  async createShop2CardsBatch({ taskId, orderId, nomenclatureId, cardsBatch, userId = null }) {
     if (!cardsBatch || cardsBatch.length === 0) return []
 
     const insertPayloads = cardsBatch.map(item => {
@@ -60,6 +61,43 @@ export const shop2CardService = {
       }
     })
 
+    const totalQtyToDeduct = cardsBatch.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0)
+
+    // ── ATOMIC ENTERPRISE RPC EXECUTION ──────────────────────────────────────────
+    try {
+      const { data: rpcRes, error: rpcErr } = await supabase.rpc('rpc_generate_shop2_cards_atomic', {
+        p_order_id: orderId || null,
+        p_nomenclature_id: nomenclatureId,
+        p_cards_payload: insertPayloads,
+        p_total_qty_to_deduct: totalQtyToDeduct,
+        p_user_id: userId || 'Майстер Цеху №2'
+      })
+
+      if (!rpcErr && rpcRes?.success) {
+        return (rpcRes.cards || []).map(c => {
+          const sheetsMatch = c.card_info?.match(/\[SHEETS:(\d+)\]/)
+          const bzMatch = c.card_info?.match(/\[BZ:(\d+)\]/)
+          return {
+            ...c,
+            actual_sheets: sheetsMatch ? Number(sheetsMatch[1]) : 0,
+            actualSheets: sheetsMatch ? Number(sheetsMatch[1]) : 0,
+            buffer_qty: bzMatch ? Number(bzMatch[1]) : 0,
+            bufferQty: bzMatch ? Number(bzMatch[1]) : 0
+          }
+        })
+      }
+
+      if (rpcRes && !rpcRes.success && rpcRes.conflict) {
+        throw new Error(rpcRes.error || 'Недостатньо вільних заготовок у буфері')
+      }
+    } catch (rpcEx) {
+      if (rpcEx.message && rpcEx.message.includes('Недостатньо')) {
+        throw rpcEx
+      }
+      console.warn('[shop2CardService] RPC unavailable or error, falling back to direct operations:', rpcEx?.message)
+    }
+
+    // ── FALLBACK DIRECT EXECUTION (Zero-downtime safety) ──────────────────────────
     // 1. Insert new Shop 2 cards
     const { data, error } = await supabase
       .from('work_cards')
@@ -72,7 +110,6 @@ export const shop2CardService = {
     }
 
     // 2. Deduct from source buffer cards (update used_in_shop2_qty)
-    const totalQtyToDeduct = cardsBatch.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0)
     if (totalQtyToDeduct > 0) {
       await this.deductFromSourceBufferCards({ orderId, nomenclatureId, totalQtyToDeduct })
     }
@@ -88,6 +125,25 @@ export const shop2CardService = {
         bufferQty: bzMatch ? Number(bzMatch[1]) : 0
       }
     })
+  },
+
+  /**
+   * Fetch backend-aggregated material ledger summary for Shop 2
+   */
+  async fetchShop2BufferSummary(orderIds = null) {
+    try {
+      const { data, error } = await supabase.rpc('rpc_get_shop2_buffer_summary', {
+        p_order_ids: orderIds && orderIds.length > 0 ? orderIds : null
+      })
+      if (error) {
+        console.warn('[shop2CardService] fetchShop2BufferSummary RPC error:', error?.message)
+        return null
+      }
+      return data || []
+    } catch (err) {
+      console.warn('[shop2CardService] fetchShop2BufferSummary failed:', err?.message)
+      return null
+    }
   },
 
   /**

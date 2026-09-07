@@ -1,20 +1,14 @@
 import { useMemo } from 'react'
+import { SHOP2_STAGE_NAMES, isShop2Operation, isPackagingOperation } from '../constants/shop2Stages'
 
-export const SHOP2_STAGES = [
-  'Пресування',
-  'Фарбування',
-  'Доопрацювання',
-  'Пакування'
-]
+export const SHOP2_STAGES = SHOP2_STAGE_NAMES
 
 export function isShop2WorkCard(card, shop2TaskIdsSet = new Set()) {
   if (!card) return false
   if (shop2TaskIdsSet.has(String(card.task_id))) return true
   const info = String(card.card_info || '')
   if (info.includes('[SHOP:2]') || info.includes('[ЦЕХ №2]') || info.includes('[ЦЕХ 2]')) return true
-  const op = String(card.operation || '').toLowerCase()
-  if (['пресування', 'фарбування', 'малярка', 'доопрацювання', 'пакування', 'сгп'].some(o => op.includes(o))) return true
-  return false
+  return isShop2Operation(card.operation)
 }
 
 export function useShop2BufferData({
@@ -268,7 +262,11 @@ export function useShop2BufferData({
         }
 
         const subAvail = Math.max(0, sub.totalReceived - sub.usedInShop2Qty)
-        const subNetPack = sub.completedQty
+        const subUsedShop2 = Number(sub.usedInShop2Qty || 0)
+        const subInProg = Number(sub.inProgressQty || 0)
+        const subScrap = Number(sub.shop2ScrapQty || 0)
+        const subCompleted = Number(sub.completedQty || 0)
+        const subNetPack = Math.max(subCompleted, Math.max(0, subUsedShop2 - subInProg - subScrap))
 
         ordersList.push({
           ...sub,
@@ -289,7 +287,14 @@ export function useShop2BufferData({
       
       // Available Qty in Buffer ready for Shop 2 RK creation (ONLY physical cuts delivered minus used in Shop 2)
       const availableQty = Math.max(0, partEntry.totalReceived - partEntry.usedInShop2Qty)
-      const netPackagingQty = partEntry.completedQty
+      const totalUsedShop2 = Number(partEntry.usedInShop2Qty || 0)
+      const totalInProgShop2 = Number(partEntry.inProgressQty || 0)
+      const totalScrapShop2 = Number(partEntry.shop2ScrapQty || 0)
+      const totalCompletedShop2 = Number(partEntry.completedQty || 0)
+      const netPackagingQty = Math.max(
+        totalCompletedShop2,
+        Math.max(0, totalUsedShop2 - totalInProgShop2 - totalScrapShop2)
+      )
 
       // Total Covered / Pipeline Qty for СУМА (Є / ПОТРЕБА): ВЗЯТО З БЗ + В РОБОТІ (ЦЕХ 1) + ОТРЕДАНО/В РОБОТІ (ЦЕХ 2) - БРАК
       const totalCoveredQty = Math.max(0, stockBzQty + awaitingShop1Qty + partEntry.totalReceived - partEntry.shop2ScrapQty)

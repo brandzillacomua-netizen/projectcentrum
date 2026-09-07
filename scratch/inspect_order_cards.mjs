@@ -1,33 +1,35 @@
-import { createClient } from '@supabase/supabase-js'
+import fs from 'fs';
+import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = 'https://hurzutjytlcvtbvihnry.supabase.co'
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh1cnp1dGp5dGxjdnRidmlobnJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQwMjc4NzksImV4cCI6MjA4OTYwMzg3OX0.0GETYIfUpEDVcpcMoZcAe3dLXtiafNNE1eegbbK1XUI'
-const supabase = createClient(supabaseUrl, supabaseKey, {
-  global: { headers: { 'x-mes-secret': 'CentrumMES2026SecretKey_a9f8' } }
-})
+const envContent = fs.readFileSync('.env', 'utf8');
+const env = {};
+envContent.split('\n').forEach(line => {
+  const [k, ...v] = line.split('=');
+  if (k && v) env[k.trim()] = v.join('=').trim().replace(/^['"]|['"]$/g, '');
+});
+
+const url = env.VITE_SUPABASE_URL;
+const key = env.VITE_SUPABASE_ANON_KEY;
+const supabase = createClient(url, key);
 
 async function inspectOrderCards() {
-  const { data: orders } = await supabase.from('orders').select('id, order_num, name')
-  console.log('Orders:', orders)
+  await supabase.auth.signInWithPassword({
+    email: 'alexinj@centrum.local',
+    password: '12345'
+  });
 
-  const { data: tasks } = await supabase.from('tasks').select('id, order_id, step, status')
-  console.log('\nTasks:', tasks?.length)
+  const orderIds = ['002c6c1a-e206-4bd1-83d5-6060d4011c81', '684b2d55-af6d-4e38-8b1a-996014ddfb90'];
+  
+  // Find all work cards for these 2 orders
+  const { data: cards } = await supabase.from('work_cards')
+    .select('id, task_id, order_id, nomenclature_id, operation, machine, status, quantity, used_in_shop2_qty, card_info')
+    .in('order_id', orderIds);
 
-  const { data: cards } = await supabase
-    .from('work_cards')
-    .select('id, task_id, nomenclature_id, operation, status, quantity, used_in_shop2_qty')
+  console.log(`Work cards for orders count: ${cards?.length}`);
+  for (const c of cards || []) {
+    console.log(`Card ${c.id}: order=${c.order_id}, nom=${c.nomenclature_id}, op="${c.operation}", status="${c.status}", qty=${c.quantity}, usedShop2=${c.used_in_shop2_qty}, info="${c.card_info}"`);
+  }
 
-  orders?.forEach(o => {
-    const oTasks = tasks?.filter(t => t.order_id === o.id) || []
-    const tIds = new Set(oTasks.map(t => t.id))
-    const oCards = cards?.filter(c => tIds.has(c.task_id)) || []
-    console.log(`\n========================================`)
-    console.log(`ORDER ${o.order_num} (${o.name}) | Tasks: ${oTasks.length} | Cards: ${oCards.length}`)
-    console.log(`========================================`)
-    oCards.forEach(c => {
-      console.log(`  Card ${c.id.slice(-8)} | NomID: ${c.nomenclature_id} | Op: "${c.operation}" | Status: "${c.status}" | Qty: ${c.quantity} | Used: ${c.used_in_shop2_qty}`)
-    })
-  })
+  // How does Foreman Dashboard / WIP calculate SGP for KR-10(210)-П-7-62?
 }
-
-inspectOrderCards()
+inspectOrderCards();

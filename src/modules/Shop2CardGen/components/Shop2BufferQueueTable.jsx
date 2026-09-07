@@ -199,6 +199,12 @@ export function Shop2BufferQueueTable({
                       </span>
                     )}
 
+                    {sec.totalPackagingYield > 0 && (
+                      <span style={{ fontSize: '0.78rem', color: '#059669', fontWeight: 900, background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '4px 12px', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <ShieldCheck size={14} /> Вихід (СГП): {sec.totalPackagingYield.toLocaleString()} шт
+                      </span>
+                    )}
+
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <span style={{ fontSize: '0.75rem', color: 'var(--text-muted, #64748b)', fontWeight: 800 }}>
                         Сума всього:
@@ -322,18 +328,26 @@ export function Shop2BufferQueueTable({
 
                           {/* ФАКТИЧНИЙ ВИХІД (ПАКУВАННЯ) */}
                           <td style={{ padding: '14px 20px', textAlign: 'center' }}>
-                            <span style={{
-                              color: '#059669',
-                              fontWeight: 950,
-                              background: 'rgba(16, 185, 129, 0.1)',
-                              border: '1px solid rgba(16, 185, 129, 0.3)',
-                              padding: '4px 12px',
-                              borderRadius: '10px',
-                              fontSize: '0.9rem',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '6px'
-                            }}>
+                            <span
+                              title={
+                                row.ordersList && row.ordersList.length > 0
+                                  ? `Фактичний вихід у пакування / СГП:\n` + row.ordersList.map(o => `• Наряд ${o.orderNum}: ${(o.netPackagingQty || 0).toLocaleString()} шт`).join('\n')
+                                  : 'Фактичний вихід у пакування / СГП'
+                              }
+                              style={{
+                                color: '#059669',
+                                fontWeight: 950,
+                                background: 'rgba(16, 185, 129, 0.1)',
+                                border: '1px solid rgba(16, 185, 129, 0.3)',
+                                padding: '4px 12px',
+                                borderRadius: '10px',
+                                fontSize: '0.9rem',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                cursor: 'help'
+                              }}
+                            >
                               <ShieldCheck size={14} />
                               {row.netPackagingQty.toLocaleString()} <span style={{ fontSize: '0.65rem', opacity: 0.8 }}>шт</span>
                             </span>
@@ -507,18 +521,26 @@ export function Shop2BufferQueueTable({
 
                       {/* ФАКТИЧНИЙ ВИХІД (ПАКУВАННЯ) */}
                       <td style={{ padding: '16px 20px', textAlign: 'center' }}>
-                        <span style={{
-                          color: '#059669',
-                          fontWeight: 950,
-                          background: 'rgba(16, 185, 129, 0.1)',
-                          border: '1px solid rgba(16, 185, 129, 0.3)',
-                          padding: '4px 12px',
-                          borderRadius: '10px',
-                          fontSize: '0.9rem',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '6px'
-                        }}>
+                        <span
+                          title={
+                            row.ordersList && row.ordersList.length > 0
+                              ? `Фактичний вихід у пакування / СГП:\n` + row.ordersList.map(o => `• Наряд ${o.orderNum}: ${(o.netPackagingQty || 0).toLocaleString()} шт`).join('\n')
+                              : 'Фактичний вихід у пакування / СГП'
+                          }
+                          style={{
+                            color: '#059669',
+                            fontWeight: 950,
+                            background: 'rgba(16, 185, 129, 0.1)',
+                            border: '1px solid rgba(16, 185, 129, 0.3)',
+                            padding: '4px 12px',
+                            borderRadius: '10px',
+                            fontSize: '0.9rem',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            cursor: 'help'
+                          }}
+                        >
                           <ShieldCheck size={14} />
                           {row.netPackagingQty.toLocaleString()} <span style={{ fontSize: '0.65rem', opacity: 0.8 }}>шт</span>
                         </span>

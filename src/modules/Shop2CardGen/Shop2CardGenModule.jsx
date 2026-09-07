@@ -75,6 +75,7 @@ export default function Shop2CardGenModule() {
   const totalAvailableQty = bufferRows.reduce((sum, r) => sum + r.availableQty, 0)
   const totalInProgressQty = bufferRows.reduce((sum, r) => sum + r.inProgressQty, 0)
   const totalReceivedQty = bufferRows.reduce((sum, r) => sum + r.totalReceived, 0)
+  const totalPackagingYield = bufferRows.reduce((sum, r) => sum + (r.netPackagingQty || 0), 0)
 
   return (
     <div style={{
@@ -173,6 +174,13 @@ export default function Shop2CardGenModule() {
           <div style={{ fontSize: '0.7rem', color: 'var(--text-muted, #64748b)', textTransform: 'uppercase', fontWeight: 800 }}>В роботі (Цех №2)</div>
           <div style={{ fontSize: '1.6rem', fontWeight: 950, color: '#d97706', marginTop: '4px' }}>
             {totalInProgressQty.toLocaleString()} <small style={{ fontSize: '0.7rem', color: 'var(--text-muted, #64748b)' }}>шт</small>
+          </div>
+        </div>
+
+        <div style={{ background: 'var(--card-bg, #ffffff)', border: '1px solid var(--border, #e2e8f0)', borderRadius: '18px', padding: '20px', boxShadow: '0 4px 15px rgba(0,0,0,0.02)' }}>
+          <div style={{ fontSize: '0.7rem', color: '#059669', textTransform: 'uppercase', fontWeight: 800 }}>Фактичний вихід (СГП / Пакування)</div>
+          <div style={{ fontSize: '1.6rem', fontWeight: 950, color: '#059669', marginTop: '4px' }}>
+            {totalPackagingYield.toLocaleString()} <small style={{ fontSize: '0.7rem', color: 'var(--text-muted, #64748b)' }}>шт</small>
           </div>
         </div>
 
