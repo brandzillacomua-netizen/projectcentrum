@@ -202,7 +202,22 @@ export function useShop2BufferData({
       } else {
         // Active or Completed Shop 2 Cards
         const qty = Number(card.quantity || 0)
-        if (['new', 'in-progress', 'waiting-cutters', 'waiting-materials', 'waiting-buffer', 'at-buffer'].includes(card.status)) {
+        const opLower = String(card.operation || '').toLowerCase()
+        const infoLower = String(card.card_info || '').toLowerCase()
+        const isPack = isPackagingOperation(card.operation) ||
+                       isPackagingOperation(card.card_info) ||
+                       opLower.includes('пакуван') ||
+                       opLower.includes('сгп') ||
+                       opLower.includes('sgp') ||
+                       infoLower.includes('пакуван') ||
+                       infoLower.includes('сгп') ||
+                       infoLower.includes('sgp')
+
+        if (isPack) {
+          // Card has reached or is designated for Packaging / SGP
+          partEntry.completedQty += qty
+          orderSub.completedQty += qty
+        } else if (['new', 'in-progress', 'waiting-cutters', 'waiting-materials', 'waiting-buffer', 'at-buffer'].includes(card.status)) {
           partEntry.inProgressQty += qty
           orderSub.inProgressQty += qty
         } else if (card.status === 'completed') {

@@ -52,7 +52,7 @@ BEGIN
   INTO v_total_avail
   FROM work_cards
   WHERE nomenclature_id = p_nomenclature_id
-    AND (p_order_id IS NULL OR order_id = p_order_id)
+    AND (p_order_id IS NULL OR order_id = p_order_id OR order_id IS NULL)
     AND (status = 'at-shop2-buffer' OR is_rework = true);
 
   IF p_total_qty_to_deduct > 0 AND v_total_avail < p_total_qty_to_deduct THEN
@@ -74,9 +74,11 @@ BEGIN
       SELECT id, quantity, COALESCE(used_in_shop2_qty, 0) AS used
       FROM work_cards
       WHERE nomenclature_id = p_nomenclature_id
-        AND (p_order_id IS NULL OR order_id = p_order_id)
+        AND (p_order_id IS NULL OR order_id = p_order_id OR order_id IS NULL)
         AND (status = 'at-shop2-buffer' OR is_rework = true)
-      ORDER BY created_at ASC
+      ORDER BY
+        CASE WHEN p_order_id IS NOT NULL AND order_id = p_order_id THEN 0 ELSE 1 END,
+        created_at ASC
       FOR UPDATE
     LOOP
       v_card_avail := GREATEST(0, v_buf_rec.quantity - v_buf_rec.used);
@@ -112,6 +114,7 @@ BEGIN
       quantity,
       card_info,
       status,
+      completed_at,
       is_rework
     ) VALUES (
       (v_item->>'task_id')::UUID,
@@ -122,6 +125,7 @@ BEGIN
       v_qty,
       v_card_info,
       COALESCE(v_item->>'status', 'new'),
+      CASE WHEN (v_item->>'completed_at') IS NOT NULL THEN (v_item->>'completed_at')::TIMESTAMPTZ ELSE NULL END,
       COALESCE((v_item->>'is_rework')::BOOLEAN, false)
     )
     RETURNING * INTO v_new_card;
@@ -225,12 +229,13 @@ BEGIN
       c.order_id,
       SUM(CASE 
         WHEN c.status IN ('new', 'in-progress', 'waiting-cutters', 'waiting-materials', 'waiting-buffer', 'at-buffer') 
+             AND NOT (c.operation ILIKE '%пакування%' OR c.operation ILIKE '%сгп%')
         THEN COALESCE(c.quantity, 0) 
         ELSE 0 
       END) AS shop2_wip,
       SUM(COALESCE(c.scrap_qty, 0)) AS shop2_scrap,
       SUM(CASE 
-        WHEN c.status = 'completed' 
+        WHEN c.status = 'completed' OR (c.operation ILIKE '%пакування%' OR c.operation ILIKE '%сгп%')
         THEN COALESCE(c.quantity, 0) 
         ELSE 0 
       END) AS shop2_completed

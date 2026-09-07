@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
-import { X, Play, Loader2, AlertCircle } from 'lucide-react'
+import { X, Play, Loader2, AlertCircle, PackageCheck } from 'lucide-react'
+import { isPackagingOperation } from '../constants/shop2Stages'
 
 export function GenerateShop2CardModal({
   row,
@@ -33,6 +34,7 @@ export function GenerateShop2CardModal({
   const totalQtyToCreate = Math.max(0, batchSize * cardCount)
   const isOverBuffer = totalQtyToCreate > availableQty
   const isValid = totalQtyToCreate > 0 && !isOverBuffer && !isSubmitting
+  const isDirectSGP = isPackagingOperation(stage)
 
   const handleSubmit = (e) => {
     e.preventDefault()
@@ -84,6 +86,13 @@ export function GenerateShop2CardModal({
           <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#ef4444', padding: '12px 16px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: 800, marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <AlertCircle size={16} />
             {error}
+          </div>
+        )}
+
+        {isDirectSGP && (
+          <div style={{ background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.25)', color: '#10b981', padding: '12px 16px', borderRadius: '12px', fontSize: '0.82rem', fontWeight: 800, marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <PackageCheck size={18} />
+            <span>Пряма передача на склад СГП (минаючи обробку в Цеху №2). Деталі відразу підуть у <strong>ФАКТИЧНИЙ ВИХІД (СГП)</strong>.</span>
           </div>
         )}
 
@@ -139,7 +148,7 @@ export function GenerateShop2CardModal({
             <span style={{ fontSize: '0.8rem', color: isOverBuffer ? '#ef4444' : 'var(--text-muted, #888)', fontWeight: 800 }}>
               {isOverBuffer ? '⚠️ Перевищено доступний буфер!' : 'Разом у випуск:'}
             </span>
-            <span style={{ fontSize: '1.1rem', fontWeight: 950, color: isOverBuffer ? '#ef4444' : '#38bdf8' }}>
+            <span style={{ fontSize: '1.1rem', fontWeight: 950, color: isOverBuffer ? '#ef4444' : (isDirectSGP ? '#10b981' : '#38bdf8') }}>
               {totalQtyToCreate.toLocaleString()} <small style={{ fontSize: '0.7rem', color: 'var(--text-muted, #666)' }}>шт</small>
             </span>
           </div>
@@ -151,7 +160,9 @@ export function GenerateShop2CardModal({
             style={{
               marginTop: '6px',
               width: '100%',
-              background: isValid ? 'linear-gradient(135deg, #ff9000, #ff5500)' : 'var(--border, #1f1f1f)',
+              background: isValid 
+                ? (isDirectSGP ? 'linear-gradient(135deg, #10b981, #059669)' : 'linear-gradient(135deg, #ff9000, #ff5500)')
+                : 'var(--border, #1f1f1f)',
               color: isValid ? '#fff' : 'var(--text-muted, #444)',
               padding: '18px',
               borderRadius: '16px',
@@ -165,11 +176,17 @@ export function GenerateShop2CardModal({
               alignItems: 'center',
               justifyContent: 'center',
               gap: '8px',
-              boxShadow: isValid ? '0 10px 20px -5px rgba(255, 144, 0, 0.4)' : 'none'
+              boxShadow: isValid ? (isDirectSGP ? '0 10px 20px -5px rgba(16, 185, 129, 0.4)' : '0 10px 20px -5px rgba(255, 144, 0, 0.4)') : 'none'
             }}
           >
-            {isSubmitting ? <Loader2 size={18} className="animate-spin" /> : <Play size={18} fill={isValid ? '#fff' : 'none'} />}
-            {isSubmitting ? 'Створення...' : 'Підтвердити та запустити РК'}
+            {isSubmitting ? (
+              <Loader2 size={18} className="animate-spin" />
+            ) : isDirectSGP ? (
+              <PackageCheck size={18} />
+            ) : (
+              <Play size={18} fill={isValid ? '#fff' : 'none'} />
+            )}
+            {isSubmitting ? 'Створення...' : (isDirectSGP ? 'Підтвердити передачу на СГП' : 'Підтвердити та запустити РК')}
           </button>
         </form>
       </div>

@@ -151,20 +151,23 @@ export const shop2CardService = {
    */
   async deductFromSourceBufferCards({ orderId, nomenclatureId, totalQtyToDeduct }) {
     try {
-      let query = supabase
+      const { data: sourceCards, error } = await supabase
         .from('work_cards')
-        .select('id, quantity, used_in_shop2_qty, status, is_rework')
+        .select('id, quantity, used_in_shop2_qty, status, is_rework, order_id')
         .eq('nomenclature_id', nomenclatureId)
 
-      if (orderId) {
-        query = query.eq('order_id', orderId)
-      }
-
-      const { data: sourceCards, error } = await query
       if (error || !sourceCards) return
 
-      // Filter buffer cards
-      const bufferCards = sourceCards.filter(c => c.status === 'at-shop2-buffer' || c.is_rework)
+      // Filter buffer cards: matching order or shared buffer (null order_id)
+      const bufferCards = sourceCards
+        .filter(c => (c.status === 'at-shop2-buffer' || c.is_rework) && (!orderId || c.order_id === orderId || !c.order_id))
+        .sort((a, b) => {
+          if (orderId) {
+            if (a.order_id === orderId && b.order_id !== orderId) return -1
+            if (b.order_id === orderId && a.order_id !== orderId) return 1
+          }
+          return 0
+        })
 
       let remainingDeduction = totalQtyToDeduct
       for (const card of bufferCards) {

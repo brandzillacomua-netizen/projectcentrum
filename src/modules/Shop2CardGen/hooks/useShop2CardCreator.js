@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { shop2CardService } from '../services/shop2CardService'
+import { isPackagingOperation } from '../constants/shop2Stages'
 
 export function useShop2CardCreator({ tasks = [], fetchData, refreshTable }) {
   const [selectedRow, setSelectedRow] = useState(null)
@@ -36,28 +37,33 @@ export function useShop2CardCreator({ tasks = [], fetchData, refreshTable }) {
         throw new Error(`Запитувана кількість (${totalRequested} шт) перевищує доступний залишок буфера (${row.availableQty} шт)`)
       }
 
-      // Collect available order pools for this part
+      // Clone available order pools so we never mutate component props / state
       const availableOrderPools = (row.ordersList || [])
         .filter(o => o.availableQty > 0)
+        .map(o => ({ ...o }))
         .sort((a, b) => b.availableQty - a.availableQty) // Prioritize order with largest available pool
+
+      // If no order pools with availableQty > 0, fallback to general part buffer
+      if (availableOrderPools.length === 0) {
+        availableOrderPools.push({
+          orderId: null,
+          orderNum: 'Без наряду',
+          availableQty: row.availableQty
+        })
+      }
 
       let remainingToAllocate = totalRequested
       const cardsBatch = []
+      const isUuid = str => typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str)
+      const isDirectPack = isPackagingOperation(stage)
 
-      // Create cards per required batch size, allocating from available order pools
-      let cardSeq = 1
-      for (let i = 0; i < cardCount; i++) {
-        let cardQty = Math.min(batchSize, remainingToAllocate)
-        if (cardQty <= 0) break
+      // Allocate across order pools strictly respecting each pool's availableQty
+      for (const pool of availableOrderPools) {
+        if (remainingToAllocate <= 0) break
 
-        // Pick matching order with available qty
-        const currentPool = availableOrderPools.find(p => p.availableQty > 0) || availableOrderPools[0]
-        const orderId = currentPool?.orderId && currentPool.orderId !== 'no-order' ? currentPool.orderId : null
-        
-        // Deduct from pool
-        if (currentPool && currentPool.availableQty > 0) {
-          currentPool.availableQty = Math.max(0, currentPool.availableQty - cardQty)
-        }
+        const orderId = pool.orderId && pool.orderId !== 'no-order' && isUuid(pool.orderId) ? pool.orderId : null
+        const allocForThisOrder = Math.min(pool.availableQty, remainingToAllocate)
+        if (allocForThisOrder <= 0) continue
 
         // Find or associate a Shop 2 task for this order
         let targetTask = tasks.find(t =>
@@ -68,25 +74,41 @@ export function useShop2CardCreator({ tasks = [], fetchData, refreshTable }) {
           targetTask = tasks.find(t => String(t.order_id) === String(orderId))
         }
 
-        const taskId = targetTask?.id || orderId || row.nomId
+        const taskId = isUuid(targetTask?.id) ? targetTask.id : (isUuid(orderId) ? orderId : (isUuid(row.nomId) ? row.nomId : null))
 
-        cardsBatch.push({
-          taskId,
-          orderId,
-          nomenclatureId: row.nomId,
-          operation: stage || 'Пресування',
-          machine: machineName,
-          quantity: cardQty,
-          actualSheets: Math.ceil(cardQty / (row.unitsPerSheet || 1)),
-          bufferQty: 0,
-          cardInfo: `[SHOP:2] [STAGE:${stage}] №${cardSeq}/${cardCount} [REQ:${cardQty}]`,
-          status: 'new',
-          is_rework: false
-        })
+        // Split allocForThisOrder into cards based on requested batchSize
+        let orderRemaining = allocForThisOrder
+        while (orderRemaining > 0) {
+          const cardQty = Math.min(batchSize, orderRemaining)
+          orderRemaining -= cardQty
 
-        remainingToAllocate -= cardQty
-        cardSeq++
+          const baseCardInfo = `[SHOP:2] [STAGE:${stage}] [REQ:${cardQty}]`
+          const cardInfo = isDirectPack ? `${baseCardInfo} [ПРЯМА ПЕРЕДАЧА СГП]` : baseCardInfo
+
+          cardsBatch.push({
+            taskId,
+            orderId,
+            nomenclatureId: row.nomId,
+            operation: stage || 'Пресування',
+            machine: machineName,
+            quantity: cardQty,
+            actualSheets: Math.ceil(cardQty / (row.unitsPerSheet || 1)),
+            bufferQty: 0,
+            cardInfo,
+            status: isDirectPack ? 'completed' : 'new',
+            completed_at: isDirectPack ? new Date().toISOString() : null,
+            is_rework: false
+          })
+        }
+
+        remainingToAllocate -= allocForThisOrder
       }
+
+      // Add clean sequence numbering to all generated cards (№1/N, №2/N...)
+      const totalCreatedCards = cardsBatch.length
+      cardsBatch.forEach((c, idx) => {
+        c.cardInfo = c.cardInfo.replace(`[STAGE:${stage}]`, `[STAGE:${stage}] №${idx + 1}/${totalCreatedCards}`)
+      })
 
       // Group cards by (taskId, orderId) and submit batch inserts
       const insertGroups = new Map()
