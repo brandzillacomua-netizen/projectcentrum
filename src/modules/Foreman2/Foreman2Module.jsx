@@ -222,37 +222,43 @@ export default function Foreman2Module() {
         }}
       />
 
-      <ReissueModal
-        task={activeModel?.task}
-        part={reissuePart}
-        machines={mes.machines || []}
-        isBusy={isReissuing}
-        error={reissueError}
-        onClose={() => setReissuePart(null)}
-        onConfirm={handleConfirmReissue}
-      />
+      {reissuePart && (
+        <ReissueModal
+          task={activeModel?.task}
+          part={reissuePart}
+          machines={mes.machines || []}
+          isBusy={isReissuing}
+          error={reissueError}
+          onClose={() => setReissuePart(null)}
+          onConfirm={handleConfirmReissue}
+        />
+      )}
 
-      <GenerateCardsModal
-        config={cardGen.genModalConfig}
-        machines={mes.machines || []}
-        nomenclatures={mes.nomenclatures || []}
-        machineOperations={mes.machineOperations || []}
-        inventory={mes.inventory || []}
-        workCards={mes.workCards || []}
-        materialRequests={mes.materialRequests || []}
-        isGenerating={cardGen.isGenerating}
-        onClose={cardGen.closeGenModal}
-        onGenerate={cardGen.handleGenerateCards}
-      />
+      {cardGen.genModalConfig && (
+        <GenerateCardsModal
+          config={cardGen.genModalConfig}
+          machines={mes.machines || []}
+          nomenclatures={mes.nomenclatures || []}
+          machineOperations={mes.machineOperations || []}
+          inventory={mes.inventory || []}
+          workCards={mes.workCards || []}
+          materialRequests={mes.materialRequests || []}
+          isGenerating={cardGen.isGenerating}
+          onClose={cardGen.closeGenModal}
+          onGenerate={cardGen.handleGenerateCards}
+        />
+      )}
 
-      <MaterialCorrectionModal
-        part={materialCorrection.part}
-        options={materialCorrection.materialOptions}
-        isSaving={materialCorrection.isSaving}
-        error={materialCorrection.error}
-        onClose={materialCorrection.close}
-        onSave={materialCorrection.save}
-      />
+      {materialCorrection.part && (
+        <MaterialCorrectionModal
+          part={materialCorrection.part}
+          options={materialCorrection.materialOptions}
+          isSaving={materialCorrection.isSaving}
+          error={materialCorrection.error}
+          onClose={materialCorrection.close}
+          onSave={materialCorrection.save}
+        />
+      )}
 
       <CreateNaryadModal
         isOpen={isCreateNaryadOpen}

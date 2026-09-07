@@ -147,9 +147,7 @@ export default function GenerateCardsModal({
     }
   }, [cutterRows, nomenclatures, inventory])
 
-  if (!config) return null
-
-  const { task, part, isRepair } = config
+  const { task, part, isRepair } = config || {}
 
   const findMachine = (mName) => {
     const baseName = (mName || '').split(' №')[0].trim()
@@ -161,7 +159,8 @@ export default function GenerateCardsModal({
   }
 
   const getKittingSheets = (taskObj, partNom) => {
-    const snapMat = (taskObj?.plan_snapshot || {})[String(partNom?.id)]?.material;
+    if (!taskObj || !partNom) return { issuedSheets: 0, pendingSheets: 0, hasKittingReqs: false }
+    const snapMat = (taskObj?.plan_snapshot || {})[String(partNom?.id)]?.material
     const baseMat = snapMat || partNom?.material_type || ''
     const taskReqs = (materialRequests || []).filter(r => String(r.task_id) === String(taskObj?.id))
     const extractThickness = (str) => {
@@ -191,11 +190,12 @@ export default function GenerateCardsModal({
   }
 
   const singleKitting = useMemo(() => {
-    if (!part?.nom || isRepair) return { issuedSheets: 0, pendingSheets: 0, hasKittingReqs: false }
+    if (!task || !part?.nom || isRepair) return { issuedSheets: 0, pendingSheets: 0, hasKittingReqs: false }
     return getKittingSheets(task, part.nom)
   }, [task, part, materialRequests, nomenclatures, isRepair])
 
   const alreadyGeneratedSheets = useMemo(() => {
+    if (!part) return 0
     const unitsPerSheet = Math.max(1, Number(part?.unitsPerSheet) || 1)
     return (part?.productionCards || []).reduce((sum, c) => {
       const cardSheets = Number(c.actualSheets || c.sheets)
@@ -209,7 +209,9 @@ export default function GenerateCardsModal({
 
   const isSingleKittingBlocked = singleKitting.hasKittingReqs && availableIssuedSheets <= 0 && singleKitting.pendingSheets > 0
 
-  const MACHINE_TYPES = [...new Set(machines.map(m => m.name))]
+  const MACHINE_TYPES = [...new Set((machines || []).map(m => m.name))]
+
+  if (!config || !part) return null
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }} onClick={onClose}>
