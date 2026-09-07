@@ -45,8 +45,8 @@ export const SupplyStockTab = ({
           { id: 'sheet_materials', label: '📄 Листові' },
           { id: 'hardware', label: '🔩 Метизи / Фурнітура' },
           { id: 'consumable', label: '🧪 Розхідники / Хімія' },
-          { id: 'unprepared', label: '📦 Непідготовлені' },
-          { id: 'prepared', label: '✅ Підготовлені' }
+          { id: 'unprepared', label: '📦 Карбонові пластини (СВ)' },
+          { id: 'prepared', label: '✅ Робочі листи (СО)' }
         ].map(f => {
           const active = stockFolder === f.id
           return (
@@ -103,7 +103,7 @@ export const SupplyStockTab = ({
                     <td style={{ padding: '15px', fontWeight: 700, color: 'var(--text-color, #fff)' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <span>{item.name || (nom ? getNomLabel(nom) : 'Без назви')}</span>
-                        {isAdmin && !item.is_virtual_zero_stock && (
+                        {isAdmin && (
                           <div style={{ display: 'inline-flex', gap: '4px', marginLeft: '6px' }}>
                             {!isEditing && (
                               <button
@@ -114,7 +114,7 @@ export const SupplyStockTab = ({
                                   setEditingInvReserved(String(item.reserved_qty || 0))
                                 }}
                                 style={{ background: 'transparent', border: 'none', color: '#ff9000', cursor: 'pointer', padding: '2px' }}
-                                title="Редагувати кількість (Адмін)"
+                                title={item.is_virtual_zero_stock ? "Ввести залишок на склад (Адмін)" : "Редагувати кількість (Адмін)"}
                               >
                                 <Pencil size={13} />
                               </button>
@@ -123,7 +123,7 @@ export const SupplyStockTab = ({
                               type="button"
                               onClick={() => handleDeleteInventoryItem(item)}
                               style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '2px' }}
-                              title="Видалити зі склада (Адмін)"
+                              title={item.is_virtual_zero_stock ? "Видалити з номенклатури (Адмін)" : "Видалити зі склада (Адмін)"}
                             >
                               <Trash2 size={13} />
                             </button>

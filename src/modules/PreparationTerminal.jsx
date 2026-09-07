@@ -10,6 +10,7 @@ const PreparationTerminal = () => {
   const {
     prepSubTasks,
     currentSubTask,
+    currentMapping,
     selectedSubTaskId,
     setSelectedSubTaskId,
     selectedShift,
@@ -356,75 +357,98 @@ const PreparationTerminal = () => {
       </div>
 
       {/* COMPLETION MODAL */}
-      {showCompleteModal && currentSubTask && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-          <div style={{ background: '#0a0a0a', width: '100%', maxWidth: '500px', borderRadius: '24px', border: '1px solid #333', padding: '30px', position: 'relative' }}>
-            <button onClick={() => setShowCompleteModal(false)} style={{ position: 'absolute', top: '20px', right: '20px', background: 'transparent', border: 'none', color: '#555', cursor: 'pointer' }}>
-              <X size={24} />
-            </button>
-            <h2 style={{ margin: '0 0 10px', fontSize: '1.8rem', color: '#10b981', fontWeight: 950 }}>ЗАКРИТТЯ ЗАДАЧІ</h2>
-            <div style={{ fontSize: '1.1rem', color: '#ff9000', fontWeight: 800, marginBottom: '25px' }}>{currentSubTask.name}</div>
+      {showCompleteModal && currentSubTask && (() => {
+        const yieldRatio = currentMapping?.yieldRatio || 1
+        const targetSheetName = currentMapping?.workingSheetName || currentSubTask.name.replace('[Непідготовлений]', '[Підготовлений]')
+        const maxScrapPossible = (currentSubTask.plan || 0) * yieldRatio
+        const readySheets = Math.max(0, ((currentSubTask.plan || 0) * yieldRatio) - scrapQty)
 
-            <div style={{ marginBottom: '25px' }}>
-              <label style={{ display: 'block', fontSize: '0.8rem', color: '#888', fontWeight: 900, marginBottom: '10px' }}>ГОТОВИХ ЛИСТІВ (ШТ)</label>
-              <div style={{ width: '100%', background: '#111', border: '1px solid #333', color: '#fff', padding: '20px', borderRadius: '16px', fontSize: '2rem', fontWeight: 950, textAlign: 'center', boxSizing: 'border-box' }}>
-                {completeQty}
+        return (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+            <div style={{ background: '#0a0a0a', width: '100%', maxWidth: '520px', borderRadius: '24px', border: '1px solid #333', padding: '30px', position: 'relative' }}>
+              <button onClick={() => setShowCompleteModal(false)} style={{ position: 'absolute', top: '20px', right: '20px', background: 'transparent', border: 'none', color: '#555', cursor: 'pointer' }}>
+                <X size={24} />
+              </button>
+              <h2 style={{ margin: '0 0 15px', fontSize: '1.6rem', color: '#10b981', fontWeight: 950 }}>ЗАКРИТТЯ ЗАДАЧІ ПІДГОТОВКИ</h2>
+
+              <div style={{ background: '#141414', border: '1px solid #282828', borderRadius: '16px', padding: '16px', marginBottom: '20px' }}>
+                <div style={{ fontSize: '0.72rem', color: '#888', fontWeight: 900, textTransform: 'uppercase' }}>Вхідна сировина (Склад СВ):</div>
+                <div style={{ fontSize: '1.05rem', color: '#ff9000', fontWeight: 900, marginTop: '4px' }}>{currentSubTask.name}</div>
+                <div style={{ fontSize: '0.8rem', color: '#aaa', marginTop: '4px' }}>
+                  Взято на переділ: <strong style={{ color: '#fff' }}>{currentSubTask.plan} шт.</strong>
+                </div>
+                {yieldRatio > 1 && (
+                  <div style={{ background: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.3)', color: '#10b981', padding: '8px 12px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 800, marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    ✂️ Довга пластина (1000×600) розкроюється навпіл: 1 пластина = 2 робочі листи (500×600)
+                  </div>
+                )}
               </div>
-              <div style={{ fontSize: '0.75rem', color: '#666', marginTop: '8px', textAlign: 'center' }}>
-                Вираховується як: План ({currentSubTask.plan} шт) - Брак ({scrapQty} шт)
+
+              <div style={{ marginBottom: '20px' }}>
+                <div style={{ fontSize: '0.75rem', color: '#888', fontWeight: 900, textTransform: 'uppercase', marginBottom: '4px' }}>
+                  Оприбуткування на Склад Оперативний (СО):
+                </div>
+                <div style={{ fontSize: '1.05rem', color: '#10b981', fontWeight: 900, marginBottom: '8px' }}>
+                  {targetSheetName}
+                </div>
+                <div style={{ width: '100%', background: '#111', border: '1px solid #10b981', color: '#10b981', padding: '16px', borderRadius: '16px', fontSize: '2.2rem', fontWeight: 950, textAlign: 'center', boxSizing: 'border-box' }}>
+                  {readySheets} листів
+                </div>
+                <div style={{ fontSize: '0.72rem', color: '#666', marginTop: '6px', textAlign: 'center' }}>
+                  Вихід: {currentSubTask.plan} пл. × {yieldRatio} {scrapQty > 0 ? `- ${scrapQty} брак` : ''} = {readySheets} шт.
+                </div>
               </div>
-            </div>
 
-            <div style={{ marginBottom: '25px' }}>
-              <label style={{ display: 'block', fontSize: '0.8rem', color: '#ef4444', fontWeight: 900, marginBottom: '10px' }}>БРАК (ШТ)</label>
-              <input
-                type="number"
-                min="0"
-                max={currentSubTask.plan}
-                value={scrapQty === 0 ? '' : scrapQty}
-                placeholder="0"
-                onChange={e => {
-                  const val = e.target.value
-                  const parsed = val === '' ? 0 : Number(val)
-                  const num = Math.max(0, Math.min(currentSubTask.plan, isNaN(parsed) ? 0 : parsed))
-                  setScrapQty(num)
-                  setCompleteQty(currentSubTask.plan - num)
-                }}
-                style={{ width: '100%', background: '#111', border: '1px solid #ef4444', color: '#ef4444', padding: '20px', borderRadius: '16px', fontSize: '2rem', fontWeight: 950, textAlign: 'center', boxSizing: 'border-box' }}
-              />
-            </div>
-
-            {scrapQty > 0 && (
-              <div style={{ marginBottom: '30px' }}>
-                <label style={{ display: 'block', fontSize: '0.8rem', color: '#ff9000', fontWeight: 900, marginBottom: '10px' }}>ПРИЧИНА БРАКУ (ОБОВ'ЯЗКОВО)</label>
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', fontSize: '0.8rem', color: '#ef4444', fontWeight: 900, marginBottom: '8px' }}>БРАК РОБОЧИХ ЛИСТІВ (ШТ)</label>
                 <input
-                  type="text"
-                  value={scrapReason}
-                  onChange={e => setScrapReason(e.target.value)}
-                  placeholder="Вкажіть причину браку..."
-                  style={{ width: '100%', background: '#111', border: '1px solid #ff9000', color: '#fff', padding: '15px', borderRadius: '16px', fontSize: '1rem', boxSizing: 'border-box' }}
-                  required
+                  type="number"
+                  min="0"
+                  max={maxScrapPossible}
+                  value={scrapQty === 0 ? '' : scrapQty}
+                  placeholder="0"
+                  onChange={e => {
+                    const val = e.target.value
+                    const parsed = val === '' ? 0 : Number(val)
+                    const num = Math.max(0, Math.min(maxScrapPossible, isNaN(parsed) ? 0 : parsed))
+                    setScrapQty(num)
+                  }}
+                  style={{ width: '100%', background: '#111', border: '1px solid #ef4444', color: '#ef4444', padding: '14px', borderRadius: '14px', fontSize: '1.6rem', fontWeight: 950, textAlign: 'center', boxSizing: 'border-box' }}
                 />
               </div>
-            )}
 
-            <button
-              disabled={isProcessing || (scrapQty > 0 && !scrapReason.trim())}
-              onClick={submitCompletion}
-              style={{
-                width: '100%', padding: '20px',
-                background: scrapQty > 0 ? '#ff9000' : '#10b981',
-                color: '#000', border: 'none', borderRadius: '16px',
-                fontSize: '1.1rem', fontWeight: 950,
-                cursor: (isProcessing || (scrapQty > 0 && !scrapReason.trim())) ? 'not-allowed' : 'pointer',
-                opacity: (isProcessing || (scrapQty > 0 && !scrapReason.trim())) ? 0.7 : 1
-              }}
-            >
-              {isProcessing ? 'ОБРОБКА...' : (scrapQty > 0 ? 'ПІДТВЕРДИТИ І ЗАПРОСИТИ НА СВ' : 'ПІДТВЕРДИТИ ТА ОПРИБУТКУВАТИ')}
-            </button>
+              {scrapQty > 0 && (
+                <div style={{ marginBottom: '25px' }}>
+                  <label style={{ display: 'block', fontSize: '0.8rem', color: '#ff9000', fontWeight: 900, marginBottom: '8px' }}>ПРИЧИНА БРАКУ (ОБОВ'ЯЗКОВО)</label>
+                  <input
+                    type="text"
+                    value={scrapReason}
+                    onChange={e => setScrapReason(e.target.value)}
+                    placeholder="Вкажіть причину браку..."
+                    style={{ width: '100%', background: '#111', border: '1px solid #ff9000', color: '#fff', padding: '12px 15px', borderRadius: '14px', fontSize: '0.95rem', boxSizing: 'border-box' }}
+                    required
+                  />
+                </div>
+              )}
+
+              <button
+                disabled={isProcessing || (scrapQty > 0 && !scrapReason.trim())}
+                onClick={submitCompletion}
+                style={{
+                  width: '100%', padding: '18px',
+                  background: scrapQty > 0 ? '#ff9000' : '#10b981',
+                  color: '#000', border: 'none', borderRadius: '16px',
+                  fontSize: '1.1rem', fontWeight: 950,
+                  cursor: (isProcessing || (scrapQty > 0 && !scrapReason.trim())) ? 'not-allowed' : 'pointer',
+                  opacity: (isProcessing || (scrapQty > 0 && !scrapReason.trim())) ? 0.7 : 1
+                }}
+              >
+                {isProcessing ? 'ОБРОБКА...' : (scrapQty > 0 ? 'ПІДТВЕРДИТИ І ЗАПРОСИТИ НА СВ' : 'ПІДТВЕРДИТИ ТА ОПРИБУТКУВАТИ')}
+              </button>
+            </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
 
       <style dangerouslySetInnerHTML={{ __html: `
         @media (max-width: 768px) {

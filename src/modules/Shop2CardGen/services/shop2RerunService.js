@@ -82,7 +82,8 @@ export const shop2RerunService = {
     }
 
     // 5. Create Work Card for Shop 1 Cutting Operator
-    const cardInfoText = `[ДОВИПУСК / РЕВАЛІДАЦІЯ] [SHOP:1] [NEED:${qty}] Наряд №${rerunOrderNum} (${reason})`
+    const sheets = Math.ceil(qty / (newNom?.units_per_sheet || 1))
+    const cardInfoText = `[ДОВИПУСК / РЕВАЛІДАЦІЯ] [SHOP:1] [NEED:${qty}]${sheets > 0 ? ` [SHEETS:${sheets}]` : ''} Наряд №${rerunOrderNum} (${reason})`
 
     const { data: newCard, error: cardErr } = await supabase
       .from('work_cards')
@@ -93,8 +94,6 @@ export const shop2RerunService = {
         operation: 'Розкрій (Довипуск)',
         machine: '—',
         quantity: qty,
-        actual_sheets: Math.ceil(qty / (newNom?.units_per_sheet || 1)),
-        buffer_qty: 0,
         used_in_shop2_qty: 0,
         card_info: cardInfoText,
         status: 'new',

@@ -18,9 +18,9 @@ export function MasterPrepModal({
   const thicknessMap = {}
   ;(nomenclatures || []).forEach(n => {
     const itemName = (n.name || '').toLowerCase()
-    const isSheet = /^\s*лист(?:\s|\()/i.test(itemName)
-    if (!isSheet) return
-    const isUnprepared = itemName.includes('непідготовлен')
+    const isPlateOrSheet = /^\s*лист(?:\s|\()/i.test(itemName) || itemName.includes('карбонова пластина')
+    if (!isPlateOrSheet) return
+    const isUnprepared = itemName.includes('непідготовлен') || itemName.includes('карбонова пластина')
     if (!isUnprepared) return
 
     const thickness = extractThicknessNumber(n.name) || 'Інше'
@@ -32,9 +32,13 @@ export function MasterPrepModal({
     const isT700 = itemName.includes('т700') || itemName.includes('t700')
 
     if (isT300) {
-      thicknessMap[thickness].t300 = n
+      if (!thicknessMap[thickness].t300 || n.name.includes('Карбонова пластина')) {
+        thicknessMap[thickness].t300 = n
+      }
     } else if (isT700) {
-      thicknessMap[thickness].t700 = n
+      if (!thicknessMap[thickness].t700 || n.name.includes('Карбонова пластина')) {
+        thicknessMap[thickness].t700 = n
+      }
     } else {
       thicknessMap[thickness].other = n
     }
@@ -56,11 +60,11 @@ export function MasterPrepModal({
   ;(inventory || []).forEach(item => {
     const nomenclature = (nomenclatures || []).find(n => String(n.id) === String(item.nomenclature_id))
     const itemName = String(item.name || nomenclature?.name || '').toLowerCase()
-    const isSheet = /^\s*лист(?:\s|\()/i.test(itemName)
-    if (!isSheet) return
+    const isPlateOrSheet = /^\s*лист(?:\s|\()/i.test(itemName) || itemName.includes('карбонова пластина')
+    if (!isPlateOrSheet) return
 
-    const isUnprepared = itemName.includes('непідготовлен')
-    const isPrepared = !isUnprepared && itemName.includes('підготовлен')
+    const isUnprepared = itemName.includes('непідготовлен') || itemName.includes('карбонова пластина')
+    const isPrepared = !isUnprepared && (itemName.includes('підготовлен') || /^\s*лист\s*(?:т|t)(?:300|700)/i.test(itemName))
     if (!isPrepared && !isUnprepared) return
 
     const warehouseKey = item.warehouse === 'production'

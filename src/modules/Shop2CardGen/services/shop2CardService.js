@@ -17,7 +17,17 @@ export const shop2CardService = {
       console.error('[shop2CardService] Error fetching Shop 2 work cards:', error)
       throw error
     }
-    return data || []
+    return (data || []).map(c => {
+      const sheetsMatch = c.card_info?.match(/\[SHEETS:(\d+)\]/)
+      const bzMatch = c.card_info?.match(/\[BZ:(\d+)\]/)
+      return {
+        ...c,
+        actual_sheets: sheetsMatch ? Number(sheetsMatch[1]) : (c.actual_sheets || 0),
+        actualSheets: sheetsMatch ? Number(sheetsMatch[1]) : (c.actual_sheets || 0),
+        buffer_qty: bzMatch ? Number(bzMatch[1]) : (c.buffer_qty || 0),
+        bufferQty: bzMatch ? Number(bzMatch[1]) : (c.buffer_qty || 0)
+      }
+    })
   },
 
   /**
@@ -26,19 +36,29 @@ export const shop2CardService = {
   async createShop2CardsBatch({ taskId, orderId, nomenclatureId, cardsBatch }) {
     if (!cardsBatch || cardsBatch.length === 0) return []
 
-    const insertPayloads = cardsBatch.map(item => ({
-      task_id: taskId,
-      order_id: orderId,
-      nomenclature_id: nomenclatureId,
-      operation: item.operation || 'Пресування',
-      machine: item.machine || 'Не вказано',
-      quantity: item.quantity,
-      actual_sheets: item.actualSheets || item.sheets || 0,
-      buffer_qty: item.bufferQty || 0,
-      card_info: item.cardInfo || '',
-      status: item.status || 'new',
-      is_rework: Boolean(item.is_rework)
-    }))
+    const insertPayloads = cardsBatch.map(item => {
+      const sheets = item.actualSheets || item.sheets || 0
+      const bz = item.bufferQty || 0
+      let cardInfo = String(item.cardInfo || '')
+      if (sheets > 0 && !cardInfo.includes('[SHEETS:')) {
+        cardInfo = `${cardInfo} [SHEETS:${sheets}]`.trim()
+      }
+      if (bz > 0 && !cardInfo.includes('[BZ:')) {
+        cardInfo = `${cardInfo} [BZ:${bz}]`.trim()
+      }
+
+      return {
+        task_id: taskId,
+        order_id: orderId,
+        nomenclature_id: nomenclatureId,
+        operation: item.operation || 'Пресування',
+        machine: item.machine || 'Не вказано',
+        quantity: item.quantity,
+        card_info: cardInfo,
+        status: item.status || 'new',
+        is_rework: Boolean(item.is_rework)
+      }
+    })
 
     // 1. Insert new Shop 2 cards
     const { data, error } = await supabase
@@ -57,7 +77,17 @@ export const shop2CardService = {
       await this.deductFromSourceBufferCards({ orderId, nomenclatureId, totalQtyToDeduct })
     }
 
-    return data || []
+    return (data || []).map(c => {
+      const sheetsMatch = c.card_info?.match(/\[SHEETS:(\d+)\]/)
+      const bzMatch = c.card_info?.match(/\[BZ:(\d+)\]/)
+      return {
+        ...c,
+        actual_sheets: sheetsMatch ? Number(sheetsMatch[1]) : 0,
+        actualSheets: sheetsMatch ? Number(sheetsMatch[1]) : 0,
+        buffer_qty: bzMatch ? Number(bzMatch[1]) : 0,
+        bufferQty: bzMatch ? Number(bzMatch[1]) : 0
+      }
+    })
   },
 
   /**

@@ -70,7 +70,7 @@ export function useSupplyData({ isProcurementOnly = false } = {}) {
   const isAdmin = isSuperAdmin || (currentUser?.position || '').toLowerCase().includes('директор')
 
   const handleDeleteInventoryItem = (item) => {
-    if (!item || !item.id || item.is_virtual_zero_stock) return
+    if (!item || !item.id) return
     setItemToDelete(item)
   }
 
@@ -78,8 +78,19 @@ export function useSupplyData({ isProcurementOnly = false } = {}) {
     if (!itemToDelete || isDeleting) return
     setIsDeleting(true)
     try {
-      const { error } = await supabase.from('inventory').delete().eq('id', itemToDelete.id)
-      if (error) throw error
+      if (itemToDelete.is_virtual_zero_stock) {
+        if (itemToDelete.nomenclature_id) {
+          const { error } = await supabase.from('nomenclatures').delete().eq('id', itemToDelete.nomenclature_id)
+          if (error) {
+            // If foreign key constraint blocks deletion, mark as archived
+            const { error: archErr } = await supabase.from('nomenclatures').update({ type: 'archived' }).eq('id', itemToDelete.nomenclature_id)
+            if (archErr) throw error
+          }
+        }
+      } else {
+        const { error } = await supabase.from('inventory').delete().eq('id', itemToDelete.id)
+        if (error) throw error
+      }
       if (typeof fetchData === 'function') fetchData(['inventory', 'nomenclatures'])
       setItemToDelete(null)
     } catch (err) {
@@ -113,11 +124,29 @@ export function useSupplyData({ isProcurementOnly = false } = {}) {
     }
     setSavingInv(true)
     try {
-      await supabase.from('inventory').update({
-        total_qty: totalVal,
-        reserved_qty: reservedVal,
-        updated_at: new Date().toISOString()
-      }).eq('id', itemId)
+      const isVirtual = String(itemId).startsWith('zero-')
+      if (isVirtual) {
+        const vItem = stockRows.find(r => r.id === itemId)
+        if (vItem) {
+          const { error } = await supabase.from('inventory').insert({
+            name: vItem.name,
+            nomenclature_id: vItem.nomenclature_id,
+            warehouse: 'production',
+            total_qty: totalVal,
+            reserved_qty: reservedVal,
+            type: vItem.type === 'archived' ? 'raw' : (vItem.type || 'raw'),
+            unit: 'шт'
+          })
+          if (error) throw error
+        }
+      } else {
+        const { error } = await supabase.from('inventory').update({
+          total_qty: totalVal,
+          reserved_qty: reservedVal,
+          updated_at: new Date().toISOString()
+        }).eq('id', itemId)
+        if (error) throw error
+      }
       if (typeof fetchData === 'function') fetchData(['inventory', 'nomenclatures'])
       setEditingInvId(null)
     } catch (err) {
@@ -186,12 +215,12 @@ export function useSupplyData({ isProcurementOnly = false } = {}) {
   const stockRows = useMemo(() => {
     const targetWh = isProcurementOnly ? 'procurement' : 'production'
     const isSheet = item => /^лист(?:\s|$)/i.test(String(item?.name || '').trim())
-    const isUnpreparedSheet = item => String(item?.name || '').toLowerCase().includes('[непідготовлений]')
+    const isPlate = item => String(item?.name || '').toLowerCase().includes('карбонова пластина')
     const warehouseRows = (inventory || []).filter(item =>
       item.type !== 'finished'
       && item.type !== 'product'
       && item.warehouse === targetWh
-      && (isProcurementOnly || !isSheet(item) || isUnpreparedSheet(item))
+      && (isProcurementOnly || !isSheet(item))
     )
 
     if (isProcurementOnly) return warehouseRows
@@ -202,14 +231,14 @@ export function useSupplyData({ isProcurementOnly = false } = {}) {
     const representedNames = new Set(
       warehouseRows.map(item => String(item.name || '').trim().toLowerCase()).filter(Boolean)
     )
-    const missingSheets = (nomenclatures || [])
-      .filter(nom => isSheet(nom) && isUnpreparedSheet(nom))
+    const missingPlates = (nomenclatures || [])
+      .filter(nom => isPlate(nom) && nom.type !== 'archived')
       .filter(nom => !representedNomenclatures.has(String(nom.id)) && !representedNames.has(String(nom.name || '').trim().toLowerCase()))
       .map(nom => ({
-        id: `zero-sheet-${nom.id}`,
+        id: `zero-plate-${nom.id}`,
         nomenclature_id: nom.id,
         name: nom.name,
-        unit: nom.unit || 'шт',
+        unit: 'шт',
         total_qty: 0,
         reserved_qty: 0,
         warehouse: 'production',
@@ -217,17 +246,17 @@ export function useSupplyData({ isProcurementOnly = false } = {}) {
         is_virtual_zero_stock: true
       }))
 
-    return [...warehouseRows, ...missingSheets]
+    return [...warehouseRows, ...missingPlates]
       .sort((left, right) => String(left.name || '').localeCompare(String(right.name || ''), 'uk'))
   }, [inventory, nomenclatures, isProcurementOnly])
 
   const filteredStock = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
-    const isSheet = i => (i.name || '').toLowerCase().includes('лист') && !(i.name || '').toLowerCase().includes('гума') && !(i.name || '').toLowerCase().includes('накладка')
+    const isSheet = i => (i.name || '').toLowerCase().includes('карбонова пластина') && !(i.name || '').toLowerCase().includes('гума') && !(i.name || '').toLowerCase().includes('накладка')
     const isCutter = i => (i.name || '').toLowerCase().includes('фреза')
     const isHardware = i => i.type === 'hardware' || (i.name || '').toLowerCase().includes('гайка') || (i.name || '').toLowerCase().includes('гвинт') || (i.name || '').toLowerCase().includes('болт') || (i.name || '').toLowerCase().includes('шайба') || (i.name || '').toLowerCase().includes('заклепка') || (i.name || '').toLowerCase().includes('шпилька')
-    const isUnprepared = i => (i.name || '').toLowerCase().includes('[непідготовлений]')
-    const isPrepared = i => (i.name || '').toLowerCase().includes('[підготовлений]')
+    const isUnprepared = i => (i.name || '').toLowerCase().includes('карбонова пластина')
+    const isPrepared = i => (i.name || '').toLowerCase().includes('[підготовлений]') && !(i.name || '').toLowerCase().includes('карбонова пластина')
 
     return stockRows.filter(i => {
       if (query && !(i.name || '').toLowerCase().includes(query)) return false

@@ -1,13 +1,14 @@
 // ── Default Hierarchical Tree of Groups for ERP Accounting ─────────────────
 export const DEFAULT_ERP_GROUPS = [
   { id: 'cat_raw', code: 'RAW', name: '01. Сировина та матеріали', parent_id: null, sort_order: 10 },
-  { id: 'grp_carbon_sheets', code: 'RAW.CARBON', name: 'Карбонові листи', parent_id: 'cat_raw', sort_order: 11 },
+  { id: 'grp_carbon_sheets', code: 'RAW.CARBON', name: 'Вхідні карбонові пластини (СВ)', parent_id: 'cat_raw', sort_order: 11 },
   { id: 'grp_carbon_t300', code: 'RAW.CARBON.T300', name: 'Карбонова пластина Т300', parent_id: 'grp_carbon_sheets', sort_order: 12, rule_type: 'carbon' },
   { id: 'grp_carbon_t700', code: 'RAW.CARBON.T700', name: 'Карбонова пластина Т700', parent_id: 'grp_carbon_sheets', sort_order: 13, rule_type: 'carbon' },
   { id: 'grp_carbon_t800', code: 'RAW.CARBON.T800', name: 'Карбонова пластина Т800', parent_id: 'grp_carbon_sheets', sort_order: 14, rule_type: 'carbon' },
-  { id: 'grp_rubber', code: 'RAW.RUBBER', name: 'Гума еластична листова', parent_id: 'cat_raw', sort_order: 14, rule_type: 'rubber' },
-  { id: 'grp_paint', code: 'RAW.PAINT', name: 'Лакофарбові матеріали', parent_id: 'cat_raw', sort_order: 15, rule_type: 'paint' },
-  { id: 'grp_mills', code: 'RAW.MILL', name: 'Фрези', parent_id: 'cat_raw', sort_order: 16, rule_type: 'mill' },
+  { id: 'grp_prepared_sheets', code: 'RAW.PREP_SHEETS', name: 'Робочі листи для ЧПУ (СО)', parent_id: 'cat_raw', sort_order: 15, rule_type: 'generic' },
+  { id: 'grp_rubber', code: 'RAW.RUBBER', name: 'Гума еластична листова', parent_id: 'cat_raw', sort_order: 16, rule_type: 'rubber' },
+  { id: 'grp_paint', code: 'RAW.PAINT', name: 'Лакофарбові матеріали', parent_id: 'cat_raw', sort_order: 17, rule_type: 'paint' },
+  { id: 'grp_mills', code: 'RAW.MILL', name: 'Фрези', parent_id: 'cat_raw', sort_order: 18, rule_type: 'mill' },
 
   { id: 'cat_hw', code: 'HW', name: '02. Комплектуючі та Метизи', parent_id: null, sort_order: 20 },
   { id: 'grp_hardware_main', code: 'HW.FASTENERS', name: 'Метизи', parent_id: 'cat_hw', sort_order: 21 },
@@ -290,4 +291,48 @@ export const inputStyle = {
   fontWeight: 700,
   outline: 'none',
   marginTop: '4px'
+};
+
+/**
+ * Maps an input carbon plate (or legacy raw sheet) from Warehouse SV to the working sheet for Shop 1 CNC.
+ * Calculates the conversion yield ratio (e.g. 1000*600 plate -> 2 sheets of 500*600, 500*600 -> 1 sheet).
+ */
+export const matchPlateToWorkingSheet = (rawName = '') => {
+  if (!rawName) return null;
+  const str = String(rawName).trim();
+  
+  // Extract grade / brand (Т300, Т700, Т800, etc.)
+  const brandMatch = str.match(/(?:Т|T)(300|700|800|1000)/i);
+  const brand = brandMatch ? `Т${brandMatch[1]}` : 'Т300';
+  
+  // Extract thickness (e.g. 3мм, 2.5мм, 2,5мм, 11мм)
+  const thickMatch = str.match(/(\d+(?:[.,]\d+)?)\s*мм/i) || str.match(/\((\d+(?:[.,]\d+)?)\s*мм\)/i);
+  const thickness = thickMatch ? thickMatch[1].replace(',', '.') : null;
+  
+  if (!thickness) return null;
+  
+  // Check geometry / dimensions (e.g. 1000*600, 1000x600, 500*600)
+  const dimMatch = str.match(/(\d+)\s*[*xXхХ]\s*(\d+)/);
+  let yieldRatio = 1;
+  if (dimMatch) {
+    const dim1 = parseInt(dimMatch[1], 10);
+    const dim2 = parseInt(dimMatch[2], 10);
+    const maxDim = Math.max(dim1, dim2);
+    if (maxDim >= 950) {
+      yieldRatio = 2; // e.g. 1000*600 yields 2 sheets of 500*600
+    }
+  } else if (str.includes('1000')) {
+    yieldRatio = 2;
+  }
+  
+  const workingSheetName = `Лист ${brand} (${thickness}мм)`;
+  const legacyPrepName = `Лист ${brand} (${thickness}мм) [Підготовлений]`;
+  
+  return {
+    brand,
+    thickness,
+    yieldRatio,
+    workingSheetName,
+    legacyPrepName
+  };
 };

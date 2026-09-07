@@ -34,7 +34,15 @@ export const parseSheetInfo = (rawName) => {
   return { name, grade, thickness };
 };
 
-export const getBaseName = (name) => (name || '').replace(/\[(Непідготовлений|Підготовлений)\]/gi, '').trim();
+export const getBaseName = (name) => {
+  if (!name) return '';
+  const parsed = parseSheetInfo(name);
+  if (parsed && parsed.grade && parsed.thickness && parsed.thickness !== 9999) {
+    const brand = parsed.grade.replace('T', 'Т');
+    return `Лист ${brand} (${parsed.thickness}мм)`;
+  }
+  return (name || '').replace(/\[(Непідготовлений|Підготовлений)\]/gi, '').trim();
+};
 
 const SheetsReport = ({
   nomenclatures = [],
@@ -106,9 +114,9 @@ const SheetsReport = ({
         if (nom) {
           const bName = getBaseName(nom.name);
           if (stats[bName]) {
-            if (doc.task_id && nom.name.includes('[Підготовлений]')) {
+            if (doc.task_id && (nom.name.includes('[Підготовлений]') || nom.group_id === 'grp_prepared_sheets' || /^\s*лист\s*(?:т|t)(?:300|700)/i.test(nom.name))) {
               stats[bName].prepared += Number(item.qty || item.quantity || item.needed || 0);
-            } else if (!doc.source_warehouse && nom.name.includes('[Непідготовлений]')) {
+            } else if (!doc.source_warehouse && (nom.name.includes('[Непідготовлений]') || nom.name.includes('Карбонова пластина'))) {
               stats[bName].supplied += Number(item.qty || item.quantity || item.needed || 0);
             }
           }
@@ -130,7 +138,7 @@ const SheetsReport = ({
     // Витрачено
     (requests || []).filter(r => (r.status === 'issued' || r.status === 'completed') && filterByDate(r.created_at)).forEach(r => {
       const nom = nomenclatures.find(n => String(n.id) === String(r.nomenclature_id));
-      if (nom && nom.name.includes('[Підготовлений]')) {
+      if (nom && (nom.name.includes('[Підготовлений]') || nom.group_id === 'grp_prepared_sheets' || /^\s*лист\s*(?:т|t)(?:300|700)/i.test(nom.name))) {
         const bName = getBaseName(nom.name);
         if (stats[bName]) {
           stats[bName].used += Number(r.quantity || 0);
@@ -138,10 +146,10 @@ const SheetsReport = ({
       }
     });
 
-    // Фактично на СВ (Непідготовлені листи)
+    // Фактично на СВ (Непідготовлені листи / Карбонові пластини)
     (inventory || []).filter(i => i.warehouse === 'production').forEach(i => {
       const nom = nomenclatures.find(n => String(n.id) === String(i.nomenclature_id));
-      if (nom && nom.name.includes('[Непідготовлений]')) {
+      if (nom && (nom.name.includes('[Непідготовлений]') || nom.name.includes('Карбонова пластина'))) {
         const bName = getBaseName(nom.name);
         if (stats[bName]) {
           stats[bName].actual_sv += Number(i.total_qty || 0);
@@ -150,10 +158,10 @@ const SheetsReport = ({
       }
     });
 
-    // Фактично на СО (Підготовлені листи)
+    // Фактично на СО (Підготовлені робочі листи)
     (inventory || []).filter(i => i.warehouse === 'operational').forEach(i => {
       const nom = nomenclatures.find(n => String(n.id) === String(i.nomenclature_id));
-      if (nom && nom.name.includes('[Підготовлений]')) {
+      if (nom && (nom.name.includes('[Підготовлений]') || nom.group_id === 'grp_prepared_sheets' || /^\s*лист\s*(?:т|t)(?:300|700)/i.test(nom.name))) {
         const bName = getBaseName(nom.name);
         if (stats[bName]) {
           stats[bName].actual_so += Number(i.total_qty || 0);
@@ -166,7 +174,7 @@ const SheetsReport = ({
       const nom = nomenclatures.find(n => String(n.id) === String(r.nomenclature_id));
       const inv = inventory.find(i => String(i.id) === String(r.inventory_id));
       const targetName = nom?.name || inv?.name || '';
-      if (targetName && targetName.includes('[Підготовлений]')) {
+      if (targetName && (targetName.includes('[Підготовлений]') || /^\s*лист\s*(?:т|t)(?:300|700)/i.test(targetName))) {
         const bName = getBaseName(targetName);
         if (stats[bName]) {
           stats[bName].reserved_so += Number(r.quantity || 0);

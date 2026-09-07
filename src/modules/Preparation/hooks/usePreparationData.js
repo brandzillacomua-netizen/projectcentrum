@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useMES } from '../../../MESContext'
 import { supabase } from '../../../supabase'
+import { matchPlateToWorkingSheet } from '../../Nomenclature/utils/nomenclatureHelpers'
 
 export const usePreparationData = () => {
   const { tasks, setTasks, nomenclatures, getFilteredOperators, requests, inventory, orders } = useMES()
@@ -98,6 +99,10 @@ export const usePreparationData = () => {
   const currentSubTask = useMemo(() => {
     return prepSubTasks.find(s => s.id === selectedSubTaskId) || null
   }, [prepSubTasks, selectedSubTaskId])
+
+  const currentMapping = useMemo(() => {
+    return currentSubTask ? matchPlateToWorkingSheet(currentSubTask.name) : null
+  }, [currentSubTask])
 
   const handleSelectSubTask = (id) => {
     setSelectedSubTaskId(id)
@@ -259,14 +264,32 @@ export const usePreparationData = () => {
           .eq('status', 'issued'))
       }
 
-      const prepName = material.name.replace('[Непідготовлений]', '[Підготовлений]')
-      let prepNom = nomenclatures.find(n => n.name === prepName)
-      if (!prepNom) {
-        prepNom = nomenclatures.find(n => n.name.includes('[Підготовлений]') && material.name.replace(' [Непідготовлений]', '') === n.name.replace(' [Підготовлений]', ''))
+      // Target Working Sheet resolution:
+      const plateMapping = matchPlateToWorkingSheet(material.name)
+      const yieldRatio = plateMapping?.yieldRatio || 1
+      const targetWorkingSheetName = plateMapping?.workingSheetName
+      const legacyPrepName = plateMapping?.legacyPrepName || material.name.replace('[Непідготовлений]', '[Підготовлений]')
+
+      let prepNom = (nomenclatures || []).find(n => 
+        (targetWorkingSheetName && n.name === targetWorkingSheetName) ||
+        n.name === legacyPrepName ||
+        (n.name.includes('[Підготовлений]') && material.name.replace(' [Непідготовлений]', '') === n.name.replace(' [Підготовлений]', ''))
+      )
+
+      if (!prepNom && targetWorkingSheetName) {
+        const { data: dbNom } = await supabase
+          .from('nomenclatures_v2')
+          .select('id, name')
+          .eq('name', targetWorkingSheetName)
+          .maybeSingle()
+        if (dbNom) prepNom = dbNom
       }
-      if (prepNom) {
+
+      const producedSheets = Math.max(0, (Number(completeQty) * yieldRatio) - Number(scrapQty))
+
+      if (prepNom && producedSheets > 0) {
         writeOps.push(supabase.from('reception_docs').insert([{
-          items: [{ nomenclature_id: prepNom.id, name: prepNom.name, qty: Number(completeQty) }],
+          items: [{ nomenclature_id: prepNom.id, name: prepNom.name, qty: Number(producedSheets) }],
           status: 'shipped',
           order_id: parentTask.order_id || null,
           task_id: parentTask.id,
@@ -322,6 +345,7 @@ export const usePreparationData = () => {
   return {
     prepSubTasks,
     currentSubTask,
+    currentMapping,
     selectedSubTaskId,
     setSelectedSubTaskId,
     selectedShift,

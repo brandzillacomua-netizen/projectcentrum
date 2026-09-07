@@ -30,25 +30,43 @@ export const ReserveAnalysisModal = ({
 
   const reserveDetails = (Array.isArray(matchedRequests) ? matchedRequests : []).map(req => {
     let orderNum = '—'
+    let isPrep = false
+    const task = req.task_id ? safeTasks.find(t => String(t.id) === String(req.task_id)) : null
+
     if (req.order_id) {
       const order = safeOrders.find(o => String(o.id) === String(req.order_id))
       if (order) orderNum = order.order_num
     }
-    if (orderNum === '—' && req.task_id) {
-      const task = safeTasks.find(t => String(t.id) === String(req.task_id))
-      if (task) {
+    if (orderNum === '—' && task) {
+      if (task.order_id) {
         const order = safeOrders.find(o => String(o.id) === String(task.order_id))
         if (order) orderNum = order.order_num
+      }
+      if (task.step === 'Підготовка' || task.plan_snapshot?._prep_num) {
+        isPrep = true
+        orderNum = task.plan_snapshot?._prep_num || 'Наряд Підготовка'
+      }
+    }
+
+    // Fallback extraction from req.details if orderNum is still '—'
+    if (orderNum === '—' && req.details) {
+      const prepMatch = req.details.match(/ЗАПИТ НА ПІДГОТОВКУ\s*\(([^)]+)\)/i)
+      const orderMatch = req.details.match(/для наряду\s+([^\s)]+)/i)
+      const packagingMatch = req.details.match(/ЗАПИТ НА КОМПЛЕКТУВАННЯ\s*\(([^)]+)\)/i)
+      if (prepMatch) {
+        orderNum = prepMatch[1]
+        isPrep = true
+      } else if (orderMatch) {
+        orderNum = orderMatch[1]
+      } else if (packagingMatch) {
+        orderNum = packagingMatch[1]
       }
     }
     
     let productName = '—'
-    if (req.task_id) {
-      const task = safeTasks.find(t => String(t.id) === String(req.task_id))
-      if (task && task.nomenclature_id) {
-        const nom = safeNomenclatures.find(n => String(n.id) === String(task.nomenclature_id))
-        if (nom) productName = nom.name
-      }
+    if (task && task.nomenclature_id) {
+      const nom = safeNomenclatures.find(n => String(n.id) === String(task.nomenclature_id))
+      if (nom) productName = nom.name
     }
     if (productName === '—' && req.order_id) {
       const order = safeOrders.find(o => String(o.id) === String(req.order_id))
@@ -58,14 +76,37 @@ export const ReserveAnalysisModal = ({
       }
     }
 
+    // Fallback product name for preparation or from details
+    if (productName === '—') {
+      if (isPrep || (req.details && req.details.includes('ПІДГОТОВК'))) {
+        if (req.details) {
+          const detailParts = req.details.split(':')
+          if (detailParts[1]) {
+            const rawName = detailParts[1].split('—')[0].trim()
+            if (rawName) productName = `Підготовка: ${rawName}`
+          }
+        }
+        if (productName === '—') {
+          productName = `Підготовка (${item.name})`
+        }
+      } else if (req.details) {
+        const detailParts = req.details.split(':')
+        if (detailParts[1]) {
+          productName = detailParts[1].split('—')[0].trim()
+        }
+      }
+    }
+
     return {
       id: `req-${req.id}`,
+      rawReqId: req.id,
       orderNum: orderNum || 'Запит боксу',
       productName,
       quantity: Number(req.quantity) || 0,
       date: req.created_at ? new Date(req.created_at).toLocaleDateString('uk-UA') : '—',
       taskId: req.task_id,
-      orderId: req.order_id
+      orderId: req.order_id,
+      isPrep
     }
   })
 
@@ -127,9 +168,35 @@ export const ReserveAnalysisModal = ({
     }
   }
 
+  const handleCancelRequest = async (reqId, qty) => {
+    if (!window.confirm(`Скасувати цей запит на резервування (${qty} ${item.unit || 'шт'}) та звільнити залишок?`)) return
+    try {
+      const { error: reqErr } = await supabase
+        .from('material_requests')
+        .update({ status: 'cancelled' })
+        .eq('id', reqId)
+      if (reqErr) throw reqErr
+
+      const newReserved = Math.max(0, (Number(item.reserved_qty) || 0) - qty)
+      await supabase
+        .from('inventory')
+        .update({ reserved_qty: newReserved })
+        .eq('id', item.id)
+
+      alert('Запит успішно скасовано, резерв звільнено!')
+      if (typeof refreshTable === 'function') {
+        refreshTable('inventory')
+        refreshTable('material_requests')
+      }
+      onClose()
+    } catch (err) {
+      alert('Помилка: ' + err.message)
+    }
+  }
+
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', backdropFilter: 'blur(4px)' }}>
-      <div style={{ background: '#111', border: '1px solid #333', borderRadius: '24px', padding: '30px', width: '100%', maxWidth: '650px', display: 'flex', flexDirection: 'column', maxHeight: '90vh', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }}>
+      <div style={{ background: '#111', border: '1px solid #333', borderRadius: '24px', padding: '30px', width: '100%', maxWidth: '720px', display: 'flex', flexDirection: 'column', maxHeight: '90vh', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }}>
         
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
@@ -167,13 +234,19 @@ export const ReserveAnalysisModal = ({
                   <th style={{ padding: '10px' }}>ВИРІБ (ПРОДУКЦІЯ)</th>
                   <th style={{ padding: '10px', textAlign: 'center' }}>КІЛЬКІСТЬ</th>
                   <th style={{ padding: '10px', textAlign: 'right' }}>ДАТА</th>
+                  <th style={{ padding: '10px', textAlign: 'center', width: '70px' }}>ДІЯ</th>
                 </tr>
               </thead>
               <tbody>
                 {reserveDetails.map((detail, idx) => (
                   <tr key={detail.id || idx} style={{ borderBottom: '1px solid #1a1a1a', background: idx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)' }}>
                     <td style={{ padding: '12px 10px', fontWeight: 800 }}>
-                      {detail.taskId ? (
+                      {detail.isPrep ? (
+                        <span style={{ color: '#3b82f6', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                          <span>{detail.orderNum}</span>
+                          <span style={{ fontSize: '0.65rem', padding: '1px 5px', borderRadius: '4px', background: 'rgba(59,130,246,0.15)', color: '#60a5fa', fontWeight: 600 }}>Підготовка</span>
+                        </span>
+                      ) : detail.taskId ? (
                         <Link
                           to={`/master?task=${detail.taskId}`}
                           style={{ color: '#3b82f6', textDecoration: 'underline', cursor: 'pointer' }}
@@ -201,6 +274,29 @@ export const ReserveAnalysisModal = ({
                     </td>
                     <td style={{ padding: '12px 10px', textAlign: 'right', color: '#666' }}>
                       {detail.date}
+                    </td>
+                    <td style={{ padding: '12px 10px', textAlign: 'center' }}>
+                      {detail.rawReqId && (
+                        <button
+                          onClick={() => handleCancelRequest(detail.rawReqId, detail.quantity)}
+                          style={{
+                            background: 'rgba(239, 68, 68, 0.1)',
+                            border: '1px solid rgba(239, 68, 68, 0.3)',
+                            color: '#ef4444',
+                            borderRadius: '6px',
+                            padding: '3px 8px',
+                            fontSize: '0.7rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            transition: '0.2s'
+                          }}
+                          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239, 68, 68, 0.25)' }}
+                          onMouseLeave={e => { e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)' }}
+                          title="Скасувати запит та звільнити цей резерв"
+                        >
+                          Звільнити
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
