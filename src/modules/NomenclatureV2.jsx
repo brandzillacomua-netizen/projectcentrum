@@ -16,6 +16,8 @@ import { NomenclatureTable } from './Nomenclature/components/NomenclatureTable'
 import { NomenclatureWizardModal } from './Nomenclature/components/NomenclatureWizardModal'
 import { NomenclatureGroupModal } from './Nomenclature/components/NomenclatureGroupModal'
 import { NomenclatureEditModal } from './Nomenclature/components/NomenclatureEditModal'
+import { NomenclatureExportModal } from './Nomenclature/components/NomenclatureExportModal'
+import { NomenclatureImportModal } from './Nomenclature/components/NomenclatureImportModal'
 
 export { DEFAULT_ERP_GROUPS, ERP_CATEGORY_SCHEMAS, generateStandardName, buildFlattenedGroupOptions }
 
@@ -69,6 +71,8 @@ const NomenclatureV2 = () => {
   const [isWizardOpen, setIsWizardOpen] = useState(false)
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false)
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false)
   const [editingItem, setEditingItem] = useState(null)
   const [editItem, setEditItem] = useState(null)
 
@@ -568,6 +572,8 @@ const NomenclatureV2 = () => {
       <NomenclatureHeader
         onOpenCreateGroup={() => handleOpenCreateGroup(null)}
         onOpenWizard={() => handleOpenWizard()}
+        onOpenExport={() => setIsExportModalOpen(true)}
+        onOpenImport={() => setIsImportModalOpen(true)}
       />
 
       {/* Main Layout */}
@@ -598,6 +604,28 @@ const NomenclatureV2 = () => {
       </div>
 
       {/* MODALS */}
+      <NomenclatureExportModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        allItems={items}
+        visibleItems={visibleItems}
+        selectedGroup={selectedGroup}
+        groups={groups}
+        searchQuery={searchQuery}
+      />
+
+      <NomenclatureImportModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        existingItems={items}
+        groups={groups}
+        onImportComplete={(summary) => {
+          setIsImportModalOpen(false)
+          loadData()
+          showToast(`🎉 Успішно імпортовано ${summary.successCount} позицій!`)
+        }}
+      />
+
       <NomenclatureWizardModal
         editingItem={editingItem}
         isWizardOpen={isWizardOpen}

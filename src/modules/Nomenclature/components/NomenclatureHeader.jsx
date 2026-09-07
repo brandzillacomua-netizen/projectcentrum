@@ -1,8 +1,8 @@
 import React from 'react'
-import { ArrowLeft, Layers, FolderPlus, Plus } from 'lucide-react'
+import { ArrowLeft, Layers, FolderPlus, Plus, Upload, Download } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
-export const NomenclatureHeader = ({ onOpenCreateGroup, onOpenWizard }) => {
+export const NomenclatureHeader = ({ onOpenCreateGroup, onOpenWizard, onOpenImport, onOpenExport }) => {
   return (
     <header className="nom-v2-header" style={{ height: '70px', background: 'var(--card-bg, #ffffff)', borderBottom: '1px solid var(--border-color, #e2e8f0)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 30px', sticky: 'top', zIndex: 100 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
@@ -22,15 +22,64 @@ export const NomenclatureHeader = ({ onOpenCreateGroup, onOpenWizard }) => {
       </div>
 
       {/* Global Action Buttons */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        
+        {/* Export Button */}
+        <button 
+          onClick={onOpenExport}
+          className="btn-v2-secondary"
+          style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: '6px', 
+            padding: '9px 15px', 
+            borderRadius: '12px', 
+            fontSize: '0.82rem', 
+            fontWeight: 800, 
+            cursor: 'pointer',
+            background: 'var(--card-header-bg, #f1f5f9)',
+            color: 'var(--text, #0f172a)',
+            border: '1px solid var(--border-color, #cbd5e1)',
+            transition: 'all 0.2s ease',
+            outline: 'none'
+          }}
+          title="Експорт номенклатури у Excel / CSV"
+        >
+          <Download size={16} color="#ea580c" /> ЕКСПОРТ
+        </button>
+
+        {/* Import Button */}
+        <button 
+          onClick={onOpenImport}
+          className="btn-v2-secondary"
+          style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: '6px', 
+            padding: '9px 15px', 
+            borderRadius: '12px', 
+            fontSize: '0.82rem', 
+            fontWeight: 800, 
+            cursor: 'pointer',
+            background: 'var(--card-header-bg, #f1f5f9)',
+            color: 'var(--text, #0f172a)',
+            border: '1px solid var(--border-color, #cbd5e1)',
+            transition: 'all 0.2s ease',
+            outline: 'none'
+          }}
+          title="Пакетний імпорт з Excel / CSV"
+        >
+          <Upload size={16} color="#10b981" /> ІМПОРТ
+        </button>
+
         <button 
           onClick={onOpenCreateGroup}
           className="btn-v2-secondary"
           style={{ 
             display: 'flex', 
             alignItems: 'center', 
-            gap: '8px', 
-            padding: '10px 18px', 
+            gap: '6px', 
+            padding: '9px 15px', 
             borderRadius: '12px', 
             fontSize: '0.82rem', 
             fontWeight: 800, 
@@ -51,8 +100,8 @@ export const NomenclatureHeader = ({ onOpenCreateGroup, onOpenWizard }) => {
           style={{ 
             display: 'flex', 
             alignItems: 'center', 
-            gap: '8px', 
-            padding: '10px 22px', 
+            gap: '6px', 
+            padding: '9px 18px', 
             borderRadius: '12px', 
             fontSize: '0.85rem', 
             fontWeight: 900, 

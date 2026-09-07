@@ -15,6 +15,7 @@ export const OrderDetailsModal = ({
   handleBatchScheduleInit,
   handleEditInit,
   nomenclatures,
+  allNomenclatures,
   currentUser,
   isSubmitting,
   getStatusLabel,
@@ -158,7 +159,7 @@ export const OrderDetailsModal = ({
               {selectedOrder.order_items?.map((item, idx) => (
                 <div key={idx} className="item-row-modern">
                   <Package size={16} className="text-dim" />
-                  <span className="item-name">{nomenclatures.find(n => n.id === item.nomenclature_id)?.name}</span>
+                  <span className="item-name">{(allNomenclatures || nomenclatures || []).find(n => String(n.id) === String(item.nomenclature_id))?.name || item.name || '—'}</span>
                   <span className="spacer"></span>
                   <strong className="item-qty">{item.quantity} шт</strong>
                 </div>

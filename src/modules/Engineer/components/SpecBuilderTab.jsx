@@ -358,14 +358,11 @@ export function SpecBuilderTab() {
         const t = p.nom.type
         if (t && t !== 'product' && t !== 'assembly') return false
         if (q && !p.nom.name.toLowerCase().includes(q)) return false
+        // Only show items with populated specifications
+        if (!p.children || p.children.length === 0) return false
         return true
       })
-      .sort((a, b) => {
-        const aEmpty = a.children.length === 0 ? 0 : 1
-        const bEmpty = b.children.length === 0 ? 0 : 1
-        if (aEmpty !== bEmpty) return aEmpty - bEmpty
-        return a.nom.name.localeCompare(b.nom.name)
-      })
+      .sort((a, b) => a.nom.name.localeCompare(b.nom.name))
   }, [bomItems, nomenclatures, catalogSearch])
 
   const getItemFolderKey = (nom) => {

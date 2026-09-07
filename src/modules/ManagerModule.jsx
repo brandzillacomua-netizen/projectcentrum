@@ -87,7 +87,7 @@ const ManagerModule = () => {
       const ruleType = String(v.rule_type || '').toLowerCase()
       const typeLower = String(v.type || '').toLowerCase()
 
-      // STRICT ALLOWLIST for Finished Products ("04. Готова продукція"):
+      // STRICT ALLOWLIST for Finished Goods ONLY ("04. Готова продукція"):
       const isFinishedGroup = groupId === 'cat_fg' ||
                               groupId === 'grp_production_frames' ||
                               groupId === 'grp_test_samples' ||
@@ -121,7 +121,7 @@ const ManagerModule = () => {
 
       if (isNonFinishedRule) return false
 
-      // Keyword exclusion for solvents, hardeners, paints, screws, nuts, etc.
+      // Keyword exclusion for chemicals, tools, hardware
       const nameLower = (v.name || '').toLowerCase()
       const isChemicalOrTool = nameLower.includes('затверджувач') ||
                                nameLower.includes('розчинник') ||
@@ -136,8 +136,8 @@ const ManagerModule = () => {
 
       if (isChemicalOrTool) return false
 
-      // Fallback only for frames/kits
-      return nameLower.includes('рама') || nameLower.includes('комплект')
+      // Fallback only for frames/kits (not individual parts)
+      return (nameLower.includes('рама') || nameLower.includes('комплект')) && !nameLower.includes('деталь')
     }).map(v => ({
       id: v.id,
       name: v.name,
@@ -335,7 +335,7 @@ const ManagerModule = () => {
 
     setIsSubmitting(true)
     try {
-      const selectedProduct = nomenclatures.find(p => String(p.id) === String(editingOrderHeader.nomenclature_id))
+      const selectedProduct = allNomenclaturesList.find(p => String(p.id) === String(editingOrderHeader.nomenclature_id)) || v2FinishedProductsOnly.find(p => String(p.id) === String(editingOrderHeader.nomenclature_id))
       const headerWithInfo = {
         customer: editingOrderHeader.customer,
         official_customer: editingOrderHeader.official_customer,
@@ -452,7 +452,7 @@ const ManagerModule = () => {
 
     setIsSubmitting(true)
     try {
-      const selectedProduct = nomenclatures.find(p => String(p.id) === String(orderHeader.nomenclature_id))
+      const selectedProduct = allNomenclaturesList.find(p => String(p.id) === String(orderHeader.nomenclature_id)) || v2FinishedProductsOnly.find(p => String(p.id) === String(orderHeader.nomenclature_id))
       const headerWithInfo = { ...orderHeader, productName: selectedProduct?.name || '' }
 
       const items = [{ nomenclature_id: orderHeader.nomenclature_id, quantity: orderHeader.quantity }]
@@ -558,6 +558,7 @@ const ManagerModule = () => {
         handleBatchScheduleInit={handleBatchScheduleInit}
         handleEditInit={handleEditInit}
         nomenclatures={v2FinishedProductsOnly}
+        allNomenclatures={allNomenclaturesList}
         currentUser={currentUser}
         isSubmitting={isSubmitting}
         getStatusLabel={getStatusLabel}
