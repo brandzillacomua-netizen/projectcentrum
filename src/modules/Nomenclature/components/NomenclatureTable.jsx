@@ -8,9 +8,11 @@ const NomenclatureTableRow = React.memo(({
   handleDeleteItem
 }) => {
   const grp = groups.find(g => g.id === item.group_id)
-  const rawMat = item.rule_params?.rawSheet || item.material_type || '—'
-  const normQty = item.rule_params?.unitsPerSheet || item.units_per_sheet || null
-  const cResVal = item.rule_params?.cutterResource === 'custom' ? item.rule_params?.customCutterResource : (item.rule_params?.cutterResource || item.cutter_resource || null)
+  const isFinishedGood = item.rule_type === 'full_frame' || 
+    ['grp_production_frames', 'grp_test_samples', 'grp_assemblies', 'cat_fg'].includes(item.group_id)
+  const rawMat = isFinishedGood ? '—' : (item.rule_params?.rawSheet || item.material_type || '—')
+  const normQty = isFinishedGood ? null : (item.rule_params?.unitsPerSheet || item.units_per_sheet || null)
+  const cResVal = isFinishedGood ? null : (item.rule_params?.cutterResource === 'custom' ? item.rule_params?.customCutterResource : (item.rule_params?.cutterResource || item.cutter_resource || null))
   const cRes = cResVal ? `${cResVal} л/фр` : null
 
   return (
