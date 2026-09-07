@@ -719,7 +719,7 @@ export function createProductionCardsActions({
             stock: usedFromStock,
             plan: totalToProduce, 
             units_per_sheet: unitsPerSheet, 
-            sheets: sheets_t300 + sheets_t700, 
+            sheets: (sheets_t300 + sheets_t700) > 0 ? (sheets_t300 + sheets_t700) : sheets, 
             sheets_t300,
             sheets_t700,
             material: part.nom.material_type, 

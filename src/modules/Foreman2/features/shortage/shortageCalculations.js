@@ -38,7 +38,7 @@ export const calculatePartShortage = ({
   const need = asNumber(snapshot.need)
   const stockBZ = asNumber(snapshot.stock)
   const plan = asNumber(snapshot.plan, Math.max(0, need - stockBZ))
-  const plannedSheets = asNumber(snapshot.sheets)
+  const plannedSheets = asNumber(snapshot.sheets) || Math.ceil(plan / unitsPerSheet)
 
   const nomCards = cards.filter(card => asId(card.task_id) === asId(task.id) && asId(card.nomenclature_id) === nomId)
   const productionCards = nomCards.filter(card => !isBufferCard(card))
@@ -74,7 +74,7 @@ export const calculatePartShortage = ({
   const scrap = hasFinalScrapProjection
     ? asNumber(finalScrapByTask?.[asId(task.id)]?.[nomId])
     : observedScrap
-  const shortage = Math.max(0, scrap - spareFromSheets)
+  const shortage = scrap > 0 ? Math.max(0, scrap - Math.max(0, spareFromSheets)) : 0
 
   const returnedFromResolutionIndex = asNumber(vkyaReturnedByTask?.[asId(task.id)]?.[nomId])
   const returnedFromCardInfo = nomCards.reduce((sum, card) => {

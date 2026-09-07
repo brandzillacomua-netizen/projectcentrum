@@ -40,9 +40,12 @@ export default function GenerateCardsModal({
     const maxSheets = Number(config?.maxSheetsToGenerate) > 0
       ? Number(config.maxSheetsToGenerate)
       : null
+    const calculatedPlannedSheets = config?.part
+      ? Math.ceil((Number(config.part.plan) || Number(config.part.need) || 0) / Math.max(1, Number(config.part.unitsPerSheet) || 1))
+      : null
     const partSheets = Number(config?.part?.plannedSheets) > 0
       ? Number(config.part.plannedSheets)
-      : null
+      : calculatedPlannedSheets
     // Determine the cap on total sheets for this batch
     let remainingSheets = maxSheets !== null ? maxSheets : (partSheets !== null ? partSheets : cnt * cap)
 
@@ -203,9 +206,13 @@ export default function GenerateCardsModal({
     }, 0)
   }, [part])
 
+  const effectivePartSheets = Number(part?.plannedSheets) > 0
+    ? Number(part.plannedSheets)
+    : Math.ceil((Number(part?.plan) || Number(part?.need) || 0) / Math.max(1, Number(part?.unitsPerSheet) || 1))
+
   const availableIssuedSheets = singleKitting.hasKittingReqs
     ? Math.max(0, singleKitting.issuedSheets - alreadyGeneratedSheets)
-    : Math.max(0, (Number(part?.plannedSheets) || 0) - alreadyGeneratedSheets)
+    : Math.max(0, effectivePartSheets - alreadyGeneratedSheets)
 
   const isSingleKittingBlocked = singleKitting.hasKittingReqs && availableIssuedSheets <= 0 && singleKitting.pendingSheets > 0
 
@@ -599,14 +606,18 @@ export default function GenerateCardsModal({
                   return
                 }
                 if (total > 0) {
+                  const effectiveSheets = Number(part.plannedSheets) > 0
+                    ? Number(part.plannedSheets)
+                    : Math.ceil((Number(part.plan) || Number(part.need) || 0) / Math.max(1, Number(part.unitsPerSheet) || 1))
+
                   const allowedSheets = singleKitting.hasKittingReqs
                     ? availableIssuedSheets
-                    : (Number(config.maxSheetsToGenerate) > 0 ? config.maxSheetsToGenerate : null)
+                    : (Number(config.maxSheetsToGenerate) > 0 ? config.maxSheetsToGenerate : effectiveSheets)
 
                   onGenerate(
                     task,
                     part,
-                    part.plannedSheets,
+                    effectiveSheets,
                     machineName,
                     total,
                     part.productionCards?.length || 0,

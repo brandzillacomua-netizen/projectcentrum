@@ -69,8 +69,11 @@ export function useCardGeneration({ mes }) {
     
     const capacity = customCapacity !== null ? Number(customCapacity) : (Number(machineObj?.sheet_capacity) || 1)
     const unitsPerSheet = Number(resolvedPartNom?.units_per_sheet || part?.unitsPerSheet) || 1
+    const effectiveSheets = Number(sheets) > 0
+      ? Number(sheets)
+      : Math.ceil((Number(part?.plan) || Number(totalToReach) || (Number(count || 1) * capacity)) / unitsPerSheet)
 
-    const maxCardsForThisSplit = Math.ceil(sheets / capacity)
+    const maxCardsForThisSplit = Math.ceil(effectiveSheets / capacity)
     const displayTotal = globalTotalCards || maxCardsForThisSplit
 
     // Existing cards may have been produced with another machine capacity.
@@ -87,7 +90,7 @@ export function useCardGeneration({ mes }) {
       try {
         const { data, error } = await supabase
           .from('work_cards')
-          .select('id, is_rework, operation, card_info, quantity')
+          .select('id, is_rework, operation, card_info, quantity, machine')
           .eq('task_id', task.id)
           .eq('nomenclature_id', nomId)
         if (!error && data) {
@@ -134,15 +137,15 @@ export function useCardGeneration({ mes }) {
         actualGeneratedRequiredQty += reqMatch ? (Number(reqMatch[1]) || 0) : cardQty
       })
 
-      let sheetsRemainingForThisSplit = Math.max(0, sheets - actualGeneratedSheets)
-      if (maxSheetsToGenerate !== null && maxSheetsToGenerate !== undefined) {
-        sheetsRemainingForThisSplit = Math.min(sheetsRemainingForThisSplit, Math.max(0, Number(maxSheetsToGenerate) || 0))
+      let sheetsRemainingForThisSplit = Math.max(0, effectiveSheets - actualGeneratedSheets)
+      if (maxSheetsToGenerate !== null && maxSheetsToGenerate !== undefined && Number(maxSheetsToGenerate) > 0) {
+        sheetsRemainingForThisSplit = Math.min(sheetsRemainingForThisSplit, Number(maxSheetsToGenerate))
       }
       const snapshotEntry = task.plan_snapshot?.[String(nomId)]
       const originalNeed = snapshotEntry?.need || totalToReach || 0
 
       let reqRemainingForThisSplit = isRepair
-        ? Number(totalToReach) || (Number(sheets) * unitsPerSheet)
+        ? Number(totalToReach) || (effectiveSheets * unitsPerSheet)
         : originalNeed - actualGeneratedRequiredQty
       if (reqRemainingForThisSplit < 0) reqRemainingForThisSplit = 0
 
@@ -178,7 +181,7 @@ export function useCardGeneration({ mes }) {
       }
 
       if (cardsBatch.length === 0) {
-        throw new Error('Немає листів для довипуску. Перевірте розрахунок нестачі.')
+        throw new Error(isRepair ? 'Немає листів для довипуску. Перевірте розрахунок нестачі.' : 'Не вдалося розрахувати листи для генерації. Перевірте планову кількість у наряді.')
       }
 
       const createdCards = await apiService.submitCreateWorkCardsBatch(task.id, task.order_id, nomId, cardsBatch, createWorkCardsBatch)

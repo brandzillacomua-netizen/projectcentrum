@@ -164,8 +164,10 @@ export default function Foreman2Module() {
             onMachineChange={(part) => machineChange.openMachineChange(activeModel.task, part)}
             onMaterialCorrection={materialCorrection.canCorrect ? (part) => materialCorrection.open(activeModel.task, part) : null}
             onGenerateCards={(part, count, capacityOverride, maxSheetsToGenerate) => {
-              // Dovypusk mode triggers ONLY when scrap (утиль) exceeds planned BZ (spareFromSheets), i.e. shortage > 0
-              const isDovypusk = Number(part.shortage) > 0 || (Number(part.scrap) > Number(part.spareFromSheets))
+              // Dovypusk mode triggers ONLY when cards already exist, there is real scrap, and shortage > 0
+              const hasCards = (part.productionCards || []).length > 0
+              const hasScrap = Number(part.scrap) > 0
+              const isDovypusk = hasCards && hasScrap && Number(part.shortage) > 0
               cardGen.openGenModal({ task: activeModel.task, part, count: 1, capacityOverride, maxSheetsToGenerate, isRepair: isDovypusk })
             }}
             onPrintCards={(part, metadata) => cardGen.setPrintQueue({ task: activeModel.task, part, metadata })}
@@ -198,28 +200,15 @@ export default function Foreman2Module() {
         task={activeModel?.task}
         partId={machineChange.changeNomMachineNomId}
         partName={machineChange.changeNomMachineName}
-        initialMachine={machineChange.selectedNomNewMachine}
+        partMachine={machineChange.changeNomMachineCurrentMachine}
         machines={mes.machines || []}
-        machineOperations={mes.machineOperations || []}
-        nomenclatures={mes.nomenclatures || []}
         inventory={mes.inventory || []}
-        workCards={mes.workCards || []}
-        archiveCards={[]} // we don't have archiveCards pulled into context, but maybe we do, could add later
-        isChanging={machineChange.isChangingMachine}
-        onClose={() => {
-          machineChange.setChangeNomMachineTaskId(null)
-          machineChange.setChangeNomMachineNomId(null)
-        }}
-        onConfirm={async (selectedMachine, resolvedSelections, safeNomLoadCapacity) => {
-          await machineChange.handleUpdateNomenclatureMachineAndRecalculate(
-            activeModel?.task,
-            machineChange.changeNomMachineNomId,
-            selectedMachine,
-            null, // splits
-            resolvedSelections,
-            safeNomLoadCapacity
-          )
-        }}
+        nomenclatures={mes.nomenclatures || []}
+        machineOperations={mes.machineOperations || []}
+        planPartInfo={activeModel?.task?.plan_snapshot?.[machineChange.changeNomMachineNomId]}
+        onClose={machineChange.closeMachineChange}
+        onSave={machineChange.saveMachineChange}
+        isSaving={machineChange.isSavingMachineChange}
       />
 
       {reissuePart && (
@@ -242,7 +231,7 @@ export default function Foreman2Module() {
           machineOperations={mes.machineOperations || []}
           inventory={mes.inventory || []}
           workCards={mes.workCards || []}
-          materialRequests={mes.materialRequests || []}
+          materialRequests={mes.requests || mes.materialRequests || []}
           isGenerating={cardGen.isGenerating}
           onClose={cardGen.closeGenModal}
           onGenerate={cardGen.handleGenerateCards}
