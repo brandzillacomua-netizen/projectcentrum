@@ -33,6 +33,7 @@ export default function CrmModule() {
       <CrmBoard
         stages={crm.stages}
         filteredLeads={crm.filteredLeads}
+        selectedStageFilter={crm.selectedStageFilter}
         handleMoveColumn={crm.handleMoveColumn}
         openStageModalForEdit={crm.openStageModalForEdit}
         handleDeleteStage={crm.handleDeleteStage}

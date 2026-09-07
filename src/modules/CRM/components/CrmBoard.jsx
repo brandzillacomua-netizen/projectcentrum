@@ -5,6 +5,7 @@ import CrmLeadCard from './CrmLeadCard.jsx'
 export const CrmBoard = ({
   stages,
   filteredLeads,
+  selectedStageFilter = 'all',
   handleMoveColumn,
   openStageModalForEdit,
   handleDeleteStage,
@@ -12,15 +13,21 @@ export const CrmBoard = ({
   handleDeleteLead,
   handleMoveLeadStage
 }) => {
+  const visibleStages = selectedStageFilter && selectedStageFilter !== 'all'
+    ? stages.filter(s => s.id === selectedStageFilter)
+    : stages
+
   return (
     <div style={{
       display: 'grid',
-      gridTemplateColumns: `repeat(${stages.length}, minmax(280px, 1fr))`,
+      gridTemplateColumns: visibleStages.length === 1
+        ? 'minmax(340px, 600px)'
+        : `repeat(${visibleStages.length}, minmax(280px, 1fr))`,
       gap: '18px',
       overflowX: 'auto',
       paddingBottom: '20px'
     }}>
-      {stages.map((stage, colIdx) => {
+      {visibleStages.map((stage, colIdx) => {
         const stageLeads = filteredLeads.filter(l => l.stageId === stage.id)
         const stageValue = stageLeads.reduce((s, l) => s + (Number(l.amount) || 0), 0)
 

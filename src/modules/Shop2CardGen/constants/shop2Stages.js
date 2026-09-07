@@ -30,7 +30,7 @@ export const SHOP2_STAGES = [
   {
     key: SHOP2_STAGE_KEYS.PACKAGING,
     name: 'Пакування/СГП',
-    aliases: ['пакування', 'паковка', 'сгп', 'packaging', 'sgp']
+    aliases: ['пакування', 'паквання', 'паковка', 'сгп', 'packaging', 'sgp']
   }
 ]
 
