@@ -273,11 +273,16 @@ export const computeSheetsRemnants = (parsedCsv, nomenclatures) => {
   return previewList
 }
 
+export const normalizeCutterKey = (name) => {
+  if (!name) return ''
+  return name.trim().toLowerCase().replace(/[\u0445\u0425]/g, 'x').replace(/\s+/g, ' ')
+}
+
 export const computeCuttersList = (parsedCsv) => {
   const headers = parsedCsv[0] || []
   const nameColIdx = headers.findIndex(h => {
     const n = (h || '').toLowerCase().trim()
-    return n.includes('номенклатура') || n.includes('назва') || n === 'name'
+    return n.includes('номенклатура') || n.includes('назва') || n === 'name' || n.includes('фреза')
   })
   const diamColIdx = headers.findIndex(h => {
     const n = (h || '').toLowerCase().trim()
@@ -295,12 +300,18 @@ export const computeCuttersList = (parsedCsv) => {
   const items = []
   rows.forEach((row, idx) => {
     const name = row[nameColIdx] ? row[nameColIdx].trim() : ''
-    if (!name || !name.toLowerCase().startsWith('фреза')) return
+    if (!name) return
+    const lower = name.toLowerCase()
+    if (lower.includes('разом') || lower.includes('всього') || lower === 'total' || lower.startsWith('підсумок')) return
+
     const rawDiam = diamColIdx !== -1 ? (row[diamColIdx] || '').replace(',', '.').trim() : ''
     const diameter = parseFloat(rawDiam) || parseDiameterFromName(name) || 0
     const rawQty = qtyColIdx !== -1 ? (row[qtyColIdx] || '').trim() : ''
-    const qty = parseInt(rawQty) || 0
-    if (qty <= 0) return
+    const cleanedQty = String(rawQty).replace(/\s+/g, '').replace(',', '.')
+    const parsedQty = parseInt(cleanedQty, 10)
+    const qty = isNaN(parsedQty) ? 0 : Math.max(0, parsedQty)
+
+    // Allow qty === 0 so all 82 cutters from the inventory file are imported
     items.push({ name, diameter, qty, rowNum: idx + 2 })
   })
   items.sort((a, b) => {
@@ -329,9 +340,12 @@ export const computeFastenersList = (parsedCsv) => {
   rows.forEach((row, idx) => {
     const name = row[nameColIdx] ? row[nameColIdx].trim() : ''
     if (!name) return
+    const lower = name.toLowerCase()
+    if (lower.includes('разом') || lower.includes('всього') || lower === 'total') return
     const rawQty = qtyColIdx !== -1 ? (row[qtyColIdx] || '').trim() : ''
-    const qty = parseInt(rawQty) || 0
-    if (qty <= 0) return
+    const cleanedQty = String(rawQty).replace(/\s+/g, '').replace(',', '.')
+    const parsedQty = parseInt(cleanedQty, 10)
+    const qty = isNaN(parsedQty) ? 0 : Math.max(0, parsedQty)
     items.push({ name, qty, rowNum: idx + 2 })
   })
   items.sort((a, b) => a.name.localeCompare(b.name, 'uk'))
@@ -866,10 +880,10 @@ export function useSettingsImports({
       
       const batchOps = []
       if (updates.length > 0) {
-        batchOps.push(supabase.from('inventory').upsert(updates))
+        batchOps.push(supabase.from('inventory').upsert(updates, { onConflict: 'id' }))
       }
       if (inserts.length > 0) {
-        batchOps.push(supabase.from('inventory').insert(inserts))
+        batchOps.push(supabase.from('inventory').upsert(inserts, { onConflict: 'name,type,warehouse,pocket_owner' }))
       }
 
       const results = await Promise.all(batchOps)
@@ -947,84 +961,160 @@ export function useSettingsImports({
   const executeCuttersUpload = async () => {
     setCuttersUploadStatus('uploading')
     setCuttersUploadLog('Початок завантаження залишків фрез...\n')
-    const existingInventory = inventory || []
     const updates = []
     const inserts = []
-    
+
+    // 1. Group cutters using normalized cutter key (unifying Cyrillic/Latin 'x' and whitespace)
     const aggregatedCutters = {}
     cuttersPreviewList.forEach(item => {
-      const key = item.name
-      if (!aggregatedCutters[key]) {
-        aggregatedCutters[key] = { ...item }
+      const trimmedName = (item.name || '').trim()
+      const normKey = normalizeCutterKey(trimmedName)
+      if (!normKey) return
+      if (!aggregatedCutters[normKey]) {
+        aggregatedCutters[normKey] = { ...item, name: trimmedName }
       } else {
-        aggregatedCutters[key].qty += item.qty
+        aggregatedCutters[normKey].qty += (Number(item.qty) || 0)
       }
     })
     const groupedList = Object.values(aggregatedCutters)
 
     try {
-      const dbNomMap = {}
-      ;(nomenclatures || []).forEach(n => { dbNomMap[normalizeHomoglyphs(n.name)] = n })
-      setCuttersUploadLog(prev => prev + `Обробка ${groupedList.length} унікальних позицій фрез...\n`)
-      
-      for (const item of groupedList) {
-        const normName = normalizeHomoglyphs(item.name)
-        let nomRecord = dbNomMap[normName]
-        if (!nomRecord) {
-          const { data: newNom, error: nomErr } = await supabase
-            .from('nomenclatures')
-            .insert([{ name: item.name, type: 'consumable' }])
-            .select().single()
-          if (nomErr) {
-            setCuttersUploadLog(prev => prev + `  ⚠️ [НОМ ПОМИЛКА] ${item.name}: ${nomErr.message}\n`)
-            continue
-          }
-          setCuttersUploadLog(prev => prev + `  ✅ [НОМ СТВОРЕНО] ${newNom.name} (ID: ${newNom.id})\n`)
-          nomRecord = newNom
-          dbNomMap[normName] = newNom
+      // 2. Fetch fresh operational consumable inventory directly from DB to prevent out-of-sync collisions
+      setCuttersUploadLog(prev => prev + `Синхронізація актуальних залишків з базою даних...\n`)
+      let freshOperationalInv = []
+      try {
+        const { data: dbInv, error: invErr } = await supabase
+          .from('inventory')
+          .select('id, nomenclature_id, name, type, warehouse, total_qty, reserved_qty, pocket_owner')
+          .eq('warehouse', 'operational')
+          .eq('type', 'consumable')
+          .is('pocket_owner', null)
+        if (!invErr && Array.isArray(dbInv)) {
+          freshOperationalInv = dbInv
         }
-        
-        const existingInv = existingInventory.find(i =>
+      } catch (e) {
+        console.warn('Direct inventory fetch warning:', e)
+      }
+
+      // Combine fresh DB inventory with in-memory inventory
+      const combinedInventory = [...freshOperationalInv]
+      ;(inventory || []).forEach(i => {
+        if (i.warehouse === 'operational' && i.type === 'consumable' && !combinedInventory.some(ci => ci.id === i.id)) {
+          combinedInventory.push(i)
+        }
+      })
+
+      // 3. Map existing nomenclatures
+      const dbNomMap = {}
+      ;(nomenclatures || []).forEach(n => {
+        dbNomMap[normalizeCutterKey(n.name)] = n
+        dbNomMap[normalizeHomoglyphs(n.name)] = n
+        dbNomMap[n.name.trim().toLowerCase()] = n
+      })
+      setCuttersUploadLog(prev => prev + `Обробка ${groupedList.length} унікальних позицій фрез...\n`)
+
+      const seenInventoryKeys = new Set()
+
+      for (const item of groupedList) {
+        const normKey = normalizeCutterKey(item.name)
+        let nomRecord = dbNomMap[normKey] || dbNomMap[item.name.toLowerCase()]
+        if (!nomRecord) {
+          const { data: foundNom } = await supabase
+            .from('nomenclatures')
+            .select('id, name, type')
+            .ilike('name', item.name)
+            .maybeSingle()
+
+          if (foundNom) {
+            nomRecord = foundNom
+            dbNomMap[normKey] = foundNom
+          } else {
+            const { data: newNom, error: nomErr } = await supabase
+              .from('nomenclatures')
+              .insert([{ name: item.name, type: 'consumable' }])
+              .select().single()
+            if (nomErr) {
+              const { data: retryNom } = await supabase
+                .from('nomenclatures')
+                .select('id, name, type')
+                .ilike('name', item.name)
+                .maybeSingle()
+
+              if (retryNom) {
+                nomRecord = retryNom
+                dbNomMap[normKey] = retryNom
+              } else {
+                setCuttersUploadLog(prev => prev + `  ⚠️ [НОМ ПОМИЛКА] ${item.name}: ${nomErr.message}\n`)
+                continue
+              }
+            } else {
+              setCuttersUploadLog(prev => prev + `  ✅ [НОМ СТВОРЕНО] ${newNom.name} (ID: ${newNom.id})\n`)
+              nomRecord = newNom
+              dbNomMap[normKey] = newNom
+            }
+          }
+        }
+
+        // Match existing inventory by nomenclature_id OR exact name OR cutter key match
+        const existingInv = combinedInventory.find(i =>
           i.warehouse === 'operational' &&
-          String(i.nomenclature_id) === String(nomRecord.id) &&
-          i.type === 'consumable'
+          i.type === 'consumable' &&
+          i.pocket_owner == null &&
+          (
+            (nomRecord?.id && String(i.nomenclature_id) === String(nomRecord.id)) ||
+            i.name?.trim().toLowerCase() === item.name.toLowerCase() ||
+            normalizeCutterKey(i.name) === normKey
+          )
         )
-        
+
+        const standardName = nomRecord?.name || item.name
+        const itemKey = `${normalizeCutterKey(standardName)}|consumable|operational|null`
+        if (seenInventoryKeys.has(itemKey)) {
+          continue
+        }
+        seenInventoryKeys.add(itemKey)
+
         if (existingInv) {
           const newTotal = cuttersRecordMode === 'add'
             ? (Number(existingInv.total_qty) || 0) + item.qty
             : item.qty
           updates.push({
             id: existingInv.id,
-            nomenclature_id: nomRecord.id,
-            name: item.name,
+            nomenclature_id: nomRecord?.id || existingInv.nomenclature_id,
+            name: existingInv.name || standardName,
             type: 'consumable',
             warehouse: 'operational',
+            pocket_owner: null,
             unit: 'шт',
             total_qty: newTotal,
             reserved_qty: existingInv.reserved_qty || 0,
             updated_at: new Date().toISOString()
           })
-          setCuttersUploadLog(prev => prev + `[ОНОВИТИ СО] ${item.name}: ${newTotal} шт (Ø${item.diameter})\n`)
+          setCuttersUploadLog(prev => prev + `[ОНОВИТИ СО] ${existingInv.name || standardName}: ${newTotal} шт (було ${existingInv.total_qty || 0}, Ø${item.diameter})\n`)
         } else {
           inserts.push({
-            nomenclature_id: nomRecord.id,
-            name: item.name,
+            nomenclature_id: nomRecord?.id || null,
+            name: standardName,
             type: 'consumable',
             warehouse: 'operational',
+            pocket_owner: null,
             unit: 'шт',
             total_qty: item.qty,
             reserved_qty: 0,
             updated_at: new Date().toISOString()
           })
-          setCuttersUploadLog(prev => prev + `[НОВИЙ СО] ${item.name}: ${item.qty} шт (Ø${item.diameter})\n`)
+          setCuttersUploadLog(prev => prev + `[НОВИЙ СО] ${standardName}: ${item.qty} шт (Ø${item.diameter})\n`)
         }
       }
-      
+
       setCuttersUploadLog(prev => prev + `\nНадсилання змін до Supabase...\n`)
       const batchOps = []
-      if (updates.length > 0) batchOps.push(supabase.from('inventory').upsert(updates))
-      if (inserts.length > 0) batchOps.push(supabase.from('inventory').insert(inserts))
+      if (updates.length > 0) {
+        batchOps.push(supabase.from('inventory').upsert(updates, { onConflict: 'id' }))
+      }
+      if (inserts.length > 0) {
+        batchOps.push(supabase.from('inventory').upsert(inserts, { onConflict: 'name,type,warehouse,pocket_owner' }))
+      }
       const results = await Promise.all(batchOps)
       for (const res of results) { if (res.error) throw res.error }
       setCuttersUploadLog(prev => prev + `✅ Успішно оновлено базу даних!\n`)
@@ -1080,47 +1170,111 @@ export function useSettingsImports({
   const executeFastenersUpload = async () => {
     setFastenersUploadStatus('uploading')
     setFastenersUploadLog('Початок завантаження залишків метизів на СВ...\n')
-    const existingInventory = inventory || []
     const updates = []
     const inserts = []
 
     const aggregatedFasteners = {}
     fastenersPreviewList.forEach(item => {
-      const key = item.name
-      if (!aggregatedFasteners[key]) {
-        aggregatedFasteners[key] = { ...item }
+      const trimmedName = (item.name || '').trim()
+      const normKey = normalizeHomoglyphs(trimmedName) || trimmedName.toLowerCase()
+      if (!normKey) return
+      if (!aggregatedFasteners[normKey]) {
+        aggregatedFasteners[normKey] = { ...item, name: trimmedName }
       } else {
-        aggregatedFasteners[key].qty += item.qty
+        aggregatedFasteners[normKey].qty += (Number(item.qty) || 0)
       }
     })
     const groupedList = Object.values(aggregatedFasteners)
 
     try {
+      setFastenersUploadLog(prev => prev + `Синхронізація актуальних залишків з базою даних...\n`)
+      let freshProdInv = []
+      try {
+        const { data: dbInv, error: invErr } = await supabase
+          .from('inventory')
+          .select('id, nomenclature_id, name, type, warehouse, total_qty, reserved_qty, pocket_owner')
+          .eq('warehouse', 'production')
+          .is('pocket_owner', null)
+        if (!invErr && Array.isArray(dbInv)) {
+          freshProdInv = dbInv
+        }
+      } catch (e) {
+        console.warn('Direct fasteners inventory fetch warning:', e)
+      }
+
+      const combinedInventory = [...freshProdInv]
+      ;(inventory || []).forEach(i => {
+        if (i.warehouse === 'production' && !combinedInventory.some(ci => ci.id === i.id)) {
+          combinedInventory.push(i)
+        }
+      })
+
       const dbNomMap = {}
-      ;(nomenclatures || []).forEach(n => { dbNomMap[normalizeHomoglyphs(n.name)] = n })
+      ;(nomenclatures || []).forEach(n => {
+        dbNomMap[normalizeHomoglyphs(n.name)] = n
+        dbNomMap[n.name.trim().toLowerCase()] = n
+      })
       setFastenersUploadLog(prev => prev + `Обробка ${groupedList.length} унікальних позицій метизів...\n`)
+
+      const seenInventoryKeys = new Set()
 
       for (const item of groupedList) {
         const normName = normalizeHomoglyphs(item.name)
-        let nomRecord = dbNomMap[normName]
+        let nomRecord = dbNomMap[normName] || dbNomMap[item.name.toLowerCase()]
         if (!nomRecord) {
-          const { data: newNom, error: nomErr } = await supabase
+          const { data: foundNom } = await supabase
             .from('nomenclatures')
-            .insert([{ name: item.name, type: 'hardware' }])
-            .select().single()
-          if (nomErr) {
-            setFastenersUploadLog(prev => prev + `  ⚠️ [НОМ ПОМИЛКА] ${item.name}: ${nomErr.message}\n`)
-            continue
+            .select('id, name, type')
+            .ilike('name', item.name)
+            .maybeSingle()
+
+          if (foundNom) {
+            nomRecord = foundNom
+            dbNomMap[normName] = foundNom
+          } else {
+            const { data: newNom, error: nomErr } = await supabase
+              .from('nomenclatures')
+              .insert([{ name: item.name, type: 'hardware' }])
+              .select().single()
+            if (nomErr) {
+              const { data: retryNom } = await supabase
+                .from('nomenclatures')
+                .select('id, name, type')
+                .ilike('name', item.name)
+                .maybeSingle()
+
+              if (retryNom) {
+                nomRecord = retryNom
+                dbNomMap[normName] = retryNom
+              } else {
+                setFastenersUploadLog(prev => prev + `  ⚠️ [НОМ ПОМИЛКА] ${item.name}: ${nomErr.message}\n`)
+                continue
+              }
+            } else {
+              setFastenersUploadLog(prev => prev + `  ✅ [НОМ СТВОРЕНО] ${newNom.name} (ID: ${newNom.id})\n`)
+              nomRecord = newNom
+              dbNomMap[normName] = newNom
+            }
           }
-          setFastenersUploadLog(prev => prev + `  ✅ [НОМ СТВОРЕНО] ${newNom.name} (ID: ${newNom.id})\n`)
-          nomRecord = newNom
-          dbNomMap[normName] = newNom
         }
 
-        const existingInv = existingInventory.find(i =>
+        const existingInv = combinedInventory.find(i =>
           i.warehouse === 'production' &&
-          String(i.nomenclature_id) === String(nomRecord.id)
+          i.pocket_owner == null &&
+          (
+            (nomRecord?.id && String(i.nomenclature_id) === String(nomRecord.id)) ||
+            i.name?.trim().toLowerCase() === item.name.toLowerCase() ||
+            normalizeHomoglyphs(i.name) === normName
+          )
         )
+
+        const standardName = nomRecord?.name || item.name
+        const itemType = existingInv?.type || nomRecord?.type || 'hardware'
+        const itemKey = `${standardName.trim().toLowerCase()}|${itemType}|production|null`
+        if (seenInventoryKeys.has(itemKey)) {
+          continue
+        }
+        seenInventoryKeys.add(itemKey)
 
         if (existingInv) {
           const newTotal = fastenersRecordMode === 'add'
@@ -1128,35 +1282,41 @@ export function useSettingsImports({
             : item.qty
           updates.push({
             id: existingInv.id,
-            nomenclature_id: nomRecord.id,
-            name: item.name,
-            type: existingInv.type || 'hardware',
+            nomenclature_id: nomRecord?.id || existingInv.nomenclature_id,
+            name: existingInv.name || standardName,
+            type: existingInv.type || itemType,
             warehouse: 'production',
+            pocket_owner: null,
             unit: existingInv.unit || 'шт',
             total_qty: newTotal,
             reserved_qty: existingInv.reserved_qty || 0,
             updated_at: new Date().toISOString()
           })
-          setFastenersUploadLog(prev => prev + `[ОНОВИТИ СВ] ${item.name}: ${newTotal} шт\n`)
+          setFastenersUploadLog(prev => prev + `[ОНОВИТИ СВ] ${existingInv.name || standardName}: ${newTotal} шт\n`)
         } else {
           inserts.push({
-            nomenclature_id: nomRecord.id,
-            name: item.name,
-            type: 'hardware',
+            nomenclature_id: nomRecord?.id || null,
+            name: standardName,
+            type: itemType,
             warehouse: 'production',
+            pocket_owner: null,
             unit: 'шт',
             total_qty: item.qty,
             reserved_qty: 0,
             updated_at: new Date().toISOString()
           })
-          setFastenersUploadLog(prev => prev + `[НОВИЙ СВ] ${item.name}: ${item.qty} шт\n`)
+          setFastenersUploadLog(prev => prev + `[НОВИЙ СВ] ${standardName}: ${item.qty} шт\n`)
         }
       }
 
       setFastenersUploadLog(prev => prev + `\nНадсилання змін до Supabase...\n`)
       const batchOps = []
-      if (updates.length > 0) batchOps.push(supabase.from('inventory').upsert(updates))
-      if (inserts.length > 0) batchOps.push(supabase.from('inventory').insert(inserts))
+      if (updates.length > 0) {
+        batchOps.push(supabase.from('inventory').upsert(updates, { onConflict: 'id' }))
+      }
+      if (inserts.length > 0) {
+        batchOps.push(supabase.from('inventory').upsert(inserts, { onConflict: 'name,type,warehouse,pocket_owner' }))
+      }
       const results = await Promise.all(batchOps)
       for (const res of results) { if (res.error) throw res.error }
       setFastenersUploadLog(prev => prev + `✅ Успішно оновлено базу даних!\n`)
