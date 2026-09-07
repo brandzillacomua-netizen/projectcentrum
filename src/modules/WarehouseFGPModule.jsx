@@ -40,7 +40,7 @@ export default function WarehouseFGPModule() {
   const [newItem, setNewItem] = useState({ name: '', total_qty: '', unit: 'шт', type: 'finished' })
 
   // Admin edit item state
-  const [editingInvId, setEditingInvId] = useState(null)
+  const [editingInvKey, setEditingInvKey] = useState(null)
   const [editingInvTotal, setEditingInvTotal] = useState('')
   const [editingInvReserved, setEditingInvReserved] = useState('')
   const [isSavingInv, setIsSavingInv] = useState(false)
@@ -55,67 +55,133 @@ export default function WarehouseFGPModule() {
     { id: 'registry', label: 'Реєстр випуску', icon: <History size={18} /> }
   ]
 
-  // Filter inventory by SGP types
-  const sgpItems = useMemo(() => {
+  // Key normalization for homoglyphs (Cyrillic vs Latin) and whitespaces
+  const normalizeKey = (str) => {
+    return (str || '')
+      .trim()
+      .toLowerCase()
+      .replace(/[\s_\-]+/g, '-')
+      .replace(/[аa]/g, 'a')
+      .replace(/[вb]/g, 'b')
+      .replace(/[еe]/g, 'e')
+      .replace(/[кk]/g, 'k')
+      .replace(/[мm]/g, 'm')
+      .replace(/[нh]/g, 'h')
+      .replace(/[оo]/g, 'o')
+      .replace(/[рp]/g, 'p')
+      .replace(/[сc]/g, 'c')
+      .replace(/[тt]/g, 't')
+      .replace(/[хx]/g, 'x')
+  }
+
+  // Filter inventory by SGP types without cross-contamination
+  const rawTabItems = useMemo(() => {
     return (inventory || []).filter(item => {
       const type = item.type || ''
       const nameLower = (item.name || '').toLowerCase()
 
       if (activeTab === 'finished') {
-        return type === 'finished' || type === 'part' || type === 'product' || nameLower.startsWith('іп-') || nameLower.startsWith('kr-') || nameLower.startsWith('ip-')
+        return type === 'finished' || type === 'part' || type === 'product'
       }
       if (activeTab === 'semi') {
-        return type === 'semi' || type === 'semi_shop2' || nameLower.includes('напівфабрикат') || nameLower.includes('заготовка')
+        return type === 'semi' || type === 'semi_shop2' || (type !== 'finished' && (nameLower.includes('напівфабрикат') || nameLower.includes('заготовка')))
       }
       if (activeTab === 'scrap') {
-        return type === 'scrap' || nameLower.includes('брак')
+        return type === 'scrap' || type === 'scrap_ready' || type.startsWith('scrap_cat_') || (type !== 'finished' && (nameLower.includes('брак') || nameLower.includes('карантин')))
       }
       if (activeTab === 'bz') {
-        return type === 'bz' || type === 'bz_shop2' || nameLower.includes('бз') || nameLower.includes('буфер')
+        return type === 'bz' || type === 'bz_shop2' || type === 'wip_bz' || (type !== 'finished' && (nameLower.includes('бз') || nameLower.includes('буфер')))
       }
-      return true
+      return false
     })
   }, [inventory, activeTab])
 
-  const filteredItems = useMemo(() => {
-    if (!searchQuery.trim()) return sgpItems
-    const q = searchQuery.toLowerCase().trim()
-    return sgpItems.filter(item => (item.name || '').toLowerCase().includes(q))
-  }, [sgpItems, searchQuery])
+  // Group items by unique product identity and aggregate quantities
+  const groupedItems = useMemo(() => {
+    const map = new Map()
 
-  // Compute tab counts
+    rawTabItems.forEach(item => {
+      const cleanName = (item.name || '').trim()
+      const key = item.nomenclature_id ? String(item.nomenclature_id) : normalizeKey(cleanName)
+
+      if (!map.has(key)) {
+        map.set(key, {
+          key,
+          nomenclature_id: item.nomenclature_id,
+          name: cleanName,
+          unit: item.unit || 'шт',
+          total_qty: 0,
+          reserved_qty: 0,
+          rawItems: []
+        })
+      }
+
+      const grp = map.get(key)
+      const tQty = Number(item.total_qty) || 0
+      const rQty = Number(item.reserved_qty) || 0
+      grp.total_qty += tQty
+      grp.reserved_qty += rQty
+      grp.rawItems.push(item)
+    })
+
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name, 'uk'))
+  }, [rawTabItems])
+
+  const filteredItems = useMemo(() => {
+    if (!searchQuery.trim()) return groupedItems
+    const q = searchQuery.toLowerCase().trim()
+    return groupedItems.filter(item => (item.name || '').toLowerCase().includes(q))
+  }, [groupedItems, searchQuery])
+
+  // Compute accurate tab counts
   const tabCounts = useMemo(() => {
     const counts = { finished: 0, semi: 0, scrap: 0, bz: 0, registry: 0 }
     ;(inventory || []).forEach(item => {
       const type = item.type || ''
-      const nameLower = (item.name || '').toLowerCase()
-      if (type === 'finished' || type === 'part' || type === 'product' || nameLower.startsWith('іп-') || nameLower.startsWith('kr-')) {
-        counts.finished += Number(item.total_qty) || 0
-      } else if (type === 'semi' || type === 'semi_shop2' || nameLower.includes('напівфабрикат')) {
-        counts.semi += Number(item.total_qty) || 0
-      } else if (type === 'scrap' || nameLower.includes('брак')) {
-        counts.scrap += Number(item.total_qty) || 0
-      } else if (type === 'bz' || type === 'bz_shop2' || nameLower.includes('бз')) {
-        counts.bz += Number(item.total_qty) || 0
+      const q = Number(item.total_qty) || 0
+      if (type === 'finished' || type === 'part' || type === 'product') {
+        counts.finished += q
+      } else if (type === 'semi' || type === 'semi_shop2') {
+        counts.semi += q
+      } else if (type === 'scrap' || type === 'scrap_ready' || type.startsWith('scrap_cat_')) {
+        counts.scrap += q
+      } else if (type === 'bz' || type === 'bz_shop2' || type === 'wip_bz') {
+        counts.bz += q
       }
     })
     counts.registry = (workCardHistory || []).filter(h => h.status === 'completed').length
     return counts
   }, [inventory, workCardHistory])
 
-  const handleSaveInventoryQty = async (itemId) => {
-    if (!itemId || isSavingInv) return
+  const handleSaveInventoryQty = async (item) => {
+    if (!item || isSavingInv) return
     setIsSavingInv(true)
     try {
+      const primaryRaw = item.rawItems?.[0]
+      if (!primaryRaw?.id) throw new Error('Запис інвентарю не знайдено')
+
+      const newTotal = Number(editingInvTotal) || 0
+      const newReserved = Number(editingInvReserved) || 0
+
+      // Update primary inventory record
       const { error } = await supabase.from('inventory').update({
-        total_qty: Number(editingInvTotal) || 0,
-        reserved_qty: Number(editingInvReserved) || 0
-      }).eq('id', itemId)
+        total_qty: newTotal,
+        reserved_qty: newReserved
+      }).eq('id', primaryRaw.id)
 
       if (error) throw error
+
+      // If duplicate records exist in the database (e.g. bz_shop2 vs bz), zero them out
+      if (item.rawItems && item.rawItems.length > 1) {
+        const otherIds = item.rawItems.slice(1).map(r => r.id).filter(Boolean)
+        if (otherIds.length > 0) {
+          await supabase.from('inventory').update({ total_qty: 0, reserved_qty: 0 }).in('id', otherIds)
+        }
+      }
+
       if (typeof refreshTable === 'function') refreshTable('inventory')
       if (typeof fetchData === 'function') fetchData(['inventory'])
-      setEditingInvId(null)
+      setEditingInvKey(null)
     } catch (err) {
       alert(`Помилка оновлення: ${err.message}`)
     } finally {
@@ -335,19 +401,20 @@ export default function WarehouseFGPModule() {
               </thead>
               <tbody>
                 {filteredItems.map(item => (
-                  <tr key={item.id} style={{ borderBottom: '1px solid #141414', fontSize: '0.85rem' }}>
+                  <tr key={item.key} style={{ borderBottom: '1px solid #141414', fontSize: '0.85rem' }}>
                     <td style={{ padding: '15px', fontWeight: 800 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <span>{item.name}</span>
-                        {isAdmin && editingInvId !== item.id && (
+                        {isAdmin && editingInvKey !== item.key && (
                           <button
                             type="button"
                             onClick={() => {
-                              setEditingInvId(item.id)
+                              setEditingInvKey(item.key)
                               setEditingInvTotal(String(item.total_qty || 0))
                               setEditingInvReserved(String(item.reserved_qty || 0))
                             }}
                             style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer', padding: '4px' }}
+                            title="Редагувати залишок"
                           >
                             <Pencil size={12} />
                           </button>
@@ -355,32 +422,52 @@ export default function WarehouseFGPModule() {
                       </div>
                     </td>
                     <td style={{ padding: '15px', textAlign: 'center', color: '#10b981', fontWeight: 900 }}>
-                      {editingInvId === item.id ? (
+                      {editingInvKey === item.key ? (
                         <input
                           type="number"
                           value={editingInvTotal}
                           onChange={e => setEditingInvTotal(e.target.value)}
-                          onKeyDown={e => { if (e.key === 'Enter') handleSaveInventoryQty(item.id) }}
+                          onKeyDown={e => { if (e.key === 'Enter') handleSaveInventoryQty(item) }}
                           style={{ width: '70px', background: '#000', border: '1px solid #10b981', color: '#fff', textAlign: 'center', borderRadius: '6px', padding: '4px' }}
+                          autoFocus
                         />
                       ) : (
-                        <>{item.total_qty || 0} <small style={{ color: '#444', fontWeight: 400 }}>{item.unit}</small></>
+                        <>{item.total_qty} <small style={{ color: '#444', fontWeight: 400 }}>{item.unit}</small></>
                       )}
                     </td>
                     <td style={{ padding: '15px', textAlign: 'center', color: '#38bdf8', fontWeight: 900 }}>
-                      {Math.max(0, (item.total_qty || 0) - (item.reserved_qty || 0))}
+                      {Math.max(0, item.total_qty - item.reserved_qty)}
                     </td>
-                    <td style={{ padding: '15px', textAlign: 'center', color: (item.reserved_qty || 0) > 0 ? '#f59e0b' : '#333', fontWeight: 800 }}>
-                      {item.reserved_qty || 0}
+                    <td style={{ padding: '15px', textAlign: 'center', color: item.reserved_qty > 0 ? '#f59e0b' : '#333', fontWeight: 800 }}>
+                      {editingInvKey === item.key ? (
+                        <input
+                          type="number"
+                          value={editingInvReserved}
+                          onChange={e => setEditingInvReserved(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') handleSaveInventoryQty(item) }}
+                          style={{ width: '60px', background: '#000', border: '1px solid #f59e0b', color: '#fff', textAlign: 'center', borderRadius: '6px', padding: '4px' }}
+                        />
+                      ) : (
+                        item.reserved_qty
+                      )}
                     </td>
                     <td style={{ padding: '15px', textAlign: 'right' }}>
-                      {editingInvId === item.id ? (
-                        <button
-                          onClick={() => handleSaveInventoryQty(item.id)}
-                          style={{ background: '#10b981', color: '#000', border: 'none', padding: '6px 14px', borderRadius: '8px', fontWeight: 900, cursor: 'pointer' }}
-                        >
-                          ЗБЕРЕГТИ
-                        </button>
+                      {editingInvKey === item.key ? (
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
+                          <button
+                            onClick={() => handleSaveInventoryQty(item)}
+                            disabled={isSavingInv}
+                            style={{ background: '#10b981', color: '#000', border: 'none', padding: '6px 12px', borderRadius: '8px', fontWeight: 900, cursor: 'pointer' }}
+                          >
+                            {isSavingInv ? '...' : 'ЗБЕРЕГТИ'}
+                          </button>
+                          <button
+                            onClick={() => setEditingInvKey(null)}
+                            style={{ background: '#222', color: '#888', border: 'none', padding: '6px 10px', borderRadius: '8px', cursor: 'pointer' }}
+                          >
+                            ✕
+                          </button>
+                        </div>
                       ) : (
                         <span style={{ color: '#444', fontSize: '0.75rem' }}>—</span>
                       )}
