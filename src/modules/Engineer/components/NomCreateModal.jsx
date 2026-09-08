@@ -121,15 +121,18 @@ export const NomCreateModal = ({ onClose, onCreated, supabase, refreshTable, pre
         return num > max ? num : max
       }, 90000) + 1
 
+      const inferredType = wizardGroup?.id?.includes('frame') || wizardGroup?.id === 'cat_fg' ? 'product' : (wizardGroup?.id === 'cat_parts' ? 'part' : 'consumable')
       const v2Payload = {
         code: `V2-${nextCode}`,
         name: generatedName,
         group_id: wizardGroup?.id || null,
-        category: wizardGroup?.name || 'V2 Номенклатура',
-        type: wizardGroup?.id?.includes('frame') || wizardGroup?.id === 'cat_fg' ? 'product' : (wizardGroup?.id === 'cat_parts' ? 'part' : 'consumable'),
         unit: wizardParams.unit || 'шт',
         rule_type: wizardRuleType,
-        rule_params: wizardParams,
+        rule_params: {
+          ...wizardParams,
+          category: wizardGroup?.name || 'V2 Номенклатура',
+          type: inferredType
+        },
         status: 'active'
       }
 

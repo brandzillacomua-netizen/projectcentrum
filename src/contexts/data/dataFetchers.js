@@ -242,12 +242,14 @@ export function useDataFetchers(state) {
       } else if (tableName === 'nomenclatures') {
         const data = requireData(await supabase.from('nomenclatures').select('*').limit(2000))
         if (data) {
+          nomenclaturesRef.current = data
           setNomenclatures(data)
           nomenclaturesLoadedRef.current = true
         }
       } else if (tableName === 'bom_items') {
         const data = requireData(await supabase.from('bom_items').select('*').limit(4000))
         if (data) {
+          bomItemsRef.current = data
           setBomItems(data)
           bomItemsLoadedRef.current = true
         }
@@ -287,6 +289,9 @@ export function useDataFetchers(state) {
         if (data) setWorkCardFlowTotals(data)
       } else {
         throw new Error(`Unsupported refresh table: ${tableName}`)
+      }
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('mes:refresh-table', { detail: { table: tableName } }))
       }
     } catch (e) {
       console.error(`Error refreshing ${tableName}:`, e)

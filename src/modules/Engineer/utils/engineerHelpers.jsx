@@ -226,6 +226,16 @@ export const useV2NomenclaturesData = (supabase) => {
   }
   useEffect(() => {
     fetchV2()
+    const handleRefresh = (e) => {
+      const table = e.detail?.table
+      if (table === 'nomenclatures' || table === 'nomenclatures_v2') {
+        fetchV2()
+      }
+    }
+    if (typeof window !== 'undefined') {
+      window.addEventListener('mes:refresh-table', handleRefresh)
+      return () => window.removeEventListener('mes:refresh-table', handleRefresh)
+    }
   }, [])
   return v2Noms
 }

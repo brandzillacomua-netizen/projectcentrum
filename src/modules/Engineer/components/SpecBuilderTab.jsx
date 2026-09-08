@@ -306,10 +306,19 @@ export function SpecBuilderTab() {
       let activeParentId = parentId
 
       if (parentId === 'temp-new') {
+        const isAssembly = pendingParent.type === 'assembly'
         const payloadParent = { 
-          name: pendingParent.name, 
-          type: pendingParent.type, 
-          material_type: pendingParent.material_type 
+          name: pendingParent.name.trim(),
+          group_id: isAssembly ? 'grp_assemblies' : 'grp_production_frames',
+          rule_type: isAssembly ? 'assembly' : 'full_frame',
+          unit: 'шт',
+          rule_params: { 
+            name: pendingParent.name.trim(), 
+            type: pendingParent.type, 
+            material_type: pendingParent.material_type,
+            unit: 'шт'
+          },
+          status: 'active'
         }
         const { data: newParent, error: parentErr } = await supabase
           .from('nomenclatures_v2')
