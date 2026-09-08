@@ -132,7 +132,7 @@ export function SpecBuilderTab() {
   const [inlineCuttersList, setInlineCuttersList] = useState([])
   const [savingOps, setSavingOps] = useState(false)
 
-  const renderCutterListEditor = (cutters, setCutters) => renderCutterListEditorShared(cutters, setCutters, nomenclatures)
+  const renderCutterListEditor = (cutters, setCutters) => renderCutterListEditorShared(cutters, setCutters, nomenclatures, rawNoms)
 
   useEffect(() => {
     const isModalOpen = !!activeInlinePart || !!showNomCreate || !!showParentCreate
@@ -202,10 +202,21 @@ export function SpecBuilderTab() {
         side2_cut_ops: [...combineOps(side2CutOpsF2, side2CutOpsF15), ...cutterStrings]
       }
       
+      // Ensure the nomenclature exists in public.nomenclatures (V1 shadow) so legacy FK doesn't fail
+      try {
+        await supabase.from('nomenclatures').upsert([{
+          id: activeInlinePart.id,
+          name: activeInlinePart.name || 'Деталь',
+          type: 'part'
+        }], { onConflict: 'id' })
+      } catch (_) {}
+
       if (existing) {
-        await supabase.from('machine_operations').update(payload).eq('id', existing.id)
+        const { error } = await supabase.from('machine_operations').update(payload).eq('id', existing.id)
+        if (error) throw error
       } else {
-        await supabase.from('machine_operations').insert(payload)
+        const { error } = await supabase.from('machine_operations').insert(payload)
+        if (error) throw error
       }
       await refreshTable('machine_operations')
       alert('Операції збережено успішно!')

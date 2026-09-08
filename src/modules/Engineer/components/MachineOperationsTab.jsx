@@ -98,13 +98,31 @@ export function MachineOperationsTab() {
       side2_cut_ops: [...combineOps(side2CutOpsF2, side2CutOpsF15), ...cutterStrings]
     }
     
-    if (existing) {
-      await supabase.from('machine_operations').update(payload).eq('id', existing.id)
-    } else {
-      await supabase.from('machine_operations').insert(payload)
+    try {
+      // Ensure nomenclature exists in V1 shadow table in case of legacy FK
+      try {
+        const nomObj = (nomenclatures || []).find(n => String(n.id) === String(selectedNom))
+        if (nomObj) {
+          await supabase.from('nomenclatures').upsert([{
+            id: nomObj.id,
+            name: nomObj.name || 'Деталь',
+            type: 'part'
+          }], { onConflict: 'id' })
+        }
+      } catch (_) {}
+
+      if (existing) {
+        const { error } = await supabase.from('machine_operations').update(payload).eq('id', existing.id)
+        if (error) throw error
+      } else {
+        const { error } = await supabase.from('machine_operations').insert(payload)
+        if (error) throw error
+      }
+      alert('Збережено!')
+      await refreshTable('machine_operations')
+    } catch (err) {
+      alert('Помилка збереження операцій: ' + err.message)
     }
-    alert('Збережено!')
-    await refreshTable('machine_operations')
   }
 
   const resolveMachineType = (machineName) => {
@@ -748,7 +766,7 @@ export function MachineOperationsTab() {
     </div>
   )
 
-  const renderCutterListEditor = (cutters, setCutters) => renderCutterListEditorShared(cutters, setCutters, nomenclatures)
+  const renderCutterListEditor = (cutters, setCutters) => renderCutterListEditorShared(cutters, setCutters, nomenclatures, rawNoms)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -856,7 +874,7 @@ export function MachineOperationsTab() {
                               if (cutterOps.length === 0) return null
                               const cuttersText = cutterOps.map(c => {
                                 const parts = c.split(':')
-                                const cNom = nomenclatures.find(n => String(n.id) === String(parts[1]))
+                                const cNom = nomenclatures.find(n => String(n.id) === String(parts[1])) || (rawNoms || []).find(n => String(n.id) === String(parts[1]))
                                 return `${cNom ? cNom.name : 'Фреза'} (${parts[2]} шт/л.)`
                               }).join(', ')
                               return (
