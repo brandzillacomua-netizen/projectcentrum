@@ -168,19 +168,88 @@ export function useDataFetchers(state) {
       const v1Data = (v1Res && !v1Res.error && Array.isArray(v1Res.data)) ? v1Res.data : []
       const v2Data = (v2Res && !v2Res.error && Array.isArray(v2Res.data)) ? v2Res.data : []
 
+      // 1. Load canonical V2 nomenclatures first (Master Catalog)
       const unifiedMap = new Map()
-      for (const n of v1Data) {
-        if (n && n.id) {
-          unifiedMap.set(String(n.id), n)
-        }
-      }
+      const v2ByName = new Map()
+      const v2ByCode = new Map()
+
       for (const n of v2Data) {
         if (n && n.id) {
           const mapped = mapV2ToStandardNom(n)
+          mapped.legacy_ids = [String(n.id)]
           unifiedMap.set(String(n.id), mapped)
+
+          const normName = String(mapped.name || '').trim().toLowerCase()
+          if (normName) v2ByName.set(normName, mapped)
+
+          const normCode = String(mapped.nomenclature_code || mapped.code || '').trim().toUpperCase()
+          if (normCode) v2ByCode.set(normCode, mapped)
         }
       }
-      return Array.from(unifiedMap.values())
+
+      // 2. Process legacy V1 data: merge duplicates into canonical V2, keep only truly unique legacy items
+      const v1ByName = new Map()
+      for (const n of v1Data) {
+        if (!n || !n.id) continue
+        const normName = String(n.name || '').trim().toLowerCase()
+        const normCode = String(n.nomenclature_code || n.code || '').trim().toUpperCase()
+        const legacyIdStr = String(n.id)
+
+        const canonicalV2 = (normName && v2ByName.get(normName)) || (normCode && v2ByCode.get(normCode))
+
+        if (canonicalV2) {
+          // Merge legacy ID so any lookup for this item finds the canonical V2 record
+          if (!canonicalV2.legacy_ids.includes(legacyIdStr)) {
+            canonicalV2.legacy_ids.push(legacyIdStr)
+          }
+          if (!canonicalV2.material_type && n.material_type) canonicalV2.material_type = n.material_type
+          if (!canonicalV2.description && n.description) canonicalV2.description = n.description
+          if (!canonicalV2.additional_info && n.additional_info) canonicalV2.additional_info = n.additional_info
+          if (!canonicalV2.units_per_sheet && n.units_per_sheet) canonicalV2.units_per_sheet = n.units_per_sheet
+        } else {
+          // Check if already seen in V1 to avoid duplicates within V1 itself
+          const existingV1 = normName ? v1ByName.get(normName) : null
+          if (existingV1) {
+            if (!existingV1.legacy_ids.includes(legacyIdStr)) {
+              existingV1.legacy_ids.push(legacyIdStr)
+            }
+          } else {
+            const item = { ...n, legacy_ids: [legacyIdStr] }
+            unifiedMap.set(legacyIdStr, item)
+            if (normName) v1ByName.set(normName, item)
+          }
+        }
+      }
+
+      const unifiedList = Array.from(unifiedMap.values())
+
+      // 3. Transparent legacy ID fallback for Array.prototype.find
+      const legacyIdToCanonical = new Map()
+      for (const item of unifiedList) {
+        if (item.legacy_ids) {
+          for (const legId of item.legacy_ids) {
+            legacyIdToCanonical.set(String(legId), item)
+          }
+        }
+      }
+
+      const origFind = unifiedList.find.bind(unifiedList)
+      unifiedList.find = function (predicate, thisArg) {
+        const direct = origFind(predicate, thisArg)
+        if (direct) return direct
+        for (const [legId, item] of legacyIdToCanonical.entries()) {
+          try {
+            if (predicate({ ...item, id: legId }, 0, unifiedList)) {
+              return item
+            }
+          } catch {
+            // continue
+          }
+        }
+        return undefined
+      }
+
+      return unifiedList
     } catch (err) {
       console.warn('[dataFetchers] Failed to fetch unified nomenclatures:', err)
       return nomenclaturesRef.current || []

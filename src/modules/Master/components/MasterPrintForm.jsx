@@ -1,6 +1,7 @@
 import React from 'react'
 import { CheckCircle2 } from 'lucide-react'
 import { getCustomerCode } from '../../../utils/customerCodeUtils.js'
+import { getAvailableSGPStock } from '../../Nomenclature/utils/nomenclatureHelpers'
 
 export function MasterPrintForm({
   activeNaryadOrder,
@@ -65,10 +66,7 @@ export function MasterPrintForm({
                 if (!part.nom) return null
                 const snapshot = reprintTask?.plan_snapshot?.[String(part.nom.id)]
                 const totalNeeded = snapshot ? snapshot.need : (currentQty * (Number(part.quantity_per_parent) || 1))
-                const inStock = snapshot ? snapshot.stock : (() => {
-                  const bzInv = inventory.find(i => String(i.nomenclature_id) === String(part.nom.id) && i.type === 'bz')
-                  return bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0
-                })()
+                const inStock = snapshot ? snapshot.stock : getAvailableSGPStock(part.nom, inventory)
                 const totalToProduce = Math.max(0, totalNeeded - inStock)
                 const unitsPerSheet = Number(part.nom.units_per_sheet) || 1
                 const sheets = Math.ceil(totalToProduce / unitsPerSheet)

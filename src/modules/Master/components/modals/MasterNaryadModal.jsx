@@ -1,6 +1,7 @@
 import React from 'react'
 import { X, Info } from 'lucide-react'
 import { MasterStockInfoModal } from './MasterStockInfoModal'
+import { getAvailableSGPStock } from '../../../Nomenclature/utils/nomenclatureHelpers'
 
 export function MasterNaryadModal({
   activeNaryadOrder,
@@ -330,14 +331,7 @@ export function MasterNaryadModal({
                     const snapshot = reprintTask?.plan_snapshot?.[String(part.nom?.id)]
 
                     const totalNeeded = snapshot ? snapshot.need : (thisNaryadQty * (Number(part.quantity_per_parent) || 1))
-                    const availableBZ = (() => {
-                      const matchingItems = (inventory || []).filter(i =>
-                        String(i.nomenclature_id) === String(part.nom?.id) &&
-                        (i.type === 'bz' || i.type === 'finished' || i.type === 'part' || i.warehouse === 'sgp') &&
-                        (!i.pocket_owner || i.pocket_owner === 'Не вказано')
-                      )
-                      return matchingItems.reduce((acc, i) => acc + Math.max(0, (Number(i.total_qty) || 0) - (Number(i.reserved_qty) || 0)), 0)
-                    })()
+                    const availableBZ = getAvailableSGPStock(part.nom, inventory)
                     const inStock = snapshot ? (snapshot.stock || 0) : (() => {
                       const key = String(part.nom?.id)
                       if (partBZOverrides[key] !== undefined) {
@@ -717,13 +711,8 @@ export function MasterNaryadModal({
                       displayParts.forEach(part => {
                         const snapshot = reprintTask?.plan_snapshot?.[String(part.nom?.id)];
                         const need = snapshot ? snapshot.need : (thisNaryadQty * (Number(part.quantity_per_parent) || 1));
+                        const availableBZ = getAvailableSGPStock(part.nom, inventory);
                         const inStock = snapshot ? (snapshot.stock || 0) : (() => {
-                          const matchingItems = (inventory || []).filter(i =>
-                            String(i.nomenclature_id) === String(part.nom?.id) &&
-                            (i.type === 'bz' || i.type === 'finished' || i.type === 'part' || i.warehouse === 'sgp') &&
-                            (!i.pocket_owner || i.pocket_owner === 'Не вказано')
-                          )
-                          const availableBZ = matchingItems.reduce((acc, i) => acc + Math.max(0, (Number(i.total_qty) || 0) - (Number(i.reserved_qty) || 0)), 0)
                           const key = String(part.nom?.id)
                           if (partBZOverrides[key] !== undefined) {
                             const ov = partBZOverrides[key]
@@ -839,10 +828,8 @@ export function MasterNaryadModal({
 
                     const totalNeeded = snapshot ? snapshot.need : (thisNaryadQty * (Number(part.quantity_per_parent) || 1))
                     const isPartActiveBZ = isPartBZActive(part.nom?.id)
-                    const inStock = snapshot ? (snapshot.stock || 0) : (isPartActiveBZ ? (() => {
-                      const bzInv = inventory.find(i => String(i.nomenclature_id) === String(part.nom?.id) && i.type === 'bz' && (!i.pocket_owner || i.pocket_owner === 'Не вказано'))
-                      return bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0
-                    })() : 0)
+                    const availableBZ = getAvailableSGPStock(part.nom, inventory)
+                    const inStock = snapshot ? (snapshot.stock || 0) : (isPartActiveBZ ? Math.min(totalNeeded, availableBZ) : 0)
                     const totalToProduce = snapshot ? snapshot.plan : Math.max(0, totalNeeded - inStock)
 
                     const unitsPerSheet = Number(part.nom?.units_per_sheet) || 1
@@ -918,10 +905,8 @@ export function MasterNaryadModal({
                       displayParts.forEach(part => {
                         const snapshot = reprintTask?.plan_snapshot?.[String(part.nom?.id)];
                         const need = snapshot ? snapshot.need : (thisNaryadQty * (Number(part.quantity_per_parent) || 1));
-                        const inStock = snapshot ? snapshot.stock : (() => {
-                          const bzInv = inventory.find(i => String(i.nomenclature_id) === String(part.nom?.id) && i.type === 'bz' && (!i.pocket_owner || i.pocket_owner === 'Не вказано'));
-                          return bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0;
-                        })();
+                        const availableBZ = getAvailableSGPStock(part.nom, inventory);
+                        const inStock = snapshot ? (snapshot.stock || 0) : (isPartBZActive(part.nom?.id) ? Math.min(need, availableBZ) : 0);
                         const plan = snapshot ? snapshot.plan : Math.max(0, need - inStock);
                         const unitsPerSheet = Number(part.nom?.units_per_sheet) || 1;
                         const sheets = Math.ceil(plan / unitsPerSheet);

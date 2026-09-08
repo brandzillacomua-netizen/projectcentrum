@@ -693,9 +693,10 @@ export function createProductionCardsActions({
         const displayParts = getDisplayParts(item)
         displayParts.forEach(part => {
           if (!part.nom) return
-          const totalNeeded = requestedQty * (Number(part.qtyPer) || 1)
           const allocationKey = String(part.nom.id)
-          const allocatedRemaining = bzAllocationRemaining[allocationKey] || 0
+          const allocatedRemaining = bzAllocationRemaining[allocationKey]
+            || (part.nom.legacy_ids || []).reduce((acc, lid) => acc || bzAllocationRemaining[String(lid)] || 0, 0)
+            || 0
 
           let usedFromStock = 0
           if (customPartBZOverrides && customPartBZOverrides[allocationKey] !== undefined) {

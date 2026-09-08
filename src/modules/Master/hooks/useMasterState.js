@@ -4,6 +4,7 @@ import { useMES } from '../../../MESContext'
 import { apiService } from '../../../services/apiDispatcher'
 import { supabase } from '../../../supabase'
 import { MACHINE_TYPES, isShop1Task } from '../utils/masterHelpers'
+import { getAvailableSGPStock } from '../../Nomenclature/utils/nomenclatureHelpers'
 
 export function useMasterState() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -850,14 +851,7 @@ export function useMasterState() {
 
         const snapshot = reprintTask?.plan_snapshot?.[String(part.nom.id)]
         const totalNeeded = snapshot ? snapshot.need : (currentQty * (Number(part.quantity_per_parent) || 1))
-        const availableBZ = (() => {
-          const matchingItems = (inventory || []).filter(i =>
-            String(i.nomenclature_id) === String(part.nom?.id) &&
-            (i.type === 'bz' || i.type === 'finished' || i.type === 'part' || i.warehouse === 'sgp') &&
-            (!i.pocket_owner || i.pocket_owner === 'Не вказано')
-          )
-          return matchingItems.reduce((acc, i) => acc + Math.max(0, (Number(i.total_qty) || 0) - (Number(i.reserved_qty) || 0)), 0)
-        })()
+        const availableBZ = getAvailableSGPStock(part.nom, inventory)
         const inStock = snapshot ? (snapshot.stock || 0) : (() => {
           const key = String(part.nom?.id)
           if (partBZOverrides[key] !== undefined) {
@@ -951,14 +945,7 @@ export function useMasterState() {
       for (const part of displayParts) {
         if (!part.nom) continue
         const snapshot = reprintTask?.plan_snapshot?.[String(part.nom?.id)]
-        const availableBZ = (() => {
-          const matchingItems = (inventory || []).filter(i =>
-            String(i.nomenclature_id) === String(part.nom?.id) &&
-            (i.type === 'bz' || i.type === 'finished' || i.type === 'part' || i.warehouse === 'sgp') &&
-            (!i.pocket_owner || i.pocket_owner === 'Не вказано')
-          )
-          return matchingItems.reduce((acc, i) => acc + Math.max(0, (Number(i.total_qty) || 0) - (Number(i.reserved_qty) || 0)), 0)
-        })()
+        const availableBZ = getAvailableSGPStock(part.nom, inventory)
         const totalNeeded = snapshot ? snapshot.need : (thisNaryadQty * (Number(part.quantity_per_parent) || 1))
         const inStock = snapshot ? (snapshot.stock || 0) : (() => {
           const key = String(part.nom?.id)

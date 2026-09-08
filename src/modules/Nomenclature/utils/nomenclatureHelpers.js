@@ -456,3 +456,53 @@ export const mapV2ToStandardNom = (v) => {
   };
 };
 
+/**
+ * Calculates free available stock on SGP warehouse for a given nomenclature item.
+ * Supports V2 canonical ID, legacy V1 IDs, and normalized name fallback matching.
+ */
+export const getAvailableSGPStock = (partNom, inventory) => {
+  if (!partNom || !Array.isArray(inventory)) return 0;
+  const partNomId = String(partNom.id || '');
+  const partLegacyIds = new Set((partNom.legacy_ids || []).map(String));
+  const normPartName = String(partNom.name || '').trim().toLowerCase();
+
+  const matchingItems = inventory.filter(i => {
+    if (!i) return false;
+    const iNomId = String(i.nomenclature_id || '');
+    const iName = String(i.name || '').trim().toLowerCase();
+
+    const idMatch = iNomId && (iNomId === partNomId || partLegacyIds.has(iNomId));
+    const nameMatch = Boolean(normPartName && iName === normPartName);
+
+    const isAvailableType = i.type === 'bz' || i.type === 'finished' || i.type === 'part' || i.warehouse === 'sgp';
+    const isNotPocket = !i.pocket_owner || i.pocket_owner === 'Не вказано';
+
+    return (idMatch || nameMatch) && isAvailableType && isNotPocket;
+  });
+
+  return matchingItems.reduce((acc, i) => acc + Math.max(0, (Number(i.total_qty) || 0) - (Number(i.reserved_qty) || 0)), 0);
+};
+
+/**
+ * Finds the primary matching inventory item on SGP warehouse for a given nomenclature.
+ */
+export const findMatchingSGPInventoryItem = (partNom, inventory) => {
+  if (!partNom || !Array.isArray(inventory)) return null;
+  const partNomId = String(partNom.id || '');
+  const partLegacyIds = new Set((partNom.legacy_ids || []).map(String));
+  const normPartName = String(partNom.name || '').trim().toLowerCase();
+
+  return inventory.find(i => {
+    if (!i) return false;
+    const iNomId = String(i.nomenclature_id || '');
+    const iName = String(i.name || '').trim().toLowerCase();
+
+    const idMatch = iNomId && (iNomId === partNomId || partLegacyIds.has(iNomId));
+    const nameMatch = Boolean(normPartName && iName === normPartName);
+
+    const isAvailableType = i.type === 'bz' || i.type === 'finished' || i.type === 'part' || i.warehouse === 'sgp';
+    const isNotPocket = !i.pocket_owner || i.pocket_owner === 'Не вказано';
+
+    return (idMatch || nameMatch) && isAvailableType && isNotPocket;
+  }) || null;
+};
