@@ -86,6 +86,7 @@ export const ROUTE_DATA_PROFILES = Object.freeze({
   '/manager': ['orders', 'tasks', 'nomenclatures'],
   '/warehouse': ['inventory', 'material_requests', 'nomenclatures', 'reception_docs', 'orders', 'tasks', 'purchase_requests', 'machine_operations', 'work_cards', 'system_users'],
   '/warehouse-boxes': ['inventory', 'material_requests', 'nomenclatures', 'orders', 'tasks', 'machine_operations', 'work_cards'],
+  '/warehouse-fgp': ['inventory', 'material_requests', 'nomenclatures', 'reception_docs', 'orders', 'tasks', 'work_cards', 'work_card_history', 'system_users'],
   '/cutter-restoration': [],
   '/master': ['orders', 'tasks', 'nomenclatures', 'bom_items', 'inventory', 'material_requests', 'machines', 'machine_calls', 'machine_operations'],
   '/foreman': ['orders', 'tasks', 'work_cards', 'nomenclatures', 'bom_items', 'inventory', 'material_requests', 'machines', 'machine_calls', 'machine_operations', 'work_card_scrap_totals'],

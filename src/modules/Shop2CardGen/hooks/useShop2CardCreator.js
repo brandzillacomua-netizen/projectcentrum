@@ -65,10 +65,10 @@ export function useShop2CardCreator({ tasks = [], fetchData, refreshTable }) {
         const allocForThisOrder = Math.min(pool.availableQty, remainingToAllocate)
         if (allocForThisOrder <= 0) continue
 
-        // Find or associate a Shop 2 task for this order
+        // Find or associate an active task for this order (Packaging task, legacy Shop 2 task, or any task of this order)
         let targetTask = tasks.find(t =>
           String(t.order_id) === String(orderId) &&
-          (String(t.step || '').toLowerCase().includes('цех №2') || String(t.step || '').toLowerCase().includes('пресування'))
+          (String(t.step || '').toLowerCase().includes('пакування') || String(t.step || '').toLowerCase().includes('цех №2') || String(t.step || '').toLowerCase().includes('пресування'))
         )
         if (!targetTask && orderId) {
           targetTask = tasks.find(t => String(t.order_id) === String(orderId))

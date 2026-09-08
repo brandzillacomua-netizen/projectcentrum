@@ -38,22 +38,8 @@ export function createProductionHandoversActions({
         t.step?.includes('Пресування') &&
         t.batch_index === targetTask.batch_index
       )
-      if (!existingShop2) {
-        const { data: newShop2 } = await supabase.from('tasks').insert([{
-          order_id: targetTask.order_id,
-          step: 'Пресування [ЦЕХ №2]',
-          status: 'waiting',
-          planned_sets: targetTask.planned_sets || 0,
-          estimated_time: targetTask.estimated_time || 0,
-          engineer_conf: true,
-          warehouse_conf: 'true',
-          director_conf: true,
-          batch_index: targetTask.batch_index || null,
-          plan_snapshot: { ...(targetTask.plan_snapshot || {}), arrivals: [] }
-        }]).select()
-        if (newShop2 && newShop2.length > 0) {
-          setTasks(prev => [...prev, newShop2[0]])
-        }
+      if (existingShop2 && existingShop2.status === 'waiting') {
+        await supabase.from('tasks').update({ status: 'in-progress' }).eq('id', existingShop2.id)
       }
     }
   }
@@ -179,19 +165,6 @@ export function createProductionHandoversActions({
             status: 'in-progress',
             plan_snapshot: { ...(existingShop2Task.plan_snapshot || {}), arrival_doc_id: moveDoc?.id || null, arrivals }
           }).eq('id', existingShop2Task.id)
-        } else {
-          await supabase.from('tasks').insert([{
-            order_id: task.order_id,
-            step: 'Пресування [ЦЕХ №2]',
-            status: 'in-progress',
-            planned_sets: task.planned_sets || 0,
-            estimated_time: task.estimated_time || 0,
-            engineer_conf: true,
-            warehouse_conf: 'true',
-            director_conf: true,
-            batch_index: task.batch_index || null,
-            plan_snapshot: { ...task.plan_snapshot, arrival_doc_id: moveDoc?.id || null, arrivals }
-          }])
         }
       } catch (e) { console.error("BZ/Transfer error:", e) }
 

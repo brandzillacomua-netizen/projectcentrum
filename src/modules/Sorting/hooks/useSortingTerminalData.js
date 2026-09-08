@@ -365,26 +365,7 @@ export function useSortingTerminalData() {
         }).eq('id', activeCompletingCard.id)
       )
 
-      if (!shop2Tasks || shop2Tasks.length === 0) {
-        if (s1TaskData) {
-          shop2TaskId = generateUUID()
-          writePromises.push(
-            supabase.from('tasks').insert([{
-              id: shop2TaskId,
-              order_id: activeCompletingCard.order_id,
-              step: 'Пресування [ЦЕХ №2]',
-              status: 'in-progress',
-              planned_sets: s1TaskData.planned_sets || 0,
-              estimated_time: s1TaskData.estimated_time || 0,
-              engineer_conf: true,
-              warehouse_conf: 'true',
-              director_conf: true,
-              batch_index: s1TaskData.batch_index || null,
-              plan_snapshot: { ...(s1TaskData.plan_snapshot || {}), arrivals: [{ id: activeCompletingCard.nomenclature_id, name: nom?.name || 'Деталь', semi: actualNeed, bz: actualBz }] }
-            }])
-          )
-        }
-      } else {
+      if (shop2Tasks && shop2Tasks.length > 0) {
         shop2TaskId = shop2Tasks[0].id
         const existingArrivals = shop2Tasks[0]?.plan_snapshot?.arrivals || []
         const updatedArrivals = [...existingArrivals]

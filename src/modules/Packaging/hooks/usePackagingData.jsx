@@ -119,10 +119,15 @@ export function usePackagingData() {
 
   const [selectedBatch, setSelectedBatch] = useState(null)
   const [isProcessing, setIsProcessing] = useState(false)
-  const [excludedNomIds, setExcludedNomIds] = useState(new Set())
+  const [selectedNomIds, setSelectedNomIds] = useState(new Set())
   const [customQty, setCustomQty] = useState({})
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [customItems, setCustomItems] = useState([])
+
+  // За замовчуванням при виборі нового наряду всі галочки завжди зняті
+  useEffect(() => {
+    setSelectedNomIds(new Set())
+  }, [selectedBatch])
 
   // Modal states
   const [showAddItemModal, setShowAddItemModal] = useState(false)
@@ -157,7 +162,7 @@ export function usePackagingData() {
   }, [])
 
   useEffect(() => {
-    setExcludedNomIds(new Set())
+    setSelectedNomIds(new Set())
     setBoxNumbers({})
     setSavedBoxes([])
     setShowBoxSummary(false)
@@ -187,9 +192,9 @@ export function usePackagingData() {
         .eq('order_id', batch.orderId);
 
       if (batch.batchIndex) {
-        query = query.eq('batch_index', batch.batchIndex);
+        query = query.or(`batch_index.eq.${batch.batchIndex},batch_index.is.null,batch_index.eq.,batch_index.eq.1,batch_index.eq.whole`);
       } else {
-        query = query.or('batch_index.is.null,batch_index.eq.,batch_index.eq.1');
+        query = query.or('batch_index.is.null,batch_index.eq.,batch_index.eq.1,batch_index.eq.whole');
       }
 
       const { data, error } = await query;
@@ -221,37 +226,77 @@ export function usePackagingData() {
         schedule = Array.isArray(parsed.batch_schedule) ? parsed.batch_schedule : []
       } catch (e) {}
 
-      if (schedule.length > 0) {
-        schedule.forEach(sb => {
-          if (sb.packaged === true) return
-          const key = `${task.order_id}_sched_${sb.batch_num}`
-          if (!batchGroups[key]) {
-            const productNames = order.order_items?.map(it => nomenclatures.find(n => n.id === it.nomenclature_id)?.name).filter(Boolean).join(', ') || '—'
-            batchGroups[key] = {
-              key,
-              orderId: task.order_id,
-              orderNum: order.order_num,
-              customer: order.customer,
-              productNames,
-              batchIndex: `П${sb.batch_num}`,
-              batchNum: sb.batch_num,
-              plannedSets: sb.quantity || 0,
-              deadline: sb.deadline || order.deadline,
-              isPackaged: false,
-              isScheduledBatch: true,
-              tasks: []
-            }
-          }
-          if (!batchGroups[key].tasks.some(t => t.id === task.id)) {
-            batchGroups[key].tasks.push(task)
-          }
-        })
-      } else {
+      const hasRealSplitsInDB = localTasks.some(t => 
+        String(t.order_id) === String(order.id) && 
+        t.batch_index && 
+        String(t.batch_index).startsWith('П')
+      )
+
+      if (hasRealSplitsInDB) {
+        // Окремі фізичні таски в БД (після спліту)
         const bIdx = task.batch_index || ''
         const key = bIdx ? `${task.order_id}_${bIdx}` : `${task.order_id}_whole`
         if (!batchGroups[key]) {
           const productNames = order.order_items?.map(it => nomenclatures.find(n => n.id === it.nomenclature_id)?.name).filter(Boolean).join(', ') || '—'
-          batchGroups[key] = { key, orderId: task.order_id, orderNum: order.order_num, customer: order.customer, productNames, batchIndex: bIdx, plannedSets: task.planned_sets || 0, isPackaged: task.plan_snapshot?._metadata?.is_packaged === true, tasks: [] }
+          batchGroups[key] = { 
+            key, 
+            orderId: task.order_id, 
+            orderNum: order.order_num, 
+            customer: order.customer, 
+            productNames, 
+            batchIndex: bIdx, 
+            plannedSets: task.planned_sets || 0, 
+            deadline: task.planned_deadline || order.deadline,
+            isPackaged: task.plan_snapshot?._metadata?.is_packaged === true, 
+            isSplitTask: true,
+            tasks: [] 
+          }
+        }
+        if (!batchGroups[key].tasks.some(t => t.id === task.id)) {
+          batchGroups[key].tasks.push(task)
+        }
+      } else if (schedule.length > 1) {
+        // Єдиний наряд у БД, але менеджер додав графік партій (потребує розділення)
+        const bIdx = task.batch_index || ''
+        const key = `${task.order_id}_needs_split`
+        if (!batchGroups[key]) {
+          const productNames = order.order_items?.map(it => nomenclatures.find(n => n.id === it.nomenclature_id)?.name).filter(Boolean).join(', ') || '—'
+          batchGroups[key] = {
+            key,
+            orderId: task.order_id,
+            orderNum: order.order_num,
+            customer: order.customer,
+            productNames,
+            batchIndex: bIdx,
+            plannedSets: task.planned_sets || order.order_items?.reduce((s, it) => s + (Number(it.quantity) || 0), 0) || 0,
+            deadline: task.planned_deadline || order.deadline,
+            isPackaged: false,
+            hasPendingScheduleSplit: true,
+            batchSchedule: schedule,
+            tasks: []
+          }
+        }
+        if (!batchGroups[key].tasks.some(t => t.id === task.id)) {
+          batchGroups[key].tasks.push(task)
+        }
+      } else {
+        // Звичайний нерозділений наряд
+        const bIdx = task.batch_index || ''
+        const key = bIdx ? `${task.order_id}_${bIdx}` : `${task.order_id}_whole`
+        if (!batchGroups[key]) {
+          const productNames = order.order_items?.map(it => nomenclatures.find(n => n.id === it.nomenclature_id)?.name).filter(Boolean).join(', ') || '—'
+          batchGroups[key] = { 
+            key, 
+            orderId: task.order_id, 
+            orderNum: order.order_num, 
+            customer: order.customer, 
+            productNames, 
+            batchIndex: bIdx, 
+            plannedSets: task.planned_sets || 0, 
+            deadline: task.planned_deadline || order.deadline,
+            isPackaged: task.plan_snapshot?._metadata?.is_packaged === true, 
+            tasks: [] 
+          }
         }
         if (!batchGroups[key].tasks.some(t => t.id === task.id)) {
           batchGroups[key].tasks.push(task)
@@ -523,11 +568,11 @@ export function usePackagingData() {
       ((activeBatchData.batchIndex && r.details?.includes(`/${activeBatchData.batchIndex}`)) || activeBatchData.tasks.some(t => String(t.id) === String(r.task_id)))
     )
     const confirmedNoms = new Set(relevant.filter(r => r.status === 'completed' || r.status === 'issued').map(r => String(r.nomenclature_id)))
-    const activeBOMItems = allBOMItems.filter(item => !excludedNomIds.has(item.nom.id))
-    const is100PercentCovered = activeBOMItems.length > 0 && activeBOMItems.every(req => confirmedNoms.has(String(req.nom.id)))
     const activeRequests = relevant.filter(r => r.status === 'pending' || r.status === 'processing')
-    return { orderRequests: relevant, completedRequestsCount: relevant.filter(r => r.status === 'completed' || r.status === 'issued').length, isReadyToFinalize: is100PercentCovered, hasAnyRequests: activeRequests.length > 0 }
-  }, [activeBatchData, requests, allBOMItems, excludedNomIds, nomenclatures])
+    const completedRequests = relevant.filter(r => r.status === 'completed' || r.status === 'issued')
+    const isReadyToFinalize = relevant.length > 0 && activeRequests.length === 0 && completedRequests.length > 0
+    return { orderRequests: relevant, completedRequestsCount: completedRequests.length, isReadyToFinalize, hasAnyRequests: activeRequests.length > 0 }
+  }, [activeBatchData, requests, nomenclatures])
 
   const isWarehouseConfirmed = isReadyToFinalize
 
@@ -536,12 +581,11 @@ export function usePackagingData() {
     return allBOMItems.filter(item => {
       const reqRequest = getBestRequestForNomenclature(orderRequests, item.nom.id)
       const isPicked = reqRequest?.status === 'completed' || reqRequest?.status === 'issued'
-      const isExcluded = excludedNomIds.has(item.nom.id)
-      if (!isPicked || isExcluded) return false
+      if (!isPicked) return false
       const boxNum = boxNumbers[String(item.nom.id)]
       return !boxNum || !boxNum.trim()
     })
-  }, [isWarehouseConfirmed, allBOMItems, orderRequests, excludedNomIds, boxNumbers])
+  }, [isWarehouseConfirmed, allBOMItems, orderRequests, boxNumbers])
 
   const allBoxesFilled = isWarehouseConfirmed && pickedItemsWithoutBox.length === 0
 
@@ -607,7 +651,7 @@ export function usePackagingData() {
       await fetchData('material_requests')
 
       const activeBOMItems = allBOMItems.filter(item => {
-        const isExcluded = excludedNomIds.has(item.nom.id)
+        const isSelected = selectedNomIds.has(item.nom.id)
         const hasReq = (requests || []).some(r =>
           String(r.order_id) === String(activeBatchData.orderId) &&
           String(r.nomenclature_id) === String(item.nom.id) &&
@@ -615,11 +659,11 @@ export function usePackagingData() {
           activeBatchData.tasks.some(t => String(t.id) === String(r.task_id)) &&
           ['pending', 'processing', 'completed', 'issued'].includes(r.status)
         )
-        return !isExcluded && !hasReq
+        return isSelected && !hasReq
       })
 
       if (activeBOMItems.length === 0) {
-        alert('Немає нових деталей для комплектування (всі інші позиції вже були надіслані раніше або підтверджені)');
+        alert('Будь ласка, оберіть позиції галочками перед формуванням запиту')
         return
       }
 
@@ -629,13 +673,14 @@ export function usePackagingData() {
           nomId: r.nom.id,
           name: r.nom.material_type ? `${r.nom.name} (${r.nom.material_type})` : r.nom.name,
           qty: effectiveQty,
-          packagingSource: r.sourceKind || (isFinishedComponent(r.nom) ? 'sgp' : 'operational'),
+          packagingSource: 'sgp',
           isCustomPackaging: r.isCustom === true
         }
       })
 
       await submitPickingRequest(activeBatchData.orderId, itemsToRequest, activeBatchData.tasks[0]?.id)
-      alert('Запит успішно відправлено!')
+      alert(`✅ Запит на ${itemsToRequest.length} поз. успішно відправлено на склад!`)
+      setSelectedNomIds(new Set())
       await fetchData('material_requests')
     } catch (e) {
       console.error(e)
@@ -729,7 +774,11 @@ export function usePackagingData() {
                   packaged_by_id: packer.id
                 } 
               }
-              await supabase.from('tasks').update({ plan_snapshot: newSnapshot }).eq('id', task.id)
+              await supabase.from('tasks').update({ 
+                plan_snapshot: newSnapshot,
+                status: 'completed',
+                completed_at: new Date().toISOString()
+              }).eq('id', task.id)
             }
           }
         }
@@ -745,7 +794,11 @@ export function usePackagingData() {
               packaged_by_id: packer.id
             } 
           }
-          await supabase.from('tasks').update({ plan_snapshot: newSnapshot }).eq('id', task.id)
+          await supabase.from('tasks').update({ 
+            plan_snapshot: newSnapshot,
+            status: 'completed',
+            completed_at: new Date().toISOString()
+          }).eq('id', task.id)
         }
       }
 
@@ -805,7 +858,7 @@ export function usePackagingData() {
         nomId: addItemSelectedNom.id,
         name: requestName,
         qty: Number(addItemQty),
-        packagingSource: isFinishedComponent(addItemSelectedNom) ? 'bz' : 'operational',
+        packagingSource: 'sgp',
         isCustomPackaging: true
       }], firstTask.id)
 
@@ -827,6 +880,39 @@ export function usePackagingData() {
     setShowAddItemModal(true)
   }
 
+  const [showSplitModal, setShowSplitModal] = useState(false)
+
+  const handleSplitPackagingTask = async (splits, packerName) => {
+    if (!activeBatchData) return
+    const parentTaskId = activeBatchData.tasks?.[0]?.id
+    if (!parentTaskId) {
+      alert('Не знайдено ID завдання для розділення')
+      return
+    }
+
+    try {
+      setIsProcessing(true)
+      const { data, error } = await supabase.rpc('rpc_split_packaging_task', {
+        p_parent_task_id: parentTaskId,
+        p_splits: splits,
+        p_user_name: packerName
+      })
+
+      if (error) throw error
+      if (data && !data.success) throw new Error(data.error || 'Помилка виконання RPC')
+
+      setShowSplitModal(false)
+      setSelectedBatch(null)
+      await fetchData(['tasks', 'orders', 'packaging_boxes'])
+      alert('✅ Наряд успішно розділено на окремі партії за графіком!')
+    } catch (e) {
+      console.error('Failed to split packaging task:', e)
+      alert('Помилка розділення наряду: ' + (e.message || e))
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
   return {
     nomenclatures,
     inventory,
@@ -843,8 +929,10 @@ export function usePackagingData() {
     isWarehouseConfirmed,
     showBoxSummary,
     setShowBoxSummary,
-    excludedNomIds,
-    setExcludedNomIds,
+    selectedNomIds,
+    setSelectedNomIds,
+    excludedNomIds: selectedNomIds, // backwards compat
+    setExcludedNomIds: setSelectedNomIds, // backwards compat
     boxNumbers,
     setBoxNumbers,
     customQty,
@@ -855,6 +943,7 @@ export function usePackagingData() {
     isSavingBoxes,
     allBoxesFilled,
     boxSummary,
+    savedBoxes,
     handleCreateRequest,
     handleSaveBoxes,
     handleCompleteClick,
@@ -866,6 +955,10 @@ export function usePackagingData() {
     addItemCategoryKey,
     showPackerModal,
     setShowPackerModal,
-    packersList
+    packersList,
+    showSplitModal,
+    setShowSplitModal,
+    handleSplitPackagingTask,
+    fetchData
   }
 }

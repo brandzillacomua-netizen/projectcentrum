@@ -6,18 +6,23 @@ export const WarehouseCategoryFoldersBar = ({
   setSearchParams,
   inventory
 }) => {
-  if (!['raw', 'sheets', 'cutters', 'hardware'].includes(activeTab)) return null
+  if (!['raw', 'sheets', 'cutters'].includes(activeTab)) return null
 
-  const rawCount = (inventory || []).filter(i => (i.warehouse === 'operational' || !i.warehouse) && Number(i.total_qty) > 0).length
-  const sheetsCount = (inventory || []).filter(i => (i.warehouse === 'operational' || !i.warehouse) && Number(i.total_qty) > 0 && (i.name || '').toLowerCase().includes('лист') && !(i.name || '').toLowerCase().includes('гума') && !(i.name || '').toLowerCase().includes('накладка')).length
-  const cuttersCount = (inventory || []).filter(i => (i.warehouse === 'operational' || !i.warehouse) && Number(i.total_qty) > 0 && (i.name || '').toLowerCase().includes('фреза')).length
-  const hardwareCount = (inventory || []).filter(i => (i.warehouse === 'operational' || !i.warehouse) && Number(i.total_qty) > 0 && (i.type === 'hardware' || (i.name || '').toLowerCase().includes('гайка') || (i.name || '').toLowerCase().includes('гвинт'))).length
+  const isHw = i => (i.type === 'hardware' || i.type === 'fastener' || i.type === 'mount' ||
+    (i.name || '').toLowerCase().includes('гвинт') || (i.name || '').toLowerCase().includes('гайка') ||
+    (i.name || '').toLowerCase().includes('болт') || (i.name || '').toLowerCase().includes('шайба') ||
+    (i.name || '').toLowerCase().includes('стійка') || (i.name || '').toLowerCase().includes('накладка') ||
+    (i.name || '').toLowerCase().includes('тримач') || (i.name || '').toLowerCase().includes('метиз') ||
+    (i.name || '').toLowerCase().includes('кріплення'))
+
+  const rawCount = (inventory || []).filter(i => (i.warehouse === 'operational' || !i.warehouse) && i.warehouse !== 'sgp' && i.warehouse !== 'fgp' && !isHw(i) && Number(i.total_qty) > 0).length
+  const sheetsCount = (inventory || []).filter(i => (i.warehouse === 'operational' || !i.warehouse) && i.warehouse !== 'sgp' && i.warehouse !== 'fgp' && !isHw(i) && Number(i.total_qty) > 0 && (i.name || '').toLowerCase().includes('лист') && !(i.name || '').toLowerCase().includes('гума') && !(i.name || '').toLowerCase().includes('накладка')).length
+  const cuttersCount = (inventory || []).filter(i => (i.warehouse === 'operational' || !i.warehouse) && i.warehouse !== 'sgp' && i.warehouse !== 'fgp' && !isHw(i) && Number(i.total_qty) > 0 && (i.name || '').toLowerCase().includes('фреза')).length
 
   const folders = [
     { id: 'raw', label: '📁 Всі позиції СО', count: rawCount, color: '#ff9000' },
     { id: 'sheets', label: '📄 Папка «Листи»', count: sheetsCount, color: '#38bdf8' },
-    { id: 'cutters', label: '✂️ Папка «Фрези»', count: cuttersCount, color: '#10b981' },
-    { id: 'hardware', label: '🔩 Папка «Метизи»', count: hardwareCount, color: '#a855f7' }
+    { id: 'cutters', label: '✂️ Папка «Фрези»', count: cuttersCount, color: '#10b981' }
   ]
 
   return (

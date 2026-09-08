@@ -887,7 +887,7 @@ export function createProductionOrdersActions({
       const key = t.batch_index || 'default'
       const qty = Number(t.planned_sets) || 0
       const isPackaged = t.plan_snapshot?._metadata?.is_packaged === true
-      const isProduced = t.status === 'completed' || t.step.includes('ЦЕХ №2') || t.step.includes('Паквання')
+      const isProduced = t.status === 'completed' || (t.step?.includes('Пакування') && t.status === 'completed') || t.step?.includes('ЦЕХ №2')
       const step = t.step || ''
       if (!batches[key]) batches[key] = { qty, isPackaged, isProduced, step, status: t.status }
       else {
@@ -908,26 +908,26 @@ export function createProductionOrdersActions({
     } else if (packaged >= totalQty && totalQty > 0) {
       status = 'packaged' // Очікує відвантаження
     } else if (orderTasks.length > 0) {
-      // Визначаємо за кроками активних нарядів
+      // Визначаємо за кроками активних нарядів та станом буфера Цеху 2
       const activeBatches = Object.values(batches)
       const hasUnpackaged = activeBatches.some(b => !b.isPackaged)
       
       if (hasUnpackaged) {
-        // Якщо є наряди, які ще не запаковані
         const steps = activeBatches.map(b => b.step)
-        
-        // Перевіряємо чи вони на пакуванні
-        const allProduced = activeBatches.every(b => b.isProduced)
-        if (allProduced) {
-          status = 'packaging' // На пакуванні
+        const cuttingTask = orderTasks.find(t => t.step?.includes('Розкрій'))
+        const isCuttingDone = cuttingTask ? cuttingTask.status === 'completed' : false
+        const hasShop2Cards = (workCards || []).some(c =>
+          String(c.order_id) === String(orderId) &&
+          (c.status === 'at-shop2-buffer' || c.card_info?.includes('[SHOP:2]') || c.card_info?.includes('[ЦЕХ №2]'))
+        )
+        const hasShop2 = steps.some(s => s.includes('ЦЕХ №2') || s.includes('Пресування') || s.includes('Фарбув')) || hasShop2Cards
+
+        if (hasShop2) {
+          status = 'shop2' // В буфері або на операціях Цеху №2
+        } else if (isCuttingDone) {
+          status = 'packaging' // Порізано, готово до пакування
         } else {
-          // Дивимося де саме в цехах
-          const hasShop2 = steps.some(s => s.includes('ЦЕХ №2') || s.includes('Пресування') || s.includes('Фарбув'))
-          if (hasShop2) {
-            status = 'shop2' // Цех 2
-          } else {
-            status = 'shop1' // Цех 1
-          }
+          status = 'shop1' // Цех 1 (Розкрій)
         }
       } else {
         status = 'packaging'

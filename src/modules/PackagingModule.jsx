@@ -1,6 +1,5 @@
 import React from 'react'
-import { Package, ArrowLeft, Menu } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Package, Menu } from 'lucide-react'
 import { usePackagingData } from './Packaging/hooks/usePackagingData.jsx'
 
 import { PackagingSidebar } from './Packaging/components/PackagingSidebar.jsx'
@@ -9,9 +8,14 @@ import { PackagingBoxSummary } from './Packaging/components/PackagingBoxSummary.
 import { PackagingBomList } from './Packaging/components/PackagingBomList.jsx'
 import { PackagingAddItemModal } from './Packaging/components/PackagingAddItemModal.jsx'
 import { PackagingPackerModal } from './Packaging/components/PackagingPackerModal.jsx'
+import { PackagingSplitModal } from './Packaging/components/PackagingSplitModal.jsx'
 import { PackagingActionRow } from './Packaging/components/PackagingActionRow.jsx'
+import { Packaging1CJournal } from './Packaging/components/Packaging1CJournal.jsx'
+import { Packaging1CDocumentView } from './Packaging/components/Packaging1CDocumentView.jsx'
 
 const PackagingModule = () => {
+  const [layoutMode, setLayoutMode] = React.useState('1c') // '1c' | 'split'
+
   const {
     nomenclatures,
     inventory,
@@ -28,6 +32,8 @@ const PackagingModule = () => {
     isWarehouseConfirmed,
     showBoxSummary,
     setShowBoxSummary,
+    selectedNomIds,
+    setSelectedNomIds,
     excludedNomIds,
     setExcludedNomIds,
     boxNumbers,
@@ -40,6 +46,7 @@ const PackagingModule = () => {
     isSavingBoxes,
     allBoxesFilled,
     boxSummary,
+    savedBoxes,
     handleCreateRequest,
     handleSaveBoxes,
     handleCompleteClick,
@@ -51,17 +58,18 @@ const PackagingModule = () => {
     addItemCategoryKey,
     showPackerModal,
     setShowPackerModal,
-    packersList
+    packersList,
+    showSplitModal,
+    setShowSplitModal,
+    handleSplitPackagingTask,
+    fetchData
   } = usePackagingData()
 
   return (
     <div className="packaging-module" style={{ background: 'var(--bg, #f0f2f7)', minHeight: '100vh', color: 'var(--text, #0f172a)', display: 'flex', flexDirection: 'column' }}>
 
-      <nav className="module-nav module-nav-container" style={{ flexShrink: 0, background: 'var(--card-bg, #ffffff)', borderBottom: '1px solid var(--border-color, #e2e8f0)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <nav className="module-nav module-nav-container" style={{ flexShrink: 0, background: '#ffffff', borderBottom: '1.5px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 32px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-          <Link to="/" style={{ color: 'var(--text-muted, #64748b)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', fontWeight: 800 }}>
-            <ArrowLeft size={18} /> <span className="hide-mobile">НА ГОЛОВНУ</span>
-          </Link>
           <button onClick={() => setIsDrawerOpen(true)} className="burger-btn-labeled mobile-only">
             <Menu size={20} />
             <span>Черга</span>
@@ -84,93 +92,148 @@ const PackagingModule = () => {
             )}
           </button>
         </div>
+
+        {/* RIGHT: TITLE & ICON */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div style={{ background: '#f43f5e', width: '36px', height: '36px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <Package size={18} color="#fff" />
           </div>
           <div>
-            <h1 className="nav-title" style={{ fontSize: '0.95rem', fontWeight: 950, margin: 0, letterSpacing: '0.5px', lineHeight: 1.1 }}>ВІДДІЛ ПАКУВАННЯ</h1>
-            <div className="nav-subtitle pack-nav-subtitle" style={{ fontSize: '0.58rem', color: 'var(--text-muted, #64748b)', fontWeight: 900, textTransform: 'uppercase', marginTop: '3px', letterSpacing: '0.3px', lineHeight: 1 }}>Контроль комплектування партій</div>
+            <h1 className="nav-title" style={{ fontSize: '0.95rem', fontWeight: 950, margin: 0, letterSpacing: '0.5px', lineHeight: 1.1, color: '#0f172a' }}>ВІДДІЛ ПАКУВАННЯ</h1>
+            <div className="nav-subtitle pack-nav-subtitle" style={{ fontSize: '0.58rem', color: '#64748b', fontWeight: 900, textTransform: 'uppercase', marginTop: '3px', letterSpacing: '0.3px', lineHeight: 1 }}>Контроль комплектування партій</div>
           </div>
         </div>
       </nav>
 
-      <div className="module-content module-content-container" style={{ flex: 1, overflowY: 'auto' }}>
-        <div className="master-grid" style={{ maxWidth: '1600px', margin: '0 auto', height: 'calc(100vh - 140px)' }}>
-
-          {/* SIDEBAR QUEUE */}
-          <PackagingSidebar
-            batchList={batchList}
-            selectedBatch={selectedBatch}
-            setSelectedBatch={setSelectedBatch}
-            isDrawerOpen={isDrawerOpen}
-            setIsDrawerOpen={setIsDrawerOpen}
-          />
-
-          {/* MAIN AREA */}
-          <div className="order-details-area" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-            {activeBatchData ? (
-              <div className="glass-panel details-panel" style={{ background: 'var(--card-bg, #ffffff)', border: '1px solid var(--border-color, #e2e8f0)', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-
-                {/* HEADER */}
-                <PackagingDetailHeader
-                  activeBatchData={activeBatchData}
-                  isWarehouseConfirmed={isWarehouseConfirmed}
-                  boxSummaryCount={boxSummary.length}
-                  showBoxSummary={showBoxSummary}
-                  setShowBoxSummary={setShowBoxSummary}
-                />
-
-                {/* BOM / BOX SUMMARY CONTAINER */}
-                <div className="bom-container" style={{ background: 'var(--card-header-bg, #f8fafc)', borderRadius: '28px', padding: '25px', flex: 1, border: '1px solid var(--border-color, #e2e8f0)', marginBottom: '20px', overflowY: 'auto' }}>
-                  {showBoxSummary ? (
-                    <PackagingBoxSummary boxSummary={boxSummary} />
-                  ) : (
-                    <PackagingBomList
-                      categorizedBOM={categorizedBOM}
-                      hasAnyRequests={hasAnyRequests}
-                      activeBatchData={activeBatchData}
-                      orderRequests={orderRequests}
-                      excludedNomIds={excludedNomIds}
-                      setExcludedNomIds={setExcludedNomIds}
-                      boxNumbers={boxNumbers}
-                      setBoxNumbers={setBoxNumbers}
-                      customQty={customQty}
-                      setCustomQty={setCustomQty}
-                      setCustomItems={setCustomItems}
-                      onOpenAddItemModal={handleOpenAddItemModal}
-                    />
-                  )}
-                </div>
-
-                {/* ACTION BUTTONS */}
-                <PackagingActionRow
-                  allBOMItems={allBOMItems}
-                  isProcessing={isProcessing}
-                  hasAnyRequests={hasAnyRequests}
-                  activeBatchData={activeBatchData}
-                  isWarehouseConfirmed={isWarehouseConfirmed}
-                  boxNumbers={boxNumbers}
-                  isSavingBoxes={isSavingBoxes}
-                  allBoxesFilled={allBoxesFilled}
-                  handleCreateRequest={handleCreateRequest}
-                  handleSaveBoxes={handleSaveBoxes}
-                  handleCompleteClick={handleCompleteClick}
-                />
-
-              </div>
+      <div className="module-content module-content-container" style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
+        {layoutMode === '1c' ? (
+          /* 1C ERP REGISTRY OR DOCUMENT VIEW */
+          <div style={{ maxWidth: '1600px', margin: '0 auto', height: 'calc(100vh - 120px)' }}>
+            {selectedBatch && activeBatchData ? (
+              <Packaging1CDocumentView
+                activeBatchData={activeBatchData}
+                onBackToJournal={() => setSelectedBatch(null)}
+                isWarehouseConfirmed={isWarehouseConfirmed}
+                boxSummaryCount={boxSummary.length}
+                showBoxSummary={showBoxSummary}
+                setShowBoxSummary={setShowBoxSummary}
+                categorizedBOM={categorizedBOM}
+                allBOMItems={allBOMItems}
+                orderRequests={orderRequests}
+                selectedNomIds={selectedNomIds}
+                setSelectedNomIds={setSelectedNomIds}
+                excludedNomIds={excludedNomIds}
+                setExcludedNomIds={setExcludedNomIds}
+                boxNumbers={boxNumbers}
+                setBoxNumbers={setBoxNumbers}
+                customQty={customQty}
+                setCustomQty={setCustomQty}
+                setCustomItems={setCustomItems}
+                onOpenAddItemModal={handleOpenAddItemModal}
+                onOpenSplitModal={() => setShowSplitModal(true)}
+                isProcessing={isProcessing}
+                hasAnyRequests={hasAnyRequests}
+                isSavingBoxes={isSavingBoxes}
+                allBoxesFilled={allBoxesFilled}
+                boxSummary={boxSummary}
+                handleCreateRequest={handleCreateRequest}
+                handleSaveBoxes={handleSaveBoxes}
+                handleCompleteClick={handleCompleteClick}
+              />
             ) : (
-              <div className="glass-panel details-panel" style={{ background: 'var(--card-bg, #ffffff)', border: '1px solid var(--border-color, #e2e8f0)', borderRadius: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-                <div style={{ textAlign: 'center', color: 'var(--text-muted, #64748b)' }}>
-                  <Package size={64} style={{ opacity: 0.25, margin: '0 auto 20px' }} />
-                  <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 900, color: 'var(--text, #0f172a)' }}>Оберіть наряд із черги ліворуч</h3>
-                  <p style={{ margin: '8px 0 0 0', fontSize: '0.85rem' }}>для початку пакування та формування коробок</p>
-                </div>
-              </div>
+              <Packaging1CJournal
+                batchList={batchList}
+                onSelectBatch={(batch) => setSelectedBatch(batch)}
+                onOpenSplitModal={(batch) => {
+                  setSelectedBatch(batch)
+                  setShowSplitModal(true)
+                }}
+                fetchData={fetchData}
+              />
             )}
           </div>
+        ) : (
+          /* CLASSIC SPLIT-PANEL LAYOUT */
+          <div className="master-grid" style={{ maxWidth: '1600px', margin: '0 auto', height: 'calc(100vh - 140px)' }}>
 
-        </div>
+            {/* SIDEBAR QUEUE */}
+            <PackagingSidebar
+              batchList={batchList}
+              selectedBatch={selectedBatch}
+              setSelectedBatch={setSelectedBatch}
+              isDrawerOpen={isDrawerOpen}
+              setIsDrawerOpen={setIsDrawerOpen}
+            />
+
+            {/* MAIN AREA */}
+            <div className="order-details-area" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+              {activeBatchData ? (
+                <div className="glass-panel details-panel" style={{ background: 'var(--card-bg, #ffffff)', border: '1px solid var(--border-color, #e2e8f0)', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+
+                  {/* HEADER */}
+                  <PackagingDetailHeader
+                    activeBatchData={activeBatchData}
+                    isWarehouseConfirmed={isWarehouseConfirmed}
+                    boxSummaryCount={boxSummary.length}
+                    showBoxSummary={showBoxSummary}
+                    setShowBoxSummary={setShowBoxSummary}
+                    onOpenSplitModal={() => setShowSplitModal(true)}
+                  />
+
+                  {/* BOM / BOX SUMMARY CONTAINER */}
+                  <div className="bom-container" style={{ background: 'var(--card-header-bg, #f8fafc)', borderRadius: '28px', padding: '25px', flex: 1, border: '1px solid var(--border-color, #e2e8f0)', marginBottom: '20px', overflowY: 'auto' }}>
+                    {showBoxSummary ? (
+                      <PackagingBoxSummary boxSummary={boxSummary} />
+                    ) : (
+                      <PackagingBomList
+                        categorizedBOM={categorizedBOM}
+                        hasAnyRequests={hasAnyRequests}
+                        activeBatchData={activeBatchData}
+                        orderRequests={orderRequests}
+                        selectedNomIds={selectedNomIds}
+                        setSelectedNomIds={setSelectedNomIds}
+                        excludedNomIds={excludedNomIds}
+                        setExcludedNomIds={setExcludedNomIds}
+                        boxNumbers={boxNumbers}
+                        setBoxNumbers={setBoxNumbers}
+                        customQty={customQty}
+                        setCustomQty={setCustomQty}
+                        setCustomItems={setCustomItems}
+                        onOpenAddItemModal={handleOpenAddItemModal}
+                      />
+                    )}
+                  </div>
+
+                  {/* ACTION BUTTONS */}
+                  <PackagingActionRow
+                    allBOMItems={allBOMItems}
+                    selectedNomIds={selectedNomIds}
+                    isProcessing={isProcessing}
+                    hasAnyRequests={hasAnyRequests}
+                    activeBatchData={activeBatchData}
+                    isWarehouseConfirmed={isWarehouseConfirmed}
+                    boxNumbers={boxNumbers}
+                    isSavingBoxes={isSavingBoxes}
+                    allBoxesFilled={allBoxesFilled}
+                    handleCreateRequest={handleCreateRequest}
+                    handleSaveBoxes={handleSaveBoxes}
+                    handleCompleteClick={handleCompleteClick}
+                  />
+
+                </div>
+              ) : (
+                <div className="glass-panel details-panel" style={{ background: 'var(--card-bg, #ffffff)', border: '1px solid var(--border-color, #e2e8f0)', borderRadius: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+                  <div style={{ textAlign: 'center', color: 'var(--text-muted, #64748b)' }}>
+                    <Package size={64} style={{ opacity: 0.25, margin: '0 auto 20px' }} />
+                    <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 900, color: 'var(--text, #0f172a)' }}>Оберіть наряд із черги ліворуч</h3>
+                    <p style={{ margin: '8px 0 0 0', fontSize: '0.85rem' }}>для початку пакування та формування коробок</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+          </div>
+        )}
       </div>
 
       {/* MODALS */}
@@ -192,10 +255,25 @@ const PackagingModule = () => {
         />
       )}
 
+      {showSplitModal && (
+        <PackagingSplitModal
+          isOpen={showSplitModal}
+          onClose={() => setShowSplitModal(false)}
+          activeBatchData={activeBatchData}
+          batchSchedule={activeBatchData?.batchSchedule || []}
+          alreadyPackedCount={
+            activeBatchData?.plan_snapshot?._metadata?.packed_sets ||
+            (savedBoxes?.length > 0 ? Math.max(...savedBoxes.map(b => Number(b.quantity) || 0)) : 0)
+          }
+          onConfirmSplit={handleSplitPackagingTask}
+          isProcessing={isProcessing}
+        />
+      )}
+
       <style dangerouslySetInnerHTML={{ __html: `
         .module-nav-container {
-          padding: 0 25px !important;
-          height: 80px !important;
+          padding: 0 32px !important;
+          height: 72px !important;
         }
         .module-content-container {
           padding: 30px !important;

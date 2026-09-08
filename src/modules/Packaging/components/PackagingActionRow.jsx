@@ -3,6 +3,7 @@ import { CheckCircle2, Send, Save, Package, Loader2 } from 'lucide-react'
 
 export const PackagingActionRow = ({
   allBOMItems,
+  selectedNomIds,
   isProcessing,
   hasAnyRequests,
   activeBatchData,
@@ -15,7 +16,8 @@ export const PackagingActionRow = ({
   handleCompleteClick
 }) => {
   const hasAnyBoxNumber = Object.values(boxNumbers).some(v => v?.trim())
-  const canSendRequest = allBOMItems.length > 0 && !isProcessing && !hasAnyRequests && !activeBatchData.isPackaged && !isWarehouseConfirmed
+  const selectedCount = selectedNomIds ? selectedNomIds.size : allBOMItems.length
+  const canSendRequest = selectedCount > 0 && !isProcessing && !hasAnyRequests && !activeBatchData.isPackaged && !isWarehouseConfirmed
 
   return (
     <div className="action-buttons-row">

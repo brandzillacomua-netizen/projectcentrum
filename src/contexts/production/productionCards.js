@@ -966,26 +966,26 @@ export function createProductionCardsActions({
       const tData = (taskData && taskData.length > 0) ? taskData[0] : null
       if (taskError) throw taskError
 
-      // Створюємо завдання для Цеху №2 (Пресування [ЦЕХ №2])
+      // Створюємо випереджальне завдання для Відділу Пакування (замовлення метизів/коробок та очікування деталей з СГП)
       if (tData) {
-        const { data: newShop2Task } = await supabase.from('tasks').insert([{
+        const { data: newPackagingTask } = await supabase.from('tasks').insert([{
           order_id: validOrderId,
-          step: 'Пресування [ЦЕХ №2]',
-          status: isAllFromBZ ? 'completed' : 'waiting',
+          step: 'Пакування',
+          status: isAllFromBZ ? 'completed' : 'in-progress',
           completed_at: isAllFromBZ ? nowISO : null,
-          machine_name: machineName || 'Не вказано',
+          machine_name: 'PACK-TERM',
           estimated_time: 0,
-          engineer_conf: isAllFromBZ ? true : false,
-          warehouse_conf: isAllFromBZ ? 'true' : 'false',
-          director_conf: isAllFromBZ ? true : false,
+          engineer_conf: true,
+          warehouse_conf: 'true',
+          director_conf: true,
           plan_snapshot: { ...(plan_snapshot || {}), arrivals: [] },
           planned_sets: thisNaryadTotalSets,
           batch_index: isPartial ? nextBatchIndex : null,
           planned_deadline: customDeadline || order.deadline
         }]).select()
 
-        if (newShop2Task && newShop2Task.length > 0) {
-          setTasks(prev => [...prev, newShop2Task[0]])
+        if (newPackagingTask && newPackagingTask.length > 0) {
+          setTasks(prev => [...prev, newPackagingTask[0]])
         }
       }
 

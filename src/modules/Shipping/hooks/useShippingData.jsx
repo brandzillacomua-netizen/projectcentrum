@@ -204,12 +204,15 @@ export function useShippingData() {
       }
 
       // Calculate Planned Sets
-      const plannedSets = 
-        order?.order_items?.reduce((acc, it) => acc + (Number(it.quantity) || 0), 0) ||
-        meta.planned_sets ||
-        taskList.reduce((max, cur) => Math.max(max, Number(cur.planned_sets) || Number(cur.plan_snapshot?._metadata?.planned_sets) || 0), 0) ||
-        taskList[0]?.planned_sets ||
-        0
+      const taskSets = Number(t.planned_sets) || Number(meta.planned_sets) || 0
+      const plannedSets = (t.batch_index && taskSets > 0)
+        ? taskSets
+        : (
+            taskList.reduce((max, cur) => Math.max(max, Number(cur.planned_sets) || Number(cur.plan_snapshot?._metadata?.planned_sets) || 0), 0) ||
+            order?.order_items?.reduce((acc, it) => acc + (Number(it.quantity) || 0), 0) ||
+            taskList[0]?.planned_sets ||
+            0
+          )
 
       return {
         id: t.id,
@@ -293,12 +296,15 @@ export function useShippingData() {
       }
 
       // Calculate Planned Sets
-      const plannedSets = 
-        order?.order_items?.reduce((acc, it) => acc + (Number(it.quantity) || 0), 0) ||
-        meta.planned_sets ||
-        taskList.reduce((max, cur) => Math.max(max, Number(cur.planned_sets) || Number(cur.plan_snapshot?._metadata?.planned_sets) || 0), 0) ||
-        taskList[0]?.planned_sets ||
-        0
+      const taskSets = Number(t.planned_sets) || Number(meta.planned_sets) || 0
+      const plannedSets = (t.batch_index && taskSets > 0)
+        ? taskSets
+        : (
+            taskList.reduce((max, cur) => Math.max(max, Number(cur.planned_sets) || Number(cur.plan_snapshot?._metadata?.planned_sets) || 0), 0) ||
+            order?.order_items?.reduce((acc, it) => acc + (Number(it.quantity) || 0), 0) ||
+            taskList[0]?.planned_sets ||
+            0
+          )
 
       return {
         id: t.id,

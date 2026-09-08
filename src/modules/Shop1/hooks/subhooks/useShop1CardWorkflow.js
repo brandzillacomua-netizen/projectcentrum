@@ -1071,33 +1071,7 @@ export function useShop1CardWorkflow({
       let updatedArrivals = [];
       const nom = (nomenclatures || []).find(n => n.id === currentCard.nomenclature_id);
 
-      if (!shop2Tasks || shop2Tasks.length === 0) {
-        if (s1TaskData) {
-          shop2TaskId = generateUUID();
-          updatedArrivals = [{
-            id: currentCard.nomenclature_id,
-            name: nom?.name || 'Деталь',
-            semi: actualNeed,
-            bz: actualBz
-          }];
-
-          writePromises.push(
-            supabase.from('tasks').insert([{
-              id: shop2TaskId,
-              order_id: currentCard.order_id,
-              step: 'Пресування [ЦЕХ №2]',
-              status: 'in-progress',
-              planned_sets: s1TaskData.planned_sets || 0,
-              estimated_time: s1TaskData.estimated_time || 0,
-              engineer_conf: true,
-              warehouse_conf: 'true',
-              director_conf: true,
-              batch_index: s1TaskData.batch_index || null,
-              plan_snapshot: { ...(s1TaskData.plan_snapshot || {}), arrivals: updatedArrivals }
-            }])
-          );
-        }
-      } else {
+      if (shop2Tasks && shop2Tasks.length > 0) {
         shop2TaskId = shop2Tasks[0].id;
         const existingArrivals = shop2Tasks[0]?.plan_snapshot?.arrivals || [];
         updatedArrivals = [...existingArrivals];

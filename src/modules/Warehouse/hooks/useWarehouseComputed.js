@@ -33,9 +33,7 @@ export const isPrepRequest = (r, tasks) => {
 }
 
 export const getMaterialType = (r, nomenclatures, inventory) => {
-  // Packaging requests are displayed in the Finished Goods queue regardless
-  // of the physical warehouse from which an item will be issued. The issuing
-  // logic separately chooses SO for consumables and BZ/SGP for components.
+  // Packaging requests and all hardware/fasteners are strictly assigned to SGP
   if (r.details && (r.details.includes('ЗАПИТ НА КОМПЛЕКТУВАННЯ') || r.details.includes('ПАКУВАННЯ'))) {
     return 'finished'
   }
@@ -44,18 +42,21 @@ export const getMaterialType = (r, nomenclatures, inventory) => {
   const nameLower = parsedName.toLowerCase()
   const nom = r.nomenclature_id ? nomenclatures.find(n => String(n.id) === String(r.nomenclature_id)) : null
   
-  if (nom?.type === 'part') return 'finished'
-  if (nom?.type === 'product') return 'finished'
+  if (nom?.type === 'part' || nom?.type === 'product' || nom?.type === 'hardware' || nom?.type === 'fastener' || nom?.type === 'mount') return 'finished'
 
-  const isSgp = (
+  const isHardwareOrSgp = (
     nameLower.startsWith('іп-') || 
     nameLower.startsWith('ip-') || 
     nameLower.startsWith('kr-') || 
     nameLower.startsWith('kh-') || 
+    nameLower.includes('гвинт') || nameLower.includes('гайка') || nameLower.includes('болт') ||
+    nameLower.includes('шайба') || nameLower.includes('стійка') || nameLower.includes('накладка') ||
+    nameLower.includes('тримач') || nameLower.includes('метиз') || nameLower.includes('кріплення') ||
+    nameLower.includes('саморіз') || nameLower.includes('втулка') ||
     (nameLower.includes('іп') && !nameLower.includes('кріплення') && !nameLower.includes('друк') && !nameLower.includes('3д')) ||
     nameLower.includes('ip')
   )
-  if (isSgp) {
+  if (isHardwareOrSgp) {
     return 'finished'
   }
   
@@ -378,38 +379,43 @@ export const useWarehouseComputed = ({
         return i.warehouse === 'pocket' && matchesSearch && matchesOwner
       }
 
-      const isOperational = i.warehouse === 'operational' || !i.warehouse
+      const isOperational = (i.warehouse === 'operational' || !i.warehouse) && i.warehouse !== 'sgp' && i.warehouse !== 'fgp'
       if (!isOperational) return false
 
       const nomenclature = (nomenclatures || []).find(n => String(n.id) === String(i.nomenclature_id))
       const itemName = i.name || nomenclature?.name || ''
+      const nameLower = itemName.toLowerCase()
       const isSheet = /(?:^|\s)лист(?:\s|$)/i.test(itemName)
       const itemType = i.type || 'raw'
       const isPart = itemType === 'part' || nomenclature?.type === 'part'
+      
+      // Hardware and packaging components are strictly managed on SGP
+      const isHardware = (
+        itemType === 'hardware' || itemType === 'fastener' || itemType === 'mount' ||
+        nameLower.includes('гвинт') || nameLower.includes('гайка') || nameLower.includes('болт') ||
+        nameLower.includes('шайба') || nameLower.includes('стійка') || nameLower.includes('накладка') ||
+        nameLower.includes('тримач') || nameLower.includes('метиз') || nameLower.includes('кріплення') ||
+        nameLower.includes('саморіз') || nameLower.includes('втулка') || nameLower.includes('фіксатор')
+      )
+      if (isHardware) return false
+
       if ((Number(i.total_qty) || 0) <= 0 && !isSheet && !isPart) return false
 
       if (activeTab === 'bz') return itemType === 'bz' && matchesSearch
       if (activeTab === 'scrap') return itemType.startsWith('scrap') && matchesSearch
       
       if (activeTab === 'sheets') {
-        const nameLower = itemName.toLowerCase()
         const isRubber = nameLower.includes('гума') || nameLower.includes('гумов') || nameLower.includes('накладка')
         const isSheetItem = (nameLower.includes('лист') || nameLower.includes('підготовл')) && !isRubber
         return isOperational && isSheetItem && matchesSearch
       }
       if (activeTab === 'cutters') {
-        const nameLower = itemName.toLowerCase()
         const isCutterItem = nameLower.includes('фреза')
         return isOperational && isCutterItem && matchesSearch
       }
-      if (activeTab === 'hardware') {
-        const nameLower = itemName.toLowerCase()
-        const isHardwareItem = itemType === 'hardware' || nameLower.includes('гайка') || nameLower.includes('гвинт') || nameLower.includes('болт') || nameLower.includes('шайба')
-        return isOperational && isHardwareItem && matchesSearch
-      }
 
       if (activeTab === 'raw') {
-        return (itemType === 'raw' || itemType === 'consumable' || itemType === 'hardware') && matchesSearch
+        return (itemType === 'raw' || itemType === 'consumable') && matchesSearch
       }
       if (activeTab === 'semi') {
         return (itemType === 'semi' || itemType === 'part') && matchesSearch
