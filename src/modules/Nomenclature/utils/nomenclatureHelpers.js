@@ -506,3 +506,43 @@ export const findMatchingSGPInventoryItem = (partNom, inventory) => {
     return (idMatch || nameMatch) && isAvailableType && isNotPocket;
   }) || null;
 };
+
+/**
+ * Extracts numeric thickness (e.g. "7" or "2.5") from any label.
+ */
+export const extractThickness = (label) => {
+  const str = String(label || '');
+  const bracketMatch = str.match(/\((\d+(?:[.,]\d+)?)\s*мм\)/i);
+  if (bracketMatch) return bracketMatch[1].replace(',', '.');
+  const mmMatch = str.match(/(\d+(?:[.,]\d+)?)\s*мм/i);
+  if (mmMatch) return mmMatch[1].replace(',', '.');
+  const endMatch = str.match(/[-_\s](\d+(?:[.,]\d+)?)$/);
+  if (endMatch) return endMatch[1].replace(',', '.');
+  return null;
+};
+
+/**
+ * Finds the working sheet for CNC cutting (Цех №1) from operational warehouse (СО).
+ * Matches "Лист Т300 (Xмм)" or "Лист Т700 (Xмм)" (group_id = 'grp_prepared_sheets').
+ * NEVER returns raw carbon plates ("Карбонова пластина...").
+ */
+export const findWorkingSheetNom = (typePrefix, thicknessLabel, nomenclatures = []) => {
+  const normGrade = (typePrefix || 'Т300').toUpperCase().replace('T', 'Т');
+  const thickNum = extractThickness(thicknessLabel);
+  if (!thickNum) return null;
+
+  return (nomenclatures || []).find(n => {
+    const name = String(n.name || '').trim();
+    // Strictly exclude raw carbon plates, rubber, or unfinished scrap
+    if (name.toLowerCase().includes('пластина') || name.toLowerCase().includes('гума') || name.toLowerCase().includes('непідготовлений')) {
+      return false;
+    }
+    const nameUpper = name.toUpperCase().replace('T', 'Т');
+    const hasGrade = nameUpper.includes(normGrade);
+    const hasSheetWord = nameUpper.startsWith('ЛИСТ') || n.group_id === 'grp_prepared_sheets' || n.rule_params?.type === 'working_sheet';
+    if (!hasGrade || !hasSheetWord) return false;
+
+    const nThick = extractThickness(name);
+    return nThick && Math.abs(parseFloat(nThick) - parseFloat(thickNum)) < 0.05;
+  }) || null;
+};

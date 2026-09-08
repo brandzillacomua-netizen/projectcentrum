@@ -6,6 +6,7 @@ import {
   stripMaterialTags,
   findExplicitRawMaterialNom as findExplicitRawNom
 } from './productionShared.js'
+import { findWorkingSheetNom } from '../../modules/Nomenclature/utils/nomenclatureHelpers.js'
 
 export function createProductionOrdersActions({
   orders, tasks, inventory, nomenclatures, bomItems, workCards,
@@ -583,13 +584,15 @@ export function createProductionOrdersActions({
 
       // Main warehouse request must point only to prepared sheets. Unprepared
       // material is requested separately through the preparation flow below.
-      const finalPreparedNom = preparedNom || explicitPreparedNom
+      const typePrefix = /т700|t700/i.test(matKeyBase) ? 'Т700' : 'Т300'
+      const sheetWorkingNom = findWorkingSheetNom(typePrefix, matKeyBase, nomenclatures)
+      const finalPreparedNom = sheetWorkingNom || preparedNom || explicitPreparedNom
 
       const requestNomId = finalPreparedNom?.id || null
       const requestNomName = finalPreparedNom?.name ||
         (matKeyBase.toLowerCase().includes('підготовлений') && !matKeyBase.toLowerCase().includes('непідготовлений')
           ? matKeyBase
-          : `${stripMaterialTags(matKeyBase)} [Підготовлений]`)
+          : (sheetWorkingNom ? sheetWorkingNom.name : `${stripMaterialTags(matKeyBase)} [Підготовлений]`))
 
       const requestsToInsert = []
 

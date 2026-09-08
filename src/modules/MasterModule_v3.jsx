@@ -424,7 +424,12 @@ const MasterModule = () => {
   const isShop1Task = (t) => {
     if (!t || !t.step) return true;
     const step = t.step.toLowerCase();
-    return !step.includes('№2') && !step.includes('пресув') && !step.includes('присув') && !step.includes('фарбув');
+    return !step.includes('№2') && 
+           !step.includes('пресув') && 
+           !step.includes('присув') && 
+           !step.includes('фарбув') && 
+           !step.includes('пакув') && 
+           t.machine_name !== 'PACK-TERM';
   }
 
   // ── Fetch orders for ALL tasks in state (pagination-independent) ───────────────

@@ -9,6 +9,7 @@ import {
   isRawMaterialNom,
   findExplicitRawMaterialNom as findExplicitRawNom
 } from './productionShared.js'
+import { findWorkingSheetNom, extractThickness } from '../../modules/Nomenclature/utils/nomenclatureHelpers.js'
 
 export function createProductionCardsActions({
   orders, tasks, inventory, nomenclatures, bomItems, workCards,
@@ -693,6 +694,7 @@ export function createProductionCardsActions({
         const displayParts = getDisplayParts(item)
         displayParts.forEach(part => {
           if (!part.nom) return
+          const totalNeeded = requestedQty * (Number(part.qtyPer) || 1)
           const allocationKey = String(part.nom.id)
           const allocatedRemaining = bzAllocationRemaining[allocationKey]
             || (part.nom.legacy_ids || []).reduce((acc, lid) => acc || bzAllocationRemaining[String(lid)] || 0, 0)
@@ -762,41 +764,14 @@ export function createProductionCardsActions({
           if (isSheet) {
             const addMaterialToSummary = (typePrefix, qty) => {
               const matKeyBase = (part.nom.material_type || part.nom.name || 'Інше').trim()
-              const explicitRawCandidate = findExplicitRawMaterialNom(matKeyBase)
-              const explicitCandidateName = String(explicitRawCandidate?.name || '').toLowerCase()
-              const requestedT700 = /(?:т|t)\s*700/i.test(typePrefix)
-              const candidateIsT700 = /(?:т|t)\s*700/i.test(explicitCandidateName)
-              const candidateIsT300 = /(?:т|t)\s*300/i.test(explicitCandidateName)
-              const explicitCandidateMatchesGrade = requestedT700
-                ? candidateIsT700
-                : (candidateIsT300 || !candidateIsT700)
-              const explicitRawNom = explicitRawCandidate &&
-                String(explicitRawCandidate.name || '').toLowerCase().includes('підготовлений') &&
-                !String(explicitRawCandidate.name || '').toLowerCase().includes('непідготовлений') &&
-                explicitCandidateMatchesGrade
-                  ? explicitRawCandidate
-                  : null
-              const thickMatch = matKeyBase.match(/\((\d+(?:\.\d+)?)мм\)/i)
-              const thicknessClean = thickMatch ? `${thickMatch[1]}мм` : matKeyBase.toLowerCase().replace(' ', '')
-              let rawNom = explicitRawNom || nomenclatures.find(n =>
-                (n.type === 'raw' || n.type === 'material') &&
-                n.name.includes('[Підготовлений]') &&
-                (n.name.toLowerCase().includes(typePrefix.toLowerCase()) || (typePrefix === 'Т300' && !n.name.toLowerCase().includes('т700') && !n.name.toLowerCase().includes('t700'))) &&
-                n.name.toLowerCase().replace(' ', '').includes(`(${thicknessClean})`)
-              )
+              const sheetNom = findWorkingSheetNom(typePrefix, matKeyBase, nomenclatures)
+              const thickNum = extractThickness(matKeyBase)
+              const thicknessClean = thickNum ? `${thickNum}мм` : matKeyBase
 
-              if (!rawNom) {
-                rawNom = nomenclatures.find(n =>
-                  (n.type === 'raw' || n.type === 'material') &&
-                  n.name.toLowerCase().includes(typePrefix.toLowerCase()) &&
-                  (n.name.toLowerCase().includes(thicknessClean) || n.material_type?.toLowerCase() === thicknessClean)
-                )
-              }
-
-              const matKeyName = rawNom
-                ? (rawNom.name.includes(typePrefix) ? rawNom.name : rawNom.name.replace('[Підготовлений]', `${typePrefix} [Підготовлений]`))
-                : `Лист ${typePrefix} (${matKeyBase}) [Підготовлений]`
-              const matId = rawNom?.id ? `${rawNom.id}-${typePrefix}` : `virtual-${typePrefix}-${matKeyBase}`
+              const matKeyName = sheetNom
+                ? sheetNom.name
+                : `Лист ${typePrefix} (${thicknessClean})`
+              const matId = sheetNom?.id ? `${sheetNom.id}-${typePrefix}` : `virtual-${typePrefix}-${matKeyBase}`
 
               if (!materialSummary[matId]) {
                 const unit = 'ЛИСТІВ'
@@ -807,17 +782,17 @@ export function createProductionCardsActions({
                   totalUnits: 0, 
                   components: [], 
                   inventory_id: null, 
-                  nomenclature_id: rawNom?.id || null, 
+                  nomenclature_id: sheetNom?.id || null, 
                   unit, 
-                  partType: rawNom?.type || 'raw' 
+                  partType: sheetNom?.type || 'raw' 
                 }
 
-                if (rawNom?.id) {
+                if (sheetNom?.id) {
                   const inv = inventory.find(i =>
-                    String(i.nomenclature_id) === String(rawNom.id) &&
+                    String(i.nomenclature_id) === String(sheetNom.id) &&
                     i.warehouse === 'operational'
                   ) || inventory.find(i =>
-                    String(i.nomenclature_id) === String(rawNom.id)
+                    String(i.nomenclature_id) === String(sheetNom.id)
                   )
                   materialSummary[matId].inventory_id = inv?.id || null
                 }

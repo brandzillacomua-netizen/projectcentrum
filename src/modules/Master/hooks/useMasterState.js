@@ -4,7 +4,7 @@ import { useMES } from '../../../MESContext'
 import { apiService } from '../../../services/apiDispatcher'
 import { supabase } from '../../../supabase'
 import { MACHINE_TYPES, isShop1Task } from '../utils/masterHelpers'
-import { getAvailableSGPStock } from '../../Nomenclature/utils/nomenclatureHelpers'
+import { getAvailableSGPStock, findWorkingSheetNom } from '../../Nomenclature/utils/nomenclatureHelpers'
 
 export function useMasterState() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -897,11 +897,10 @@ export function useMasterState() {
 
         const addToSummary = (typePrefix, qty) => {
           if (qty <= 0) return
-          const matKey = prepNom
-            ? prepNom.name.replace('Т300', typePrefix).replace('T300', typePrefix)
-            : `Лист ${typePrefix} (${matKeyBase}) [Підготовлений]`
+          const sheetNom = findWorkingSheetNom(typePrefix, matKeyBase, nomenclatures)
+          const matKey = sheetNom ? sheetNom.name : `Лист ${typePrefix} (${thicknessClean})`
           if (!summary[matKey]) {
-            summary[matKey] = { name: matKey, sheets: 0, unit }
+            summary[matKey] = { name: matKey, sheets: 0, unit, nomenclature_id: sheetNom?.id || null }
           }
           summary[matKey].sheets += qty
         }
