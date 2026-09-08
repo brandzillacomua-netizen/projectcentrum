@@ -881,7 +881,7 @@ export function useForemanHandlers({
               status: 'pending',
               inventory_id: consInvItem?.id || null,
               nomenclature_id: c.nomenclature_id,
-              details: `ФРЕЗИ ДЛЯ КАРТКИ (${createdCard?.card_info || batchItem.cardInfo}): ${c.name} — ${c.qty} од.`
+              details: `СКЛАД ОПЕРАТИВНИЙ (ВИТРАТНІ МАТЕРІАЛИ / ФРЕЗИ): ${c.name} — ${c.qty} од. (${createdCard?.card_info || batchItem.cardInfo})`
             })
           })
         }

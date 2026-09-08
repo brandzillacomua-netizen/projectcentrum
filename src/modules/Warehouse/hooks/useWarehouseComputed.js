@@ -107,9 +107,13 @@ export const useWarehouseComputed = ({
         return machineName
       }
       const opType = resolveMachineType(cardMac)
+      const cardNomId = String(card.nomenclature_id)
+      const cardLegacyIds = (nom.legacy_ids || []).map(String)
       const ops = (machineOperations || []).find(o => 
-        String(o.nomenclature_id) === String(card.nomenclature_id) && 
+        (String(o.nomenclature_id) === cardNomId || cardLegacyIds.includes(String(o.nomenclature_id))) && 
         (normalize(o.machine_type) === normalize(opType) || String(o.machine_id) === String(cardMac))
+      ) || (machineOperations || []).find(o => 
+        String(o.nomenclature_id) === cardNomId || cardLegacyIds.includes(String(o.nomenclature_id))
       )
 
       const cuttersRates = {}
@@ -133,7 +137,7 @@ export const useWarehouseComputed = ({
         const cutterReqs = (requests || []).filter(r =>
           String(r.task_id) === String(card.task_id) &&
           (r.status === 'pending' || r.status === 'issued') &&
-          (r.details || '').includes('ВИТРАТНІ МАТЕРІАЛИ')
+          ((r.details || '').includes('ВИТРАТНІ МАТЕРІАЛИ') || (r.details || '').toLowerCase().includes('фрез'))
         )
         cutterReqs.forEach(r => {
           if (r.nomenclature_id) {
@@ -193,7 +197,10 @@ export const useWarehouseComputed = ({
 
       const preparedCutters = []
       for (const [cNomId, rate] of Object.entries(cuttersRates)) {
-        const cNom = nomenclatures.find(n => n.id === cNomId)
+        const cNom = nomenclatures.find(n => 
+          String(n.id) === String(cNomId) || 
+          (Array.isArray(n.legacy_ids) && n.legacy_ids.map(String).includes(String(cNomId)))
+        )
         let cutterName = cNom?.name || 'Фреза'
         let finalNomId = cNomId
 

@@ -44,16 +44,28 @@ export const calculateCuttersForBatch = ({
   const machineSpecificCutters = {}
   const targetMachine = machineName || task?.machine_name || ''
 
-  // 1. Find machineOperations for partNom & targetMachine
-  const allOpsForPart = (machineOperations || []).filter(o => String(o.nomenclature_id) === String(partNom.id))
+  // 1. Find machineOperations for partNom & targetMachine (with legacy_ids support)
+  const partId = String(partNom?.id || '')
+  const legacyIds = (partNom?.legacy_ids || []).map(String)
+  const allOpsForPart = (machineOperations || []).filter(o => {
+    const opNomId = String(o.nomenclature_id || '')
+    return opNomId === partId || legacyIds.includes(opNomId)
+  })
+
+  const isRealMachine = targetMachine &&
+    targetMachine !== 'Не призначено' &&
+    targetMachine !== 'Не вказано' &&
+    targetMachine.toLowerCase() !== 'не призначено' &&
+    targetMachine.toLowerCase() !== 'не вказано'
 
   let opData = null
-  if (targetMachine) {
+  if (isRealMachine) {
     opData = allOpsForPart.find(o =>
       isMachineMatch(o.machine_type, targetMachine) ||
       isMachineMatch(o.machine_id, targetMachine)
     )
-  } else if (allOpsForPart.length > 0) {
+  }
+  if (!opData && allOpsForPart.length > 0) {
     opData = allOpsForPart[0]
   }
 
@@ -65,7 +77,10 @@ export const calculateCuttersForBatch = ({
       const qtyPerSheet = parseFloat(parts[2]) || 0
       if (cutterNomId && qtyPerSheet > 0) {
         const totalQty = Math.ceil(sheets * qtyPerSheet)
-        const cutterNom = nomenclatures.find(n => String(n.id) === String(cutterNomId))
+        const cutterNom = nomenclatures.find(n => 
+          String(n.id) === String(cutterNomId) ||
+          (Array.isArray(n.legacy_ids) && n.legacy_ids.map(String).includes(String(cutterNomId)))
+        )
         if (cutterNom && cutterNom.name.trim().toLowerCase() !== 'фреза') {
           const cleanName = cutterNom.name.trim()
           let resolvedCutterNom = cutterNom
@@ -130,14 +145,17 @@ export const calculateCuttersForBatch = ({
     })
   }
 
-  // 2. Fallback to plan_snapshot consumables / selectedCutters ONLY IF no machineOperations exist for this part at all
-  if (Object.keys(machineSpecificCutters).length === 0 && allOpsForPart.length === 0 && task?.plan_snapshot) {
+  // 2. Fallback to plan_snapshot consumables / selectedCutters IF no cutters were resolved from operations
+  if (Object.keys(machineSpecificCutters).length === 0 && task?.plan_snapshot) {
     if (task.plan_snapshot.selectedCutters && typeof task.plan_snapshot.selectedCutters === 'object') {
       Object.values(task.plan_snapshot.selectedCutters).forEach(invId => {
         if (invId) {
           const inv = (inventory || []).find(i => String(i.id) === String(invId))
           if (inv) {
-            const nom = nomenclatures.find(n => String(n.id) === String(inv.nomenclature_id))
+            const nom = nomenclatures.find(n => 
+              String(n.id) === String(inv.nomenclature_id) ||
+              (Array.isArray(n.legacy_ids) && n.legacy_ids.map(String).includes(String(inv.nomenclature_id)))
+            )
             const name = nom ? nom.name : inv.name
             if (name && name.toLowerCase().includes('фреза') && name.toLowerCase() !== 'фреза') {
               const cleanName = name.trim()
@@ -163,18 +181,41 @@ export const calculateCuttersForBatch = ({
           const cleanName = c.name.trim()
           const key = cleanName.toLowerCase()
           if (!machineSpecificCutters[key]) {
-            const consNom = nomenclatures.find(n => n.name.trim().toLowerCase() === key)
-            if (consNom) {
-              const qtyPerSheet = Number(consNom.consumption_per_sheet) || 1
-              machineSpecificCutters[key] = {
-                name: cleanName,
-                qty: Math.ceil(sheets * qtyPerSheet),
-                nomenclature_id: consNom.id
-              }
+            const consNom = nomenclatures.find(n => 
+              n.name.trim().toLowerCase() === key ||
+              (Array.isArray(n.legacy_ids) && c.nomenclature_id && n.legacy_ids.map(String).includes(String(c.nomenclature_id))) ||
+              (n.type === 'consumable' && (n.name.toLowerCase().includes(key) || key.includes(n.name.toLowerCase())))
+            )
+            const resolvedId = consNom?.id || c.nomenclature_id || null
+            const qtyPerSheet = Number(consNom?.consumption_per_sheet) || 1
+            machineSpecificCutters[key] = {
+              name: consNom ? consNom.name : cleanName,
+              qty: Math.ceil(sheets * qtyPerSheet),
+              nomenclature_id: resolvedId
             }
           }
         }
       })
+    }
+  }
+
+  // 3. Ultimate fallback: if still no cutters, search for any configured CNC cutter in nomenclatures
+  if (Object.keys(machineSpecificCutters).length === 0) {
+    const generalCutter = (nomenclatures || []).find(n =>
+      n.type === 'consumable' &&
+      (Number(n.consumption_per_sheet) || 0) > 0 &&
+      n.name.trim().toLowerCase() !== 'фреза' &&
+      n.name.toLowerCase().includes('фреза')
+    )
+    if (generalCutter) {
+      const cleanName = generalCutter.name.trim()
+      const key = cleanName.toLowerCase()
+      const qtyPerSheet = Number(generalCutter.consumption_per_sheet) || 1
+      machineSpecificCutters[key] = {
+        name: cleanName,
+        qty: Math.ceil(sheets * qtyPerSheet),
+        nomenclature_id: generalCutter.id
+      }
     }
   }
 

@@ -877,9 +877,14 @@ export function createProductionCardsActions({
         const sheetsNeeded = Number(partInfo.sheets) || 0
         if (sheetsNeeded <= 0) return
         const targetMach = partInfo.selected_machine || machineName
+        const isRealMach = targetMach && targetMach !== 'Не призначено' && targetMach !== 'Не вказано'
+        const partNomObj = nomenclatures.find(n => String(n.id) === String(partId))
+        const pLegacyIds = (partNomObj?.legacy_ids || []).map(String)
         const opData = machineOperations?.find(o =>
-          String(o.nomenclature_id) === String(partId) &&
-          (o.machine_type === targetMach || o.machine_id === targetMach)
+          (String(o.nomenclature_id) === String(partId) || pLegacyIds.includes(String(o.nomenclature_id))) &&
+          (!isRealMach || o.machine_type === targetMach || o.machine_id === targetMach)
+        ) || machineOperations?.find(o =>
+          String(o.nomenclature_id) === String(partId) || pLegacyIds.includes(String(o.nomenclature_id))
         )
         if (opData && opData.side2_cut_ops) {
           const cutterOps = opData.side2_cut_ops.filter(op => op.startsWith('__CUTTER__Reference:') || op.startsWith('__CUTTER__:'))
@@ -890,7 +895,10 @@ export function createProductionCardsActions({
             if (cutterNomId && qtyPerSheet > 0) {
               _hasMachineSpecificCutters = true
               const totalQty = Math.ceil(sheetsNeeded * qtyPerSheet)
-              let cutterNom = nomenclatures.find(n => String(n.id) === String(cutterNomId))
+              let cutterNom = nomenclatures.find(n => 
+                String(n.id) === String(cutterNomId) ||
+                (Array.isArray(n.legacy_ids) && n.legacy_ids.map(String).includes(String(cutterNomId)))
+              )
               
               if (cutterNom) {
                 const nl = cutterNom.name.toLowerCase()
