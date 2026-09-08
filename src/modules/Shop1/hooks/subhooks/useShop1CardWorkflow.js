@@ -9,6 +9,7 @@ import { recordSortingHistoryGuaranteed } from '../../../../services/sortingHist
 import { executeAtomicQcScrap } from '../../../../services/atomicQcScrapService';
 import { incrementInventoryStock } from '../../../../services/inventoryStockService';
 import { executeAtomicCardTransition } from '../../../../services/atomicCardTransitionService';
+import { deductInventoryAtomic } from '../../../../services/atomicInventoryService';
 
 export function useShop1CardWorkflow({
   currentCard,
@@ -92,33 +93,185 @@ export function useShop1CardWorkflow({
     }
   };
 
-  const handleCuttersInventoryDeduction = async (card, breakdown) => {
-    if (card.operation !== 'Розкрій' || !breakdown || Object.keys(breakdown).length === 0) return;
-
-    const items = [];
-    for (const [cutterName, actualQtyVal] of Object.entries(breakdown)) {
-      const actualQty = Number(actualQtyVal) || 0;
-      if (actualQty <= 0) continue;
-
-      const nom = nomenclatures?.find(n => n.name?.trim().toLowerCase() === cutterName.trim().toLowerCase() && n.type === 'consumable');
-      if (!nom) throw new Error(`Не знайдено номенклатуру фрези «${cutterName}»`);
-      items.push({ nomenclature_id: nom.id, quantity: actualQty });
+  const handleSheetsInventoryDeduction = async (card) => {
+    if (!card || card.operation !== 'Розкрій') return;
+    if (card.card_info && (card.card_info.includes('[SHEETS_DEDUCTED:true]') || card.card_info.includes('[MATERIALS_ISSUED:true]'))) {
+      return;
     }
 
-    if (items.length === 0) return;
-    const actorName = formatUserName(currentUser) || currentUser?.login || selectedOperator || 'Оператор терміналу';
-    const { error } = await supabase.rpc('register_cutter_usage', {
-      p_source_card_id: card.id,
-      p_items: items,
-      p_actor_id: currentUser?.id || null,
-      p_actor_name: actorName,
-      p_source_metadata: {
-        operator_name: selectedOperator || card.operator_name || null,
-        manager_name: card.manager_name || null,
-        machine_name: card.machine || null
+    const nom = (nomenclatures || []).find(n => String(n.id) === String(card.nomenclature_id));
+    const unitsPerSheet = Number(nom?.units_per_sheet) || 1;
+    let cardSheets = Number(card.actual_sheets || card.actualSheets) || 0;
+    if (cardSheets <= 0) {
+      cardSheets = Math.ceil((Number(card.quantity) || 0) / unitsPerSheet);
+    }
+    if (cardSheets <= 0) return;
+
+    let targetInventoryId = null;
+    const taskRequests = (requests || []).filter(r =>
+      (String(r.card_id) === String(card.id) || String(r.task_id) === String(card.task_id))
+    );
+
+    for (const r of taskRequests) {
+      const isSheetReq = (r.details && (r.details.toLowerCase().includes('лист') || r.details.includes('ВИТРАТНІ МАТЕРІАЛИ: ЛИСТ'))) ||
+        (nomenclatures || []).find(n => String(n.id) === String(r.nomenclature_id))?.type === 'raw';
+      if (isSheetReq && r.inventory_id) {
+        targetInventoryId = r.inventory_id;
+        break;
       }
-    });
-    if (error) throw error;
+    }
+
+    if (!targetInventoryId) {
+      const opInventory = (inventory || []).filter(i => 
+        (i.warehouse === 'operational' || !i.warehouse) && 
+        i.warehouse !== 'sgp' && i.warehouse !== 'production'
+      );
+      const matType = (nom?.material_type || nom?.name || '').toLowerCase();
+      const thickMatch = matType.match(/(\d+(?:[.,]\d+)?)\s*мм/);
+      const targetThick = thickMatch ? thickMatch[1].replace(',', '.') : null;
+
+      const matchedSheet = opInventory.find(i => {
+        const iName = (i.name || '').toLowerCase();
+        if (!iName.includes('лист')) return false;
+        if (targetThick) {
+          const iThickMatch = iName.match(/(\d+(?:[.,]\d+)?)\s*мм/);
+          return iThickMatch && iThickMatch[1].replace(',', '.') === targetThick;
+        }
+        return true;
+      }) || opInventory.find(i => (i.name || '').toLowerCase().includes('лист'));
+
+      if (matchedSheet) {
+        targetInventoryId = matchedSheet.id;
+      }
+    }
+
+    if (targetInventoryId) {
+      await deductInventoryAtomic(supabase, {
+        inventoryId: targetInventoryId,
+        deductTotal: cardSheets,
+        releaseReserved: cardSheets
+      });
+
+      for (const r of taskRequests) {
+        const isSheetReq = (r.details && r.details.toLowerCase().includes('лист')) ||
+          (nomenclatures || []).find(n => String(n.id) === String(r.nomenclature_id))?.type === 'raw';
+        if (isSheetReq && (r.status === 'issued' || r.status === 'pending')) {
+          const remQty = Math.max(0, (Number(r.quantity) || 0) - cardSheets);
+          if (remQty > 0) {
+            await supabase.from('material_requests').update({ quantity: remQty }).eq('id', r.id);
+          } else {
+            await supabase.from('material_requests').update({ quantity: 0, status: 'completed' }).eq('id', r.id);
+          }
+          break;
+        }
+      }
+    }
+  };
+
+  const handleCuttersInventoryDeduction = async (card, breakdown) => {
+    if (!card || card.operation !== 'Розкрій' || !breakdown || Object.keys(breakdown).length === 0) return;
+    if (card.card_info && card.card_info.includes('[CUTTERS_DEDUCTED:true]')) return;
+
+    const itemsForRestoration = [];
+    const isBoxAlreadyPrepared = (card.card_info || '').includes('[BOX_PREPARED:true]');
+
+    for (const [cutterName, actualQtyVal] of Object.entries(breakdown)) {
+      const actualQty = Number(actualQtyVal) || 0;
+
+      const nom = nomenclatures?.find(n => n.name?.trim().toLowerCase() === cutterName.trim().toLowerCase() && n.type === 'consumable')
+        || nomenclatures?.find(n => n.name?.trim().toLowerCase() === cutterName.trim().toLowerCase());
+
+      if (nom && actualQty > 0) {
+        itemsForRestoration.push({ nomenclature_id: nom.id, quantity: actualQty });
+      }
+
+      const normCutter = (cutterName || '').toLowerCase().replace(/[\s-_]/g, '');
+
+      // Find matching inventory on Operational warehouse (СО)
+      const opInvItem = (inventory || []).find(i =>
+        (i.warehouse === 'operational' || !i.warehouse) &&
+        i.warehouse !== 'sgp' && i.warehouse !== 'production' &&
+        (
+          (nom && String(i.nomenclature_id) === String(nom.id)) ||
+          (i.name || '').toLowerCase().replace(/[\s-_]/g, '') === normCutter ||
+          (i.name || '').toLowerCase().includes(cutterName.toLowerCase())
+        )
+      );
+
+      // Find any active request / reservation for this cutter on this card or task
+      const cutterRequests = (requests || []).filter(r =>
+        (String(r.card_id) === String(card.id) || String(r.task_id) === String(card.task_id)) &&
+        (
+          (nom && String(r.nomenclature_id) === String(nom.id)) ||
+          (r.details || '').toLowerCase().includes(cutterName.toLowerCase())
+        )
+      );
+
+      const activeReq = cutterRequests.find(r => r.status === 'issued' || r.status === 'pending');
+      const reservedAmount = activeReq ? (Number(activeReq.quantity) || 1) : 1;
+
+      if (opInvItem) {
+        if (isBoxAlreadyPrepared) {
+          // Box was already prepared, so 1 cutter per box was already physically deducted
+          const diff = actualQty - 1;
+          if (diff > 0) {
+            await deductInventoryAtomic(supabase, {
+              inventoryId: opInvItem.id,
+              deductTotal: diff,
+              releaseReserved: 0
+            });
+          } else if (diff < 0) {
+            // Unused cutter returned to stock
+            await supabase.from('inventory').update({
+              total_qty: (Number(opInvItem.total_qty) || 0) + 1,
+              updated_at: new Date().toISOString()
+            }).eq('id', opInvItem.id);
+          }
+        } else {
+          // Standard deduction:
+          // deductTotal = actualQty
+          // releaseReserved = Math.max(actualQty, reservedAmount)
+          // Any excess reserve (reservedAmount - actualQty) is released back to free stock without physical deduction!
+          await deductInventoryAtomic(supabase, {
+            inventoryId: opInvItem.id,
+            deductTotal: actualQty,
+            releaseReserved: Math.max(actualQty, reservedAmount)
+          });
+        }
+      }
+
+      // Update material requests status / quantity
+      for (const req of cutterRequests) {
+        if (req.status === 'issued' || req.status === 'pending') {
+          const newQty = Math.max(0, (Number(req.quantity) || 0) - Math.max(actualQty, reservedAmount));
+          if (newQty <= 0) {
+            await supabase.from('material_requests').update({ quantity: 0, status: 'completed' }).eq('id', req.id);
+          } else {
+            await supabase.from('material_requests').update({ quantity: newQty }).eq('id', req.id);
+          }
+        }
+      }
+    }
+
+    // Register restoration events / batches for faceting cutters
+    if (itemsForRestoration.length > 0) {
+      try {
+        const actorName = formatUserName(currentUser) || currentUser?.login || selectedOperator || 'Оператор терміналу';
+        await supabase.rpc('register_cutter_usage', {
+          p_source_card_id: card.id,
+          p_items: itemsForRestoration,
+          p_actor_id: currentUser?.id || null,
+          p_actor_name: actorName,
+          p_source_metadata: {
+            operator_name: selectedOperator || card.operator_name || null,
+            manager_name: card.manager_name || null,
+            machine_name: card.machine || null
+          }
+        });
+      } catch (err) {
+        console.warn('Non-fatal error registering cutter restoration batch:', err);
+      }
+    }
   };
 
   const validateCuttersUsageLimit = async () => {
@@ -571,8 +724,9 @@ export function useShop1CardWorkflow({
       if (isCuttingOperation && Object.keys(finalCuttersBreakdown).length > 0) {
         breakdownStr = ` [CUTTERS_BREAKDOWN:${JSON.stringify(finalCuttersBreakdown)}]`;
       }
+      const deductionTags = isCuttingOperation ? ' [CUTTERS_DEDUCTED:true] [SHEETS_DEDUCTED:true]' : '';
       const baseCardInfo = isCuttingOperation ? (currentCard.card_info || '') : stripCuttersBreakdown(currentCard.card_info);
-      const historyCardInfo = (baseCardInfo + breakdownStr).trim();
+      const historyCardInfo = (baseCardInfo + breakdownStr + deductionTags).trim();
       const completedAt = new Date().toISOString();
 
       const { data: claimedCard, error: claimError } = await supabase
@@ -675,6 +829,7 @@ export function useShop1CardWorkflow({
       }
 
       if (isCuttingOperation) {
+        promises.push(handleSheetsInventoryDeduction(currentCard));
         promises.push(handleCuttersInventoryDeduction(currentCard, finalCuttersBreakdown));
       }
 
@@ -686,7 +841,7 @@ export function useShop1CardWorkflow({
       setShowCompleteModal(false);
       setScrapCount(0);
       setSelectedCardId(null);
-      fetchData(['work_cards', 'work_card_history', 'inventory']).catch(() => {});
+      fetchData(['work_cards', 'work_card_history', 'inventory', 'material_requests', 'tasks']).catch(() => {});
     } catch (e) {
       console.error('Buffer error:', e);
       alert('Помилка буфера: ' + e.message);
@@ -871,6 +1026,7 @@ export function useShop1CardWorkflow({
       promises.push(updateInventoryStock(currentCard.nomenclature_id, currentCard.quantity, 'scrap_ready'));
 
       if (isCuttingOperation) {
+        promises.push(handleSheetsInventoryDeduction(currentCard));
         promises.push(handleCuttersInventoryDeduction(currentCard, cuttersBreakdown));
       }
 
@@ -1336,6 +1492,7 @@ export function useShop1CardWorkflow({
     handleQCScrapOverride,
     handleArchiveStageScrap,
     updateInventoryStock,
+    handleSheetsInventoryDeduction,
     handleCuttersInventoryDeduction,
     validateCuttersUsageLimit,
     verifyCardBeforeMasterScrap

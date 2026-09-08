@@ -238,7 +238,6 @@ const WarehouseInventoryMobileCard = React.memo(({
 export const WarehouseInventoryTable = ({
   activeTab,
   filteredInventory,
-  groupedPocketInventory,
   isAdmin,
   editingInvId,
   setEditingInvId,
@@ -275,35 +274,6 @@ export const WarehouseInventoryTable = ({
                   Позицій не знайдено
                 </td>
               </tr>
-            ) : activeTab === 'pocket' ? (
-              Object.entries(groupedPocketInventory).map(([owner, items]) => (
-                <React.Fragment key={owner}>
-                  <tr style={{ background: 'rgba(255, 144, 0, 0.04)', borderBottom: '1px solid #222' }}>
-                    <td colSpan={5} style={{ padding: '12px 15px', fontWeight: 900, color: '#ff9000', fontSize: '0.85rem', letterSpacing: '0.03em' }}>
-                      👤 МАЙСТЕР: {owner.toUpperCase()}
-                    </td>
-                  </tr>
-                  {items.map(item => (
-                    <WarehouseInventoryTableRow
-                      key={item.id}
-                      item={item}
-                      activeTab={activeTab}
-                      isAdmin={isAdmin}
-                      editingInvId={editingInvId}
-                      setEditingInvId={setEditingInvId}
-                      editingInvTotal={editingInvTotal}
-                      setEditingInvTotal={setEditingInvTotal}
-                      editingInvReserved={editingInvReserved}
-                      setEditingInvReserved={setEditingInvReserved}
-                      savingInv={savingInv}
-                      getItemReservedQty={getItemReservedQty}
-                      handleSaveInventoryQty={handleSaveInventoryQty}
-                      handleDeleteInventoryItem={handleDeleteInventoryItem}
-                      setReserveAnalysisItem={setReserveAnalysisItem}
-                    />
-                  ))}
-                </React.Fragment>
-              ))
             ) : (
               filteredInventory.map(item => (
                 <WarehouseInventoryTableRow
@@ -330,50 +300,23 @@ export const WarehouseInventoryTable = ({
       </div>
 
       <div className="mobile-only">
-        {activeTab === 'pocket' ? (
-          Object.entries(groupedPocketInventory).map(([owner, items]) => (
-            <div key={owner} style={{ marginBottom: '20px' }}>
-              <div style={{ fontWeight: 900, color: '#ff9000', fontSize: '0.85rem', marginBottom: '10px', padding: '8px 12px', background: 'rgba(255, 144, 0, 0.04)', borderRadius: '10px', letterSpacing: '0.03em' }}>
-                👤 МАЙСТЕР: {owner.toUpperCase()}
-              </div>
-              {items.map(item => (
-                <WarehouseInventoryMobileCard
-                  key={item.id}
-                  item={item}
-                  activeTab={activeTab}
-                  editingInvId={editingInvId}
-                  setEditingInvId={setEditingInvId}
-                  editingInvTotal={editingInvTotal}
-                  setEditingInvTotal={setEditingInvTotal}
-                  editingInvReserved={editingInvReserved}
-                  setEditingInvReserved={setEditingInvReserved}
-                  savingInv={savingInv}
-                  handleSaveInventoryQty={handleSaveInventoryQty}
-                  setReserveAnalysisItem={setReserveAnalysisItem}
-                  currentUser={currentUser}
-                />
-              ))}
-            </div>
-          ))
-        ) : (
-          filteredInventory.map(item => (
-            <WarehouseInventoryMobileCard
-              key={item.id}
-              item={item}
-              activeTab={activeTab}
-              editingInvId={editingInvId}
-              setEditingInvId={setEditingInvId}
-              editingInvTotal={editingInvTotal}
-              setEditingInvTotal={setEditingInvTotal}
-              editingInvReserved={editingInvReserved}
-              setEditingInvReserved={setEditingInvReserved}
-              savingInv={savingInv}
-              handleSaveInventoryQty={handleSaveInventoryQty}
-              setReserveAnalysisItem={setReserveAnalysisItem}
-              currentUser={currentUser}
-            />
-          ))
-        )}
+        {filteredInventory.map(item => (
+          <WarehouseInventoryMobileCard
+            key={item.id}
+            item={item}
+            activeTab={activeTab}
+            editingInvId={editingInvId}
+            setEditingInvId={setEditingInvId}
+            editingInvTotal={editingInvTotal}
+            setEditingInvTotal={setEditingInvTotal}
+            editingInvReserved={editingInvReserved}
+            setEditingInvReserved={setEditingInvReserved}
+            savingInv={savingInv}
+            handleSaveInventoryQty={handleSaveInventoryQty}
+            setReserveAnalysisItem={setReserveAnalysisItem}
+            currentUser={currentUser}
+          />
+        ))}
       </div>
     </>
   )

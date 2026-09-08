@@ -40,9 +40,8 @@ export function useSupplyData({ isProcurementOnly = false } = {}) {
   const [receptionDocToAccept, setReceptionDocToAccept] = useState(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [processingDocs, setProcessingDocs] = useState(new Set())
-  const [targetWarehouse, setTargetWarehouse] = useState('') // operational=СО, production=СВ, pocket=кишеня
+  const [targetWarehouse, setTargetWarehouse] = useState('') // operational=СО, production=СВ
   const [expandedPRs, setExpandedPRs] = useState(new Set())
-  const [pocketOwner, setPocketOwner] = useState('')
 
   // QR Scanning state
   const [isScanning, setIsScanning] = useState(false)
@@ -384,11 +383,7 @@ export function useSupplyData({ isProcurementOnly = false } = {}) {
   const handleSendToWarehouse = useCallback(async () => {
     if (draftItems.length === 0 || isProcessing) return
     if (!targetWarehouse) {
-      alert('Оберіть пункт призначення поставки: СО, СВ або Кишеня Майстра.')
-      return
-    }
-    if (targetWarehouse === 'pocket' && !pocketOwner) {
-      alert('Оберіть майстра для кишені.')
+      alert('Оберіть пункт призначення поставки: СО або СВ.')
       return
     }
     
@@ -443,17 +438,16 @@ export function useSupplyData({ isProcurementOnly = false } = {}) {
 
       const targetWh = targetWarehouse
       const sourceWh = isProcurementOnly ? null : 'production'
-      const whLabel = targetWh === 'operational' ? 'СО (Склад Операційний)' : (targetWh === 'pocket' ? 'Кишеню Майстра' : 'СВ (Склад Виробництва)')
-      await apiService.submitCreateReceptionDoc(items, null, (its) => createReceptionDoc(its, 'shipped', null, null, targetWh, sourceWh, targetWh === 'pocket' ? pocketOwner : null), targetWh, sourceWh)
+      const whLabel = targetWh === 'operational' ? 'СО (Склад Операційний)' : 'СВ (Склад Виробництва)'
+      await apiService.submitCreateReceptionDoc(items, null, (its) => createReceptionDoc(its, 'shipped', null, null, targetWh, sourceWh, null), targetWh, sourceWh)
       setDraftItems([])
       setShowCreate(false)
-      setPocketOwner('')
       setActiveTab('registry')
       alert(`Готово! Поставку успішно відправлено на ${whLabel}.`)
     } finally {
       setIsProcessing(false)
     }
-  }, [draftItems, isProcessing, targetWarehouse, pocketOwner, isProcurementOnly, inventory, normalize, supabase, createReceptionDoc])
+  }, [draftItems, isProcessing, targetWarehouse, isProcurementOnly, inventory, normalize, supabase, createReceptionDoc])
 
   const handleForwardToProcurement = useCallback(async (pr) => {
     try {
@@ -959,8 +953,6 @@ export function useSupplyData({ isProcurementOnly = false } = {}) {
     setTargetWarehouse,
     expandedPRs,
     setExpandedPRs,
-    pocketOwner,
-    setPocketOwner,
     isScanning,
     setIsScanning,
     manualCardInput,

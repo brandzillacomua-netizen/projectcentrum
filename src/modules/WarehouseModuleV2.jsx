@@ -60,9 +60,8 @@ const WarehouseModuleV2 = () => {
   const [showAdd, setShowAdd] = useState(false)
   const [showReception, setShowReception] = useState(false)
   const [shortages, setShortages] = useState(null)
-  const [newItem, setNewItem] = useState({ name: '', unit: 'шт', total_qty: '', type: 'raw', pocket_owner: '' })
+  const [newItem, setNewItem] = useState({ name: '', unit: 'шт', total_qty: '', type: 'raw' })
   const [searchQuery, setSearchQuery] = useState('')
-  const [selectedPocketOwner, setSelectedPocketOwner] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
   const [processingDocs, setProcessingDocs] = useState(new Set())
   const [processingTasks, setProcessingTasks] = useState(new Set())
@@ -97,7 +96,6 @@ const WarehouseModuleV2 = () => {
   const {
     cardsWithBoxes,
     filteredInventory,
-    groupedPocketInventory,
     groupedRequests
   } = useWarehouseComputed({
     inventory,
@@ -108,8 +106,7 @@ const WarehouseModuleV2 = () => {
     workCards,
     machineOperations,
     activeTab,
-    searchQuery,
-    selectedPocketOwner
+    searchQuery
   })
 
   const { nomenclatures } = useMES()
@@ -219,9 +216,9 @@ const WarehouseModuleV2 = () => {
 
   const pendingDocs = useMemo(() => {
     return receptionDocs
-      ? receptionDocs.filter(d => (d.status === 'shipped' || d.status === 'ordered') && d.target_warehouse === (activeTab === 'pocket' ? 'pocket' : 'operational'))
+      ? receptionDocs.filter(d => (d.status === 'shipped' || d.status === 'ordered') && d.target_warehouse === 'operational')
       : []
-  }, [receptionDocs, activeTab])
+  }, [receptionDocs])
 
   const tabs = useMemo(() => {
     const taskMap = new Map((tasks || []).map(task => [String(task.id), task]))
@@ -242,15 +239,13 @@ const WarehouseModuleV2 = () => {
     const receptionCounts = (receptionDocs || []).reduce((counts, doc) => {
       if (doc.status !== 'shipped' && doc.status !== 'ordered') return counts
       if (doc.target_warehouse === 'operational') counts.raw += 1
-      if (doc.target_warehouse === 'pocket') counts.pocket += 1
       return counts
-    }, { raw: 0, pocket: 0 })
+    }, { raw: 0 })
 
     const getCount = tabId => (groupedByType.get(tabId)?.size || 0) + (receptionCounts[tabId] || 0)
     return [
       { id: 'raw', label: 'Оперативний', icon: <Package size={18} />, count: getCount('raw') },
       { id: 'boxes', label: 'Бокси фрез', icon: <WarehouseIcon size={18} />, count: cardsWithBoxes.filter(c => !c.isPrepared).length },
-      { id: 'pocket', label: 'Кишеня майстра', icon: <FolderOpen size={18} />, count: getCount('pocket') },
       { id: 'registry', label: 'Реєстр', icon: <History size={18} /> }
     ]
   }, [requests, tasks, receptionDocs, nomenclatures, inventory, cardsWithBoxes])
@@ -338,7 +333,6 @@ const WarehouseModuleV2 = () => {
           setNewItem={setNewItem}
           newItem={newItem}
           setSearchParams={setSearchParams}
-          setSelectedPocketOwner={setSelectedPocketOwner}
         />
 
         {/* Main Content card */}
@@ -348,18 +342,6 @@ const WarehouseModuleV2 = () => {
               {tabs.find(t => t.id === activeTab)?.label.toUpperCase()}
             </h2>
             <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-              {activeTab === 'pocket' && (
-                <select
-                  value={selectedPocketOwner}
-                  onChange={e => setSelectedPocketOwner(e.target.value)}
-                  style={{ background: '#000', border: '1px solid #222', padding: '8px 12px', borderRadius: '10px', color: '#fff', fontSize: '0.85rem', outline: 'none' }}
-                >
-                  <option value="">Усі майстри</option>
-                  {(managers || []).filter(m => m.toLowerCase().includes('майстер')).map((m, idx) => (
-                    <option key={idx} value={m}>{m}</option>
-                  ))}
-                </select>
-              )}
               <div style={{ position: 'relative' }}>
                 <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#444' }} />
                 <input
@@ -405,7 +387,6 @@ const WarehouseModuleV2 = () => {
           <WarehouseInventoryTable
             activeTab={activeTab}
             filteredInventory={filteredInventory}
-            groupedPocketInventory={groupedPocketInventory}
             isAdmin={isAdmin}
             editingInvId={editingInvId}
             setEditingInvId={setEditingInvId}

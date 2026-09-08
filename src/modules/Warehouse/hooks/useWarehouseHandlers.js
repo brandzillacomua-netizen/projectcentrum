@@ -806,10 +806,6 @@ export const useWarehouseHandlers = ({
   const handleAddInventory = async (e) => {
     e.preventDefault()
     if (isProcessing) return
-    if (activeTab === 'pocket' && !newItem.pocket_owner) {
-      alert('Будь ласка, оберіть майстра для кишені!')
-      return
-    }
     setIsProcessing(true)
     try {
       await apiService.submitInventory(newItem, async (data) => {
@@ -823,11 +819,10 @@ export const useWarehouseHandlers = ({
         const targetNomId = matchedNom ? matchedNom.id : null
         const targetName = matchedNom ? `${matchedNom.name}${matchedNom.material_type ? ` (${matchedNom.material_type})` : ''}` : data.name
 
-        const targetWh = activeTab === 'pocket' ? 'pocket' : 'operational'
+        const targetWh = 'operational'
         const existing = (inventory || []).find(i => 
           i.warehouse === targetWh &&
           i.type === itemType &&
-          (targetWh !== 'pocket' || i.pocket_owner === data.pocket_owner) &&
           (
             (targetNomId && i.nomenclature_id === targetNomId) ||
             (!targetNomId && normalize(i.name) === normInput)
@@ -849,13 +844,12 @@ export const useWarehouseHandlers = ({
             total_qty: Number(data.total_qty) || 0,
             reserved_qty: 0,
             type: itemType,
-            warehouse: targetWh,
-            pocket_owner: targetWh === 'pocket' ? data.pocket_owner : null
+            warehouse: targetWh
           }])
         }
       })
       setShowAdd(false)
-      setNewItem({ name: '', unit: 'шт', total_qty: '', type: activeTab, pocket_owner: '' })
+      setNewItem({ name: '', unit: 'шт', total_qty: '', type: activeTab })
       if (typeof fetchData === 'function') fetchData(['inventory'])
     } catch (err) {
       alert('Помилка: ' + err.message)

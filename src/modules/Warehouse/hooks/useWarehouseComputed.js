@@ -72,8 +72,7 @@ export const useWarehouseComputed = ({
   workCards,
   machineOperations,
   activeTab,
-  searchQuery,
-  selectedPocketOwner
+  searchQuery
 }) => {
   const cardsWithBoxes = useMemo(() => {
     const list = []
@@ -374,11 +373,6 @@ export const useWarehouseComputed = ({
       const normSearch = searchQuery.toLowerCase().replace(/[^a-z0-9а-яіїєґ]/gi, '')
       const matchesSearch = normName.includes(normSearch)
       
-      if (activeTab === 'pocket') {
-        const matchesOwner = !selectedPocketOwner || i.pocket_owner === selectedPocketOwner
-        return i.warehouse === 'pocket' && matchesSearch && matchesOwner
-      }
-
       const isOperational = (i.warehouse === 'operational' || !i.warehouse) && i.warehouse !== 'sgp' && i.warehouse !== 'fgp'
       if (!isOperational) return false
 
@@ -426,17 +420,7 @@ export const useWarehouseComputed = ({
 
       return itemType === activeTab && matchesSearch
     })
-  }, [inventory, nomenclatures, activeTab, searchQuery, selectedPocketOwner])
-
-  const groupedPocketInventory = useMemo(() => {
-    if (activeTab !== 'pocket') return {}
-    return filteredInventory.reduce((acc, item) => {
-      const owner = item.pocket_owner || 'Не визначено'
-      if (!acc[owner]) acc[owner] = []
-      acc[owner].push(item)
-      return acc
-    }, {})
-  }, [filteredInventory, activeTab])
+  }, [inventory, nomenclatures, activeTab, searchQuery])
 
   const pendingRequests = useMemo(() => {
     return (requests || []).filter(r => {
@@ -476,7 +460,6 @@ export const useWarehouseComputed = ({
   return {
     cardsWithBoxes,
     filteredInventory,
-    groupedPocketInventory,
     pendingRequests,
     groupedRequests
   }

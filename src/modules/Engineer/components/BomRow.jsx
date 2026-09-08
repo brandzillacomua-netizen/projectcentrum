@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react'
 import { Plus, Trash2 } from 'lucide-react'
 import { NomCreateModal } from './NomCreateModal'
-import { autoClassify } from '../utils/engineerHelpers.jsx'
+import { autoClassify, TYPE_COLORS, TYPE_LABELS } from '../utils/engineerHelpers.jsx'
 
 export const BomRow = ({ row, idx, nomenclatures, bomItems, onUpdate, onRemove, supabase, refreshTable, onExpandAssembly }) => {
   const [query, setQuery] = useState(row.nomName || '')
@@ -19,22 +19,24 @@ export const BomRow = ({ row, idx, nomenclatures, bomItems, onUpdate, onRemove, 
 
   const filtered = useMemo(() => {
     if (!query || query.length < 1) return []
-    const q = query.toLowerCase()
-    return (nomenclatures || []).filter(n => 
-      (n.name || '').toLowerCase().includes(q) ||
-      (n.description || '').toLowerCase().includes(q) ||
-      (n.material_type || '').toLowerCase().includes(q) ||
-      (n.nomenclature_code || '').toLowerCase().includes(q)
-    ).slice(0, 15)
+    const q = query.toLowerCase().trim()
+    return (nomenclatures || []).filter(n => {
+      if (n.type === 'raw' || n.type === 'cutter') return false
+      return (
+        (n.name || '').toLowerCase().includes(q) ||
+        (n.code || '').toLowerCase().includes(q) ||
+        (n.category || '').toLowerCase().includes(q) ||
+        (n.description || '').toLowerCase().includes(q) ||
+        (n.material_type || '').toLowerCase().includes(q) ||
+        (n.nomenclature_code || '').toLowerCase().includes(q)
+      )
+    }).slice(0, 20)
   }, [query, nomenclatures])
 
   const subItems = useMemo(() => {
     if (!row.nomId || !bomItems) return []
     return bomItems.filter(b => String(b.parent_id) === String(row.nomId))
   }, [row.nomId, bomItems])
-
-  const TYPE_COLORS = { product: '#d97706', part: '#2563eb', raw: '#059669', consumable: '#dc2626', assembly: '#7c3aed' }
-  const TYPE_LABELS = { product: 'Виріб', part: 'Деталь', raw: 'Сировина', consumable: 'Метиз', assembly: 'Вузол' }
 
   return (
     <>

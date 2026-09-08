@@ -299,41 +299,60 @@ export const normalizeCutterKey = (name) => {
 }
 
 export const computeCuttersList = (parsedCsv) => {
-  const headers = parsedCsv[0] || []
-  const nameColIdx = headers.findIndex(h => {
-    const n = (h || '').toLowerCase().trim()
-    return n.includes('номенклатура') || n.includes('назва') || n === 'name' || n.includes('фреза')
-  })
-  const diamColIdx = headers.findIndex(h => {
-    const n = (h || '').toLowerCase().trim()
-    return n.includes('діаметр') || n.includes('diameter')
-  })
-  let qtyColIdx = headers.findIndex(h => (h || '').toLowerCase().includes('залишок'))
-  if (qtyColIdx === -1) qtyColIdx = headers.findIndex(h => {
-    const n = (h || '').toLowerCase().trim()
-    return n.includes('склад') || n.includes('кількість') || n === 'qty'
-  })
-  if (nameColIdx === -1) {
-    throw new Error('Помилка: не знайдено колонку «Номенклатура».')
+  if (!parsedCsv || parsedCsv.length === 0) {
+    throw new Error('Помилка: файл порожній.')
   }
-  const rows = parsedCsv.slice(1)
+
+  let headerRowIdx = -1
+  let nameColIdx = -1
+  let diamColIdx = -1
+  let qtyColIdx = -1
+
+  // Scan first up to 6 rows to locate the header row
+  for (let r = 0; r < Math.min(6, parsedCsv.length); r++) {
+    const row = parsedCsv[r] || []
+    const nIdx = row.findIndex(h => {
+      const n = String(h || '').toLowerCase().trim()
+      return n.includes('номенклатура') || n.includes('найменування') || n.includes('назва') || n === 'name' || n.includes('позиція') || n.includes('фреза')
+    })
+    if (nIdx !== -1) {
+      headerRowIdx = r
+      nameColIdx = nIdx
+      diamColIdx = row.findIndex(h => {
+        const n = String(h || '').toLowerCase().trim()
+        return n.includes('діаметр') || n.includes('диаметр') || n.includes('diameter') || n.includes('діам') || n.includes('диам') || n === 'd' || n === 'ø'
+      })
+      qtyColIdx = row.findIndex(h => {
+        const n = String(h || '').toLowerCase().trim()
+        return n.includes('залишок') || n.includes('остаток') || n.includes('склад') || n.includes('кількість') || n.includes('к-сть') || n.includes('кол-во') || n === 'qty' || n === 'quantity'
+      })
+      break
+    }
+  }
+
+  if (nameColIdx === -1) {
+    throw new Error('Помилка: не знайдено колонку «Номенклатура» (або «Назва» / «Найменування»).')
+  }
+
+  const rows = parsedCsv.slice(headerRowIdx + 1)
   const items = []
   rows.forEach((row, idx) => {
-    const name = row[nameColIdx] ? row[nameColIdx].trim() : ''
+    const name = row[nameColIdx] ? String(row[nameColIdx]).trim() : ''
     if (!name) return
     const lower = name.toLowerCase()
     if (lower.includes('разом') || lower.includes('всього') || lower === 'total' || lower.startsWith('підсумок')) return
 
-    const rawDiam = diamColIdx !== -1 ? (row[diamColIdx] || '').replace(',', '.').trim() : ''
+    const rawDiam = diamColIdx !== -1 ? String(row[diamColIdx] || '').replace(',', '.').trim() : ''
     const diameter = parseFloat(rawDiam) || parseDiameterFromName(name) || 0
-    const rawQty = qtyColIdx !== -1 ? (row[qtyColIdx] || '').trim() : ''
+    const rawQty = qtyColIdx !== -1 ? String(row[qtyColIdx] || '').trim() : ''
     const cleanedQty = String(rawQty).replace(/\s+/g, '').replace(',', '.')
     const parsedQty = parseInt(cleanedQty, 10)
     const qty = isNaN(parsedQty) ? 0 : Math.max(0, parsedQty)
 
-    // Allow qty === 0 so all 82 cutters from the inventory file are imported
-    items.push({ name, diameter, qty, rowNum: idx + 2 })
+    // Allow qty === 0 so all cutters from the inventory file are imported
+    items.push({ name, diameter, qty, rowNum: headerRowIdx + idx + 2 })
   })
+
   items.sort((a, b) => {
     if (a.diameter !== b.diameter) return a.diameter - b.diameter
     return a.name.localeCompare(b.name, 'uk')
@@ -970,7 +989,7 @@ export function useSettingsImports({
 
   const executeCuttersUpload = async () => {
     setCuttersUploadStatus('uploading')
-    setCuttersUploadLog('Початок завантаження залишків фрез...\n')
+    setCuttersUploadLog('Початок завантаження залишків фрез на Склад Оперативний (СО)...\n')
     const updates = []
     const inserts = []
 
@@ -990,17 +1009,16 @@ export function useSettingsImports({
 
     try {
       // 2. Fetch fresh operational consumable inventory directly from DB to prevent out-of-sync collisions
-      setCuttersUploadLog(prev => prev + `Синхронізація актуальних залишків з базою даних...\n`)
+      setCuttersUploadLog(prev => prev + `Синхронізація актуальних залишків СО з базою даних...\n`)
       let freshOperationalInv = []
       try {
         const { data: dbInv, error: invErr } = await supabase
           .from('inventory')
           .select('id, nomenclature_id, name, type, warehouse, total_qty, reserved_qty, pocket_owner')
           .eq('warehouse', 'operational')
-          .eq('type', 'consumable')
           .is('pocket_owner', null)
         if (!invErr && Array.isArray(dbInv)) {
-          freshOperationalInv = dbInv
+          freshOperationalInv = dbInv.filter(i => i.type === 'consumable' || String(i.name || '').toLowerCase().includes('фрез'))
         }
       } catch (e) {
         console.warn('Direct inventory fetch warning:', e)
@@ -1009,7 +1027,7 @@ export function useSettingsImports({
       // Combine fresh DB inventory with in-memory inventory
       const combinedInventory = [...freshOperationalInv]
       ;(inventory || []).forEach(i => {
-        if (i.warehouse === 'operational' && i.type === 'consumable' && !combinedInventory.some(ci => ci.id === i.id)) {
+        if (i.warehouse === 'operational' && (i.type === 'consumable' || String(i.name || '').toLowerCase().includes('фрез')) && !combinedInventory.some(ci => ci.id === i.id)) {
           combinedInventory.push(i)
         }
       })
@@ -1021,7 +1039,7 @@ export function useSettingsImports({
         dbNomMap[normalizeHomoglyphs(n.name)] = n
         dbNomMap[n.name.trim().toLowerCase()] = n
       })
-      setCuttersUploadLog(prev => prev + `Обробка ${groupedList.length} унікальних позицій фрез...\n`)
+      setCuttersUploadLog(prev => prev + `Обробка ${groupedList.length} унікальних позицій фрез (Режим: ${cuttersRecordMode === 'add' ? 'Додати до наявного' : 'Перезаписати'})...\n`)
 
       const seenInventoryKeys = new Set()
 
@@ -1041,7 +1059,7 @@ export function useSettingsImports({
           } else {
             const { data: newNom, error: nomErr } = await supabase
               .from('nomenclatures')
-              .insert([{ name: item.name, type: 'consumable' }])
+              .insert([{ name: item.name, type: 'consumable', unit: 'шт' }])
               .select().single()
             if (nomErr) {
               const { data: retryNom } = await supabase
@@ -1068,7 +1086,6 @@ export function useSettingsImports({
         // Match existing inventory by nomenclature_id OR exact name OR cutter key match
         const existingInv = combinedInventory.find(i =>
           i.warehouse === 'operational' &&
-          i.type === 'consumable' &&
           i.pocket_owner == null &&
           (
             (nomRecord?.id && String(i.nomenclature_id) === String(nomRecord.id)) ||
@@ -1100,7 +1117,7 @@ export function useSettingsImports({
             reserved_qty: existingInv.reserved_qty || 0,
             updated_at: new Date().toISOString()
           })
-          setCuttersUploadLog(prev => prev + `[ОНОВИТИ СО] ${existingInv.name || standardName}: ${newTotal} шт (було ${existingInv.total_qty || 0}, Ø${item.diameter})\n`)
+          setCuttersUploadLog(prev => prev + `  [ОНОВИТИ СО] ${existingInv.name || standardName}: ${newTotal} шт (було ${existingInv.total_qty || 0}, ${cuttersRecordMode === 'add' ? '+' + item.qty : 'перезапис'}, Ø${item.diameter})\n`)
         } else {
           inserts.push({
             nomenclature_id: nomRecord?.id || null,
@@ -1113,21 +1130,30 @@ export function useSettingsImports({
             reserved_qty: 0,
             updated_at: new Date().toISOString()
           })
-          setCuttersUploadLog(prev => prev + `[НОВИЙ СО] ${standardName}: ${item.qty} шт (Ø${item.diameter})\n`)
+          setCuttersUploadLog(prev => prev + `  [НОВИЙ СО] ${standardName}: ${item.qty} шт (Ø${item.diameter})\n`)
         }
       }
 
-      setCuttersUploadLog(prev => prev + `\nНадсилання змін до Supabase...\n`)
-      const batchOps = []
+      setCuttersUploadLog(prev => prev + `\nНадсилання змін до бази даних (Оновлення: ${updates.length}, Нові: ${inserts.length})...\n`)
+      
+      const CHUNK_SIZE = 50
       if (updates.length > 0) {
-        batchOps.push(supabase.from('inventory').upsert(updates, { onConflict: 'id' }))
+        for (let i = 0; i < updates.length; i += CHUNK_SIZE) {
+          const chunk = updates.slice(i, i + CHUNK_SIZE)
+          const { error: updErr } = await supabase.from('inventory').upsert(chunk, { onConflict: 'id' })
+          if (updErr) throw updErr
+        }
       }
+
       if (inserts.length > 0) {
-        batchOps.push(supabase.from('inventory').upsert(inserts, { onConflict: 'name,type,warehouse,pocket_owner' }))
+        for (let i = 0; i < inserts.length; i += CHUNK_SIZE) {
+          const chunk = inserts.slice(i, i + CHUNK_SIZE)
+          const { error: insErr } = await supabase.from('inventory').insert(chunk)
+          if (insErr) throw insErr
+        }
       }
-      const results = await Promise.all(batchOps)
-      for (const res of results) { if (res.error) throw res.error }
-      setCuttersUploadLog(prev => prev + `✅ Успішно оновлено базу даних!\n`)
+
+      setCuttersUploadLog(prev => prev + `✅ Успішно оновлено Склад Оперативний (СО)! Оновлено: ${updates.length}, додано нових: ${inserts.length}.\n`)
       setCuttersUploadStatus('success')
       refreshTable('inventory')
       refreshTable('nomenclatures')

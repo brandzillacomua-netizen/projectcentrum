@@ -63,8 +63,6 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
     setTargetWarehouse,
     expandedPRs,
     setExpandedPRs,
-    pocketOwner,
-    setPocketOwner,
     isScanning,
     setIsScanning,
     manualCardInput,
@@ -126,7 +124,6 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
         showCreate={showCreate}
         setShowCreate={setShowCreate}
         setTargetWarehouse={setTargetWarehouse}
-        setPocketOwner={setPocketOwner}
         showReception={showReception}
         setShowReception={setShowReception}
         receptionDocs={receptionDocs}
@@ -144,8 +141,6 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
           isProcurementOnly={isProcurementOnly}
           targetWarehouse={targetWarehouse}
           setTargetWarehouse={setTargetWarehouse}
-          pocketOwner={pocketOwner}
-          setPocketOwner={setPocketOwner}
           managers={managers}
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}

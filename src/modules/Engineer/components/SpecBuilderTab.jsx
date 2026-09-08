@@ -20,7 +20,9 @@ import {
   MACHINE_TYPES, 
   renderCutterListEditorShared, 
   combineOps, 
-  autoClassify 
+  autoClassify,
+  TYPE_COLORS,
+  TYPE_LABELS
 } from '../utils/engineerHelpers.jsx'
 import { BomRow } from './BomRow'
 import { NomCreateModal } from './NomCreateModal'
@@ -92,15 +94,16 @@ export function SpecBuilderTab() {
   }, [isLight])
 
   const nomenclatures = useMemo(() => {
-    const map = new Map()
-    ;(rawNoms || []).forEach(n => {
-      if (n && n.id) map.set(String(n.id), n)
-    })
-    ;(v2Noms || []).forEach(n => {
-      if (n && n.id) map.set(String(n.id), { ...map.get(String(n.id)), ...n })
-    })
-    return Array.from(map.values())
-  }, [rawNoms, v2Noms])
+    // В модулі Інженер V2.0 використовуємо ТІЛЬКИ номенклатуру V2.0 (nomenclatures_v2)
+    return v2Noms
+  }, [v2Noms])
+
+  // Номенклатури для додавання в специфікацію BOM (деталі, метизи, вузли/комплектуючі).
+  // Сировина (карбонові пластини, труби, листи) та фрези
+  // категорично НЕ підтягуються до специфікації комплектуючих виробу!
+  const bomComponentNomenclatures = useMemo(() => {
+    return (v2Noms || []).filter(n => n.type !== 'raw' && n.type !== 'cutter')
+  }, [v2Noms])
 
   // Editor state
   const [parentId, setParentId] = useState('')
@@ -219,8 +222,8 @@ export function SpecBuilderTab() {
     if (parentId === 'temp-new') {
       return { id: 'temp-new', name: pendingParent?.name, type: pendingParent?.type, material_type: pendingParent?.material_type }
     }
-    return nomenclatures.find(n => n.id === parentId)
-  }, [parentId, nomenclatures, pendingParent])
+    return nomenclatures.find(n => n.id === parentId) || (rawNoms || []).find(n => n.id === parentId)
+  }, [parentId, nomenclatures, rawNoms, pendingParent])
 
   const productNoms = useMemo(() => {
     const q = parentSearch.toLowerCase()
@@ -244,7 +247,7 @@ export function SpecBuilderTab() {
     const existing = bomItems.filter(b => String(b.parent_id) === String(parentId))
     if (existing.length > 0) {
       setRows(existing.map(b => {
-        const nom = nomenclatures.find(n => String(n.id) === String(b.child_id))
+        const nom = nomenclatures.find(n => String(n.id) === String(b.child_id)) || (rawNoms || []).find(n => String(n.id) === String(b.child_id))
         return {
           nomId: b.child_id,
           nomName: nom?.name || '(невідомо)',
@@ -258,7 +261,7 @@ export function SpecBuilderTab() {
       setRows([])
     }
     lastLoadedParentId.current = parentId
-  }, [parentId, bomItems, nomenclatures])
+  }, [parentId, bomItems, nomenclatures, rawNoms])
 
   const addRow = () => setRows(prev => [...prev, { nomId: null, nomName: '', nomType: 'part', nomUnit: 'шт', group: 'Деталі', qty: 1 }])
 
@@ -270,7 +273,7 @@ export function SpecBuilderTab() {
     if (subItems.length === 0) return alert('Цей вузол порожній або не має BOM зв\'язків.')
 
     const newRowsToInsert = subItems.map(b => {
-      const nom = nomenclatures.find(n => String(n.id) === String(b.child_id))
+      const nom = nomenclatures.find(n => String(n.id) === String(b.child_id)) || (rawNoms || []).find(n => String(n.id) === String(b.child_id))
       return {
         nomId: b.child_id,
         nomName: nom?.name || '(невідомо)',
@@ -420,8 +423,7 @@ export function SpecBuilderTab() {
         const t = p.nom.type
         if (t && t !== 'product' && t !== 'assembly') return false
         if (q && !p.nom.name.toLowerCase().includes(q)) return false
-        // Only show items with populated specifications
-        if (!p.children || p.children.length === 0) return false
+        // Show ALL — including items without BOM so user can rebuild lost specs
         return true
       })
       .sort((a, b) => a.nom.name.localeCompare(b.nom.name))
@@ -455,8 +457,7 @@ export function SpecBuilderTab() {
     return catalogParents.filter(({ nom }) => getItemFolderKey(nom) === catalogFolder)
   }, [catalogParents, catalogFolder])
 
-  const TYPE_COLORS = { product: '#d97706', part: '#2563eb', raw: '#059669', consumable: '#dc2626', assembly: '#7c3aed' }
-  const TYPE_LABELS = { product: 'Виріб', part: 'Деталь', raw: 'Сировина', consumable: 'Метиз', assembly: 'Вузол' }
+
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -803,7 +804,7 @@ export function SpecBuilderTab() {
                     key={idx}
                     row={r}
                     idx={idx}
-                    nomenclatures={nomenclatures}
+                    nomenclatures={bomComponentNomenclatures}
                     bomItems={bomItems}
                     onUpdate={updateRow}
                     onRemove={removeRow}

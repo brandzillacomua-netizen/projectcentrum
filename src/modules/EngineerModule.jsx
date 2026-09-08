@@ -1737,10 +1737,12 @@ const BomRow = ({ row, idx, nomenclatures, bomItems, onUpdate, onRemove, supabas
     if (!query || query.length < 2) return []
     const q = query.toLowerCase()
     return nomenclatures.filter(n => 
-      (n.name || '').toLowerCase().includes(q) ||
-      (n.description || '').toLowerCase().includes(q) ||
-      (n.material_type || '').toLowerCase().includes(q) ||
-      (n.nomenclature_code || '').toLowerCase().includes(q)
+      n.type !== 'raw' && n.type !== 'cutter' && (
+        (n.name || '').toLowerCase().includes(q) ||
+        (n.description || '').toLowerCase().includes(q) ||
+        (n.material_type || '').toLowerCase().includes(q) ||
+        (n.nomenclature_code || '').toLowerCase().includes(q)
+      )
     ).slice(0, 12)
   }, [query, nomenclatures])
 
@@ -1749,8 +1751,8 @@ const BomRow = ({ row, idx, nomenclatures, bomItems, onUpdate, onRemove, supabas
     return bomItems.filter(b => String(b.parent_id) === String(row.nomId))
   }, [row.nomId, bomItems])
 
-  const TYPE_COLORS = { product: '#d97706', part: '#2563eb', raw: '#059669', consumable: '#dc2626', assembly: '#7c3aed' }
-  const TYPE_LABELS = { product: 'Виріб', part: 'Деталь', raw: 'Сировина', consumable: 'Метиз', assembly: 'Вузол' }
+  const TYPE_COLORS = { product: '#d97706', part: '#2563eb', raw: '#059669', hardware: '#dc2626', consumable: '#dc2626', assembly: '#7c3aed' }
+  const TYPE_LABELS = { product: 'Виріб', part: 'Деталь', raw: 'Сировина', hardware: 'Метиз', consumable: 'Метиз', assembly: 'Вузол' }
 
   return (
     <>

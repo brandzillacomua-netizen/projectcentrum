@@ -27,9 +27,8 @@ export function useWarehouseData() {
   const [showAdd, setShowAdd] = useState(false)
   const [showReception, setShowReception] = useState(false)
   const [shortages, setShortages] = useState(null)
-  const [newItem, setNewItem] = useState({ name: '', unit: 'шт', total_qty: '', type: 'raw', pocket_owner: '' })
+  const [newItem, setNewItem] = useState({ name: '', unit: 'шт', total_qty: '', type: 'raw' })
   const [searchQuery, setSearchQuery] = useState('')
-  const [selectedPocketOwner, setSelectedPocketOwner] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
   const [processingDocs, setProcessingDocs] = useState(new Set())
   const [processingTasks, setProcessingTasks] = useState(new Set())
@@ -74,7 +73,6 @@ export function useWarehouseData() {
     shortages, setShortages,
     newItem, setNewItem,
     searchQuery, setSearchQuery,
-    selectedPocketOwner, setSelectedPocketOwner,
     isProcessing, setIsProcessing,
     processingDocs, setProcessingDocs,
     processingTasks, setProcessingTasks,

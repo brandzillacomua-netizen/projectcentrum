@@ -48,7 +48,7 @@ export function useWarehouseBoxesData() {
   const [editingQty] = useState({})
   const [savingQty] = useState(new Set())
   const [shortages, setShortages] = useState(null)
-  const [newItem] = useState({ name: '', unit: 'шт', total_qty: '', type: 'raw', pocket_owner: '' })
+  const [newItem] = useState({ name: '', unit: 'шт', total_qty: '', type: 'raw' })
 
   // Active tab context is boxes
   const activeTab = 'boxes'

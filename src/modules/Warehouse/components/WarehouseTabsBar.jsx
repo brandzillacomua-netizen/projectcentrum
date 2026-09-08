@@ -8,8 +8,7 @@ export const WarehouseTabsBar = ({
   setActiveTab,
   setNewItem,
   newItem,
-  setSearchParams,
-  setSelectedPocketOwner
+  setSearchParams
 }) => {
   return (
     <div style={{ display: 'flex', gap: '10px', marginBottom: '25px', overflowX: 'auto', paddingBottom: '5px' }}>
@@ -19,9 +18,8 @@ export const WarehouseTabsBar = ({
           className={`warehouse-tab-btn ${activeTab === tab.id ? 'active' : ''}`}
           onClick={() => {
             setActiveTab(tab.id)
-            setNewItem({ ...newItem, type: tab.id, pocket_owner: '' })
+            setNewItem({ ...newItem, type: tab.id })
             setSearchParams({ tab: tab.id })
-            setSelectedPocketOwner('')
           }}
           style={{
             position: 'relative',

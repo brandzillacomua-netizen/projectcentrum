@@ -84,6 +84,125 @@ export const combineOps = (f2Arr, f15Arr) => {
   return combined.filter(Boolean)
 }
 
+export const TYPE_COLORS = {
+  product: '#d97706',   // amber (Виріб)
+  part: '#2563eb',      // blue (Деталь)
+  raw: '#059669',       // green (Сировина)
+  hardware: '#dc2626',   // red (Метиз)
+  consumable: '#dc2626', // red (Метиз)
+  cutter: '#10b981',    // emerald (Фреза)
+  assembly: '#7c3aed'   // indigo (Вузол)
+}
+
+export const TYPE_LABELS = {
+  product: 'Виріб',
+  part: 'Деталь',
+  raw: 'Сировина',
+  hardware: 'Метиз',
+  consumable: 'Метиз',
+  cutter: 'Фреза',
+  assembly: 'Вузол'
+}
+
+export const classifyV2Type = (v) => {
+  if (!v) return 'part'
+  
+  const gid = String(v.group_id || '').toLowerCase()
+  const rule = String(v.rule_type || '').toLowerCase()
+  const name = String(v.name || '').toLowerCase()
+
+  // 1. Raw Materials (Сировина: карбонові пластини, труби, листи, смоли, гума, фарба)
+  // Перевіряємо першими, щоб сировина ніколи не класифікувалась як метиз або деталь
+  if (
+    gid === 'grp_carbon_t300' ||
+    gid === 'grp_carbon_t700' ||
+    gid === 'grp_carbon_t800' ||
+    gid === 'grp_carbon_sheets' ||
+    gid === 'grp_prepared_sheets' ||
+    gid === 'grp_rubber' ||
+    gid === 'grp_paint' ||
+    gid.startsWith('cat_raw') ||
+    gid.startsWith('raw') ||
+    rule === 'carbon' ||
+    rule === 'rubber' ||
+    rule === 'paint' ||
+    name.includes('карбонов') ||
+    name.includes('пластина т') ||
+    name.includes('лист') ||
+    name.includes('труба') ||
+    name.includes('пруток') ||
+    name.includes('склотекстоліт') ||
+    name.includes('гума') ||
+    name.includes('фарба')
+  ) {
+    return 'raw'
+  }
+
+  // 2. Mills / Cutters (Фрези)
+  if (gid === 'grp_mills' || rule === 'mill' || name.includes('фреза')) {
+    return 'cutter'
+  }
+
+  // 3. Products / Finished frames (Готові вироби)
+  if (
+    gid === 'grp_production_frames' ||
+    gid === 'grp_test_samples' ||
+    gid === 'cat_fg' ||
+    rule === 'full_frame' ||
+    name.includes('рама') ||
+    name.includes('frame')
+  ) {
+    return 'product'
+  }
+
+  // 4. Assemblies (Вузли)
+  if (gid === 'grp_assemblies' || v.type === 'assembly' || name.includes('вузол') || name.includes('комплект')) {
+    return 'assembly'
+  }
+
+  // 5. Hardware / Fasteners (Метизи)
+  if (
+    gid === 'grp_nuts' ||
+    gid === 'grp_press_nuts' ||
+    gid === 'grp_screws_black' ||
+    gid === 'grp_screws_silver' ||
+    gid === 'grp_standoffs' ||
+    gid === 'grp_hardware_main' ||
+    gid.startsWith('cat_hw') ||
+    gid.startsWith('hw') ||
+    rule === 'screw' ||
+    rule === 'screw_black' ||
+    rule === 'screw_silver' ||
+    rule === 'nut' ||
+    rule === 'press_nut' ||
+    rule === 'standoff' ||
+    name.includes('гвинт') ||
+    name.includes('гайка') ||
+    name.includes('шайба') ||
+    name.includes('шпилька') ||
+    name.includes('заклепка') ||
+    name.includes('стійка') ||
+    name.includes('болт')
+  ) {
+    return 'hardware'
+  }
+
+  // 6. Frame parts (Деталі)
+  if (
+    rule === 'frame_part' ||
+    gid === 'cat_parts' ||
+    name.includes('деталь') ||
+    name.includes('луч') ||
+    name.includes('арм') ||
+    name.includes('проставка') ||
+    name.includes('рейка')
+  ) {
+    return 'part'
+  }
+
+  return v.type || 'part'
+}
+
 export const useV2NomenclaturesData = (supabase) => {
   const [v2Noms, setV2Noms] = useState([])
   const fetchV2 = async () => {
@@ -95,11 +214,9 @@ export const useV2NomenclaturesData = (supabase) => {
           id: v.id,
           name: v.name,
           code: v.code || '',
-          type: (v.group_id === 'grp_production_frames' || v.group_id === 'grp_test_samples' || v.group_id === 'cat_fg' || v.rule_type === 'full_frame' || (v.name || '').toLowerCase().includes('рама'))
-            ? 'product'
-            : (v.rule_type === 'frame_part' ? 'part' : 'consumable'),
+          type: classifyV2Type(v),
           unit: v.unit || 'шт',
-          category: v.category || 'Загальна'
+          category: v.category || (String(v.group_id || '').startsWith('grp_carbon') || String(v.group_id || '').startsWith('cat_raw') ? 'Сировина' : 'Загальна')
         }))
         setV2Noms(mapped)
       }
@@ -118,14 +235,60 @@ export const autoClassify = (nom) => {
   const type = nom.type
   const name = (nom.name || '').toLowerCase()
 
-  if (type === 'part' || name.includes('деталь') || name.includes('пластина') || name.includes('проставка') || name.includes('профіль') || name.includes('рейка')) return 'Деталі'
-  if (type === 'consumable') {
-    if (name.includes('гвинт') || name.includes('гайка') || name.includes('шайба') || name.includes('шпилька') || name.includes('заклепка') || name.includes('стійка')) return 'Метизи'
-    if (name.includes('фреза')) return 'Інструмент (Фрези)'
-    if (name.includes('лист') || name.includes('карбон') || name.includes('труба') || name.includes('пруток') || name.includes('склотекстоліт')) return 'Сировина (Листи, Труби)'
-    return 'Витратні матеріали'
+  // 1. Raw materials first (carbon sheets/plates must not be caught by "пластина")
+  if (
+    type === 'raw' ||
+    name.includes('карбон') ||
+    name.includes('лист') ||
+    name.includes('труба') ||
+    name.includes('пруток') ||
+    name.includes('склотекстоліт') ||
+    name.includes('гума')
+  ) {
+    return 'Сировина (Листи, Труби)'
   }
-  if (type === 'assembly') return 'Комплектуючі'
 
-  return 'Інше'
+  // 2. Hardware / Fasteners
+  if (
+    type === 'hardware' ||
+    name.includes('гвинт') ||
+    name.includes('гайка') ||
+    name.includes('шайба') ||
+    name.includes('шпилька') ||
+    name.includes('заклепка') ||
+    name.includes('стійка') ||
+    name.includes('болт')
+  ) {
+    return 'Метизи'
+  }
+
+  // 3. Cutters / Tools
+  if (type === 'cutter' || name.includes('фреза')) {
+    return 'Інструмент (Фрези)'
+  }
+
+  // 4. Parts
+  if (
+    type === 'part' ||
+    name.includes('деталь') ||
+    name.includes('пластина') ||
+    name.includes('проставка') ||
+    name.includes('профіль') ||
+    name.includes('рейка') ||
+    name.includes('луч') ||
+    name.includes('арм')
+  ) {
+    return 'Деталі'
+  }
+
+  // 5. Assemblies
+  if (type === 'assembly' || name.includes('вузол') || name.includes('комплект')) {
+    return 'Комплектуючі'
+  }
+
+  if (type === 'consumable') {
+    return 'Метизи'
+  }
+
+  return 'Метизи'
 }

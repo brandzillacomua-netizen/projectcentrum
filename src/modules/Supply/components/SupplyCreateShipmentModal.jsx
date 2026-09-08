@@ -8,8 +8,6 @@ export const SupplyCreateShipmentModal = ({
   isProcurementOnly,
   targetWarehouse,
   setTargetWarehouse,
-  pocketOwner,
-  setPocketOwner,
   managers = [],
   searchQuery,
   setSearchQuery,
@@ -25,10 +23,8 @@ export const SupplyCreateShipmentModal = ({
 }) => {
   if (!showCreate) return null
 
-  const sendDisabled = isProcessing || !targetWarehouse || (targetWarehouse === 'pocket' && !pocketOwner)
-  const targetLabel = targetWarehouse === 'operational'
-    ? 'СО'
-    : (targetWarehouse === 'production' ? 'СВ' : 'КИШЕНЮ')
+  const sendDisabled = isProcessing || !targetWarehouse
+  const targetLabel = targetWarehouse === 'operational' ? 'СО' : 'СВ'
 
   return (
     <section style={{
@@ -56,7 +52,7 @@ export const SupplyCreateShipmentModal = ({
           </p>
         </div>
         <button
-          onClick={() => { setShowCreate(false); setDraftItems([]); setTargetWarehouse(''); setPocketOwner('') }}
+          onClick={() => { setShowCreate(false); setDraftItems([]); setTargetWarehouse('') }}
           style={{ background: 'var(--btn-ghost-bg, #1c1c1c)', border: '1px solid var(--border-color, #2a2a2a)', color: 'var(--text-muted, #888)', cursor: 'pointer', width: '36px', height: '36px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
         >
           <X size={18} />
@@ -76,18 +72,14 @@ export const SupplyCreateShipmentModal = ({
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '10px' }}>
             {[
               { id: 'operational', label: 'СО', desc: 'Склад Операційний', color: '#10b981', icon: '🏭' },
-              isProcurementOnly && { id: 'production', label: 'СВ', desc: 'Склад Виробництва', color: '#3b82f6', icon: '⚙️' },
-              { id: 'pocket', label: 'Кишеня Майстра', desc: 'Кишеня Майстра', color: '#f59e0b', icon: '💼' }
+              isProcurementOnly && { id: 'production', label: 'СВ', desc: 'Склад Виробництва', color: '#3b82f6', icon: '⚙️' }
             ].filter(Boolean).map(wh => {
               const active = targetWarehouse === wh.id
               return (
                 <button
                   key={wh.id}
                   type="button"
-                  onClick={() => {
-                    setTargetWarehouse(wh.id)
-                    if (wh.id !== 'pocket') setPocketOwner('')
-                  }}
+                  onClick={() => setTargetWarehouse(wh.id)}
                   style={{
                     background: active ? `${wh.color}15` : 'var(--card-bg, #0a0a0a)',
                     border: active ? `2px solid ${wh.color}` : '1px solid var(--border-color, #222)',
@@ -110,25 +102,6 @@ export const SupplyCreateShipmentModal = ({
             })}
           </div>
         </div>
-
-        {/* Master Selector for Pocket */}
-        {targetWarehouse === 'pocket' && (
-          <div style={{ background: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.3)', borderRadius: '14px', padding: '15px' }}>
-            <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: 900, color: '#f59e0b', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Оберіть майстра / відповідального</label>
-            <select
-              value={pocketOwner}
-              onChange={e => setPocketOwner(e.target.value)}
-              style={{ width: '100%', background: 'var(--card-bg, #000)', border: '1px solid var(--border-color, #333)', color: 'var(--text-color, #fff)', padding: '12px', borderRadius: '10px', fontSize: '0.9rem', outline: 'none', fontWeight: 700 }}
-            >
-              <option value="">-- Оберіть зі списку --</option>
-              {managers.map(m => (
-                <option key={m.id} value={`${m.first_name || ''} ${m.last_name || ''}`.trim() || m.name || m.username}>
-                  {m.first_name ? `${m.first_name} ${m.last_name || ''}` : (m.name || m.username)} ({m.role || m.position || 'Майстер'})
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
 
         {/* Add items to draft panel */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px auto', gap: '10px', alignItems: 'flex-end' }}>
@@ -218,9 +191,7 @@ export const SupplyCreateShipmentModal = ({
                 ? '#222'
                 : (targetWarehouse === 'production'
                     ? 'linear-gradient(135deg, #3b82f6, #1d4ed8)'
-                    : (targetWarehouse === 'pocket'
-                        ? 'linear-gradient(135deg, #f59e0b, #d97706)'
-                        : 'linear-gradient(135deg, #10b981, #047857)')),
+                    : 'linear-gradient(135deg, #10b981, #047857)'),
               color: sendDisabled ? '#666' : '#fff',
               border: 'none',
               borderRadius: '12px',
@@ -240,9 +211,7 @@ export const SupplyCreateShipmentModal = ({
               ? 'ОБРОБКА...'
               : (!targetWarehouse
                   ? 'ОБЕРІТЬ ПУНКТ ПРИЗНАЧЕННЯ'
-                  : (targetWarehouse === 'pocket' && !pocketOwner
-                      ? 'ОБЕРІТЬ МАЙСТРА'
-                      : `ВІДПРАВИТИ НА ${targetLabel}`))}
+                  : `ВІДПРАВИТИ НА ${targetLabel}`)}
           </button>
         )}
       </div>

@@ -12,7 +12,6 @@ export const SupplyNav = ({
   showCreate,
   setShowCreate,
   setTargetWarehouse,
-  setPocketOwner,
   showReception,
   setShowReception,
   receptionDocs,
@@ -85,7 +84,6 @@ export const SupplyNav = ({
             <button
               onClick={() => {
                 setTargetWarehouse('')
-                setPocketOwner('')
                 setShowCreate(true)
               }}
               className="hide-mobile"
@@ -206,7 +204,7 @@ export const SupplyNav = ({
           <button onClick={() => { setActiveTab('registry'); setShowCreate(false) }} className={`tab-btn-m ${activeTab === 'registry' && !showCreate ? 'active' : ''}`}>РЕЄСТР</button>
           {!isProcurementOnly && <button onClick={() => { setActiveTab('stock'); setShowCreate(false) }} className={`tab-btn-m ${activeTab === 'stock' && !showCreate ? 'active' : ''}`}>ЗАЛИШКИ</button>}
           {isProcurementOnly && <button onClick={() => { setActiveTab('qrcodes'); setShowCreate(false) }} className={`tab-btn-m ${activeTab === 'qrcodes' && !showCreate ? 'active' : ''}`}>QR-КОДИ</button>}
-          <button onClick={() => { setShowCreate(true); setActiveTab('create'); setTargetWarehouse(''); setPocketOwner('') }} className={`tab-btn-m ${showCreate ? 'active' : ''}`}>+ НОВИЙ</button>
+          <button onClick={() => { setShowCreate(true); setActiveTab('create'); setTargetWarehouse('') }} className={`tab-btn-m ${showCreate ? 'active' : ''}`}>+ НОВИЙ</button>
         </div>
       </div>
     </>

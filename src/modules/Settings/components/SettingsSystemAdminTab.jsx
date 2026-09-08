@@ -778,13 +778,14 @@ export function SettingsSystemAdminTab(props) {
         )}
       </section>
 
-      {/* ── ЗАВАНТАЖЕННЯ ЗАЛИШКІВ ФРЕЗ (СКЛАД) ── */}
+      {/* ── ЗАВАНТАЖЕННЯ ЗАЛИШКІВ ФРЕЗ (СКЛАД ОПЕРАТИВНИЙ - СО) ── */}
       <section className="settings-panel glass-panel" style={{ background: '#0e0e11', padding: '30px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.04)', gridColumn: '1 / -1' }}>
         <h3 style={{ fontSize: '1.05rem', fontWeight: 900, marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '10px', color: '#ff9000' }}>
-          <Layers size={20} /> ЗАВАНТАЖЕННЯ ЗАЛИШКІВ ФРЕЗ (СКЛАД)
+          <Layers size={20} /> ЗАВАНТАЖЕННЯ ЗАЛИШКІВ ФРЕЗ (СКЛАД ОПЕРАТИВНИЙ - СО)
+          <span style={{ fontSize: '0.68rem', padding: '3px 8px', borderRadius: '6px', background: 'rgba(255,144,0,0.15)', color: '#ff9000', border: '1px solid rgba(255,144,0,0.3)', fontWeight: 800 }}>СО</span>
         </h3>
-        <p style={{ fontSize: '0.72rem', color: '#555', marginTop: 0, marginBottom: '24px', lineHeight: '1.5' }}>
-          Завантажте CSV-файл залишків фрез зі складу. Колонки: <strong style={{ color: '#ff9000' }}>«Номенклатура»</strong>, <strong style={{ color: '#60a5fa' }}>«Діаметр ріжучої частини»</strong>, <strong style={{ color: '#10b981' }}>«Залишок на складі»</strong>. Сортуються автоматично за діаметром.
+        <p style={{ fontSize: '0.72rem', color: '#888', marginTop: 0, marginBottom: '24px', lineHeight: '1.5' }}>
+          Завантажте CSV або Excel (.xlsx, .xls) файл залишків фрез. Усі позиції записуються безпосередньо на <strong style={{ color: '#ff9000' }}>Склад Оперативний (СО)</strong>. Колонки: <strong style={{ color: '#ff9000' }}>«Номенклатура»</strong> (або «Назва»), <strong style={{ color: '#60a5fa' }}>«Діаметр ріжучої частини»</strong>, <strong style={{ color: '#10b981' }}>«Залишок на складі»</strong>. Сортуються автоматично за діаметром.
         </p>
 
         {cuttersUploadStatus === 'idle' && (
@@ -794,18 +795,18 @@ export function SettingsSystemAdminTab(props) {
               <input 
                 id="cutters-file-input" 
                 type="file" 
-                accept=".csv" 
+                accept=".csv, .xlsx, .xls" 
                 onChange={handleCuttersFileChange} 
                 style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }} 
               />
               <Upload size={38} color="#ff9000" style={{ marginBottom: '14px', opacity: 0.8, marginLeft: 'auto', marginRight: 'auto' }} />
-              <h4 style={{ margin: '0 0 6px 0', fontSize: '0.9rem', fontWeight: 800 }}>Оберіть або перетягніть CSV файл</h4>
-              <p style={{ margin: 0, fontSize: '0.7rem', color: '#666', fontWeight: 600 }}>«Номенклатура» | «Діаметр ріжучої частини» | «Залишок на складі»</p>
+              <h4 style={{ margin: '0 0 6px 0', fontSize: '0.9rem', fontWeight: 800 }}>Оберіть або перетягніть CSV / Excel (.xlsx, .xls) файл</h4>
+              <p style={{ margin: 0, fontSize: '0.7rem', color: '#666', fontWeight: 600 }}>«Номенклатура» | «Діаметр ріжучої частини» | «Залишок на складі» → <strong style={{ color: '#ff9000' }}>Склад Оперативний (СО)</strong></p>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <span style={{ fontSize: '0.72rem', color: '#888', fontWeight: 700 }}>Режим запису:</span>
+              <span style={{ fontSize: '0.72rem', color: '#888', fontWeight: 700 }}>Режим запису на СО:</span>
               <div style={{ display: 'flex', gap: '6px' }}>
-                {[{ v: 'overwrite', label: '✎ Перезаписати (рекомендовано)' }, { v: 'add', label: '+ Додати до наявного' }].map(opt => (
+                {[{ v: 'overwrite', label: '✎ Перезаписати (встановити залишок)' }, { v: 'add', label: '+ Додати до наявного' }].map(opt => (
                   <button key={opt.v} onClick={() => setCuttersRecordMode(opt.v)} type="button" style={{
                     background: cuttersRecordMode === opt.v ? 'rgba(255,144,0,0.12)' : 'transparent',
                     border: cuttersRecordMode === opt.v ? '1px solid #ff9000' : '1px solid rgba(255,255,255,0.07)',
@@ -824,7 +825,7 @@ export function SettingsSystemAdminTab(props) {
               {[
                 { label: 'Всього фрез', val: cuttersPreviewList.length, color: '#ff9000' },
                 { label: 'Унікальних діаметрів', val: new Set(cuttersPreviewList.map(i => i.diameter)).size, color: '#60a5fa' },
-                { label: 'Загальна кількість', val: cuttersPreviewList.reduce((s, i) => s + i.qty, 0), color: '#10b981' },
+                { label: 'Загальна кількість (СО)', val: cuttersPreviewList.reduce((s, i) => s + i.qty, 0), color: '#10b981' },
               ].map(s => (
                 <div key={s.label} style={{ background: 'rgba(0,0,0,0.25)', border: `1px solid ${s.color}22`, borderRadius: '14px', padding: '12px 20px', minWidth: '160px' }}>
                   <div style={{ fontSize: '1.4rem', fontWeight: 900, color: s.color }}>{s.val}</div>
@@ -861,7 +862,7 @@ export function SettingsSystemAdminTab(props) {
             </div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '18px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <span style={{ fontSize: '0.72rem', color: '#888', fontWeight: 700 }}>Режим запису:</span>
+                <span style={{ fontSize: '0.72rem', color: '#888', fontWeight: 700 }}>Режим запису на СО:</span>
                 <div style={{ display: 'flex', gap: '6px' }}>
                   {[{ v: 'overwrite', label: '✎ Перезаписати' }, { v: 'add', label: '+ Додати' }].map(opt => (
                     <button key={opt.v} onClick={() => setCuttersRecordMode(opt.v)} type="button" style={{
@@ -876,7 +877,7 @@ export function SettingsSystemAdminTab(props) {
               <div style={{ display: 'flex', gap: '10px' }}>
                 <button type="button" onClick={() => { setCuttersUploadStatus('idle'); setCuttersFile(null); setCuttersPreviewList([]) }} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', color: '#aaa', padding: '12px 22px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer' }}>← НАЗАД</button>
                 <button type="button" onClick={executeCuttersUpload} disabled={cuttersPreviewList.length === 0} style={{ background: cuttersPreviewList.length === 0 ? '#222' : 'linear-gradient(135deg, #ff9000, #ff6a00)', border: 'none', color: cuttersPreviewList.length === 0 ? '#555' : '#000', padding: '12px 28px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: 900, cursor: cuttersPreviewList.length === 0 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Upload size={16} /> ЗАПИСАТИ В СИСТЕМУ ({cuttersPreviewList.length} фрез)
+                  <Upload size={16} /> ЗАПИСАТИ НА СКЛАД ОПЕРАТИВНИЙ ({cuttersPreviewList.length} фрез)
                 </button>
               </div>
             </div>
@@ -886,7 +887,7 @@ export function SettingsSystemAdminTab(props) {
         {cuttersUploadStatus === 'uploading' && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '18px', padding: '30px 0' }}>
             <div className="spinner-mes" style={{ width: '44px', height: '44px', borderRadius: '50%', border: '3px solid rgba(255,144,0,0.15)', borderTopColor: '#ff9000', animation: 'spin 1s linear infinite' }} />
-            <div style={{ fontSize: '0.85rem', color: '#aaa', fontWeight: 700 }}>Запис залишків фрез у базу...</div>
+            <div style={{ fontSize: '0.85rem', color: '#aaa', fontWeight: 700 }}>Запис залишків фрез на Склад Оперативний (СО)...</div>
             <pre style={{ background: '#000', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '12px', padding: '14px', color: '#00ff66', fontFamily: 'monospace', fontSize: '0.7rem', width: '100%', maxWidth: '640px', maxHeight: '180px', overflowY: 'auto', whiteSpace: 'pre-wrap', margin: 0 }} className="custom-scroll">{cuttersUploadLog}</pre>
           </div>
         )}
@@ -894,8 +895,8 @@ export function SettingsSystemAdminTab(props) {
         {cuttersUploadStatus === 'success' && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', padding: '24px 0' }}>
             <CheckCircle2 size={52} color="#10b981" />
-            <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 900, color: '#fff' }}>ЗАВАНТАЖЕННЯ ЗАВЕРШЕНО УСПІШНО!</h4>
-            <p style={{ margin: 0, fontSize: '0.78rem', color: '#aaa', textAlign: 'center' }}>Залишки фрез оновлено. Нач. цеху може обрати фрезу зі складу при формуванні наряду.</p>
+            <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 900, color: '#fff' }}>ЗАВАНТАЖЕННЯ НА СО ЗАВЕРШЕНО УСПІШНО!</h4>
+            <p style={{ margin: 0, fontSize: '0.78rem', color: '#aaa', textAlign: 'center' }}>Залишки фрез оновлено на Складі Оперативному (СО). Фрези доступні для броні та використання у розкрої.</p>
             <pre style={{ background: '#000', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '12px', padding: '14px', color: '#00ff66', fontFamily: 'monospace', fontSize: '0.7rem', width: '100%', maxWidth: '640px', maxHeight: '180px', overflowY: 'auto', whiteSpace: 'pre-wrap', margin: 0 }} className="custom-scroll">{cuttersUploadLog}</pre>
             <button type="button" onClick={() => { setCuttersUploadStatus('idle'); setCuttersFile(null); setCuttersPreviewList([]); setCuttersUploadLog('') }} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', color: '#fff', padding: '12px 28px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: 800, cursor: 'pointer', marginTop: '6px' }}>
               ЗАВАНТАЖИТИ НАСТУПНИЙ ФАЙЛ

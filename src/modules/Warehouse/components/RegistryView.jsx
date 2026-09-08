@@ -10,9 +10,7 @@ export const RegistryView = ({
   const list = (receptionDocs || [])
     .filter(d => 
       d.target_warehouse === 'operational' || 
-      d.source_warehouse === 'operational' || 
-      d.target_warehouse === 'pocket' || 
-      d.source_warehouse === 'pocket'
+      d.source_warehouse === 'operational'
     )
 
   if (list.length === 0) {
