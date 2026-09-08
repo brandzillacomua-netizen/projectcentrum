@@ -351,7 +351,7 @@ export function MasterNaryadModal({
                     })()
                     const totalToProduce = snapshot ? snapshot.plan : Math.max(0, totalNeeded - inStock)
 
-                    const unitsPerSheet = Number(part.nom?.units_per_sheet) || 1
+                    const unitsPerSheet = Number(part.nom?.units_per_sheet) || Number(part.nom?.rule_params?.unitsPerSheet) || 1
                     const sheets = Math.ceil(totalToProduce / unitsPerSheet)
 
                     const sheets_t300 = snapshot
@@ -591,7 +591,7 @@ export function MasterNaryadModal({
                         </td>
                         <td style={{ padding: '10px 6px', textAlign: 'center' }} className="col-material">
                           <div style={{ fontSize: '0.85rem', color: '#aaa', fontWeight: 700 }} className="print-subtxt">
-                            {(part.nom?.material_type || '—').replace(/т300/gi, '').replace(/t300/gi, '').replace(/т700/gi, '').replace(/t700/gi, '').replace(/\s+/g, ' ').trim()}
+                            {(part.nom?.material_type || part.nom?.rule_params?.rawSheet || part.nom?.rule_params?.material || '—').replace(/т300/gi, '').replace(/t300/gi, '').replace(/т700/gi, '').replace(/t700/gi, '').replace(/\s+/g, ' ').trim()}
                           </div>
                         </td>
                         <td style={{ padding: '10px 4px', textAlign: 'center', color: '#555', fontSize: '0.9rem' }} className="col-qty-sh">

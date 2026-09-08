@@ -2195,8 +2195,21 @@ const SpecBuilderTab = () => {
           }
         }
       }
+
+      // Ensure V1 shadow exists for legacy modules
+      try {
+        const shadowRows = Object.values(agg).map(r => ({
+          id: r.nomId,
+          name: r.nomName || 'Деталь',
+          type: 'part'
+        }))
+        if (shadowRows.length > 0) {
+          await supabase.from('nomenclatures').upsert(shadowRows, { onConflict: 'id' })
+        }
+      } catch (_) {}
       
       await refreshTable('nomenclatures')
+      await refreshTable('nomenclatures_v2')
       await refreshTable('bom_items')
       
       setPendingParent(null)

@@ -150,104 +150,8 @@ export const TYPE_LABELS = {
   assembly: 'Вузол'
 }
 
-export const classifyV2Type = (v) => {
-  if (!v) return 'part'
-  
-  const gid = String(v.group_id || '').toLowerCase()
-  const rule = String(v.rule_type || '').toLowerCase()
-  const name = String(v.name || '').toLowerCase()
-
-  // 1. Raw Materials (Сировина: карбонові пластини, труби, листи, смоли, гума, фарба)
-  // Перевіряємо першими, щоб сировина ніколи не класифікувалась як метиз або деталь
-  if (
-    gid === 'grp_carbon_t300' ||
-    gid === 'grp_carbon_t700' ||
-    gid === 'grp_carbon_t800' ||
-    gid === 'grp_carbon_sheets' ||
-    gid === 'grp_prepared_sheets' ||
-    gid === 'grp_rubber' ||
-    gid === 'grp_paint' ||
-    gid.startsWith('cat_raw') ||
-    gid.startsWith('raw') ||
-    rule === 'carbon' ||
-    rule === 'rubber' ||
-    rule === 'paint' ||
-    name.includes('карбонов') ||
-    name.includes('пластина т') ||
-    name.includes('лист') ||
-    name.includes('труба') ||
-    name.includes('пруток') ||
-    name.includes('склотекстоліт') ||
-    name.includes('гума') ||
-    name.includes('фарба')
-  ) {
-    return 'raw'
-  }
-
-  // 2. Mills / Cutters (Фрези)
-  if (gid === 'grp_mills' || rule === 'mill' || name.includes('фреза')) {
-    return 'cutter'
-  }
-
-  // 3. Products / Finished frames (Готові вироби)
-  if (
-    gid === 'grp_production_frames' ||
-    gid === 'grp_test_samples' ||
-    gid === 'cat_fg' ||
-    rule === 'full_frame' ||
-    name.includes('рама') ||
-    name.includes('frame')
-  ) {
-    return 'product'
-  }
-
-  // 4. Assemblies (Вузли)
-  if (gid === 'grp_assemblies' || v.type === 'assembly' || name.includes('вузол') || name.includes('комплект')) {
-    return 'assembly'
-  }
-
-  // 5. Hardware / Fasteners (Метизи)
-  if (
-    gid === 'grp_nuts' ||
-    gid === 'grp_press_nuts' ||
-    gid === 'grp_screws_black' ||
-    gid === 'grp_screws_silver' ||
-    gid === 'grp_standoffs' ||
-    gid === 'grp_hardware_main' ||
-    gid.startsWith('cat_hw') ||
-    gid.startsWith('hw') ||
-    rule === 'screw' ||
-    rule === 'screw_black' ||
-    rule === 'screw_silver' ||
-    rule === 'nut' ||
-    rule === 'press_nut' ||
-    rule === 'standoff' ||
-    name.includes('гвинт') ||
-    name.includes('гайка') ||
-    name.includes('шайба') ||
-    name.includes('шпилька') ||
-    name.includes('заклепка') ||
-    name.includes('стійка') ||
-    name.includes('болт')
-  ) {
-    return 'hardware'
-  }
-
-  // 6. Frame parts (Деталі)
-  if (
-    rule === 'frame_part' ||
-    gid === 'cat_parts' ||
-    name.includes('деталь') ||
-    name.includes('луч') ||
-    name.includes('арм') ||
-    name.includes('проставка') ||
-    name.includes('рейка')
-  ) {
-    return 'part'
-  }
-
-  return v.type || 'part'
-}
+import { classifyV2Type, mapV2ToStandardNom } from '../../Nomenclature/utils/nomenclatureHelpers.js'
+export { classifyV2Type, mapV2ToStandardNom }
 
 export const useV2NomenclaturesData = (supabase) => {
   const [v2Noms, setV2Noms] = useState([])
@@ -255,15 +159,7 @@ export const useV2NomenclaturesData = (supabase) => {
     try {
       const { data } = await supabase.from('nomenclatures_v2').select('*').order('name')
       if (data) {
-        const mapped = data.map(v => ({
-          ...v,
-          id: v.id,
-          name: v.name,
-          code: v.code || '',
-          type: classifyV2Type(v),
-          unit: v.unit || 'шт',
-          category: v.category || (String(v.group_id || '').startsWith('grp_carbon') || String(v.group_id || '').startsWith('cat_raw') ? 'Сировина' : 'Загальна')
-        }))
+        const mapped = data.map(v => mapV2ToStandardNom(v))
         setV2Noms(mapped)
       }
     } catch (e) {

@@ -23,6 +23,7 @@ import {
   fallbackPositions,
   OPERATOR_REALTIME_ROUTES
 } from './dataProfiles.js'
+import { mapV2ToStandardNom } from '../../modules/Nomenclature/utils/nomenclatureHelpers.js'
 
 const PAGE_SIZE = 20
 
@@ -158,6 +159,34 @@ export function useDataFetchers(state) {
     setHasMoreOrders((data || []).length === PAGE_SIZE)
   }
 
+  const fetchUnifiedNomenclatures = async () => {
+    try {
+      const [v1Res, v2Res] = await Promise.all([
+        supabase.from('nomenclatures').select('*').limit(2000),
+        supabase.from('nomenclatures_v2').select('*').limit(2000)
+      ])
+      const v1Data = (v1Res && !v1Res.error && Array.isArray(v1Res.data)) ? v1Res.data : []
+      const v2Data = (v2Res && !v2Res.error && Array.isArray(v2Res.data)) ? v2Res.data : []
+
+      const unifiedMap = new Map()
+      for (const n of v1Data) {
+        if (n && n.id) {
+          unifiedMap.set(String(n.id), n)
+        }
+      }
+      for (const n of v2Data) {
+        if (n && n.id) {
+          const mapped = mapV2ToStandardNom(n)
+          unifiedMap.set(String(n.id), mapped)
+        }
+      }
+      return Array.from(unifiedMap.values())
+    } catch (err) {
+      console.warn('[dataFetchers] Failed to fetch unified nomenclatures:', err)
+      return nomenclaturesRef.current || []
+    }
+  }
+
   const refreshTable = async (tableName) => {
     try {
       const requireData = (result) => {
@@ -239,9 +268,9 @@ export function useDataFetchers(state) {
       } else if (tableName === 'company_positions') {
         const data = requireData(await supabase.from('company_positions').select('*').order('name'))
         if (data?.length) setCompanyPositions(data)
-      } else if (tableName === 'nomenclatures') {
-        const data = requireData(await supabase.from('nomenclatures').select('*').limit(2000))
-        if (data) {
+      } else if (tableName === 'nomenclatures' || tableName === 'nomenclatures_v2') {
+        const data = await fetchUnifiedNomenclatures()
+        if (data && data.length > 0) {
           nomenclaturesRef.current = data
           setNomenclatures(data)
           nomenclaturesLoadedRef.current = true
@@ -337,7 +366,7 @@ export function useDataFetchers(state) {
           needsTable('customers') ? supabase.from('customers').select('*').limit(500).order('name') : skippedTable(),
           needsTable('orders') ? supabase.from('orders').select('*, order_items(*)').order('created_at', { ascending: false }).range(0, 99) : skippedTable(),
           needsTable('tasks') ? fetchTasksForCurrentRoute() : skippedTable(),
-          !needsTable('nomenclatures') ? skippedTable() : nomenclaturesLoadedRef.current ? Promise.resolve({ data: nomenclaturesRef.current }) : supabase.from('nomenclatures').select('*').limit(2000).then(res => { if (!res.error && Array.isArray(res.data)) nomenclaturesLoadedRef.current = true; return res }),
+          !needsTable('nomenclatures') ? skippedTable() : nomenclaturesLoadedRef.current ? Promise.resolve({ data: nomenclaturesRef.current }) : fetchUnifiedNomenclatures().then(data => { if (Array.isArray(data) && data.length > 0) { nomenclaturesRef.current = data; nomenclaturesLoadedRef.current = true; } return { data } }),
           !needsTable('bom_items') ? skippedTable() : bomItemsLoadedRef.current ? Promise.resolve({ data: bomItemsRef.current }) : supabase.from('bom_items').select('*').limit(4000).then(res => { if (!res.error && Array.isArray(res.data)) bomItemsLoadedRef.current = true; return res }),
           needsTable('work_cards') ? fetchActiveWorkCards() : skippedTable(),
           !needsTable('company_structure') ? skippedTable() : companyStructureRef.current.length > fallbackStructure.length ? Promise.resolve({ data: companyStructureRef.current }) : supabase.from('company_structure').select('*').order('name').then(res => res, () => ({ data: fallbackStructure, error: null })),

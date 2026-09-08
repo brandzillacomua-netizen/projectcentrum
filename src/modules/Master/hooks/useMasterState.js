@@ -590,9 +590,9 @@ export function useMasterState() {
 
   const getBOMParts = (nomenclatureId) => {
     return bomItems
-      .filter(b => b.parent_id === nomenclatureId)
+      .filter(b => String(b.parent_id) === String(nomenclatureId))
       .map(b => ({
-        nom: nomenclatures.find(n => n.id === b.child_id),
+        nom: nomenclatures.find(n => String(n.id) === String(b.child_id)),
         quantity_per_parent: b.quantity_per_parent
       }))
   }
@@ -612,7 +612,7 @@ export function useMasterState() {
     }
     return naryadParts[it.id] || (() => {
       const parts = getBOMParts(it.nomenclature_id)
-      const allParts = parts.length > 0 ? parts : [{ nom: nomenclatures.find(n => n.id === it.nomenclature_id), quantity_per_parent: 1 }]
+      const allParts = parts.length > 0 ? parts : [{ nom: nomenclatures.find(n => String(n.id) === String(it.nomenclature_id)), quantity_per_parent: 1 }]
       return allParts.filter(p => p.nom?.type === 'part' || p.nom?.type === 'raw' || !p.nom?.type)
     })()
   }
