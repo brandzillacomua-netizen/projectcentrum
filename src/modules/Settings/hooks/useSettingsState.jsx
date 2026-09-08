@@ -146,6 +146,7 @@ export function useSettingsState() {
     nomenclatures: mesContext.nomenclatures,
     inventory: mesContext.inventory,
     refreshTable: mesContext.refreshTable,
+    fetchData: mesContext.fetchData,
     supabase: mesContext.supabase,
     companyStructure: mesContext.companyStructure,
     companyPositions: mesContext.companyPositions,

@@ -24,12 +24,14 @@ import {
   ChevronUp,
   ChevronsUpDown,
   Filter,
-  RefreshCw
+  RefreshCw,
+  ClipboardList
 } from 'lucide-react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useMES } from '../MESContext'
 import { supabase } from '../supabase'
 import { IconSO, IconSGP } from '../components/WarehouseIcons'
+import { ReserveAnalysisModal } from './Warehouse/components/ReserveAnalysisModal.jsx'
 
 export default function WarehouseFGPModule() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -203,7 +205,7 @@ export default function WarehouseFGPModule() {
     setIsRefreshingQueue(true)
     try {
       if (typeof fetchData === 'function') {
-        fetchData(['material_requests', 'inventory', 'orders', 'tasks', 'nomenclatures'])
+        fetchData(['material_requests', 'inventory', 'orders', 'tasks', 'nomenclatures', 'work_cards'])
       }
       const { data, error } = await supabase
         .from('material_requests')
@@ -231,23 +233,38 @@ export default function WarehouseFGPModule() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'material_requests' }, () => {
         fetchQueueFromDb()
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'work_cards' }, () => {
+        if (typeof fetchData === 'function') fetchData(['work_cards'])
+      })
       .subscribe()
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [fetchQueueFromDb])
+  }, [fetchQueueFromDb, fetchData])
 
   const [viewMode, setViewMode] = useState(() => searchParams.get('mode') || 'requests') // 'requests' | 'inventory'
   const [requestSearchQuery, setRequestSearchQuery] = useState('')
-  const [activeTab, setActiveTab] = useState(() => searchParams.get('tab') || 'finished')
+  const [activeTab, setActiveTab] = useState(() => {
+    const tabParam = searchParams.get('tab')
+    if (tabParam === 'bz') return 'finished'
+    if (tabParam === 'semi') return 'shop2_buffer'
+    return tabParam || 'finished'
+  })
   const [searchQuery, setSearchQuery] = useState('')
   const [showAdd, setShowAdd] = useState(false)
   const [newItem, setNewItem] = useState({ name: '', total_qty: '', unit: 'шт', type: 'finished' })
+
+  // Shop 2 Buffer view mode & toggle state (default to 'table' as requested)
+  const [bufferViewMode, setBufferViewMode] = useState(() => {
+    return localStorage.getItem('sgp_buffer_view_mode') || 'table'
+  })
+  const [collapsedBufferGroups, setCollapsedBufferGroups] = useState(() => new Set())
 
   // Packaging request issuing state
   const [isIssuingReq, setIsIssuingReq] = useState(false)
   const [collapsedOrders, setCollapsedOrders] = useState(() => new Set())
   const [orderStatusFilter, setOrderStatusFilter] = useState('all') // 'all' | 'ready' | 'shortage'
+  const [reserveAnalysisItem, setReserveAnalysisItem] = useState(null)
 
   const toggleOrderCollapse = (orderKey) => {
     setCollapsedOrders(prev => {
@@ -277,11 +294,204 @@ export default function WarehouseFGPModule() {
   const tabs = [
     { id: 'finished', label: 'Готова продукція', icon: <Archive size={18} /> },
     { id: 'hardware', label: 'Метизи & Комплектуючі', icon: <Wrench size={18} /> },
-    { id: 'semi', label: 'Напівфабрикати', icon: <Layers size={18} /> },
+    { id: 'shop2_buffer', label: 'Склад буфер Цеху 2', icon: <Layers size={18} /> },
     { id: 'scrap', label: 'Брак & Карантин', icon: <AlertTriangle size={18} /> },
-    { id: 'bz', label: 'Буферний запас (БЗ)', icon: <CheckCircle2 size={18} /> },
     { id: 'registry', label: 'Реєстр випуску', icon: <History size={18} /> }
   ]
+
+  // ── РОЗРАХУНОК ДАНИХ БУФЕРА ЦЕХУ №2 НА ОСНОВІ РОБОЧИХ КАРТОК ──
+  const shop2TaskIdsSet = useMemo(() => {
+    const set = new Set()
+    ;(tasks || []).forEach(t => {
+      const step = String(t.step || '').toLowerCase()
+      const name = String(t.name || '').toLowerCase()
+      if (
+        step.includes('цех №2') || step.includes('цех 2') || step.includes('пресування') || step.includes('фарбування') || step.includes('маляр') ||
+        name.includes('цех №2') || name.includes('цех 2') || name.includes('пресування') || name.includes('фарбування') || name.includes('маляр')
+      ) {
+        set.add(String(t.id))
+      }
+    })
+    return set
+  }, [tasks])
+
+  const isShop2Card = useCallback((card) => {
+    if (!card) return false
+    if (shop2TaskIdsSet.has(String(card.task_id))) return true
+    const info = String(card.card_info || '')
+    if (info.includes('[SHOP:2]') || info.includes('[ЦЕХ №2]') || info.includes('[ЦЕХ 2]')) return true
+    const op = String(card.operation || '')
+    if (['Пресування', 'Фарбування', 'Малярка', 'Доопрацювання', 'Пакування'].includes(op)) return true
+    return false
+  }, [shop2TaskIdsSet])
+
+  // Картки, які очікують у буфері Цеху №2
+  const shop2BufferCards = useMemo(() => {
+    return (workCards || []).filter(c => {
+      if (isShop2Card(c)) return false
+      const status = String(c.status || '')
+      return status === 'at-shop2-buffer'
+    })
+  }, [workCards, isShop2Card])
+
+  // Загальна кількість вільних деталей у буфері Цеху 2
+  const totalShop2BufferParts = useMemo(() => {
+    let sum = 0
+    shop2BufferCards.forEach(card => {
+      const qty = Number(card.quantity || 0)
+      const used = Number(card.used_in_shop2_qty || 0)
+      sum += Math.max(0, qty - used)
+    })
+    return sum
+  }, [shop2BufferCards])
+
+  // Групування буфера за нарядами (як на моніторі Цеху 2)
+  const shop2BufferTaskGroups = useMemo(() => {
+    const groups = {}
+    shop2BufferCards.forEach(card => {
+      const qty = Number(card.quantity || 0)
+      const used = Number(card.used_in_shop2_qty || 0)
+      const avail = Math.max(0, qty - used)
+      if (avail <= 0) return
+
+      const taskId = card.task_id || 'unassigned'
+      if (!groups[taskId]) {
+        const taskObj = (tasks || []).find(t => String(t.id) === String(taskId))
+        const orderObj = (orders || []).find(o => String(o.id) === String(card.order_id || taskObj?.order_id))
+        const rawNum = orderObj?.order_num || taskObj?.order_num || card.card_info?.match(/Наряд №(\d+(?:-\d+)?)/)?.[1] || 'Вільний запас'
+        const orderNumStr = String(rawNum)
+        const displayNum = orderNumStr.startsWith('№') || orderNumStr.includes('Вільний') || orderNumStr.includes('Загальний')
+          ? orderNumStr
+          : `Наряд №${orderNumStr}`
+
+        groups[taskId] = {
+          taskId,
+          orderNum: displayNum,
+          orderId: card.order_id || taskObj?.order_id,
+          items: {},
+          totalQty: 0,
+          totalCards: 0
+        }
+      }
+
+      const nomId = card.nomenclature_id || card.card_info || 'unknown'
+      if (!groups[taskId].items[nomId]) {
+        const nom = (nomenclatures || []).find(n => String(n.id) === String(card.nomenclature_id))
+        groups[taskId].items[nomId] = {
+          nomId,
+          name: nom?.name || card.nomenclature_name || card.card_info || 'Деталь',
+          unit: nom?.unit || 'шт',
+          material: nom?.material_type || nom?.material || card.material || '—',
+          thickness: nom?.thickness || card.thickness || '',
+          total_qty: 0,
+          cardCount: 0
+        }
+      }
+      groups[taskId].items[nomId].total_qty += avail
+      groups[taskId].items[nomId].cardCount += 1
+      groups[taskId].totalQty += avail
+      groups[taskId].totalCards += 1
+    })
+
+    return Object.values(groups).filter(g => g.totalQty > 0)
+  }, [shop2BufferCards, tasks, orders, nomenclatures])
+
+  const toggleBufferGroup = (key) => {
+    setCollapsedBufferGroups(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+
+  const collapseAllBufferGroups = () => {
+    setCollapsedBufferGroups(new Set(shop2BufferTaskGroups.map(g => g.taskId)))
+  }
+
+  const expandAllBufferGroups = () => {
+    setCollapsedBufferGroups(new Set())
+  }
+
+  // Фільтрація груп за пошуковим запитом
+  const filteredShop2BufferTaskGroups = useMemo(() => {
+    if (!searchQuery.trim()) return shop2BufferTaskGroups
+    const q = searchQuery.toLowerCase().trim()
+    return shop2BufferTaskGroups.map(group => {
+      const matchOrder = (group.orderNum || '').toLowerCase().includes(q)
+      if (matchOrder) return group
+      const filteredItems = {}
+      Object.entries(group.items).forEach(([k, item]) => {
+        if (
+          (item.name || '').toLowerCase().includes(q) ||
+          (item.material || '').toLowerCase().includes(q)
+        ) {
+          filteredItems[k] = item
+        }
+      })
+      if (Object.keys(filteredItems).length === 0) return null
+      const totalFilteredQty = Object.values(filteredItems).reduce((sum, it) => sum + it.total_qty, 0)
+      const totalFilteredCards = Object.values(filteredItems).reduce((sum, it) => sum + it.cardCount, 0)
+      return {
+        ...group,
+        items: filteredItems,
+        totalQty: totalFilteredQty,
+        totalCards: totalFilteredCards
+      }
+    }).filter(Boolean)
+  }, [shop2BufferTaskGroups, searchQuery])
+
+  // Зведений список деталей буфера для табличного перегляду
+  const shop2BufferConsolidatedItems = useMemo(() => {
+    const map = new Map()
+    shop2BufferCards.forEach(card => {
+      const qty = Number(card.quantity || 0)
+      const used = Number(card.used_in_shop2_qty || 0)
+      const avail = Math.max(0, qty - used)
+      if (avail <= 0) return
+
+      const nom = (nomenclatures || []).find(n => String(n.id) === String(card.nomenclature_id))
+      const name = nom?.name || card.nomenclature_name || card.card_info || 'Деталь'
+      const key = (nom?.id ? `nom-${nom.id}` : name).toLowerCase()
+
+      const taskObj = (tasks || []).find(t => String(t.id) === String(card.task_id))
+      const orderObj = (orders || []).find(o => String(o.id) === String(card.order_id || taskObj?.order_id))
+      const rawNum = orderObj?.order_num || taskObj?.order_num || card.card_info?.match(/Наряд №(\d+(?:-\d+)?)/)?.[1] || 'Вільний'
+      const naryadBadge = String(rawNum).startsWith('№') ? rawNum : `№${rawNum}`
+
+      if (!map.has(key)) {
+        map.set(key, {
+          key,
+          nomId: nom?.id || card.nomenclature_id,
+          name,
+          unit: nom?.unit || 'шт',
+          material: nom?.material_type || nom?.material || card.material || '—',
+          thickness: nom?.thickness || card.thickness || '',
+          total_qty: 0,
+          cardCount: 0,
+          naryads: new Set()
+        })
+      }
+
+      const item = map.get(key)
+      item.total_qty += avail
+      item.cardCount += 1
+      item.naryads.add(naryadBadge)
+    })
+
+    const list = Array.from(map.values()).map(item => ({
+      ...item,
+      naryadList: Array.from(item.naryads)
+    })).sort((a, b) => b.total_qty - a.total_qty)
+
+    if (!searchQuery.trim()) return list
+    const q = searchQuery.toLowerCase().trim()
+    return list.filter(item =>
+      (item.name || '').toLowerCase().includes(q) ||
+      (item.material || '').toLowerCase().includes(q) ||
+      item.naryadList.some(nr => nr.toLowerCase().includes(q))
+    )
+  }, [shop2BufferCards, nomenclatures, tasks, orders, searchQuery])
 
   // Key normalization for homoglyphs (Cyrillic vs Latin) and whitespaces
   const normalizeKey = (str) => {
@@ -317,6 +527,7 @@ export default function WarehouseFGPModule() {
 
   // Filter inventory by SGP types without cross-contamination
   const rawTabItems = useMemo(() => {
+    if (activeTab === 'shop2_buffer') return []
     return (inventory || []).filter(item => {
       const type = item.type || ''
       const nameLower = (item.name || '').toLowerCase()
@@ -325,16 +536,15 @@ export default function WarehouseFGPModule() {
         return isHardware(item)
       }
       if (activeTab === 'finished') {
-        return !isHardware(item) && (type === 'finished' || type === 'part' || type === 'product')
-      }
-      if (activeTab === 'semi') {
-        return !isHardware(item) && (type === 'semi' || type === 'semi_shop2' || (type !== 'finished' && (nameLower.includes('напівфабрикат') || nameLower.includes('заготовка'))))
+        return !isHardware(item) && (
+          type === 'finished' || type === 'part' || type === 'product' ||
+          type === 'bz' || type === 'bz_shop2' || type === 'wip_bz' ||
+          type === 'semi' || type === 'semi_shop2' ||
+          nameLower.includes('бз') || nameLower.includes('буфер')
+        )
       }
       if (activeTab === 'scrap') {
         return !isHardware(item) && (type === 'scrap' || type === 'scrap_ready' || type.startsWith('scrap_cat_') || (type !== 'finished' && (nameLower.includes('брак') || nameLower.includes('карантин'))))
-      }
-      if (activeTab === 'bz') {
-        return !isHardware(item) && (type === 'bz' || type === 'bz_shop2' || type === 'wip_bz' || (type !== 'finished' && (nameLower.includes('бз') || nameLower.includes('буфер'))))
       }
       return false
     })
@@ -379,25 +589,28 @@ export default function WarehouseFGPModule() {
 
   // Compute accurate tab counts
   const tabCounts = useMemo(() => {
-    const counts = { finished: 0, hardware: 0, semi: 0, scrap: 0, bz: 0, registry: 0 }
+    const counts = { finished: 0, hardware: 0, shop2_buffer: 0, scrap: 0, registry: 0 }
     ;(inventory || []).forEach(item => {
       const type = item.type || ''
+      const nameLower = (item.name || '').toLowerCase()
       const q = Number(item.total_qty) || 0
       if (isHardware(item)) {
         counts.hardware += q
-      } else if (type === 'finished' || type === 'part' || type === 'product') {
+      } else if (
+        type === 'finished' || type === 'part' || type === 'product' ||
+        type === 'bz' || type === 'bz_shop2' || type === 'wip_bz' ||
+        type === 'semi' || type === 'semi_shop2' ||
+        nameLower.includes('бз') || nameLower.includes('буфер')
+      ) {
         counts.finished += q
-      } else if (type === 'semi' || type === 'semi_shop2') {
-        counts.semi += q
       } else if (type === 'scrap' || type === 'scrap_ready' || type.startsWith('scrap_cat_')) {
         counts.scrap += q
-      } else if (type === 'bz' || type === 'bz_shop2' || type === 'wip_bz') {
-        counts.bz += q
       }
     })
+    counts.shop2_buffer = totalShop2BufferParts
     counts.registry = (workCardHistory || []).filter(h => h.status === 'completed').length
     return counts
-  }, [inventory, workCardHistory])
+  }, [inventory, workCardHistory, totalShop2BufferParts])
 
   // ── ЧЕРГА ЗАПИТІВ НА КОМПЛЕКТУВАННЯ З ВІДДІЛУ ПАКУВАННЯ ──
   // Merge live requests with context requests
@@ -544,7 +757,7 @@ export default function WarehouseFGPModule() {
         const displayName = getItemDisplayName(req)
         const matchingSgpItem = (inventory || []).find(i => {
           if (req.nomenclature_id && String(i.nomenclature_id) === String(req.nomenclature_id)) {
-            return i.warehouse === 'sgp' || i.type === 'finished' || i.type === 'hardware' || isHardware(i)
+            return i.warehouse === 'sgp' || i.type === 'finished' || i.type === 'bz' || i.type === 'part' || i.type === 'hardware' || isHardware(i)
           }
           return false
         }) || (inventory || []).find(i => normalizeKey(i.name) === normalizeKey(displayName))
@@ -1796,23 +2009,25 @@ export default function WarehouseFGPModule() {
                 <div style={{ position: 'relative' }}>
                   <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: t.textSecondary }} />
                   <input
-                    style={{ background: t.inputBg, border: `1.5px solid ${t.inputBorder}`, padding: '10px 14px 10px 36px', borderRadius: '12px', color: t.inputText, fontSize: '0.85rem', outline: 'none', width: '220px' }}
-                    placeholder="Пошук випущених позицій..."
+                    style={{ background: t.inputBg, border: `1.5px solid ${t.inputBorder}`, padding: '10px 14px 10px 36px', borderRadius: '12px', color: t.inputText, fontSize: '0.85rem', outline: 'none', width: '240px' }}
+                    placeholder={activeTab === 'shop2_buffer' ? "Пошук деталей або № наряду..." : "Пошук випущених позицій..."}
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
                   />
                 </div>
 
-                <button
-                  onClick={() => setShowAdd(!showAdd)}
-                  style={{ background: '#10b981', color: '#ffffff', border: 'none', padding: '10px 18px', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', boxShadow: '0 2px 8px rgba(16,185,129,0.25)' }}
-                >
-                  <Plus size={18} /> Додати позицію
-                </button>
+                {activeTab !== 'shop2_buffer' && activeTab !== 'registry' && (
+                  <button
+                    onClick={() => setShowAdd(!showAdd)}
+                    style={{ background: '#10b981', color: '#ffffff', border: 'none', padding: '10px 18px', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', boxShadow: '0 2px 8px rgba(16,185,129,0.25)' }}
+                  >
+                    <Plus size={18} /> Додати позицію
+                  </button>
+                )}
               </div>
             </div>
 
-            {showAdd && (
+            {showAdd && activeTab !== 'shop2_buffer' && activeTab !== 'registry' && (
               <form onSubmit={handleAddInventoryItem} style={{ display: 'flex', gap: '12px', padding: '16px', background: t.cardHeaderBg, border: `1.5px solid ${t.cardBorder}`, borderRadius: '16px', marginBottom: '25px', flexWrap: 'wrap' }}>
                 <input
                   style={{ flex: 2, minWidth: '220px', background: t.inputBg, border: `1.5px solid ${t.inputBorder}`, color: t.inputText, padding: '12px', borderRadius: '10px' }}
@@ -1861,21 +2076,429 @@ export default function WarehouseFGPModule() {
                   )}
                 </tbody>
               </table>
+            ) : activeTab === 'shop2_buffer' ? (
+              <div>
+                {/* 1. Header KPIs banner */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+                  gap: '16px',
+                  marginBottom: '25px'
+                }}>
+                  {/* Card 1: Вільні деталі в буфері */}
+                  <div style={{
+                    background: isDark ? 'linear-gradient(135deg, rgba(139,92,246,0.18) 0%, rgba(139,92,246,0.06) 100%)' : '#f5f3ff',
+                    border: `1.5px solid ${isDark ? 'rgba(139,92,246,0.4)' : '#ddd6fe'}`,
+                    borderRadius: '18px',
+                    padding: '18px 22px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    boxShadow: isDark ? '0 4px 18px rgba(139,92,246,0.12)' : '0 2px 10px rgba(139,92,246,0.05)'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <span style={{ fontSize: '0.72rem', fontWeight: 950, color: isDark ? '#c4b5fd' : '#7c3aed', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        ВХІДНИЙ БУФЕР ЦЕХУ №2
+                      </span>
+                      <Package size={18} color={isDark ? '#c4b5fd' : '#7c3aed'} />
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                      <span style={{ fontSize: '2.2rem', fontWeight: 1000, color: isDark ? '#ffffff' : '#4c1d95', lineHeight: 1 }}>
+                        {totalShop2BufferParts.toLocaleString('uk-UA')}
+                      </span>
+                      <span style={{ fontSize: '0.9rem', fontWeight: 800, color: isDark ? '#c4b5fd' : '#6d28d9' }}>шт</span>
+                    </div>
+                    <div style={{ marginTop: '8px', fontSize: '0.75rem', fontWeight: 700, color: isDark ? '#a78bfa' : '#6d28d9', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#8b5cf6', display: 'inline-block' }} />
+                      Вільні для запуску в роботу Цеху 2
+                    </div>
+                  </div>
+
+                  {/* Card 2: Нарядів у буфері */}
+                  <div style={{
+                    background: isDark ? '#161924' : '#ffffff',
+                    border: `1.5px solid ${isDark ? '#232938' : '#e2e8f0'}`,
+                    borderRadius: '18px',
+                    padding: '18px 22px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <span style={{ fontSize: '0.72rem', fontWeight: 900, color: t.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        НАРЯДІВ У БУФЕРІ
+                      </span>
+                      <ClipboardList size={18} color={t.textSecondary} />
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                      <span style={{ fontSize: '2.2rem', fontWeight: 1000, color: t.textPrimary, lineHeight: 1 }}>
+                        {filteredShop2BufferTaskGroups.length}
+                      </span>
+                      <span style={{ fontSize: '0.9rem', fontWeight: 800, color: t.textMuted }}>нарядів</span>
+                    </div>
+                    <div style={{ marginTop: '8px', fontSize: '0.75rem', fontWeight: 700, color: t.textMuted }}>
+                      Очікують взяття в роботу
+                    </div>
+                  </div>
+
+                  {/* Card 3: Активних карток */}
+                  <div style={{
+                    background: isDark ? '#161924' : '#ffffff',
+                    border: `1.5px solid ${isDark ? '#232938' : '#e2e8f0'}`,
+                    borderRadius: '18px',
+                    padding: '18px 22px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <span style={{ fontSize: '0.72rem', fontWeight: 900, color: t.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        КАРТОК У БУФЕРІ
+                      </span>
+                      <Layers size={18} color={t.textSecondary} />
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                      <span style={{ fontSize: '2.2rem', fontWeight: 1000, color: t.textPrimary, lineHeight: 1 }}>
+                        {shop2BufferCards.length}
+                      </span>
+                      <span style={{ fontSize: '0.9rem', fontWeight: 800, color: t.textMuted }}>виробничих карток</span>
+                    </div>
+                    <div style={{ marginTop: '8px', fontSize: '0.75rem', fontWeight: 700, color: isDark ? '#34d399' : '#059669', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#10b981', display: 'inline-block' }} />
+                      Передано з розкрою Цеху №1
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Controls bar: Switch between 'По нарядах' and 'Зведена таблиця' */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '20px', paddingBottom: '16px', borderBottom: `1px solid ${t.tableRowBorder}` }}>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <button
+                      onClick={() => {
+                        setBufferViewMode('table')
+                        localStorage.setItem('sgp_buffer_view_mode', 'table')
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '8px 16px',
+                        borderRadius: '10px',
+                        border: bufferViewMode === 'table' ? '1.5px solid #8b5cf6' : `1px solid ${t.buttonSecondaryBorder}`,
+                        background: bufferViewMode === 'table' ? (isDark ? 'rgba(139,92,246,0.2)' : '#ede9fe') : t.buttonSecondaryBg,
+                        color: bufferViewMode === 'table' ? (isDark ? '#c4b5fd' : '#6d28d9') : t.textSecondary,
+                        fontWeight: 900,
+                        fontSize: '0.82rem',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <Layers size={15} />
+                      Зведена таблиця деталей
+                    </button>
+                    <button
+                      onClick={() => {
+                        setBufferViewMode('orders')
+                        localStorage.setItem('sgp_buffer_view_mode', 'orders')
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '8px 16px',
+                        borderRadius: '10px',
+                        border: bufferViewMode === 'orders' ? '1.5px solid #8b5cf6' : `1px solid ${t.buttonSecondaryBorder}`,
+                        background: bufferViewMode === 'orders' ? (isDark ? 'rgba(139,92,246,0.2)' : '#ede9fe') : t.buttonSecondaryBg,
+                        color: bufferViewMode === 'orders' ? (isDark ? '#c4b5fd' : '#6d28d9') : t.textSecondary,
+                        fontWeight: 900,
+                        fontSize: '0.82rem',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <ClipboardList size={15} />
+                      По нарядах
+                    </button>
+                  </div>
+
+                  {bufferViewMode === 'orders' && (
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button
+                        onClick={expandAllBufferGroups}
+                        style={{ background: 'none', border: `1px solid ${t.buttonSecondaryBorder}`, color: t.textSecondary, padding: '6px 12px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 800, cursor: 'pointer' }}
+                      >
+                        Розгорнути всі
+                      </button>
+                      <button
+                        onClick={collapseAllBufferGroups}
+                        style={{ background: 'none', border: `1px solid ${t.buttonSecondaryBorder}`, color: t.textSecondary, padding: '6px 12px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 800, cursor: 'pointer' }}
+                      >
+                        Згорнути всі
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* 3. Main content based on view mode */}
+                {bufferViewMode === 'orders' ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                    {filteredShop2BufferTaskGroups.map(group => {
+                      const isCollapsed = collapsedBufferGroups.has(group.taskId)
+                      const itemsList = Object.values(group.items)
+                      return (
+                        <div
+                          key={group.taskId}
+                          style={{
+                            background: isDark ? '#141722' : '#ffffff',
+                            border: `1.5px solid ${isDark ? '#232938' : '#e2e8f0'}`,
+                            borderRadius: '16px',
+                            overflow: 'hidden',
+                            transition: 'all 0.2s ease',
+                            boxShadow: isDark ? '0 2px 10px rgba(0,0,0,0.2)' : '0 1px 4px rgba(0,0,0,0.03)'
+                          }}
+                        >
+                          {/* Group header */}
+                          <div
+                            onClick={() => toggleBufferGroup(group.taskId)}
+                            style={{
+                              padding: '14px 20px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              cursor: 'pointer',
+                              background: isDark ? '#161924' : '#fafafa',
+                              borderBottom: isCollapsed ? 'none' : `1px solid ${t.tableRowBorder}`,
+                              userSelect: 'none'
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                              <span style={{
+                                padding: '4px 12px',
+                                borderRadius: '8px',
+                                background: isDark ? 'rgba(139,92,246,0.18)' : '#ede9fe',
+                                border: `1px solid ${isDark ? 'rgba(139,92,246,0.35)' : '#c4b5fd'}`,
+                                color: isDark ? '#c4b5fd' : '#6d28d9',
+                                fontWeight: 950,
+                                fontSize: '0.85rem'
+                              }}>
+                                {group.orderNum}
+                              </span>
+                              <span style={{ fontSize: '0.8rem', color: t.textMuted, fontWeight: 700 }}>
+                                {itemsList.length} {itemsList.length === 1 ? 'найменування' : itemsList.length < 5 ? 'найменування' : 'найменувань'}
+                              </span>
+                            </div>
+
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                              <div style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                padding: '5px 14px',
+                                borderRadius: '10px',
+                                background: isDark ? 'rgba(139,92,246,0.15)' : '#f5f3ff',
+                                border: `1px solid ${isDark ? 'rgba(139,92,246,0.3)' : '#ddd6fe'}`,
+                                color: isDark ? '#c4b5fd' : '#6d28d9',
+                                fontWeight: 950,
+                                fontSize: '0.88rem'
+                              }}>
+                                <span>Всього в буфері:</span>
+                                <strong>{group.totalQty.toLocaleString('uk-UA')} шт</strong>
+                              </div>
+                              {isCollapsed ? <ChevronDown size={18} color={t.textSecondary} /> : <ChevronUp size={18} color={t.textSecondary} />}
+                            </div>
+                          </div>
+
+                          {/* Group body (part cards - matches screenshot 2!) */}
+                          {!isCollapsed && (
+                            <div style={{
+                              padding: '16px 20px',
+                              display: 'flex',
+                              flexWrap: 'wrap',
+                              gap: '12px'
+                            }}>
+                              {itemsList.map(item => (
+                                <div
+                                  key={item.nomId}
+                                  style={{
+                                    flex: '1 1 260px',
+                                    maxWidth: '360px',
+                                    background: isDark ? '#12141c' : '#ffffff',
+                                    border: `1.5px solid ${isDark ? '#1f2430' : '#e2e8f0'}`,
+                                    borderRadius: '12px',
+                                    padding: '12px 16px',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    justifyContent: 'space-between',
+                                    transition: 'transform 0.15s ease, border-color 0.15s ease',
+                                    boxShadow: isDark ? 'none' : '0 1px 3px rgba(0,0,0,0.02)'
+                                  }}
+                                  onMouseEnter={e => {
+                                    e.currentTarget.style.transform = 'translateY(-2px)'
+                                    e.currentTarget.style.borderColor = isDark ? '#8b5cf6' : '#c4b5fd'
+                                  }}
+                                  onMouseLeave={e => {
+                                    e.currentTarget.style.transform = 'none'
+                                    e.currentTarget.style.borderColor = isDark ? '#1f2430' : '#e2e8f0'
+                                  }}
+                                >
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px', marginBottom: '8px' }}>
+                                    <span style={{ fontWeight: 800, fontSize: '0.84rem', color: t.textPrimary, lineHeight: 1.3 }}>
+                                      {item.name}
+                                    </span>
+                                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                                      <div style={{ fontSize: '1.2rem', fontWeight: 1000, color: isDark ? '#34d399' : '#059669', lineHeight: 1 }}>
+                                        {item.total_qty.toLocaleString('uk-UA')}
+                                      </div>
+                                      <div style={{ fontSize: '0.62rem', fontWeight: 800, color: t.textMuted, marginTop: '2px' }}>вільних дет.</div>
+                                    </div>
+                                  </div>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px', paddingTop: '6px', borderTop: `1px solid ${t.tableRowBorder}` }}>
+                                    <span style={{ fontSize: '0.72rem', color: t.textMuted, fontWeight: 700 }}>
+                                      {item.material}{item.thickness ? ` (${item.thickness})` : ''}
+                                    </span>
+                                    <span style={{ fontSize: '0.7rem', color: isDark ? '#a78bfa' : '#7c3aed', fontWeight: 800 }}>
+                                      {item.cardCount} {item.cardCount === 1 ? 'картка' : 'картки'}
+                                    </span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+
+                    {filteredShop2BufferTaskGroups.length === 0 && (
+                      <div style={{ padding: '60px', textAlign: 'center', color: t.textMuted }}>
+                        <Package size={48} style={{ opacity: 0.2, marginBottom: '12px' }} />
+                        <div style={{ fontWeight: 800, fontSize: '0.95rem' }}>
+                          {searchQuery ? 'За вашим запитом у буфері нічого не знайдено' : 'У буфері Цеху №2 наразі немає деталей'}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  /* Table view */
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ background: t.tableHeadBg, borderBottom: `1.5px solid ${t.tableBorder}`, textAlign: 'left', color: t.textSecondary, fontSize: '0.74rem' }}>
+                        <th style={{ padding: '14px 16px' }}>НАЙМЕНУВАННЯ ДЕТАЛІ</th>
+                        <th style={{ padding: '14px 16px' }}>МАТЕРІАЛ / ТОВЩИНА</th>
+                        <th style={{ padding: '14px 16px' }}>НАРЯДИ У БУФЕРІ</th>
+                        <th style={{ padding: '14px 16px', textAlign: 'center', width: '160px' }}>ВІЛЬНО В БУФЕРІ</th>
+                        <th style={{ padding: '14px 16px', textAlign: 'center', width: '120px' }}>КАРТОК</th>
+                        <th style={{ padding: '14px 16px', textAlign: 'center', width: '160px' }}>СТАТУС</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {shop2BufferConsolidatedItems.map(item => (
+                        <tr key={item.key} style={{ borderBottom: `1px solid ${t.tableRowBorder}`, fontSize: '0.85rem' }}>
+                          <td style={{ padding: '14px 16px', fontWeight: 800, color: t.textPrimary }}>
+                            {item.name}
+                          </td>
+                          <td style={{ padding: '14px 16px', color: t.textSecondary, fontSize: '0.82rem', fontWeight: 600 }}>
+                            {item.material}{item.thickness ? ` (${item.thickness})` : ''}
+                          </td>
+                          <td style={{ padding: '14px 16px' }}>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                              {item.naryadList.map(nr => (
+                                <span key={nr} style={{
+                                  padding: '2px 8px',
+                                  borderRadius: '6px',
+                                  background: isDark ? 'rgba(139,92,246,0.15)' : '#ede9fe',
+                                  color: isDark ? '#c4b5fd' : '#6d28d9',
+                                  fontSize: '0.72rem',
+                                  fontWeight: 800
+                                }}>
+                                  {nr}
+                                </span>
+                              ))}
+                            </div>
+                          </td>
+                          <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                            <div style={{
+                              display: 'inline-flex',
+                              alignItems: 'baseline',
+                              gap: '4px',
+                              padding: '6px 14px',
+                              borderRadius: '12px',
+                              background: isDark ? 'rgba(139,92,246,0.15)' : '#f5f3ff',
+                              border: `1px solid ${isDark ? 'rgba(139,92,246,0.35)' : '#ddd6fe'}`,
+                              color: isDark ? '#c4b5fd' : '#6d28d9',
+                              fontWeight: 950,
+                              fontSize: '0.92rem'
+                            }}>
+                              <span>{item.total_qty.toLocaleString('uk-UA')}</span>
+                              <small style={{ opacity: 0.8, fontSize: '0.72rem' }}>{item.unit}</small>
+                            </div>
+                          </td>
+                          <td style={{ padding: '12px 16px', textAlign: 'center', fontWeight: 800, color: t.textPrimary }}>
+                            <span style={{
+                              padding: '3px 10px',
+                              borderRadius: '8px',
+                              background: isDark ? '#1a1e2b' : '#f1f5f9',
+                              fontSize: '0.78rem',
+                              fontWeight: 900
+                            }}>
+                              {item.cardCount}
+                            </span>
+                          </td>
+                          <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                            <span style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '5px',
+                              padding: '4px 10px',
+                              borderRadius: '8px',
+                              background: isDark ? 'rgba(16,185,129,0.12)' : '#ecfdf5',
+                              border: `1px solid ${isDark ? 'rgba(16,185,129,0.25)' : '#a7f3d0'}`,
+                              color: isDark ? '#34d399' : '#047857',
+                              fontSize: '0.74rem',
+                              fontWeight: 900
+                            }}>
+                              <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981' }} />
+                              Вільні для Цеху 2
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+
+                      {shop2BufferConsolidatedItems.length === 0 && (
+                        <tr>
+                          <td colSpan={6} style={{ padding: '50px', textAlign: 'center', color: t.textMuted }}>
+                            {searchQuery ? 'За вашим запитом деталей не знайдено' : 'У буфері Цеху №2 наразі немає деталей'}
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                )}
+              </div>
             ) : (
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ background: t.tableHeadBg, borderBottom: `1.5px solid ${t.tableBorder}`, textAlign: 'left', color: t.textSecondary, fontSize: '0.74rem' }}>
-                    <th style={{ padding: '14px' }}>НАЙМЕНУВАННЯ ВИРОБУ</th>
-                    <th style={{ padding: '14px', textAlign: 'center' }}>НАЯВНІСТЬ</th>
-                    <th style={{ padding: '14px', textAlign: 'center' }}>ВІЛЬНО</th>
-                    <th style={{ padding: '14px', textAlign: 'center' }}>РЕЗЕРВ</th>
-                    <th style={{ padding: '14px', textAlign: 'right' }}>ДІЇ</th>
+                    <th style={{ padding: '14px 16px' }}>НАЙМЕНУВАННЯ ВИРОБУ</th>
+                    <th style={{ padding: '14px 16px', textAlign: 'center', width: '150px' }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: isDark ? '#34d399' : '#047857', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: isDark ? '#34d399' : '#10b981' }} /> НАЯВНІСТЬ
+                      </span>
+                    </th>
+                    <th style={{ padding: '14px 16px', textAlign: 'center', width: '140px' }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: isDark ? '#38bdf8' : '#0284c7', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: isDark ? '#38bdf8' : '#0284c7' }} /> ВІЛЬНО
+                      </span>
+                    </th>
+                    <th style={{ padding: '14px 16px', textAlign: 'center', width: '140px' }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: isDark ? '#fbbf24' : '#b45309', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: isDark ? '#fbbf24' : '#f59e0b' }} /> РЕЗЕРВ
+                      </span>
+                    </th>
+                    <th style={{ padding: '14px 16px', textAlign: 'right', width: '80px' }}>ДІЇ</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredItems.map(item => (
                     <tr key={item.key} style={{ borderBottom: `1px solid ${t.tableRowBorder}`, fontSize: '0.85rem' }}>
-                      <td style={{ padding: '14px', fontWeight: 800, color: t.textPrimary }}>
+                      <td style={{ padding: '14px 16px', fontWeight: 800, color: t.textPrimary }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <span>{item.name}</span>
                           {isAdmin && editingInvKey !== item.key && (
@@ -1894,34 +2517,107 @@ export default function WarehouseFGPModule() {
                           )}
                         </div>
                       </td>
-                      <td style={{ padding: '14px', textAlign: 'center', color: isDark ? '#34d399' : '#059669', fontWeight: 900 }}>
+                      <td style={{ padding: '12px 16px', textAlign: 'center' }}>
                         {editingInvKey === item.key ? (
                           <input
                             type="number"
                             value={editingInvTotal}
                             onChange={e => setEditingInvTotal(e.target.value)}
                             onKeyDown={e => { if (e.key === 'Enter') handleSaveInventoryQty(item) }}
-                            style={{ width: '70px', background: t.inputBg, border: '1.5px solid #10b981', color: t.inputText, textAlign: 'center', borderRadius: '6px', padding: '4px' }}
+                            style={{ width: '85px', background: t.inputBg, border: '1.5px solid #10b981', color: t.inputText, textAlign: 'center', borderRadius: '8px', padding: '6px' }}
                             autoFocus
                           />
                         ) : (
-                          <>{item.total_qty} <small style={{ color: t.textSecondary, fontWeight: 400 }}>{item.unit}</small></>
+                          <div style={{
+                            display: 'inline-flex',
+                            alignItems: 'baseline',
+                            gap: '4px',
+                            padding: '6px 14px',
+                            borderRadius: '12px',
+                            background: isDark ? 'rgba(16, 185, 129, 0.12)' : '#ecfdf5',
+                            border: `1px solid ${isDark ? 'rgba(16, 185, 129, 0.25)' : '#a7f3d0'}`,
+                            color: isDark ? '#34d399' : '#047857',
+                            fontWeight: 950,
+                            fontSize: '0.92rem'
+                          }}>
+                            <span>{Number(item.total_qty || 0).toLocaleString('uk-UA')}</span>
+                            <small style={{ color: isDark ? '#a7f3d0' : '#065f46', opacity: 0.8, fontWeight: 700, fontSize: '0.72rem' }}>{item.unit}</small>
+                          </div>
                         )}
                       </td>
-                      <td style={{ padding: '14px', textAlign: 'center', color: isDark ? '#38bdf8' : '#0284c7', fontWeight: 900 }}>
-                        {Math.max(0, item.total_qty - item.reserved_qty)}
+                      <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                        <div style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          padding: '6px 14px',
+                          borderRadius: '12px',
+                          background: isDark ? 'rgba(14, 165, 233, 0.12)' : '#f0f9ff',
+                          border: `1px solid ${isDark ? 'rgba(14, 165, 233, 0.25)' : '#bae6fd'}`,
+                          color: isDark ? '#38bdf8' : '#0284c7',
+                          fontWeight: 950,
+                          fontSize: '0.92rem'
+                        }}>
+                          {Math.max(0, (Number(item.total_qty) || 0) - (Number(item.reserved_qty) || 0)).toLocaleString('uk-UA')}
+                        </div>
                       </td>
-                      <td style={{ padding: '14px', textAlign: 'center', color: item.reserved_qty > 0 ? (isDark ? '#fbbf24' : '#d97706') : t.textMuted, fontWeight: 800 }}>
+                      <td style={{ padding: '12px 16px', textAlign: 'center' }}>
                         {editingInvKey === item.key ? (
                           <input
                             type="number"
                             value={editingInvReserved}
                             onChange={e => setEditingInvReserved(e.target.value)}
                             onKeyDown={e => { if (e.key === 'Enter') handleSaveInventoryQty(item) }}
-                            style={{ width: '60px', background: t.inputBg, border: '1.5px solid #d97706', color: t.inputText, textAlign: 'center', borderRadius: '6px', padding: '4px' }}
+                            style={{ width: '75px', background: t.inputBg, border: '1.5px solid #d97706', color: t.inputText, textAlign: 'center', borderRadius: '8px', padding: '6px' }}
                           />
+                        ) : item.reserved_qty > 0 ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const primaryRaw = item.rawItems?.[0] || item
+                              setReserveAnalysisItem({
+                                ...primaryRaw,
+                                id: primaryRaw.id || item.key,
+                                nomenclature_id: item.nomenclature_id || primaryRaw.nomenclature_id,
+                                name: item.name,
+                                total_qty: item.total_qty,
+                                reserved_qty: item.reserved_qty,
+                                unit: item.unit
+                              })
+                            }}
+                            title="Натисніть для перегляду замовлень у резерві"
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              padding: '6px 14px',
+                              borderRadius: '12px',
+                              background: isDark ? 'rgba(245, 158, 11, 0.15)' : '#fffbeb',
+                              border: `1px solid ${isDark ? 'rgba(245, 158, 11, 0.4)' : '#fde68a'}`,
+                              color: isDark ? '#fbbf24' : '#b45309',
+                              fontWeight: 950,
+                              fontSize: '0.92rem',
+                              cursor: 'pointer',
+                              transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                              outline: 'none',
+                              boxShadow: isDark ? '0 2px 8px rgba(245, 158, 11, 0.12)' : '0 1px 3px rgba(180, 83, 9, 0.08)'
+                            }}
+                            onMouseEnter={e => {
+                              e.currentTarget.style.transform = 'translateY(-1px)'
+                              e.currentTarget.style.borderColor = isDark ? '#f59e0b' : '#d97706'
+                              e.currentTarget.style.boxShadow = '0 4px 12px rgba(245, 158, 11, 0.25)'
+                            }}
+                            onMouseLeave={e => {
+                              e.currentTarget.style.transform = 'none'
+                              e.currentTarget.style.borderColor = isDark ? 'rgba(245, 158, 11, 0.4)' : '#fde68a'
+                              e.currentTarget.style.boxShadow = isDark ? '0 2px 8px rgba(245, 158, 11, 0.12)' : '0 1px 3px rgba(180, 83, 9, 0.08)'
+                            }}
+                          >
+                            <span>{Number(item.reserved_qty).toLocaleString('uk-UA')}</span>
+                            <Eye size={13} style={{ opacity: 0.85 }} />
+                          </button>
                         ) : (
-                          item.reserved_qty
+                          <span style={{ color: t.textMuted, fontSize: '0.85rem', fontWeight: 600 }}>0</span>
                         )}
                       </td>
                       <td style={{ padding: '14px', textAlign: 'right' }}>
@@ -1960,6 +2656,17 @@ export default function WarehouseFGPModule() {
             )}
           </div>
         </div>
+      )}
+
+      {reserveAnalysisItem && (
+        <ReserveAnalysisModal
+          item={reserveAnalysisItem}
+          onClose={() => setReserveAnalysisItem(null)}
+          requests={requests}
+          orders={orders}
+          tasks={tasks}
+          nomenclatures={nomenclatures}
+        />
       )}
     </div>
   )

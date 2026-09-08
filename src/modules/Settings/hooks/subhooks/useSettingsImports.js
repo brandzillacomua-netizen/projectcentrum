@@ -21,10 +21,11 @@ export const parseCSV = (text, delimiter = ';') => {
   const lines = []
   let row = [""]
   let inQuotes = false
+  const cleanText = (text || '').replace(/^\uFEFF/, '')
   
-  for (let i = 0; i < text.length; i++) {
-    const char = text[i]
-    const nextChar = text[i + 1]
+  for (let i = 0; i < cleanText.length; i++) {
+    const char = cleanText[i]
+    const nextChar = cleanText[i + 1]
     
     if (char === '"') {
       if (inQuotes && nextChar === '"') {
@@ -52,9 +53,11 @@ export const parseCSV = (text, delimiter = ';') => {
 }
 
 export const detectDelimiter = (text) => {
-  const firstLine = text.split(/\r?\n/)[0] || text
+  const firstLine = (text || '').replace(/^\uFEFF/, '').split(/\r?\n/)[0] || text
   const commaCount = (firstLine.match(/,/g) || []).length
   const semicolonCount = (firstLine.match(/;/g) || []).length
+  const tabCount = (firstLine.match(/\t/g) || []).length
+  if (tabCount > semicolonCount && tabCount > commaCount) return '\t'
   return semicolonCount >= commaCount ? ';' : ','
 }
 
@@ -141,78 +144,95 @@ export const matchPosition = (rawVal, compPositions, defaultVal) => {
 
 // ─── 2. PURE DOMAIN COMPUTATIONS ───
 
-export const computeBzRemnants = (parsedCsv, nomenclatures) => {
-  const headers = parsedCsv[0] || []
-  
-  const nameColIdx = headers.findIndex(h => {
-    const norm = (h || '').toLowerCase().trim()
-    return norm.includes('номенклатура') || norm.includes('назва') || norm === 'name'
-  })
-  
-  const qtyColIdx = headers.findIndex(h => {
-    const norm = (h || '').toLowerCase().trim()
-    return norm.includes('склад') || norm.includes('кількість') || norm === 'qty' || norm === 'quantity'
-  })
-
-  if (nameColIdx === -1 || qtyColIdx === -1) {
-    throw new Error('Помилка: не знайдено обов\'язкові колонки ("Номенклатура" та "Склад") у CSV файлі.')
+export const computeBzRemnants = (parsedCsv, nomenclatures, inventory = []) => {
+  if (!parsedCsv || parsedCsv.length === 0) {
+    throw new Error('Помилка: файл порожній або має невірний формат.')
   }
 
-  const parsedRows = parsedCsv.slice(1)
-  const matchedItems = []
-  const unrecognized = []
+  const headers = parsedCsv[0] || []
+  
+  let nameColIdx = headers.findIndex(h => {
+    const norm = (h || '').toLowerCase().trim()
+    return norm.includes('номенклатура') || norm.includes('назва') || norm.includes('найменування') || norm.includes('деталь') || norm.includes('виріб') || norm.includes('товар') || norm === 'name' || norm === 'item'
+  })
+  
+  let qtyColIdx = headers.findIndex(h => {
+    const norm = (h || '').toLowerCase().trim()
+    return norm.includes('склад') || norm.includes('кількість') || norm.includes('залишок') || norm.includes('к-сть') || norm.includes('всього') || norm === 'qty' || norm === 'quantity' || norm === 'count'
+  })
+
+  let startRowIdx = 1
+  if (nameColIdx === -1 || qtyColIdx === -1) {
+    if (parsedCsv[0]?.length >= 2 && isNaN(parseFloat((parsedCsv[0][1] || '').replace(/\s+/g, '')))) {
+      nameColIdx = 0
+      qtyColIdx = 1
+      startRowIdx = 1
+    } else if (parsedCsv[0]?.length >= 2 && !isNaN(parseFloat((parsedCsv[0][1] || '').replace(/\s+/g, '')))) {
+      nameColIdx = 0
+      qtyColIdx = 1
+      startRowIdx = 0
+    } else {
+      throw new Error('Помилка: не знайдено обов\'язкові колонки ("Номенклатура" та "Склад") у CSV файлі.')
+    }
+  }
+
+  const parsedRows = parsedCsv.slice(startRowIdx)
+  const itemsMap = new Map()
 
   const dbNomMap = {}
   ;(nomenclatures || []).forEach(n => {
     dbNomMap[normalizeHomoglyphs(n.name)] = n
   })
 
-  parsedRows.forEach((row, idx) => {
-    const nameVal = row[nameColIdx]
-    const qtyVal = parseInt(row[qtyColIdx]) || 0
+  const existingSgpMap = {}
+  ;(inventory || []).forEach(i => {
+    if (i.warehouse === 'sgp' && i.pocket_owner == null) {
+      existingSgpMap[normalizeHomoglyphs(i.name)] = i
+    }
+  })
 
-    if (!nameVal || qtyVal <= 0) return
+  parsedRows.forEach((row, idx) => {
+    const nameVal = row[nameColIdx] ? row[nameColIdx].trim() : ''
+    if (!nameVal) return
+    const lower = nameVal.toLowerCase()
+    if (lower.includes('разом') || lower.includes('всього') || lower === 'total' || lower.startsWith('підсумок')) return
+
+    const rawQty = (row[qtyColIdx] || '').toString().replace(/\s+/g, '').replace(',', '.')
+    const parsedQty = parseFloat(rawQty)
+    const qtyVal = isNaN(parsedQty) ? 0 : Math.max(0, Math.round(parsedQty))
 
     const normName = normalizeHomoglyphs(nameVal)
+    if (!normName) return
+
     const matchedNom = dbNomMap[normName]
+    const existingSgp = existingSgpMap[normName]
+    const isNew = !matchedNom && !existingSgp
+    const canonicalName = matchedNom?.name || existingSgp?.name || nameVal
+    const currentQty = existingSgp ? Number(existingSgp.total_qty || 0) : 0
+    const reservedQty = existingSgp ? Number(existingSgp.reserved_qty || 0) : 0
 
-    if (matchedNom) {
-      matchedItems.push({
-        name: matchedNom.name,
-        qty: qtyVal,
-        nomenclature_id: matchedNom.id,
-        type: matchedNom.type
-      })
-    } else {
-      unrecognized.push({
-        name: nameVal,
-        qty: qtyVal,
-        rowNum: idx + 2
+    const key = matchedNom ? `nom_${matchedNom.id}` : normName
+
+    if (!itemsMap.has(key)) {
+      itemsMap.set(key, {
+        nomenclature_id: matchedNom?.id || existingSgp?.nomenclature_id || null,
+        name: canonicalName,
+        qty: 0,
+        currentQty,
+        reservedQty,
+        unit: matchedNom?.unit || existingSgp?.unit || 'шт',
+        type: 'finished',
+        isNew,
+        rowNum: idx + startRowIdx + 1
       })
     }
+    itemsMap.get(key).qty += qtyVal
   })
 
-  const initialStock = {}
-  matchedItems.forEach(item => {
-    initialStock[item.nomenclature_id] = (initialStock[item.nomenclature_id] || 0) + item.qty
-  })
-
+  const allItems = Array.from(itemsMap.values()).sort((a, b) => a.name.localeCompare(b.name, 'uk'))
+  const leftovers = allItems
+  const unrecognized = allItems.filter(it => it.isNew)
   const assembledKits = []
-  const componentsLeft = { ...initialStock }
-
-  const leftovers = []
-  Object.entries(componentsLeft).forEach(([nomId, qty]) => {
-    if (qty <= 0) return
-    const nomObj = (nomenclatures || []).find(n => n.id === nomId)
-    if (nomObj) {
-      leftovers.push({
-        nomenclature_id: nomId,
-        name: nomObj.name,
-        qty,
-        type: nomObj.type
-      })
-    }
-  })
 
   return { assembledKits, leftovers, unrecognized }
 }
@@ -436,18 +456,19 @@ export function useSettingsImports({
   nomenclatures,
   inventory,
   refreshTable,
+  fetchData,
   supabase,
   companyStructure,
   companyPositions,
   systemUsers
 }) {
-  // BZ remnants upload states
+  // SGP remnants upload states
   const [bzFile, setBzFile] = useState(null)
   const [bzDelimiter, setBzDelimiter] = useState(';')
-  const [bzRecordMode, setBzRecordMode] = useState('add')
+  const [bzRecordMode, setBzRecordMode] = useState('overwrite')
   const [bzUploadStatus, setBzUploadStatus] = useState('idle')
   const [bzUploadLog, setBzUploadLog] = useState('')
-  const [bzActivePreviewTab, setBzActivePreviewTab] = useState('leftovers')
+  const [bzActivePreviewTab, setBzActivePreviewTab] = useState('all')
   const [bzAssembledKits, setBzAssembledKits] = useState([])
   const [bzLeftovers, setBzLeftovers] = useState([])
   const [bzUnrecognized, setBzUnrecognized] = useState([])
@@ -522,24 +543,25 @@ export function useSettingsImports({
           }
         } catch (innerErr) {
           console.error(innerErr)
-          alert('Помилка обробки вмісту файлу залишків БЗ: ' + innerErr.message)
+          alert('Помилка обробки вмісту файлу залишків СГП: ' + innerErr.message)
         }
         e.target.value = ''
       }
       reader.readAsText(file, 'UTF-8')
     } catch (err) {
       console.error(err)
-      alert('Помилка завантаження файлу залишків БЗ: ' + err.message)
+      alert('Помилка завантаження файлу залишків СГП: ' + err.message)
       if (e?.target) e.target.value = ''
     }
   }
 
   const processBzRemnants = (parsedCsv) => {
     try {
-      const { assembledKits, leftovers, unrecognized } = computeBzRemnants(parsedCsv, nomenclatures)
+      const { assembledKits, leftovers, unrecognized } = computeBzRemnants(parsedCsv, nomenclatures, inventory)
       setBzAssembledKits(assembledKits)
       setBzLeftovers(leftovers)
       setBzUnrecognized(unrecognized)
+      setBzActivePreviewTab('all')
       setBzUploadStatus('preview')
     } catch (err) {
       alert(err.message)
@@ -548,162 +570,150 @@ export function useSettingsImports({
 
   const executeBzUpload = async () => {
     setBzUploadStatus('uploading')
-    setBzUploadLog('Початок обробки залишків...\n')
-    
-    const existingInventory = inventory || []
-    const updates = []
-    const inserts = []
-    const findOperationalInventory = (nomenclatureId, name, type) =>
-      existingInventory.find(i =>
-        i.warehouse === 'operational'
-        && i.type === type
-        && i.pocket_owner == null
-        && (
-          String(i.nomenclature_id) === String(nomenclatureId)
-          || i.name === name
-        )
-      )
+    setBzUploadLog('Початок швидкої актуалізації залишків СГП...\n')
 
     try {
-      setBzUploadLog(prev => prev + `Обробка зібраних комплектів (всього позицій: ${bzAssembledKits.length})...\n`)
-      for (const kit of bzAssembledKits) {
-        const product = kit.product
-        const qtyToSet = kit.qty
+      // 1. Отримання найсвіжіших залишків СГП безпосередньо з бази даних
+      setBzUploadLog(prev => prev + `Синхронізація поточних залишків СГП з базою даних...\n`)
+      let freshSgpInventory = []
+      try {
+        const { data: dbInv, error: invErr } = await supabase
+          .from('inventory')
+          .select('id, nomenclature_id, name, type, warehouse, total_qty, reserved_qty, pocket_owner')
+          .eq('warehouse', 'sgp')
+          .eq('type', 'finished')
+          .is('pocket_owner', null)
+        if (!invErr && Array.isArray(dbInv)) {
+          freshSgpInventory = dbInv
+        }
+      } catch (e) {
+        console.warn('Direct SGP inventory fetch warning:', e)
+      }
 
-        const existing = findOperationalInventory(product.id, product.name, 'finished')
+      // Об'єднуємо з кешем контексту на випадок затримки
+      const combinedSgpInventory = [...freshSgpInventory]
+      ;(inventory || []).forEach(i => {
+        if (i.warehouse === 'sgp' && i.type === 'finished' && i.pocket_owner == null && !combinedSgpInventory.some(ci => ci.id === i.id)) {
+          combinedSgpInventory.push(i)
+        }
+      })
+
+      // Словники пошуку для СГП
+      const sgpByNomId = new Map()
+      const sgByNormName = new Map()
+      combinedSgpInventory.forEach(item => {
+        if (item.nomenclature_id) sgpByNomId.set(String(item.nomenclature_id), item)
+        const norm = normalizeHomoglyphs(item.name)
+        if (norm) sgByNormName.set(norm, item)
+      })
+
+      // 2. Словник номенклатур
+      const dbNomMap = new Map()
+      ;(nomenclatures || []).forEach(n => {
+        const norm = normalizeHomoglyphs(n.name)
+        if (norm) dbNomMap.set(norm, n)
+      })
+
+      // 3. Пакетне створення нових номенклатур (якщо будь-яких деталей ще немає в системі)
+      const missingNoms = []
+      const seenNewNorms = new Set()
+      bzLeftovers.forEach(item => {
+        const norm = normalizeHomoglyphs(item.name)
+        if (!item.nomenclature_id && !dbNomMap.has(norm) && !seenNewNorms.has(norm)) {
+          missingNoms.push({ name: item.name, type: 'part' })
+          seenNewNorms.add(norm)
+        }
+      })
+
+      if (missingNoms.length > 0) {
+        setBzUploadLog(prev => prev + `Створення нових позицій в довіднику номенклатур (${missingNoms.length} шт)...\n`)
+        const { data: createdNoms, error: nomErr } = await supabase
+          .from('nomenclatures')
+          .insert(missingNoms)
+          .select('id, name')
+
+        if (createdNoms && Array.isArray(createdNoms)) {
+          createdNoms.forEach(cn => {
+            const nNorm = normalizeHomoglyphs(cn.name)
+            dbNomMap.set(nNorm, cn)
+            setBzUploadLog(prev => prev + `  ✅ [СТВОРЕНО НОМЕНКЛАТУРУ] ${cn.name}\n`)
+          })
+        } else if (nomErr) {
+          setBzUploadLog(prev => prev + `  ⚠️ [ПОПЕРЕДЖЕННЯ] ${nomErr.message}\n`)
+        }
+      }
+
+      // 4. Підготовка масивів оновлення та додавання
+      const updates = []
+      const inserts = []
+
+      bzLeftovers.forEach(item => {
+        const norm = normalizeHomoglyphs(item.name)
+        const nomRec = (item.nomenclature_id ? { id: item.nomenclature_id, name: item.name } : null) || dbNomMap.get(norm)
+        const nomId = nomRec?.id || item.nomenclature_id || null
+        const canonicalName = nomRec?.name || item.name
+
+        const existing = (nomId && sgpByNomId.get(String(nomId))) || sgByNormName.get(norm)
 
         if (existing) {
-          const newTotal = bzRecordMode === 'add' ? (Number(existing.total_qty) || 0) + qtyToSet : qtyToSet
+          const curQty = Number(existing.total_qty) || 0
+          const newTotal = bzRecordMode === 'add' ? curQty + item.qty : item.qty
           updates.push({
             id: existing.id,
-            nomenclature_id: product.id,
-            name: product.name,
+            nomenclature_id: nomId || existing.nomenclature_id,
+            name: canonicalName,
             type: 'finished',
-            warehouse: 'operational',
-            unit: product.unit || 'шт',
+            warehouse: 'sgp',
+            unit: existing.unit || item.unit || 'шт',
             total_qty: newTotal,
             reserved_qty: existing.reserved_qty || 0,
             updated_at: new Date().toISOString()
           })
-          setBzUploadLog(prev => prev + `[ОНОВИТИ СГП] ${product.name}: ${newTotal} шт (було ${existing.total_qty})\n`)
+          setBzUploadLog(prev => prev + `[ОНОВИТИ СГП] ${canonicalName}: ${newTotal} шт (${bzRecordMode === 'add' ? `+${item.qty}` : 'перезапис'})\n`)
         } else {
           inserts.push({
-            nomenclature_id: product.id,
-            name: product.name,
+            nomenclature_id: nomId,
+            name: canonicalName,
             type: 'finished',
-            warehouse: 'operational',
-            unit: product.unit || 'шт',
-            total_qty: qtyToSet,
+            warehouse: 'sgp',
+            unit: item.unit || 'шт',
+            total_qty: item.qty,
             reserved_qty: 0,
             updated_at: new Date().toISOString()
           })
-          setBzUploadLog(prev => prev + `[НОВИЙ СГП] ${product.name}: ${qtyToSet} шт\n`)
+          setBzUploadLog(prev => prev + `[НОВИЙ СГП] ${canonicalName}: ${item.qty} шт\n`)
         }
+      })
+
+      setBzUploadLog(prev => prev + `\nЗапис змін у базі даних (оновлення: ${updates.length}, нових: ${inserts.length})...\n`)
+
+      // 5. Швидкий пакетний запис (чанками по 50 записів)
+      const CHUNK_SIZE = 50
+      for (let i = 0; i < updates.length; i += CHUNK_SIZE) {
+        const chunk = updates.slice(i, i + CHUNK_SIZE)
+        const { error: updErr } = await supabase.from('inventory').upsert(chunk)
+        if (updErr) throw updErr
       }
 
-      setBzUploadLog(prev => prev + `Обробка залишків напівфабрикатів (всього позицій: ${bzLeftovers.length})...\n`)
-      for (const left of bzLeftovers) {
-        const existing = findOperationalInventory(left.nomenclature_id, left.name, 'bz')
-
-        if (existing) {
-          const newTotal = bzRecordMode === 'add' ? (Number(existing.total_qty) || 0) + left.qty : left.qty
-          updates.push({
-            id: existing.id,
-            nomenclature_id: left.nomenclature_id,
-            name: left.name,
-            type: 'bz',
-            warehouse: 'operational',
-            unit: 'шт',
-            total_qty: newTotal,
-            reserved_qty: existing.reserved_qty || 0,
-            updated_at: new Date().toISOString()
-          })
-          setBzUploadLog(prev => prev + `[ОНОВИТИ БЗ] ${left.name}: ${newTotal} шт (було ${existing.total_qty})\n`)
-        } else {
-          inserts.push({
-            nomenclature_id: left.nomenclature_id,
-            name: left.name,
-            type: 'bz',
-            warehouse: 'operational',
-            unit: 'шт',
-            total_qty: left.qty,
-            reserved_qty: 0,
-            updated_at: new Date().toISOString()
-          })
-          setBzUploadLog(prev => prev + `[НОВИЙ БЗ] ${left.name}: ${left.qty} шт\n`)
-        }
+      for (let i = 0; i < inserts.length; i += CHUNK_SIZE) {
+        const chunk = inserts.slice(i, i + CHUNK_SIZE)
+        const { error: insErr } = await supabase.from('inventory').insert(chunk)
+        if (insErr) throw insErr
       }
 
-      if (bzUnrecognized.length > 0) {
-        setBzUploadLog(prev => prev + `\nСтворення нових позицій в номенклатурі (${bzUnrecognized.length} шт)...\n`)
-        for (const unr of bzUnrecognized) {
-          if (!unr.qty || unr.qty <= 0) continue
-
-          const { data: newNom, error: nomErr } = await supabase
-            .from('nomenclatures')
-            .insert([{ name: unr.name, type: 'part' }])
-            .select()
-            .single()
-
-          if (nomErr) {
-            setBzUploadLog(prev => prev + `  ⚠️ [НОМ ПОМИЛКА] ${unr.name}: ${nomErr.message}\n`)
-            continue
-          }
-
-          setBzUploadLog(prev => prev + `  ✅ [НОМ СТВОРЕНО] ${newNom.name} (ID: ${newNom.id})\n`)
-
-          const existingInv = findOperationalInventory(newNom.id, newNom.name, 'bz')
-
-          if (existingInv) {
-            const newTotal = bzRecordMode === 'add' ? (Number(existingInv.total_qty) || 0) + unr.qty : unr.qty
-            updates.push({
-              id: existingInv.id,
-              nomenclature_id: newNom.id,
-              name: newNom.name,
-              type: 'bz',
-              warehouse: 'operational',
-              unit: 'шт',
-              total_qty: newTotal,
-              reserved_qty: existingInv.reserved_qty || 0,
-              updated_at: new Date().toISOString()
-            })
-            setBzUploadLog(prev => prev + `  [ОНОВИТИ БЗ] ${newNom.name}: ${newTotal} шт\n`)
-          } else {
-            inserts.push({
-              nomenclature_id: newNom.id,
-              name: newNom.name,
-              type: 'bz',
-              warehouse: 'operational',
-              unit: 'шт',
-              total_qty: unr.qty,
-              reserved_qty: 0,
-              updated_at: new Date().toISOString()
-            })
-            setBzUploadLog(prev => prev + `  [НОВИЙ БЗ] ${newNom.name}: ${unr.qty} шт\n`)
-          }
-        }
-      }
-
-      setBzUploadLog(prev => prev + `\nНадсилання змін до Supabase...\n`)
-      
-      const batchOps = []
-      if (updates.length > 0) {
-        batchOps.push(supabase.from('inventory').upsert(updates))
-      }
-      if (inserts.length > 0) {
-        batchOps.push(supabase.from('inventory').insert(inserts))
-      }
-
-      const results = await Promise.all(batchOps)
-      for (const res of results) {
-        if (res.error) throw res.error
-      }
-
-      setBzUploadLog(prev => prev + `✅ Успішно оновлено базу даних!\n`)
+      setBzUploadLog(prev => prev + `\n✅ Успішно оновлено залишки СГП по деталям!\n`)
       setBzUploadStatus('success')
-      refreshTable('inventory')
-      refreshTable('nomenclatures')
+
+      // 6. Миттєве оновлення всіх глобальних сховищ MES
+      if (typeof refreshTable === 'function') {
+        refreshTable('inventory')
+        refreshTable('nomenclatures')
+      }
+      if (typeof fetchData === 'function') {
+        fetchData(['inventory', 'nomenclatures'])
+      }
     } catch (err) {
+      console.error('[executeBzUpload] Error:', err)
       setBzUploadLog(prev => prev + `❌ Помилка запису в БД: ${err.message || err}\n`)
       setBzUploadStatus('error')
     }

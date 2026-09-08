@@ -6622,6 +6622,35 @@ body.light-theme .reports-module td {
   color: #0f172a !important;
 }
 
+/* ==========================================================================
+   ENGINEER MODULE V2 (LIGHT THEME)
+   ========================================================================== */
+.light-theme .engineer-module-v2,
+body.light-theme .engineer-module-v2 {
+  background: var(--bg, #f0f2f7) !important;
+  color: #0f172a !important;
+}
+
+.light-theme .engineer-module-v2 select,
+body.light-theme .engineer-module-v2 select,
+.light-theme .engineer-module-v2 input[type="text"],
+body.light-theme .engineer-module-v2 input[type="text"],
+.light-theme .engineer-module-v2 input[type="number"],
+body.light-theme .engineer-module-v2 input[type="number"] {
+  background: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+.light-theme .engineer-module-v2 h1,
+.light-theme .engineer-module-v2 h2,
+.light-theme .engineer-module-v2 h3,
+.light-theme .engineer-module-v2 h4,
+.light-theme .engineer-module-v2 h5 {
+  color: #0f172a !important;
+}
+
+
 
 
 

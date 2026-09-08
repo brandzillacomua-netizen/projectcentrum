@@ -161,7 +161,7 @@ export function MasterNaryadModal({
                       style={{ accentColor: isLight ? '#f97316' : '#ff9000', width: '17px', height: '17px', cursor: 'pointer', pointerEvents: 'none' }}
                     />
                     <span style={{ fontSize: '0.85rem', fontWeight: 900, color: useStockBZ ? (isLight ? '#f97316' : '#ff9000') : (isLight ? '#64748b' : '#666') }}>
-                      {useStockBZ ? 'Враховувати БЗ зі складу' : 'Всюди 0 в колонці БЗ'}
+                      {useStockBZ ? 'Враховувати готові залишки з СГП' : 'Без залишків з СГП (все в розкрій)'}
                     </span>
                   </button>
                 </div>
@@ -193,7 +193,7 @@ export function MasterNaryadModal({
                 <tr style={{ background: isLight ? '#f8fafc' : '#111', textAlign: 'left', color: isLight ? '#475569' : '#555' }} className="print-thr">
                   <th style={{ padding: '12px 8px', width: '30%', minWidth: '170px', borderBottom: isLight ? '1.5px solid #e2e8f0' : '1.5px solid #222' }} className="col-name">ДЕТАЛЬ В РОЗКРІЙ</th>
                   <th style={{ padding: '12px 4px', textAlign: 'center', width: '5%' }} className="no-print">ПОТРЕБА</th>
-                  <th style={{ padding: '12px 4px', textAlign: 'center', width: '5%' }} className="no-print">СКЛАД БЗ</th>
+                  <th style={{ padding: '12px 4px', textAlign: 'center', width: '8%', minWidth: '115px' }} className="no-print">ЗАЛИШОК СГП</th>
                   <th style={{ padding: '12px 4px', textAlign: 'center', width: '5%', color: isLight ? '#f97316' : '#ff9000' }} className="col-plan">ПЛАН</th>
                   <th style={{ padding: '12px 6px', textAlign: 'center', width: '12%' }} className="col-material">МАТЕРІАЛ</th>
                   <th style={{ padding: '12px 4px', textAlign: 'center', width: '4%' }} className="col-qty-sh">ШТ/Л</th>
@@ -331,11 +331,24 @@ export function MasterNaryadModal({
 
                     const totalNeeded = snapshot ? snapshot.need : (thisNaryadQty * (Number(part.quantity_per_parent) || 1))
                     const availableBZ = (() => {
-                      const bzInv = inventory.find(i => String(i.nomenclature_id) === String(part.nom?.id) && i.type === 'bz' && (!i.pocket_owner || i.pocket_owner === 'Не вказано'))
-                      return bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0
+                      const matchingItems = (inventory || []).filter(i =>
+                        String(i.nomenclature_id) === String(part.nom?.id) &&
+                        (i.type === 'bz' || i.type === 'finished' || i.type === 'part' || i.warehouse === 'sgp') &&
+                        (!i.pocket_owner || i.pocket_owner === 'Не вказано')
+                      )
+                      return matchingItems.reduce((acc, i) => acc + Math.max(0, (Number(i.total_qty) || 0) - (Number(i.reserved_qty) || 0)), 0)
                     })()
-                    const isPartActiveBZ = isPartBZActive(part.nom?.id)
-                    const inStock = snapshot ? (snapshot.stock || 0) : (isPartActiveBZ ? Math.min(totalNeeded, availableBZ) : 0)
+                    const inStock = snapshot ? (snapshot.stock || 0) : (() => {
+                      const key = String(part.nom?.id)
+                      if (partBZOverrides[key] !== undefined) {
+                        const ov = partBZOverrides[key]
+                        if (ov === false) return 0
+                        if (ov === true) return Math.min(totalNeeded, availableBZ)
+                        const num = Number(ov)
+                        return isNaN(num) ? 0 : Math.min(Math.max(0, num), totalNeeded, availableBZ)
+                      }
+                      return useStockBZ ? Math.min(totalNeeded, availableBZ) : 0
+                    })()
                     const totalToProduce = snapshot ? snapshot.plan : Math.max(0, totalNeeded - inStock)
 
                     const unitsPerSheet = Number(part.nom?.units_per_sheet) || 1
@@ -522,45 +535,54 @@ export function MasterNaryadModal({
                               {inStock}
                             </span>
                           ) : (
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                              <label
-                                style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '5px',
-                                  cursor: 'pointer',
-                                  userSelect: 'none',
-                                  padding: '3px 8px',
-                                  borderRadius: '8px',
-                                  background: isPartActiveBZ ? (availableBZ > 0 ? 'rgba(16, 185, 129, 0.12)' : '#111') : 'rgba(239, 68, 68, 0.1)',
-                                  border: `1px solid ${isPartActiveBZ ? (availableBZ > 0 ? 'rgba(16, 185, 129, 0.35)' : '#222') : 'rgba(239, 68, 68, 0.3)'}`,
-                                  transition: 'all 0.15s ease'
+                            <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}>
+                              <input
+                                type="checkbox"
+                                checked={inStock > 0}
+                                onChange={(e) => {
+                                  const checked = e.target.checked
+                                  const val = checked ? Math.min(totalNeeded, availableBZ) : 0
+                                  setPartBZOverrides(prev => ({ ...prev, [String(part.nom?.id)]: val }))
                                 }}
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={isPartActiveBZ}
-                                  onChange={(e) => {
-                                    const val = e.target.checked
-                                    setPartBZOverrides(prev => ({ ...prev, [String(part.nom?.id)]: val }))
-                                  }}
-                                  style={{ accentColor: '#ff9000', width: '15px', height: '15px', cursor: 'pointer' }}
-                                />
-                                <span style={{
+                                style={{ accentColor: isLight ? '#f97316' : '#ff9000', width: '16px', height: '16px', cursor: 'pointer' }}
+                                title={inStock > 0 ? "Вимкнути взяття з СГП (все в розкрій)" : "Взяти доступний залишок з СГП"}
+                              />
+                              <input
+                                type="number"
+                                min="0"
+                                max={Math.min(totalNeeded, availableBZ)}
+                                value={inStock}
+                                onChange={(e) => {
+                                  const raw = e.target.value
+                                  const num = raw === '' ? 0 : parseInt(raw) || 0
+                                  const clamped = Math.min(Math.max(0, num), availableBZ)
+                                  setPartBZOverrides(prev => ({ ...prev, [String(part.nom?.id)]: clamped }))
+                                }}
+                                style={{
+                                  width: '56px',
+                                  background: inStock > 0 ? (isLight ? '#ecfdf5' : 'rgba(16, 185, 129, 0.15)') : (isLight ? '#f1f5f9' : '#111'),
+                                  border: `1.5px solid ${inStock > 0 ? (isLight ? '#10b981' : '#059669') : (isLight ? '#cbd5e1' : '#333')}`,
+                                  color: inStock > 0 ? (isLight ? '#047857' : '#34d399') : (isLight ? '#64748b' : '#777'),
+                                  padding: '4px 2px',
+                                  borderRadius: '8px',
                                   fontSize: '0.85rem',
                                   fontWeight: 950,
-                                  color: isPartActiveBZ ? (availableBZ > 0 ? '#10b981' : '#777') : '#ef4444'
-                                }}>
-                                  <span style={{ textDecoration: !isPartActiveBZ && availableBZ > 0 ? 'line-through' : 'none' }}>
-                                    {inStock}
-                                  </span>
-                                  {availableBZ > 0 && (
-                                    <span style={{ fontSize: '0.72rem', color: isPartActiveBZ ? 'rgba(16, 185, 129, 0.75)' : 'rgba(239, 68, 68, 0.75)', marginLeft: '3px', fontWeight: 800 }}>
-                                      ({availableBZ})
-                                    </span>
-                                  )}
+                                  textAlign: 'center',
+                                  outline: 'none',
+                                  transition: 'all 0.15s ease'
+                                }}
+                                title={`Введіть кількість для взяття з СГП (доступно на складі: ${availableBZ})`}
+                              />
+                              {availableBZ > 0 && (
+                                <span style={{
+                                  fontSize: '0.72rem',
+                                  fontWeight: 800,
+                                  color: inStock > 0 ? (isLight ? '#059669' : '#34d399') : (isLight ? '#64748b' : '#666'),
+                                  marginLeft: '1px'
+                                }} title={`Всього вільно на СГП: ${availableBZ}`}>
+                                  ({availableBZ})
                                 </span>
-                              </label>
+                              )}
                             </div>
                           )}
                         </td>
@@ -695,10 +717,23 @@ export function MasterNaryadModal({
                       displayParts.forEach(part => {
                         const snapshot = reprintTask?.plan_snapshot?.[String(part.nom?.id)];
                         const need = snapshot ? snapshot.need : (thisNaryadQty * (Number(part.quantity_per_parent) || 1));
-                        const inStock = snapshot ? (snapshot.stock || 0) : (useStockBZ ? (() => {
-                          const bzInv = inventory.find(i => String(i.nomenclature_id) === String(part.nom?.id) && i.type === 'bz' && (!i.pocket_owner || i.pocket_owner === 'Не вказано'));
-                          return bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0;
-                        })() : 0);
+                        const inStock = snapshot ? (snapshot.stock || 0) : (() => {
+                          const matchingItems = (inventory || []).filter(i =>
+                            String(i.nomenclature_id) === String(part.nom?.id) &&
+                            (i.type === 'bz' || i.type === 'finished' || i.type === 'part' || i.warehouse === 'sgp') &&
+                            (!i.pocket_owner || i.pocket_owner === 'Не вказано')
+                          )
+                          const availableBZ = matchingItems.reduce((acc, i) => acc + Math.max(0, (Number(i.total_qty) || 0) - (Number(i.reserved_qty) || 0)), 0)
+                          const key = String(part.nom?.id)
+                          if (partBZOverrides[key] !== undefined) {
+                            const ov = partBZOverrides[key]
+                            if (ov === false) return 0
+                            if (ov === true) return Math.min(need, availableBZ)
+                            const num = Number(ov)
+                            return isNaN(num) ? 0 : Math.min(Math.max(0, num), need, availableBZ)
+                          }
+                          return useStockBZ ? Math.min(need, availableBZ) : 0
+                        })()
                         const plan = snapshot ? snapshot.plan : Math.max(0, need - inStock);
                         const unitsPerSheet = Number(part.nom?.units_per_sheet) || 1;
                         const sheets = Math.ceil(plan / unitsPerSheet);

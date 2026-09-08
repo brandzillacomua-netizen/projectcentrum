@@ -48,7 +48,11 @@ export function useMasterState() {
   const isPartBZActive = (partNomId) => {
     if (!partNomId) return useStockBZ
     if (partBZOverrides[String(partNomId)] !== undefined) {
-      return Boolean(partBZOverrides[String(partNomId)])
+      const ov = partBZOverrides[String(partNomId)]
+      if (ov === false) return false
+      if (ov === true) return true
+      const num = Number(ov)
+      return !isNaN(num) && num > 0
     }
     return Boolean(useStockBZ)
   }
@@ -846,12 +850,25 @@ export function useMasterState() {
 
         const snapshot = reprintTask?.plan_snapshot?.[String(part.nom.id)]
         const totalNeeded = snapshot ? snapshot.need : (currentQty * (Number(part.quantity_per_parent) || 1))
-        const isPartActiveBZ = isPartBZActive(part.nom.id)
         const availableBZ = (() => {
-          const bzInv = inventory.find(i => String(i.nomenclature_id) === String(part.nom.id) && i.type === 'bz' && (!i.pocket_owner || i.pocket_owner === 'Не вказано'))
-          return bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0
+          const matchingItems = (inventory || []).filter(i =>
+            String(i.nomenclature_id) === String(part.nom?.id) &&
+            (i.type === 'bz' || i.type === 'finished' || i.type === 'part' || i.warehouse === 'sgp') &&
+            (!i.pocket_owner || i.pocket_owner === 'Не вказано')
+          )
+          return matchingItems.reduce((acc, i) => acc + Math.max(0, (Number(i.total_qty) || 0) - (Number(i.reserved_qty) || 0)), 0)
         })()
-        const inStock = snapshot ? (snapshot.stock || 0) : (isPartActiveBZ ? Math.min(totalNeeded, availableBZ) : 0)
+        const inStock = snapshot ? (snapshot.stock || 0) : (() => {
+          const key = String(part.nom?.id)
+          if (partBZOverrides[key] !== undefined) {
+            const ov = partBZOverrides[key]
+            if (ov === false) return 0
+            if (ov === true) return Math.min(totalNeeded, availableBZ)
+            const num = Number(ov)
+            return isNaN(num) ? 0 : Math.min(Math.max(0, num), totalNeeded, availableBZ)
+          }
+          return useStockBZ ? Math.min(totalNeeded, availableBZ) : 0
+        })()
         const totalToProduce = Math.max(0, totalNeeded - inStock)
         if (totalToProduce <= 0) return
 
@@ -935,12 +952,25 @@ export function useMasterState() {
         if (!part.nom) continue
         const snapshot = reprintTask?.plan_snapshot?.[String(part.nom?.id)]
         const availableBZ = (() => {
-          const bzInv = (inventory || []).find(i => String(i.nomenclature_id) === String(part.nom?.id) && i.type === 'bz' && (!i.pocket_owner || i.pocket_owner === 'Не вказано'))
-          return bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0
+          const matchingItems = (inventory || []).filter(i =>
+            String(i.nomenclature_id) === String(part.nom?.id) &&
+            (i.type === 'bz' || i.type === 'finished' || i.type === 'part' || i.warehouse === 'sgp') &&
+            (!i.pocket_owner || i.pocket_owner === 'Не вказано')
+          )
+          return matchingItems.reduce((acc, i) => acc + Math.max(0, (Number(i.total_qty) || 0) - (Number(i.reserved_qty) || 0)), 0)
         })()
-        const isPartActiveBZ = isPartBZActive(part.nom?.id)
         const totalNeeded = snapshot ? snapshot.need : (thisNaryadQty * (Number(part.quantity_per_parent) || 1))
-        const inStock = snapshot ? (snapshot.stock || 0) : (isPartActiveBZ ? Math.min(totalNeeded, availableBZ) : 0)
+        const inStock = snapshot ? (snapshot.stock || 0) : (() => {
+          const key = String(part.nom?.id)
+          if (partBZOverrides[key] !== undefined) {
+            const ov = partBZOverrides[key]
+            if (ov === false) return 0
+            if (ov === true) return Math.min(totalNeeded, availableBZ)
+            const num = Number(ov)
+            return isNaN(num) ? 0 : Math.min(Math.max(0, num), totalNeeded, availableBZ)
+          }
+          return useStockBZ ? Math.min(totalNeeded, availableBZ) : 0
+        })()
         const totalToProduce = snapshot ? snapshot.plan : Math.max(0, totalNeeded - inStock)
 
         if (totalToProduce <= 0) continue

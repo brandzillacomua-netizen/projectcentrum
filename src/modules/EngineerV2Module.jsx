@@ -17,10 +17,31 @@ import { ImportSpecTab } from './Engineer/components/ImportSpecTab'
 import { EngineerCuttersTab } from './Engineer/components/EngineerCuttersTab'
 
 const EngineerV2Module = () => {
-  const { tasks, orders, approveEngineer, machineCalls, machines, currentUser, supabase } = useMES()
+  const { tasks, orders, approveEngineer, machineCalls, machines, currentUser, supabase, theme } = useMES()
   const nomenclatures = useV2NomenclaturesData(supabase)
   const isSuperAdmin = currentUser?.login === 'admin@workshop.local' || currentUser?.position === 'Адмін' || currentUser?.access_rights?.director
   const [activeTab, setActiveTab] = useState('tasks')
+
+  const [isLight, setIsLight] = useState(() => {
+    if (theme) return theme === 'light'
+    if (typeof document !== 'undefined') return document.body.classList.contains('light-theme')
+    return false
+  })
+
+  React.useEffect(() => {
+    const check = () => {
+      if (theme) {
+        setIsLight(theme === 'light')
+      } else if (typeof document !== 'undefined') {
+        setIsLight(document.body.classList.contains('light-theme'))
+      }
+    }
+    check()
+    if (typeof MutationObserver === 'undefined') return
+    const observer = new MutationObserver(check)
+    observer.observe(document.body, { attributes: true, attributeFilter: ['class'] })
+    return () => observer.disconnect()
+  }, [theme])
   
   const pendingTasks = (tasks || []).filter(t => t.status === 'waiting' && !t.engineer_conf && !t.step?.includes('Пресування'))
   const approvedCount = (tasks || []).filter(t => t.status === 'waiting' && t.engineer_conf).length
@@ -47,19 +68,19 @@ const EngineerV2Module = () => {
   }
 
   return (
-    <div className="engineer-module-v2" style={{ background: '#080808', minHeight: '100vh', color: '#fff', display: 'flex', flexDirection: 'column' }}>
-      <nav className="module-nav" style={{ flexShrink: 0 }}>
+    <div className="engineer-module-v2" style={{ background: isLight ? 'var(--bg, #f0f2f7)' : '#080808', minHeight: '100vh', color: isLight ? '#0f172a' : '#fff', display: 'flex', flexDirection: 'column' }}>
+      <nav className="module-nav" style={{ flexShrink: 0, background: isLight ? '#ffffff' : undefined, borderBottom: isLight ? '1px solid #cbd5e1' : undefined }}>
         <Link to="/" className="back-link"><ArrowLeft size={18} /> <span className="hide-mobile">На головну</span></Link>
         <div className="module-title-group">
           <Settings className="text-secondary" size={24} />
-          <h1 className="hide-mobile">Робоче місце Інженера (V2)</h1>
-          <h1 className="mobile-only" style={{ fontSize: '1rem' }}>ІНЖЕНЕР V2</h1>
+          <h1 className="hide-mobile" style={{ color: isLight ? '#0f172a' : '#fff' }}>Робоче місце Інженера (V2)</h1>
+          <h1 className="mobile-only" style={{ fontSize: '1rem', color: isLight ? '#0f172a' : '#fff' }}>ІНЖЕНЕР V2</h1>
         </div>
       </nav>
 
       <div className="module-content" style={{ padding: '20px', overflowY: 'auto', flex: 1 }}>
         {activeCalls.length > 0 && (
-          <div style={{ background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.15)', borderRadius: '16px', padding: '15px 20px', marginBottom: '20px' }}>
+          <div style={{ background: isLight ? 'rgba(239, 68, 68, 0.08)' : 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '16px', padding: '15px 20px', marginBottom: '20px' }}>
             <h3 style={{ margin: '0 0 12px 0', fontSize: '0.85rem', fontWeight: 900, color: '#ef4444', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span className="pulse-indicator" style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5', boxShadow: '0 0 8px #ef4444' }} />
               АКТИВНІ ВИКЛИКИ ДО ВЕРСТАТІВ ({activeCalls.length})
@@ -68,9 +89,9 @@ const EngineerV2Module = () => {
               {activeCalls.map(c => {
                 const mach = (machines || []).find(m => m.id === c.machine_id)
                 return (
-                  <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#111', border: '1px solid #222', borderRadius: '12px', padding: '12px 15px', flexWrap: 'wrap', gap: '10px' }}>
+                  <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: isLight ? '#ffffff' : '#111', border: `1px solid ${isLight ? '#cbd5e1' : '#222'}`, borderRadius: '12px', padding: '12px 15px', flexWrap: 'wrap', gap: '10px' }}>
                     <div>
-                      <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#fff' }}>
+                      <div style={{ fontSize: '0.9rem', fontWeight: 800, color: isLight ? '#0f172a' : '#fff' }}>
                         {mach ? mach.name : 'Верстат'} (пор. №{mach?.sequence_number || '—'})
                       </div>
                       <div style={{ fontSize: '0.75rem', color: 'var(--text-muted, #64748b)', marginTop: '2px' }}>
@@ -79,7 +100,7 @@ const EngineerV2Module = () => {
                       </div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                      <span style={{ fontSize: '0.75rem', color: '#666', fontWeight: 700 }}>
+                      <span style={{ fontSize: '0.75rem', color: isLight ? '#64748b' : '#666', fontWeight: 700 }}>
                         {new Date(c.created_at).toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' })}
                       </span>
                       <button 
@@ -99,14 +120,14 @@ const EngineerV2Module = () => {
         <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap' }}>
           <button 
             onClick={() => setActiveTab('tasks')}
-            style={{ padding: '10px 20px', background: activeTab === 'tasks' ? '#3b82f6' : '#111', color: '#fff', border: '1px solid #222', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}
+            style={{ padding: '10px 20px', background: activeTab === 'tasks' ? '#3b82f6' : (isLight ? '#ffffff' : '#111'), color: activeTab === 'tasks' ? '#fff' : (isLight ? '#0f172a' : '#fff'), border: `1px solid ${activeTab === 'tasks' ? '#3b82f6' : (isLight ? '#cbd5e1' : '#222')}`, borderRadius: '8px', cursor: 'pointer', fontWeight: 700, boxShadow: isLight ? '0 1px 3px rgba(0,0,0,0.05)' : 'none' }}
           >
             Черга ЧПК ({pendingTasks.length})
           </button>
           {isSuperAdmin && (
             <button 
               onClick={() => setActiveTab('operations')}
-              style={{ padding: '10px 20px', background: activeTab === 'operations' ? '#3b82f6' : '#111', color: '#fff', border: '1px solid #222', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}
+              style={{ padding: '10px 20px', background: activeTab === 'operations' ? '#3b82f6' : (isLight ? '#ffffff' : '#111'), color: activeTab === 'operations' ? '#fff' : (isLight ? '#0f172a' : '#fff'), border: `1px solid ${activeTab === 'operations' ? '#3b82f6' : (isLight ? '#cbd5e1' : '#222')}`, borderRadius: '8px', cursor: 'pointer', fontWeight: 700, boxShadow: isLight ? '0 1px 3px rgba(0,0,0,0.05)' : 'none' }}
             >
               <Database size={16} style={{ display: 'inline', verticalAlign: 'text-bottom', marginRight: '5px' }} />
               Операції станків
@@ -114,21 +135,21 @@ const EngineerV2Module = () => {
           )}
           <button 
             onClick={() => setActiveTab('spec')}
-            style={{ padding: '10px 20px', background: activeTab === 'spec' ? 'linear-gradient(135deg,#4f46e5,#7c3aed)' : '#111', color: '#fff', border: `1px solid ${activeTab === 'spec' ? '#6366f1' : '#222'}`, borderRadius: '8px', cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '7px' }}
+            style={{ padding: '10px 20px', background: activeTab === 'spec' ? 'linear-gradient(135deg,#4f46e5,#7c3aed)' : (isLight ? '#ffffff' : '#111'), color: activeTab === 'spec' ? '#fff' : (isLight ? '#0f172a' : '#fff'), border: `1px solid ${activeTab === 'spec' ? '#6366f1' : (isLight ? '#cbd5e1' : '#222')}`, borderRadius: '8px', cursor: 'pointer', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '7px', boxShadow: isLight ? '0 1px 3px rgba(0,0,0,0.05)' : 'none' }}
           >
             <BookOpen size={15} style={{ display: 'inline' }} />
             Специфікації BOM
           </button>
           <button 
             onClick={() => setActiveTab('import')}
-            style={{ padding: '10px 20px', background: activeTab === 'import' ? 'linear-gradient(135deg,#059669,#10b981)' : '#111', color: activeTab === 'import' ? '#fff' : '#aaa', border: `1px solid ${activeTab === 'import' ? '#10b981' : '#222'}`, borderRadius: '8px', cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '7px', boxShadow: activeTab === 'import' ? '0 4px 15px rgba(16,185,129,0.25)' : 'none' }}
+            style={{ padding: '10px 20px', background: activeTab === 'import' ? 'linear-gradient(135deg,#059669,#10b981)' : (isLight ? '#ffffff' : '#111'), color: activeTab === 'import' ? '#fff' : (isLight ? '#0f172a' : '#aaa'), border: `1px solid ${activeTab === 'import' ? '#10b981' : (isLight ? '#cbd5e1' : '#222')}`, borderRadius: '8px', cursor: 'pointer', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '7px', boxShadow: activeTab === 'import' ? '0 4px 15px rgba(16,185,129,0.25)' : (isLight ? '0 1px 3px rgba(0,0,0,0.05)' : 'none') }}
           >
             <FileUp size={15} style={{ display: 'inline' }} />
             Імпорт CSV
           </button>
           <button 
             onClick={() => setActiveTab('cutters')}
-            style={{ padding: '10px 20px', background: activeTab === 'cutters' ? '#3b82f6' : '#111', color: '#fff', border: '1px solid #222', borderRadius: '8px', cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '7px' }}
+            style={{ padding: '10px 20px', background: activeTab === 'cutters' ? '#3b82f6' : (isLight ? '#ffffff' : '#111'), color: activeTab === 'cutters' ? '#fff' : (isLight ? '#0f172a' : '#fff'), border: `1px solid ${activeTab === 'cutters' ? '#3b82f6' : (isLight ? '#cbd5e1' : '#222')}`, borderRadius: '8px', cursor: 'pointer', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '7px', boxShadow: isLight ? '0 1px 3px rgba(0,0,0,0.05)' : 'none' }}
           >
             <Sliders size={15} style={{ display: 'inline' }} />
             Налаштування фрез

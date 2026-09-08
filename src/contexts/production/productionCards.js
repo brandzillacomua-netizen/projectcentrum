@@ -647,13 +647,20 @@ export function createProductionCardsActions({
         getDisplayParts(item).forEach(part => {
           if (!part.nom) return
           const partId = String(part.nom.id)
-          const isBZActiveForPart = (customPartBZOverrides && customPartBZOverrides[partId] !== undefined)
-            ? Boolean(customPartBZOverrides[partId])
-            : Boolean(customUseStockBZ)
+          let requestedQtyForBZ = 0
+          if (customPartBZOverrides && customPartBZOverrides[partId] !== undefined) {
+            const ov = customPartBZOverrides[partId]
+            if (typeof ov === 'number' || (!isNaN(ov) && ov !== true && ov !== false && ov !== '')) {
+              requestedQtyForBZ = Math.max(0, Number(ov))
+            } else if (Boolean(ov)) {
+              requestedQtyForBZ = requestedQty * (Number(part.qtyPer) || 1)
+            }
+          } else if (Boolean(customUseStockBZ)) {
+            requestedQtyForBZ = requestedQty * (Number(part.qtyPer) || 1)
+          }
 
-          if (isBZActiveForPart) {
-            const quantity = requestedQty * (Number(part.qtyPer) || 1)
-            bzRequestedByNom[part.nom.id] = (bzRequestedByNom[part.nom.id] || 0) + quantity
+          if (requestedQtyForBZ > 0) {
+            bzRequestedByNom[part.nom.id] = (bzRequestedByNom[part.nom.id] || 0) + requestedQtyForBZ
           }
         })
       })
@@ -690,11 +697,19 @@ export function createProductionCardsActions({
           const allocationKey = String(part.nom.id)
           const allocatedRemaining = bzAllocationRemaining[allocationKey] || 0
 
-          const isBZActiveForPart = (customPartBZOverrides && customPartBZOverrides[allocationKey] !== undefined)
-            ? Boolean(customPartBZOverrides[allocationKey])
-            : Boolean(customUseStockBZ)
+          let usedFromStock = 0
+          if (customPartBZOverrides && customPartBZOverrides[allocationKey] !== undefined) {
+            const ov = customPartBZOverrides[allocationKey]
+            if (typeof ov === 'number' || (!isNaN(ov) && ov !== true && ov !== false && ov !== '')) {
+              const targetQty = Math.max(0, Number(ov))
+              usedFromStock = Math.min(targetQty, totalNeeded, allocatedRemaining)
+            } else if (Boolean(ov)) {
+              usedFromStock = Math.min(totalNeeded, allocatedRemaining)
+            }
+          } else if (Boolean(customUseStockBZ)) {
+            usedFromStock = Math.min(totalNeeded, allocatedRemaining)
+          }
 
-          const usedFromStock = isBZActiveForPart ? Math.min(totalNeeded, allocatedRemaining) : 0
           bzAllocationRemaining[allocationKey] = Math.max(0, allocatedRemaining - usedFromStock)
           const totalToProduce = Math.max(0, totalNeeded - usedFromStock)
           const isManufactured = part.nom.type === 'part' || part.nom.type === 'raw' || !part.nom.type;
@@ -1072,14 +1087,45 @@ export function createProductionCardsActions({
           }
         })
 
+      // Автоматичне формування запитів на комплектування з СГП (для деталей, взятих із залишку замість розкрою)
+      const batchSuffix = (tData?.batch_index && Number(tData.batch_index) > 1) ? ` - Партія ${tData.batch_index}` : ''
+      const orderNum = order?.order_num || (orderId ? String(orderId) : '???')
+
+      const sgpRequestsToInsert = bzStockDeductions
+        .filter(alloc => Number(alloc.quantity) > 0)
+        .map(alloc => {
+          const partNom = (nomenclatures || []).find(n => String(n.id) === String(alloc.nomenclature_id))
+          const partName = partNom?.name || 'Деталь'
+          const sgpInv = (inventory || []).find(i =>
+            String(i.nomenclature_id) === String(alloc.nomenclature_id) &&
+            (i.warehouse === 'sgp' || i.type === 'finished' || i.type === 'bz') &&
+            (!i.pocket_owner || i.pocket_owner === 'Не вказано')
+          )
+          return {
+            order_id: validOrderId,
+            task_id: tData.id,
+            quantity: Number(alloc.quantity),
+            status: 'pending',
+            inventory_id: sgpInv?.id || null,
+            nomenclature_id: alloc.nomenclature_id,
+            details: `ЗАПИТ НА КОМПЛЕКТУВАННЯ (${orderNum}${batchSuffix}) [PACKAGING_SOURCE:SGP]: ${partName} — ${alloc.quantity} шт.`
+          }
+        })
+
+      const allRequestsToInsert = [...requestsToInsert, ...sgpRequestsToInsert]
+
       // ── Run remaining DB writes in parallel (no sequential waits) ─────────
       const parallelWrites = [
         supabase.from('orders').update({ status: 'in-progress' }).eq('id', orderId)
       ]
-      if (requestsToInsert.length > 0) parallelWrites.push(supabase.from('material_requests').insert(requestsToInsert))
+      if (allRequestsToInsert.length > 0) parallelWrites.push(supabase.from('material_requests').insert(allRequestsToInsert))
       const writeResults = await Promise.all(parallelWrites)
       const writeError = writeResults.find(result => result?.error)?.error
       if (writeError) throw writeError
+
+      if (typeof refreshTable === 'function') {
+        refreshTable('material_requests')
+      }
 
       // ── Optimistic state update — no DB refetch needed ────────────────────
       // Real-time subscription already handles INSERT events for tasks & material_requests.

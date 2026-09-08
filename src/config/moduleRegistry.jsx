@@ -37,7 +37,7 @@ export const getAllModules = (badgeCount = 0, chatBadgeCount = 0) => [
 
   // ── ERP Pillar (Ресурси, Склад, Аналітика та Управління) ───────────────────
   { id: 'warehouse', title: 'Склад Оперативний (WMS)', icon: <IconSO />, path: '/warehouse', desc: 'Матеріали, залишки та комплектація', color: '#10b981', pillar: 'erp' },
-  { id: 'warehouse_fgp', title: 'Склад Готової Продукції (СГП)', icon: <IconSGP />, path: '/warehouse-fgp', desc: 'Готова продукція, напівфабрикати, брак та БЗ', color: '#10b981', pillar: 'erp' },
+  { id: 'warehouse_fgp', title: 'Склад Готової Продукції (СГП)', icon: <IconSGP />, path: '/warehouse-fgp', desc: 'Готова продукція, буфер цеху 2, метизи та брак', color: '#10b981', pillar: 'erp' },
   { id: 'supply', title: 'Склад Виробництва', icon: <IconSV />, path: '/supply', desc: 'Управління запасами та запити', color: '#10b981', pillar: 'erp' },
   { id: 'procurement', title: 'Постачання (Procurement)', icon: <ShoppingBag />, path: '/procurement', desc: 'Закупівля ТМЦ у постачальників', color: '#10b981', pillar: 'erp' },
   { id: 'economy', title: 'Економіка & Ціноутворення', icon: <DollarSign />, path: '/economy', desc: 'Прайс-листи, калькуляція собівартості, націнки та маржа', color: '#10b981', pillar: 'erp' },

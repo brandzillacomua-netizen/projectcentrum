@@ -1,6 +1,6 @@
 import React from 'react'
 import { 
-  Cpu, AlertCircle, Sliders, Layers, Upload, CheckCircle2, RefreshCw 
+  Cpu, AlertCircle, Sliders, Layers, Upload, CheckCircle2, RefreshCw, Archive, Search 
 } from 'lucide-react'
 import { TelegramAlertsConfig } from './TelegramAlertsConfig'
 
@@ -77,6 +77,8 @@ export function SettingsSystemAdminTab(props) {
     setFastenersUploadLog,
     setFastenersFile
   } = props
+
+  const [sgpPreviewSearch, setSgpPreviewSearch] = React.useState('')
 
   const inputStyle = { width: '100%', background: '#000', border: '1px solid rgba(255,255,255,0.06)', color: '#fff', padding: '12px', borderRadius: '12px', fontSize: '0.85rem', fontWeight: 600, outline: 'none' }
 
@@ -359,23 +361,23 @@ export function SettingsSystemAdminTab(props) {
         </div>
       </section>
 
-      {/* BZ Remnants Upload — full-width row */}
+      {/* SGP Remnants Upload — full-width row */}
       <section className="settings-panel glass-panel" style={{ background: '#0e0e11', padding: '30px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.04)', gridColumn: '1 / -1' }}>
-        <h3 style={{ fontSize: '1.05rem', fontWeight: 900, marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '10px', color: '#ff9000' }}>
-          <Layers size={20} /> ЗАВАНТАЖЕННЯ ЗАЛИШКІВ БЗ
+        <h3 style={{ fontSize: '1.05rem', fontWeight: 900, marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '10px', color: '#10b981' }}>
+          <Archive size={20} color="#10b981" /> ЗАВАНТАЖЕННЯ ЗАЛИШКІВ СГП
         </h3>
-        <p style={{ fontSize: '0.72rem', color: '#555', marginTop: 0, marginBottom: '24px', lineHeight: '1.5' }}>
-          Завантажте CSV-файл із залишками незавершеного виробництва (БЗ). Система автоматично підбере з яких деталей можна зібрати готові комплекти → переведе їх на <strong style={{ color: '#ff9000' }}>СГП (склад готової продукції)</strong>, а решту залишить на <strong style={{ color: '#60a5fa' }}>БЗ</strong>.
+        <p style={{ fontSize: '0.72rem', color: '#888', marginTop: 0, marginBottom: '24px', lineHeight: '1.5' }}>
+          Завантажте CSV-файл із залишками готових деталей на <strong style={{ color: '#10b981' }}>СГП (склад готової продукції)</strong>. Система швидко оновить та актуалізує залишки деталей на складі готової продукції.
         </p>
 
         {bzUploadStatus === 'idle' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             <div style={{
-              border: '2px dashed rgba(255,144,0,0.3)',
+              border: '2px dashed rgba(16,185,129,0.3)',
               borderRadius: '18px',
               padding: '36px 20px',
               textAlign: 'center',
-              background: 'rgba(255,144,0,0.01)',
+              background: 'rgba(16,185,129,0.02)',
               cursor: 'pointer',
               transition: 'all 0.2s ease',
               position: 'relative',
@@ -389,7 +391,7 @@ export function SettingsSystemAdminTab(props) {
                 onChange={handleBzFileChange}
                 style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }}
               />
-              <Upload size={38} color="#ff9000" style={{ marginBottom: '14px', opacity: 0.8, marginLeft: 'auto', marginRight: 'auto' }} />
+              <Upload size={38} color="#10b981" style={{ marginBottom: '14px', opacity: 0.8, marginLeft: 'auto', marginRight: 'auto' }} />
               <h4 style={{ margin: '0 0 6px 0', fontSize: '0.9rem', fontWeight: 800 }}>Оберіть або перетягніть CSV файл</h4>
               <p style={{ margin: 0, fontSize: '0.7rem', color: '#666', fontWeight: 600 }}>Очікуваний формат: колонка «Номенклатура» та колонка «Склад» (кількість)</p>
             </div>
@@ -397,11 +399,11 @@ export function SettingsSystemAdminTab(props) {
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <span style={{ fontSize: '0.72rem', color: '#888', fontWeight: 700 }}>Режим запису:</span>
               <div style={{ display: 'flex', gap: '6px' }}>
-                {[{ v: 'add', label: '+ Додати до наявного' }, { v: 'overwrite', label: '✎ Перезаписати' }].map(opt => (
+                {[{ v: 'overwrite', label: '✎ Перезаписати' }, { v: 'add', label: '+ Додати до наявного' }].map(opt => (
                   <button key={opt.v} onClick={() => setBzRecordMode(opt.v)} type="button" style={{
-                    background: bzRecordMode === opt.v ? 'rgba(255,144,0,0.12)' : 'transparent',
-                    border: bzRecordMode === opt.v ? '1px solid #ff9000' : '1px solid rgba(255,255,255,0.07)',
-                    color: bzRecordMode === opt.v ? '#ff9000' : '#888',
+                    background: bzRecordMode === opt.v ? 'rgba(16,185,129,0.15)' : 'transparent',
+                    border: bzRecordMode === opt.v ? '1.5px solid #10b981' : '1px solid rgba(255,255,255,0.07)',
+                    color: bzRecordMode === opt.v ? '#34d399' : '#888',
                     padding: '6px 14px', borderRadius: '8px', fontSize: '0.7rem', fontWeight: 800, cursor: 'pointer', transition: '0.2s'
                   }}>{opt.label}</button>
                 ))}
@@ -410,156 +412,163 @@ export function SettingsSystemAdminTab(props) {
           </div>
         )}
 
-        {bzUploadStatus === 'preview' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap' }}>
-              {[
-                { label: 'Комплектів на СГП', val: bzAssembledKits.length, color: '#10b981' },
-                { label: 'Залишків на БЗ', val: bzLeftovers.length, color: '#60a5fa' },
-                { label: 'Не розпізнано', val: bzUnrecognized.length, color: '#ef4444' },
-              ].map(s => (
-                <div key={s.label} style={{ background: 'rgba(0,0,0,0.25)', border: `1px solid ${s.color}22`, borderRadius: '14px', padding: '12px 20px', minWidth: '160px' }}>
-                  <div style={{ fontSize: '1.4rem', fontWeight: 900, color: s.color }}>{s.val}</div>
-                  <div style={{ fontSize: '0.68rem', color: '#888', fontWeight: 700, marginTop: '2px' }}>{s.label}</div>
-                </div>
-              ))}
-            </div>
+        {bzUploadStatus === 'preview' && (() => {
+          const changedItems = bzLeftovers.filter(l => {
+            const cur = Number(l.currentQty || 0)
+            const target = bzRecordMode === 'add' ? cur + l.qty : l.qty
+            return target !== cur
+          })
+          const newItems = bzUnrecognized || []
 
-            <div style={{ display: 'inline-flex', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)', padding: '5px', borderRadius: '14px', gap: '4px' }}>
-              {[
-                { id: 'kits', label: `🏭 Комплекти СГП (${bzAssembledKits.length})` },
-                { id: 'leftovers', label: `📦 Залишки БЗ (${bzLeftovers.length})` },
-                { id: 'unrecognized', label: `⚠️ Не розпізнано (${bzUnrecognized.length})` },
-              ].map(t => (
-                <button key={t.id} onClick={() => setBzActivePreviewTab(t.id)} type="button" className={`tab-btn-v2 ${bzActivePreviewTab === t.id ? 'active' : ''}`}>
-                  {t.label}
-                </button>
-              ))}
-            </div>
+          let filteredRows = bzLeftovers
+          if (bzActivePreviewTab === 'changed') {
+            filteredRows = changedItems
+          } else if (bzActivePreviewTab === 'new') {
+            filteredRows = bzLeftovers.filter(l => l.isNew)
+          }
 
-            {bzActivePreviewTab === 'kits' && (
-              <div style={{ maxHeight: '320px', overflowY: 'auto', border: '1px solid rgba(255,255,255,0.04)', borderRadius: '14px', background: 'rgba(0,0,0,0.12)' }} className="custom-scroll">
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left' }}>
-                  <thead>
-                    <tr style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid rgba(255,255,255,0.05)', color: '#666' }}>
-                      <th style={{ padding: '10px 16px' }}>Виріб (СГП)</th>
-                      <th style={{ padding: '10px 16px', textAlign: 'center' }}>К-сть комплектів</th>
-                      <th style={{ padding: '10px 16px' }}>Деталі що увійшли</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {bzAssembledKits.map((kit, i) => (
-                      <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
-                        <td style={{ padding: '10px 16px', fontWeight: 800, color: '#10b981' }}>{kit.product.name}</td>
-                        <td style={{ padding: '10px 16px', textAlign: 'center', fontWeight: 900, fontSize: '1.0rem', color: '#fff' }}>{kit.qty}</td>
-                        <td style={{ padding: '10px 16px', color: '#888', fontSize: '0.68rem', lineHeight: '1.6' }}>
-                          {kit.consumed.map((c, ci) => <span key={ci} style={{ display: 'inline-block', marginRight: '8px' }}>{c.name} ×{c.qty}</span>)}
-                        </td>
-                      </tr>
-                    ))}
-                    {bzAssembledKits.length === 0 && (
-                      <tr><td colSpan={3} style={{ padding: '24px', textAlign: 'center', color: '#555', fontSize: '0.75rem' }}>Жодного комплекту зібрати не вдалося</td></tr>
-                    )}
-                  </tbody>
-                </table>
+          if (sgpPreviewSearch.trim()) {
+            const q = sgpPreviewSearch.toLowerCase().trim()
+            filteredRows = filteredRows.filter(l => (l.name || '').toLowerCase().includes(q))
+          }
+
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap' }}>
+                {[
+                  { label: 'Позицій для СГП', val: bzLeftovers.length, color: '#10b981' },
+                  { label: 'Загальна к-сть у файлі', val: bzLeftovers.reduce((s, it) => s + (it.qty || 0), 0).toLocaleString('uk-UA') + ' шт', color: '#34d399' },
+                  { label: 'Зі зміною залишку', val: changedItems.length, color: '#38bdf8' },
+                  { label: 'Нових найменувань', val: newItems.length, color: newItems.length > 0 ? '#fbbf24' : '#64748b' },
+                ].map(s => (
+                  <div key={s.label} style={{ background: 'rgba(0,0,0,0.25)', border: `1px solid ${s.color}22`, borderRadius: '14px', padding: '12px 20px', minWidth: '150px' }}>
+                    <div style={{ fontSize: '1.35rem', fontWeight: 900, color: s.color }}>{s.val}</div>
+                    <div style={{ fontSize: '0.68rem', color: '#888', fontWeight: 700, marginTop: '2px' }}>{s.label}</div>
+                  </div>
+                ))}
               </div>
-            )}
 
-            {bzActivePreviewTab === 'leftovers' && (
-              <div style={{ maxHeight: '320px', overflowY: 'auto', border: '1px solid rgba(255,255,255,0.04)', borderRadius: '14px', background: 'rgba(0,0,0,0.12)' }} className="custom-scroll">
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left' }}>
-                  <thead>
-                    <tr style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid rgba(255,255,255,0.05)', color: '#666' }}>
-                      <th style={{ padding: '10px 16px' }}>Номенклатура</th>
-                      <th style={{ padding: '10px 16px' }}>Тип</th>
-                      <th style={{ padding: '10px 16px', textAlign: 'center' }}>Кількість (шт)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {bzLeftovers.map((l, i) => (
-                      <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
-                        <td style={{ padding: '10px 16px', fontWeight: 700, color: '#60a5fa' }}>{l.name}</td>
-                        <td style={{ padding: '10px 16px', color: '#888', fontSize: '0.68rem' }}>{l.type || '—'}</td>
-                        <td style={{ padding: '10px 16px', textAlign: 'center', fontWeight: 800 }}>{l.qty}</td>
-                      </tr>
-                    ))}
-                    {bzLeftovers.length === 0 && (
-                      <tr><td colSpan={3} style={{ padding: '24px', textAlign: 'center', color: '#555', fontSize: '0.75rem' }}>Залишків немає</td></tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            {bzActivePreviewTab === 'unrecognized' && (
-              <div style={{ maxHeight: '320px', overflowY: 'auto', border: '1px solid rgba(255,255,255,0.04)', borderRadius: '14px', background: 'rgba(0,0,0,0.12)' }} className="custom-scroll">
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left' }}>
-                  <thead>
-                    <tr style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid rgba(255,255,255,0.05)', color: '#666' }}>
-                      <th style={{ padding: '10px 16px' }}>Назва у файлі</th>
-                      <th style={{ padding: '10px 16px', textAlign: 'center' }}>Рядок</th>
-                      <th style={{ padding: '10px 16px', textAlign: 'center' }}>К-сть</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {bzUnrecognized.map((u, i) => (
-                      <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
-                        <td style={{ padding: '10px 16px', color: '#ef4444', fontWeight: 700 }}>{u.name}</td>
-                        <td style={{ padding: '10px 16px', textAlign: 'center', color: '#666' }}>{u.rowNum}</td>
-                        <td style={{ padding: '10px 16px', textAlign: 'center', fontWeight: 800 }}>{u.qty}</td>
-                      </tr>
-                    ))}
-                    {bzUnrecognized.length === 0 && (
-                      <tr><td colSpan={3} style={{ padding: '24px', textAlign: 'center', color: '#555', fontSize: '0.75rem' }}>Всі позиції розпізнано ✅</td></tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '18px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <span style={{ fontSize: '0.72rem', color: '#888', fontWeight: 700 }}>Режим запису:</span>
-                <div style={{ display: 'flex', gap: '6px' }}>
-                  {[{ v: 'add', label: '+ Додати' }, { v: 'overwrite', label: '✎ Перезаписати' }].map(opt => (
-                    <button key={opt.v} onClick={() => setBzRecordMode(opt.v)} type="button" style={{
-                      background: bzRecordMode === opt.v ? 'rgba(255,144,0,0.12)' : 'transparent',
-                      border: bzRecordMode === opt.v ? '1px solid #ff9000' : '1px solid rgba(255,255,255,0.07)',
-                      color: bzRecordMode === opt.v ? '#ff9000' : '#888',
-                      padding: '6px 12px', borderRadius: '8px', fontSize: '0.7rem', fontWeight: 800, cursor: 'pointer', transition: '0.2s'
-                    }}>{opt.label}</button>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
+                <div style={{ display: 'inline-flex', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)', padding: '5px', borderRadius: '14px', gap: '4px' }}>
+                  {[
+                    { id: 'all', label: `📦 Всі позиції (${bzLeftovers.length})` },
+                    { id: 'changed', label: `⚡ Зі зміною (${changedItems.length})` },
+                    { id: 'new', label: `✨ Нові (${newItems.length})` },
+                  ].map(t => (
+                    <button key={t.id} onClick={() => setBzActivePreviewTab(t.id)} type="button" className={`tab-btn-v2 ${bzActivePreviewTab === t.id ? 'active' : ''}`}>
+                      {t.label}
+                    </button>
                   ))}
                 </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '12px', padding: '6px 14px', minWidth: '220px' }}>
+                  <Search size={14} color="#888" />
+                  <input
+                    type="text"
+                    placeholder="Швидкий пошук деталі..."
+                    value={sgpPreviewSearch}
+                    onChange={e => setSgpPreviewSearch(e.target.value)}
+                    style={{ background: 'transparent', border: 'none', color: '#fff', fontSize: '0.74rem', outline: 'none', width: '100%' }}
+                  />
+                  {sgpPreviewSearch && (
+                    <button type="button" onClick={() => setSgpPreviewSearch('')} style={{ background: 'transparent', border: 'none', color: '#888', cursor: 'pointer', fontSize: '0.75rem' }}>✕</button>
+                  )}
+                </div>
               </div>
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <button
-                  type="button"
-                  onClick={() => { setBzUploadStatus('idle'); setBzFile(null); setBzAssembledKits([]); setBzLeftovers([]); setBzUnrecognized([]) }}
-                  style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', color: '#aaa', padding: '12px 22px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer' }}
-                >← НАЗАД</button>
-                <button
-                  type="button"
-                  onClick={executeBzUpload}
-                  disabled={bzAssembledKits.length === 0 && bzLeftovers.length === 0 && bzUnrecognized.filter(u => u.qty > 0).length === 0}
-                  style={{
-                    background: (bzAssembledKits.length === 0 && bzLeftovers.length === 0 && bzUnrecognized.filter(u => u.qty > 0).length === 0) ? '#222' : 'linear-gradient(135deg, #ff9000, #ff6a00)',
-                    border: 'none', color: (bzAssembledKits.length === 0 && bzLeftovers.length === 0 && bzUnrecognized.filter(u => u.qty > 0).length === 0) ? '#555' : '#000',
-                    padding: '12px 28px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: 900,
-                    cursor: (bzAssembledKits.length === 0 && bzLeftovers.length === 0 && bzUnrecognized.filter(u => u.qty > 0).length === 0) ? 'not-allowed' : 'pointer',
-                    display: 'flex', alignItems: 'center', gap: '8px'
-                  }}
-                >
-                  <Upload size={16} /> ЗАПИСАТИ В СИСТЕМУ ({bzAssembledKits.length + bzLeftovers.length + bzUnrecognized.filter(u => u.qty > 0).length} позицій)
-                </button>
+
+              <div style={{ maxHeight: '380px', overflowY: 'auto', border: '1px solid rgba(255,255,255,0.04)', borderRadius: '14px', background: 'rgba(0,0,0,0.12)' }} className="custom-scroll">
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left' }}>
+                  <thead>
+                    <tr style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid rgba(255,255,255,0.05)', color: '#888' }}>
+                      <th style={{ padding: '10px 16px' }}>Деталь (СГП)</th>
+                      <th style={{ padding: '10px 16px', textAlign: 'center' }}>Було на СГП</th>
+                      <th style={{ padding: '10px 16px', textAlign: 'center' }}>У файлі (CSV)</th>
+                      <th style={{ padding: '10px 16px', textAlign: 'center' }}>Стане на СГП</th>
+                      <th style={{ padding: '10px 16px', textAlign: 'center' }}>Різниця</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredRows.map((l, i) => {
+                      const cur = Number(l.currentQty || 0)
+                      const target = bzRecordMode === 'add' ? cur + l.qty : l.qty
+                      const diff = target - cur
+                      return (
+                        <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
+                          <td style={{ padding: '10px 16px', fontWeight: 800, color: '#f8fafc' }}>
+                            {l.name}
+                            {l.isNew && (
+                              <span style={{ fontSize: '0.6rem', fontWeight: 800, padding: '2px 6px', borderRadius: '6px', background: 'rgba(16,185,129,0.15)', color: '#34d399', marginLeft: '8px' }}>✨ НОВА</span>
+                            )}
+                          </td>
+                          <td style={{ padding: '10px 16px', textAlign: 'center', color: '#94a3b8' }}>
+                            {l.isNew ? <span style={{ color: '#64748b' }}>— (нова)</span> : `${cur.toLocaleString('uk-UA')} шт`}
+                          </td>
+                          <td style={{ padding: '10px 16px', textAlign: 'center', fontWeight: 800, color: '#38bdf8' }}>{l.qty.toLocaleString('uk-UA')} шт</td>
+                          <td style={{ padding: '10px 16px', textAlign: 'center', fontWeight: 900, color: '#34d399' }}>{target.toLocaleString('uk-UA')} шт</td>
+                          <td style={{ padding: '10px 16px', textAlign: 'center', fontWeight: 800 }}>
+                            {diff > 0 ? (
+                              <span style={{ color: '#34d399' }}>+{diff.toLocaleString('uk-UA')}</span>
+                            ) : diff < 0 ? (
+                              <span style={{ color: '#ef4444' }}>{diff.toLocaleString('uk-UA')}</span>
+                            ) : (
+                              <span style={{ color: '#64748b' }}>0</span>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                    {filteredRows.length === 0 && (
+                      <tr><td colSpan={5} style={{ padding: '24px', textAlign: 'center', color: '#555', fontSize: '0.75rem' }}>Не знайдено позицій за поточним фільтром</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '18px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ fontSize: '0.72rem', color: '#888', fontWeight: 700 }}>Режим запису:</span>
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    {[{ v: 'overwrite', label: '✎ Перезаписати' }, { v: 'add', label: '+ Додати' }].map(opt => (
+                      <button key={opt.v} onClick={() => setBzRecordMode(opt.v)} type="button" style={{
+                        background: bzRecordMode === opt.v ? 'rgba(16,185,129,0.15)' : 'transparent',
+                        border: bzRecordMode === opt.v ? '1.5px solid #10b981' : '1px solid rgba(255,255,255,0.07)',
+                        color: bzRecordMode === opt.v ? '#34d399' : '#888',
+                        padding: '6px 12px', borderRadius: '8px', fontSize: '0.7rem', fontWeight: 800, cursor: 'pointer', transition: '0.2s'
+                      }}>{opt.label}</button>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button
+                    type="button"
+                    onClick={() => { setBzUploadStatus('idle'); setBzFile(null); setBzAssembledKits([]); setBzLeftovers([]); setBzUnrecognized([]) }}
+                    style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', color: '#aaa', padding: '12px 22px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer' }}
+                  >← НАЗАД</button>
+                  <button
+                    type="button"
+                    onClick={executeBzUpload}
+                    disabled={bzLeftovers.length === 0}
+                    style={{
+                      background: bzLeftovers.length === 0 ? '#222' : 'linear-gradient(135deg, #10b981, #059669)',
+                      border: 'none', color: bzLeftovers.length === 0 ? '#555' : '#fff',
+                      padding: '12px 28px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: 900,
+                      cursor: bzLeftovers.length === 0 ? 'not-allowed' : 'pointer',
+                      display: 'flex', alignItems: 'center', gap: '8px',
+                      boxShadow: '0 4px 14px rgba(16,185,129,0.25)'
+                    }}
+                  >
+                    <Upload size={16} /> АКТУАЛІЗУВАТИ СГП ({bzLeftovers.length} позицій)
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )
+        })()}
 
         {bzUploadStatus === 'uploading' && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '18px', padding: '30px 0' }}>
-            <div className="spinner-mes" style={{ width: '44px', height: '44px', borderRadius: '50%', border: '3px solid rgba(255,144,0,0.15)', borderTopColor: '#ff9000', animation: 'spin 1s linear infinite' }} />
-            <div style={{ fontSize: '0.85rem', color: '#aaa', fontWeight: 700 }}>Запис даних у базу...</div>
+            <div className="spinner-mes" style={{ width: '44px', height: '44px', borderRadius: '50%', border: '3px solid rgba(16,185,129,0.15)', borderTopColor: '#10b981', animation: 'spin 1s linear infinite' }} />
+            <div style={{ fontSize: '0.85rem', color: '#aaa', fontWeight: 700 }}>Швидка актуалізація деталей на СГП у базі даних...</div>
             <pre style={{ background: '#000', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '12px', padding: '14px', color: '#00ff66', fontFamily: 'monospace', fontSize: '0.7rem', width: '100%', maxWidth: '640px', maxHeight: '180px', overflowY: 'auto', whiteSpace: 'pre-wrap', margin: 0 }} className="custom-scroll">{bzUploadLog}</pre>
           </div>
         )}
@@ -567,10 +576,10 @@ export function SettingsSystemAdminTab(props) {
         {bzUploadStatus === 'success' && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', padding: '24px 0' }}>
             <CheckCircle2 size={52} color="#10b981" />
-            <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 900, color: '#fff' }}>ЗАВАНТАЖЕННЯ ЗАВЕРШЕНО УСПІШНО!</h4>
-            <p style={{ margin: 0, fontSize: '0.78rem', color: '#aaa', textAlign: 'center' }}>Склад оновлено: комплекти передано на СГП, залишки оприбутковано на БЗ.</p>
+            <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 900, color: '#fff' }}>ЗАВАНТАЖЕННЯ СГП ЗАВЕРШЕНО УСПІШНО!</h4>
+            <p style={{ margin: 0, fontSize: '0.78rem', color: '#aaa', textAlign: 'center' }}>Склад готової продукції (СГП) успішно оновлено за даними завантаженого файлу.</p>
             <pre style={{ background: '#000', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '12px', padding: '14px', color: '#00ff66', fontFamily: 'monospace', fontSize: '0.7rem', width: '100%', maxWidth: '640px', maxHeight: '180px', overflowY: 'auto', whiteSpace: 'pre-wrap', margin: 0 }} className="custom-scroll">{bzUploadLog}</pre>
-            <button type="button" onClick={() => { setBzUploadStatus('idle'); setBzFile(null); setBzAssembledKits([]); setBzLeftovers([]); setBzUnrecognized([]); setBzUploadLog('') }} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', color: '#fff', padding: '12px 28px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: 800, cursor: 'pointer', marginTop: '6px' }}>
+            <button type="button" onClick={() => { setBzUploadStatus('idle'); setBzFile(null); setBzAssembledKits([]); setBzLeftovers([]); setBzUnrecognized([]); setBzUploadLog('') }} style={{ background: '#10b981', color: '#fff', border: 'none', padding: '12px 28px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: 900, cursor: 'pointer', marginTop: '6px', boxShadow: '0 4px 14px rgba(16,185,129,0.25)' }}>
               ЗАВАНТАЖИТИ НАСТУПНИЙ ФАЙЛ
             </button>
           </div>
@@ -579,7 +588,7 @@ export function SettingsSystemAdminTab(props) {
         {bzUploadStatus === 'error' && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', padding: '24px 0' }}>
             <AlertCircle size={52} color="#ef4444" />
-            <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 900, color: '#fff' }}>ПОМИЛКА ПРИ ЗАПИСІ</h4>
+            <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 900, color: '#fff' }}>ПОМИЛКА ПРИ ЗАПИСІ В СГП</h4>
             <pre style={{ background: '#000', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '12px', padding: '14px', color: '#ef4444', fontFamily: 'monospace', fontSize: '0.7rem', width: '100%', maxWidth: '640px', maxHeight: '180px', overflowY: 'auto', whiteSpace: 'pre-wrap', margin: 0 }} className="custom-scroll">{bzUploadLog}</pre>
             <button type="button" onClick={() => { setBzUploadStatus('preview') }} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', color: '#fff', padding: '12px 28px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: 800, cursor: 'pointer' }}>
               ← ПОВЕРНУТИСЬ ДО ПЕРЕГЛЯДУ

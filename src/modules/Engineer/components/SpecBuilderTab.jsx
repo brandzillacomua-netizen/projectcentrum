@@ -26,8 +26,70 @@ import { BomRow } from './BomRow'
 import { NomCreateModal } from './NomCreateModal'
 
 export function SpecBuilderTab() {
-  const { nomenclatures: rawNoms, bomItems, supabase, refreshTable, machineOperations, machines } = useMES()
+  const { nomenclatures: rawNoms, bomItems, supabase, refreshTable, machineOperations, machines, theme } = useMES()
   const v2Noms = useV2NomenclaturesData(supabase)
+
+  const [isLight, setIsLight] = useState(() => {
+    if (theme) return theme === 'light'
+    if (typeof document !== 'undefined') return document.body.classList.contains('light-theme')
+    return false
+  })
+
+  useEffect(() => {
+    const check = () => {
+      if (theme) {
+        setIsLight(theme === 'light')
+      } else if (typeof document !== 'undefined') {
+        setIsLight(document.body.classList.contains('light-theme'))
+      }
+    }
+    check()
+    if (typeof MutationObserver === 'undefined') return
+    const observer = new MutationObserver(check)
+    observer.observe(document.body, { attributes: true, attributeFilter: ['class'] })
+    return () => observer.disconnect()
+  }, [theme])
+
+  const modalTheme = useMemo(() => {
+    if (isLight) {
+      return {
+        overlayBg: 'rgba(15, 23, 42, 0.45)',
+        cardBg: '#ffffff',
+        cardBorder: '#cbd5e1',
+        divider: '#e2e8f0',
+        cardHeaderBg: '#f8fafc',
+        boxBorder: '#cbd5e1',
+        inputBg: '#ffffff',
+        inputBorder: '#cbd5e1',
+        inputText: '#0f172a',
+        textMain: '#0f172a',
+        textMuted: '#64748b',
+        boxTitle: '#334155',
+        dashBorder: '#cbd5e1',
+        addBtnColor: '#2563eb',
+        boxShadow: '0 20px 50px rgba(15, 23, 42, 0.15)',
+        closeBtnColor: '#64748b'
+      }
+    }
+    return {
+      overlayBg: 'rgba(0,0,0,0.85)',
+      cardBg: '#111114',
+      cardBorder: '#27272a',
+      divider: '#27272a',
+      cardHeaderBg: '#18181b',
+      boxBorder: '#27272a',
+      inputBg: '#09090b',
+      inputBorder: '#3f3f46',
+      inputText: '#f8fafc',
+      textMain: '#f8fafc',
+      textMuted: '#a1a1aa',
+      boxTitle: '#e4e4e7',
+      dashBorder: '#3f3f46',
+      addBtnColor: '#38bdf8',
+      boxShadow: '0 20px 50px rgba(0,0,0,0.8)',
+      closeBtnColor: '#71717a'
+    }
+  }, [isLight])
 
   const nomenclatures = useMemo(() => {
     const map = new Map()
@@ -442,20 +504,51 @@ export function SpecBuilderTab() {
       </div>
 
       {activeInlinePart && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)', zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-          <div style={{ background: 'var(--card-bg, #111)', border: '1px solid var(--border-color, #2a2a5a)', borderRadius: '24px', width: '100%', maxWidth: '680px', padding: '30px', boxShadow: '0 20px 50px rgba(0,0,0,0.8)', maxHeight: '90vh', overflowY: 'auto', color: 'var(--text-main, #fff)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid var(--border-color, #222)', paddingBottom: '15px' }}>
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: modalTheme.overlayBg,
+          backdropFilter: 'blur(8px)',
+          zIndex: 3000,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '20px',
+          '--card-bg': modalTheme.cardBg,
+          '--card-header-bg': modalTheme.cardHeaderBg,
+          '--border-color': modalTheme.cardBorder,
+          '--input-bg': modalTheme.inputBg,
+          '--text-main': modalTheme.textMain,
+          '--text-muted': modalTheme.textMuted
+        }}>
+          <div style={{
+            background: modalTheme.cardBg,
+            border: `1px solid ${modalTheme.cardBorder}`,
+            borderRadius: '24px',
+            width: '100%',
+            maxWidth: '680px',
+            padding: '30px',
+            boxShadow: modalTheme.boxShadow,
+            maxHeight: '90vh',
+            overflowY: 'auto',
+            color: modalTheme.textMain
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: `1px solid ${modalTheme.divider}`, paddingBottom: '15px' }}>
               <div>
-                <span style={{ fontSize: '0.7rem', color: '#6366f1', fontWeight: 900, textTransform: 'uppercase' }}>Операції для деталі</span>
-                <h3 style={{ margin: '4px 0 0 0', fontSize: '1.2rem', fontWeight: 900, color: 'var(--text-main, #fff)' }}>{activeInlinePart.name}</h3>
+                <span style={{ fontSize: '0.7rem', color: '#6366f1', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Операції для деталі</span>
+                <h3 style={{ margin: '4px 0 0 0', fontSize: '1.2rem', fontWeight: 900, color: modalTheme.textMain }}>{activeInlinePart.name}</h3>
               </div>
-              <button onClick={() => { setActiveInlinePart(null); setSelectedMachine('') }} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted, #555)', cursor: 'pointer' }}><X size={22}/></button>
+              <button onClick={() => { setActiveInlinePart(null); setSelectedMachine('') }} style={{ background: 'transparent', border: 'none', color: modalTheme.closeBtnColor, cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '4px' }}><X size={22}/></button>
             </div>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
               <div>
-                <label style={{ fontSize: '0.7rem', color: 'var(--text-muted, #666)', fontWeight: 800, textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>Оберіть верстат</label>
-                <select value={selectedMachine} onChange={e => setSelectedMachine(e.target.value)} style={{ width: '100%', padding: '12px', background: 'var(--input-bg, #000)', border: '1px solid var(--border-color, #333)', color: 'var(--text-main, #fff)', borderRadius: '10px', fontSize: '0.9rem' }}>
+                <label style={{ fontSize: '0.7rem', color: modalTheme.textMuted, fontWeight: 800, textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>Оберіть верстат</label>
+                <select
+                  value={selectedMachine}
+                  onChange={e => setSelectedMachine(e.target.value)}
+                  style={{ width: '100%', padding: '12px', background: modalTheme.inputBg, border: `1px solid ${modalTheme.inputBorder}`, color: modalTheme.inputText, borderRadius: '10px', fontSize: '0.9rem', outline: 'none' }}
+                >
                   <option value="">-- Оберіть тип верстата --</option>
                   {MACHINE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
@@ -464,65 +557,43 @@ export function SpecBuilderTab() {
               {selectedMachine && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                    <div style={{ flex: 1, minWidth: '180px', background: 'var(--card-header-bg, #0a0a0a)', padding: '12px', borderRadius: '12px', border: '1px solid var(--border-color, #222)' }}>
-                      <h5 style={{ margin: '0 0 8px 0', fontSize: '0.75rem', color: 'var(--text-muted, #64748b)' }}>1 сторона</h5>
-                      {side1Ops.map((op, idx) => (
-                        <div key={idx} style={{ display: 'flex', gap: '5px', marginBottom: '5px' }}>
-                          <input value={op} onChange={e => { const copy = [...side1Ops]; copy[idx] = e.target.value; setSide1Ops(copy) }} style={{ flex: 1, padding: '6px', background: 'var(--input-bg, #000)', border: '1px solid var(--border-color, #222)', color: 'var(--text-main, #fff)', borderRadius: '6px', fontSize: '0.75rem' }} />
-                          <button onClick={() => setSide1Ops(side1Ops.filter((_, i) => i !== idx))} style={{ background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: '6px', padding: '0 8px', cursor: 'pointer' }}><Trash2 size={12}/></button>
-                        </div>
-                      ))}
-                      <button onClick={() => setSide1Ops([...side1Ops, ''])} style={{ width: '100%', padding: '5px', background: 'transparent', border: '1px dashed var(--border-color, #333)', color: '#3b82f6', borderRadius: '6px', cursor: 'pointer', fontSize: '0.7rem' }}>+ Додати</button>
-                    </div>
-
-                    <div style={{ flex: 1, minWidth: '180px', background: 'var(--card-header-bg, #0a0a0a)', padding: '12px', borderRadius: '12px', border: '1px solid var(--border-color, #222)' }}>
-                      <h5 style={{ margin: '0 0 8px 0', fontSize: '0.75rem', color: 'var(--text-muted, #64748b)' }}>2 сторона (Ф2)</h5>
-                      {side2OpsF2.map((op, idx) => (
-                        <div key={idx} style={{ display: 'flex', gap: '5px', marginBottom: '5px' }}>
-                          <input value={op} onChange={e => { const copy = [...side2OpsF2]; copy[idx] = e.target.value; setSide2OpsF2(copy) }} style={{ flex: 1, padding: '6px', background: 'var(--input-bg, #000)', border: '1px solid var(--border-color, #222)', color: 'var(--text-main, #fff)', borderRadius: '6px', fontSize: '0.75rem' }} />
-                          <button onClick={() => setSide2OpsF2(side2OpsF2.filter((_, i) => i !== idx))} style={{ background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: '6px', padding: '0 8px', cursor: 'pointer' }}><Trash2 size={12}/></button>
-                        </div>
-                      ))}
-                      <button onClick={() => setSide2OpsF2([...side2OpsF2, ''])} style={{ width: '100%', padding: '5px', background: 'transparent', border: '1px dashed var(--border-color, #333)', color: '#3b82f6', borderRadius: '6px', cursor: 'pointer', fontSize: '0.7rem' }}>+ Додати</button>
-                    </div>
-
-                    <div style={{ flex: 1, minWidth: '180px', background: 'var(--card-header-bg, #0a0a0a)', padding: '12px', borderRadius: '12px', border: '1px solid var(--border-color, #222)' }}>
-                      <h5 style={{ margin: '0 0 8px 0', fontSize: '0.75rem', color: 'var(--text-muted, #64748b)' }}>2 сторона (Ф1.5)</h5>
-                      {side2OpsF15.map((op, idx) => (
-                        <div key={idx} style={{ display: 'flex', gap: '5px', marginBottom: '5px' }}>
-                          <input value={op} onChange={e => { const copy = [...side2OpsF15]; copy[idx] = e.target.value; setSide2OpsF15(copy) }} style={{ flex: 1, padding: '6px', background: 'var(--input-bg, #000)', border: '1px solid var(--border-color, #222)', color: 'var(--text-main, #fff)', borderRadius: '6px', fontSize: '0.75rem' }} />
-                          <button onClick={() => setSide2OpsF15(side2OpsF15.filter((_, i) => i !== idx))} style={{ background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: '6px', padding: '0 8px', cursor: 'pointer' }}><Trash2 size={12}/></button>
-                        </div>
-                      ))}
-                      <button onClick={() => setSide2OpsF15([...side2OpsF15, ''])} style={{ width: '100%', padding: '5px', background: 'transparent', border: '1px dashed var(--border-color, #333)', color: '#3b82f6', borderRadius: '6px', cursor: 'pointer', fontSize: '0.7rem' }}>+ Додати</button>
-                    </div>
-
-                    <div style={{ flex: 1, minWidth: '180px', background: 'var(--card-header-bg, #0a0a0a)', padding: '12px', borderRadius: '12px', border: '1px solid var(--border-color, #222)' }}>
-                      <h5 style={{ margin: '0 0 8px 0', fontSize: '0.75rem', color: 'var(--text-muted, #64748b)' }}>Вирізка (Ф2)</h5>
-                      {side2CutOpsF2.map((op, idx) => (
-                        <div key={idx} style={{ display: 'flex', gap: '5px', marginBottom: '5px' }}>
-                          <input value={op} onChange={e => { const copy = [...side2CutOpsF2]; copy[idx] = e.target.value; setSide2CutOpsF2(copy) }} style={{ flex: 1, padding: '6px', background: 'var(--input-bg, #000)', border: '1px solid var(--border-color, #222)', color: 'var(--text-main, #fff)', borderRadius: '6px', fontSize: '0.75rem' }} />
-                          <button onClick={() => setSide2CutOpsF2(side2CutOpsF2.filter((_, i) => i !== idx))} style={{ background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: '6px', padding: '0 8px', cursor: 'pointer' }}><Trash2 size={12}/></button>
-                        </div>
-                      ))}
-                      <button onClick={() => setSide2CutOpsF2([...side2CutOpsF2, ''])} style={{ width: '100%', padding: '5px', background: 'transparent', border: '1px dashed var(--border-color, #333)', color: '#3b82f6', borderRadius: '6px', cursor: 'pointer', fontSize: '0.7rem' }}>+ Додати</button>
-                    </div>
-
-                    <div style={{ flex: 1, minWidth: '180px', background: 'var(--card-header-bg, #0a0a0a)', padding: '12px', borderRadius: '12px', border: '1px solid var(--border-color, #222)' }}>
-                      <h5 style={{ margin: '0 0 8px 0', fontSize: '0.75rem', color: 'var(--text-muted, #64748b)' }}>Вирізка (Ф1.5)</h5>
-                      {side2CutOpsF15.map((op, idx) => (
-                        <div key={idx} style={{ display: 'flex', gap: '5px', marginBottom: '5px' }}>
-                          <input value={op} onChange={e => { const copy = [...side2CutOpsF15]; copy[idx] = e.target.value; setSide2CutOpsF15(copy) }} style={{ flex: 1, padding: '6px', background: 'var(--input-bg, #000)', border: '1px solid var(--border-color, #222)', color: 'var(--text-main, #fff)', borderRadius: '6px', fontSize: '0.75rem' }} />
-                          <button onClick={() => setSide2CutOpsF15(side2CutOpsF15.filter((_, i) => i !== idx))} style={{ background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: '6px', padding: '0 8px', cursor: 'pointer' }}><Trash2 size={12}/></button>
-                        </div>
-                      ))}
-                      <button onClick={() => setSide2CutOpsF15([...side2CutOpsF15, ''])} style={{ width: '100%', padding: '5px', background: 'transparent', border: '1px dashed var(--border-color, #333)', color: '#3b82f6', borderRadius: '6px', cursor: 'pointer', fontSize: '0.7rem' }}>+ Додати</button>
-                    </div>
+                    {[
+                      { title: '1 сторона', ops: side1Ops, setOps: setSide1Ops },
+                      { title: '2 сторона (Ф2)', ops: side2OpsF2, setOps: setSide2OpsF2 },
+                      { title: '2 сторона (Ф1.5)', ops: side2OpsF15, setOps: setSide2OpsF15 },
+                      { title: 'Вирізка (Ф2)', ops: side2CutOpsF2, setOps: setSide2CutOpsF2 },
+                      { title: 'Вирізка (Ф1.5)', ops: side2CutOpsF15, setOps: setSide2CutOpsF15 },
+                    ].map((box, bIdx) => (
+                      <div key={bIdx} style={{ flex: 1, minWidth: '180px', background: modalTheme.cardHeaderBg, padding: '14px', borderRadius: '14px', border: `1px solid ${modalTheme.boxBorder}` }}>
+                        <h5 style={{ margin: '0 0 10px 0', fontSize: '0.78rem', fontWeight: 800, color: modalTheme.boxTitle }}>{box.title}</h5>
+                        {box.ops.map((op, idx) => (
+                          <div key={idx} style={{ display: 'flex', gap: '6px', marginBottom: '6px' }}>
+                            <input
+                              value={op}
+                              onChange={e => { const copy = [...box.ops]; copy[idx] = e.target.value; box.setOps(copy) }}
+                              style={{ flex: 1, padding: '7px 10px', background: modalTheme.inputBg, border: `1px solid ${modalTheme.inputBorder}`, color: modalTheme.inputText, borderRadius: '8px', fontSize: '0.78rem', outline: 'none' }}
+                            />
+                            <button
+                              onClick={() => box.setOps(box.ops.filter((_, i) => i !== idx))}
+                              style={{ background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: '8px', padding: '0 8px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                            >
+                              <Trash2 size={12}/>
+                            </button>
+                          </div>
+                        ))}
+                        <button
+                          onClick={() => box.setOps([...box.ops, ''])}
+                          style={{ width: '100%', padding: '6px', background: 'transparent', border: `1px dashed ${modalTheme.dashBorder}`, color: modalTheme.addBtnColor, borderRadius: '8px', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 800, marginTop: '2px', transition: 'all 0.15s' }}
+                        >
+                          + Додати
+                        </button>
+                      </div>
+                    ))}
 
                     {renderCutterListEditor(inlineCuttersList, setInlineCuttersList)}
                   </div>
 
-                  <button onClick={handleSaveInlineOps} disabled={savingOps} style={{ width: '100%', padding: '12px', background: 'linear-gradient(135deg, #10b981, #059669)', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: 800, cursor: 'pointer', fontSize: '0.85rem', marginTop: '10px' }}>
+                  <button onClick={handleSaveInlineOps} disabled={savingOps} style={{ width: '100%', padding: '13px', background: 'linear-gradient(135deg, #10b981, #059669)', color: '#fff', border: 'none', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', fontSize: '0.88rem', marginTop: '10px', boxShadow: '0 4px 14px rgba(16,185,129,0.25)' }}>
                     {savingOps ? 'Збереження...' : 'Зберегти операції'}
                   </button>
                 </div>
