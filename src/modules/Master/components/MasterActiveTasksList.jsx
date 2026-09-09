@@ -9,6 +9,7 @@ const MasterActiveTaskCard = React.memo(({ task, order, nomenclatures, handleRep
     .join(', ') || task.machine_name || 'Виріб...'
 
   const isSkladConfirmed = task.warehouse_conf === 'true' || task.warehouse_conf === true
+  const isSkladPartial = task.warehouse_conf === 'partial'
   const isTechConfirmed = task.engineer_conf === true
   const isDirectorConfirmed = task.director_conf === true
 
@@ -101,12 +102,23 @@ const MasterActiveTaskCard = React.memo(({ task, order, nomenclatures, handleRep
           fontSize: '0.65rem', 
           padding: '4px 12px', 
           borderRadius: '6px', 
-          background: isSkladConfirmed ? '#00b894' : (isLight ? '#e2e8f0' : '#27272a'), 
-          color: isSkladConfirmed ? '#ffffff' : (isLight ? '#64748b' : '#a1a1aa'), 
+          background: isSkladConfirmed 
+            ? '#00b894' 
+            : (isSkladPartial 
+                ? (isLight ? '#fef3c7' : 'rgba(234, 179, 8, 0.18)') 
+                : (isLight ? '#e2e8f0' : '#27272a')), 
+          color: isSkladConfirmed 
+            ? '#ffffff' 
+            : (isSkladPartial 
+                ? (isLight ? '#b45309' : '#fbbf24') 
+                : (isLight ? '#64748b' : '#a1a1aa')), 
+          border: isSkladPartial 
+            ? (isLight ? '1px solid #fde68a' : '1px solid rgba(234, 179, 8, 0.4)') 
+            : 'none',
           fontWeight: 900,
           letterSpacing: '0.5px'
         }}>
-          СКЛАД
+          {isSkladPartial ? 'ЧАСТК. СКЛАД' : 'СКЛАД'}
         </div>
         <div style={{ 
           fontSize: '0.65rem', 
