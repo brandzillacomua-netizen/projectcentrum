@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react'
 import { Sparkles, X, Layers, Lock, AlertCircle, Trash2 } from 'lucide-react'
 import { useMES } from '../../../MESContext'
 import { supabase } from '../../../supabase'
+import { generateNextV2Code } from '../../../utils/codeGenerator'
 
 export const CreateProductModal = ({ isOpen, onClose, onCreated, initialQuery = '', nomenclatures = [] }) => {
   const { refreshTable, currentUser } = useMES()
@@ -145,15 +146,13 @@ export const CreateProductModal = ({ isOpen, onClose, onCreated, initialQuery = 
         newNom = inserted
       }
 
-      const nextCode = nomenclatures.reduce((max, n) => {
-        const num = parseInt(String(n.code || '').replace(/\D/g, ''))
-        return !isNaN(num) && num > max ? num : max
-      }, 90000) + 1
-
-      const codeStr = customCode.trim() || `V2-${nextCode}`
+      const autoCode = await generateNextV2Code(supabase, nomenclatures)
+      const codeStr = customCode.trim() || autoCode
 
       const v2Payload = {
         code: codeStr,
+        barcode: codeStr,
+        qr_code: codeStr,
         name: generatedName,
         group_id: 'grp_production_frames',
         unit: unit || 'шт',
@@ -163,7 +162,12 @@ export const CreateProductModal = ({ isOpen, onClose, onCreated, initialQuery = 
       }
 
       try {
-        const { error: v2Err } = await supabase.from('nomenclatures_v2').insert([v2Payload])
+        let { error: v2Err } = await supabase.from('nomenclatures_v2').insert([v2Payload])
+        if (v2Err && v2Err.code === '42703') {
+          const { barcode, qr_code, ...legacyPayload } = v2Payload
+          const retry = await supabase.from('nomenclatures_v2').insert([legacyPayload])
+          v2Err = retry.error
+        }
         if (v2Err) console.warn('nomenclatures_v2 insert warning:', v2Err)
       } catch (v2Ex) {
         console.warn('nomenclatures_v2 insert error:', v2Ex)

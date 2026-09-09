@@ -48,6 +48,59 @@ export const resolveCutterOrVirtualType = (cutterNomId, nomenclatures = []) => {
   return null
 }
 
+export const isVirtualCutterType = (n) => {
+  if (!n) return false
+  if (n.type === 'cutter_type' || n.rule_type === 'cutter_type' || n.group_id === 'grp_cutter_types') return true
+  const name = String(n.name || '').trim().toLowerCase()
+  if (name.includes('кукурудз') || name.includes('двопер') || name.includes('двохпер') || name.includes('однопер') || name.includes('компресій')) {
+    return false
+  }
+  if (name.match(/[0-9]+[хx][0-9]+/)) {
+    return false
+  }
+  if (name.startsWith('тип ф') || name.startsWith('тип f') || name.match(/^фреза\s+ф[0-9]/) || name.match(/^ф[0-9.]+(\s|$)/)) {
+    return true
+  }
+  return false
+}
+
+export const extractCutterDiameter = (nameStr) => {
+  if (!nameStr) return null
+  const s = String(nameStr).toLowerCase()
+
+  const fMatch = s.match(/ф\s*(\d+(?:[.,]\d+)?)/)
+  if (fMatch) return fMatch[1].replace(',', '.')
+
+  const mmMatch = s.match(/(\d+(?:[.,]\d+)?)\s*мм/)
+  if (mmMatch) return mmMatch[1].replace(',', '.')
+
+  const dimMatch = s.match(/(\d+(?:[.,]\d+)?)\s*[хx]/)
+  if (dimMatch) return dimMatch[1].replace(',', '.')
+
+  return null
+}
+
+export const resolveCutterTypeName = (cutterNom, nomenclatures = []) => {
+  if (!cutterNom) return 'Фреза'
+  const name = String(cutterNom.name || '').trim()
+  if (cutterNom.type === 'cutter_type' || isVirtualCutterType(cutterNom)) {
+    return name
+  }
+  if (cutterNom.characteristic) {
+    const parentNom = (nomenclatures || []).find(n => String(n.id) === String(cutterNom.characteristic))
+    if (parentNom && (parentNom.type === 'cutter_type' || isVirtualCutterType(parentNom))) {
+      return parentNom.name.trim()
+    }
+    const std = STANDARD_CUTTER_TYPES.find(s => s.id === String(cutterNom.characteristic))
+    if (std) return std.name
+  }
+  const dia = extractCutterDiameter(name)
+  if (dia) {
+    return `Тип Ф${dia}`
+  }
+  return name
+}
+
 export const isMachineMatch = (opMachine, targetMachine) => {
   if (!opMachine || !targetMachine) return false
   const opStr = String(opMachine).toLowerCase().trim()
@@ -129,61 +182,16 @@ export const calculateCuttersForBatch = ({
         const totalQty = Math.ceil(sheets * qtyPerSheet)
         const cutterNom = resolveCutterOrVirtualType(cutterNomId, nomenclatures)
         if (cutterNom && cutterNom.name.trim().toLowerCase() !== 'фреза') {
-          const cleanName = cutterNom.name.trim()
-          let resolvedCutterNom = cutterNom
-          const partSelectedCutters = task?.plan_snapshot?.[String(partNom.id)]?.selected_cutters || task?.plan_snapshot?.selectedCutters
-          if (partSelectedCutters && typeof partSelectedCutters === 'object') {
-            const invId = partSelectedCutters[cleanName]
-              || partSelectedCutters[cleanName.toLowerCase()]
-              || partSelectedCutters[String(cutterNomId)]
-              || partSelectedCutters[String(cutterNom.id)]
-            if (invId) {
-              const inv = (inventory || []).find(i => String(i.id) === String(invId))
-              if (inv) {
-                const specNom = nomenclatures.find(n => String(n.id) === String(inv.nomenclature_id))
-                if (specNom) resolvedCutterNom = specNom
-              } else {
-                const specNom = nomenclatures.find(n => String(n.id) === String(invId))
-                if (specNom) resolvedCutterNom = specNom
-              }
-            }
-
-            if (resolvedCutterNom.type === 'cutter_type') {
-              for (const [k, v] of Object.entries(partSelectedCutters)) {
-                const candidate = nomenclatures.find(n =>
-                  (String(n.id) === String(v) || String(n.id) === String(k) || n.name.trim().toLowerCase() === String(k).trim().toLowerCase()) &&
-                  n.type === 'consumable' &&
-                  String(n.characteristic) === String(cutterNom.id)
-                )
-                if (candidate) {
-                  resolvedCutterNom = candidate
-                  break
-                }
-              }
-            }
-          }
-
-          if (resolvedCutterNom.type === 'cutter_type') {
-            const matchingConsumables = (nomenclatures || []).filter(n =>
-              n.type === 'consumable' && String(n.characteristic) === String(cutterNom.id)
-            )
-            if (matchingConsumables.length > 0) {
-              const sorted = [...matchingConsumables].sort((a, b) => {
-                const invA = (inventory || []).find(i => String(i.nomenclature_id) === String(a.id) && (i.warehouse === 'operational' || !i.warehouse))
-                const invB = (inventory || []).find(i => String(i.nomenclature_id) === String(b.id) && (i.warehouse === 'operational' || !i.warehouse))
-                return (Number(invB?.total_qty) || 0) - (Number(invA?.total_qty) || 0)
-              })
-              resolvedCutterNom = sorted[0]
-            }
-          }
-
-          const resolvedName = resolvedCutterNom.name.trim()
-          const key = resolvedCutterNom.id.toString()
+          const typeName = resolveCutterTypeName(cutterNom, nomenclatures)
+          const key = String(cutterNom.id || typeName)
           if (!machineSpecificCutters[key]) {
             machineSpecificCutters[key] = {
-              name: resolvedName,
+              name: typeName,
+              typeName: typeName,
               qty: 0,
-              nomenclature_id: resolvedCutterNom.id
+              nomenclature_id: cutterNom.id,
+              cutter_type_id: cutterNom.id,
+              isCutterType: true
             }
           }
           machineSpecificCutters[key].qty += totalQty

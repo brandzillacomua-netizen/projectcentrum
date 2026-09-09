@@ -199,7 +199,8 @@ export const MESProvider = ({ children }) => {
     refreshTable: data.refreshTable, 
     fetchData: data.fetchData,
     deductIssuedMaterialsForTask: warehouseActions.deductIssuedMaterialsForTask,
-    maintenanceCheckEnabled: data.maintenanceCheckEnabled
+    maintenanceCheckEnabled: data.maintenanceCheckEnabled,
+    requests: data.requests
   })
 
   const formatUserName = (u) => {

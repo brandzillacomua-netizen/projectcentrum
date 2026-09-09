@@ -6,6 +6,7 @@ import {
   generateStandardName, 
   buildFlattenedGroupOptions 
 } from '../../NomenclatureV2'
+import { generateNextV2Code } from '../../../utils/codeGenerator'
 
 export const NomCreateModal = ({ onClose, onCreated, supabase, refreshTable, prefilledName = '' }) => {
   const [groups, setGroups] = useState(DEFAULT_ERP_GROUPS)
@@ -128,14 +129,13 @@ export const NomCreateModal = ({ onClose, onCreated, supabase, refreshTable, pre
 
     setSaving(true)
     try {
-      const nextCode = items.reduce((max, it) => {
-        const num = parseInt(String(it.code || '').replace(/\D/g, ''))
-        return num > max ? num : max
-      }, 90000) + 1
+      const codeStr = await generateNextV2Code(supabase, items)
 
       const inferredType = wizardGroup?.id?.includes('frame') || wizardGroup?.id === 'cat_fg' ? 'product' : (wizardGroup?.id === 'cat_parts' ? 'part' : 'consumable')
       const v2Payload = {
-        code: `V2-${nextCode}`,
+        code: codeStr,
+        barcode: codeStr,
+        qr_code: codeStr,
         name: generatedName,
         group_id: wizardGroup?.id || null,
         unit: wizardParams.unit || 'шт',
@@ -149,11 +149,18 @@ export const NomCreateModal = ({ onClose, onCreated, supabase, refreshTable, pre
         status: 'active'
       }
 
-      const { data: inserted, error: insertErr } = await supabase
+      let { data: inserted, error: insertErr } = await supabase
         .from('nomenclatures_v2')
         .insert([v2Payload])
         .select()
         .single()
+
+      if (insertErr && insertErr.code === '42703') {
+        const { barcode, qr_code, ...legacyPayload } = v2Payload
+        const retry = await supabase.from('nomenclatures_v2').insert([legacyPayload]).select().single()
+        inserted = retry.data
+        insertErr = retry.error
+      }
 
       if (insertErr) throw insertErr
 

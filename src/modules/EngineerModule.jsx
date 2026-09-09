@@ -37,6 +37,7 @@ import {
 } from './NomenclatureV2'
 import { apiService } from '../services/apiDispatcher'
 import { ImportSpecTab } from './Engineer/components/ImportSpecTab'
+import { generateNextV2Code } from '../utils/codeGenerator'
 
 const MACHINE_TYPES = [
   'CNC 1200x800 - 4 листи (Малий)',
@@ -1199,13 +1200,12 @@ const NomCreateModal = ({ onClose, onCreated, supabase, refreshTable, prefilledN
 
     setSaving(true)
     try {
-      const nextCode = items.reduce((max, it) => {
-        const num = parseInt(String(it.code || '').replace(/\D/g, ''))
-        return num > max ? num : max
-      }, 90000) + 1
+      const codeStr = await generateNextV2Code(supabase, items)
 
       const v2Payload = {
-        code: `V2-${nextCode}`,
+        code: codeStr,
+        barcode: codeStr,
+        qr_code: codeStr,
         name: generatedName,
         group_id: wizardGroup?.id || null,
         unit: wizardParams.unit || 'шт',
@@ -1214,11 +1214,18 @@ const NomCreateModal = ({ onClose, onCreated, supabase, refreshTable, prefilledN
         status: 'active'
       }
 
-      const { data: inserted, error: insertErr } = await supabase
+      let { data: inserted, error: insertErr } = await supabase
         .from('nomenclatures_v2')
         .insert([v2Payload])
         .select()
         .single()
+
+      if (insertErr && insertErr.code === '42703') {
+        const { barcode, qr_code, ...legacyPayload } = v2Payload
+        const retry = await supabase.from('nomenclatures_v2').insert([legacyPayload]).select().single()
+        inserted = retry.data
+        insertErr = retry.error
+      }
 
       if (insertErr) throw insertErr
 

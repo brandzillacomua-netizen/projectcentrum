@@ -190,8 +190,7 @@ export function useCardGeneration({ mes }) {
       const createDovypuskFn = mes.createDovypuskMaterialRequests || mes.createDovyпускMaterialRequests || mes['createDovyпускMaterialRequests']
       console.log('[CARD_GEN_REQ_DEBUG]', { hasFn: typeof createDovypuskFn === 'function', sheets, cardsBatchCount: cardsBatch.length, createdCardsCount: createdCards?.length })
 
-      // Send ONE consolidated cutter request for the whole batch.
-      // Sheet requests are created at task creation time — not here.
+      // Send consolidated cutter request for the batch (and sheets if task doesn't already have them)
       if (typeof createDovypuskFn === 'function') {
         const totalSheetsForBatch = cardsBatch.reduce((sum, batchItem) => {
           const cardSheets = Number(batchItem.actualSheets || batchItem.sheets)
@@ -201,11 +200,17 @@ export function useCardGeneration({ mes }) {
 
         if (totalSheetsForBatch > 0 && totalQtyForBatch > 0) {
           try {
-            console.log('[CARD_GEN] Sending consolidated cutter request for batch, sheets:', totalSheetsForBatch, 'selectedCutters:', selectedCutters)
-            await createDovypuskFn(task.id, task.order_id, resolvedPartNom, totalSheetsForBatch, totalQtyForBatch, selectedMachineName, null, 'cutters_only', selectedCutters)
+            const hasExistingTaskSheetReq = (mes.requests || []).some(r =>
+              String(r.task_id) === String(task.id) &&
+              (r.category === 'sheet' || (r.details || '').toLowerCase().includes('лист')) &&
+              r.status !== 'completed'
+            )
+            const requestMode = hasExistingTaskSheetReq ? 'cutters_only' : 'both'
+            console.log('[CARD_GEN] Sending consolidated request for batch, sheets:', totalSheetsForBatch, 'mode:', requestMode, 'selectedCutters:', selectedCutters)
+            await createDovypuskFn(task.id, task.order_id, resolvedPartNom, totalSheetsForBatch, totalQtyForBatch, selectedMachineName, null, requestMode, selectedCutters)
           } catch (reqErr) {
-            console.error('[CARD_GEN] Error in createDovypuskFn (cutters):', reqErr)
-            alert('Помилка генерації запиту на фрези: ' + reqErr.message)
+            console.error('[CARD_GEN] Error in createDovypuskFn:', reqErr)
+            alert('Помилка генерації запиту на матеріали: ' + reqErr.message)
           }
         }
       }

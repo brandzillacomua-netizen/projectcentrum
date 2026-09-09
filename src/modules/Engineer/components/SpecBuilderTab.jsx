@@ -25,7 +25,7 @@ import {
   TYPE_LABELS
 } from '../utils/engineerHelpers.jsx'
 import { BomRow } from './BomRow'
-import { NomCreateModal } from './NomCreateModal'
+import { generateNextV2Code } from '../../../utils/codeGenerator'
 
 export function SpecBuilderTab() {
   const { nomenclatures: rawNoms, bomItems, supabase, refreshTable, machineOperations, machines, theme } = useMES()
@@ -318,7 +318,11 @@ export function SpecBuilderTab() {
 
       if (parentId === 'temp-new') {
         const isAssembly = pendingParent.type === 'assembly'
+        const newCodeStr = await generateNextV2Code(supabase, rawNoms)
         const payloadParent = { 
+          code: newCodeStr,
+          barcode: newCodeStr,
+          qr_code: newCodeStr,
           name: pendingParent.name.trim(),
           group_id: isAssembly ? 'grp_assemblies' : 'grp_production_frames',
           rule_type: isAssembly ? 'assembly' : 'full_frame',
@@ -331,11 +335,18 @@ export function SpecBuilderTab() {
           },
           status: 'active'
         }
-        const { data: newParent, error: parentErr } = await supabase
+        let { data: newParent, error: parentErr } = await supabase
           .from('nomenclatures_v2')
           .insert(payloadParent)
           .select()
           .single()
+
+        if (parentErr && parentErr.code === '42703') {
+          const { barcode, qr_code, ...legacyPayload } = payloadParent
+          const retry = await supabase.from('nomenclatures_v2').insert(legacyPayload).select().single()
+          newParent = retry.data
+          parentErr = retry.error
+        }
         if (parentErr) throw parentErr
         
         activeParentId = newParent.id

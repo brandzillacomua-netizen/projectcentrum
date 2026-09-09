@@ -15,6 +15,98 @@ export default function GenerateCardsModal({
   onClose,
   onGenerate
 }) {
+  const { task, part, isRepair } = config || {}
+
+  const findMachine = (mName) => {
+    const baseName = (mName || '').split(' №')[0].trim()
+    return machines.find(m => m.name === baseName) || machines.find(m => m.name === mName)
+  }
+
+  const getRequestQty = (req) => {
+    return Number(req.qty) || Number(req.quantity) || 0
+  }
+
+  const getKittingSheets = (taskObj, partNom) => {
+    if (!taskObj || !partNom) return { issuedSheets: 0, pendingSheets: 0, hasKittingReqs: false }
+    const snapMat = (taskObj?.plan_snapshot || {})[String(partNom?.id)]?.material
+    const baseMat = snapMat || partNom?.material_type || ''
+    const taskReqs = (materialRequests || []).filter(r => String(r.task_id) === String(taskObj?.id))
+    const extractThickness = (str) => {
+      const match = String(str || '').match(/(\d+(?:[.,]\d+)?)\s*мм/)
+      return match ? parseFloat(match[1].replace(',', '.')) : null
+    }
+    const baseThickness = extractThickness(baseMat)
+    const sheetReqs = taskReqs.filter(r => {
+      const rNom = (nomenclatures || []).find(n => n.id === r.nomenclature_id)
+      const rName = rNom?.name || r.details || ''
+      const lowerName = rName.toLowerCase()
+      const isSheet = lowerName.includes('лист') || lowerName.includes('sheet')
+      if (!isSheet) return false
+      const reqThickness = extractThickness(lowerName)
+      if (baseThickness !== null && reqThickness !== null) {
+        return baseThickness === reqThickness
+      }
+      const activeMaterials = baseMat.split('+').map(m => m.trim().toLowerCase())
+      return activeMaterials.some(act => lowerName.includes(act) || act.includes(lowerName))
+    })
+    const issued = sheetReqs.filter(r => r.status === 'issued' || r.status === 'completed')
+      .reduce((sum, r) => sum + getRequestQty(r), 0)
+    const pending = sheetReqs.filter(r => r.status === 'pending')
+      .reduce((sum, r) => sum + getRequestQty(r), 0)
+    const materialRequiresSheets = /(?:т|t)\s*(?:300|700)|лист|sheet/i.test(baseMat)
+    return { issuedSheets: issued, pendingSheets: pending, hasKittingReqs: materialRequiresSheets || sheetReqs.length > 0 }
+  }
+
+  const singleKitting = useMemo(() => {
+    if (!task || !part?.nom || isRepair) return { issuedSheets: 0, pendingSheets: 0, hasKittingReqs: false }
+    return getKittingSheets(task, part.nom)
+  }, [task, part, materialRequests, nomenclatures, isRepair])
+
+  const alreadyGeneratedSheets = useMemo(() => {
+    if (!part) return 0
+    const unitsPerSheet = Math.max(1, Number(part?.unitsPerSheet) || 1)
+    return (part?.productionCards || []).reduce((sum, c) => {
+      const cardSheets = Number(c.actualSheets || c.sheets)
+      return sum + (cardSheets > 0 ? cardSheets : Math.ceil((Number(c.quantity) || 0) / unitsPerSheet))
+    }, 0)
+  }, [part])
+
+  const effectivePartSheets = Number(part?.plannedSheets) > 0
+    ? Number(part.plannedSheets)
+    : Math.ceil((Number(part?.plan) || Number(part?.need) || 0) / Math.max(1, Number(part?.unitsPerSheet) || 1))
+
+  const remainingPlannedSheets = Number(config?.maxSheetsToGenerate) > 0
+    ? Number(config.maxSheetsToGenerate)
+    : Math.max(0, effectivePartSheets - alreadyGeneratedSheets)
+
+  const availableIssuedSheets = singleKitting.hasKittingReqs
+    ? Math.max(0, singleKitting.issuedSheets - alreadyGeneratedSheets)
+    : remainingPlannedSheets
+
+  const isPartialWarehouseIssue = singleKitting.hasKittingReqs && (availableIssuedSheets < remainingPlannedSheets)
+
+  // generationScope: 'warehouse' (only what warehouse issued) | 'plan' (full remaining plan)
+  const [generationScope, setGenerationScope] = useState('warehouse')
+
+  useEffect(() => {
+    if (config) {
+      if (singleKitting.hasKittingReqs && availableIssuedSheets > 0) {
+        setGenerationScope('warehouse')
+      } else if (singleKitting.hasKittingReqs && availableIssuedSheets <= 0) {
+        setGenerationScope('warehouse')
+      } else {
+        setGenerationScope('plan')
+      }
+    }
+  }, [config, singleKitting.hasKittingReqs, availableIssuedSheets])
+
+  const targetSheets = useMemo(() => {
+    if (singleKitting.hasKittingReqs) {
+      return generationScope === 'warehouse' ? availableIssuedSheets : remainingPlannedSheets
+    }
+    return remainingPlannedSheets
+  }, [singleKitting.hasKittingReqs, generationScope, availableIssuedSheets, remainingPlannedSheets])
+
   const [capacity, setCapacity] = useState(config?.capacityOverride || config?.capacity || 1)
   const [total, setTotal] = useState(config?.count || 1)
   const [machineName, setMachineName] = useState('')
@@ -26,28 +118,26 @@ export default function GenerateCardsModal({
   useEffect(() => {
     if (config) {
       setMachineName('')
-      setTotal(config.count || 1)
-      setCapacity(config.capacityOverride || 1)
+      setSelectedCutters({})
+      const cap = config.capacityOverride || 1
+      setCapacity(cap)
+      const rec = Math.max(1, Math.ceil((targetSheets || 1) / cap))
+      setTotal(config.count > 1 ? config.count : rec)
     }
   }, [config])
 
-  // Simulate per-card sheet distribution (mirrors handleGenerateCards logic)
+  // Recalculate total cards when targetSheets changes
+  useEffect(() => {
+    if (targetSheets > 0 && capacity > 0) {
+      setTotal(Math.max(1, Math.ceil(targetSheets / (Number(capacity) || 1))))
+    }
+  }, [targetSheets])
+
+  // Simulate per-card sheet distribution using targetSheets
   const batchCards = useMemo(() => {
     const cap = Number(capacity) || 1
     const cnt = Math.max(1, Number(total) || 1)
-    // maxSheetsToGenerate comes from getLoadProgress.remainingSheets which is 0 for brand-new tasks
-    // In that case we fall back to part.plannedSheets (total planned sheets for this part)
-    const maxSheets = Number(config?.maxSheetsToGenerate) > 0
-      ? Number(config.maxSheetsToGenerate)
-      : null
-    const calculatedPlannedSheets = config?.part
-      ? Math.ceil((Number(config.part.plan) || Number(config.part.need) || 0) / Math.max(1, Number(config.part.unitsPerSheet) || 1))
-      : null
-    const partSheets = Number(config?.part?.plannedSheets) > 0
-      ? Number(config.part.plannedSheets)
-      : calculatedPlannedSheets
-    // Determine the cap on total sheets for this batch
-    let remainingSheets = maxSheets !== null ? maxSheets : (partSheets !== null ? partSheets : cnt * cap)
+    let remainingSheets = targetSheets
 
     const cards = []
     for (let i = 0; i < cnt; i++) {
@@ -57,7 +147,7 @@ export default function GenerateCardsModal({
       remainingSheets -= sheetsInThisCard
     }
     return cards
-  }, [config, total, capacity])
+  }, [targetSheets, total, capacity])
 
   const actualTotalSheets = useMemo(() => batchCards.reduce((s, v) => s + v, 0), [batchCards])
 
@@ -91,13 +181,14 @@ export default function GenerateCardsModal({
     return null
   }
 
-  // Helper to find specific cutter nomenclatures matching a diameter category
-  const getMatchingCutters = (categoryName, noms = [], inv = []) => {
+  const getMatchingCutters = (categoryName, noms = [], inv = [], cutterTypeId = null) => {
     const targetDia = extractCutterDiameter(categoryName)
 
     const cutterNoms = (noms || []).filter(n => {
+      if (n.type === 'cutter_type') return false
       const nLower = (n.name || '').toLowerCase()
-      return nLower.includes('фрез')
+      if (nLower.startsWith('тип ф') || nLower.startsWith('тип f')) return false
+      return nLower.includes('фрез') || n.type === 'consumable'
     })
 
     const getStock = (nomId) => {
@@ -109,6 +200,10 @@ export default function GenerateCardsModal({
     const others = []
 
     cutterNoms.forEach(n => {
+      if (cutterTypeId && String(n.characteristic) === String(cutterTypeId)) {
+        matching.push(n)
+        return
+      }
       const dia = extractCutterDiameter(n.name)
       if (targetDia && dia === targetDia) {
         matching.push(n)
@@ -123,98 +218,21 @@ export default function GenerateCardsModal({
     return { matching, others, targetDia }
   }
 
-  // Pre-select matching cutters when cutterRows calculate
-  useEffect(() => {
-    if (cutterRows.length > 0) {
-      setSelectedCutters(prev => {
-        const next = { ...prev }
-        let updated = false
-        cutterRows.forEach(cutter => {
-          const cutterKey = String(cutter.nomenclature_id || cutter.name)
-          if (!next[cutterKey] && !next[cutter.name]) {
-            const { matching, others } = getMatchingCutters(cutter.name, nomenclatures, inventory)
-            const pool = matching.length > 0 ? matching : others
-            if (pool.length > 0) {
-              const defaultChoice = pool[0]
-              if (defaultChoice) {
-                next[cutterKey] = String(defaultChoice.id)
-                next[cutter.name] = String(defaultChoice.id)
-                next[cutter.name.toLowerCase()] = String(defaultChoice.id)
-                updated = true
-              }
-            }
-          }
-        })
-        return updated ? next : prev
-      })
-    }
-  }, [cutterRows, nomenclatures, inventory])
+  const unselectedCuttersCount = useMemo(() => {
+    return (cutterRows || []).filter(cutter => {
+      const cutterKey = String(cutter.nomenclature_id || cutter.name)
+      const categoryName = cutter.name
+      const selected = selectedCutters[cutterKey] || selectedCutters[categoryName] || selectedCutters[categoryName.toLowerCase()]
+      return !selected
+    }).length
+  }, [cutterRows, selectedCutters])
 
-  const { task, part, isRepair } = config || {}
+  const hasUnselectedCutters = (cutterRows || []).length > 0 && unselectedCuttersCount > 0
 
-  const findMachine = (mName) => {
-    const baseName = (mName || '').split(' №')[0].trim()
-    return machines.find(m => m.name === baseName) || machines.find(m => m.name === mName)
-  }
-
-  const getRequestQty = (req) => {
-    return Number(req.qty) || Number(req.quantity) || 0
-  }
-
-  const getKittingSheets = (taskObj, partNom) => {
-    if (!taskObj || !partNom) return { issuedSheets: 0, pendingSheets: 0, hasKittingReqs: false }
-    const snapMat = (taskObj?.plan_snapshot || {})[String(partNom?.id)]?.material
-    const baseMat = snapMat || partNom?.material_type || ''
-    const taskReqs = (materialRequests || []).filter(r => String(r.task_id) === String(taskObj?.id))
-    const extractThickness = (str) => {
-      const match = String(str || '').match(/(\d+(?:\.\d+)?)\s*мм/)
-      return match ? match[1] + 'мм' : null
-    }
-    const baseThickness = extractThickness(baseMat)
-    const sheetReqs = taskReqs.filter(r => {
-      const rNom = (nomenclatures || []).find(n => n.id === r.nomenclature_id)
-      const rName = rNom?.name || r.details || ''
-      const lowerName = rName.toLowerCase()
-      const isSheet = lowerName.includes('лист') || lowerName.includes('sheet')
-      if (!isSheet) return false
-      const reqThickness = extractThickness(lowerName)
-      if (baseThickness && reqThickness) {
-        return baseThickness === reqThickness
-      }
-      const activeMaterials = baseMat.split('+').map(m => m.trim().toLowerCase())
-      return activeMaterials.some(act => lowerName.includes(act) || act.includes(lowerName))
-    })
-    const issued = sheetReqs.filter(r => r.status === 'issued' || r.status === 'completed')
-      .reduce((sum, r) => sum + getRequestQty(r), 0)
-    const pending = sheetReqs.filter(r => r.status === 'pending')
-      .reduce((sum, r) => sum + getRequestQty(r), 0)
-    const materialRequiresSheets = /(?:т|t)\s*(?:300|700)|лист|sheet/i.test(baseMat)
-    return { issuedSheets: issued, pendingSheets: pending, hasKittingReqs: materialRequiresSheets || sheetReqs.length > 0 }
-  }
-
-  const singleKitting = useMemo(() => {
-    if (!task || !part?.nom || isRepair) return { issuedSheets: 0, pendingSheets: 0, hasKittingReqs: false }
-    return getKittingSheets(task, part.nom)
-  }, [task, part, materialRequests, nomenclatures, isRepair])
-
-  const alreadyGeneratedSheets = useMemo(() => {
-    if (!part) return 0
-    const unitsPerSheet = Math.max(1, Number(part?.unitsPerSheet) || 1)
-    return (part?.productionCards || []).reduce((sum, c) => {
-      const cardSheets = Number(c.actualSheets || c.sheets)
-      return sum + (cardSheets > 0 ? cardSheets : Math.ceil((Number(c.quantity) || 0) / unitsPerSheet))
-    }, 0)
-  }, [part])
-
-  const effectivePartSheets = Number(part?.plannedSheets) > 0
-    ? Number(part.plannedSheets)
-    : Math.ceil((Number(part?.plan) || Number(part?.need) || 0) / Math.max(1, Number(part?.unitsPerSheet) || 1))
-
-  const availableIssuedSheets = singleKitting.hasKittingReqs
-    ? Math.max(0, singleKitting.issuedSheets - alreadyGeneratedSheets)
-    : Math.max(0, effectivePartSheets - alreadyGeneratedSheets)
-
-  const isSingleKittingBlocked = singleKitting.hasKittingReqs && availableIssuedSheets <= 0 && singleKitting.pendingSheets > 0
+  const isSingleKittingBlocked = singleKitting.hasKittingReqs &&
+    generationScope === 'warehouse' &&
+    availableIssuedSheets <= 0 &&
+    singleKitting.pendingSheets > 0
 
   const MACHINE_TYPES = [...new Set((machines || []).map(m => m.name))]
 
@@ -428,6 +446,76 @@ export default function GenerateCardsModal({
         ) : (
           <>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginBottom: '30px' }}>
+              {/* Scope switch when material requires warehouse kitting */}
+              {singleKitting.hasKittingReqs && (
+                <div style={{ background: '#0a0a0a', border: '1px solid #222', borderRadius: '18px', padding: '16px' }}>
+                  <div style={{ fontSize: '0.68rem', fontWeight: 900, color: '#888', textTransform: 'uppercase', marginBottom: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>📦 ДЖЕРЕЛО ЛИСТІВ ДЛЯ ГЕНЕРАЦІЇ:</span>
+                    <span style={{ color: availableIssuedSheets >= remainingPlannedSheets ? '#10b981' : '#eab308' }}>
+                      {availableIssuedSheets >= remainingPlannedSheets ? '✓ Повне забезпечення' : '⚠️ Часткова видача'}
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setGenerationScope('warehouse')
+                        const cap = Number(capacity) || 1
+                        setTotal(Math.max(1, Math.ceil(availableIssuedSheets / cap)))
+                      }}
+                      style={{
+                        padding: '12px 14px',
+                        borderRadius: '14px',
+                        border: generationScope === 'warehouse' ? '2px solid #10b981' : '1px solid #222',
+                        background: generationScope === 'warehouse' ? 'rgba(16,185,129,0.12)' : '#121212',
+                        color: generationScope === 'warehouse' ? '#10b981' : '#777',
+                        fontWeight: 900,
+                        fontSize: '0.78rem',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        transition: '0.2s'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span>📦 Тільки видані складом</span>
+                      </div>
+                      <div style={{ fontSize: '1.1rem', color: generationScope === 'warehouse' ? '#fff' : '#aaa', fontWeight: 950, marginTop: '4px' }}>
+                        {availableIssuedSheets} л. <span style={{ fontSize: '0.7rem', color: '#666', fontWeight: 700 }}>з {effectivePartSheets} л.</span>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setGenerationScope('plan')
+                        const cap = Number(capacity) || 1
+                        setTotal(Math.max(1, Math.ceil(remainingPlannedSheets / cap)))
+                      }}
+                      style={{
+                        padding: '12px 14px',
+                        borderRadius: '14px',
+                        border: generationScope === 'plan' ? '2px solid #3b82f6' : '1px solid #222',
+                        background: generationScope === 'plan' ? 'rgba(59,130,246,0.12)' : '#121212',
+                        color: generationScope === 'plan' ? '#3b82f6' : '#777',
+                        fontWeight: 900,
+                        fontSize: '0.78rem',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        transition: '0.2s'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span>⚡ Весь план наряду</span>
+                      </div>
+                      <div style={{ fontSize: '1.1rem', color: generationScope === 'plan' ? '#fff' : '#aaa', fontWeight: 950, marginTop: '4px' }}>
+                        {remainingPlannedSheets} л. <span style={{ fontSize: '0.7rem', color: '#666', fontWeight: 700 }}>залишок плану</span>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div>
                 <label style={{ display: 'block', color: machineName ? '#888' : '#eab308', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>
                   {machineName ? 'Оберіть верстат для цієї партії:' : '⚠️ Оберіть верстат зі списку:'}
@@ -440,6 +528,7 @@ export default function GenerateCardsModal({
                     const newCapacity = Number(resolvedMachine?.sheet_capacity) || 1
                     setMachineName(newMachineName)
                     setCapacity(newCapacity)
+                    setTotal(Math.max(1, Math.ceil(targetSheets / newCapacity)))
                   }}
                   style={{ width: '100%', background: '#000', border: machineName ? '1px solid #10b981' : '1px solid #eab308', color: machineName ? '#fff' : '#eab308', padding: '15px', borderRadius: '15px', fontSize: '0.95rem', outline: 'none', fontWeight: 800 }}
                 >
@@ -480,7 +569,11 @@ export default function GenerateCardsModal({
                       const m = findMachine(machineName);
                       const minC = m?.min_capacity || 1;
                       const maxC = m?.max_capacity || m?.sheet_capacity || 99;
-                      setCapacity(isNaN(newCap) ? '' : Math.min(maxC, Math.max(minC, newCap)));
+                      const val = isNaN(newCap) ? '' : Math.min(maxC, Math.max(minC, newCap));
+                      setCapacity(val);
+                      if (typeof val === 'number' && val > 0) {
+                        setTotal(Math.max(1, Math.ceil(targetSheets / val)));
+                      }
                     }}
                     onBlur={(e) => {
                       const m = findMachine(machineName);
@@ -490,6 +583,9 @@ export default function GenerateCardsModal({
                       if (isNaN(v)) v = minC;
                       else v = Math.min(maxC, Math.max(minC, v));
                       setCapacity(v);
+                      if (v > 0) {
+                        setTotal(Math.max(1, Math.ceil(targetSheets / v)));
+                      }
                     }}
                     min="1"
                     style={{ width: '100%', background: '#000', border: '1px solid rgba(255,144,0,0.5)', color: '#ff9000', fontSize: '1.5rem', fontWeight: 950, textAlign: 'center', padding: '10px', borderRadius: '15px', outline: 'none' }}
@@ -583,12 +679,33 @@ export default function GenerateCardsModal({
                 {isSingleKittingBlocked ? (
                   <div style={{ fontSize: '0.78rem', color: '#ef4444', background: 'rgba(239, 68, 68, 0.1)', padding: '14px 18px', borderRadius: '14px', border: '1px solid rgba(239, 68, 68, 0.3)', marginTop: '8px', fontWeight: 800 }}>
                     ⏳ Очікуємо погодження складу (немає листів). Видано: {singleKitting.issuedSheets} л. | Очікує видачі: {singleKitting.pendingSheets} листів з СО. Генерація заблокована до фактичної видачі.
+                    <div style={{ fontSize: '0.7rem', color: '#fca5a5', marginTop: '6px', fontWeight: 600 }}>
+                      💡 Якщо матеріал уже фізично в цеху, оберіть «⚡ Весь план наряду» вище для генерації карток наперед.
+                    </div>
                   </div>
                 ) : (
                   singleKitting.hasKittingReqs ? (
-                    <div style={{ fontSize: '0.78rem', color: '#10b981', background: 'rgba(16, 185, 129, 0.1)', padding: '10px 14px', borderRadius: '12px', border: '1px solid rgba(16, 185, 129, 0.3)', marginTop: '8px', fontWeight: 800 }}>
-                      ✓ Склад видав {singleKitting.issuedSheets} л. Доступно для генерації цієї партії: {availableIssuedSheets} листів.
-                    </div>
+                    generationScope === 'warehouse' ? (
+                      isPartialWarehouseIssue ? (
+                        <div style={{ fontSize: '0.78rem', color: '#eab308', background: 'rgba(234, 179, 8, 0.08)', padding: '10px 14px', borderRadius: '12px', border: '1px solid rgba(234, 179, 8, 0.25)', marginTop: '8px', fontWeight: 800 }}>
+                          ⚠️ Склад видав <strong>{singleKitting.issuedSheets}</strong> з <strong>{effectivePartSheets}</strong> л. (доступно зараз: <strong>{availableIssuedSheets} л.</strong>).
+                          <div style={{ fontSize: '0.7rem', color: '#bbb', marginTop: '4px', fontWeight: 600 }}>
+                            Зараз буде сформовано {batchCards.length} карт(и) на {actualTotalSheets} листів. Залишок ({remainingPlannedSheets - actualTotalSheets} л.) буде доступний після надходження зі складу, або оберіть «⚡ Весь план наряду» вище.
+                          </div>
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: '0.78rem', color: '#10b981', background: 'rgba(16, 185, 129, 0.1)', padding: '10px 14px', borderRadius: '12px', border: '1px solid rgba(16, 185, 129, 0.3)', marginTop: '8px', fontWeight: 800 }}>
+                          ✓ Склад видав {singleKitting.issuedSheets} л. Доступно для генерації цієї партії: {availableIssuedSheets} листів.
+                        </div>
+                      )
+                    ) : (
+                      <div style={{ fontSize: '0.78rem', color: '#38bdf8', background: 'rgba(56, 189, 248, 0.08)', padding: '10px 14px', borderRadius: '12px', border: '1px solid rgba(56, 189, 248, 0.25)', marginTop: '8px', fontWeight: 800 }}>
+                        ⚡ Режим повного плану: генеруємо карти на всі <strong>{actualTotalSheets} листів</strong> ({batchCards.length} карт).
+                        <div style={{ fontSize: '0.7rem', color: '#94a3b8', marginTop: '4px', fontWeight: 600 }}>
+                          Склад за документами видав {singleKitting.issuedSheets} з {effectivePartSheets} л. Залишок має надійти зі складу.
+                        </div>
+                      </div>
+                    )
                   ) : (
                     <div style={{ fontSize: '0.65rem', color: '#eab308', background: 'rgba(234, 179, 8, 0.08)', padding: '8px 12px', borderRadius: '10px', border: '1px solid rgba(234, 179, 8, 0.2)', marginTop: '2px' }}>
                       ⏳ Запит на листи та фрези відправиться на Склад. Картки з'являться в Цеху №1 одразу після підтвердження складом!
@@ -599,10 +716,14 @@ export default function GenerateCardsModal({
             </div>
 
             <button
-              disabled={isGenerating || !machineName || isSingleKittingBlocked}
+              disabled={isGenerating || !machineName || isSingleKittingBlocked || hasUnselectedCutters}
               onClick={() => {
                 if (!machineName) {
                   alert('Будь ласка, спочатку оберіть верстат!')
+                  return
+                }
+                if (hasUnselectedCutters) {
+                  alert('Будь ласка, оберіть модель для кожної необхідної фрези!')
                   return
                 }
                 if (total > 0) {
@@ -610,9 +731,7 @@ export default function GenerateCardsModal({
                     ? Number(part.plannedSheets)
                     : Math.ceil((Number(part.plan) || Number(part.need) || 0) / Math.max(1, Number(part.unitsPerSheet) || 1))
 
-                  const allowedSheets = singleKitting.hasKittingReqs
-                    ? availableIssuedSheets
-                    : (Number(config.maxSheetsToGenerate) > 0 ? config.maxSheetsToGenerate : effectiveSheets)
+                  const allowedSheets = targetSheets
 
                   onGenerate(
                     task,
@@ -634,23 +753,27 @@ export default function GenerateCardsModal({
               }}
               style={{
                 width: '100%',
-                background: (machineName && !isSingleKittingBlocked) ? '#10b981' : '#222',
-                color: (machineName && !isSingleKittingBlocked) ? '#fff' : (isSingleKittingBlocked ? '#ef4444' : '#666'),
+                background: (machineName && !isSingleKittingBlocked && !hasUnselectedCutters) ? '#10b981' : '#222',
+                color: (machineName && !isSingleKittingBlocked && !hasUnselectedCutters) ? '#fff' : (hasUnselectedCutters ? '#eab308' : (isSingleKittingBlocked ? '#ef4444' : '#666')),
                 padding: '20px',
                 borderRadius: '20px',
                 fontSize: '1rem',
                 fontWeight: 950,
-                cursor: (isGenerating || !machineName || isSingleKittingBlocked) ? 'not-allowed' : 'pointer',
-                border: (machineName && !isSingleKittingBlocked) ? 'none' : '1px solid #333',
+                cursor: (isGenerating || !machineName || isSingleKittingBlocked || hasUnselectedCutters) ? 'not-allowed' : 'pointer',
+                border: (machineName && !isSingleKittingBlocked && !hasUnselectedCutters) ? 'none' : (hasUnselectedCutters ? '1px solid rgba(234, 179, 8, 0.4)' : '1px solid #333'),
                 textTransform: 'uppercase',
                 letterSpacing: '1px',
-                boxShadow: (machineName && !isSingleKittingBlocked) ? '0 10px 20px -5px rgba(16, 185, 129, 0.4)' : 'none',
-                opacity: (isGenerating || !machineName || isSingleKittingBlocked) ? 0.6 : 1
+                boxShadow: (machineName && !isSingleKittingBlocked && !hasUnselectedCutters) ? '0 10px 20px -5px rgba(16, 185, 129, 0.4)' : 'none',
+                opacity: (isGenerating || !machineName || isSingleKittingBlocked || hasUnselectedCutters) ? 0.6 : 1
               }}
             >
               {isGenerating ? 'ОБРОБКА ТА СТВОРЕННЯ ЗАПИТУ...' : (
                 isSingleKittingBlocked ? `ОЧІКУЄМО ВИДАЧУ ${singleKitting.pendingSheets} ЛИСТІВ ЗІ СКЛАДУ` : (
-                  machineName ? 'ПІДТВЕРДИТИ ТА ЗГЕНЕРУВАТИ ПАРТІЮ' : 'ОБЕРІТЬ ВЕРСТАТ ДЛЯ ПРОДОВЖЕННЯ'
+                  !machineName ? 'ОБЕРІТЬ ВЕРСТАТ ДЛЯ ПРОДОВЖЕННЯ' : (
+                    hasUnselectedCutters ? `ОБЕРІТЬ МОДЕЛЬ ФРЕЗИ (${unselectedCuttersCount})` : (
+                      `ПІДТВЕРДИТИ ТА ЗГЕНЕРУВАТИ (${batchCards.length} КАРТ, ${actualTotalSheets} Л.)`
+                    )
+                  )
                 )
               )}
             </button>

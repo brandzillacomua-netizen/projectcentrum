@@ -10,6 +10,7 @@ import { executeAtomicQcScrap } from '../../../../services/atomicQcScrapService'
 import { incrementInventoryStock } from '../../../../services/inventoryStockService';
 import { executeAtomicCardTransition } from '../../../../services/atomicCardTransitionService';
 import { deductInventoryAtomic } from '../../../../services/atomicInventoryService';
+import { resolveCutterOrVirtualType, resolveCutterTypeName, isMachineMatch } from '../../../../utils/cutterCalculator';
 
 export function useShop1CardWorkflow({
   currentCard,
@@ -31,6 +32,7 @@ export function useShop1CardWorkflow({
   tasks,
   orders,
   machines,
+  machineOperations,
   systemUsers,
   requests,
   inventory,
@@ -99,70 +101,137 @@ export function useShop1CardWorkflow({
       return;
     }
 
+    const task = (tasks || []).find(t => String(t.id) === String(card.task_id));
     const nom = (nomenclatures || []).find(n => String(n.id) === String(card.nomenclature_id));
-    const unitsPerSheet = Number(nom?.units_per_sheet) || 1;
-    let cardSheets = Number(card.actual_sheets || card.actualSheets) || 0;
-    if (cardSheets <= 0) {
+
+    // Determine card sheets
+    let cardSheets = 0;
+    if (card.actual_sheets) cardSheets = Number(card.actual_sheets);
+    else if (card.actualSheets) cardSheets = Number(card.actualSheets);
+    else if (card.sheets) cardSheets = Number(card.sheets);
+
+    if (!cardSheets) {
+      const m = (card.card_info || '').match(/\((\d+(?:[.,]\d+)?)\s*л\.?\)/i) || (card.card_info || '').match(/\[SHEETS:(\d+)\]/i);
+      if (m) cardSheets = Number(m[1]);
+    }
+
+    if (!cardSheets) {
+      const partSnapshot = task?.plan_snapshot?.[card.nomenclature_id] || {};
+      const unitsPerSheet = Number(nom?.rule_params?.unitsPerSheet) ||
+        Number(nom?.units_per_sheet) ||
+        Number(partSnapshot?.units_per_sheet) || 1;
       cardSheets = Math.ceil((Number(card.quantity) || 0) / unitsPerSheet);
     }
-    if (cardSheets <= 0) return;
+    if (!cardSheets || cardSheets <= 0) cardSheets = 1;
 
-    let targetInventoryId = null;
-    const taskRequests = (requests || []).filter(r =>
-      (String(r.card_id) === String(card.id) || String(r.task_id) === String(card.task_id))
+    // Check if other uncompleted cards remain for this task
+    const otherActiveCards = (workCards || []).filter(c =>
+      String(c.task_id) === String(card.task_id) &&
+      String(c.id) !== String(card.id) &&
+      c.status !== 'completed' &&
+      c.status !== 'scrap' &&
+      c.status !== 'archived'
+    );
+    const isLastCard = otherActiveCards.length === 0;
+
+    // Fetch fresh material_requests for this task
+    let dbTaskRequests = [];
+    try {
+      const { data: reqData } = await supabase
+        .from('material_requests')
+        .select('*')
+        .or(`card_id.eq.${card.id},task_id.eq.${card.task_id}`)
+        .in('status', ['issued', 'pending']);
+      dbTaskRequests = reqData || [];
+    } catch (e) {
+      console.warn('Error fetching fresh material_requests in useShop1CardWorkflow:', e);
+      dbTaskRequests = (requests || []).filter(r =>
+        (String(r.card_id) === String(card.id) || String(r.task_id) === String(card.task_id)) &&
+        (r.status === 'issued' || r.status === 'pending')
+      );
+    }
+
+    const sheetRequests = dbTaskRequests.filter(r =>
+      r.category === 'sheet' ||
+      (r.details || '').toLowerCase().includes('лист') ||
+      (nomenclatures || []).find(n => String(n.id) === String(r.nomenclature_id))?.type === 'raw'
     );
 
-    for (const r of taskRequests) {
-      const isSheetReq = (r.details && (r.details.toLowerCase().includes('лист') || r.details.includes('ВИТРАТНІ МАТЕРІАЛИ: ЛИСТ'))) ||
-        (nomenclatures || []).find(n => String(n.id) === String(r.nomenclature_id))?.type === 'raw';
-      if (isSheetReq && r.inventory_id) {
-        targetInventoryId = r.inventory_id;
-        break;
+    let targetInventoryId = sheetRequests.find(r => r.inventory_id)?.inventory_id || null;
+
+    if (!targetInventoryId && task?.plan_snapshot?.materialSummary) {
+      const matSumList = Object.values(task.plan_snapshot.materialSummary);
+      const matchedMat = matSumList.find(m =>
+        Array.isArray(m.components) && m.components.some(c => (nom?.name && c.includes(nom.name)))
+      ) || matSumList[0];
+      if (matchedMat?.inventory_id) {
+        targetInventoryId = matchedMat.inventory_id;
       }
     }
 
-    if (!targetInventoryId) {
-      const opInventory = (inventory || []).filter(i => 
-        (i.warehouse === 'operational' || !i.warehouse) && 
-        i.warehouse !== 'sgp' && i.warehouse !== 'production'
-      );
-      const matType = (nom?.material_type || nom?.name || '').toLowerCase();
-      const thickMatch = matType.match(/(\d+(?:[.,]\d+)?)\s*мм/);
-      const targetThick = thickMatch ? thickMatch[1].replace(',', '.') : null;
-
-      const matchedSheet = opInventory.find(i => {
-        const iName = (i.name || '').toLowerCase();
-        if (!iName.includes('лист')) return false;
-        if (targetThick) {
-          const iThickMatch = iName.match(/(\d+(?:[.,]\d+)?)\s*мм/);
-          return iThickMatch && iThickMatch[1].replace(',', '.') === targetThick;
-        }
-        return true;
-      }) || opInventory.find(i => (i.name || '').toLowerCase().includes('лист'));
-
-      if (matchedSheet) {
-        targetInventoryId = matchedSheet.id;
-      }
-    }
-
+    const defaultMatId = nom?.default_material_id || nom?.rule_params?.default_material_id;
+    let sheetInvItem = null;
     if (targetInventoryId) {
+      sheetInvItem = (inventory || []).find(i => String(i.id) === String(targetInventoryId));
+    }
+    if (!sheetInvItem && defaultMatId) {
+      sheetInvItem = (inventory || []).find(i => String(i.nomenclature_id) === String(defaultMatId) && (i.warehouse === 'operational' || !i.warehouse));
+    }
+    if (!sheetInvItem) {
+      const rawSheetName = nom?.rule_params?.rawSheet || '';
+      if (rawSheetName) {
+        sheetInvItem = (inventory || []).find(i =>
+          (i.name || '').toLowerCase().includes(rawSheetName.toLowerCase()) &&
+          (i.warehouse === 'operational' || !i.warehouse)
+        );
+      }
+    }
+    if (!sheetInvItem) {
+      const opSheets = (inventory || []).filter(i =>
+        (i.name || '').toLowerCase().includes('лист') &&
+        (i.warehouse === 'operational' || !i.warehouse)
+      );
+      const thickMatch = (nom?.name || '').match(/[-_](\d+(?:[.,]\d+)?)(?:[-_]|$)/);
+      if (thickMatch) {
+        const thickStr = thickMatch[1] + 'мм';
+        sheetInvItem = opSheets.find(i => (i.name || '').toLowerCase().includes(thickStr));
+      }
+      if (!sheetInvItem) sheetInvItem = opSheets[0];
+    }
+
+    if (sheetInvItem) {
+      const curReserved = Number(sheetInvItem.reserved_qty) || 0;
+      const taskReservedForSheet = sheetRequests.filter(r => r.status === 'issued').reduce((sum, r) => sum + (Number(r.quantity) || 0), 0);
+
+      let releaseReserved = 0;
+      if (isLastCard) {
+        releaseReserved = taskReservedForSheet > 0 ? taskReservedForSheet : curReserved;
+      } else {
+        releaseReserved = taskReservedForSheet > 0 ? Math.min(taskReservedForSheet, cardSheets) : cardSheets;
+      }
+      releaseReserved = Math.max(0, Math.min(curReserved, releaseReserved));
+
       await deductInventoryAtomic(supabase, {
-        inventoryId: targetInventoryId,
+        inventoryId: sheetInvItem.id,
         deductTotal: cardSheets,
-        releaseReserved: cardSheets
+        releaseReserved: releaseReserved
       });
 
-      for (const r of taskRequests) {
-        const isSheetReq = (r.details && r.details.toLowerCase().includes('лист')) ||
-          (nomenclatures || []).find(n => String(n.id) === String(r.nomenclature_id))?.type === 'raw';
-        if (isSheetReq && (r.status === 'issued' || r.status === 'pending')) {
-          const remQty = Math.max(0, (Number(r.quantity) || 0) - cardSheets);
-          if (remQty > 0) {
-            await supabase.from('material_requests').update({ quantity: remQty }).eq('id', r.id);
+      let remainingToDeduct = releaseReserved;
+      for (const req of sheetRequests) {
+        if (remainingToDeduct <= 0 && !isLastCard) break;
+        const reqQty = Number(req.quantity) || 0;
+        if (isLastCard) {
+          await supabase.from('material_requests').update({ quantity: 0, status: 'completed' }).eq('id', req.id);
+        } else {
+          const deductThis = Math.min(reqQty, remainingToDeduct);
+          const nextQty = Math.max(0, reqQty - deductThis);
+          remainingToDeduct -= deductThis;
+          if (nextQty === 0) {
+            await supabase.from('material_requests').update({ quantity: 0, status: 'completed' }).eq('id', req.id);
           } else {
-            await supabase.from('material_requests').update({ quantity: 0, status: 'completed' }).eq('id', r.id);
+            await supabase.from('material_requests').update({ quantity: nextQty }).eq('id', req.id);
           }
-          break;
         }
       }
     }
@@ -174,6 +243,39 @@ export function useShop1CardWorkflow({
 
     const itemsForRestoration = [];
     const isBoxAlreadyPrepared = Boolean(card.is_box_prepared || (card.card_info || '').includes('[BOX_PREPARED:true]'));
+
+    // Determine card sheets
+    const cardNom = nomenclatures?.find(n => String(n.id) === String(card.nomenclature_id));
+    const unitsPerSheet = Number(cardNom?.units_per_sheet) || 1;
+    const cardSheets = Number(card.actualSheets || card.sheets) || Math.ceil((Number(card.quantity) || 0) / unitsPerSheet) || 1;
+
+    // Check if other uncompleted cards remain for this task
+    const otherActiveCards = (workCards || []).filter(c =>
+      String(c.task_id) === String(card.task_id) &&
+      String(c.id) !== String(card.id) &&
+      c.status !== 'completed' &&
+      c.status !== 'scrap' &&
+      c.status !== 'archived'
+    );
+    const isLastCard = otherActiveCards.length === 0;
+    const task = (tasks || []).find(t => String(t.id) === String(card.task_id));
+
+    // Fetch fresh material_requests for this task
+    let dbTaskRequests = [];
+    try {
+      const { data: reqData } = await supabase
+        .from('material_requests')
+        .select('*')
+        .or(`card_id.eq.${card.id},task_id.eq.${card.task_id}`)
+        .in('status', ['issued', 'pending']);
+      dbTaskRequests = reqData || [];
+    } catch (e) {
+      console.warn('Error fetching fresh material_requests in useShop1CardWorkflow:', e);
+      dbTaskRequests = (requests || []).filter(r =>
+        (String(r.card_id) === String(card.id) || String(r.task_id) === String(card.task_id)) &&
+        (r.status === 'issued' || r.status === 'pending')
+      );
+    }
 
     for (const [cutterName, actualQtyVal] of Object.entries(breakdown)) {
       const actualQty = Number(actualQtyVal) || 0;
@@ -198,17 +300,79 @@ export function useShop1CardWorkflow({
         )
       );
 
-      // Find any active request / reservation for this cutter on this card or task
-      const cutterRequests = (requests || []).filter(r =>
-        (String(r.card_id) === String(card.id) || String(r.task_id) === String(card.task_id)) &&
-        (
-          (nom && String(r.nomenclature_id) === String(nom.id)) ||
-          (r.details || '').toLowerCase().includes(cutterName.toLowerCase())
-        )
-      );
+      // 1. Calculate planned rate (cutters per sheet) and card's planned quota
+      let qtyPerSheet = null;
 
-      const activeReq = cutterRequests.find(r => r.status === 'issued' || r.status === 'pending');
-      const reservedAmount = activeReq ? (Number(activeReq.quantity) || 1) : 1;
+      // Check machineOperations for this part & machine
+      const allOpsForCardNom = (machineOperations || []).filter(o =>
+        String(o.nomenclature_id) === String(card.nomenclature_id) ||
+        (Array.isArray(cardNom?.legacy_ids) && cardNom.legacy_ids.map(String).includes(String(o.nomenclature_id)))
+      );
+      const cardMachine = card.machine || task?.machine_name || '';
+      const cardOpData = (cardMachine && allOpsForCardNom.find(o =>
+        isMachineMatch(o.machine_type, cardMachine) || isMachineMatch(o.machine_id, cardMachine)
+      )) || allOpsForCardNom[0];
+
+      if (cardOpData?.side2_cut_ops) {
+        const cutterOps = cardOpData.side2_cut_ops.filter(op => op.startsWith('__CUTTER__Reference:') || op.startsWith('__CUTTER__:'));
+        for (const op of cutterOps) {
+          const parts = op.split(':');
+          const cutterNomId = parts[1];
+          const qps = parseFloat(parts[2]) || 0;
+          if (cutterNomId && qps > 0) {
+            const opCutterNom = resolveCutterOrVirtualType(cutterNomId, nomenclatures);
+            const opCutterTypeName = resolveCutterTypeName(opCutterNom, nomenclatures);
+            const nomMatches = (nom && String(opCutterNom?.id) === String(nom.id)) ||
+              ((opCutterNom?.name || '').trim().toLowerCase() === cutterName.trim().toLowerCase()) ||
+              ((opCutterTypeName || '').trim().toLowerCase() === cutterName.trim().toLowerCase());
+            if (nomMatches) {
+              qtyPerSheet = qps;
+              break;
+            }
+          }
+        }
+      }
+
+      // Fallback: task snapshot ratio
+      if (qtyPerSheet === null) {
+        let totalTaskSheets = Number(task?.planned_sets) || 0;
+        if (!totalTaskSheets && task?.plan_snapshot?.materialSummary) {
+          totalTaskSheets = Object.values(task.plan_snapshot.materialSummary).reduce((s, m) => s + (Number(m?.sheets) || 0), 0);
+        }
+        if (!totalTaskSheets && task?.plan_snapshot) {
+          Object.entries(task.plan_snapshot).forEach(([k, val]) => {
+            if (val && typeof val === 'object' && val.sheets) {
+              totalTaskSheets += Number(val.sheets) || 0;
+            }
+          });
+        }
+        if (!totalTaskSheets && workCards) {
+          const taskCards = workCards.filter(c => String(c.task_id) === String(card.task_id));
+          totalTaskSheets = taskCards.reduce((s, c) => {
+            const n = nomenclatures?.find(item => String(item.id) === String(c.nomenclature_id));
+            const ups = Number(n?.units_per_sheet) || 1;
+            return s + (Number(c.actualSheets || c.sheets) || Math.ceil((Number(c.quantity) || 0) / ups) || 1);
+          }, 0);
+        }
+        if (totalTaskSheets <= 0) totalTaskSheets = 1;
+
+        const plannedCutterItem = task?.plan_snapshot?.consumables?.find(c =>
+          String(c.name).toLowerCase().trim() === cutterName.toLowerCase().trim()
+        );
+        const totalPlannedTaskCutters = Number(plannedCutterItem?.total) || 0;
+        if (totalPlannedTaskCutters > 0) {
+          qtyPerSheet = totalPlannedTaskCutters / totalTaskSheets;
+        }
+      }
+
+      const cardPlannedQty = Math.max(1, Math.ceil(cardSheets * (qtyPerSheet || 1)));
+
+      // Find active requests for this cutter on this task
+      const cutterRequests = dbTaskRequests.filter(r =>
+        (nom && String(r.nomenclature_id) === String(nom.id)) ||
+        (r.details || '').toLowerCase().includes(cutterName.toLowerCase())
+      );
+      const taskReservedForCutter = cutterRequests.reduce((sum, r) => sum + (Number(r.quantity) || 0), 0);
 
       if (opInvItem) {
         if (isBoxAlreadyPrepared) {
@@ -228,26 +392,40 @@ export function useShop1CardWorkflow({
             }).eq('id', opInvItem.id);
           }
         } else {
-          // Standard deduction:
-          // deductTotal = actualQty
-          // releaseReserved = Math.max(actualQty, reservedAmount)
-          // Any excess reserve (reservedAmount - actualQty) is released back to free stock without physical deduction!
+          // Standard proportional deduction
+          const curReserved = Number(opInvItem.reserved_qty) || 0;
+          let releaseReserved = 0;
+          if (isLastCard) {
+            releaseReserved = taskReservedForCutter > 0 ? taskReservedForCutter : curReserved;
+          } else {
+            const quotaToRelease = cardPlannedQty;
+            releaseReserved = taskReservedForCutter > 0 ? Math.min(taskReservedForCutter, quotaToRelease) : quotaToRelease;
+          }
+          releaseReserved = Math.min(curReserved, releaseReserved);
+
           await deductInventoryAtomic(supabase, {
             inventoryId: opInvItem.id,
             deductTotal: actualQty,
-            releaseReserved: Math.max(actualQty, reservedAmount)
+            releaseReserved: releaseReserved
           });
-        }
-      }
 
-      // Update material requests status / quantity
-      for (const req of cutterRequests) {
-        if (req.status === 'issued' || req.status === 'pending') {
-          const newQty = Math.max(0, (Number(req.quantity) || 0) - Math.max(actualQty, reservedAmount));
-          if (newQty <= 0) {
-            await supabase.from('material_requests').update({ quantity: 0, status: 'completed' }).eq('id', req.id);
-          } else {
-            await supabase.from('material_requests').update({ quantity: newQty }).eq('id', req.id);
+          // Update material requests status / quantity
+          let remainingToDeductFromReqs = releaseReserved;
+          for (const req of cutterRequests) {
+            if (remainingToDeductFromReqs <= 0 && !isLastCard) break;
+            const reqQty = Number(req.quantity) || 0;
+            if (isLastCard) {
+              await supabase.from('material_requests').update({ quantity: 0, status: 'completed' }).eq('id', req.id);
+            } else {
+              const deductFromThisReq = Math.min(reqQty, remainingToDeductFromReqs);
+              const nextReqQty = Math.max(0, reqQty - deductFromThisReq);
+              remainingToDeductFromReqs -= deductFromThisReq;
+              if (nextReqQty === 0) {
+                await supabase.from('material_requests').update({ quantity: 0, status: 'completed' }).eq('id', req.id);
+              } else {
+                await supabase.from('material_requests').update({ quantity: nextReqQty }).eq('id', req.id);
+              }
+            }
           }
         }
       }

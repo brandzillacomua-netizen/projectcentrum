@@ -10,10 +10,12 @@ import {
   findExplicitRawMaterialNom as findExplicitRawNom
 } from './productionShared.js'
 import { findWorkingSheetNom, extractThickness } from '../../modules/Nomenclature/utils/nomenclatureHelpers.js'
+import { deductInventoryAtomic } from '../../services/atomicInventoryService.js'
+import { resolveCutterOrVirtualType, resolveCutterTypeName, isMachineMatch } from '../../utils/cutterCalculator.js'
 
 export function createProductionCardsActions({
   orders, tasks, inventory, nomenclatures, bomItems, workCards,
-  machineOperations, machines, systemUsers, currentUser,
+  machineOperations, machines, systemUsers, currentUser, requests,
   setTasks, setWorkCards, setWorkCardHistory, setManagementTasks, setMachines,
   normalize, refreshTable, fetchData,
   deductIssuedMaterialsForTask,
@@ -340,7 +342,10 @@ export function createProductionCardsActions({
     if (cuttersBreakdown && Object.keys(cuttersBreakdown).length > 0) {
       breakdownStr = ` [CUTTERS_BREAKDOWN:${JSON.stringify(cuttersBreakdown)}]`
     }
-    const historyCardInfo = (machineTag + ' ' + (card.card_info || '') + breakdownStr).trim()
+    const isCuttingOp = currentOp.toLowerCase() === 'розкрій'
+    const alreadyDeductedSheets = (card.card_info || '').includes('[SHEETS_DEDUCTED:true]') || (card.card_info || '').includes('[MATERIALS_ISSUED:true]')
+    const sheetDeductedTag = (isCuttingOp && !alreadyDeductedSheets) ? ' [SHEETS_DEDUCTED:true]' : ''
+    const historyCardInfo = (machineTag + ' ' + (card.card_info || '') + breakdownStr + sheetDeductedTag).trim()
 
     const writePromises = [
       supabase.from('work_card_history').insert([{
@@ -447,7 +452,9 @@ export function createProductionCardsActions({
       }
     }
 
-    if (currentOp === 'Розкрій' && cuttersBreakdown && Object.keys(cuttersBreakdown).length > 0) {
+    const hasCuttersBreakdown = isCuttingOp && cuttersBreakdown && Object.keys(cuttersBreakdown).length > 0
+
+    if (isCuttingOp && (!alreadyDeductedSheets || hasCuttersBreakdown)) {
       const isChamferCutter = (name) => {
         const n = String(name || '').toLowerCase()
         return n.includes('фасоч') || n.includes('фаска') || n.includes('chamfer')
@@ -455,36 +462,274 @@ export function createProductionCardsActions({
 
       const cutterUsageItems = []
       const task = tasks?.find(t => String(t.id) === String(card.task_id))
+      const cardNom = nomenclatures?.find(n => String(n.id) === String(card.nomenclature_id))
+
+      // Determine card sheets
+      let cardSheets = 0
+      if (card.actual_sheets) cardSheets = Number(card.actual_sheets)
+      else if (card.actualSheets) cardSheets = Number(card.actualSheets)
+      else if (card.sheets) cardSheets = Number(card.sheets)
+
+      if (!cardSheets) {
+        const m = (card.card_info || '').match(/\((\d+(?:[.,]\d+)?)\s*л\.?\)/i) || (card.card_info || '').match(/\[SHEETS:(\d+)\]/i)
+        if (m) cardSheets = Number(m[1])
+      }
+
+      if (!cardSheets) {
+        const partSnapshot = task?.plan_snapshot?.[card.nomenclature_id] || {}
+        const unitsPerSheet = Number(cardNom?.rule_params?.unitsPerSheet) ||
+          Number(cardNom?.units_per_sheet) ||
+          Number(partSnapshot?.units_per_sheet) || 1
+        cardSheets = Math.ceil((Number(card.quantity) || 0) / unitsPerSheet)
+      }
+      if (!cardSheets || cardSheets <= 0) cardSheets = 1
+
+      // Check if other uncompleted cards remain for this task
+      const otherActiveCards = (workCards || []).filter(c =>
+        String(c.task_id) === String(card.task_id) &&
+        String(c.id) !== String(card.id) &&
+        c.status !== 'completed' &&
+        c.status !== 'scrap' &&
+        c.status !== 'archived'
+      )
+      const isLastCard = otherActiveCards.length === 0
+
+      // Fetch fresh material_requests for this task
+      let dbTaskRequests = []
+      try {
+        const { data: reqData } = await supabase
+          .from('material_requests')
+          .select('*')
+          .or(`card_id.eq.${card.id},task_id.eq.${card.task_id}`)
+          .in('status', ['issued', 'pending'])
+        dbTaskRequests = reqData || []
+      } catch (e) {
+        console.warn('Error fetching fresh material_requests in confirmBuffer:', e)
+        dbTaskRequests = (requests || []).filter(r =>
+          (String(r.card_id) === String(card.id) || String(r.task_id) === String(card.task_id)) &&
+          (r.status === 'issued' || r.status === 'pending')
+        )
+      }
+
+      // ── 1. Process Sheet deduction & proportional reservation release ──
+      if (!alreadyDeductedSheets) {
+        try {
+          const sheetRequests = dbTaskRequests.filter(r =>
+            r.category === 'sheet' ||
+            (r.details || '').toLowerCase().includes('лист') ||
+            (nomenclatures || []).find(n => String(n.id) === String(r.nomenclature_id))?.type === 'raw'
+          )
+
+          let targetInventoryId = sheetRequests.find(r => r.inventory_id)?.inventory_id || null
+
+          if (!targetInventoryId && task?.plan_snapshot?.materialSummary) {
+            const matSumList = Object.values(task.plan_snapshot.materialSummary)
+            const matchedMat = matSumList.find(m =>
+              Array.isArray(m.components) && m.components.some(c => (cardNom?.name && c.includes(cardNom.name)))
+            ) || matSumList[0]
+            if (matchedMat?.inventory_id) {
+              targetInventoryId = matchedMat.inventory_id
+            }
+          }
+
+          const defaultMatId = cardNom?.default_material_id || cardNom?.rule_params?.default_material_id
+          let sheetInvItem = null
+          if (targetInventoryId) {
+            sheetInvItem = (inventory || []).find(i => String(i.id) === String(targetInventoryId))
+          }
+          if (!sheetInvItem && defaultMatId) {
+            sheetInvItem = (inventory || []).find(i => String(i.nomenclature_id) === String(defaultMatId) && (i.warehouse === 'operational' || !i.warehouse))
+          }
+          if (!sheetInvItem) {
+            const rawSheetName = cardNom?.rule_params?.rawSheet || ''
+            if (rawSheetName) {
+              sheetInvItem = (inventory || []).find(i =>
+                (i.name || '').toLowerCase().includes(rawSheetName.toLowerCase()) &&
+                (i.warehouse === 'operational' || !i.warehouse)
+              )
+            }
+          }
+          if (!sheetInvItem) {
+            const opSheets = (inventory || []).filter(i =>
+              (i.name || '').toLowerCase().includes('лист') &&
+              (i.warehouse === 'operational' || !i.warehouse)
+            )
+            const thickMatch = (cardNom?.name || '').match(/[-_](\d+(?:[.,]\d+)?)(?:[-_]|$)/)
+            if (thickMatch) {
+              const thickStr = thickMatch[1] + 'мм'
+              sheetInvItem = opSheets.find(i => (i.name || '').toLowerCase().includes(thickStr))
+            }
+            if (!sheetInvItem) sheetInvItem = opSheets[0]
+          }
+
+          if (sheetInvItem) {
+            const curReserved = Number(sheetInvItem.reserved_qty) || 0
+            const taskReservedForSheet = sheetRequests.filter(r => r.status === 'issued').reduce((sum, r) => sum + (Number(r.quantity) || 0), 0)
+
+            let releaseReserved = 0
+            if (isLastCard) {
+              releaseReserved = taskReservedForSheet > 0 ? taskReservedForSheet : curReserved
+            } else {
+              releaseReserved = taskReservedForSheet > 0 ? Math.min(taskReservedForSheet, cardSheets) : cardSheets
+            }
+            releaseReserved = Math.max(0, Math.min(curReserved, releaseReserved))
+
+            await deductInventoryAtomic(supabase, {
+              inventoryId: sheetInvItem.id,
+              deductTotal: cardSheets,
+              releaseReserved: releaseReserved
+            })
+
+            let remainingToDeduct = releaseReserved
+            for (const req of sheetRequests) {
+              if (remainingToDeduct <= 0 && !isLastCard) break
+              const reqQty = Number(req.quantity) || 0
+              if (isLastCard) {
+                await supabase.from('material_requests').update({ quantity: 0, status: 'completed' }).eq('id', req.id)
+              } else {
+                const deductThis = Math.min(reqQty, remainingToDeduct)
+                const nextQty = Math.max(0, reqQty - deductThis)
+                remainingToDeduct -= deductThis
+                if (nextQty === 0) {
+                  await supabase.from('material_requests').update({ quantity: 0, status: 'completed' }).eq('id', req.id)
+                } else {
+                  await supabase.from('material_requests').update({ quantity: nextQty }).eq('id', req.id)
+                }
+              }
+            }
+          }
+        } catch (sheetErr) {
+          console.error('Error deducting sheets in confirmBuffer:', sheetErr)
+        }
+      }
+
+      // ── 2. Process Cutters deduction & proportional reservation release ──
+      if (hasCuttersBreakdown) {
 
       for (const [cutterName, actualQtyVal] of Object.entries(cuttersBreakdown)) {
         const actualQty = Number(actualQtyVal) || 0
         if (actualQty <= 0) continue
 
         const nom = nomenclatures?.find(n => n.name?.trim().toLowerCase() === cutterName.trim().toLowerCase() && n.type === 'consumable')
+          || nomenclatures?.find(n => n.name?.trim().toLowerCase() === cutterName.trim().toLowerCase())
         if (!nom) continue
         cutterUsageItems.push({ nomenclature_id: nom.id, quantity: actualQty })
 
-        // 1. Calculate planned cutter quantity
-        const plannedCutterItem = task?.plan_snapshot?.consumables?.find(c => String(c.name).toLowerCase().trim() === cutterName.toLowerCase().trim())
-        const plannedQty = Number(plannedCutterItem?.total) || 0
+        // 1. Calculate planned rate (cutters per sheet) and card's planned quota
+        let qtyPerSheet = null
 
-        // 2. Adjust inventory total_qty and reserved_qty according to the 3 scenarios
+        // Check machineOperations for this part & machine
+        const allOpsForCardNom = (machineOperations || []).filter(o =>
+          String(o.nomenclature_id) === String(card.nomenclature_id) ||
+          (Array.isArray(cardNom?.legacy_ids) && cardNom.legacy_ids.map(String).includes(String(o.nomenclature_id)))
+        )
+        const cardMachine = card.machine || task?.machine_name || ''
+        const cardOpData = (cardMachine && allOpsForCardNom.find(o =>
+          isMachineMatch(o.machine_type, cardMachine) || isMachineMatch(o.machine_id, cardMachine)
+        )) || allOpsForCardNom[0]
+
+        if (cardOpData?.side2_cut_ops) {
+          const cutterOps = cardOpData.side2_cut_ops.filter(op => op.startsWith('__CUTTER__Reference:') || op.startsWith('__CUTTER__:'))
+          for (const op of cutterOps) {
+            const parts = op.split(':')
+            const cutterNomId = parts[1]
+            const qps = parseFloat(parts[2]) || 0
+            if (cutterNomId && qps > 0) {
+              const opCutterNom = resolveCutterOrVirtualType(cutterNomId, nomenclatures)
+              const opCutterTypeName = resolveCutterTypeName(opCutterNom, nomenclatures)
+              const nomMatches = (String(opCutterNom?.id) === String(nom.id)) ||
+                ((opCutterNom?.name || '').trim().toLowerCase() === cutterName.trim().toLowerCase()) ||
+                ((opCutterTypeName || '').trim().toLowerCase() === cutterName.trim().toLowerCase())
+              if (nomMatches) {
+                qtyPerSheet = qps
+                break
+              }
+            }
+          }
+        }
+
+        // Fallback: task snapshot ratio
+        if (qtyPerSheet === null) {
+          let totalTaskSheets = Number(task?.planned_sets) || 0
+          if (!totalTaskSheets && task?.plan_snapshot?.materialSummary) {
+            totalTaskSheets = Object.values(task.plan_snapshot.materialSummary).reduce((s, m) => s + (Number(m?.sheets) || 0), 0)
+          }
+          if (!totalTaskSheets && task?.plan_snapshot) {
+            Object.entries(task.plan_snapshot).forEach(([k, val]) => {
+              if (val && typeof val === 'object' && val.sheets) {
+                totalTaskSheets += Number(val.sheets) || 0
+              }
+            })
+          }
+          if (!totalTaskSheets && workCards) {
+            const taskCards = workCards.filter(c => String(c.task_id) === String(card.task_id))
+            totalTaskSheets = taskCards.reduce((s, c) => {
+              const n = nomenclatures?.find(item => String(item.id) === String(c.nomenclature_id))
+              const ups = Number(n?.units_per_sheet) || 1
+              return s + (Number(c.actualSheets || c.sheets) || Math.ceil((Number(c.quantity) || 0) / ups) || 1)
+            }, 0)
+          }
+          if (totalTaskSheets <= 0) totalTaskSheets = 1
+
+          const plannedCutterItem = task?.plan_snapshot?.consumables?.find(c =>
+            String(c.name).toLowerCase().trim() === cutterName.toLowerCase().trim()
+          )
+          const totalPlannedTaskCutters = Number(plannedCutterItem?.total) || 0
+          if (totalPlannedTaskCutters > 0) {
+            qtyPerSheet = totalPlannedTaskCutters / totalTaskSheets
+          }
+        }
+
+        const cardPlannedQty = Math.max(1, Math.ceil(cardSheets * (qtyPerSheet || 1)))
+
+        // Find active requests for this cutter on this task
+        const cutterRequests = dbTaskRequests.filter(r =>
+          (nom && String(r.nomenclature_id) === String(nom.id)) ||
+          (r.details || '').toLowerCase().includes(cutterName.toLowerCase())
+        )
+        const taskReservedForCutter = cutterRequests.reduce((sum, r) => sum + (Number(r.quantity) || 0), 0)
+
+        // 2. Adjust inventory total_qty and reserved_qty proportionally
         const invItem = inventory?.find(i => String(i.nomenclature_id) === String(nom.id) && (i.warehouse === 'operational' || i.type === 'consumable'))
         if (invItem) {
-          const curTotal = Number(invItem.total_qty) || 0
           const curReserved = Number(invItem.reserved_qty) || 0
-          const nextTotal = Math.max(0, curTotal - actualQty)
-          const releaseReserved = Math.min(curReserved, plannedQty > 0 ? plannedQty : actualQty)
-          const nextReserved = Math.max(0, curReserved - releaseReserved)
+          let releaseReserved = 0
+          if (isLastCard) {
+            releaseReserved = taskReservedForCutter > 0 ? taskReservedForCutter : curReserved
+          } else {
+            const quotaToRelease = cardPlannedQty
+            releaseReserved = taskReservedForCutter > 0 ? Math.min(taskReservedForCutter, quotaToRelease) : quotaToRelease
+          }
+          releaseReserved = Math.min(curReserved, releaseReserved)
 
-          await supabase.from('inventory').update({
-            total_qty: nextTotal,
-            reserved_qty: nextReserved
-          }).eq('id', invItem.id)
+          await deductInventoryAtomic(supabase, {
+            inventoryId: invItem.id,
+            deductTotal: actualQty,
+            releaseReserved: releaseReserved
+          })
+
+          // Update material_requests for this task
+          let remainingToDeductFromReqs = releaseReserved
+          for (const req of cutterRequests) {
+            if (remainingToDeductFromReqs <= 0 && !isLastCard) break
+            const reqQty = Number(req.quantity) || 0
+            if (isLastCard) {
+              await supabase.from('material_requests').update({ quantity: 0, status: 'completed' }).eq('id', req.id)
+            } else {
+              const deductFromThisReq = Math.min(reqQty, remainingToDeductFromReqs)
+              const nextReqQty = Math.max(0, reqQty - deductFromThisReq)
+              remainingToDeductFromReqs -= deductFromThisReq
+              if (nextReqQty === 0) {
+                await supabase.from('material_requests').update({ quantity: 0, status: 'completed' }).eq('id', req.id)
+              } else {
+                await supabase.from('material_requests').update({ quantity: nextReqQty }).eq('id', req.id)
+              }
+            }
+          }
 
           // 3. Scenario 3: If excess usage on a Chamfer cutter, add excess to restoration terminal queue
-          if (actualQty > plannedQty && plannedQty > 0) {
-            const excess = actualQty - plannedQty
+          if (actualQty > cardPlannedQty) {
+            const excess = actualQty - cardPlannedQty
             if (isChamferCutter(cutterName)) {
               await supabase.from('cutter_restoration_batches').insert([{
                 batch_number: `BATCH-OVER-${Date.now().toString(36).toUpperCase()}`,
@@ -518,6 +763,10 @@ export function createProductionCardsActions({
           console.warn('register_cutter_usage RPC info:', cutterUsageError.message)
         }
       }
+      } // end if (hasCuttersBreakdown)
+
+      refreshTable('inventory')
+      refreshTable('material_requests')
     }
 
     if (isRework || (card.card_info || '').includes('[ADMIN_MANUAL]')) {

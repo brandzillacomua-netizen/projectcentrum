@@ -217,6 +217,7 @@ export function useShop1TerminalState() {
     tasks,
     orders,
     machines,
+    machineOperations,
     systemUsers,
     requests,
     inventory,

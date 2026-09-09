@@ -17,8 +17,8 @@ import { NomenclatureWizardModal } from './Nomenclature/components/NomenclatureW
 import { NomenclatureGroupModal } from './Nomenclature/components/NomenclatureGroupModal'
 import { NomenclatureEditModal } from './Nomenclature/components/NomenclatureEditModal'
 import { NomenclatureExportModal } from './Nomenclature/components/NomenclatureExportModal'
-import { NomenclatureImportModal } from './Nomenclature/components/NomenclatureImportModal'
 import { NomenclatureCardModal } from './Nomenclature/components/NomenclatureCardModal'
+import { generateNextV2Code } from '../utils/codeGenerator'
 
 export { DEFAULT_ERP_GROUPS, ERP_CATEGORY_SCHEMAS, generateStandardName, buildFlattenedGroupOptions }
 
@@ -457,12 +457,7 @@ const NomenclatureV2 = () => {
         return
       }
 
-      const nextCode = items.reduce((max, it) => {
-        const num = parseInt(String(it.code).replace(/\D/g, ''))
-        return num > max ? num : max
-      }, 90000) + 1
-
-      const newCodeStr = `V2-${nextCode}`
+      const newCodeStr = await generateNextV2Code(supabase, items)
       const v2Payload = {
         code: newCodeStr,
         barcode: newCodeStr,
