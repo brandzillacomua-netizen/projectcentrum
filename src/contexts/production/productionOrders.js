@@ -1,5 +1,5 @@
 import { supabase } from '../../supabase.js'
-import { isMachineMatch } from '../../utils/cutterCalculator.js'
+import { isMachineMatch, resolveCutterOrVirtualType } from '../../utils/cutterCalculator.js'
 import {
   getRequestQty,
   normalizeName,
@@ -483,14 +483,20 @@ export function createProductionOrdersActions({
 
 
   const addOrder = async (header, items) => {
+    let customerId = header.customer_id || header.customerId || null;
     if (header.customer) {
       const trimmedName = header.customer.trim()
       const { data: existing } = await supabase.from('customers').select('id').ilike('name', trimmedName).maybeSingle()
-      if (!existing) await supabase.from('customers').insert([{ name: trimmedName, official_name: header.official_customer?.trim() || '' }])
+      if (existing) {
+        customerId = existing.id;
+      } else {
+        const { data: newCust } = await supabase.from('customers').insert([{ name: trimmedName, official_name: header.official_customer?.trim() || '' }]).select('id').maybeSingle()
+        if (newCust) customerId = newCust.id;
+      }
     }
 
-    let supaNomenclatureId = null;
-    if (header.productName) {
+    let supaNomenclatureId = header.nomenclature_id || header.nomenclatureId || null;
+    if (!supaNomenclatureId && header.productName) {
       const { data: nomRow } = await supabase.from('nomenclatures').select('id').ilike('name', header.productName.trim()).maybeSingle();
       if (nomRow) {
         supaNomenclatureId = nomRow.id;
@@ -502,7 +508,7 @@ export function createProductionOrdersActions({
     }
 
     const orderedQty = items?.[0]?.quantity || header.quantity || 0;
-    const { data, error } = await supabase.from('orders').insert([{
+    const orderPayload = {
       order_num: header.orderNum,
       customer: header.customer,
       official_customer: header.official_customer,
@@ -513,7 +519,12 @@ export function createProductionOrdersActions({
       nomenclature_id: supaNomenclatureId,
       quantity: Number(orderedQty),
       accessories: header.productName || '',
-    }]).select()
+    };
+    if (customerId) {
+      orderPayload.customer_id = customerId;
+    }
+
+    const { data, error } = await supabase.from('orders').insert([orderPayload]).select()
     if (error) throw error
 
     const newOrderId = data[0].id;
@@ -585,14 +596,28 @@ export function createProductionOrdersActions({
       // Main warehouse request must point only to prepared sheets. Unprepared
       // material is requested separately through the preparation flow below.
       const typePrefix = /т700|t700/i.test(matKeyBase) ? 'Т700' : 'Т300'
-      const sheetWorkingNom = findWorkingSheetNom(typePrefix, matKeyBase, nomenclatures)
-      const finalPreparedNom = sheetWorkingNom || preparedNom || explicitPreparedNom
+      let finalPreparedNom = null
+      if (partNom?.default_material_id) {
+        const defSheet = nomenclatures.find(n => n.id === partNom.default_material_id)
+        if (defSheet) {
+          const defGrade = (defSheet.name || '').includes('Т700') ? 'Т700' : 'Т300'
+          if (defGrade === typePrefix) {
+            finalPreparedNom = defSheet
+          } else {
+            finalPreparedNom = findWorkingSheetNom(typePrefix, defSheet.name, nomenclatures) || defSheet
+          }
+        }
+      }
+      if (!finalPreparedNom) {
+        const sheetWorkingNom = findWorkingSheetNom(typePrefix, matKeyBase, nomenclatures)
+        finalPreparedNom = sheetWorkingNom || preparedNom || explicitPreparedNom
+      }
 
       const requestNomId = finalPreparedNom?.id || null
       const requestNomName = finalPreparedNom?.name ||
         (matKeyBase.toLowerCase().includes('підготовлений') && !matKeyBase.toLowerCase().includes('непідготовлений')
           ? matKeyBase
-          : (sheetWorkingNom ? sheetWorkingNom.name : `${stripMaterialTags(matKeyBase)} [Підготовлений]`))
+          : (finalPreparedNom ? finalPreparedNom.name : `${stripMaterialTags(matKeyBase)} [Підготовлений]`))
 
       const requestsToInsert = []
 
@@ -620,6 +645,8 @@ export function createProductionOrdersActions({
           status: 'pending',
           inventory_id: invItem?.id || null,
           nomenclature_id: requestNomId,
+          category: 'sheet',
+          target_warehouse: 'operational',
           details: `ДОЗАПИТ (БРАК/НЕСТАЧА) для ${order?.order_num || '???'}: ${requestNomName} — ${sheets} л.`
         })
 
@@ -706,7 +733,7 @@ export function createProductionOrdersActions({
             const qtyPerSheet = parseFloat(parts[2]) || 0
             if (cutterNomId && qtyPerSheet > 0) {
               const totalQty = Math.ceil(sheets * qtyPerSheet)
-              const cutterNom = nomenclatures.find(n => String(n.id) === String(cutterNomId))
+              const cutterNom = resolveCutterOrVirtualType(cutterNomId, nomenclatures)
               if (cutterNom && cutterNom.name.trim().toLowerCase() !== 'фреза') {
                 const cleanName = cutterNom.name.trim()
                 

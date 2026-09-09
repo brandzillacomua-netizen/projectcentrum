@@ -159,9 +159,10 @@ export function useCardGeneration({ mes }) {
         const qtyInThisLoading = Math.ceil(sheetsInThisLoading * unitsPerSheet)
         const reqInThisLoading = Math.min(qtyInThisLoading, reqRemainingForThisSplit)
         const bzInThisLoading = Math.max(0, qtyInThisLoading - reqInThisLoading)
-
         const prefix = isRepair ? '[REDO] ' : ''
-        const hasCutterNeeds = Array.isArray(selectedCutters) && selectedCutters.length > 0
+        const hasCutterNeeds = Array.isArray(selectedCutters)
+          ? selectedCutters.length > 0
+          : (selectedCutters && typeof selectedCutters === 'object' && Object.keys(selectedCutters).length > 0)
         const initialStatus = isRepair ? 'waiting-materials' : (hasCutterNeeds ? 'waiting-cutters' : 'new')
         cardsBatch.push({
           operation: 'Розкрій',

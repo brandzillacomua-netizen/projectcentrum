@@ -131,6 +131,7 @@ export function SpecBuilderTab() {
   const [side2CutOpsF15, setSide2CutOpsF15] = useState([])
   const [inlineCuttersList, setInlineCuttersList] = useState([])
   const [savingOps, setSavingOps] = useState(false)
+  const [saveSuccess, setSaveSuccess] = useState(false)
 
   const renderCutterListEditor = (cutters, setCutters) => renderCutterListEditorShared(cutters, setCutters, nomenclatures, rawNoms)
 
@@ -219,9 +220,8 @@ export function SpecBuilderTab() {
         if (error) throw error
       }
       await refreshTable('machine_operations')
-      alert('Операції збережено успішно!')
-      setActiveInlinePart(null)
-      setSelectedMachine('')
+      setSaveSuccess(true)
+      setTimeout(() => setSaveSuccess(false), 4000)
     } catch (err) {
       alert('Помилка збереження: ' + err.message)
     } finally {
@@ -560,7 +560,7 @@ export function SpecBuilderTab() {
             border: `1px solid ${modalTheme.cardBorder}`,
             borderRadius: '24px',
             width: '100%',
-            maxWidth: '680px',
+            maxWidth: '1100px',
             padding: '30px',
             boxShadow: modalTheme.boxShadow,
             maxHeight: '90vh',
@@ -570,18 +570,18 @@ export function SpecBuilderTab() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: `1px solid ${modalTheme.divider}`, paddingBottom: '15px' }}>
               <div>
                 <span style={{ fontSize: '0.7rem', color: '#6366f1', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Операції для деталі</span>
-                <h3 style={{ margin: '4px 0 0 0', fontSize: '1.2rem', fontWeight: 900, color: modalTheme.textMain }}>{activeInlinePart.name}</h3>
+                <h3 style={{ margin: '4px 0 0 0', fontSize: '1.25rem', fontWeight: 900, color: modalTheme.textMain }}>{activeInlinePart.name}</h3>
               </div>
-              <button onClick={() => { setActiveInlinePart(null); setSelectedMachine('') }} style={{ background: 'transparent', border: 'none', color: modalTheme.closeBtnColor, cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '4px' }}><X size={22}/></button>
+              <button onClick={() => { setActiveInlinePart(null); setSelectedMachine('') }} title="Закрити" style={{ background: 'transparent', border: 'none', color: modalTheme.closeBtnColor, cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '6px', borderRadius: '8px' }}><X size={22}/></button>
             </div>
             
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
               <div>
-                <label style={{ fontSize: '0.7rem', color: modalTheme.textMuted, fontWeight: 800, textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>Оберіть верстат</label>
+                <label style={{ fontSize: '0.75rem', color: modalTheme.textMuted, fontWeight: 800, textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>Оберіть верстат</label>
                 <select
                   value={selectedMachine}
-                  onChange={e => setSelectedMachine(e.target.value)}
-                  style={{ width: '100%', padding: '12px', background: modalTheme.inputBg, border: `1px solid ${modalTheme.inputBorder}`, color: modalTheme.inputText, borderRadius: '10px', fontSize: '0.9rem', outline: 'none' }}
+                  onChange={e => { setSelectedMachine(e.target.value); setSaveSuccess(false) }}
+                  style={{ width: '100%', padding: '12px 14px', background: modalTheme.inputBg, border: `1px solid ${modalTheme.inputBorder}`, color: modalTheme.inputText, borderRadius: '10px', fontSize: '0.9rem', outline: 'none', fontWeight: 600 }}
                 >
                   <option value="">-- Оберіть тип верстата --</option>
                   {MACHINE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
@@ -589,8 +589,8 @@ export function SpecBuilderTab() {
               </div>
 
               {selectedMachine && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap' }}>
                     {[
                       { title: '1 сторона', ops: side1Ops, setOps: setSide1Ops },
                       { title: '2 сторона (Ф2)', ops: side2OpsF2, setOps: setSide2OpsF2 },
@@ -598,38 +598,100 @@ export function SpecBuilderTab() {
                       { title: 'Вирізка (Ф2)', ops: side2CutOpsF2, setOps: setSide2CutOpsF2 },
                       { title: 'Вирізка (Ф1.5)', ops: side2CutOpsF15, setOps: setSide2CutOpsF15 },
                     ].map((box, bIdx) => (
-                      <div key={bIdx} style={{ flex: 1, minWidth: '180px', background: modalTheme.cardHeaderBg, padding: '14px', borderRadius: '14px', border: `1px solid ${modalTheme.boxBorder}` }}>
-                        <h5 style={{ margin: '0 0 10px 0', fontSize: '0.78rem', fontWeight: 800, color: modalTheme.boxTitle }}>{box.title}</h5>
-                        {box.ops.map((op, idx) => (
-                          <div key={idx} style={{ display: 'flex', gap: '6px', marginBottom: '6px' }}>
-                            <input
-                              value={op}
-                              onChange={e => { const copy = [...box.ops]; copy[idx] = e.target.value; box.setOps(copy) }}
-                              style={{ flex: 1, padding: '7px 10px', background: modalTheme.inputBg, border: `1px solid ${modalTheme.inputBorder}`, color: modalTheme.inputText, borderRadius: '8px', fontSize: '0.78rem', outline: 'none' }}
-                            />
-                            <button
-                              onClick={() => box.setOps(box.ops.filter((_, i) => i !== idx))}
-                              style={{ background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: '8px', padding: '0 8px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
-                            >
-                              <Trash2 size={12}/>
-                            </button>
-                          </div>
-                        ))}
+                      <div key={bIdx} style={{ flex: '1 1 300px', minWidth: '240px', background: modalTheme.cardHeaderBg, padding: '16px', borderRadius: '14px', border: `1px solid ${modalTheme.boxBorder}`, display: 'flex', flexDirection: 'column' }}>
+                        <h5 style={{ margin: '0 0 10px 0', fontSize: '0.8rem', fontWeight: 800, color: modalTheme.boxTitle }}>{box.title}</h5>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flex: 1 }}>
+                          {box.ops.map((op, idx) => (
+                            <div key={idx} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                              <input
+                                value={op}
+                                onChange={e => { const copy = [...box.ops]; copy[idx] = e.target.value; box.setOps(copy) }}
+                                placeholder="Введіть операцію..."
+                                style={{ flex: 1, minWidth: 0, padding: '8px 10px', background: modalTheme.inputBg, border: `1px solid ${modalTheme.inputBorder}`, color: modalTheme.inputText, borderRadius: '8px', fontSize: '0.8rem', outline: 'none' }}
+                              />
+                              <button
+                                onClick={() => box.setOps(box.ops.filter((_, i) => i !== idx))}
+                                title="Видалити"
+                                style={{ flexShrink: 0, background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: '8px', padding: '0 8px', height: '34px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                              >
+                                <Trash2 size={13}/>
+                              </button>
+                            </div>
+                          ))}
+                        </div>
                         <button
                           onClick={() => box.setOps([...box.ops, ''])}
-                          style={{ width: '100%', padding: '6px', background: 'transparent', border: `1px dashed ${modalTheme.dashBorder}`, color: modalTheme.addBtnColor, borderRadius: '8px', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 800, marginTop: '2px', transition: 'all 0.15s' }}
+                          style={{ width: '100%', padding: '7px', background: 'transparent', border: `1px dashed ${modalTheme.dashBorder}`, color: modalTheme.addBtnColor, borderRadius: '8px', cursor: 'pointer', fontSize: '0.74rem', fontWeight: 800, marginTop: '8px', transition: 'all 0.15s' }}
                         >
                           + Додати
                         </button>
                       </div>
                     ))}
 
-                    {renderCutterListEditor(inlineCuttersList, setInlineCuttersList)}
+                    <div style={{ flex: '1 1 100%', minWidth: '100%' }}>
+                      {renderCutterListEditor(inlineCuttersList, setInlineCuttersList)}
+                    </div>
                   </div>
 
-                  <button onClick={handleSaveInlineOps} disabled={savingOps} style={{ width: '100%', padding: '13px', background: 'linear-gradient(135deg, #10b981, #059669)', color: '#fff', border: 'none', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', fontSize: '0.88rem', marginTop: '10px', boxShadow: '0 4px 14px rgba(16,185,129,0.25)' }}>
-                    {savingOps ? 'Збереження...' : 'Зберегти операції'}
-                  </button>
+                  {saveSuccess && (
+                    <div style={{
+                      padding: '12px 18px',
+                      background: 'rgba(16, 185, 129, 0.12)',
+                      border: '1px solid #10b981',
+                      borderRadius: '12px',
+                      color: '#059669',
+                      fontWeight: 800,
+                      fontSize: '0.86rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px'
+                    }}>
+                      <span style={{ fontSize: '1.2rem', lineHeight: 1 }}>✓</span>
+                      <span>Операції для деталі <strong>{activeInlinePart.name}</strong> ({selectedMachine}) збережено! Ви залишаєтесь у цьому вікні та можете продовжити налаштування.</span>
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', gap: '12px', marginTop: '6px' }}>
+                    <button
+                      onClick={handleSaveInlineOps}
+                      disabled={savingOps}
+                      style={{
+                        flex: 1,
+                        padding: '14px',
+                        background: saveSuccess ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #10b981, #059669)',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: '12px',
+                        fontWeight: 900,
+                        cursor: 'pointer',
+                        fontSize: '0.9rem',
+                        boxShadow: '0 4px 14px rgba(16,185,129,0.25)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      {savingOps ? 'Збереження...' : saveSuccess ? '✓ Збережено успішно' : 'Зберегти операції'}
+                    </button>
+                    <button
+                      onClick={() => { setActiveInlinePart(null); setSelectedMachine('') }}
+                      style={{
+                        padding: '14px 28px',
+                        background: modalTheme.cardHeaderBg,
+                        color: modalTheme.textMuted,
+                        border: `1px solid ${modalTheme.cardBorder}`,
+                        borderRadius: '12px',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        fontSize: '0.9rem',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      Закрити
+                    </button>
+                  </div>
                 </div>
               )}
             </div>

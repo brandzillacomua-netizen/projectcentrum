@@ -1,0 +1,1110 @@
+=== АВТОРИЗАЦІЯ В CENTRUM MES... ===
+✓ Успішний вхід як alexinj@centrum.local (ID: 4f44a026-8b37-5dfb-ab4f-3b21b71322aa)
+
+=== АУДИТ АКТИВНИХ ТА ДУБЛЬОВАНИХ НАРЯДІВ І ЗАВДАНЬ ===
+
+--- 1. ОСТАННІ 15 ЗАМОВЛЕНЬ ---
+  - 260908-1 [ID: 82ec0e3c-23be-4abc-920f-b36fe68b1d4b] status=in-progress created=2026-09-08T16:39:04.888113+00:00
+  - 260907-1 [ID: fbcb14b9-e525-42fb-84f8-481c08bfab00] status=in-progress created=2026-09-07T15:59:40.775546+00:00
+  - 260905-1 [ID: ac91435d-a0a2-43d6-80d4-b356c18e5654] status=in-progress created=2026-09-05T07:16:57.509835+00:00
+  - 260904-1 [ID: 6b0a4c5b-442b-4a4e-aac3-3b191c8db4f8] status=in-progress created=2026-09-04T16:41:17.374495+00:00
+  - 260902-3 [ID: 6900b524-0271-459a-9202-1de86897dd72] status=in-progress created=2026-09-02T15:24:34.552789+00:00
+  - 260902-2 [ID: 684b2d55-af6d-4e38-8b1a-996014ddfb90] status=in-progress created=2026-09-02T15:22:26.311226+00:00
+  - ВБ0017 [ID: 3874a391-c3c7-41e8-bfba-3e353bba7cc3] status=in-progress created=2026-09-01T10:23:44.461482+00:00
+  - ВБ0016 [ID: cd1c84d6-a632-4b07-8279-2d513cf2da5f] status=in-progress created=2026-09-01T10:15:59.789706+00:00
+  - 260831-2 [ID: 962aae12-7faf-4688-81a3-999bd315cca6] status=in-progress created=2026-08-31T17:20:52.001954+00:00
+  - 260831-1 [ID: 864ef722-27e0-4798-9e64-ecabfab63535] status=in-progress created=2026-08-31T06:14:21.152654+00:00
+  - 260829-1 [ID: 002c6c1a-e206-4bd1-83d5-6060d4011c81] status=in-progress created=2026-08-29T13:52:26.946928+00:00
+  - ТЕСТ-ВАФЕЛЬ-01 [ID: c3d8930d-eef4-4978-9739-37af33f6f002] status=in-progress created=2026-08-28T07:43:21.270386+00:00
+  - 260827-2 [ID: 2c4f89bf-293d-4f5f-9ddc-5aedf692ff52] status=in-progress created=2026-08-27T15:17:56.912319+00:00
+  - 260827-1 [ID: 50a32d8b-27ca-4037-956c-9bafc8e83e4a] status=in-progress created=2026-08-27T07:45:14.2246+00:00
+  - 260826-1 [ID: 6580533f-333b-453c-9f80-b8e8a088da7a] status=in-progress created=2026-08-26T17:17:15.743594+00:00
+
+--- 2. ПОШУК ДУБЛЬОВАНИХ ЗАВДАНЬ (TASKS) ДЛЯ ОДНОГО ЗАМОВЛЕННЯ ---
+✓ Дублів активних завдань на однаковий етап не знайдено.
+
+--- 3. ЗАВДАННЯ З НЕВІДПОВІДНИМИ ЕТАПАМИ / ВЕРСТАТАМИ ---
+✓ Завдань із прямим конфліктом верстат-етап не знайдено.
+
+--- 4. ПОШУК ДУБЛЬОВАНИХ АКТИВНИХ КАРТОК (WORK_CARDS) ---
+Всього активних карток у системі: 995
+⚠️ Потенційний дубль карток (28 шт.): order=260826-1, task=a86551cb-2ebd-4e96-a967-8bf72a29aa1b, nom=50947afc-4e40-4165-a682-780275d5feda, op=Розкрій
+     -> Card 2e50a4da-b91b-4aa2-b5fc-f5dbf877beca: qty=112, sheets=undefined, status=at-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card 7d759bd4-e98b-4250-9ed5-359c785f2d88: qty=56, sheets=undefined, status=at-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card a532142f-0c09-45a5-b4b3-ebfa088e3176: qty=112, sheets=undefined, status=at-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card d2f45a06-4901-49ab-8783-98fe64754428: qty=48, sheets=undefined, status=at-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card 78610b3d-e1a6-45a8-bc66-cf371cb3e24a: qty=56, sheets=undefined, status=at-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card 97566fb1-726f-4698-8aa9-2587d5c09f43: qty=56, sheets=undefined, status=at-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card d141d5dc-95fb-444e-a061-54399abc7685: qty=56, sheets=undefined, status=at-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card eb2f078b-4208-40f9-81a0-29830a0583e2: qty=56, sheets=undefined, status=at-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card 504af702-81d3-41dc-b54d-1049230d393d: qty=56, sheets=undefined, status=at-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card 5683e20c-c122-4967-b8a5-d6143f453996: qty=56, sheets=undefined, status=at-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card 5e0b4ef6-001a-4415-9dce-0532327b7b71: qty=103, sheets=undefined, status=at-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card 73384086-3c7c-49be-9734-2e49e64618b7: qty=56, sheets=undefined, status=at-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card caaefdaf-58dc-40b3-847e-9bee4078255c: qty=56, sheets=undefined, status=at-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card 41961c93-e09e-44c7-925a-da4671c5315f: qty=56, sheets=undefined, status=at-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card 1b81d226-e403-4669-87c9-33b545f27f05: qty=56, sheets=undefined, status=at-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card d6926dfb-6c27-4684-b27f-2e27e93ac839: qty=112, sheets=undefined, status=at-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card f507b64c-ccb0-44be-bdf5-9a748aaf0992: qty=56, sheets=undefined, status=at-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card 41c0e7be-ebd0-49e6-883e-3f771124c28b: qty=112, sheets=undefined, status=at-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card 6e8bae50-8da7-4578-a836-be2a6c99abe1: qty=56, sheets=undefined, status=at-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card 6e9e47f0-0f78-44ae-bb45-d265c40d68a0: qty=224, sheets=undefined, status=at-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card 419ecb04-476b-405c-9a6f-78654ae07462: qty=56, sheets=undefined, status=at-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card b84fa74a-3b0c-4a4f-87fb-b22a68141866: qty=56, sheets=undefined, status=at-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card d41976ca-0962-4618-af6c-36bbed15d1e4: qty=112, sheets=undefined, status=at-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card b3c6fbb6-cb31-4fda-a8d4-bf82f890ada4: qty=56, sheets=undefined, status=in-progress, created=2026-08-26T17:20:00+00:00
+     -> Card 13c62756-bb0b-4ed5-8adc-7e81a07ac5a6: qty=56, sheets=undefined, status=at-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card 6e780058-1eac-4a76-b665-f1f69c3fe941: qty=56, sheets=undefined, status=at-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card bb5269bd-0d93-4303-b42f-3b567811d161: qty=112, sheets=undefined, status=at-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card f986c065-4c42-40fc-a35a-583df56a9a07: qty=112, sheets=undefined, status=at-buffer, created=2026-08-26T17:20:00+00:00
+⚠️ Потенційний дубль карток (8 шт.): order=260826-1, task=a86551cb-2ebd-4e96-a967-8bf72a29aa1b, nom=5ecf63e5-802d-4f98-8291-aad9a52bfaa4, op=Розкрій
+     -> Card 1be69d37-65c8-45ea-8f7e-35e5d3d186c8: qty=120, sheets=undefined, status=at-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card 50122af7-af52-4574-9550-bbedb0ea079e: qty=117, sheets=undefined, status=at-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card 80154db9-cffb-4cd6-b195-043ad0626796: qty=240, sheets=undefined, status=at-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card fc000bea-42e1-49f4-8ba5-1e543855a112: qty=240, sheets=undefined, status=at-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card d2a250c0-4d3b-4703-8ec7-d5777ec55554: qty=238, sheets=undefined, status=at-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card d47195d5-50f4-4a86-a29c-40cc6e5ee7b2: qty=120, sheets=undefined, status=at-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card 98b5d651-cb95-437e-8f6b-0596a260b194: qty=120, sheets=undefined, status=at-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card 39cf9b60-fd0e-47bd-ab14-c9fae2f736dd: qty=98, sheets=undefined, status=in-progress, created=2026-08-26T17:20:00+00:00
+⚠️ Потенційний дубль карток (8 шт.): order=260825-2, task=23ceb083-47f2-4f00-9922-339318478043, nom=c6e25b2b-5fec-432c-a0fc-fc16be80d271, op=Сортування
+     -> Card 7820cb24-c28c-4842-a74f-e2b4a41aa028: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-08-26T17:10:22.578552+00:00
+     -> Card 3618799c-2807-4d65-91c3-172d4e42a201: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-08-25T16:39:04.773761+00:00
+     -> Card 7a482fc7-e142-4aad-848e-e59d6f6af73b: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-08-25T16:39:04.773761+00:00
+     -> Card 47c31453-4e55-4d77-8411-0f9da87ffce1: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-08-25T16:39:04.773761+00:00
+     -> Card 2aa3a9ad-5be0-4b9c-b2d9-aac996e892b7: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-08-25T16:39:04.773761+00:00
+     -> Card 3ac9201d-54b3-4fc9-aa42-cf0f6cba48b2: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-08-25T16:39:04.773761+00:00
+     -> Card 52083be5-a3f4-4b13-8471-9f772718c8cc: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-08-25T16:39:04.773761+00:00
+     -> Card 00d58414-4609-4477-8571-28fa549da86c: qty=0, sheets=undefined, status=at-shop2-buffer, created=2026-08-25T16:39:04.773761+00:00
+⚠️ Потенційний дубль карток (3 шт.): order=260826-1, task=a86551cb-2ebd-4e96-a967-8bf72a29aa1b, nom=343417a7-4a5c-4e31-8f44-18abb41defec, op=Розкрій
+     -> Card 49b6f7b0-ec9f-4396-af30-195c89f64251: qty=156, sheets=undefined, status=at-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card 4b83163e-2608-4610-8000-00004b83163e: qty=94, sheets=undefined, status=in-progress, created=2026-08-26T17:20:00+00:00
+     -> Card 41395656-2608-4610-8000-000041395656: qty=156, sheets=undefined, status=at-buffer, created=2026-08-26T17:20:00+00:00
+⚠️ Потенційний дубль карток (18 шт.): order=260826-1, task=a86551cb-2ebd-4e96-a967-8bf72a29aa1b, nom=50947afc-4e40-4165-a682-780275d5feda, op=Сортування
+     -> Card da99e086-4e2e-4a9b-ae47-55bfde7394f2: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card 2d0a1dd7-73dc-4740-b6a9-1c0e1f2d9d62: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card 724ee7e0-d089-4cff-92f3-a6f23740c3cf: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card 55de67d8-6efe-441c-950e-f5f2f03a496e: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card 12fbac40-2cf2-4304-9aca-129fd39c7f2a: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card 5ec3cff6-4827-4bd4-8dba-f6267e5492a3: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card 16c54960-2871-457d-9478-d8a690d766a6: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card 5f0fe56c-c69e-48cb-854f-fe74bf748d6c: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card b1bccd88-84e6-4c0c-a995-a2e296bd2c0c: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card 396295c6-7ce4-4431-bc2d-15dee58c368c: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card 60bb2088-e0bf-48b5-a755-86424374696b: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card fdcbc2b1-acf5-478a-9f63-963c24b1d093: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card 9702a54d-8569-4d17-bf71-89721464bb96: qty=224, sheets=undefined, status=at-shop2-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card 8be42257-7550-4975-99eb-d303bc318dd7: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card 064e04f8-f08f-41bc-b688-d458902879eb: qty=224, sheets=undefined, status=at-shop2-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card 59910c6d-442e-4d3a-b5e1-6c4dc7e05dcd: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card 90c2381b-af3e-4d81-9e5b-150601e8e7a5: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card 0fee988e-498f-458f-b75e-e9b4cfc8286d: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-08-26T17:20:00+00:00
+⚠️ Потенційний дубль карток (17 шт.): order=260826-1, task=a86551cb-2ebd-4e96-a967-8bf72a29aa1b, nom=5ecf63e5-802d-4f98-8291-aad9a52bfaa4, op=Сортування
+     -> Card d4cb8e09-9ca7-4aff-a264-e4354cee4501: qty=117, sheets=undefined, status=at-shop2-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card a7f687b6-2352-4a4b-a138-f57545fe6536: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card 05087ab5-b40a-496a-8374-e197e8f5b27f: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card 3c6e47be-58ab-4ce5-acd4-411d48f0320a: qty=240, sheets=undefined, status=at-shop2-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card 01af2d98-6705-40a4-8d1a-aaeac7907648: qty=118, sheets=undefined, status=at-shop2-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card 2c658bd3-3f92-45bf-849e-601cc793d650: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card 85521a82-585f-45c2-8001-61f1ddda2f59: qty=238, sheets=undefined, status=at-shop2-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card aab52822-3e85-402f-a1de-2c443bb44f6c: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card 5c0c1aea-8ce0-4319-a797-199b4f2fdd9a: qty=90, sheets=undefined, status=at-shop2-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card 2902e3ae-1758-48af-84eb-d5ef354ada79: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card 49ff1ba6-8c56-4b40-b46e-1c340e44771c: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card ad7e169c-c8e0-48c9-aa1d-0c7a666acb0f: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card fede8e33-4739-4fee-a598-07400c2762c7: qty=150, sheets=undefined, status=at-shop2-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card 53f76629-15ed-4541-ae0f-cbb5a5f2ac23: qty=231, sheets=undefined, status=at-shop2-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card 2c5592e7-e849-41b8-ae5b-9075392975a5: qty=240, sheets=undefined, status=at-shop2-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card f266de29-bb6a-4446-a322-4f43fc836472: qty=240, sheets=undefined, status=at-shop2-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card f72a9191-dde4-4879-a92b-8cfc269e1bd9: qty=240, sheets=undefined, status=at-shop2-buffer, created=2026-08-26T17:20:00+00:00
+⚠️ Потенційний дубль карток (42 шт.): order=260829-1, task=e6f67026-f730-4b2b-8583-567e66d3b4e3, nom=8300e002-0169-46ec-9cc6-39cef0971269, op=Сортування
+     -> Card 14d49142-6c60-423f-a19b-d2fd2cdb9df0: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:10:02.075791+00:00
+     -> Card 4f612cfa-bd36-4712-94a3-edfb05616fdc: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:10:02.075791+00:00
+     -> Card 015b7090-e5c3-4fda-bb6f-5942e4c6fa0a: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:10:02.075791+00:00
+     -> Card f8593c39-cf27-44f3-b9c5-2b1e7b82c282: qty=68, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:10:02.075791+00:00
+     -> Card c306c1bb-891b-410f-9b44-656f06101df8: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:10:02.075791+00:00
+     -> Card 581d18d1-504e-4e93-95bd-bb893398c3a4: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:10:02.075791+00:00
+     -> Card bb2d5a32-1a5d-4fb5-b423-b807fcda7dbb: qty=69, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:10:02.075791+00:00
+     -> Card 24d2f64a-dbf2-4844-b08b-09642323c3a2: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:10:02.075791+00:00
+     -> Card 25dcb6fd-8c79-49da-b583-bc4d8208214b: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:10:02.075791+00:00
+     -> Card 1e174f4b-e1ba-4cfe-a853-abc9e5062e22: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:10:02.075791+00:00
+     -> Card 9a802a80-0f27-4e6e-916e-95a6c9cbdbdf: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:10:02.075791+00:00
+     -> Card f7df6186-d30d-432c-9fff-68176318c4a0: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:10:02.075791+00:00
+     -> Card 2e326933-162d-4992-bd10-d465d321f4a1: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:10:02.075791+00:00
+     -> Card 39b3c02c-3838-43d0-8ac6-80a65acf375e: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:10:02.075791+00:00
+     -> Card 727f6a84-a76b-4483-8074-21da4caaae1c: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:10:02.075791+00:00
+     -> Card 6ef56b3c-f809-4c67-8cc2-0ac4b6df41dc: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:10:02.075791+00:00
+     -> Card 5bb8820f-5714-4ea7-9c73-86aa1c329e09: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:10:02.075791+00:00
+     -> Card cf77cfdf-1687-4136-9071-d6cf41dfeabe: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:10:02.075791+00:00
+     -> Card c79eaaca-c6e7-47a1-8970-631a4e54e128: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:10:02.075791+00:00
+     -> Card 3a2666a5-411b-4953-bacc-4e43e740d213: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:10:02.075791+00:00
+     -> Card 799ed36a-3ed2-444c-96bc-ae2299ce3082: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:10:02.075791+00:00
+     -> Card 83103ad3-99f1-431b-905d-3ccc2edd6579: qty=63, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:10:02.075791+00:00
+     -> Card 444fccf9-6c52-43ab-9f83-8c84022644f4: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:10:02.075791+00:00
+     -> Card c61d6ef6-3858-414a-b3b0-f8df80a54897: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:10:02.075791+00:00
+     -> Card bfcc3e82-13e6-40ab-9ca6-d599e7ed1364: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:10:02.075791+00:00
+     -> Card ebb135e8-a7b6-4fbe-becf-a65566b19910: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:10:02.075791+00:00
+     -> Card 7a455c18-5e83-4905-b22e-204efad0aa7a: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:10:02.075791+00:00
+     -> Card a43d56fb-abdb-40c2-acf5-e151ba60f227: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:10:02.075791+00:00
+     -> Card a682a1d1-c93e-4765-833b-01d036ba187d: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:10:02.075791+00:00
+     -> Card 91af5dcf-6930-45db-9e87-b98b76efeb2b: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:10:02.075791+00:00
+     -> Card 48d088e5-e646-431f-b3bd-002c9a934f13: qty=54, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:10:02.075791+00:00
+     -> Card 0f89c628-8e3f-49da-8721-29bd8d1636ec: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:10:02.075791+00:00
+     -> Card 00e2ebb2-e9c6-4b61-ba54-da4fd43dd2c0: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:10:02.075791+00:00
+     -> Card e0496601-cfca-4bbc-9bbf-de2ca5efabc7: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:10:02.075791+00:00
+     -> Card 4646ee6e-9d75-41d5-a94a-69f1e883de11: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:10:02.075791+00:00
+     -> Card 46ad0739-194e-4f37-8d68-00fbe6dceed6: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:10:02.075791+00:00
+     -> Card bc199da2-b5fa-443a-9255-a0b804e54488: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:10:02.075791+00:00
+     -> Card ebd37a5b-4e1d-4408-9474-1e444208f82d: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:10:02.075791+00:00
+     -> Card d6f11506-a534-4c0d-97a0-2ef818e03d20: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:10:02.075791+00:00
+     -> Card 7ccefaf7-9046-4bd8-a6b2-fc333e20a2a3: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:10:02.075791+00:00
+     -> Card 53843c27-650f-4106-9fe9-f409861bba6f: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:10:02.075791+00:00
+     -> Card 1cc1a46f-cfef-4787-be7f-8d5879213be9: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:10:02.075791+00:00
+⚠️ Потенційний дубль карток (41 шт.): order=260831-2, task=ebdebcd2-d718-445a-9db4-ef282c1156cf, nom=a56e08ca-c816-40f1-acb2-e9cc0bb1bff0, op=Сортування
+     -> Card 5b60021b-78c3-4dc8-8b96-540fc0b22459: qty=299, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T17:29:56.932209+00:00
+     -> Card b40af5a4-bfdd-42ce-aefa-021155642b2a: qty=300, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T17:29:56.932209+00:00
+     -> Card 9f47d20f-f234-49c4-b561-aacbe1e5c117: qty=301, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T17:29:56.932209+00:00
+     -> Card ac2e49a4-2373-4bbc-9835-bfb99068b4bd: qty=304, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T17:29:56.932209+00:00
+     -> Card 70b28be9-8e79-4aba-b2c8-a79ccb9a954f: qty=304, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T17:29:56.932209+00:00
+     -> Card 5f475d6a-ecb0-4707-bfe2-f070e062e4ca: qty=301, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T17:29:56.932209+00:00
+     -> Card 17833bf3-3e32-4409-8756-2e66dc6f395e: qty=298, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T17:29:56.932209+00:00
+     -> Card eae115b9-c98c-48bf-9a31-429a407e27ac: qty=299, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T17:29:56.932209+00:00
+     -> Card a4c297fe-f5a1-4d72-9fc8-2a7223ca0937: qty=304, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T17:29:56.932209+00:00
+     -> Card e9c5b3d7-a32d-4671-9674-5aa48110f4e7: qty=301, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T17:29:56.932209+00:00
+     -> Card 81893bfc-be90-459d-bee4-bd841336c8e3: qty=304, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T17:29:56.932209+00:00
+     -> Card e91a063a-ff34-42bb-81df-f244ed009f50: qty=296, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T17:29:56.932209+00:00
+     -> Card 10c52a4b-5d56-4ca8-b300-58afa9490ca9: qty=304, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T17:29:56.932209+00:00
+     -> Card 486ec352-ec5d-4bce-8a3f-cb0d91755c43: qty=304, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T17:29:56.932209+00:00
+     -> Card 79ea0557-c26c-4e3b-8468-514bfdc8c013: qty=304, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T17:29:56.932209+00:00
+     -> Card 3cf673f6-82f6-4b36-b6ab-0c8f99af379f: qty=299, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T17:29:56.932209+00:00
+     -> Card 301b5ea9-d8a5-476b-a212-b0593e8d40e7: qty=304, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T17:29:56.932209+00:00
+     -> Card ed9cda00-6891-45ca-a3f2-7ba65f8a97bd: qty=304, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T17:29:56.932209+00:00
+     -> Card 0429454a-acab-41eb-b01c-fcedf950e395: qty=298, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T17:29:56.932209+00:00
+     -> Card e06f0a34-a02a-4a67-a2c4-511b2b698f72: qty=301, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T17:29:56.932209+00:00
+     -> Card e5a0087f-f5a1-4a95-b1fc-8ef37d8c5fd9: qty=304, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T17:29:56.932209+00:00
+     -> Card 6803b9eb-d527-475f-a12b-aa3f27481c5d: qty=152, sheets=undefined, status=at-buffer, created=2026-09-07T05:49:59.755385+00:00
+     -> Card d8b88e5d-f78b-49b8-b769-51768c06bcac: qty=300, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T17:29:56.932209+00:00
+     -> Card 46305937-e635-4aab-bb7b-05abaf0f8363: qty=296, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T17:29:56.932209+00:00
+     -> Card 350019ec-b537-4f2a-816b-4526cfcd3eaa: qty=299, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T17:29:56.932209+00:00
+     -> Card b29d3b53-bd23-4286-acde-8cb47ecbd77d: qty=298, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T17:29:56.932209+00:00
+     -> Card 21545fcb-c6a2-43cc-a993-46b0fe41b3b0: qty=301, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T17:29:56.932209+00:00
+     -> Card 0c43e666-3232-4eaf-bcc1-6360edf80418: qty=299, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T17:29:56.932209+00:00
+     -> Card 96bfedfe-a53f-480e-9ed9-720f1e01f179: qty=299, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T17:29:56.932209+00:00
+     -> Card efcb99bf-950c-4d6d-997a-ca85d56d0f7f: qty=298, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T17:29:56.932209+00:00
+     -> Card b0bd0017-2386-4b54-bf0c-8b565bdfa239: qty=152, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T17:29:56.932209+00:00
+     -> Card 40e081ec-13b0-4b48-a6ff-399af4c703a6: qty=297, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T17:29:56.932209+00:00
+     -> Card 9cab3236-5d0e-46e5-9445-704941a5ab93: qty=304, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T17:29:56.932209+00:00
+     -> Card e7ba2b3e-cf1e-4c44-960e-46a79d122607: qty=300, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T17:29:56.932209+00:00
+     -> Card d81a6a7e-20c0-4a10-9538-3125a397dfe5: qty=304, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T17:29:56.932209+00:00
+     -> Card fd03e7a0-1532-43ca-936a-c061f6f5d122: qty=296, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T17:29:56.932209+00:00
+     -> Card 3dc33082-ba5d-45a4-b78c-ebd935b815d3: qty=300, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T17:29:56.932209+00:00
+     -> Card 95e87c43-38aa-4349-8935-eef31bc2b392: qty=303, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T17:29:56.932209+00:00
+     -> Card 0f12d1d8-7db9-4891-bec7-838e981462e1: qty=296, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T17:29:56.932209+00:00
+     -> Card 6080a734-af70-499d-8b38-0d85c27d2d58: qty=304, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T17:29:56.932209+00:00
+     -> Card 3a114dd5-4926-45cb-863a-39f1cad97df9: qty=300, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T17:29:56.932209+00:00
+⚠️ Потенційний дубль карток (9 шт.): order=260826-1, task=a86551cb-2ebd-4e96-a967-8bf72a29aa1b, nom=343417a7-4a5c-4e31-8f44-18abb41defec, op=Сортування
+     -> Card b3966040-f796-4bd2-8502-7ea1fe8cb518: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card 74ccc9b7-af9c-4a21-9210-3367ca8893ec: qty=155, sheets=undefined, status=at-shop2-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card 5feb05a4-fc43-42b3-88a7-dc927ebaa90f: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card 26082610-0002-4000-8000-00004b83163e: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card 0d219827-33cf-485e-97d8-36150dbef7b3: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card 51012de5-ebd5-48d6-bb32-461182dca634: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card f747e775-6e80-492a-8415-353a5b23f05b: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card b3b2afd8-acb8-4c49-be34-5b1731f2b621: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-08-26T17:20:00+00:00
+     -> Card 2691ead1-8873-46c6-bf9f-ec2277a1f93d: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-08-26T17:20:00+00:00
+⚠️ Потенційний дубль карток (4 шт.): order=260902-3, task=e395bdde-7e78-4e62-bb7d-60c7f3a52098, nom=06bc0cfa-d422-4bc4-b653-417acbf59479, op=Сортування
+     -> Card 661d70ef-b64d-4d5c-9864-0537a792fe8a: qty=23, sheets=undefined, status=at-shop2-buffer, created=2026-09-07T06:24:56.23627+00:00
+     -> Card bef781c2-50ca-48e2-8a91-5e97adde7f62: qty=98, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T16:18:01.804885+00:00
+     -> Card b1cd44b1-2055-4007-aa7a-83ba69998ffb: qty=100, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T16:18:01.804885+00:00
+     -> Card 1b8755a5-266f-46ff-819c-0cac5bb2475c: qty=99, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T16:18:01.804885+00:00
+⚠️ Потенційний дубль карток (49 шт.): order=260829-1, task=e6f67026-f730-4b2b-8583-567e66d3b4e3, nom=ef976ad5-8c88-4f03-a53e-2b914f15d4ba, op=Сортування
+     -> Card 7c645435-ab6c-4724-89ee-97934ae001f5: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:17:11.975137+00:00
+     -> Card eacd6783-f6d7-4276-98b5-57574538c603: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:17:11.975137+00:00
+     -> Card aa923657-e6c9-4dda-bb9c-fe24383a97e2: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:17:11.975137+00:00
+     -> Card bb03d1bf-564a-432b-921c-8aa897e8484a: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:17:11.975137+00:00
+     -> Card 9ea13e40-0a83-4942-acdf-3a3c4aaff597: qty=238, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:17:11.975137+00:00
+     -> Card adceaefc-7d8b-4881-962f-3696c0cf9093: qty=244, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:17:11.975137+00:00
+     -> Card 78ee50b0-16b4-4d08-8699-1a72d7f351a7: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:17:11.975137+00:00
+     -> Card 61fe7ba0-9f4c-4c54-9eda-83941b385de1: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:17:11.975137+00:00
+     -> Card 7d23efbd-2c1e-44de-8920-c88c8042e296: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:17:11.975137+00:00
+     -> Card f44852d8-096a-42ce-97de-5a230d33656a: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:17:11.975137+00:00
+     -> Card ee8f59be-e12c-4c2d-ac67-23436714b46d: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:17:11.975137+00:00
+     -> Card ca4c22b0-b45b-4858-be74-545fefc85f38: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:17:11.975137+00:00
+     -> Card 1c506cf1-bbb9-4535-96b2-ef7ad98a39f0: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:17:11.975137+00:00
+     -> Card 99ed4ed4-0d61-44e5-bfa0-ac6b8430aed3: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:17:11.975137+00:00
+     -> Card ba58fff2-1cc7-459d-a2ba-c78522db102d: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:17:11.975137+00:00
+     -> Card 36104680-bf73-49ee-9335-a1bf339f5f62: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:17:11.975137+00:00
+     -> Card b7b9d15a-7e66-44bc-91aa-5224b1544bc7: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:17:11.975137+00:00
+     -> Card f3fbe139-218d-4971-8375-bc3f93b96c9e: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:17:11.975137+00:00
+     -> Card d1ea12a4-5d1a-4504-83a1-de20c91da02c: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:17:11.975137+00:00
+     -> Card 683984ef-53b4-404f-9cb6-8a43fc8d0e9a: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:17:11.975137+00:00
+     -> Card 48eff7a2-d97e-49f8-bb8e-19dc4df29cb5: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:17:11.975137+00:00
+     -> Card 443ed838-b83c-4fd0-a0af-fc14b844963d: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:17:11.975137+00:00
+     -> Card ed9e0fd8-3e3b-4191-a7c4-aa92e54f2dbd: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:17:11.975137+00:00
+     -> Card 658243d8-c8de-434c-b328-42fba1a82d88: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:17:11.975137+00:00
+     -> Card 7487af08-09cf-4066-b6af-84b7fb468173: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:17:11.975137+00:00
+     -> Card bd1156f7-3d82-49b4-91c8-2899032bcd79: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:17:11.975137+00:00
+     -> Card 8c87d047-e164-48c0-8214-7647f4817531: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:17:11.975137+00:00
+     -> Card 1f06cf0d-5e90-4bd1-971e-a962ab727c81: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:17:11.975137+00:00
+     -> Card 105f055c-99a3-42ff-93e7-c83f0dbf59f0: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:17:11.975137+00:00
+     -> Card 6b1df374-a520-4d28-aed6-67fa5a775f88: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:17:11.975137+00:00
+     -> Card 569b0e46-dc4b-46b9-8a69-64da1a80a6f6: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:17:11.975137+00:00
+     -> Card 361e2838-c214-42bb-92be-a347145afbe4: qty=124, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:17:11.975137+00:00
+     -> Card 613197fd-132e-4481-a24f-99a208289489: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:17:11.975137+00:00
+     -> Card 80d12f5d-cab6-4bd5-962b-5649680a093c: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:17:11.975137+00:00
+     -> Card 531a067d-6500-4331-b094-38fdb80e06d2: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:17:11.975137+00:00
+     -> Card f9f530c1-ba37-4864-ba74-1bf19c363be4: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:17:11.975137+00:00
+     -> Card d7756a1b-0802-413d-a754-2f88cfe3197c: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:17:11.975137+00:00
+     -> Card ab16ed9a-3621-4f90-88d0-d7fb5141d44f: qty=238, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:17:11.975137+00:00
+     -> Card 7e40537e-0fa1-4843-8e59-d1587c2cf375: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:17:11.975137+00:00
+     -> Card 02a64c29-ec85-492a-be5a-c77c9a7f7cc2: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:17:11.975137+00:00
+     -> Card a87a3feb-8bd6-4f7e-b300-95f1373b4433: qty=237, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:17:11.975137+00:00
+     -> Card 4006c20d-5c24-4df1-8fee-6fd1ad621a25: qty=238, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:17:11.975137+00:00
+     -> Card 6e7e1d55-157b-4021-9723-29e73b4c0142: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:17:11.975137+00:00
+     -> Card caf04598-08fb-4e59-baa7-0982dd463a50: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:17:11.975137+00:00
+     -> Card 4c286e49-5fed-41c1-88b3-4fa040e620d9: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:17:11.975137+00:00
+     -> Card 4ae2dbd4-9594-4c26-a0da-307ef4bc27e3: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:17:11.975137+00:00
+     -> Card cc8709dc-e0c2-419e-b76f-34e39fef3e1d: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:17:11.975137+00:00
+     -> Card deaa44ec-f6e2-49b7-a1fb-3303f23ac13b: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:17:11.975137+00:00
+     -> Card 4e571e1d-eefe-4acf-8931-8b51afe4d1fa: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:17:11.975137+00:00
+⚠️ Потенційний дубль карток (34 шт.): order=260831-2, task=ebdebcd2-d718-445a-9db4-ef282c1156cf, nom=ef048903-3854-45e0-8ea9-bab93df12810, op=Сортування
+     -> Card 5ad4895a-b34d-4120-ab7a-ece7b6e2d1f7: qty=96, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T08:41:38.003016+00:00
+     -> Card 68d186d8-cf9c-4777-9925-64a48ed9688a: qty=96, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T08:41:38.003016+00:00
+     -> Card 96704820-36ab-4814-9161-7d0bdb7901c9: qty=24, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T08:41:38.003016+00:00
+     -> Card b0a90622-09a4-46cb-b526-6369e950519f: qty=96, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T08:41:38.003016+00:00
+     -> Card 6c5ff637-cb13-46d1-bf2e-0374ddc5e735: qty=96, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T08:41:38.003016+00:00
+     -> Card f1534d99-01ed-4df4-b535-362ff81c94a3: qty=95, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T08:41:38.003016+00:00
+     -> Card 8c881569-ab88-4c8c-8f72-aef049973733: qty=96, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T08:41:38.003016+00:00
+     -> Card 554176f4-3250-4e32-b2ed-49294665bdf8: qty=96, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T08:41:38.003016+00:00
+     -> Card d5b0ffc3-2dc7-4ac0-b743-98d2dbb41789: qty=96, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T08:41:38.003016+00:00
+     -> Card b1c16597-dae2-48df-b951-30abeea8faae: qty=96, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T08:41:38.003016+00:00
+     -> Card 065e2fe8-6c58-4ab2-b75b-7a337533754f: qty=96, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T08:41:38.003016+00:00
+     -> Card 76718782-9677-49ed-8c8a-c603b09516c4: qty=96, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T08:41:38.003016+00:00
+     -> Card 01953972-7ae8-450a-a3b3-6c877fbac26e: qty=96, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T08:41:38.003016+00:00
+     -> Card bbda1406-8260-4a34-ab3e-2287bc032173: qty=96, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T08:41:38.003016+00:00
+     -> Card b02c67e6-bde7-49cd-9cb2-74b58b2ac831: qty=96, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T08:41:38.003016+00:00
+     -> Card 1c7993c2-b86c-4bef-93c1-5622493315f2: qty=96, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T08:41:38.003016+00:00
+     -> Card 2d52063e-0e87-491a-91cc-38001958410e: qty=96, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T08:41:38.003016+00:00
+     -> Card 4ff02a1a-cc41-47bf-9336-9b386a76ba74: qty=96, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T08:41:38.003016+00:00
+     -> Card 41f3cced-bc87-4848-8cb5-b698ce219e37: qty=96, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T08:41:38.003016+00:00
+     -> Card d6bf20f5-2f6e-4fce-bf96-9813eeef354b: qty=96, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T08:41:38.003016+00:00
+     -> Card 11f7d4f5-7975-438c-a15f-0c9cd43897b1: qty=96, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T08:41:38.003016+00:00
+     -> Card be48a961-e546-4c5c-9650-eeb44ffbc525: qty=96, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T08:41:38.003016+00:00
+     -> Card 0c642c22-bdca-44a9-ae9e-110b149f824c: qty=96, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T08:41:38.003016+00:00
+     -> Card 1036fb05-26b1-48bd-b4d2-c13a40806ed5: qty=96, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T08:41:38.003016+00:00
+     -> Card 25beaae5-c224-4b05-aba7-8de78c3ecf61: qty=96, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T08:41:38.003016+00:00
+     -> Card d33a8fb2-1f73-4b27-872c-ee632c874951: qty=96, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T08:41:38.003016+00:00
+     -> Card a011857d-e0ce-4448-9c38-4fcb72d95dfe: qty=95, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T08:41:38.003016+00:00
+     -> Card 82a7605d-d473-4208-a66c-7069d379a228: qty=96, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T08:41:38.003016+00:00
+     -> Card 992b17f4-a3f5-40fa-8105-98960356671e: qty=73, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T08:41:38.003016+00:00
+     -> Card 5fb34acd-239e-4f19-be71-a5955a03b3d1: qty=24, sheets=undefined, status=at-buffer, created=2026-09-07T05:50:22.927213+00:00
+     -> Card ac9a5604-38a7-4645-93ed-ecbe7f5c6c33: qty=24, sheets=undefined, status=at-shop2-buffer, created=2026-09-03T08:37:22.977366+00:00
+     -> Card 9628fa7a-335f-49a5-9d98-3f124233c7f9: qty=96, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T08:41:38.003016+00:00
+     -> Card c25fcc6b-e42c-42cb-aea2-faa2674e0659: qty=95, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T08:41:38.003016+00:00
+     -> Card 1a9bb127-a1ca-4768-aba5-7a2a4b24cea6: qty=96, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T08:41:38.003016+00:00
+⚠️ Потенційний дубль карток (5 шт.): order=260904-1, task=9e373943-ca97-44ba-9c2c-b69850c1e862, nom=1ffc69d2-8d6c-4a03-afc8-9715b5612936, op=Сортування
+     -> Card 73a553b1-9dcc-4a84-900b-b5c34da673ce: qty=168, sheets=undefined, status=at-shop2-buffer, created=2026-09-04T18:38:19.963246+00:00
+     -> Card 956df6cb-7f47-451c-92a0-28286b6b8530: qty=140, sheets=undefined, status=at-shop2-buffer, created=2026-09-04T18:38:19.963246+00:00
+     -> Card 2ee2b075-f991-415a-979e-fcca0add78d6: qty=65, sheets=undefined, status=at-shop2-buffer, created=2026-09-04T18:38:19.963246+00:00
+     -> Card 8317639d-fd48-43d3-975f-c4d1904cfc3f: qty=168, sheets=undefined, status=at-shop2-buffer, created=2026-09-04T18:38:19.963246+00:00
+     -> Card 39516165-0352-4617-b261-197e2102631c: qty=168, sheets=undefined, status=at-shop2-buffer, created=2026-09-04T18:38:19.963246+00:00
+⚠️ Потенційний дубль карток (5 шт.): order=260831-1, task=5e1bd2e7-82ec-407e-a715-f17ac187e602, nom=2d0fb65f-68e3-43d9-94d0-3073f68b8fda, op=Сортування
+     -> Card f58a7074-dc0b-4dde-8ac1-1d42d825af41: qty=48, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T06:19:54.438652+00:00
+     -> Card 95f10ff2-6099-46e7-94ca-c1156026fb0a: qty=12, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T06:21:20.29304+00:00
+     -> Card bd79b0a5-a350-4086-b063-0c7fa178be78: qty=48, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T06:19:54.438652+00:00
+     -> Card d56c5fb2-3b67-49a2-a84c-9ebb069ed395: qty=48, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T06:19:54.438652+00:00
+     -> Card 05d6f7f3-f62c-451f-a9f9-0baa37e28409: qty=48, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T06:19:54.438652+00:00
+⚠️ Потенційний дубль карток (9 шт.): order=260831-2, task=ebdebcd2-d718-445a-9db4-ef282c1156cf, nom=46a97381-b390-4bfd-915a-35a1db1dd887, op=Сортування
+     -> Card 3c64268b-bbf0-4448-8e0c-4904dd2e1d6d: qty=396, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T06:51:46.790496+00:00
+     -> Card bd38e0e5-fd4d-46c1-8a6f-c105fea1fb08: qty=396, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T06:51:46.790496+00:00
+     -> Card 5bbe15e9-48aa-4a1e-9ed9-c6535e6ef6e1: qty=388, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T06:51:46.790496+00:00
+     -> Card 1c6c0c52-b0fb-47ba-bd22-5fdc6851a615: qty=396, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T06:51:46.790496+00:00
+     -> Card e7be8b2c-a890-4134-854e-b28ac2b959ee: qty=231, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T06:51:46.790496+00:00
+     -> Card b1040f04-661d-4f4c-bc61-2c98be6c1ed1: qty=396, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T06:51:46.790496+00:00
+     -> Card 45cf2cd2-86be-4a80-8e4e-c6c810f4f2e0: qty=396, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T06:51:46.790496+00:00
+     -> Card a68d3453-4e0e-465b-8d79-1ff039a1aa8e: qty=396, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T06:51:46.790496+00:00
+     -> Card 2236a9a1-03bf-474c-93bd-f6cd712bd58f: qty=33, sheets=undefined, status=at-shop2-buffer, created=2026-09-07T05:49:36.208036+00:00
+⚠️ Потенційний дубль карток (17 шт.): order=260907-1, task=ccfabbab-fd5e-44cf-adb9-b87bef2b9f7a, nom=7dc523a2-ea8a-4ba8-9f42-626368e68cc4, op=Сортування
+     -> Card 0d971a15-3652-4e16-8cc2-6a93df4427c0: qty=240, sheets=undefined, status=at-shop2-buffer, created=2026-09-07T19:12:22.571835+00:00
+     -> Card 7ac5ba57-686c-44bc-8785-295df37eae24: qty=240, sheets=undefined, status=at-shop2-buffer, created=2026-09-07T19:12:22.571835+00:00
+     -> Card 87a86be5-a53f-4361-8e4b-347dde669e03: qty=240, sheets=undefined, status=at-shop2-buffer, created=2026-09-07T19:12:22.571835+00:00
+     -> Card 13d8f9fc-0492-4a59-8a56-0055f60bd449: qty=237, sheets=undefined, status=at-shop2-buffer, created=2026-09-07T19:12:22.571835+00:00
+     -> Card a275d27a-2e5b-4dea-943e-f845af82c8eb: qty=240, sheets=undefined, status=at-shop2-buffer, created=2026-09-07T19:12:22.571835+00:00
+     -> Card b2c35226-ef3e-4b19-bc8c-a3534ab1d871: qty=180, sheets=undefined, status=at-shop2-buffer, created=2026-09-07T19:12:22.571835+00:00
+     -> Card feccf060-5300-4cb7-9f9d-3bcc90c6484a: qty=238, sheets=undefined, status=at-shop2-buffer, created=2026-09-07T19:12:22.571835+00:00
+     -> Card ffec95ef-f2c4-4088-ab20-5aff4fdf1b08: qty=240, sheets=undefined, status=at-shop2-buffer, created=2026-09-07T19:12:22.571835+00:00
+     -> Card f4bffb07-e1d2-478f-ba87-d8fbbfa95753: qty=240, sheets=undefined, status=at-shop2-buffer, created=2026-09-07T19:12:22.571835+00:00
+     -> Card e8b6f666-e89a-438c-bd0f-c5cc9e1a9d85: qty=237, sheets=undefined, status=at-shop2-buffer, created=2026-09-07T19:12:22.571835+00:00
+     -> Card 0b924c4b-07c3-443f-a8b6-2d68da8546e6: qty=238, sheets=undefined, status=at-shop2-buffer, created=2026-09-07T19:12:22.571835+00:00
+     -> Card 24321942-c33d-4431-ae02-65583eed9ea6: qty=240, sheets=undefined, status=at-shop2-buffer, created=2026-09-07T19:12:22.571835+00:00
+     -> Card 31691488-5630-4cd0-bc44-bca998ea2b3b: qty=236, sheets=undefined, status=at-shop2-buffer, created=2026-09-07T19:12:22.571835+00:00
+     -> Card 55550c02-1c34-4fc4-87aa-38fc36e834f7: qty=240, sheets=undefined, status=at-shop2-buffer, created=2026-09-07T19:12:22.571835+00:00
+     -> Card 5709f744-2e7a-4024-b712-145711e430dc: qty=238, sheets=undefined, status=at-shop2-buffer, created=2026-09-07T19:12:22.571835+00:00
+     -> Card f4bbc6a2-de2f-489e-8475-632ca2b2c0dd: qty=235, sheets=undefined, status=at-shop2-buffer, created=2026-09-07T19:12:22.571835+00:00
+     -> Card 80b68b87-3e8b-4245-bd73-77d9d8355a09: qty=240, sheets=undefined, status=at-buffer, created=2026-09-07T19:12:22.571835+00:00
+⚠️ Потенційний дубль карток (105 шт.): order=260827-2, task=35c6045a-4da1-47d2-b73f-7d269ba1e3a3, nom=50947afc-4e40-4165-a682-780275d5feda, op=Сортування
+     -> Card 76e24717-e6a5-47b0-9f81-b24afc872bf8: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T15:00:20.059019+00:00
+     -> Card fe64387d-b0c1-48f0-a6c3-facd83132197: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T17:17:32.254788+00:00
+     -> Card a6764b47-cc39-4dce-a421-7436012ff7a0: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:45:11.28047+00:00
+     -> Card 8dee2c50-04e2-4055-90f1-0a26ee33c7d4: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:45:11.28047+00:00
+     -> Card db7a3527-a9a1-4630-8427-5a918b1c6292: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T15:00:20.059019+00:00
+     -> Card 1e284829-fdf0-47f5-91c8-1b42da267f06: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:12:25.116684+00:00
+     -> Card 01059790-c1bc-4e02-8602-a306946f7056: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:12:25.116684+00:00
+     -> Card 179c0a65-07d1-4ec6-9e01-b7ed34b18474: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:45:11.28047+00:00
+     -> Card ed3b53ae-a465-4c5e-a5b0-6bd3ca2fb5c6: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T15:00:20.059019+00:00
+     -> Card c97789f0-85e0-4c3a-86ad-5e9d11df1ad1: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:12:25.116684+00:00
+     -> Card 110fe329-8720-4793-a670-db196de6f0f8: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:45:11.28047+00:00
+     -> Card 70f96fb5-32b0-4c0a-b766-bb3e6c891764: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:12:25.116684+00:00
+     -> Card f632aaf2-aabe-409d-af9a-0b8c34152c02: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:45:11.28047+00:00
+     -> Card 288538d1-8678-406f-9fb6-a9b286a21c2f: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T15:00:20.059019+00:00
+     -> Card ce2be4ef-4044-4812-a0a4-380b77a6c55d: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:45:11.28047+00:00
+     -> Card 0137fb80-8c6e-4863-99a5-f2a4472c3b12: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:45:11.28047+00:00
+     -> Card c3eee783-7716-4071-8491-efaad24c37d7: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:45:11.28047+00:00
+     -> Card c9b453b8-c3df-47d3-b857-5bf02b9018ef: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:45:11.28047+00:00
+     -> Card ff008831-4da7-41cb-8cf1-ccb04b5e990b: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:45:11.28047+00:00
+     -> Card 23181188-c0f5-4510-8bff-32268cc243cb: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:45:11.28047+00:00
+     -> Card 989670e6-b650-497e-9d35-72ca8315552f: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T15:00:20.059019+00:00
+     -> Card cd0db0e5-8499-4374-9acf-989a46d37780: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T15:00:20.059019+00:00
+     -> Card 1dd4794d-9145-4c3c-a52c-b4f35b08280a: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T15:00:20.059019+00:00
+     -> Card 588a6f65-0873-4915-ab3b-ca0689bbb88b: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T15:00:20.059019+00:00
+     -> Card bc4e1b7d-fb33-4829-a1c3-7b965e2cfc81: qty=55, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T15:00:20.059019+00:00
+     -> Card 6617fc02-b580-4099-a816-f0081b686f72: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:45:11.28047+00:00
+     -> Card 7ab3dec6-824d-4253-b1da-dec683d0509b: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T15:00:20.059019+00:00
+     -> Card 3aa53885-59eb-4b2b-8f15-b8c251920a42: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T15:00:20.059019+00:00
+     -> Card eed6976b-1815-4dd3-a0d4-c1d479c9266a: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:12:25.116684+00:00
+     -> Card 44b7b8ea-2551-4256-b4b7-61c2d5dd7882: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:45:11.28047+00:00
+     -> Card ad3272ad-6637-4833-afb0-610557ad2768: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T15:00:20.059019+00:00
+     -> Card 7ddafe18-e4e9-41a8-a4bc-11399dd72077: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T17:17:32.254788+00:00
+     -> Card 8353aaa4-1c62-444b-a27f-3b8a34f92020: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:45:11.28047+00:00
+     -> Card dff026e4-1c7c-418a-be4c-bc11e68169c6: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:45:11.28047+00:00
+     -> Card 981f7964-c759-4803-b7a2-9e8aa1fc8de2: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:12:25.116684+00:00
+     -> Card 79577952-12b0-4517-bf2e-b36fd99dbdc1: qty=111, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:12:25.116684+00:00
+     -> Card 35ab1bbb-bd9d-4b0b-a8e1-196e7870060b: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:45:11.28047+00:00
+     -> Card 763e3390-036c-4de5-b322-f5c9054982de: qty=108, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:45:11.28047+00:00
+     -> Card fa8802f4-8da4-4ce9-974d-d81ed46cdcdf: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T17:17:32.254788+00:00
+     -> Card 5c4fec95-96fc-4b59-b256-0ce5532efdb2: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:45:11.28047+00:00
+     -> Card e607185f-6fb4-45a1-bc92-2298d458e41e: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T17:17:32.254788+00:00
+     -> Card 8befae94-cae3-4fc1-b252-d3764f5955fc: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:12:25.116684+00:00
+     -> Card d85cea70-d82e-4ce1-a859-2cd0d89ac537: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T17:17:32.254788+00:00
+     -> Card 273ee1ae-44ea-4dc7-8fa3-a31ad39480d9: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:12:25.116684+00:00
+     -> Card a7502409-1782-4dfb-9bdf-4dd1d047e3c6: qty=110, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:12:25.116684+00:00
+     -> Card 19a5b840-e8f4-4330-aebc-99df31f885df: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T15:00:20.059019+00:00
+     -> Card 8f7a4307-8c9b-4bad-b3fb-3debef30628b: qty=98, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:12:25.116684+00:00
+     -> Card f9593c82-6b44-4c58-8376-9f47f930fcf0: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:12:25.116684+00:00
+     -> Card 3590faf0-6455-4a51-8e3e-153983023e74: qty=110, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:45:11.28047+00:00
+     -> Card a5fe36d7-7dea-474a-9a37-34a34a3fc63e: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T15:00:20.059019+00:00
+     -> Card 03dfdeb6-fe3f-42bc-a265-3955b4119e3f: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:45:11.28047+00:00
+     -> Card 3bb0b4db-e0c7-4c31-a56e-f5cf2c97117e: qty=110, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:45:11.28047+00:00
+     -> Card 1bcd4289-ac2a-420d-8cd4-72416ab7cb39: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:12:25.116684+00:00
+     -> Card 3239a1c1-ea1e-4a53-934d-e37f9929aafd: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:45:11.28047+00:00
+     -> Card 7a6afc79-dfe3-4218-83bc-2537ad01ccb9: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T15:00:20.059019+00:00
+     -> Card 88d5fc45-9ea9-45c2-a412-570decbad9ec: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T15:00:20.059019+00:00
+     -> Card 4f851b84-0349-421e-8b35-c4ec3104d790: qty=111, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:12:25.116684+00:00
+     -> Card 4a92cf40-c4f7-4148-8dfa-c5582d73a02d: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:12:25.116684+00:00
+     -> Card 92db0bd3-3be0-4d5a-93c3-ba6fbd6e91d3: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T15:00:20.059019+00:00
+     -> Card 95ccaf11-6439-43bc-98d4-75db60465179: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T15:00:20.059019+00:00
+     -> Card 56df8332-5ae1-4e25-85eb-1333fa720550: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T15:00:20.059019+00:00
+     -> Card bbecd85c-9714-4a1a-8c99-b3b564c39085: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T15:00:20.059019+00:00
+     -> Card c250ac59-595e-4310-9f67-15a18d94257f: qty=110, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:45:11.28047+00:00
+     -> Card db995ee8-407e-48dc-96cc-a111515da2b4: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:45:11.28047+00:00
+     -> Card 3aa1fdfe-2759-4d4a-b66e-2a21a44f6361: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:12:25.116684+00:00
+     -> Card 31bdbc35-8e15-4bf9-b98e-e116adbb7e2a: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T15:00:20.059019+00:00
+     -> Card 0d20f1a7-0718-4b58-b2da-7915d480a482: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T15:00:20.059019+00:00
+     -> Card ff3f3c76-5a6d-4d10-844e-63be6b5df3d0: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T15:00:20.059019+00:00
+     -> Card 03434427-e4d9-425a-9cfd-4708f38255ea: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:12:25.116684+00:00
+     -> Card 6a552dde-46d0-4361-9497-86754946b6bb: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:45:11.28047+00:00
+     -> Card fd67bbd8-82db-4441-b22c-54824c62c0e8: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T17:17:32.254788+00:00
+     -> Card 768c2fdb-864d-4697-b892-e4f529acb29d: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T15:00:20.059019+00:00
+     -> Card f85c10ff-4d7b-4f1c-b381-68f8741abbcb: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:12:25.116684+00:00
+     -> Card 49461920-c82c-48ff-8e40-2f9a09fcd46a: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T17:17:32.254788+00:00
+     -> Card 3027c271-02d3-4922-bef3-5369b26ba450: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T15:00:20.059019+00:00
+     -> Card fd49c7f7-929a-4c62-89f8-6c5fb5a33f14: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T15:00:20.059019+00:00
+     -> Card 7f2dbd68-a212-49e6-8cee-bfc8417fb57c: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T17:17:32.254788+00:00
+     -> Card 97c0a968-6034-4035-b866-c9ffc7765161: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:12:25.116684+00:00
+     -> Card c5e514fc-c42c-47bd-acd0-182737a7b290: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:12:25.116684+00:00
+     -> Card 660045e8-6c0b-4d6f-98fc-57a9051b5d84: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:45:11.28047+00:00
+     -> Card 192ecd90-be4c-4df8-8114-84b98d7fedfb: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T15:00:20.059019+00:00
+     -> Card 10fec01a-b0ab-46af-a8b3-fe3d6f43ab0c: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:45:11.28047+00:00
+     -> Card 352dd677-24ac-4239-adfa-440d828bc14d: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:12:25.116684+00:00
+     -> Card 6d600b5a-3d39-4ffa-ae71-c6c8ce2e4c78: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T15:00:20.059019+00:00
+     -> Card 61bbcdea-f9d2-4290-88cd-42d6fc84d92a: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:12:25.116684+00:00
+     -> Card 190b3a6b-1db1-4482-981c-81ee56eb1fc5: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T15:00:20.059019+00:00
+     -> Card be02737f-8497-4d6a-a084-d44850c0b0e3: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T17:17:32.254788+00:00
+     -> Card 9ced7b75-3a05-41a1-8651-3aba5b4e990a: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T17:17:32.254788+00:00
+     -> Card b1a1f371-5022-43c6-b950-2cec1b5c9d48: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:45:11.28047+00:00
+     -> Card be917322-c568-4960-b07b-d5eb105f1f83: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:12:25.116684+00:00
+     -> Card 9ec4a134-d7f5-414d-93e2-91363edadd5c: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:45:11.28047+00:00
+     -> Card 3d86b2a9-ca15-4709-82c6-9699b272f6f5: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T15:00:20.059019+00:00
+     -> Card 52e40503-af3e-4fe8-bf33-f6b04c9e64ba: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:45:11.28047+00:00
+     -> Card 875ac290-26a5-4c11-8a57-c4055b08ff13: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T15:00:20.059019+00:00
+     -> Card 54ca0332-7f14-46b2-b668-1ad7f7b59635: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T17:17:32.254788+00:00
+     -> Card 9922c44d-d66a-4a7d-b150-1e83aa4383d2: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T15:00:20.059019+00:00
+     -> Card 7284923c-dd59-4d3f-9b30-c5bd08a1c13d: qty=28, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T17:17:32.254788+00:00
+     -> Card d28e9928-bba9-4a24-b6ce-7f4877f5c306: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T15:00:20.059019+00:00
+     -> Card 604552bc-6baa-4b23-a7cf-7832c6522ab6: qty=14, sheets=undefined, status=at-shop2-buffer, created=2026-09-07T05:53:18.261141+00:00
+     -> Card f76d923f-cc5c-4f4b-8965-5c5f4790d20b: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T17:17:32.254788+00:00
+     -> Card 9c2f1391-d999-47be-8310-0ba2626c7b61: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T17:17:32.254788+00:00
+     -> Card 7be9e74c-3c74-4521-beb3-92f1409c3b48: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T17:17:32.254788+00:00
+     -> Card 6cab0a72-7f43-4941-891a-f992ce20a8a6: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T17:17:32.254788+00:00
+     -> Card f0b17d31-1605-4a66-ba16-e8efbc183d4f: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T17:17:32.254788+00:00
+     -> Card 0b085357-4a71-4938-b4c5-70a9d8f41dcf: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T17:17:32.254788+00:00
+⚠️ Потенційний дубль карток (3 шт.): order=260904-1, task=9e373943-ca97-44ba-9c2c-b69850c1e862, nom=826e46f8-c72e-4ffd-b157-84d821090422, op=Сортування
+     -> Card 3655f7d3-8835-401c-974f-706986f0b024: qty=256, sheets=undefined, status=at-shop2-buffer, created=2026-09-04T18:39:46.981749+00:00
+     -> Card 56d0daaf-c8e9-43ce-82f8-89c7e8778363: qty=256, sheets=undefined, status=at-shop2-buffer, created=2026-09-04T18:39:46.981749+00:00
+     -> Card f9cc9bd9-3005-4539-a8b0-7ce0fa81d0a9: qty=224, sheets=undefined, status=at-shop2-buffer, created=2026-09-04T18:39:46.981749+00:00
+⚠️ Потенційний дубль карток (2 шт.): order=260831-1, task=5e1bd2e7-82ec-407e-a715-f17ac187e602, nom=e0face80-f00d-48cf-9fed-914995f86e71, op=Сортування
+     -> Card 4a536fe3-a7e2-4550-bc45-61ec5db02d79: qty=108, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T06:26:33.834818+00:00
+     -> Card 395f39ce-5200-48ee-9a31-735a3ab8cd38: qty=108, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T06:26:33.834818+00:00
+⚠️ Потенційний дубль карток (86 шт.): order=260827-2, task=35c6045a-4da1-47d2-b73f-7d269ba1e3a3, nom=5ecf63e5-802d-4f98-8291-aad9a52bfaa4, op=Сортування
+     -> Card 4cf5ae26-e348-4138-8aff-e9d69ca1255c: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:55:22.034882+00:00
+     -> Card 7c3a44d1-e960-4711-b284-6d896e605767: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:06:49.348001+00:00
+     -> Card a9751b04-4985-4353-a16d-6fe9d4b513df: qty=119, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:06:49.348001+00:00
+     -> Card d8d760bb-e840-4bb3-ad29-ee764076698f: qty=2, sheets=undefined, status=at-shop2-buffer, created=2026-09-08T04:22:32.168661+00:00
+     -> Card 9c88f12c-e957-47f1-b71a-fb6eccd6531c: qty=119, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:55:22.034882+00:00
+     -> Card 9ce21028-d3dd-4255-9f6f-722e15a7eef3: qty=115, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:55:22.034882+00:00
+     -> Card df675e57-9fea-4b69-818e-39530f3cfca1: qty=118, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:06:49.348001+00:00
+     -> Card bc907b76-f2d3-4741-b3a5-6ad2e6e8e667: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:55:22.034882+00:00
+     -> Card 82cb2683-feba-4f2c-bdcf-0bf5505512db: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:06:49.348001+00:00
+     -> Card cdcc6460-f20d-479f-8960-b4ff03f6d3be: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:55:22.034882+00:00
+     -> Card 34b9b845-74ce-4f74-b696-ded2abc26297: qty=28, sheets=undefined, status=at-shop2-buffer, created=2026-09-07T10:16:15.159403+00:00
+     -> Card c7ec4609-2c60-4590-99f2-59ce55edd2fa: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:55:22.034882+00:00
+     -> Card fa720e26-c0a5-41c2-b746-24c637354cb8: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:06:49.348001+00:00
+     -> Card 23694e37-f39e-4c47-92d7-4cf60ce2954f: qty=118, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:55:22.034882+00:00
+     -> Card e50d3bb8-3b9a-4157-8ca6-b476f267f9b0: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:55:22.034882+00:00
+     -> Card 6d2535c4-0970-402a-816e-17903b9941ac: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:06:49.348001+00:00
+     -> Card 2ffaa4aa-9440-4472-b2e6-2896a5889957: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:06:49.348001+00:00
+     -> Card 78c14fe1-e2a1-4c4b-b980-4439b1247226: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:06:49.348001+00:00
+     -> Card 2605e897-8a51-4eb9-9a8b-80552f500195: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:06:49.348001+00:00
+     -> Card 7f4c5e2c-c0e7-451f-a139-54c337c635da: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:06:49.348001+00:00
+     -> Card dfb48e8c-41b5-4c99-b5c6-da90182ee8e3: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:06:49.348001+00:00
+     -> Card 23c9d1fb-7663-4e58-ab43-2992467dbdb6: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:06:49.348001+00:00
+     -> Card 55315c14-9665-4723-842e-d5b9190638c2: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:06:49.348001+00:00
+     -> Card 7ac34bb1-04d9-4b81-809b-4e27dd9d9719: qty=119, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:06:49.348001+00:00
+     -> Card 98bd03a4-ea0b-4f6a-b15e-79269ef54027: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:06:49.348001+00:00
+     -> Card 18bb4ead-2f57-41fb-b407-6e7c3f7eeac8: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:55:22.034882+00:00
+     -> Card 123f3716-cad4-4917-9d28-6e24def137f5: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:55:22.034882+00:00
+     -> Card 98a10596-8527-42e6-a97a-4e404f27982a: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:55:22.034882+00:00
+     -> Card 9fec06d7-81b6-49ae-830c-4faccbd4a194: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:55:22.034882+00:00
+     -> Card 2c983654-bff4-4cc5-87a4-d22f579cbb42: qty=118, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:55:22.034882+00:00
+     -> Card f92c551b-f4c3-40ad-8b2a-9e8b6ce06909: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:55:22.034882+00:00
+     -> Card 85cbaccb-659b-44fb-a0d7-a38a586f0400: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:06:49.348001+00:00
+     -> Card 4e0467ed-8323-4bb8-ac05-65209b0347db: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:55:22.034882+00:00
+     -> Card 5cc5d09e-4279-446b-bc9c-86a8cdea37e8: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:06:49.348001+00:00
+     -> Card 582abdd9-7d95-4ff2-a75e-6748231a1c4e: qty=116, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:55:22.034882+00:00
+     -> Card 37cb53b9-85d4-46d9-acf7-db0ab6cf8636: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:55:22.034882+00:00
+     -> Card 9d80e44f-ffe7-48ff-9f57-841d604e3304: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:06:49.348001+00:00
+     -> Card 0fd2de52-bc58-45f2-822c-6724de3f1898: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:55:22.034882+00:00
+     -> Card 15046e28-1b3f-42ff-8cda-f1dd170cf5e0: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:55:22.034882+00:00
+     -> Card cab2c5bd-9cfd-4989-87c7-dd048fdd4770: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:06:49.348001+00:00
+     -> Card d5ec3580-a6d2-4191-a2cb-cfc915cb6802: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:06:49.348001+00:00
+     -> Card 52c1b537-ee44-447f-beea-e4c5ecf51ad2: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:06:49.348001+00:00
+     -> Card b561eecd-cfe1-4176-8fc8-d4b4a9719a7e: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:55:22.034882+00:00
+     -> Card 9d4b866f-1d9b-4599-af77-375b44d09273: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:06:49.348001+00:00
+     -> Card 30aeb0e6-faff-41a9-a9b3-7a4e2091a06e: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:55:22.034882+00:00
+     -> Card 8b11c821-62f6-467e-a4da-c5d6ea27a3bf: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:55:22.034882+00:00
+     -> Card 9dbc5245-d9a9-4467-afe9-14debe817f79: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:55:22.034882+00:00
+     -> Card a016386b-9349-49c2-ab20-170d2ba47916: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:06:49.348001+00:00
+     -> Card fdf0abb1-e2b7-4130-b8e8-e5ea2e9d5569: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:06:49.348001+00:00
+     -> Card 2f84f35c-a984-482e-8e24-2fc6fedb536b: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:55:22.034882+00:00
+     -> Card 94039785-57ee-4118-b780-32becf6cf610: qty=92, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:55:22.034882+00:00
+     -> Card 0b8735d0-2c99-4798-ae85-ae3f39090837: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:06:49.348001+00:00
+     -> Card f7a79a31-6ca4-4869-86d1-48219af2c397: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:06:49.348001+00:00
+     -> Card 0b8694b1-270c-4967-841f-c008a08eaa41: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:55:22.034882+00:00
+     -> Card 24da7c67-ee86-492e-9c42-3db90473c557: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:55:22.034882+00:00
+     -> Card 1cd9c240-0a18-4cf5-b849-e8fc1371c431: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:55:22.034882+00:00
+     -> Card 772c8b09-cd72-4dd0-bc0f-9df9ba53d5c8: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:55:22.034882+00:00
+     -> Card dd4a7814-0c07-4a2d-a945-3c22cd92aa44: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:06:49.348001+00:00
+     -> Card 41ea3f9e-e585-4e5a-8110-230dbe6ced79: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:06:49.348001+00:00
+     -> Card c305a918-3d7b-416c-b5d2-dcb7cdfaaf2a: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:06:49.348001+00:00
+     -> Card 45c0b8d0-5bf9-4973-96e3-2f5547e54941: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:55:22.034882+00:00
+     -> Card 9da6bf20-32c5-44e8-9da8-66404cc035c6: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:55:22.034882+00:00
+     -> Card 65011df4-87c6-43fd-a0e4-f106bb2aae88: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:06:49.348001+00:00
+     -> Card c882fc68-7bf1-4e45-bfd1-32ef3441227f: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:06:49.348001+00:00
+     -> Card 3d054e2e-ae02-4d64-a6f7-517014a34a0e: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:06:49.348001+00:00
+     -> Card 4b30444a-93e7-4304-8b52-cf2c3f15b6ab: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:06:49.348001+00:00
+     -> Card beb1a7b4-0870-4813-be04-d9481491d7ce: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:06:49.348001+00:00
+     -> Card faeddbd4-1926-4683-aa46-d9152dfc852a: qty=118, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:55:22.034882+00:00
+     -> Card 52faf0a8-1e4a-4a42-a109-98bad516ecda: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:55:22.034882+00:00
+     -> Card 53ece44d-99f0-423a-8af8-d5a2ac0e1532: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:06:49.348001+00:00
+     -> Card 2b9aa8d0-2c9a-4e5e-bba3-6f255fe85782: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:55:22.034882+00:00
+     -> Card 660354f5-89c0-42b2-a401-8081076cdce1: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:06:49.348001+00:00
+     -> Card c3fb79da-91f3-4d8e-b15c-6492fa6065d2: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:06:49.348001+00:00
+     -> Card 871743d3-3801-418e-863e-fdb13a4062ee: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:55:22.034882+00:00
+     -> Card 1a369612-8335-4358-b5f0-b2b6d4327c5c: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:06:49.348001+00:00
+     -> Card 82d4bd2b-79b8-472b-9de6-284d0701adac: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:55:22.034882+00:00
+     -> Card 446e46bd-68ba-465d-8007-0aa2d65846fc: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:06:49.348001+00:00
+     -> Card d7a13f77-0b67-429f-9efe-2fefc5aa0101: qty=60, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:06:49.348001+00:00
+     -> Card 6bbb6810-8789-4912-ac87-1890330e34de: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:06:49.348001+00:00
+     -> Card fbc3b9a8-5001-4716-a1d0-94a7bf4c98ac: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:55:22.034882+00:00
+     -> Card fb5a36d5-1500-4db0-bea7-bd856477c653: qty=116, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:06:49.348001+00:00
+     -> Card 4a6b648f-9964-4dcb-9d75-0a60d0f0f25c: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:06:49.348001+00:00
+     -> Card 8743ec6d-8a7e-4f3b-8e43-f7fa673657bf: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:06:49.348001+00:00
+     -> Card 78b76b74-fd15-4854-ba33-1d9106e67ca4: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:06:49.348001+00:00
+     -> Card 51b52e57-6c06-432b-9159-70a220be1abb: qty=85, sheets=undefined, status=at-shop2-buffer, created=2026-09-07T05:53:02.114764+00:00
+     -> Card 8f0cd688-2f82-44c0-905f-4ece11ee2f24: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T15:55:22.034882+00:00
+⚠️ Потенційний дубль карток (7 шт.): order=260904-1, task=9e373943-ca97-44ba-9c2c-b69850c1e862, nom=fe89d4ca-f238-422b-a2a4-2c650aba9d9c, op=Сортування
+     -> Card 69750f78-11fb-4434-9b17-086fb1a5152b: qty=80, sheets=undefined, status=at-shop2-buffer, created=2026-09-04T18:41:48.640012+00:00
+     -> Card 9421c4f9-79d1-4ee7-be52-19cea3ebb6ac: qty=80, sheets=undefined, status=at-shop2-buffer, created=2026-09-04T18:41:48.640012+00:00
+     -> Card 0162a529-4106-4082-9326-9121df0c946f: qty=80, sheets=undefined, status=at-shop2-buffer, created=2026-09-04T18:41:48.640012+00:00
+     -> Card 5d091e0f-9b34-4f85-a888-8b8b0a347995: qty=80, sheets=undefined, status=at-shop2-buffer, created=2026-09-04T18:41:48.640012+00:00
+     -> Card 4231c2c4-c0b3-4faa-b70b-57dfb6bc2550: qty=80, sheets=undefined, status=at-shop2-buffer, created=2026-09-04T18:41:48.640012+00:00
+     -> Card 8269b058-98a8-4807-a599-1bade2e68252: qty=20, sheets=undefined, status=at-shop2-buffer, created=2026-09-04T18:41:48.640012+00:00
+     -> Card 03b02175-dcf4-498f-bda8-e4caab59737f: qty=80, sheets=undefined, status=at-shop2-buffer, created=2026-09-04T18:41:48.640012+00:00
+⚠️ Потенційний дубль карток (2 шт.): order=260831-1, task=5e1bd2e7-82ec-407e-a715-f17ac187e602, nom=312b0260-707a-4dc4-9f7a-bd412dd8fa00, op=Сортування
+     -> Card e8550bfa-315d-4443-a633-23e9291f9b8f: qty=108, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T06:22:05.719395+00:00
+     -> Card 36f6789d-1a22-4bd9-816c-2aac963dde50: qty=108, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T06:22:05.719395+00:00
+⚠️ Потенційний дубль карток (2 шт.): order=ТЕСТ-ВАФЕЛЬ-01, task=99190e0a-91b0-4a44-ab5e-b1a1ec393ffe, nom=a7ec148b-45c0-4878-a8ac-228f0c1f6237, op=Розкрій
+     -> Card 755fbd2a-04c8-43d8-8ae6-db83e37c2b34: qty=40, sheets=undefined, status=at-buffer, created=2026-08-28T17:34:32.204664+00:00
+     -> Card 07c36534-63cd-45f3-8e5d-92da1c18047a: qty=10, sheets=undefined, status=new, created=2026-08-28T17:34:32.204664+00:00
+⚠️ Потенційний дубль карток (14 шт.): order=260829-1, task=e6f67026-f730-4b2b-8583-567e66d3b4e3, nom=076ba504-b3f6-4ec8-8844-fe9515077d9c, op=Сортування
+     -> Card fbe219bc-ea37-463d-a850-81beae352290: qty=224, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:06:18.319031+00:00
+     -> Card 4e515daf-38a6-4580-b4db-5a509ed41fbb: qty=224, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:06:18.319031+00:00
+     -> Card a1b9960c-bfc3-4760-97eb-7c4248a5f7d7: qty=224, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:06:18.319031+00:00
+     -> Card af48826e-7579-45a4-a983-5911f41d67da: qty=224, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:06:18.319031+00:00
+     -> Card ed27f8be-6396-4da7-9e8a-8db1b08dadbd: qty=224, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:06:18.319031+00:00
+     -> Card 21029f8d-a16e-4383-adac-025c50edc81a: qty=224, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:06:18.319031+00:00
+     -> Card 3a64d689-a277-4ac9-b562-9728bcce7bfb: qty=224, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:06:18.319031+00:00
+     -> Card 851c23d8-47f1-4bae-87b7-01ff71749093: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:06:18.319031+00:00
+     -> Card b4fd0cfb-1f6f-4d39-a9e7-e6e5dbdb0471: qty=224, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:06:18.319031+00:00
+     -> Card 3af3677a-ec5a-4298-bd0e-8d22f26da7d8: qty=224, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:06:18.319031+00:00
+     -> Card f7c53ddc-bd3f-4697-b318-a05134390eed: qty=224, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:06:18.319031+00:00
+     -> Card 18fd9e5a-9145-4659-baeb-46965e5e51cf: qty=224, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:06:18.319031+00:00
+     -> Card c28746d4-730f-4be5-9338-0902aebf7d94: qty=224, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:06:18.319031+00:00
+     -> Card ff29dc9c-8332-42e8-a28c-e9d279f8c64c: qty=224, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:06:18.319031+00:00
+⚠️ Потенційний дубль карток (10 шт.): order=260904-1, task=9e373943-ca97-44ba-9c2c-b69850c1e862, nom=ff32aa58-8c7f-438b-ae1c-dead9c9b19ec, op=Сортування
+     -> Card 69a296c8-21c2-4252-b132-eade21d151e5: qty=100, sheets=undefined, status=at-shop2-buffer, created=2026-09-04T18:43:26.717792+00:00
+     -> Card 7392d1fb-b0ba-4243-b38b-4f85ab91be54: qty=100, sheets=undefined, status=at-shop2-buffer, created=2026-09-04T18:43:26.717792+00:00
+     -> Card 12e88a94-436b-4f96-afe2-80202ccad0ea: qty=100, sheets=undefined, status=at-shop2-buffer, created=2026-09-04T18:43:26.717792+00:00
+     -> Card 4243081d-8bdd-4423-bd35-7c3810bb9f91: qty=100, sheets=undefined, status=at-shop2-buffer, created=2026-09-04T18:43:26.717792+00:00
+     -> Card 9ca86b86-fced-4921-bc02-20977db13a3c: qty=100, sheets=undefined, status=at-shop2-buffer, created=2026-09-04T18:43:26.717792+00:00
+     -> Card b8b383b7-22f5-47a1-8990-2791aa11b24f: qty=100, sheets=undefined, status=at-shop2-buffer, created=2026-09-04T18:43:26.717792+00:00
+     -> Card 2ca77011-352b-4271-93e3-5108d5db104c: qty=100, sheets=undefined, status=at-shop2-buffer, created=2026-09-04T18:43:26.717792+00:00
+     -> Card 6b68ee1d-9822-4429-a20a-599d1a917c65: qty=100, sheets=undefined, status=at-shop2-buffer, created=2026-09-04T18:43:26.717792+00:00
+     -> Card 8a998f80-7ec3-4327-acf0-fe2ecd80027c: qty=100, sheets=undefined, status=at-shop2-buffer, created=2026-09-04T18:43:26.717792+00:00
+     -> Card ab865e67-fbd5-49a9-b823-25ba8dd1e16b: qty=100, sheets=undefined, status=at-shop2-buffer, created=2026-09-04T18:43:26.717792+00:00
+⚠️ Потенційний дубль карток (3 шт.): order=260907-1, task=ccfabbab-fd5e-44cf-adb9-b87bef2b9f7a, nom=3f5ebdc1-847e-4c57-967d-9e0445a6af6a, op=Сортування
+     -> Card a79d6908-414d-4cbf-99b0-9a957db7d454: qty=104, sheets=undefined, status=at-buffer, created=2026-09-07T19:01:38.490516+00:00
+     -> Card 252f0ab4-1b19-4163-80cb-74481075ad53: qty=104, sheets=undefined, status=at-buffer, created=2026-09-07T19:01:38.490516+00:00
+     -> Card c668a5f2-f040-4a21-8b8f-70d454e7785f: qty=104, sheets=undefined, status=at-buffer, created=2026-09-07T19:01:38.490516+00:00
+⚠️ Потенційний дубль карток (6 шт.): order=260907-1, task=ccfabbab-fd5e-44cf-adb9-b87bef2b9f7a, nom=3f5ebdc1-847e-4c57-967d-9e0445a6af6a, op=Галтовка
+     -> Card 560d7cc2-c685-407a-bb80-c058fe68d3a3: qty=104, sheets=undefined, status=at-buffer, created=2026-09-07T19:01:38.490516+00:00
+     -> Card f4954dbd-f10c-4bd7-be95-fe1e331746bc: qty=104, sheets=undefined, status=at-buffer, created=2026-09-07T19:01:38.490516+00:00
+     -> Card 3d084efb-8f5b-47e1-b111-920414ea00f6: qty=104, sheets=undefined, status=at-buffer, created=2026-09-07T19:01:38.490516+00:00
+     -> Card 509c60e4-27ad-4569-a624-f287de0ba951: qty=104, sheets=undefined, status=at-buffer, created=2026-09-07T19:01:38.490516+00:00
+     -> Card 19756226-f1f0-463a-a9b3-3223efd1e9fe: qty=104, sheets=undefined, status=at-buffer, created=2026-09-07T19:01:38.490516+00:00
+     -> Card ebaa1734-06b8-485e-b3de-b8d37073b6d5: qty=26, sheets=undefined, status=at-buffer, created=2026-09-07T19:01:38.490516+00:00
+⚠️ Потенційний дубль карток (2 шт.): order=260907-1, task=ccfabbab-fd5e-44cf-adb9-b87bef2b9f7a, nom=ea8fb93e-d220-40fe-a9ec-d53ac5056e35, op=Сортування
+     -> Card ab6cc9f0-48af-45fd-954d-0bca234a2103: qty=469, sheets=undefined, status=at-shop2-buffer, created=2026-09-07T19:15:21.373281+00:00
+     -> Card f6595282-48d5-4243-bb02-e614577d576d: qty=536, sheets=undefined, status=at-shop2-buffer, created=2026-09-07T19:15:21.373281+00:00
+⚠️ Потенційний дубль карток (3 шт.): order=260831-1, task=5e1bd2e7-82ec-407e-a715-f17ac187e602, nom=447e35fd-0139-4fc2-9bf3-dc445014cf8f, op=Сортування
+     -> Card 80323574-f2cb-489d-865b-ca527445b1d6: qty=96, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T06:25:55.490268+00:00
+     -> Card 52591bf6-011f-42ae-8a05-84c7ff3974d9: qty=24, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T06:25:55.490268+00:00
+     -> Card ad28c26f-8cb6-4d74-bf68-557272bd11d6: qty=96, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T06:25:55.490268+00:00
+⚠️ Потенційний дубль карток (13 шт.): order=260826-1, task=a86551cb-2ebd-4e96-a967-8bf72a29aa1b, nom=b77e0883-0af2-40a4-a834-a1e47b6570da, op=Сортування
+     -> Card d6b85de3-c077-4993-af8e-3fd0f3991212: qty=184, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T06:13:00.594415+00:00
+     -> Card fb465da2-c898-4845-8cd1-5dc8ae5ab64b: qty=184, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T06:13:00.594415+00:00
+     -> Card 8e8e4507-2dd6-4fe0-8fc9-611f305d7d11: qty=184, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T06:13:00.594415+00:00
+     -> Card cfc22155-0d35-4ee6-a41e-1e980d51a485: qty=184, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T06:13:00.594415+00:00
+     -> Card 72e5900e-4490-411c-8916-00f418cae45e: qty=184, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T06:13:00.594415+00:00
+     -> Card 1972a135-9308-488e-b7e2-5ef4e53cf017: qty=184, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T06:13:00.594415+00:00
+     -> Card 888b856e-f517-4d50-a8b0-4f3beca9f01a: qty=184, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T06:13:00.594415+00:00
+     -> Card beec5525-98a9-4480-a15d-a7248419189a: qty=184, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T06:13:00.594415+00:00
+     -> Card 56d7ebe1-4f86-46f7-b413-66bafca44fd2: qty=184, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:20:17.688752+00:00
+     -> Card ccfe3363-e5f1-4cb7-bdea-1d5b3a62ae7d: qty=184, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T06:13:00.594415+00:00
+     -> Card 30c23303-7355-4c93-94a2-f441667ac05a: qty=178, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T06:13:00.594415+00:00
+     -> Card 9afcf4d3-85ef-4bf3-9b3e-d2b8f8ab19a8: qty=184, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T06:13:00.594415+00:00
+     -> Card cffaf26f-82ca-4ee8-89d2-b5f06954d603: qty=184, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T06:13:00.594415+00:00
+⚠️ Потенційний дубль карток (3 шт.): order=260907-1, task=ccfabbab-fd5e-44cf-adb9-b87bef2b9f7a, nom=4aa97142-58ed-4449-a2c5-99276623330f, op=Сортування
+     -> Card 8d665c1d-4944-4c44-b740-dc194178fa4a: qty=408, sheets=undefined, status=at-shop2-buffer, created=2026-09-07T19:00:28.383356+00:00
+     -> Card 022b8d44-f6b4-4d0c-a94f-0bae8cf787e7: qty=408, sheets=undefined, status=at-shop2-buffer, created=2026-09-07T19:00:28.383356+00:00
+     -> Card 75bbbfff-bef0-4122-88b8-e543142eef44: qty=136, sheets=undefined, status=at-shop2-buffer, created=2026-09-07T19:00:28.383356+00:00
+⚠️ Потенційний дубль карток (3 шт.): order=260907-1, task=ccfabbab-fd5e-44cf-adb9-b87bef2b9f7a, nom=df1df03f-fe34-4b41-833a-7a8070d89411, op=Сортування
+     -> Card 3afc599c-7f52-41a3-b140-e915d031b0fe: qty=792, sheets=undefined, status=at-buffer, created=2026-09-07T19:13:21.294608+00:00
+     -> Card 17743ebe-fe48-412b-9fd4-0f5c6c661922: qty=261, sheets=undefined, status=at-shop2-buffer, created=2026-09-07T19:13:21.294608+00:00
+     -> Card 3d6afe83-2dc3-4867-aa08-27814f266871: qty=792, sheets=undefined, status=at-buffer, created=2026-09-07T19:13:21.294608+00:00
+⚠️ Потенційний дубль карток (15 шт.): order=260825-2, task=23ceb083-47f2-4f00-9922-339318478043, nom=4a4aba71-4865-45f8-a0d0-fc387f9b92eb, op=Сортування
+     -> Card 327b14fe-99c8-4481-b222-1d05f8b19286: qty=38, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T14:00:48.619047+00:00
+     -> Card c6bae587-0acf-4de4-a1ba-c9e231b75577: qty=149, sheets=undefined, status=at-shop2-buffer, created=2026-08-25T16:29:53.36965+00:00
+     -> Card 0f054574-ea4b-4e71-9f7c-1764ddaefc78: qty=152, sheets=undefined, status=at-shop2-buffer, created=2026-08-25T16:29:53.36965+00:00
+     -> Card d83dfd22-ba1c-489a-838a-81aa98ae3f0e: qty=152, sheets=undefined, status=at-shop2-buffer, created=2026-08-25T16:29:53.36965+00:00
+     -> Card 2c9af0a6-780c-4702-9e1e-fa4c3b9a5e1e: qty=150, sheets=undefined, status=at-shop2-buffer, created=2026-08-25T16:29:53.36965+00:00
+     -> Card acdedf5d-1920-4501-9ef2-badf8c4d97f6: qty=152, sheets=undefined, status=at-shop2-buffer, created=2026-08-25T16:29:53.36965+00:00
+     -> Card d2fe1bf3-87ce-4648-aabc-affd79aaf50b: qty=151, sheets=undefined, status=at-shop2-buffer, created=2026-08-25T16:29:53.36965+00:00
+     -> Card 0964846a-b72f-47e3-b459-f2b32c66b43c: qty=151, sheets=undefined, status=at-shop2-buffer, created=2026-08-25T16:29:53.36965+00:00
+     -> Card 3aa33736-9e29-4600-8a7a-f6ec18ddeb54: qty=148, sheets=undefined, status=at-shop2-buffer, created=2026-08-25T16:29:53.36965+00:00
+     -> Card c2b5e2c6-71d6-4b63-955a-cead45adad4f: qty=76, sheets=undefined, status=at-shop2-buffer, created=2026-08-25T16:29:53.36965+00:00
+     -> Card 2d73a0aa-ccc6-4db7-baca-29dafb3d8a24: qty=152, sheets=undefined, status=at-shop2-buffer, created=2026-08-25T16:29:53.36965+00:00
+     -> Card 8188fc92-acc5-4425-bb27-1c15ec4bd212: qty=152, sheets=undefined, status=at-shop2-buffer, created=2026-08-25T16:29:53.36965+00:00
+     -> Card 706ca519-58e0-4264-b2f4-4c4103091170: qty=152, sheets=undefined, status=at-shop2-buffer, created=2026-08-25T16:29:53.36965+00:00
+     -> Card 0ea5fcdd-53fd-46bd-a86f-aed1921d3823: qty=150, sheets=undefined, status=at-shop2-buffer, created=2026-08-25T16:29:53.36965+00:00
+     -> Card 59dafe37-8eba-461a-9faf-5363ba5f2232: qty=152, sheets=undefined, status=at-shop2-buffer, created=2026-08-25T16:29:53.36965+00:00
+⚠️ Потенційний дубль карток (12 шт.): order=260904-1, task=9e373943-ca97-44ba-9c2c-b69850c1e862, nom=feb6f708-7fe4-42d4-b640-0a70c6e4b148, op=Сортування
+     -> Card 252ee4cd-7823-4d23-aa32-f1d0046e5226: qty=88, sheets=undefined, status=at-shop2-buffer, created=2026-09-04T18:42:46.265708+00:00
+     -> Card 10c2bac7-f338-4206-a8ae-43638b8ba4cc: qty=88, sheets=undefined, status=at-shop2-buffer, created=2026-09-04T18:42:46.265708+00:00
+     -> Card 3d9e3ac0-6aea-45c8-a707-7dbe5ad5a177: qty=88, sheets=undefined, status=at-shop2-buffer, created=2026-09-04T18:42:46.265708+00:00
+     -> Card 5c3fa225-711d-4bf7-b77d-d7dc60230d25: qty=88, sheets=undefined, status=at-shop2-buffer, created=2026-09-04T18:42:46.265708+00:00
+     -> Card 2e0d542c-8248-4705-aacd-0e3c657478f9: qty=88, sheets=undefined, status=at-shop2-buffer, created=2026-09-04T18:42:46.265708+00:00
+     -> Card f80831f2-2343-48e7-ae33-91515f619269: qty=88, sheets=undefined, status=at-shop2-buffer, created=2026-09-04T18:42:46.265708+00:00
+     -> Card a09d4396-2e5c-4243-800c-d6d0686ab129: qty=88, sheets=undefined, status=at-shop2-buffer, created=2026-09-04T18:42:46.265708+00:00
+     -> Card fe53764c-c2a4-4193-aedb-924bc311804e: qty=88, sheets=undefined, status=at-shop2-buffer, created=2026-09-04T18:42:46.265708+00:00
+     -> Card 610e88d0-8074-4077-9e71-1e6c8d30864d: qty=88, sheets=undefined, status=at-shop2-buffer, created=2026-09-04T18:42:46.265708+00:00
+     -> Card bcec34e0-34b7-4111-8376-fe42f2c7866d: qty=88, sheets=undefined, status=at-shop2-buffer, created=2026-09-04T18:42:46.265708+00:00
+     -> Card 06170ff2-1f20-43d4-883f-8bd4f86dbb78: qty=88, sheets=undefined, status=at-shop2-buffer, created=2026-09-04T18:42:46.265708+00:00
+     -> Card 41292e02-f482-4871-b530-86a9e6bf4ca5: qty=44, sheets=undefined, status=at-shop2-buffer, created=2026-09-04T18:42:46.265708+00:00
+⚠️ Потенційний дубль карток (7 шт.): order=260908-1, task=dbc95436-00f3-4434-92ba-81560ce59818, nom=16baa960-da47-4f07-bae3-2099b92abfc0, op=Розкрій
+     -> Card 5d9df65e-9714-4aa2-8aec-bca615b8821b: qty=156, sheets=undefined, status=new, created=2026-09-08T19:09:04.627163+00:00
+     -> Card f242734c-ade0-4547-ba06-33f516bdc657: qty=156, sheets=undefined, status=new, created=2026-09-08T19:09:04.627163+00:00
+     -> Card c4b00bcd-cc18-4015-a628-10dbff2ae42e: qty=156, sheets=undefined, status=new, created=2026-09-08T19:09:04.627163+00:00
+     -> Card d3ebf1c6-7916-4b12-a8c1-32def70d28a3: qty=156, sheets=undefined, status=new, created=2026-09-08T19:09:04.627163+00:00
+     -> Card 1500735c-0c79-492c-8113-f81fb5c0fa71: qty=156, sheets=undefined, status=new, created=2026-09-08T19:09:04.627163+00:00
+     -> Card e52da429-f429-461b-ad86-5b9da36f87a5: qty=156, sheets=undefined, status=new, created=2026-09-08T19:09:04.627163+00:00
+     -> Card 66b224e7-e186-48fd-87a8-84d0117d2f67: qty=78, sheets=undefined, status=new, created=2026-09-08T19:09:04.627163+00:00
+⚠️ Потенційний дубль карток (6 шт.): order=260831-2, task=ebdebcd2-d718-445a-9db4-ef282c1156cf, nom=84e1e26e-c6f2-4873-841a-1609dc0d8b84, op=Сортування
+     -> Card bdb7b9d6-6c36-41c7-b63a-5edb3b99c4cf: qty=540, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T17:28:39.96267+00:00
+     -> Card a34c5e72-a6e7-4bfb-812b-97280043534e: qty=540, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T17:28:39.96267+00:00
+     -> Card 57b80544-1a2b-4dc0-b69c-0803eb887a5d: qty=539, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T17:28:39.96267+00:00
+     -> Card ce7283a0-1fb0-4eb1-8e51-1a417ea05536: qty=540, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T17:28:39.96267+00:00
+     -> Card 1c9c9b4b-5f4b-43c2-b82d-a211be4a4511: qty=315, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T17:28:39.96267+00:00
+     -> Card b72b3002-bf99-448c-834b-d4fd3d65773e: qty=540, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T17:28:39.96267+00:00
+⚠️ Потенційний дубль карток (18 шт.): order=260908-1, task=dbc95436-00f3-4434-92ba-81560ce59818, nom=20886010-951a-41ca-af31-67ba987d0b3e, op=Розкрій
+     -> Card 4adf2f5a-019d-47f4-bbda-885601a450b8: qty=56, sheets=undefined, status=in-progress, created=2026-09-08T19:11:25.910457+00:00
+     -> Card f63cb61b-a9fb-437b-bcc2-5753a4062d34: qty=56, sheets=undefined, status=in-progress, created=2026-09-08T19:11:25.910457+00:00
+     -> Card 7e108aec-65af-4213-aa7b-a35a4cc385b6: qty=56, sheets=undefined, status=in-progress, created=2026-09-08T19:11:25.910457+00:00
+     -> Card 25b26e45-f815-4de4-a0f7-9351f08be7b4: qty=56, sheets=undefined, status=new, created=2026-09-08T19:11:25.910457+00:00
+     -> Card ed6e1b94-7b8a-4b85-9553-668888f9a2bb: qty=56, sheets=undefined, status=new, created=2026-09-08T19:11:25.910457+00:00
+     -> Card 80e24ed3-31e0-404b-9057-50978eeeb69a: qty=56, sheets=undefined, status=new, created=2026-09-08T19:11:25.910457+00:00
+     -> Card b4875a2d-a74c-47e4-b64f-0c6c50622e77: qty=56, sheets=undefined, status=new, created=2026-09-08T19:11:25.910457+00:00
+     -> Card c3d48555-fe09-49ea-92f2-2975e3489197: qty=56, sheets=undefined, status=new, created=2026-09-08T19:11:25.910457+00:00
+     -> Card 8014595e-819d-4cc0-b6ad-d77f73905050: qty=56, sheets=undefined, status=new, created=2026-09-08T19:11:25.910457+00:00
+     -> Card 47bb15aa-6ce3-4691-95bb-8ccd192e3faf: qty=56, sheets=undefined, status=new, created=2026-09-08T19:11:25.910457+00:00
+     -> Card 6b6cab75-3639-415c-8c1e-19a0b198b952: qty=56, sheets=undefined, status=new, created=2026-09-08T19:11:25.910457+00:00
+     -> Card 455c01e3-53b2-487d-ab0f-49a8baeae40a: qty=56, sheets=undefined, status=new, created=2026-09-08T19:11:25.910457+00:00
+     -> Card 8a0f9cb1-154d-4d5c-a9ac-e838556500af: qty=56, sheets=undefined, status=new, created=2026-09-08T19:11:25.910457+00:00
+     -> Card 3202e2e1-e015-4d4b-9ff7-b0f05c823a44: qty=56, sheets=undefined, status=new, created=2026-09-08T19:11:25.910457+00:00
+     -> Card 0ab77937-58bc-40d6-ad2a-cb8f36371c6a: qty=56, sheets=undefined, status=in-progress, created=2026-09-08T19:11:25.910457+00:00
+     -> Card 2be46e45-a455-4cb0-b4e7-426a7ce5b8ff: qty=56, sheets=undefined, status=in-progress, created=2026-09-08T19:11:25.910457+00:00
+     -> Card 772f0d19-d1cb-47a9-9ac0-f41261daca60: qty=56, sheets=undefined, status=in-progress, created=2026-09-08T19:11:25.910457+00:00
+     -> Card 529b9ba1-911b-4a98-8a19-d387a57b8d9f: qty=56, sheets=undefined, status=in-progress, created=2026-09-08T19:11:25.910457+00:00
+⚠️ Потенційний дубль карток (3 шт.): order=260902-3, task=e395bdde-7e78-4e62-bb7d-60c7f3a52098, nom=4a7afe64-3a77-4d1d-b044-ab76e71dc633, op=Сортування
+     -> Card 847c938e-03bc-4e43-bb4a-be4b3eb974a5: qty=20, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:02:16.285758+00:00
+     -> Card 60ae9d55-592f-4f63-8e6a-4d8c73fcbea0: qty=40, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:02:16.285758+00:00
+     -> Card 829661da-dbf8-42d0-85c7-2a231cd1fd6f: qty=40, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:02:16.285758+00:00
+⚠️ Потенційний дубль карток (27 шт.): order=260905-1, task=3f02455f-e512-44de-b2bb-4251b05d6556, nom=50947afc-4e40-4165-a682-780275d5feda, op=Сортування
+     -> Card 78508165-89a0-4ad5-a712-52c1f1d3eb6e: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-09-05T07:49:33.850671+00:00
+     -> Card b9ad3277-b985-4a62-820c-4e07b6d43bf7: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-09-05T07:49:33.850671+00:00
+     -> Card c1ae7d2c-f4cb-46b3-a2c4-b8b1b892e919: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-09-05T07:49:33.850671+00:00
+     -> Card 49f2b55a-48b5-4019-9970-8549e70f9aa1: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-09-05T07:49:33.850671+00:00
+     -> Card e15f26ab-934a-428d-9078-087aee1b5320: qty=42, sheets=undefined, status=at-shop2-buffer, created=2026-09-05T07:49:33.850671+00:00
+     -> Card 8a4fc3ef-0f31-4fcc-bd59-7e6d35fd86d2: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-09-05T07:49:33.850671+00:00
+     -> Card 49342371-17dc-488e-9655-db91a7f85ddf: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-09-05T07:49:33.850671+00:00
+     -> Card 9456f3ca-71fb-4229-a348-8a4adc9648a5: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-09-05T07:49:33.850671+00:00
+     -> Card 02906bc4-3379-4b26-a061-5b4dd46d3e70: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-09-05T07:49:33.850671+00:00
+     -> Card 5de42749-d14c-4fc6-a894-b185bd508558: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-09-05T07:49:33.850671+00:00
+     -> Card 64fdd8bc-0fce-4e76-ab8e-2c07cc9c06f3: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-09-05T07:49:33.850671+00:00
+     -> Card f4c95490-552d-448f-a4a6-2c948a1de6b0: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-09-05T07:49:33.850671+00:00
+     -> Card 3602d36d-630e-4d1c-97a1-90a8147bf8db: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-09-05T07:49:33.850671+00:00
+     -> Card df1976ed-00e0-491a-9b53-5ac12d031fcc: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-09-05T07:49:33.850671+00:00
+     -> Card 17bef476-2374-4344-b7f0-60bb4fa74554: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-09-05T07:49:33.850671+00:00
+     -> Card 511153be-d2eb-431f-b315-1935b9c211b3: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-09-05T07:49:33.850671+00:00
+     -> Card 7985e290-483f-4903-add6-ceb5a2b67562: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-09-05T07:49:33.850671+00:00
+     -> Card 489b3ac9-7be6-4bd0-830e-b0ae335f3d60: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-09-05T07:49:33.850671+00:00
+     -> Card 547b0895-e6b5-4ded-8c21-c92f6db73c41: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-09-05T07:49:33.850671+00:00
+     -> Card cd132e78-9bc1-4794-b06b-caac627f2d0f: qty=54, sheets=undefined, status=at-shop2-buffer, created=2026-09-05T07:49:33.850671+00:00
+     -> Card e5dc26de-0f2b-40b8-b0ca-12a9d33fd43b: qty=54, sheets=undefined, status=at-shop2-buffer, created=2026-09-05T07:49:33.850671+00:00
+     -> Card 8c1f7fc4-8344-446c-8523-9e1d07920e57: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-09-05T07:49:33.850671+00:00
+     -> Card c73e3cac-b984-4b4f-9631-30164c72176e: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-09-05T07:49:33.850671+00:00
+     -> Card 7d18aa0a-e1ee-4abd-8506-ed6e39155aab: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-09-05T07:49:33.850671+00:00
+     -> Card 03e6a543-775b-4d22-b055-926ef73d8910: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-09-05T07:49:33.850671+00:00
+     -> Card 37fd033a-6b48-4fae-a9a0-ba0234fdc8b0: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-09-05T07:49:33.850671+00:00
+     -> Card 52fa9505-6c6a-4dbf-8b23-fc196a7b3ee2: qty=56, sheets=undefined, status=at-shop2-buffer, created=2026-09-05T07:49:33.850671+00:00
+⚠️ Потенційний дубль карток (2 шт.): order=260902-3, task=e395bdde-7e78-4e62-bb7d-60c7f3a52098, nom=5a3ab23c-6e7e-4769-bffd-e15d4a53d080, op=Сортування
+     -> Card f5667bc7-1725-4b08-8960-5cdff89126fc: qty=59, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:04:04.521619+00:00
+     -> Card 70472c31-eecc-45b1-83e7-67d0c6e1ad52: qty=62, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:04:04.521619+00:00
+⚠️ Потенційний дубль карток (14 шт.): order=260905-1, task=3f02455f-e512-44de-b2bb-4251b05d6556, nom=5ecf63e5-802d-4f98-8291-aad9a52bfaa4, op=Сортування
+     -> Card 59e5c775-c1f7-454e-a2d4-cb22af0cc47a: qty=109, sheets=undefined, status=at-shop2-buffer, created=2026-09-05T07:52:10.654227+00:00
+     -> Card 2f28c2bc-1e1a-4423-adfe-c19c99c5e36c: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-09-05T07:52:10.654227+00:00
+     -> Card f9faba69-ed06-40b9-912f-48134e71191d: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-09-05T07:52:10.654227+00:00
+     -> Card 3cf0d793-0f04-4c9a-9147-c490102ba86f: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-09-05T07:52:10.654227+00:00
+     -> Card f0dd6dcf-b5af-475f-9a60-b72819f6f6b2: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-09-05T07:52:10.654227+00:00
+     -> Card aadf60fb-7bf2-478e-9a5b-76572c6f8f5f: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-09-05T07:52:10.654227+00:00
+     -> Card 6f752e90-53d6-41a6-ba19-125f7a2637e4: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-09-05T07:52:10.654227+00:00
+     -> Card f0f41fe9-4413-4791-9e32-524402d2e844: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-09-05T07:52:10.654227+00:00
+     -> Card d8e1fe2a-bfd3-4d00-be56-71f2602e6906: qty=1, sheets=undefined, status=at-shop2-buffer, created=2026-09-07T05:36:52.607814+00:00
+     -> Card 183e46d7-c407-4008-8c9b-210c12f2c9b8: qty=119, sheets=undefined, status=at-shop2-buffer, created=2026-09-05T07:52:10.654227+00:00
+     -> Card 327a9dd8-1d31-435f-872d-964eba160bfc: qty=60, sheets=undefined, status=at-shop2-buffer, created=2026-09-05T07:52:10.654227+00:00
+     -> Card bf825c63-a025-4add-84c0-1bd8bdb16b51: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-09-05T07:52:10.654227+00:00
+     -> Card 406f2a4b-99a4-45c6-a35a-eb6fdef1c659: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-09-05T07:52:10.654227+00:00
+     -> Card bb63c99d-6556-4e33-bf9c-92bb90d06eb1: qty=120, sheets=undefined, status=at-shop2-buffer, created=2026-09-05T07:52:10.654227+00:00
+⚠️ Потенційний дубль карток (9 шт.): order=260908-1, task=dbc95436-00f3-4434-92ba-81560ce59818, nom=91059aca-e0f9-4bfc-a311-c65f3b190061, op=Розкрій
+     -> Card 8bd391ec-e35e-4990-9dc7-f59990f56e7a: qty=120, sheets=undefined, status=in-progress, created=2026-09-08T19:13:56.38727+00:00
+     -> Card 2c30dd5d-6885-477c-8c99-76ba3aad87b2: qty=120, sheets=undefined, status=in-progress, created=2026-09-08T19:13:56.38727+00:00
+     -> Card 728207f1-cf1b-4216-982c-648b701a8b34: qty=120, sheets=undefined, status=in-progress, created=2026-09-08T19:13:56.38727+00:00
+     -> Card 25ddd60d-8c9d-4b42-9064-3e9b8813388b: qty=120, sheets=undefined, status=in-progress, created=2026-09-08T19:13:56.38727+00:00
+     -> Card 634b03fe-65cf-4709-87d1-27fedf0a4a24: qty=120, sheets=undefined, status=in-progress, created=2026-09-08T19:13:56.38727+00:00
+     -> Card ea05adf6-51dc-4b75-8724-c6c1e64ff74b: qty=120, sheets=undefined, status=in-progress, created=2026-09-08T19:13:56.38727+00:00
+     -> Card e1a41106-5e71-4d6e-a389-e7c94245bed7: qty=120, sheets=undefined, status=in-progress, created=2026-09-08T19:13:56.38727+00:00
+     -> Card 1e9b4f4d-41fd-48e8-a6be-ec28c14f94c1: qty=120, sheets=undefined, status=in-progress, created=2026-09-08T19:21:01.130447+00:00
+     -> Card 2ed6f92d-54ec-43f4-92a0-0e1123f144ca: qty=120, sheets=undefined, status=in-progress, created=2026-09-08T19:13:56.38727+00:00
+⚠️ Потенційний дубль карток (2 шт.): order=260902-3, task=e395bdde-7e78-4e62-bb7d-60c7f3a52098, nom=8e8f0ce9-5cee-49e0-a429-70ff24e5efbc, op=Сортування
+     -> Card 2a368cb7-d5a9-4970-8e7b-0e027949e944: qty=61, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:04:55.249949+00:00
+     -> Card 3bce668e-a705-4b00-9496-6f97c5832873: qty=62, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:04:55.249949+00:00
+⚠️ Потенційний дубль карток (4 шт.): order=260902-3, task=e395bdde-7e78-4e62-bb7d-60c7f3a52098, nom=0f0e9f74-2410-401b-8044-9f8c5acb0bd6, op=Сортування
+     -> Card 02e2e818-74e4-4659-94d1-e06c531a0df2: qty=62, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T16:55:53.584152+00:00
+     -> Card 1a5e12bd-839d-47da-88b6-04c48831c9df: qty=31, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T16:55:53.584152+00:00
+     -> Card 29b4d05e-28ac-4abf-99bc-b9ffdc0839e6: qty=62, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T16:55:53.584152+00:00
+     -> Card bc8eb110-5ff4-43b6-922b-5b5b08b1b0f3: qty=60, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T16:55:53.584152+00:00
+⚠️ Потенційний дубль карток (7 шт.): order=260827-2, task=35c6045a-4da1-47d2-b73f-7d269ba1e3a3, nom=50947afc-4e40-4165-a682-780275d5feda, op=Розкрій
+     -> Card 98fbf836-8961-494e-9e4d-ebc4b6beb962: qty=56, sheets=undefined, status=new, created=2026-08-31T15:00:20.059019+00:00
+     -> Card c88b9360-21e7-45d7-adf2-6285f7395440: qty=56, sheets=undefined, status=new, created=2026-08-31T15:00:20.059019+00:00
+     -> Card a13321d3-154d-479c-b4dc-1aced274d9f7: qty=56, sheets=undefined, status=new, created=2026-08-31T15:00:20.059019+00:00
+     -> Card dad81613-a4ed-48ce-87cf-9ef32243bd28: qty=56, sheets=undefined, status=new, created=2026-08-31T15:00:20.059019+00:00
+     -> Card d9739f11-55f0-4545-a68d-6c425dc058e7: qty=56, sheets=undefined, status=new, created=2026-08-31T15:00:20.059019+00:00
+     -> Card a24e8dc9-b3e6-48d9-b49c-40a178d3f037: qty=56, sheets=undefined, status=new, created=2026-08-31T15:00:20.059019+00:00
+     -> Card c5061615-dabd-4b00-a728-086815ac5a5b: qty=56, sheets=undefined, status=new, created=2026-08-31T15:00:20.059019+00:00
+⚠️ Потенційний дубль карток (4 шт.): order=260831-1, task=5e1bd2e7-82ec-407e-a715-f17ac187e602, nom=374cd1ce-dac7-4d26-b1af-8336bc7351e1, op=Сортування
+     -> Card 251156d6-951c-4fd5-bbd1-948788811fbf: qty=64, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T06:25:07.970968+00:00
+     -> Card aa33d3bb-0328-46ac-975f-6a8c910cc3cf: qty=64, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T06:25:07.970968+00:00
+     -> Card 4e28507b-96a6-465f-b80d-d8f7813cfd8d: qty=8, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T06:25:07.970968+00:00
+     -> Card 664c5188-d719-427b-80a6-4b5cc4cb5d34: qty=64, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T06:25:07.970968+00:00
+⚠️ Потенційний дубль карток (41 шт.): order=260902-2, task=21757765-2b6b-4d2e-9ee2-3a9b0b0e34e6, nom=8300e002-0169-46ec-9cc6-39cef0971269, op=Сортування
+     -> Card 9a722915-36ac-40dd-b7f4-ac896fa3eefe: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:17:15.722454+00:00
+     -> Card 3078d8c9-0510-4596-a23f-d1c1424ec72e: qty=72, sheets=undefined, status=at-buffer, created=2026-09-03T08:43:33.082192+00:00
+     -> Card 2c165424-5faf-4438-b8d5-9b52dca6e7d3: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:17:15.722454+00:00
+     -> Card 318fe8e8-3ef4-4a38-9177-09a7ab96fea3: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:17:15.722454+00:00
+     -> Card f4609c61-d39d-4a21-81e5-77e0ed8d804a: qty=72, sheets=undefined, status=at-buffer, created=2026-09-03T08:43:33.082192+00:00
+     -> Card 1ea2f189-914f-4ab6-abb6-6d85a6880766: qty=72, sheets=undefined, status=at-buffer, created=2026-09-02T17:17:15.722454+00:00
+     -> Card 8fe7822a-cf19-487a-b18e-9b6be9b25acc: qty=71, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:17:15.722454+00:00
+     -> Card a0330da9-994f-43fc-934c-817e134eaa84: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:17:15.722454+00:00
+     -> Card 4b356ad1-16e0-4fbb-9063-33e816e60643: qty=72, sheets=undefined, status=at-buffer, created=2026-09-02T17:17:15.722454+00:00
+     -> Card bd1aec9c-71ac-4e76-8c42-52b85346b864: qty=72, sheets=undefined, status=at-buffer, created=2026-09-02T17:17:15.722454+00:00
+     -> Card c4d40f2a-3858-4deb-98f3-a9cc4e9b450d: qty=72, sheets=undefined, status=at-buffer, created=2026-09-02T17:17:15.722454+00:00
+     -> Card 85c7b7e9-3bad-4c1d-bd81-4427d387066c: qty=72, sheets=undefined, status=at-buffer, created=2026-09-02T17:17:15.722454+00:00
+     -> Card 1383e95d-98ea-4b55-b46a-7823daeb81db: qty=72, sheets=undefined, status=at-buffer, created=2026-09-02T17:17:15.722454+00:00
+     -> Card a141a6e6-3ada-4fa3-88be-c9958cafd801: qty=71, sheets=undefined, status=at-buffer, created=2026-09-02T17:17:15.722454+00:00
+     -> Card abce32ec-f813-41d3-92d3-0f6679b8de78: qty=53, sheets=undefined, status=at-buffer, created=2026-09-03T08:43:33.082192+00:00
+     -> Card 8c5f4ce2-7419-4f41-a9d9-d9fb1bf2787d: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:17:15.722454+00:00
+     -> Card 188ea712-33ba-47df-9986-153146bd49e7: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:17:15.722454+00:00
+     -> Card 7e0391d7-26e8-44e4-9344-b4933d2170c7: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:17:15.722454+00:00
+     -> Card 8459ae90-087b-45f6-b497-44a87c89f752: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:17:15.722454+00:00
+     -> Card f4a00553-cf30-4d29-9c5e-c6982d2e950e: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:17:15.722454+00:00
+     -> Card 47178e30-26c1-4e01-a9df-47c9d5b0cbdf: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:17:15.722454+00:00
+     -> Card 878142fa-009e-4869-aa16-090f131df965: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:17:15.722454+00:00
+     -> Card 308dfa08-d806-4c5c-802f-8c9cc2a8d7c5: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:17:15.722454+00:00
+     -> Card 3fa584d1-0322-42aa-a96a-d46189021998: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:17:15.722454+00:00
+     -> Card 152bc264-f1f0-42bf-8a2d-f8e0f48dc844: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-09-03T08:43:33.082192+00:00
+     -> Card ba1aac6c-74eb-48ac-a6f2-32c001353c13: qty=72, sheets=undefined, status=at-buffer, created=2026-09-03T08:43:33.082192+00:00
+     -> Card 37b9839b-63b3-448e-bb16-77f7fab2956b: qty=72, sheets=undefined, status=at-buffer, created=2026-09-03T08:43:33.082192+00:00
+     -> Card e5c25650-d4b4-4210-8ec6-f66af2702b6f: qty=72, sheets=undefined, status=at-buffer, created=2026-09-03T08:43:33.082192+00:00
+     -> Card 2d87a56f-305a-40c6-84c7-b10e59b12982: qty=72, sheets=undefined, status=at-buffer, created=2026-09-03T08:43:33.082192+00:00
+     -> Card c7e9c2b0-b892-4251-8b96-7f3623852621: qty=72, sheets=undefined, status=at-buffer, created=2026-09-03T08:43:33.082192+00:00
+     -> Card 7a6ad7f9-796f-4dab-814b-1cd9c95c3cfd: qty=72, sheets=undefined, status=at-buffer, created=2026-09-03T08:43:33.082192+00:00
+     -> Card f1478885-ae54-45d9-bd66-2c46437ed5a0: qty=72, sheets=undefined, status=at-buffer, created=2026-09-03T08:43:33.082192+00:00
+     -> Card 98c4f09d-2cad-40ec-9cda-3f75c697304f: qty=72, sheets=undefined, status=at-buffer, created=2026-09-03T08:43:33.082192+00:00
+     -> Card 7bfee510-03e9-438a-83d0-1b63fd1d6663: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:17:15.722454+00:00
+     -> Card e1ec103b-aa1b-482b-bbec-89c57716bdd9: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:17:15.722454+00:00
+     -> Card fb672df2-6960-4ba8-9a4b-57a80ae292ed: qty=72, sheets=undefined, status=at-buffer, created=2026-09-02T17:17:15.722454+00:00
+     -> Card 8d6199f3-7e34-4ca4-87b3-3bcfe115ddcd: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:17:15.722454+00:00
+     -> Card 1cde1893-8b15-4a1f-8d51-b80365f4f6c8: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:17:15.722454+00:00
+     -> Card 07b489e1-6c3f-489c-a7ca-f4974584cc60: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:17:15.722454+00:00
+     -> Card f29acbdb-5232-4c08-ae90-32b5b6cafea8: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:17:15.722454+00:00
+     -> Card 2b61868c-eadf-4684-8384-67bc1246293d: qty=72, sheets=undefined, status=at-buffer, created=2026-09-02T17:17:15.722454+00:00
+⚠️ Потенційний дубль карток (3 шт.): order=260904-1, task=9e373943-ca97-44ba-9c2c-b69850c1e862, nom=c7f2c611-72ee-4a93-9082-cb87d6181741, op=Сортування
+     -> Card 43484961-7fa1-4bf8-8122-b9722ba59eb1: qty=216, sheets=undefined, status=at-shop2-buffer, created=2026-09-04T18:41:16.477281+00:00
+     -> Card e0e52f5e-4afe-4322-bf50-108c50bbff76: qty=104, sheets=undefined, status=at-shop2-buffer, created=2026-09-04T18:41:16.477281+00:00
+     -> Card 31160a41-34e7-4c32-b082-d314c460c8ed: qty=216, sheets=undefined, status=at-shop2-buffer, created=2026-09-04T18:41:16.477281+00:00
+⚠️ Потенційний дубль карток (65 шт.): order=260827-2, task=35c6045a-4da1-47d2-b73f-7d269ba1e3a3, nom=343417a7-4a5c-4e31-8f44-18abb41defec, op=Сортування
+     -> Card c410d532-6adb-4685-8f7a-55ea460eb784: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T16:20:55.355599+00:00
+     -> Card c92298fa-b409-4fe9-8d2f-820211a3fb8e: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T16:20:55.355599+00:00
+     -> Card 7963c8e3-e70a-483c-864f-4a8ead59d2c6: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T16:44:08.294262+00:00
+     -> Card d20943fc-51ea-4426-a11a-eec8ad26ed1e: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T16:20:55.355599+00:00
+     -> Card 2c5f3fd2-961e-4ab8-9f56-84c0c0628418: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:20:57.88361+00:00
+     -> Card a1d5dd32-36d6-4575-a994-68ae5103d80e: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:20:57.88361+00:00
+     -> Card bce6cf6d-96c3-4c7a-859c-f169fe17bdb6: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:20:57.88361+00:00
+     -> Card f3af6d96-5b91-4067-b18b-50fb75ce3d88: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T16:20:55.355599+00:00
+     -> Card 08c4e8f9-a4f5-4d55-b0e9-eb6ae9b8ab87: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T16:20:55.355599+00:00
+     -> Card 396eac08-f0ba-45e2-a4fd-a7885e32ecc6: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T16:20:55.355599+00:00
+     -> Card f02965c6-18ce-4ed0-8015-78baec72b210: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T16:20:55.355599+00:00
+     -> Card 69d5c4a3-cc75-4d77-998d-79a9cbdfaf78: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:20:57.88361+00:00
+     -> Card 35d69ece-f23f-46a0-a644-3acc8c8f98d5: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T16:20:55.355599+00:00
+     -> Card 29e5115f-0c49-49cd-8fc8-472dc05c8624: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:20:57.88361+00:00
+     -> Card 27f588b3-88ca-4f53-b480-48efacab6c35: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T16:20:55.355599+00:00
+     -> Card 70978175-f7c7-43e1-b51a-f704bf731a8b: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T16:20:55.355599+00:00
+     -> Card 9e566589-ee3f-487e-8006-53c564012d56: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:20:57.88361+00:00
+     -> Card bfa6f11e-cb2a-4515-839a-d02ed5b17fac: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:20:57.88361+00:00
+     -> Card 560e003c-6255-4f7f-978c-d0febb61d0e5: qty=155, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T16:20:55.355599+00:00
+     -> Card b1de8f67-6297-462a-8c29-2167501733db: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T16:20:55.355599+00:00
+     -> Card c80cd9c3-39fb-43cd-bb94-b5ff318457c5: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T16:20:55.355599+00:00
+     -> Card 56346556-32e0-42c8-817c-7b4c24ff0080: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T16:20:55.355599+00:00
+     -> Card 5914980b-2aba-4068-a2f8-4fc8de0dea5a: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T16:20:55.355599+00:00
+     -> Card c47f8482-23fc-46ad-b322-f2b398934587: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T16:20:55.355599+00:00
+     -> Card 5bf6cb31-61a7-457d-8cf3-254635de4a95: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T16:20:55.355599+00:00
+     -> Card 92b6c8af-7bbf-4392-b37f-4e5934213548: qty=155, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T16:20:55.355599+00:00
+     -> Card 57daef33-59eb-40f2-8e7e-86dc8fdd2d52: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T16:20:55.355599+00:00
+     -> Card 50b6df43-bfeb-4fde-86b5-e8210fecda8d: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T16:20:55.355599+00:00
+     -> Card 98e3135b-34bc-498d-a353-1e0b99e7e833: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T16:20:55.355599+00:00
+     -> Card 79a19a3d-cb26-4456-ab3c-d317298574d3: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T16:20:55.355599+00:00
+     -> Card 7e1b59df-7f54-4d7f-bc8a-84a3f023dbb5: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T16:20:55.355599+00:00
+     -> Card 8243ec63-bb77-4c83-89d0-fbdbe7a0e5eb: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T16:20:55.355599+00:00
+     -> Card 7a831acd-69bd-4aad-8961-8d475a90216f: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:20:57.88361+00:00
+     -> Card 0c6a3f0a-d2f3-4b5d-9105-ca12713f5b6a: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:20:57.88361+00:00
+     -> Card c9065176-e058-4c80-9b1f-9658b7a4745a: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:20:57.88361+00:00
+     -> Card 9f7880a2-20d4-475a-9549-4e78185aa177: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T17:50:27.899278+00:00
+     -> Card 39d08420-2fcd-45ff-bdbf-370b312a38c8: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:20:57.88361+00:00
+     -> Card 8ec2b1a3-4cd7-4268-aa0d-5f07414d4167: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:20:57.88361+00:00
+     -> Card 899cd4b5-3b45-4de6-a4c5-a5ef88c7e29e: qty=154, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:20:57.88361+00:00
+     -> Card f3817116-7da3-4de9-9916-6b63635fbfda: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:20:57.88361+00:00
+     -> Card be2c5595-4b58-4534-a4da-4fd646bcdc38: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-08-28T09:20:57.88361+00:00
+     -> Card 7579e611-3257-4244-a8e7-3ec99a64e423: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T16:44:08.294262+00:00
+     -> Card e11402aa-db69-49af-b8ff-0ba31d6c0f78: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T17:50:27.899278+00:00
+     -> Card 7766f74e-3d38-46bc-b6b0-de985eb63c4b: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T16:44:08.294262+00:00
+     -> Card 185cadbd-133a-4faf-bdae-edd530080563: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T16:44:08.294262+00:00
+     -> Card b1be78a6-3454-410a-979a-da8364ef212f: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T16:44:08.294262+00:00
+     -> Card c8c3307c-b2cd-42bf-9118-deb7a68d13a1: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T16:44:08.294262+00:00
+     -> Card e414cccd-c043-49f8-90cc-584b3dabaac8: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T16:44:08.294262+00:00
+     -> Card 947f1b0f-c3fa-4d7a-9d07-87c111977a91: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T16:44:08.294262+00:00
+     -> Card cab43359-00fd-4b5f-8b4e-2779bed3d9af: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T16:44:08.294262+00:00
+     -> Card c4e75981-7df3-461f-a370-86c6cc1daae1: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T17:50:27.899278+00:00
+     -> Card 4b7da5db-7151-44bd-a84d-bc269a95441d: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T17:50:27.899278+00:00
+     -> Card fec5ea4b-8b2f-441a-bf24-962cfbbfe730: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T17:50:27.899278+00:00
+     -> Card 0cd39148-52e4-4137-be18-a6fbf554a6c8: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T17:50:27.899278+00:00
+     -> Card 740c03d0-a838-4fce-9ceb-1422d91b2719: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T17:50:27.899278+00:00
+     -> Card 57b8fb79-0232-4670-b98b-87ced81082a5: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T17:50:27.899278+00:00
+     -> Card da6a8462-90ea-4e67-9881-fe2dc3b76e9b: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T17:50:27.899278+00:00
+     -> Card 8293cc81-78e6-4c71-a6c7-0cc802cc300b: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T16:44:08.294262+00:00
+     -> Card 037e0484-7951-4c44-a326-4b1964ed515e: qty=154, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T16:44:08.294262+00:00
+     -> Card d729e1fc-736b-430a-8a1f-68be13c57beb: qty=39, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T16:44:08.294262+00:00
+     -> Card 14e06db5-8faa-4187-8ac9-28f9249678b4: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-08-27T16:20:55.355599+00:00
+     -> Card cdb6dfea-7bf3-44a1-8c2d-c3d23a438863: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T16:44:08.294262+00:00
+     -> Card c5763183-9929-4116-9ae5-67b310b1e49f: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-09-01T17:50:27.899278+00:00
+     -> Card 7c412017-7c0d-4a95-a252-f2e4383b2be1: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T16:44:08.294262+00:00
+     -> Card 9d2bd908-234d-44da-96d1-868f1b0a63a1: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T16:44:08.294262+00:00
+⚠️ Потенційний дубль карток (13 шт.): order=260829-1, task=e6f67026-f730-4b2b-8583-567e66d3b4e3, nom=dc154eb4-a568-4944-8608-9cb0dae1180e, op=Сортування
+     -> Card f9a9d4b4-0e70-4ebf-bdde-955f6f5c65c7: qty=436, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:15:33.421125+00:00
+     -> Card d531e802-b317-41ac-bac8-133a64d7f37a: qty=436, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:15:33.421125+00:00
+     -> Card 423c7574-da8e-4dc1-9bc0-b744128e56cf: qty=435, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:15:33.421125+00:00
+     -> Card 85a3c152-df39-4bd3-b65f-50f84f171c90: qty=436, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:15:33.421125+00:00
+     -> Card f16c2a15-b1c9-483c-832f-7c2b611d5514: qty=436, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:15:33.421125+00:00
+     -> Card b57ca25e-3ee8-4c23-b25d-504077644df9: qty=436, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:15:33.421125+00:00
+     -> Card a0d7c724-3405-415e-a096-7a209eaea8de: qty=436, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:15:33.421125+00:00
+     -> Card 1ab417a1-1643-4baa-9390-4a9b64bf9614: qty=436, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:15:33.421125+00:00
+     -> Card 95bfbc56-bf73-451a-8756-9cb33a8595df: qty=436, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:15:33.421125+00:00
+     -> Card 5705024b-16da-4486-b249-5dfa041cd3c7: qty=436, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:15:33.421125+00:00
+     -> Card 6a8c0199-3987-407e-be0d-512d5cb1c3c1: qty=436, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:15:33.421125+00:00
+     -> Card ef51edd3-d92c-4af6-9078-68026330cb0d: qty=436, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:15:33.421125+00:00
+     -> Card 667f0134-2c3d-4277-bcc5-68e70c3c329f: qty=436, sheets=undefined, status=at-shop2-buffer, created=2026-08-29T14:15:33.421125+00:00
+⚠️ Потенційний дубль карток (14 шт.): order=260902-2, task=21757765-2b6b-4d2e-9ee2-3a9b0b0e34e6, nom=076ba504-b3f6-4ec8-8844-fe9515077d9c, op=Сортування
+     -> Card 20170f47-402c-4ef9-a762-516b9dfed4d9: qty=224, sheets=undefined, status=at-shop2-buffer, created=2026-09-03T08:46:38.140813+00:00
+     -> Card a9b0f25a-5a05-4f3c-b019-8f8c97dde33f: qty=224, sheets=undefined, status=at-shop2-buffer, created=2026-09-03T08:46:38.140813+00:00
+     -> Card 4363a007-7b6d-449b-b1b9-1e8e356dca6d: qty=224, sheets=undefined, status=at-shop2-buffer, created=2026-09-03T08:46:38.140813+00:00
+     -> Card 4a1cdffb-75cb-40e8-85f6-844a215dd73a: qty=224, sheets=undefined, status=at-shop2-buffer, created=2026-09-03T08:46:38.140813+00:00
+     -> Card 268ca9a4-2abc-44da-ac9c-01be96062aab: qty=224, sheets=undefined, status=at-shop2-buffer, created=2026-09-03T08:46:38.140813+00:00
+     -> Card 5b3e6b5a-b044-4eb8-9a16-f2cdca1bcd20: qty=112, sheets=undefined, status=at-shop2-buffer, created=2026-09-03T08:46:38.140813+00:00
+     -> Card 6221d025-0770-4484-9381-f500d62ca2f8: qty=224, sheets=undefined, status=at-shop2-buffer, created=2026-09-03T08:46:38.140813+00:00
+     -> Card 27242e6b-051f-4121-b4cb-66f7fb0ef31b: qty=224, sheets=undefined, status=at-shop2-buffer, created=2026-09-03T08:46:38.140813+00:00
+     -> Card 77c1edd4-c998-4ca8-a774-5b93dce6e42c: qty=224, sheets=undefined, status=at-shop2-buffer, created=2026-09-03T08:46:38.140813+00:00
+     -> Card fdec3c56-f0c1-4925-8958-d4da8ebcd2b0: qty=224, sheets=undefined, status=at-shop2-buffer, created=2026-09-03T08:46:38.140813+00:00
+     -> Card b9176216-0c59-4b80-b51d-2278630b656f: qty=224, sheets=undefined, status=at-shop2-buffer, created=2026-09-03T08:46:38.140813+00:00
+     -> Card 4516ddf0-5d55-4402-94f2-46e2ac0658ee: qty=224, sheets=undefined, status=at-shop2-buffer, created=2026-09-03T08:46:38.140813+00:00
+     -> Card bef24572-5775-444c-91b5-cebd068fd243: qty=223, sheets=undefined, status=at-shop2-buffer, created=2026-09-03T08:46:38.140813+00:00
+     -> Card a522ab41-5ae6-4431-846a-79613dc99318: qty=224, sheets=undefined, status=at-shop2-buffer, created=2026-09-03T08:46:38.140813+00:00
+⚠️ Потенційний дубль карток (7 шт.): order=260831-1, task=5e1bd2e7-82ec-407e-a715-f17ac187e602, nom=3222d4f9-4275-4d91-af58-728dba0b13ef, op=Сортування
+     -> Card fa60053d-50e9-4a08-8c86-6722c29141ea: qty=123, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T06:23:55.466397+00:00
+     -> Card 9c4e4e91-a3eb-4205-a343-e650fb86747c: qty=124, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T06:23:55.466397+00:00
+     -> Card 0589c000-5256-4166-b86f-d78fddeb6148: qty=124, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T06:23:55.466397+00:00
+     -> Card f858dc4f-87dc-463b-b808-c59edd01b361: qty=124, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T06:23:55.466397+00:00
+     -> Card 6d5b81e4-6e00-4cc6-8124-40c36a937336: qty=124, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T06:23:55.466397+00:00
+     -> Card bf0cb506-a220-4270-a23d-8ed2bfd5c0ff: qty=124, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T06:23:55.466397+00:00
+     -> Card 1131d3e1-057f-4c75-9649-7835f6567ad9: qty=62, sheets=undefined, status=at-shop2-buffer, created=2026-08-31T06:23:55.466397+00:00
+⚠️ Потенційний дубль карток (10 шт.): order=260904-1, task=9e373943-ca97-44ba-9c2c-b69850c1e862, nom=be0bf3ed-063d-4e31-b7e0-cb882cff9cdf, op=Сортування
+     -> Card 466af78d-e0aa-4296-b9ce-a35e546f31e1: qty=100, sheets=undefined, status=at-shop2-buffer, created=2026-09-04T18:40:38.178537+00:00
+     -> Card 7654137e-5f2e-4143-8a46-ef88f7525165: qty=100, sheets=undefined, status=at-shop2-buffer, created=2026-09-04T18:40:38.178537+00:00
+     -> Card 32fd32cd-3ad6-4c8c-b28e-3f2a3ac148a0: qty=97, sheets=undefined, status=at-shop2-buffer, created=2026-09-04T18:40:38.178537+00:00
+     -> Card f715fe85-7bba-4424-bdd4-ff57ad8dc03f: qty=100, sheets=undefined, status=at-shop2-buffer, created=2026-09-04T18:40:38.178537+00:00
+     -> Card a5113f10-e38f-47e8-91f8-bf151c6abd59: qty=100, sheets=undefined, status=at-shop2-buffer, created=2026-09-04T18:40:38.178537+00:00
+     -> Card 7bf2a394-ee88-439d-8a46-45a56b5c974e: qty=100, sheets=undefined, status=at-shop2-buffer, created=2026-09-04T18:40:38.178537+00:00
+     -> Card 15b78f16-eaad-4034-b4e6-f9e7b78c9927: qty=100, sheets=undefined, status=at-shop2-buffer, created=2026-09-04T18:40:38.178537+00:00
+     -> Card 2da8d7bd-8836-4e52-a10e-7fcd4d137a0d: qty=100, sheets=undefined, status=at-shop2-buffer, created=2026-09-04T18:40:38.178537+00:00
+     -> Card fc91c1b7-1d02-4fb8-86b6-49354a10e22b: qty=100, sheets=undefined, status=at-shop2-buffer, created=2026-09-04T18:40:38.178537+00:00
+     -> Card 06d73b58-923b-4298-b268-e70be93c1daf: qty=100, sheets=undefined, status=at-shop2-buffer, created=2026-09-04T18:40:38.178537+00:00
+⚠️ Потенційний дубль карток (10 шт.): order=260905-1, task=3f02455f-e512-44de-b2bb-4251b05d6556, nom=343417a7-4a5c-4e31-8f44-18abb41defec, op=Сортування
+     -> Card ddf47c6e-5b54-4b88-9482-e39440352e66: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-09-05T07:42:03.083094+00:00
+     -> Card b8a2c2e0-edcb-4ef5-a7f1-bd645c43cbf9: qty=117, sheets=undefined, status=at-shop2-buffer, created=2026-09-05T07:42:03.083094+00:00
+     -> Card 737704ee-ee8e-43ba-8653-b5e5af61b87f: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-09-05T07:42:03.083094+00:00
+     -> Card c6def69c-5e6b-470e-bea3-5aaa8b50ce16: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-09-05T07:42:03.083094+00:00
+     -> Card ded31972-e4d2-488d-bbcd-b4c1dbc502f3: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-09-05T07:42:03.083094+00:00
+     -> Card cabd686c-b382-4dd0-bd4d-4c1308cee55e: qty=156, sheets=undefined, status=at-buffer, created=2026-09-05T07:42:03.083094+00:00
+     -> Card 973a2f89-a2df-4f14-961e-921630495d58: qty=156, sheets=undefined, status=at-buffer, created=2026-09-05T07:42:03.083094+00:00
+     -> Card 83577162-6749-496d-ada4-155f94a7db7d: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-09-05T07:42:03.083094+00:00
+     -> Card 75a6ab28-3981-4be4-a5a3-cb1baf6c2238: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-09-05T07:42:03.083094+00:00
+     -> Card ab4ea6dd-76d9-4001-8396-2f30f3982a18: qty=156, sheets=undefined, status=at-shop2-buffer, created=2026-09-05T07:42:03.083094+00:00
+⚠️ Потенційний дубль карток (49 шт.): order=260902-2, task=21757765-2b6b-4d2e-9ee2-3a9b0b0e34e6, nom=ef976ad5-8c88-4f03-a53e-2b914f15d4ba, op=Сортування
+     -> Card d1e3a008-0038-41ae-a682-ff0df4f2fc49: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:11:42.532726+00:00
+     -> Card bbe8ea0b-359d-4e73-b669-aca8acc0153a: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:11:42.532726+00:00
+     -> Card 86002115-de39-4bd1-bbb6-78b11ccf32e2: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:11:42.532726+00:00
+     -> Card 9adef831-f27b-4ffa-998f-17716e9f3a4e: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:11:42.532726+00:00
+     -> Card bdfbbaad-b352-474c-a0b5-9dfdf71d54c6: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:11:42.532726+00:00
+     -> Card 2a564a7b-e5d0-4f24-acb4-9792df1e6cb2: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:11:42.532726+00:00
+     -> Card be7ea9c6-d64d-476a-bbb0-1f559abe0539: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:11:42.532726+00:00
+     -> Card 586769d9-b0f6-4c07-80bd-26525bb68e2a: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:11:42.532726+00:00
+     -> Card a73fdef0-1f89-4b67-bf06-8225933cff1c: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:11:42.532726+00:00
+     -> Card d11f2014-4e8e-4693-9ea5-16ac0212fd3a: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:11:42.532726+00:00
+     -> Card 7d39454a-2d6d-4bf6-92fd-9d5c03873401: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:11:42.532726+00:00
+     -> Card d7325455-fada-4699-a99b-1fc8cea82d9a: qty=244, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:11:42.532726+00:00
+     -> Card eef0f2b5-bac2-4bf2-bcfa-0cbfa626195e: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:11:42.532726+00:00
+     -> Card 61ba1cd5-12c6-4c76-b326-fe6f7c21a507: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:11:42.532726+00:00
+     -> Card 6fe750a5-9efb-48b5-9740-941aaa737853: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:11:42.532726+00:00
+     -> Card 7aa676de-4844-4aa8-8e47-39cf576fa222: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:11:42.532726+00:00
+     -> Card 14c3f2cf-b973-4cf2-bff0-add0c6a772f5: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:11:42.532726+00:00
+     -> Card 8fca323e-be81-420e-86a0-9b89e2987408: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:11:42.532726+00:00
+     -> Card 9aa8ba33-31f1-4a92-b2bf-96ad03ed4224: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:11:42.532726+00:00
+     -> Card 5528087c-ac0b-4fc9-b22b-1587205d78d5: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:11:42.532726+00:00
+     -> Card 54d4483a-c57b-4252-b37f-bbc9374f24e0: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:11:42.532726+00:00
+     -> Card 461938cf-0ca0-41ef-a4cd-fc5fb5fa94ca: qty=244, sheets=undefined, status=at-shop2-buffer, created=2026-09-03T08:39:35.854946+00:00
+     -> Card 75df7794-3aae-49f5-8327-88bd2942868f: qty=246, sheets=undefined, status=at-shop2-buffer, created=2026-09-03T08:39:35.854946+00:00
+     -> Card 8837821b-ddf7-4687-89e2-d0a1889d753f: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-09-03T08:39:35.854946+00:00
+     -> Card 65a8ed4a-6a75-4b37-a26f-854157b3757a: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-09-03T08:39:35.854946+00:00
+     -> Card 4f3ae047-84a0-45ce-9f6d-8d9d791a8b60: qty=124, sheets=undefined, status=at-shop2-buffer, created=2026-09-03T08:39:35.854946+00:00
+     -> Card 34f3a9af-3bb8-4a38-9870-aaebf205e7bf: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-09-03T08:39:35.854946+00:00
+     -> Card c417a274-da72-445a-8eaf-f555b3f192e7: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-09-03T08:39:35.854946+00:00
+     -> Card f8b8a6d7-1cfc-466a-a7d7-4906548ff897: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:11:42.532726+00:00
+     -> Card e8c67d36-2cd0-4e1d-ac17-49f18f7f39db: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:11:42.532726+00:00
+     -> Card 478cf6e5-6e8a-4c47-9ba4-bd4d1a0b268d: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:11:42.532726+00:00
+     -> Card 8595d226-50f6-4101-a7e2-2f4f88631cc6: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:11:42.532726+00:00
+     -> Card 6e16cf46-ebfa-4e41-9e27-ed9718e6f2f8: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:11:42.532726+00:00
+     -> Card b69bf28e-9898-4b00-8c90-515950e06138: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:11:42.532726+00:00
+     -> Card e2b401cc-3399-4b98-95fb-96670e05502b: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:11:42.532726+00:00
+     -> Card 331d251c-4f71-47ba-ad9d-ed38cf3cc1e7: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:11:42.532726+00:00
+     -> Card 2b105b29-0a01-45ad-bb52-20ea48b961a0: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:11:42.532726+00:00
+     -> Card 245dbef1-006e-4e1a-a8cd-611a8c9d2084: qty=245, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:11:42.532726+00:00
+     -> Card 6ed6247c-9dde-46a1-a13a-2664913b7cfd: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:11:42.532726+00:00
+     -> Card fa961a5c-2c69-426e-812a-06a6ffef870c: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:11:42.532726+00:00
+     -> Card 8fc61d5b-2648-4b70-bd42-d9de6cda948e: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:11:42.532726+00:00
+     -> Card 6c082d73-8a5e-48b8-9300-c3242f93dbda: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:11:42.532726+00:00
+     -> Card 177bda15-8c22-4604-836e-8b47cced4539: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:11:42.532726+00:00
+     -> Card a40abdbb-71f0-479c-a3c3-979fd3518fd7: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:11:42.532726+00:00
+     -> Card a2b4dc62-90ce-44de-ad2d-1b6899616c70: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:11:42.532726+00:00
+     -> Card af07a1f7-9061-4413-9ec0-b30d32bd6a78: qty=243, sheets=undefined, status=at-shop2-buffer, created=2026-09-03T08:39:35.854946+00:00
+     -> Card 5adc0b31-fd0d-433c-9d37-56f361dd4a55: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-09-03T08:39:35.854946+00:00
+     -> Card 5e1c7a1a-5cd5-4b58-90cb-06fa2b756523: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:11:42.532726+00:00
+     -> Card 91e68182-a919-4b63-8be7-c3b645d37eff: qty=248, sheets=undefined, status=at-shop2-buffer, created=2026-09-02T17:11:42.532726+00:00
+⚠️ Потенційний дубль карток (14 шт.): order=260902-2, task=21757765-2b6b-4d2e-9ee2-3a9b0b0e34e6, nom=dc154eb4-a568-4944-8608-9cb0dae1180e, op=Сортування
+     -> Card 2ac941d2-a6de-4437-b780-592254eb89ea: qty=433, sheets=undefined, status=at-shop2-buffer, created=2026-09-03T08:41:51.373741+00:00
+     -> Card 4188fb0b-e5f7-453d-b490-b052ab7e581a: qty=436, sheets=undefined, status=at-shop2-buffer, created=2026-09-03T08:41:51.373741+00:00
+     -> Card 7cb46971-0e6c-4b34-a234-58a37efdd62e: qty=436, sheets=undefined, status=at-shop2-buffer, created=2026-09-03T08:41:51.373741+00:00
+     -> Card 3f840f8e-1be7-4f97-be93-b7f158e3c0e9: qty=436, sheets=undefined, status=at-shop2-buffer, created=2026-09-03T08:41:51.373741+00:00
+     -> Card 04390f1f-1576-4c31-a8a8-7bf6e8eebc1d: qty=434, sheets=undefined, status=at-shop2-buffer, created=2026-09-03T08:41:51.373741+00:00
+     -> Card 6cb31791-c1a9-49cc-b5e5-5090029c4cf8: qty=247, sheets=undefined, status=at-shop2-buffer, created=2026-09-03T08:41:51.373741+00:00
+     -> Card a9654db0-0053-457d-96d8-7a9d771cfade: qty=436, sheets=undefined, status=at-shop2-buffer, created=2026-09-03T08:41:51.373741+00:00
+     -> Card b3e7c1f3-fa7b-43ed-9923-620b5e3105bb: qty=436, sheets=undefined, status=at-shop2-buffer, created=2026-09-03T08:41:51.373741+00:00
+     -> Card b195dc3d-63d7-4f95-99c6-647991c84c2b: qty=436, sheets=undefined, status=at-shop2-buffer, created=2026-09-03T08:41:51.373741+00:00
+     -> Card d2bf69ac-0e6d-4f05-9aa5-87cdacb52fd9: qty=436, sheets=undefined, status=at-shop2-buffer, created=2026-09-03T08:41:51.373741+00:00
+     -> Card efa16119-c664-47d6-a366-6c8ee54397b5: qty=436, sheets=undefined, status=at-shop2-buffer, created=2026-09-03T08:41:51.373741+00:00
+     -> Card 46735a94-0445-4919-8bd7-c8d8573d2610: qty=436, sheets=undefined, status=at-shop2-buffer, created=2026-09-03T08:41:51.373741+00:00
+     -> Card 07eb0e44-8592-4c3b-ba4e-1445812aaecf: qty=436, sheets=undefined, status=at-shop2-buffer, created=2026-09-03T08:41:51.373741+00:00
+     -> Card d550636f-6d95-4aab-9d9f-fc6a619919b8: qty=436, sheets=undefined, status=at-shop2-buffer, created=2026-09-03T08:41:51.373741+00:00
+⚠️ Потенційний дубль карток (12 шт.): order=260820-3, task=a0ecc333-2c53-4cab-93dc-a3896423f8ae, nom=c3c254ef-a6d7-41b1-a3a4-7950bdecb825, op=Сортування
+     -> Card 8521c668-3f8f-41bf-aa7b-d96169fc1eea: qty=172, sheets=undefined, status=at-shop2-buffer, created=2026-08-21T13:49:48.94203+00:00
+     -> Card 0a606023-b274-4b18-9553-8ee4a2f68f11: qty=172, sheets=undefined, status=at-shop2-buffer, created=2026-08-21T13:49:48.94203+00:00
+     -> Card 5c75cf74-c764-4559-8401-6aba6f84d5d4: qty=172, sheets=undefined, status=at-shop2-buffer, created=2026-08-21T13:49:48.94203+00:00
+     -> Card 0d1e48e2-268d-4243-b1b7-53d5817a7242: qty=172, sheets=undefined, status=at-shop2-buffer, created=2026-08-21T13:49:48.94203+00:00
+     -> Card ab3fc0b4-539b-46a0-8f48-a64a8f910d02: qty=172, sheets=undefined, status=at-shop2-buffer, created=2026-08-21T13:49:48.94203+00:00
+     -> Card f1117ba1-4648-4d5f-8239-1dd44bc47616: qty=172, sheets=undefined, status=at-shop2-buffer, created=2026-08-21T13:49:48.94203+00:00
+     -> Card c564f4f8-3759-443a-ba79-56d89c9e1541: qty=171, sheets=undefined, status=at-shop2-buffer, created=2026-08-21T13:49:48.94203+00:00
+     -> Card 3a014f77-5082-4145-94b7-37a172d32f82: qty=172, sheets=undefined, status=at-shop2-buffer, created=2026-08-21T13:49:48.94203+00:00
+     -> Card 2b01292a-2f92-4c77-bade-5796bee4f84d: qty=172, sheets=undefined, status=at-shop2-buffer, created=2026-08-21T13:49:48.94203+00:00
+     -> Card 9171fbde-8d86-4ec6-8fba-a8219ee1c374: qty=172, sheets=undefined, status=at-shop2-buffer, created=2026-08-21T13:49:48.94203+00:00
+     -> Card c2964585-659b-44cc-a0df-7a6b0daafc20: qty=172, sheets=undefined, status=at-shop2-buffer, created=2026-08-21T13:49:48.94203+00:00
+     -> Card cf81b3f9-f49b-495d-98b7-d4037d1d6cfb: qty=86, sheets=undefined, status=at-shop2-buffer, created=2026-08-21T13:49:48.94203+00:00
+⚠️ Потенційний дубль карток (6 шт.): order=260825-2, task=23ceb083-47f2-4f00-9922-339318478043, nom=4a25f6ba-7848-4cfc-b25d-f063887a801f, op=Сортування
+     -> Card 70c50284-f8f5-43a7-b8e5-8651d00168bb: qty=104, sheets=undefined, status=at-shop2-buffer, created=2026-08-25T16:28:47.514408+00:00
+     -> Card 924b91d1-a254-44d6-a5ac-d27863b7d128: qty=102, sheets=undefined, status=at-shop2-buffer, created=2026-08-25T16:28:47.514408+00:00
+     -> Card ff61e2e7-15e9-4256-893c-3043e0eda297: qty=101, sheets=undefined, status=at-shop2-buffer, created=2026-08-25T16:28:47.514408+00:00
+     -> Card 0e96da83-550e-4ff2-bb33-bcdb5657bc1a: qty=104, sheets=undefined, status=at-shop2-buffer, created=2026-08-25T16:28:47.514408+00:00
+     -> Card 8e755cfa-bda0-4fd6-9781-f79cfd020bde: qty=104, sheets=undefined, status=at-shop2-buffer, created=2026-08-25T16:28:47.514408+00:00
+     -> Card d760fc71-ff1d-4f0d-bff1-e9b25d6549cf: qty=52, sheets=undefined, status=at-shop2-buffer, created=2026-08-25T16:28:47.514408+00:00
+⚠️ Потенційний дубль карток (5 шт.): order=260825-2, task=23ceb083-47f2-4f00-9922-339318478043, nom=c396d25e-4059-461f-9cd2-ae849becad99, op=Сортування
+     -> Card 21209ad4-792c-45a7-8880-005f23f81b68: qty=90, sheets=undefined, status=at-shop2-buffer, created=2026-08-25T16:37:41.844755+00:00
+     -> Card 0538495e-0479-46c3-93c2-e6f1a9a66785: qty=102, sheets=undefined, status=at-shop2-buffer, created=2026-08-25T16:37:41.844755+00:00
+     -> Card 1d6e5403-5ae9-43d6-ba62-85fc73ba5a80: qty=104, sheets=undefined, status=at-shop2-buffer, created=2026-08-25T16:37:41.844755+00:00
+     -> Card 97fb2520-7514-4f7f-9637-e75c0780b764: qty=104, sheets=undefined, status=at-shop2-buffer, created=2026-08-25T16:37:41.844755+00:00
+     -> Card 839ee76b-0b19-4191-86a2-7da4a23b8ee1: qty=52, sheets=undefined, status=at-shop2-buffer, created=2026-08-25T16:37:41.844755+00:00
+⚠️ Потенційний дубль карток (4 шт.): order=260820-3, task=a0ecc333-2c53-4cab-93dc-a3896423f8ae, nom=447e35fd-0139-4fc2-9bf3-dc445014cf8f, op=Сортування
+     -> Card 33a68a3b-779a-4885-a6ca-8eb2782e5dfa: qty=96, sheets=undefined, status=at-shop2-buffer, created=2026-08-21T13:47:47.377895+00:00
+     -> Card 224bf532-5db4-4862-af82-61139e35aa37: qty=96, sheets=undefined, status=at-shop2-buffer, created=2026-08-21T13:47:47.377895+00:00
+     -> Card 501fedd5-8c4c-4ecc-b3fc-20cf1f9314d0: qty=70, sheets=undefined, status=at-shop2-buffer, created=2026-08-21T13:47:47.377895+00:00
+     -> Card a7feef97-b20d-49ef-89c5-e3ab82d4e803: qty=94, sheets=undefined, status=at-shop2-buffer, created=2026-08-21T13:47:47.377895+00:00
+⚠️ Потенційний дубль карток (2 шт.): order=260825-2, task=23ceb083-47f2-4f00-9922-339318478043, nom=98dc28f8-ce88-421c-b13f-13aeb235b970, op=Сортування
+     -> Card 76d4e234-1eda-494e-82ab-67aa21d9e4fd: qty=296, sheets=undefined, status=at-shop2-buffer, created=2026-08-25T16:35:43.946008+00:00
+     -> Card efb19843-e8d4-47a3-8a48-1cc08a91cfcb: qty=296, sheets=undefined, status=at-shop2-buffer, created=2026-08-25T16:35:43.946008+00:00
+⚠️ Потенційний дубль карток (4 шт.): order=260825-2, task=23ceb083-47f2-4f00-9922-339318478043, nom=8c8682ff-df4e-44ef-94f9-90824e688ee7, op=Сортування
+     -> Card 1a3acf96-768e-4d52-9fd1-f90ffdaed6bc: qty=296, sheets=undefined, status=at-shop2-buffer, created=2026-08-25T16:34:39.986779+00:00
+     -> Card a31c6a71-e727-4f3b-b2d6-07fa3a0b27ca: qty=222, sheets=undefined, status=at-shop2-buffer, created=2026-08-25T16:34:39.986779+00:00
+     -> Card b689f956-e6ab-46a4-9448-150ac2ea1308: qty=296, sheets=undefined, status=at-shop2-buffer, created=2026-08-25T16:34:39.986779+00:00
+     -> Card 61064f5a-a284-4a6b-be6b-b661b5922598: qty=296, sheets=undefined, status=at-shop2-buffer, created=2026-08-25T16:34:39.986779+00:00
+⚠️ Потенційний дубль карток (2 шт.): order=260820-3, task=a0ecc333-2c53-4cab-93dc-a3896423f8ae, nom=3a07664b-b6d0-428d-8c33-bfbe5daabe4a, op=Сортування
+     -> Card 78ac702e-d57e-4f99-b6da-64112107248c: qty=75, sheets=undefined, status=at-shop2-buffer, created=2026-08-21T13:47:18.749081+00:00
+     -> Card a6d638f4-d397-424f-b9a0-13a12f5a132a: qty=295, sheets=undefined, status=at-shop2-buffer, created=2026-08-21T13:47:18.749081+00:00
+⚠️ Потенційний дубль карток (3 шт.): order=260820-3, task=a0ecc333-2c53-4cab-93dc-a3896423f8ae, nom=076ba504-b3f6-4ec8-8844-fe9515077d9c, op=Сортування
+     -> Card 45c46a9b-c3ce-45b9-8e49-6781b90a0f91: qty=28, sheets=undefined, status=at-shop2-buffer, created=2026-08-21T13:46:38.360505+00:00
+     -> Card 01c9a528-76f8-46a1-ac0b-3657a3fa3409: qty=224, sheets=undefined, status=at-shop2-buffer, created=2026-08-21T13:46:38.360505+00:00
+     -> Card 003dc348-9541-445d-8c55-1958bd523645: qty=224, sheets=undefined, status=at-shop2-buffer, created=2026-08-21T13:46:38.360505+00:00
+⚠️ Потенційний дубль карток (2 шт.): order=260820-3, task=a0ecc333-2c53-4cab-93dc-a3896423f8ae, nom=63502706-c384-45b9-967a-1420584cd176, op=Сортування
+     -> Card 9ddf70d3-d659-42fa-b078-2d459ea6b0d4: qty=225, sheets=undefined, status=at-shop2-buffer, created=2026-08-21T13:48:06.426387+00:00
+     -> Card d409d239-1616-4285-b684-2329ec802356: qty=299, sheets=undefined, status=at-shop2-buffer, created=2026-08-21T13:48:06.426387+00:00
+⚠️ Потенційний дубль карток (7 шт.): order=260820-3, task=a0ecc333-2c53-4cab-93dc-a3896423f8ae, nom=99f2985d-5744-46a3-a74a-e946ddf735e9, op=Сортування
+     -> Card c61c4017-bc7f-440c-99f9-8b49fb87712f: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-08-21T13:48:44.394151+00:00
+     -> Card bf037c89-76fe-41fa-be3a-3233511a7d6f: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-08-21T13:48:44.394151+00:00
+     -> Card 6cd549df-8314-46e8-87ea-37dbdf320998: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-08-21T13:48:44.394151+00:00
+     -> Card d8904506-b3fe-44ec-a695-2c383fa8214a: qty=63, sheets=undefined, status=at-shop2-buffer, created=2026-08-21T13:48:44.394151+00:00
+     -> Card de641e4c-2a82-41b9-82e8-5d4b18e40bff: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-08-21T13:48:44.394151+00:00
+     -> Card 14b2c4d5-1b61-464e-a58c-51d09bf6755f: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-08-21T13:48:44.394151+00:00
+     -> Card 2e58fe08-1f74-4769-b1bb-251f05e3ef57: qty=72, sheets=undefined, status=at-shop2-buffer, created=2026-08-21T13:48:44.394151+00:00
+⚠️ Потенційний дубль карток (2 шт.): order=260825-2, task=23ceb083-47f2-4f00-9922-339318478043, nom=0f94edb6-c158-4fb4-a6cc-1003efecb5f6, op=Сортування
+     -> Card bd3ce1bf-57d1-423a-9119-b8d3c371d4af: qty=296, sheets=undefined, status=at-shop2-buffer, created=2026-08-25T16:28:09.304033+00:00
+     -> Card 753e3fea-71c8-4933-b560-0ebbd6ac0123: qty=296, sheets=undefined, status=at-shop2-buffer, created=2026-08-25T16:28:09.304033+00:00
+
+--- 5. ЗАВДАННЯ-СИРОТИ (БЕЗ ДІЮЧОГО ЗАМОВЛЕННЯ) ---
+✓ Завдань-сиріт без замовлення не виявлено.
+
+--- 6. АКТИВНІ ЗАВДАННЯ НА ДОШЦІ ЧПК (ЦЕХ 1) ---
+Активних завдань ЧПК: 11
+  - [260904-1] Task 9e373943-ca97-44ba-9c2c-b69850c1e862: step="Розкрій", mach="undefined", status="in-progress", cards=51
+  - [260902-2] Task 21757765-2b6b-4d2e-9ee2-3a9b0b0e34e6: step="Розкрій", mach="undefined", status="in-progress", cards=119
+  - [260908-1] Task dbc95436-00f3-4434-92ba-81560ce59818: step="Розкрій", mach="undefined", status="in-progress", cards=34
+  - [260826-1] Task a86551cb-2ebd-4e96-a967-8bf72a29aa1b: step="Розкрій", mach="undefined", status="in-progress", cards=103
+  - [ВБ0017] Task a24063a3-f551-4bb8-b004-0338981afc5b: step="Розкрій", mach="undefined", status="waiting", cards=0
+  - [260827-1] Task eadd96ab-954f-495a-be3d-03144f89e711: step="Розкрій", mach="undefined", status="in-progress", cards=6
+  - [260827-2] Task 35c6045a-4da1-47d2-b73f-7d269ba1e3a3: step="Розкрій", mach="undefined", status="in-progress", cards=266
+  - [260905-1] Task 3f02455f-e512-44de-b2bb-4251b05d6556: step="Розкрій", mach="undefined", status="in-progress", cards=51
+  - [260902-3] Task e395bdde-7e78-4e62-bb7d-60c7f3a52098: step="Розкрій", mach="undefined", status="in-progress", cards=20
+  - [ТЕСТ-ВАФЕЛЬ-01] Task 99190e0a-91b0-4a44-ab5e-b1a1ec393ffe: step="Розкрій", mach="undefined", status="in-progress", cards=3
+  - [260907-1] Task ccfabbab-fd5e-44cf-adb9-b87bef2b9f7a: step="Розкрій", mach="undefined", status="in-progress", cards=40
+
+--- 7. АКТИВНІ ЗАВДАННЯ РОЗКРОЮ БЕЗ КАРТОК ---
+Знайдено 1 активних завдань розкрою без жодної картки:
+  - [ВБ0017] Task a24063a3-f551-4bb8-b004-0338981afc5b: step="Розкрій", status="waiting", mach="undefined"
+
+--- 8. ПІДГОТОВЧІ ЗАВДАННЯ (ПІДГОТОВКА) ТА ЇХ СТАТУС ---
+Всього завдань "Підготовка": 100, з них активних: 57
+Активних підготовок без прив'язки до замовлення (вільні наряди підготовки): 57
+
+--- 9. СТАН ОСТАННІХ ЗАМОВЛЕНЬ ЗА ВЕРЕСЕНЬ 2026 ---
+Замовлення 260908-1 (status: in-progress): 2 завдань, 34 карток
+   └─ Task dbc95436-00f3-4434-92ba-81560ce59818: step="Розкрій", status="in-progress", machine="undefined", cards=34
+   └─ Task 16be1b56-e89b-42e3-bf8c-94a95914eaf1: step="Пакування", status="in-progress", machine="undefined", cards=0
+Замовлення 260907-1 (status: in-progress): 2 завдань, 40 карток
+   └─ Task ccfabbab-fd5e-44cf-adb9-b87bef2b9f7a: step="Розкрій", status="in-progress", machine="undefined", cards=40
+   └─ Task 1b7d638d-f917-494e-8618-081affd68d6b: step="Пресування [ЦЕХ №2]", status="in-progress", machine="undefined", cards=0
+Замовлення 260905-1 (status: in-progress): 2 завдань, 51 карток
+   └─ Task 08a49070-d44f-40c9-8001-9dfbe1ea18cc: step="Пресування [ЦЕХ №2]", status="in-progress", machine="undefined", cards=0
+   └─ Task 3f02455f-e512-44de-b2bb-4251b05d6556: step="Розкрій", status="in-progress", machine="undefined", cards=51
+Замовлення 260904-1 (status: in-progress): 2 завдань, 51 карток
+   └─ Task 9e373943-ca97-44ba-9c2c-b69850c1e862: step="Розкрій", status="in-progress", machine="undefined", cards=51
+   └─ Task 31006844-449d-4119-967c-cc11a144ca30: step="Пресування [ЦЕХ №2]", status="in-progress", machine="undefined", cards=0
+Замовлення 260902-3 (status: in-progress): 2 завдань, 20 карток
+   └─ Task e395bdde-7e78-4e62-bb7d-60c7f3a52098: step="Розкрій", status="in-progress", machine="undefined", cards=20
+   └─ Task 808db661-0dfc-4633-8eb1-8184409c2275: step="Пресування [ЦЕХ №2]", status="in-progress", machine="undefined", cards=0
+Замовлення 260902-2 (status: in-progress): 2 завдань, 153 карток
+   └─ Task 21757765-2b6b-4d2e-9ee2-3a9b0b0e34e6: step="Розкрій", status="in-progress", machine="undefined", cards=119
+   └─ Task dec42079-689a-4f77-be48-0b6c619ada4b: step="Пресування [ЦЕХ №2]", status="in-progress", machine="undefined", cards=34
+
+=== КІНЕЦЬ АУДИТУ ===

@@ -881,6 +881,8 @@ export function useForemanHandlers({
               status: 'pending',
               inventory_id: consInvItem?.id || null,
               nomenclature_id: c.nomenclature_id,
+              category: 'cutter',
+              target_warehouse: 'operational',
               details: `СКЛАД ОПЕРАТИВНИЙ (ВИТРАТНІ МАТЕРІАЛИ / ФРЕЗИ): ${c.name} — ${c.qty} од. (${createdCard?.card_info || batchItem.cardInfo})`
             })
           })

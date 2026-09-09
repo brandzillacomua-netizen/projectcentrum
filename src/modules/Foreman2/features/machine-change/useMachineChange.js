@@ -56,7 +56,7 @@ export function useMachineChange({
         const cutterNomId = parts[1]
         const qtyPerSheet = Number.parseFloat(parts[2]) || 0
         if (!cutterNomId || qtyPerSheet <= 0) return
-        const genericNom = nomenclatures.find(n => String(n.id) === String(cutterNomId))
+        const genericNom = nomenclatures.find(n => String(n.id) === String(cutterNomId) || (n.legacy_ids && n.legacy_ids.includes(cutterNomId)))
         if (!genericNom) return
         const selectedInventoryId = selectionMap[String(cutterNomId)]
           || selectionMap[genericNom.name]
@@ -100,7 +100,7 @@ export function useMachineChange({
       targetEntry.selected_cutters = { ...previousTargetSelections }
       Object.entries(cutterSelection || {}).forEach(([genericId, inventoryId]) => {
         if (!inventoryId) return
-        const genericNom = nomenclatures.find(n => String(n.id) === String(genericId))
+        const genericNom = nomenclatures.find(n => String(n.id) === String(genericId) || (n.legacy_ids && n.legacy_ids.includes(genericId)))
         targetEntry.selected_cutters[String(genericId)] = inventoryId
         if (genericNom?.name) {
           targetEntry.selected_cutters[genericNom.name] = inventoryId
@@ -238,6 +238,8 @@ export function useMachineChange({
               status: 'pending',
               inventory_id: invItem?.id || null,
               nomenclature_id: Number(nomId) || nomId,
+              category: 'cutter',
+              target_warehouse: 'operational',
               details: `ВИТРАТНІ МАТЕРІАЛИ ПІСЛЯ ЗМІНИ ВЕРСТАТА: ${requestName} — ${delta} од. [BALANCED_MACHINE_CHANGE]`
             }))
           }

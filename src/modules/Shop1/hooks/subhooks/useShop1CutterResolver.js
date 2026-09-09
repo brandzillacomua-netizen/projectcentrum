@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { isMachineMatch } from '../../../../utils/cutterCalculator';
+import { isMachineMatch, resolveCutterOrVirtualType } from '../../../../utils/cutterCalculator';
 
 export function useShop1CutterResolver({
   nomenclatures,
@@ -90,7 +90,7 @@ export function useShop1CutterResolver({
         const parts = op.split(':');
         const cutterNomId = parts[1];
         if (cutterNomId) {
-          const cutterNom = nomenclatures?.find(n => String(n.id) === String(cutterNomId));
+          const cutterNom = resolveCutterOrVirtualType(cutterNomId, nomenclatures);
           if (cutterNom) {
             const resolved = resolveCutterName(cutterNom, partSelectedCutters);
             if (resolved) addCutter(resolved);

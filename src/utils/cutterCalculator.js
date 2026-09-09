@@ -1,3 +1,53 @@
+export const STANDARD_CUTTER_TYPES = [
+  { id: 'type_f15', name: 'Тип Ф1.5', diameter: 1.5 },
+  { id: 'type_f2', name: 'Тип Ф2', diameter: 2.0 },
+  { id: 'type_f3', name: 'Тип Ф3', diameter: 3.0 },
+  { id: 'type_f4', name: 'Тип Ф4', diameter: 4.0 },
+  { id: 'type_f6', name: 'Тип Ф6', diameter: 6.0 },
+  { id: 'type_f6_90', name: 'Тип Ф6 (90°)', diameter: 6.0 }
+]
+
+export const resolveCutterOrVirtualType = (cutterNomId, nomenclatures = []) => {
+  if (!cutterNomId) return null
+  const idStr = String(cutterNomId).trim()
+
+  const directNom = (nomenclatures || []).find(n => 
+    String(n.id) === idStr ||
+    (Array.isArray(n.legacy_ids) && n.legacy_ids.map(String).includes(idStr))
+  )
+  if (directNom) return directNom
+
+  const stdType = STANDARD_CUTTER_TYPES.find(s => 
+    String(s.id).toLowerCase() === idStr.toLowerCase() ||
+    s.name.toLowerCase() === idStr.toLowerCase() ||
+    s.id.replace('type_', '').toLowerCase() === idStr.replace('type_', '').toLowerCase()
+  )
+  if (stdType) {
+    return {
+      id: stdType.id,
+      name: stdType.name,
+      type: 'cutter_type',
+      material_type: String(stdType.diameter),
+      diameter: stdType.diameter
+    }
+  }
+
+  const cleanId = idStr.toLowerCase()
+  if (cleanId.startsWith('type_') || cleanId.startsWith('тип ') || cleanId.startsWith('ф')) {
+    const diaMatch = cleanId.match(/([0-9]+(?:[.,][0-9]+)?)/)
+    const dia = diaMatch ? diaMatch[1].replace(',', '.') : null
+    return {
+      id: idStr,
+      name: dia ? `Тип Ф${dia}` : idStr.replace('type_', 'Тип ').toUpperCase(),
+      type: 'cutter_type',
+      material_type: dia,
+      diameter: dia ? parseFloat(dia) : null
+    }
+  }
+
+  return null
+}
+
 export const isMachineMatch = (opMachine, targetMachine) => {
   if (!opMachine || !targetMachine) return false
   const opStr = String(opMachine).toLowerCase().trim()
@@ -77,10 +127,7 @@ export const calculateCuttersForBatch = ({
       const qtyPerSheet = parseFloat(parts[2]) || 0
       if (cutterNomId && qtyPerSheet > 0) {
         const totalQty = Math.ceil(sheets * qtyPerSheet)
-        const cutterNom = nomenclatures.find(n => 
-          String(n.id) === String(cutterNomId) ||
-          (Array.isArray(n.legacy_ids) && n.legacy_ids.map(String).includes(String(cutterNomId)))
-        )
+        const cutterNom = resolveCutterOrVirtualType(cutterNomId, nomenclatures)
         if (cutterNom && cutterNom.name.trim().toLowerCase() !== 'фреза') {
           const cleanName = cutterNom.name.trim()
           let resolvedCutterNom = cutterNom
@@ -156,10 +203,10 @@ export const calculateCuttersForBatch = ({
               String(n.id) === String(inv.nomenclature_id) ||
               (Array.isArray(n.legacy_ids) && n.legacy_ids.map(String).includes(String(inv.nomenclature_id)))
             )
-            const name = nom ? nom.name : inv.name
-            if (name && name.toLowerCase().includes('фреза') && name.toLowerCase() !== 'фреза') {
-              const cleanName = name.trim()
-              const key = cleanName.toLowerCase()
+            const isCutter = nom?.group_id === 'grp_mills' || nom?.type === 'consumable' || (name && name.toLowerCase().includes('фреза') && name.toLowerCase() !== 'фреза')
+            if (isCutter) {
+              const cleanName = (nom?.name || inv.name || name).trim()
+              const key = String(nom?.id || inv.nomenclature_id || cleanName.toLowerCase())
               const qtyPerSheet = 1
               const totalQty = Math.ceil(sheets * qtyPerSheet)
               if (!machineSpecificCutters[key]) {
@@ -202,10 +249,9 @@ export const calculateCuttersForBatch = ({
   // 3. Ultimate fallback: if still no cutters, search for any configured CNC cutter in nomenclatures
   if (Object.keys(machineSpecificCutters).length === 0) {
     const generalCutter = (nomenclatures || []).find(n =>
-      n.type === 'consumable' &&
+      (n.group_id === 'grp_mills' || (n.type === 'consumable' && n.name.toLowerCase().includes('фреза'))) &&
       (Number(n.consumption_per_sheet) || 0) > 0 &&
-      n.name.trim().toLowerCase() !== 'фреза' &&
-      n.name.toLowerCase().includes('фреза')
+      n.name.trim().toLowerCase() !== 'фреза'
     )
     if (generalCutter) {
       const cleanName = generalCutter.name.trim()

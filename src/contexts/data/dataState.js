@@ -1,11 +1,12 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useLocation } from 'react-router-dom'
-import { supabase } from '../../supabase.js'
+import { supabase, isTestEnvironment } from '../../supabase.js'
 import { wsBatcher } from '../../services/wsBatcher.js'
 import { getIndexedCache, setIndexedCache, removeIndexedCache } from '../../services/indexedDbCache.js'
 import {
   CACHE_KEY,
   USER_CACHE_KEY,
+  getActiveCacheKey,
   fallbackStructure,
   fallbackPositions,
   fromCache,
@@ -54,18 +55,36 @@ export function useDataState() {
 
   const [currentUser, setCurrentUser] = useState(() => {
     try {
-      const isStrict = localStorage.getItem('MES_SESSION_STRICT') === 'true'
-      const token = localStorage.getItem('BACKEND_TOKEN')
-      // STRICT ENTERPRISE AUTH: Будь-яка стара сесія без JWT токена або без мітки
-      // суворого режиму вважається недійсною і примусово розлогінюється на /login.
-      if (!token || !isStrict) {
-        localStorage.removeItem(USER_CACHE_KEY)
-        localStorage.removeItem('MES_SESSION_LOGIN')
-        localStorage.removeItem('BACKEND_TOKEN')
-        localStorage.removeItem('MES_SESSION_STRICT')
+      const isTest = isTestEnvironment()
+      const strictKey = isTest ? 'MES_SESSION_STRICT_STAGING' : 'MES_SESSION_STRICT'
+      const tokenKey = isTest ? 'BACKEND_TOKEN_STAGING' : 'BACKEND_TOKEN'
+      const userKey = isTest ? 'MES_SESSION_USER_STAGING' : 'MES_SESSION_USER'
+      const loginKey = isTest ? 'MES_SESSION_LOGIN_STAGING' : 'MES_SESSION_LOGIN'
+
+      let isStrict = localStorage.getItem(strictKey) === 'true'
+      let token = localStorage.getItem(tokenKey)
+      let cached = localStorage.getItem(userKey)
+
+      // Seamless transition: If entering Staging while authenticated on Prod, inherit the session profile
+      if (isTest && (!isStrict || !cached)) {
+        const prodUser = localStorage.getItem('MES_SESSION_USER')
+        if (prodUser) {
+          localStorage.setItem(userKey, prodUser)
+          localStorage.setItem(loginKey, localStorage.getItem('MES_SESSION_LOGIN') || '')
+          localStorage.setItem(strictKey, 'true')
+          cached = prodUser
+          isStrict = true
+        }
+      }
+
+      // Check session validity: Cached user profile with strict session confirmation
+      if (!isStrict || !cached) {
+        localStorage.removeItem(userKey)
+        localStorage.removeItem(loginKey)
+        localStorage.removeItem(tokenKey)
+        localStorage.removeItem(strictKey)
         return null
       }
-      const cached = localStorage.getItem(USER_CACHE_KEY)
       if (cached) {
         const parsed = JSON.parse(cached)
         return { ...parsed, token }
@@ -226,7 +245,8 @@ export function useDataState() {
   // ── IndexedDB initial hydration ──
   useEffect(() => {
     let isMounted = true
-    getIndexedCache(CACHE_KEY).then(idbCache => {
+    const cacheKey = getActiveCacheKey()
+    getIndexedCache(cacheKey).then(idbCache => {
       if (!isMounted || !idbCache) return
       if (idbCache.nomenclatures?.length > 0) setNomenclatures(idbCache.nomenclatures)
       if (idbCache.inventory?.length > 0) setInventory(idbCache.inventory)
@@ -242,7 +262,8 @@ export function useDataState() {
   // ── Cache Debounced Sync to IndexedDB ──
   useEffect(() => {
     const timer = setTimeout(() => {
-      setIndexedCache(CACHE_KEY, {
+      const cacheKey = getActiveCacheKey()
+      setIndexedCache(cacheKey, {
         nomenclatures,
         inventory,
         orders,

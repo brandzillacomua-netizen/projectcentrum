@@ -64,13 +64,13 @@ export const renderCutterListEditorShared = (cutters, setCutters, nomenclatures,
   })
 
   return (
-    <div style={{ flex: 1, minWidth: '280px', background: 'var(--card-header-bg, #f8fafc)', padding: '15px', borderRadius: '12px', border: '1px solid var(--border-color, #cbd5e1)' }}>
+    <div style={{ flex: '1 1 100%', minWidth: '280px', width: '100%', background: 'var(--card-header-bg, #f8fafc)', padding: '15px', borderRadius: '12px', border: '1px solid var(--border-color, #cbd5e1)' }}>
       <h4 style={{ margin: '0 0 10px 0', fontSize: '0.9rem', color: '#10b981', display: 'flex', alignItems: 'center', gap: '6px' }}>
         <span>⚙️ Витрата типів фрез на деталь / лист</span>
       </h4>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
         {cutters.map((c, idx) => (
-          <div key={idx} style={{ display: 'flex', gap: '5px', marginBottom: '8px' }}>
+          <div key={idx} style={{ display: 'flex', gap: '5px', marginBottom: '8px', alignItems: 'center' }}>
             <select 
               value={c.nomId} 
               onChange={e => {
@@ -78,7 +78,7 @@ export const renderCutterListEditorShared = (cutters, setCutters, nomenclatures,
                 copy[idx].nomId = e.target.value
                 setCutters(copy)
               }}
-              style={{ flex: 2, padding: '8px', background: 'var(--input-bg, #ffffff)', border: '1px solid var(--border-color, #cbd5e1)', color: 'var(--text-main, #0f172a)', borderRadius: '6px', fontSize: '0.8rem' }}
+              style={{ flex: 2, minWidth: 0, padding: '8px', background: 'var(--input-bg, #ffffff)', border: '1px solid var(--border-color, #cbd5e1)', color: 'var(--text-main, #0f172a)', borderRadius: '6px', fontSize: '0.8rem', outline: 'none' }}
             >
               <option value="">-- Оберіть тип фрези (Ф1.5, Ф2, Ф3, Ф4, Ф6...) --</option>
               {cutterNoms.map(n => <option key={n.id} value={n.id}>{n.name}</option>)}
@@ -94,11 +94,12 @@ export const renderCutterListEditorShared = (cutters, setCutters, nomenclatures,
                 copy[idx].qty = e.target.value
                 setCutters(copy)
               }}
-              style={{ width: '70px', padding: '8px', background: 'var(--input-bg, #ffffff)', border: '1px solid var(--border-color, #cbd5e1)', color: '#f59e0b', borderRadius: '6px', fontSize: '0.8rem', textAlign: 'center', fontWeight: 800 }}
+              style={{ width: '70px', flexShrink: 0, padding: '8px', background: 'var(--input-bg, #ffffff)', border: '1px solid var(--border-color, #cbd5e1)', color: '#f59e0b', borderRadius: '6px', fontSize: '0.8rem', textAlign: 'center', fontWeight: 800, outline: 'none' }}
             />
             <button 
               onClick={() => setCutters(cutters.filter((_, i) => i !== idx))}
-              style={{ background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: '6px', padding: '0 10px', cursor: 'pointer' }}
+              title="Видалити"
+              style={{ background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: '6px', padding: '0 10px', height: '34px', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             >
               <Trash2 size={14} />
             </button>

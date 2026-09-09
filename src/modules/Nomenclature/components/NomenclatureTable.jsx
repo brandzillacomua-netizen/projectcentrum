@@ -4,16 +4,42 @@ import { Search, ChevronRight, Package, Plus, Clock, Edit2, Trash2 } from 'lucid
 const NomenclatureTableRow = React.memo(({
   item,
   groups,
+  itemsMap,
   handleOpenEditItem,
   handleDeleteItem
 }) => {
   const grp = groups.find(g => g.id === item.group_id)
   const isFinishedGood = item.rule_type === 'full_frame' || 
     ['grp_production_frames', 'grp_test_samples', 'grp_assemblies', 'cat_fg'].includes(item.group_id)
-  const rawMat = isFinishedGood ? '—' : (item.rule_params?.rawSheet || item.material_type || '—')
+  const isCuttingPart = item.rule_type === 'frame_part' || item.group_id === 'cat_parts' || (item.group_id && item.group_id.startsWith('cat_parts'))
+  const linkedSheet = item.default_material_id && itemsMap ? itemsMap.get(item.default_material_id) : null
   const normQty = isFinishedGood ? null : (item.rule_params?.unitsPerSheet || item.units_per_sheet || null)
   const cResVal = isFinishedGood ? null : (item.rule_params?.cutterResource === 'custom' ? item.rule_params?.customCutterResource : (item.rule_params?.cutterResource || item.cutter_resource || null))
   const cRes = cResVal ? `${cResVal} л/фр` : null
+
+  let materialDisplay = null
+  if (isFinishedGood) {
+    materialDisplay = <span style={{ color: 'var(--text-muted, #64748b)' }}>—</span>
+  } else if (linkedSheet) {
+    materialDisplay = (
+      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', color: '#059669', fontWeight: 800 }}>
+        <span>📄</span>
+        <span>{linkedSheet.name}</span>
+      </div>
+    )
+  } else if (item.default_material_id) {
+    materialDisplay = (
+      <span style={{ color: '#059669', fontWeight: 800 }}>Лист [ID зв'язано]</span>
+    )
+  } else if (isCuttingPart) {
+    materialDisplay = (
+      <span style={{ background: '#fee2e2', color: '#dc2626', border: '1px solid #fecaca', padding: '2px 7px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 900 }}>
+        ⚠️ Немає ID листа
+      </span>
+    )
+  } else {
+    materialDisplay = <span style={{ color: '#0284c7', fontWeight: 700 }}>{item.rule_params?.rawSheet || item.material_type || '—'}</span>
+  }
 
   return (
     <tr style={{ borderBottom: '1px solid var(--border-color, #e2e8f0)', transition: 'background 0.2s' }} className="table-row-hover">
@@ -35,8 +61,8 @@ const NomenclatureTableRow = React.memo(({
           </div>
         )}
       </td>
-      <td style={{ padding: '16px 20px', color: '#0284c7', fontWeight: 700, fontSize: '0.82rem' }}>
-        {rawMat}
+      <td style={{ padding: '16px 20px', fontSize: '0.82rem' }}>
+        {materialDisplay}
       </td>
       <td style={{ padding: '16px 20px', color: normQty ? '#059669' : (cRes ? '#d97706' : 'var(--text-muted, #64748b)'), fontWeight: 800, fontSize: '0.85rem' }}>
         {normQty ? `${normQty} шт/л` : (cRes ? cRes : '—')}
@@ -70,6 +96,7 @@ const NomenclatureTableRow = React.memo(({
 })
 
 export const NomenclatureTable = ({
+  items = [],
   selectedGroup,
   groups,
   searchQuery,
@@ -79,6 +106,10 @@ export const NomenclatureTable = ({
   handleOpenEditItem,
   handleDeleteItem
 }) => {
+  const itemsMap = React.useMemo(() => {
+    return new Map((items || []).map(it => [it.id, it]))
+  }, [items])
+
   return (
     <main className="nom-v2-main" style={{ flex: 1, padding: '25px', overflowY: 'auto', background: 'var(--bg, #f0f2f7)', display: 'flex', flexDirection: 'column', gap: '20px' }}>
       
@@ -147,6 +178,7 @@ export const NomenclatureTable = ({
                 key={item.id}
                 item={item}
                 groups={groups}
+                itemsMap={itemsMap}
                 handleOpenEditItem={handleOpenEditItem}
                 handleDeleteItem={handleDeleteItem}
               />

@@ -173,7 +173,7 @@ export function useShop1CardWorkflow({
     if (card.card_info && card.card_info.includes('[CUTTERS_DEDUCTED:true]')) return;
 
     const itemsForRestoration = [];
-    const isBoxAlreadyPrepared = (card.card_info || '').includes('[BOX_PREPARED:true]');
+    const isBoxAlreadyPrepared = Boolean(card.is_box_prepared || (card.card_info || '').includes('[BOX_PREPARED:true]'));
 
     for (const [cutterName, actualQtyVal] of Object.entries(breakdown)) {
       const actualQty = Number(actualQtyVal) || 0;

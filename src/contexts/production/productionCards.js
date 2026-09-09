@@ -764,7 +764,21 @@ export function createProductionCardsActions({
           if (isSheet) {
             const addMaterialToSummary = (typePrefix, qty) => {
               const matKeyBase = (part.nom.material_type || part.nom.name || 'Інше').trim()
-              const sheetNom = findWorkingSheetNom(typePrefix, matKeyBase, nomenclatures)
+              
+              // 1. PRIMARY: Direct ID-based resolution if default_material_id exists
+              let sheetNom = null
+              const defMatId = part.nom.default_material_id || part.nom.rule_params?.default_material_id
+              if (defMatId) {
+                const defNom = nomenclatures.find(n => String(n.id) === String(defMatId))
+                if (defNom && (/700/.test(typePrefix) ? /700/.test(defNom.name) : !/700/.test(defNom.name))) {
+                  sheetNom = defNom
+                }
+              }
+              // 2. Fallback to nomenclature helper
+              if (!sheetNom) {
+                sheetNom = findWorkingSheetNom(typePrefix, matKeyBase, nomenclatures)
+              }
+
               const thickNum = extractThickness(matKeyBase)
               const thicknessClean = thickNum ? `${thickNum}мм` : matKeyBase
 
@@ -998,26 +1012,45 @@ export function createProductionCardsActions({
       }
 
       if (bzStockDeductions.length > 0) {
-        // Deduct allocated BZ stock from inventory table
+        // Deduct allocated stock from inventory — SGP/finished/part only (bz = Shop2 buffer accounting, not stock)
         for (const allocation of bzStockDeductions) {
           try {
-            const { data: bzItem } = await supabase
+            // Search finished and part types first
+            const { data: candidates } = await supabase
               .from('inventory')
               .select('*')
               .eq('nomenclature_id', allocation.nomenclature_id)
-              .eq('type', 'bz')
-              .limit(1)
-              .maybeSingle()
+              .in('type', ['finished', 'part'])
+              .limit(10)
 
-            if (bzItem) {
-              const nextQty = Math.max(0, (Number(bzItem.total_qty) || 0) - Number(allocation.quantity))
+            // Fallback: warehouse=sgp if no typed candidates
+            let allCandidates = candidates || []
+            if (allCandidates.length === 0) {
+              const { data: sgpCandidates } = await supabase
+                .from('inventory')
+                .select('*')
+                .eq('nomenclature_id', allocation.nomenclature_id)
+                .eq('warehouse', 'sgp')
+                .limit(10)
+              allCandidates = sgpCandidates || []
+            }
+
+            let remaining = Number(allocation.quantity)
+            for (const item of allCandidates) {
+              if (remaining <= 0) break
+              if (item.pocket_owner && item.pocket_owner !== 'Не вказано') continue
+              const available = Math.max(0, (Number(item.total_qty) || 0) - (Number(item.reserved_qty) || 0))
+              const toDeduct = Math.min(remaining, available)
+              if (toDeduct <= 0) continue
+              const nextQty = Math.max(0, (Number(item.total_qty) || 0) - toDeduct)
               await supabase
                 .from('inventory')
                 .update({ total_qty: nextQty })
-                .eq('id', bzItem.id)
+                .eq('id', item.id)
+              remaining -= toDeduct
             }
           } catch (invErr) {
-            console.warn('Failed to deduct BZ inventory:', invErr)
+            console.warn('Failed to deduct SGP inventory:', invErr)
           }
         }
 
@@ -1027,8 +1060,8 @@ export function createProductionCardsActions({
           nomenclature_id: allocation.nomenclature_id,
           quantity: allocation.quantity,
           status: 'completed',
-          operation: 'Склад БЗ',
-          card_info: `[ЗІ СКЛАДУ БЗ] [BZ_RESERVATION:${bzOperationId}]`
+          operation: 'Склад СГП',
+          card_info: `[ЗІ СКЛАДУ СГП] [BZ_RESERVATION:${bzOperationId}]`
         }))
 
         if (cardsToInsert.length > 0) {
@@ -1041,7 +1074,7 @@ export function createProductionCardsActions({
             const historyToInsert = bzCardData.map(bzCard => ({
               card_id: bzCard.id,
               nomenclature_id: bzCard.nomenclature_id,
-              stage_name: 'Склад БЗ',
+              stage_name: 'Склад СГП',
               operator_name: 'Склад (БРОНЬ)',
               qty_at_start: bzCard.quantity,
               qty_completed: bzCard.quantity,
@@ -1067,6 +1100,8 @@ export function createProductionCardsActions({
             status: 'pending',
             inventory_id: info.inventory_id,
             nomenclature_id: info.nomenclature_id,
+            category: 'sheet',
+            target_warehouse: 'operational',
             details: `СКЛАД ОПЕРАТИВНИЙ: ${info.matName} — ${qtyToRequest} л. (Для: ${info.components.join(', ')})`
           }
         })
@@ -1092,6 +1127,8 @@ export function createProductionCardsActions({
             status: 'pending',
             inventory_id: sgpInv?.id || null,
             nomenclature_id: alloc.nomenclature_id,
+            category: 'hardware',
+            target_warehouse: 'sgp',
             details: `ЗАПИТ НА КОМПЛЕКТУВАННЯ (${orderNum}${batchSuffix}) [PACKAGING_SOURCE:SGP]: ${partName} — ${alloc.quantity} шт.`
           }
         })

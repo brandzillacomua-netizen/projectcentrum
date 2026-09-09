@@ -1,12 +1,41 @@
 import { createClient } from '@supabase/supabase-js'
 
+// ── Multi-environment routing (Production vs Staging testbdkulytcya) ──────────
+const STAGING_URL = 'https://qpiysrkhvdgctaqmfsew.supabase.co'
+const STAGING_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFwaXlzcmtodmRnY3RhcW1mc2V3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg4OTcxMzUsImV4cCI6MjEwNDQ3MzEzNX0.Jvx-saMNE97zyy8IaXk9dd7C1q-quoK-R0IopUsVXI8'
+
+export const isTestEnvironment = () => {
+  if (typeof window === 'undefined' || !window.location) return false
+  try {
+    const search = window.location.search || ''
+    const pathname = window.location.pathname || ''
+    
+    // Explicit return to PROD
+    if (search.includes('env=prod')) {
+      window.localStorage?.removeItem('centrum_env')
+      return false
+    }
+    // Explicit entry to TEST via /test or query
+    if (pathname === '/test' || pathname.startsWith('/test/') || search.includes('env=test')) {
+      window.localStorage?.setItem('centrum_env', 'test')
+      return true
+    }
+    // Maintain test mode if set
+    return window.localStorage?.getItem('centrum_env') === 'test'
+  } catch (e) {
+    return false
+  }
+}
+
 const RAW_SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://hurzutjytlcvtbvihnry.supabase.co'
-// If Cloudflare Worker hits daily 100k limits, Cloudflare returns HTTP 429 without CORS.
-// Direct Supabase origin guarantees zero rate limits, native CORS, and high reliability.
-export const supabaseUrl = RAW_SUPABASE_URL.includes('brandzilla-com-ua.workers.dev')
+export const PROD_URL = RAW_SUPABASE_URL.includes('brandzilla-com-ua.workers.dev')
   ? 'https://hurzutjytlcvtbvihnry.supabase.co'
   : RAW_SUPABASE_URL
-export const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh1cnp1dGp5dGxjdnRidmlobnJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQwMjc4NzksImV4cCI6MjA4OTYwMzg3OX0.0GETYIfUpEDVcpcMoZcAe3dLXtiafNNE1eegbbK1XUI'
+export const PROD_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh1cnp1dGp5dGxjdnRidmlobnJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQwMjc4NzksImV4cCI6MjA4OTYwMzg3OX0.0GETYIfUpEDVcpcMoZcAe3dLXtiafNNE1eegbbK1XUI'
+
+export const isStaging = isTestEnvironment()
+export const supabaseUrl = isStaging ? STAGING_URL : PROD_URL
+export const supabaseAnonKey = isStaging ? STAGING_ANON_KEY : PROD_ANON_KEY
 
 const SUPABASE_OPERATIONAL_CONCURRENCY = 6
 const SUPABASE_ANALYTICAL_CONCURRENCY = 2
@@ -67,6 +96,27 @@ const acquireSupabaseReadSlot = (isAnalytical = false) => new Promise(resolve =>
     else pendingOperationalReads.push(start)
   }
 })
+
+export function getJwtProjectRef(jwt) {
+  try {
+    if (!jwt || typeof jwt !== 'string') return null
+    const parts = jwt.split('.')
+    if (parts.length !== 3) return null
+    const payloadJson = typeof window !== 'undefined' && window.atob
+      ? window.atob(parts[1].replace(/-/g, '+').replace(/_/g, '/'))
+      : (typeof Buffer !== 'undefined' ? Buffer.from(parts[1], 'base64').toString('utf8') : null)
+    if (!payloadJson) return null
+    const payload = JSON.parse(payloadJson)
+    if (payload.ref) return payload.ref
+    if (payload.iss) {
+      const match = payload.iss.match(/https:\/\/([a-z0-9]+)\.supabase\.co/)
+      if (match) return match[1]
+    }
+    return null
+  } catch {
+    return null
+  }
+}
 
 const trackedSupabaseFetch = async (...args) => {
   // Normalize URL to direct Supabase origin if it points to the blocked Cloudflare worker
@@ -183,24 +233,53 @@ const trackedSupabaseFetch = async (...args) => {
   health.active += 1
   health.total += 1
   health.maxActive = Math.max(health.maxActive, health.active)
-  // Enterprise JWT Attachment: Ensure Bearer token is attached if available
-  if (typeof window !== 'undefined') {
-    const token = localStorage.getItem('BACKEND_TOKEN')
+
+  // Enterprise JWT Attachment: Ensure Bearer token is attached if available and matches the active project
+  // Never attach custom token to verify_user_password or auth endpoints (they must use the valid anonKey)
+  const isTest = isTestEnvironment()
+  const expectedRef = isTest ? 'qpiysrkhvdgctaqmfsew' : 'hurzutjytlcvtbvihnry'
+  const tokenKey = isTest ? 'BACKEND_TOKEN_STAGING' : 'BACKEND_TOKEN'
+  const anonKey = isTest ? STAGING_ANON_KEY : PROD_ANON_KEY
+  const isAuthEndpoint = rpcName === 'verify_user_password' || (typeof args[0] === 'string' && args[0].includes('/auth/v1/'))
+
+  if (typeof window !== 'undefined' && !isAuthEndpoint) {
+    let token = localStorage.getItem(tokenKey)
     if (token) {
-      const existingHeaders = fetchArgs[1]?.headers || (fetchArgs[0] instanceof Request ? fetchArgs[0].headers : null)
-      const headers = new Headers(existingHeaders || {})
-      const currentAuth = headers.get('Authorization')
-      if (!currentAuth || currentAuth === `Bearer ${supabaseAnonKey}`) {
-        headers.set('Authorization', `Bearer ${token}`)
-        fetchArgs = [
-          fetchArgs[0],
-          {
-            ...(fetchArgs[1] || {}),
-            headers
-          }
-        ]
+      const tokenRef = getJwtProjectRef(token)
+      if (!tokenRef || tokenRef !== expectedRef) {
+        localStorage.removeItem(tokenKey)
+        token = null
       }
     }
+
+    const existingHeaders = fetchArgs[1]?.headers || (fetchArgs[0] instanceof Request ? fetchArgs[0].headers : null)
+    const headers = new Headers(existingHeaders || {})
+    
+    // Validate any existing Authorization header
+    const currentAuth = headers.get('Authorization')
+    if (currentAuth && currentAuth.startsWith('Bearer ')) {
+      const currentJwt = currentAuth.slice(7).trim()
+      const currentRef = getJwtProjectRef(currentJwt)
+      if (currentRef && currentRef !== expectedRef) {
+        headers.set('Authorization', `Bearer ${anonKey}`)
+        headers.set('apikey', anonKey)
+        localStorage.removeItem(`sb-${expectedRef}-auth-token`)
+      }
+    } else if (token) {
+      headers.set('Authorization', `Bearer ${token}`)
+      headers.set('apikey', anonKey)
+    } else {
+      headers.set('Authorization', `Bearer ${anonKey}`)
+      headers.set('apikey', anonKey)
+    }
+
+    fetchArgs = [
+      fetchArgs[0],
+      {
+        ...(fetchArgs[1] || {}),
+        headers
+      }
+    ]
   }
 
   try {
@@ -210,6 +289,10 @@ const trackedSupabaseFetch = async (...args) => {
     if (!response.ok) {
       health.failed += 1
       health.lastErrorAt = Date.now()
+      if (response.status === 401 && typeof window !== 'undefined') {
+        localStorage.removeItem(tokenKey)
+        localStorage.removeItem(`sb-${expectedRef}-auth-token`)
+      }
     }
     return response
   } catch (error) {
@@ -265,7 +348,7 @@ const wrapRealtimeChannel = (channel, topic) => {
   return channel
 }
 
-export const rawSupabase = createClient(supabaseUrl, supabaseAnonKey, {
+const clientOptions = {
   auth: {
     lock: false,
     autoRefreshToken: true,
@@ -275,9 +358,6 @@ export const rawSupabase = createClient(supabaseUrl, supabaseAnonKey, {
     fetch: trackedSupabaseFetch
   },
   realtime: {
-    // Keep heartbeat timers alive when a terminal/browser tab is backgrounded.
-    // Without the worker browsers may throttle timers and leave the UI looking
-    // connected while the websocket has already gone stale.
     worker: typeof window !== 'undefined' && typeof window.Worker !== 'undefined',
     heartbeatCallback: (status, latency) => {
       if (typeof window === 'undefined') return
@@ -292,20 +372,59 @@ export const rawSupabase = createClient(supabaseUrl, supabaseAnonKey, {
       window.dispatchEvent(new CustomEvent('mes:realtime-health', { detail }))
     }
   }
+}
+
+export const prodClient = createClient(PROD_URL, PROD_ANON_KEY, {
+  ...clientOptions,
+  auth: {
+    ...clientOptions.auth,
+    storageKey: 'sb-hurzutjytlcvtbvihnry-auth-token'
+  }
+})
+
+export const stagingClient = createClient(STAGING_URL, STAGING_ANON_KEY, {
+  ...clientOptions,
+  auth: {
+    ...clientOptions.auth,
+    storageKey: 'sb-qpiysrkhvdgctaqmfsew-auth-token'
+  }
+})
+
+export const getActiveSupabase = () => isTestEnvironment() ? stagingClient : prodClient
+
+export const rawSupabase = new Proxy(prodClient, {
+  get(target, prop, receiver) {
+    if (Object.prototype.hasOwnProperty.call(target, prop)) {
+      return Reflect.get(target, prop, receiver)
+    }
+    const active = getActiveSupabase()
+    const val = Reflect.get(active, prop, active)
+    return typeof val === 'function' ? val.bind(active) : val
+  },
+  set(target, prop, value, receiver) {
+    return Reflect.set(target, prop, value, receiver)
+  }
 })
  
 if (typeof window !== 'undefined') {
-  rawSupabase.auth.onAuthStateChange((event, session) => {
+  const syncAuth = (event, session) => {
+    const isTest = isTestEnvironment()
+    const tokenKey = isTest ? 'BACKEND_TOKEN_STAGING' : 'BACKEND_TOKEN'
+    const userKey = isTest ? 'MES_SESSION_USER_STAGING' : 'MES_SESSION_USER'
+    const loginKey = isTest ? 'MES_SESSION_LOGIN_STAGING' : 'MES_SESSION_LOGIN'
+    const strictKey = isTest ? 'MES_SESSION_STRICT_STAGING' : 'MES_SESSION_STRICT'
     if (session?.access_token) {
-      localStorage.setItem('BACKEND_TOKEN', session.access_token)
-      localStorage.setItem('MES_SESSION_STRICT', 'true')
+      localStorage.setItem(tokenKey, session.access_token)
+      localStorage.setItem(strictKey, 'true')
     } else if (event === 'SIGNED_OUT') {
-      localStorage.removeItem('BACKEND_TOKEN')
-      localStorage.removeItem('MES_SESSION_USER')
-      localStorage.removeItem('MES_SESSION_LOGIN')
-      localStorage.removeItem('MES_SESSION_STRICT')
+      localStorage.removeItem(tokenKey)
+      localStorage.removeItem(userKey)
+      localStorage.removeItem(loginKey)
+      localStorage.removeItem(strictKey)
     }
-  })
+  }
+  prodClient.auth.onAuthStateChange(syncAuth)
+  stagingClient.auth.onAuthStateChange(syncAuth)
 }
 
 // Sync time drift and patch Date globally to use synchronized time
@@ -522,20 +641,29 @@ function wrapQueryBuilder(builder, tableName) {
   return builder
 }
 
-export const supabase = new Proxy(rawSupabase, {
+export const supabase = new Proxy(prodClient, {
   get(target, prop, receiver) {
+    if (Object.prototype.hasOwnProperty.call(target, prop)) {
+      const spied = Reflect.get(target, prop, receiver)
+      if (typeof spied === 'function') return spied
+    }
+    const active = getActiveSupabase()
     if (prop === 'from') {
       return function (tableName) {
-        const builder = target.from(tableName)
+        const builder = active.from(tableName)
         return wrapQueryBuilder(builder, tableName)
       }
     }
     if (prop === 'channel') {
       return function (topic, options) {
-        return wrapRealtimeChannel(target.channel(topic, options), topic)
+        return wrapRealtimeChannel(active.channel(topic, options), topic)
       }
     }
-    return Reflect.get(target, prop, receiver)
+    const val = Reflect.get(active, prop, active)
+    return typeof val === 'function' ? val.bind(active) : val
+  },
+  set(target, prop, value, receiver) {
+    return Reflect.set(target, prop, value, receiver)
   }
 })
 

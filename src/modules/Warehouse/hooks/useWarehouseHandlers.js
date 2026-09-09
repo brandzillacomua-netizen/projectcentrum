@@ -161,13 +161,16 @@ export const useWarehouseHandlers = ({
         }
       }
 
-      const nextCardInfo = `${card.card_info || ''} [BOX_PREPARED:true]`.trim()
+      const updatePayload = { 
+        box_number: boxNumber ? String(boxNumber) : card.box_number,
+        is_box_prepared: true
+      }
+      if (card.card_info && card.card_info.includes('[BOX_PREPARED:true]')) {
+        updatePayload.card_info = card.card_info.replace(/\[BOX_PREPARED:true\]/g, '').trim()
+      }
       const { error: cardUpdateErr } = await supabaseClient
         .from('work_cards')
-        .update({ 
-          card_info: nextCardInfo,
-          box_number: boxNumber ? String(boxNumber) : card.box_number
-        })
+        .update(updatePayload)
         .eq('id', card.id)
 
       if (cardUpdateErr) throw cardUpdateErr
@@ -371,27 +374,11 @@ export const useWarehouseHandlers = ({
       if (ops && Object.keys(cuttersRates).length > 0) {
         for (const [rateNomId, rateQty] of Object.entries(cuttersRates)) {
           const requestMatchesCutter = req => {
-            if (req.nomenclature_id === rateNomId) return true
-            
-            const reqNom = nomenclatures.find(n => n.id === req.nomenclature_id)
-            const reqName = reqNom ? reqNom.name : (req.details || '')
-            const rateNom = nomenclatures.find(n => n.id === rateNomId)
-            if (!rateNom) return false
-            
-            const getCutterSignature = (name) => {
-              const clean = name.toLowerCase().replace(/,/g, '.')
-              const match = clean.match(/(?:фреза|ф|d|d=|діаметр|діаметром)?\s*([0-9]+(?:[.,][0-9]+)?)/)
-              if (!match) return null
-              const angleMatch = clean.match(/(?:\(|x|х|×|\s)(90|120)\s*(?:°|град|\))/)
-              return {
-                diameter: parseFloat(match[1]),
-                angle: angleMatch ? Number(angleMatch[1]) : null
-              }
-            }
-            const reqSignature = getCutterSignature(reqName)
-            const rateSignature = getCutterSignature(rateNom.name)
-            if (!reqSignature || !rateSignature || reqSignature.diameter !== rateSignature.diameter) return false
-            return rateSignature.angle === null || reqSignature.angle === rateSignature.angle
+            if (!req.nomenclature_id) return false
+            if (String(req.nomenclature_id) === String(rateNomId)) return true
+            const rateNom = nomenclatures.find(n => String(n.id) === String(rateNomId) || (Array.isArray(n.legacy_ids) && n.legacy_ids.map(String).includes(String(rateNomId))))
+            const reqNom = nomenclatures.find(n => String(n.id) === String(req.nomenclature_id) || (Array.isArray(n.legacy_ids) && n.legacy_ids.map(String).includes(String(req.nomenclature_id))))
+            return Boolean(rateNom && reqNom && String(rateNom.id) === String(reqNom.id))
           }
 
           const existingCutterReq = reqs.find(req => req.card_id && requestMatchesCutter(req))
@@ -441,57 +428,46 @@ export const useWarehouseHandlers = ({
       const processedReqs = [...matchedSheets, ...matchedCutters]
 
       // Check if this card has a physical box assigned
-      const isBoxPrepared = (card.card_info || '').includes('[BOX_PREPARED:true]')
+      const isBoxPrepared = Boolean(card.is_box_prepared || (card.card_info || '').includes('[BOX_PREPARED:true]'))
       const hasBox = !!card.box_number
 
       if (!hasBox && !isBoxPrepared) {
         const preparedCutters = []
         for (const [cNomId, rate] of Object.entries(cuttersRates)) {
-          const cNom = nomenclatures.find(n => n.id === cNomId)
+          const cNom = nomenclatures.find(n => 
+            String(n.id) === String(cNomId) || 
+            (Array.isArray(n.legacy_ids) && n.legacy_ids.map(String).includes(String(cNomId)))
+          )
           let cutterName = cNom?.name || 'Фреза'
           let finalNomId = cNomId
 
-          const getCutterSignature = (name) => {
-            if (!name) return null
-            const clean = name.toLowerCase().replace(/,/g, '.')
-            const exactMatch = clean.match(/(?:фреза|ф|d|d=|діаметр|діаметром)?\s*([0-9]+(?:[.,][0-9]+)?)/)
-            if (!exactMatch) return null
-            const angleMatch = clean.match(/(?:\(|x|х|×|\s)(90|120)\s*(?:°|град|\))/)
-            return {
-              diameter: parseFloat(exactMatch[1]),
-              angle: angleMatch ? Number(angleMatch[1]) : null
-            }
-          }
-
-          const selectedInvId = task?.plan_snapshot?.selectedCutters?.[cNom?.name] ||
+          const selectedInvId = task?.plan_snapshot?.selectedCutters?.[cNomId] ||
+            task?.plan_snapshot?.selectedCutters?.[cNom?.id] ||
+            task?.plan_snapshot?.selectedCutters?.[cNom?.name] ||
             task?.plan_snapshot?.selectedCutters?.[cNom?.name?.toLowerCase()]
           const selectedInv = selectedInvId
             ? (inventory || []).find(i => String(i.id) === String(selectedInvId))
             : null
           const selectedNom = selectedInv
-            ? nomenclatures.find(n => String(n.id) === String(selectedInv.nomenclature_id))
+            ? nomenclatures.find(n => String(n.id) === String(selectedInv.nomenclature_id) || (Array.isArray(n.legacy_ids) && n.legacy_ids.map(String).includes(String(selectedInv.nomenclature_id))))
             : null
 
           if (selectedNom) {
             cutterName = selectedNom.name
             finalNomId = selectedNom.id
           } else {
-            const targetSignature = getCutterSignature(cNom?.name)
-            if (targetSignature !== null) {
-              const exactReq = (reqs || []).find(r => {
-                const rNom = nomenclatures.find(n => n.id === r.nomenclature_id)
-                const rName = rNom ? rNom.name : (r.details || '')
-                const requestSignature = getCutterSignature(rName)
-                if (!requestSignature || requestSignature.diameter !== targetSignature.diameter) return false
-                return targetSignature.angle === null || requestSignature.angle === targetSignature.angle
-              })
+            const exactReq = (reqs || []).find(r => {
+              if (!r.nomenclature_id) return false
+              if (String(r.nomenclature_id) === String(cNomId)) return true
+              const rNom = nomenclatures.find(n => String(n.id) === String(r.nomenclature_id) || (Array.isArray(n.legacy_ids) && n.legacy_ids.map(String).includes(String(r.nomenclature_id))))
+              return Boolean(rNom && cNom && String(rNom.id) === String(cNom.id))
+            })
 
-              if (exactReq) {
-                const exactNom = nomenclatures.find(n => n.id === exactReq.nomenclature_id)
-                if (exactNom) {
-                  cutterName = exactNom.name
-                  finalNomId = exactNom.id
-                }
+            if (exactReq) {
+              const exactNom = nomenclatures.find(n => String(n.id) === String(exactReq.nomenclature_id))
+              if (exactNom) {
+                cutterName = exactNom.name
+                finalNomId = exactNom.id
               }
             }
           }

@@ -1,4 +1,4 @@
-import { supabase } from '../../supabase.js'
+import { supabase, isTestEnvironment } from '../../supabase.js'
 import { isFulfillmentRoute } from '../../services/fulfillmentQueueService.js'
 
 export {
@@ -9,6 +9,7 @@ export {
 
 export { fetchProductionSummary } from '../../services/statisticsService.js'
 
+export const getActiveCacheKey = () => isTestEnvironment() ? 'MES_APP_CACHE_STAGING_V1' : 'MES_APP_CACHE_V13'
 export const CACHE_KEY = 'MES_APP_CACHE_V13'
 export const LEGACY_CACHE_KEYS = ['MES_APP_CACHE_V1', 'MES_APP_CACHE_V2', 'MES_APP_CACHE_V3', 'MES_APP_CACHE_V4', 'MES_APP_CACHE_V5', 'MES_APP_CACHE_V6', 'MES_APP_CACHE_V7', 'MES_APP_CACHE_V8', 'MES_APP_CACHE_V9', 'MES_APP_CACHE_V10', 'MES_APP_CACHE_V11', 'MES_APP_CACHE_V12']
 
@@ -202,7 +203,7 @@ export const fallbackPositions = [
 
 export const loadFromCache = () => {
   try {
-    const cached = localStorage.getItem(CACHE_KEY)
+    const cached = localStorage.getItem(getActiveCacheKey())
     return cached ? JSON.parse(cached) : {}
   } catch (e) {
     console.warn('Failed to load cache:', e)
@@ -225,7 +226,7 @@ export const isPurgedTask = (task) => {
 // Lazy cache getter — reads ONCE, returns a field or default
 export const fromCache = (field, def) => () => {
   try {
-    const cached = localStorage.getItem(CACHE_KEY)
+    const cached = localStorage.getItem(getActiveCacheKey())
     if (!cached) return def
     const parsed = JSON.parse(cached)
     const val = parsed[field] ?? def

@@ -215,6 +215,7 @@ const NomenclatureV2 = () => {
           status: row.status || 'active',
           rule_type: row.rule_type,
           rule_params: row.rule_params,
+          default_material_id: row.default_material_id || null,
           created_at: row.created_at
         })))
       } else {
@@ -267,6 +268,7 @@ const NomenclatureV2 = () => {
         grade: 'Т300', dimensions: '500*600', extra: '',
         projType: 'RND', projNum: '', name: '',
         sheetGrade: 'Т300', sheetThickness: '3', unitsPerSheet: 1,
+        default_material_id: itemToEdit.default_material_id || itemToEdit.rule_params?.default_material_id || '',
         loadTimings: { ...DEFAULT_LOAD_TIMINGS, ...(itemToEdit.rule_params?.loadTimings || {}) },
         customName: itemToEdit.name || '', unit: itemToEdit.unit || 'шт',
         ...(itemToEdit.rule_params || {})
@@ -279,6 +281,7 @@ const NomenclatureV2 = () => {
       setWizardRuleType(rType)
       setWizardParams(prev => ({
         ...prev,
+        default_material_id: '',
         loadTimings: { ...DEFAULT_LOAD_TIMINGS },
         isBlack: rType === 'screw_black' ? true : rType === 'screw_silver' ? false : prev.isBlack
       }))
@@ -425,7 +428,8 @@ const NomenclatureV2 = () => {
           group_id: wizardGroup?.id || null,
           unit: wizardParams.unit || 'шт',
           rule_type: wizardRuleType,
-          rule_params: wizardParams
+          rule_params: wizardParams,
+          default_material_id: wizardParams.default_material_id || null
         }
 
         const { error: updateErr } = await supabase
@@ -463,6 +467,7 @@ const NomenclatureV2 = () => {
         unit: wizardParams.unit || 'шт',
         rule_type: wizardRuleType,
         rule_params: wizardParams,
+        default_material_id: wizardParams.default_material_id || null,
         status: 'active'
       }
 
@@ -592,6 +597,7 @@ const NomenclatureV2 = () => {
 
         {/* Right Main Area: Items Table / Workbench */}
         <NomenclatureTable
+          items={items}
           selectedGroup={selectedGroup}
           groups={groups}
           searchQuery={searchQuery}
@@ -627,6 +633,7 @@ const NomenclatureV2 = () => {
       />
 
       <NomenclatureWizardModal
+        items={items}
         editingItem={editingItem}
         isWizardOpen={isWizardOpen}
         setIsWizardOpen={setIsWizardOpen}

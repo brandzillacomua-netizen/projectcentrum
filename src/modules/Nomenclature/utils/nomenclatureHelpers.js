@@ -444,6 +444,7 @@ export const mapV2ToStandardNom = (v) => {
   return {
     ...v,
     id: v.id,
+    default_material_id: v.default_material_id || v.rule_params?.default_material_id || null,
     name: v.name,
     code: v.code || '',
     nomenclature_code: v.code || '',
@@ -459,6 +460,8 @@ export const mapV2ToStandardNom = (v) => {
 /**
  * Calculates free available stock on SGP warehouse for a given nomenclature item.
  * Supports V2 canonical ID, legacy V1 IDs, and normalized name fallback matching.
+ * NOTE: type='bz' is intentionally EXCLUDED — it tracks parts transferred to Shop2 buffer,
+ * not available stock for naryad planning.
  */
 export const getAvailableSGPStock = (partNom, inventory) => {
   if (!partNom || !Array.isArray(inventory)) return 0;
@@ -474,7 +477,8 @@ export const getAvailableSGPStock = (partNom, inventory) => {
     const idMatch = iNomId && (iNomId === partNomId || partLegacyIds.has(iNomId));
     const nameMatch = Boolean(normPartName && iName === normPartName);
 
-    const isAvailableType = i.type === 'bz' || i.type === 'finished' || i.type === 'part' || i.warehouse === 'sgp';
+    // 'bz' is Shop2 buffer accounting — never count it as available SGP stock
+    const isAvailableType = i.type === 'finished' || i.type === 'part' || i.warehouse === 'sgp';
     const isNotPocket = !i.pocket_owner || i.pocket_owner === 'Не вказано';
 
     return (idMatch || nameMatch) && isAvailableType && isNotPocket;

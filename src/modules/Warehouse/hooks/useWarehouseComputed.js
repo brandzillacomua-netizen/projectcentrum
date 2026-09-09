@@ -33,6 +33,14 @@ export const isPrepRequest = (r, tasks) => {
 }
 
 export const getMaterialType = (r, nomenclatures, inventory) => {
+  // 1. Direct DB categorization
+  if (r.target_warehouse === 'sgp' || r.category === 'hardware') {
+    return 'finished'
+  }
+  if (r.target_warehouse === 'operational' || r.category === 'sheet' || r.category === 'cutter') {
+    return 'raw'
+  }
+
   // Packaging requests and all hardware/fasteners are strictly assigned to SGP
   if (r.details && (r.details.includes('ЗАПИТ НА КОМПЛЕКТУВАННЯ') || r.details.includes('ПАКУВАННЯ'))) {
     return 'finished'
@@ -137,7 +145,7 @@ export const useWarehouseComputed = ({
         const cutterReqs = (requests || []).filter(r =>
           String(r.task_id) === String(card.task_id) &&
           (r.status === 'pending' || r.status === 'issued') &&
-          ((r.details || '').includes('ВИТРАТНІ МАТЕРІАЛИ') || (r.details || '').toLowerCase().includes('фрез'))
+          (r.category === 'cutter' || (r.details || '').includes('ВИТРАТНІ МАТЕРІАЛИ') || (r.details || '').toLowerCase().includes('фрез'))
         )
         cutterReqs.forEach(r => {
           if (r.nomenclature_id) {
@@ -204,50 +212,34 @@ export const useWarehouseComputed = ({
         let cutterName = cNom?.name || 'Фреза'
         let finalNomId = cNomId
 
-        const getCutterSignature = (name) => {
-          if (!name) return null
-          const clean = name.toLowerCase().replace(/,/g, '.')
-          const exactMatch = clean.match(/(?:фреза|ф|d|d=|діаметр|діаметром)?\s*([0-9]+(?:[.,][0-9]+)?)/)
-          if (!exactMatch) return null
-          const angleMatch = clean.match(/(?:\(|x|х|×|\s)(90|120)\s*(?:°|град|\))/)
-          return {
-            diameter: parseFloat(exactMatch[1]),
-            angle: angleMatch ? Number(angleMatch[1]) : null
-          }
-        }
-
-        // The warehouse choice saved with the task is authoritative. This is
-        // important for cutters with the same diameter but different angles.
-        const selectedInvId = task?.plan_snapshot?.selectedCutters?.[cNom?.name] ||
+        const selectedInvId = task?.plan_snapshot?.selectedCutters?.[cNomId] ||
+          task?.plan_snapshot?.selectedCutters?.[cNom?.id] ||
+          task?.plan_snapshot?.selectedCutters?.[cNom?.name] ||
           task?.plan_snapshot?.selectedCutters?.[cNom?.name?.toLowerCase()]
         const selectedInv = selectedInvId
           ? (inventory || []).find(i => String(i.id) === String(selectedInvId))
           : null
         const selectedNom = selectedInv
-          ? nomenclatures.find(n => String(n.id) === String(selectedInv.nomenclature_id))
+          ? nomenclatures.find(n => String(n.id) === String(selectedInv.nomenclature_id) || (Array.isArray(n.legacy_ids) && n.legacy_ids.map(String).includes(String(selectedInv.nomenclature_id))))
           : null
 
         if (selectedNom) {
           cutterName = selectedNom.name
           finalNomId = selectedNom.id
         } else {
-          const targetSignature = getCutterSignature(cNom?.name)
-          if (targetSignature !== null) {
-            const exactReq = (requests || []).find(r => {
-              if (String(r.task_id || r.order_id) !== String(card.task_id || card.order_id)) return false
-              const rNom = nomenclatures.find(n => n.id === r.nomenclature_id)
-              const rName = rNom ? rNom.name : (r.details || '')
-              const requestSignature = getCutterSignature(rName)
-              if (!requestSignature || requestSignature.diameter !== targetSignature.diameter) return false
-              return targetSignature.angle === null || requestSignature.angle === targetSignature.angle
-            })
+          const exactReq = (requests || []).find(r => {
+            if (String(r.task_id || r.order_id) !== String(card.task_id || card.order_id)) return false
+            if (!r.nomenclature_id) return false
+            if (String(r.nomenclature_id) === String(cNomId)) return true
+            const rNom = nomenclatures.find(n => String(n.id) === String(r.nomenclature_id) || (Array.isArray(n.legacy_ids) && n.legacy_ids.map(String).includes(String(r.nomenclature_id))))
+            return Boolean(rNom && cNom && String(rNom.id) === String(cNom.id))
+          })
 
-            if (exactReq) {
-              const exactNom = nomenclatures.find(n => n.id === exactReq.nomenclature_id)
-              if (exactNom) {
-                cutterName = exactNom.name
-                finalNomId = exactNom.id
-              }
+          if (exactReq) {
+            const exactNom = nomenclatures.find(n => String(n.id) === String(exactReq.nomenclature_id))
+            if (exactNom) {
+              cutterName = exactNom.name
+              finalNomId = exactNom.id
             }
           }
         }
@@ -259,7 +251,7 @@ export const useWarehouseComputed = ({
         })
       }
 
-      const isPrepared = (card.card_info || '').includes('[BOX_PREPARED:true]')
+      const isPrepared = Boolean(card.is_box_prepared || (card.card_info || '').includes('[BOX_PREPARED:true]'))
 
       list.push({
         card,
@@ -436,7 +428,8 @@ export const useWarehouseComputed = ({
         const card = (workCards || []).find(c => String(c.id) === String(r.card_id))
         const isReissue = !!card && (card.is_rework || String(card.card_info || '').includes('[REDO]'))
         const isMachineChange = String(r.details || '').includes('[BALANCED_MACHINE_CHANGE]')
-        const isCutterOrConsumable = (r.details || '').toLowerCase().includes('фреза') ||
+        const isCutterOrConsumable = r.category === 'cutter' ||
+          (r.details || '').toLowerCase().includes('фреза') ||
           (r.details || '').includes('ВИТРАТНІ МАТЕРІАЛИ') ||
           (nomenclatures || []).find(n => String(n.id) === String(r.nomenclature_id))?.type === 'consumable'
 

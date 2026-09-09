@@ -1,8 +1,16 @@
-import { supabase } from '../supabase'
+import { supabase, isTestEnvironment } from '../supabase'
 import { apiService } from '../services/apiDispatcher'
 import { sentryLogger } from '../services/sentryLogger'
 
-const USER_CACHE_KEY = 'MES_SESSION_USER'
+const getAuthKeys = () => {
+  const isTest = isTestEnvironment()
+  return {
+    userKey: isTest ? 'MES_SESSION_USER_STAGING' : 'MES_SESSION_USER',
+    loginKey: isTest ? 'MES_SESSION_LOGIN_STAGING' : 'MES_SESSION_LOGIN',
+    tokenKey: isTest ? 'BACKEND_TOKEN_STAGING' : 'BACKEND_TOKEN',
+    strictKey: isTest ? 'MES_SESSION_STRICT_STAGING' : 'MES_SESSION_STRICT'
+  }
+}
 
 /**
  * Auth & User Management hooks
@@ -11,6 +19,7 @@ const USER_CACHE_KEY = 'MES_SESSION_USER'
 export function createAuthActions({ currentUser, setCurrentUser, setSystemUsers, clearAllData, setSessionLoading }) {
 
   const login = async (loginName, password) => {
+    const { userKey, loginKey, tokenKey, strictKey } = getAuthKeys()
     const cleanLogin = String(loginName || '').trim().toLowerCase()
     const email = cleanLogin.includes('@') ? cleanLogin : `${cleanLogin}@centrum.local`
 
@@ -24,8 +33,8 @@ export function createAuthActions({ currentUser, setCurrentUser, setSystemUsers,
 
       if (!authError && authData?.session) {
         const token = authData.session.access_token
-        localStorage.setItem('BACKEND_TOKEN', token)
-        localStorage.setItem('MES_SESSION_STRICT', 'true')
+        localStorage.setItem(tokenKey, token)
+        localStorage.setItem(strictKey, 'true')
         console.log(`[useAuth] 🛡️ Supabase Auth JWT успішно отримано! (UID: ${authData.session.user?.id})`)
 
         const { data: profile, error: profErr } = await supabase
@@ -37,8 +46,8 @@ export function createAuthActions({ currentUser, setCurrentUser, setSystemUsers,
         if (profile) {
           const nowIso = new Date().toISOString()
           const cleanUser = { ...profile, last_seen: nowIso, token }
-          localStorage.setItem('MES_SESSION_LOGIN', cleanUser.login)
-          localStorage.setItem(USER_CACHE_KEY, JSON.stringify(cleanUser))
+          localStorage.setItem(loginKey, cleanUser.login)
+          localStorage.setItem(userKey, JSON.stringify(cleanUser))
           if (setSessionLoading) setSessionLoading(false)
           setCurrentUser(cleanUser)
           sentryLogger.setUserContext(cleanUser)
@@ -90,8 +99,10 @@ export function createAuthActions({ currentUser, setCurrentUser, setSystemUsers,
     // Cache BEFORE setCurrentUser so App.jsx gate never sees sessionLoading=true
     const cleanUser = { ...data }
     delete cleanUser.password
-    localStorage.setItem('MES_SESSION_LOGIN', cleanUser.login)
-    localStorage.setItem(USER_CACHE_KEY, JSON.stringify(cleanUser))
+    localStorage.setItem(loginKey, cleanUser.login)
+    localStorage.setItem(userKey, JSON.stringify(cleanUser))
+    localStorage.removeItem(tokenKey)
+    localStorage.setItem(strictKey, 'true')
     // Immediately unblock the session gate — no spinner after login
     if (setSessionLoading) setSessionLoading(false)
     setCurrentUser(cleanUser)
@@ -102,12 +113,13 @@ export function createAuthActions({ currentUser, setCurrentUser, setSystemUsers,
   }
 
   const logout = () => {
+    const { userKey, loginKey, tokenKey, strictKey } = getAuthKeys()
     sentryLogger.setUserContext(null)
     supabase.auth.signOut().catch(() => {})
-    localStorage.removeItem('MES_SESSION_LOGIN')
-    localStorage.removeItem('BACKEND_TOKEN')
-    localStorage.removeItem(USER_CACHE_KEY)
-    localStorage.removeItem('MES_SESSION_STRICT')
+    localStorage.removeItem(loginKey)
+    localStorage.removeItem(tokenKey)
+    localStorage.removeItem(userKey)
+    localStorage.removeItem(strictKey)
     if (clearAllData) {
       clearAllData()
     } else {

@@ -18,6 +18,7 @@ import { PortalDashboard } from './components/app/PortalDashboard'
 import { GlobalUserNav } from './components/app/GlobalUserNav'
 import { AppSidebar } from './components/app/AppSidebar'
 import { ModuleErrorBoundary } from './components/SystemResilience'
+import { isTestEnvironment } from './supabase'
 
 // ── Lazy-loaded modules (loaded on demand, not at startup) ─────────────────────
 const CrmModule = lazy(() => import('./modules/CrmModule'))
@@ -739,34 +740,78 @@ const AppLayout = ({ children, chatUnreadCount }) => {
   }
 
   const isTvDashboard = ['/preparation-dashboard', '/tumbling-dashboard'].includes(location.pathname)
+  const isStagingMode = isTestEnvironment()
 
   return (
-    <div className="app-shell">
-      {!isTvDashboard && (
-        <AppSidebar
-          isCollapsed={isCollapsed}
-          setIsCollapsed={setIsCollapsed}
-          chatUnreadCount={chatUnreadCount}
-          unreadNotifCount={unreadNotifCount}
-          isMobileOpen={isMobileOpen}
-          setIsMobileOpen={setIsMobileOpen}
-          onOpenProfile={() => setIsProfileOpen(true)}
-          onOpenNotifications={() => setIsNotificationsOpen(true)}
-        />
+    <div className="app-shell-wrapper" style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', overflow: 'hidden' }}>
+      {isStagingMode && (
+        <div style={{
+          background: 'linear-gradient(90deg, #6366f1 0%, #8b5cf6 50%, #d946ef 100%)',
+          color: '#ffffff',
+          padding: '6px 16px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          fontSize: '11px',
+          fontWeight: 800,
+          letterSpacing: '0.04em',
+          textTransform: 'uppercase',
+          zIndex: 999999,
+          boxShadow: '0 2px 10px rgba(0,0,0,0.5)',
+          flexShrink: 0
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ background: '#fff', color: '#7c3aed', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 900 }}>🧪 ТЕСТОВИЙ СТЕНД</span>
+            <span>База даних: testbdkulytcya (qpiysrkhvdgctaqmfsew) • Повна ізоляція від виробництва!</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              localStorage.removeItem('centrum_env')
+              window.location.href = '/?env=prod'
+            }}
+            style={{
+              background: 'rgba(0,0,0,0.3)',
+              border: '1px solid rgba(255,255,255,0.4)',
+              color: '#fff',
+              borderRadius: '5px',
+              padding: '2px 10px',
+              fontSize: '10px',
+              fontWeight: 700,
+              cursor: 'pointer'
+            }}
+          >
+            Повернутися на PROD ➔
+          </button>
+        </div>
       )}
-      <div className="app-main-content">
-        {children}
+      <div className="app-shell" style={{ flex: 1, height: isStagingMode ? 'calc(100vh - 29px)' : '100vh' }}>
+        {!isTvDashboard && (
+          <AppSidebar
+            isCollapsed={isCollapsed}
+            setIsCollapsed={setIsCollapsed}
+            chatUnreadCount={chatUnreadCount}
+            unreadNotifCount={unreadNotifCount}
+            isMobileOpen={isMobileOpen}
+            setIsMobileOpen={setIsMobileOpen}
+            onOpenProfile={() => setIsProfileOpen(true)}
+            onOpenNotifications={() => setIsNotificationsOpen(true)}
+          />
+        )}
+        <div className="app-main-content">
+          {children}
+        </div>
+        <ProfileModal isOpen={isProfileOpen} onClose={() => setIsProfileOpen(false)} />
+        <NotificationCenterModal
+          isOpen={isNotificationsOpen}
+          onClose={() => setIsNotificationsOpen(false)}
+          notifications={notifications}
+          unreadCount={unreadNotifCount}
+          readIds={readNotifIds}
+          markAsRead={markNotifAsRead}
+          markAllAsRead={markAllNotifsAsRead}
+        />
       </div>
-      <ProfileModal isOpen={isProfileOpen} onClose={() => setIsProfileOpen(false)} />
-      <NotificationCenterModal
-        isOpen={isNotificationsOpen}
-        onClose={() => setIsNotificationsOpen(false)}
-        notifications={notifications}
-        unreadCount={unreadNotifCount}
-        readIds={readNotifIds}
-        markAsRead={markNotifAsRead}
-        markAllAsRead={markAllNotifsAsRead}
-      />
     </div>
   )
 }
@@ -865,7 +910,8 @@ const AppContent = () => {
           <Route path="/settings" element={<PermissionGuard id="settings"><SettingsModule /></PermissionGuard>} />
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/user-settings" element={<UserSettingsPage />} />
-          <Route path="/profile-settings" element={<UserSettingsPage />} />
+          <Route path="/test/*" element={<Navigate to="/" replace />} />
+          <Route path="/test" element={<Navigate to="/" replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>

@@ -66,10 +66,15 @@ window.addEventListener('unhandledrejection', (event) => {
   }
 })
 
+const isTestPath = typeof window !== 'undefined' && (
+  window.location.pathname === '/test' ||
+  window.location.pathname.startsWith('/test/')
+)
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <AppErrorBoundary>
-      <BrowserRouter>
+      <BrowserRouter basename={isTestPath ? '/test' : ''}>
         <App />
         <ConnectionStatus />
         <ServiceWorkerUpdateManager />

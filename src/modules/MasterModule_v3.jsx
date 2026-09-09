@@ -20,6 +20,7 @@ import { useMES } from '../MESContext'
 import { apiService } from '../services/apiDispatcher'
 import { supabase } from '../supabase'
 import { getNomUnitsPerSheet } from '../utils/unitsHelper'
+import { getAvailableSGPStock } from './Nomenclature/utils/nomenclatureHelpers'
 
 const normalizeName = (s) => {
   if (!s) return '';
@@ -1377,10 +1378,7 @@ const MasterModule = () => {
       for (const part of displayParts) {
         if (!part.nom) continue
         const snapshot = reprintTask?.plan_snapshot?.[String(part.nom?.id)]
-        const availableBZ = (() => {
-          const bzInv = (inventory || []).find(i => String(i.nomenclature_id) === String(part.nom?.id) && i.type === 'bz' && (!i.pocket_owner || i.pocket_owner === 'Не вказано'))
-          return bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0
-        })()
+        const availableBZ = getAvailableSGPStock(part.nom, inventory)
         const isPartActiveBZ = isPartBZActive(part.nom?.id)
         const totalNeeded = snapshot ? snapshot.need : (thisNaryadQty * (Number(part.quantity_per_parent) || 1))
         const inStock = snapshot ? (snapshot.stock || 0) : (isPartActiveBZ ? Math.min(totalNeeded, availableBZ) : 0)
@@ -2011,7 +2009,7 @@ const MasterModule = () => {
                           style={{ accentColor: '#ff9000', width: '17px', height: '17px', cursor: isReprintMode ? 'default' : 'pointer' }}
                         />
                         <span style={{ fontSize: '0.85rem', fontWeight: 900, color: useStockBZ ? '#ff9000' : '#666' }}>
-                          {useStockBZ ? 'Враховувати БЗ зі складу' : 'Всюди 0 в колонці БЗ'}
+                          {useStockBZ ? 'Враховувати залишки з СГП' : 'Без залишків з СГП (все в розкрій)'}
                         </span>
                       </label>
                     </div>
@@ -2184,10 +2182,7 @@ const displayParts = getDisplayPartsForOrderItem(it)
 
                         // If reprint, use snapshot. Otherwise use thisNaryadQty
                         const totalNeeded = snapshot ? snapshot.need : (thisNaryadQty * (Number(part.quantity_per_parent) || 1))
-                        const availableBZ = (() => {
-                          const bzInv = inventory.find(i => String(i.nomenclature_id) === String(part.nom?.id) && i.type === 'bz' && (!i.pocket_owner || i.pocket_owner === 'Не вказано'))
-                          return bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0
-                        })()
+                        const availableBZ = getAvailableSGPStock(part.nom, inventory)
                         const isPartActiveBZ = isPartBZActive(part.nom?.id)
                         const inStock = snapshot ? (snapshot.stock || 0) : (isPartActiveBZ ? Math.min(totalNeeded, availableBZ) : 0)
                         const totalToProduce = snapshot ? snapshot.plan : Math.max(0, totalNeeded - inStock)
@@ -2712,10 +2707,7 @@ const displayParts = getDisplayPartsForOrderItem(it)
                           displayParts.forEach(part => {
                             const snapshot = reprintTask?.plan_snapshot?.[String(part.nom?.id)];
                             const need = snapshot ? snapshot.need : (thisNaryadQty * (Number(part.quantity_per_parent) || 1));
-                            const inStock = snapshot ? (snapshot.stock || 0) : (useStockBZ ? (() => {
-                              const bzInv = inventory.find(i => String(i.nomenclature_id) === String(part.nom?.id) && i.type === 'bz' && (!i.pocket_owner || i.pocket_owner === 'Не вказано'));
-                              return bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0;
-                            })() : 0);
+                            const inStock = snapshot ? (snapshot.stock || 0) : (useStockBZ ? getAvailableSGPStock(part.nom, inventory) : 0);
                             const plan = snapshot ? snapshot.plan : Math.max(0, need - inStock);
                             const unitsPerSheet = getNomUnitsPerSheet(part.nom, snapshot);
                             const sheets = Math.ceil(plan / unitsPerSheet);

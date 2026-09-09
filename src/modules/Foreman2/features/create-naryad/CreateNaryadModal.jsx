@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import { X, Calendar, CheckSquare, Square, Package, Wrench, Layers, AlertCircle, Copy } from 'lucide-react'
 import { apiService } from '../../../../services/apiDispatcher.js'
+import { getAvailableSGPStock } from '../../../Nomenclature/utils/nomenclatureHelpers.js'
 
 export default function CreateNaryadModal({
   isOpen,
@@ -172,8 +173,8 @@ export default function CreateNaryadModal({
         if (part.nom.type === 'hardware' || part.nom.type === 'fastener') return
 
         const totalNeeded = requestedQty * part.quantity_per_parent
-        const bzInv = inventory.find(i => String(i.nomenclature_id) === String(part.nom.id) && i.type === 'bz' && (!i.pocket_owner || i.pocket_owner === 'Не вказано'))
-        const inStockBZ = bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0
+        // Use getAvailableSGPStock to read from bz + finished + sgp warehouse (not only type='bz')
+        const inStockBZ = getAvailableSGPStock(part.nom, inventory)
 
         const planQty = useStockBZ ? Math.max(0, totalNeeded - inStockBZ) : totalNeeded
         const unitsPerSheet = Number(part.nom.units_per_sheet) || 1
@@ -411,7 +412,7 @@ export default function CreateNaryadModal({
                 >
                   {useStockBZ ? <CheckSquare size={16} color="#10b981" /> : <Square size={16} color="#555" />}
                   <span style={{ fontSize: '0.8rem', fontWeight: 900, color: useStockBZ ? '#10b981' : '#888' }}>
-                    Враховувати БЗ зі склада
+                    {useStockBZ ? 'Враховувати залишки з СГП' : 'Без залишків з СГП (все в розкрій)'}
                   </span>
                 </div>
               </>

@@ -88,16 +88,23 @@ export function useWarehouseActions(dataHook) {
             card_id: card.id,
             nomenclature_id: cutter.nomenclature_id,
             quantity: qtyToDeduct,
+            category: 'cutter',
+            target_warehouse: 'operational',
             status: 'completed',
             details: `СКЛАД ОПЕРАТИВНИЙ (Картка ${cardLabel}) (ОБРАНО ВРУЧНУ): ${cutter.name} — ${qtyToDeduct} шт.`
           })
         }
       }
 
-      const nextCardInfo = `${card.card_info || ''} [BOX_PREPARED:true]`.trim()
+      const updatePayload = {
+        is_box_prepared: true
+      }
+      if (card.card_info && card.card_info.includes('[BOX_PREPARED:true]')) {
+        updatePayload.card_info = card.card_info.replace(/\[BOX_PREPARED:true\]/g, '').trim()
+      }
       const { error: cardUpdateErr } = await supabaseClient
         .from('work_cards')
-        .update({ card_info: nextCardInfo })
+        .update(updatePayload)
         .eq('id', card.id)
 
       if (cardUpdateErr) throw cardUpdateErr
@@ -161,6 +168,8 @@ export function useWarehouseActions(dataHook) {
               card_id: req.card_id,
               nomenclature_id: req.nomenclature_id,
               quantity: qtyToDeduct,
+              category: req.category || 'cutter',
+              target_warehouse: req.target_warehouse || 'operational',
               status: 'completed',
               details: req.details
             })

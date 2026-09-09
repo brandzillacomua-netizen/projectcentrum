@@ -1970,6 +1970,7 @@ const SpecBuilderTab = () => {
   const [side2CutOpsF15, setSide2CutOpsF15] = useState([])
   const [inlineCuttersList, setInlineCuttersList] = useState([])
   const [savingOps, setSavingOps] = useState(false)
+  const [saveSuccess, setSaveSuccess] = useState(false)
 
   const { machineOperations, machines } = useMES()
 
@@ -2051,9 +2052,8 @@ const SpecBuilderTab = () => {
         await supabase.from('machine_operations').insert(payload)
       }
       await refreshTable('machine_operations')
-      alert('Операції збережено успішно!')
-      setActiveInlinePart(null)
-      setSelectedMachine('')
+      setSaveSuccess(true)
+      setTimeout(() => setSaveSuccess(false), 4000)
     } catch (err) {
       alert('Помилка збереження: ' + err.message)
     } finally {
@@ -2381,94 +2381,162 @@ const getItemFolderKey = (nom) => {
       {/* Inline Operations modal widget */}
       {activeInlinePart && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)', zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-          <div style={{ background: '#0d0d0d', border: '1px solid #2a2a5a', borderRadius: '24px', width: '100%', maxWidth: '680px', padding: '30px', boxShadow: '0 20px 50px rgba(0,0,0,0.8)', maxHeight: '90vh', overflowY: 'auto' }}>
+          <div style={{ background: '#0d0d0d', border: '1px solid #2a2a5a', borderRadius: '24px', width: '100%', maxWidth: '1100px', padding: '30px', boxShadow: '0 20px 50px rgba(0,0,0,0.8)', maxHeight: '90vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid #1a1a2e', paddingBottom: '15px' }}>
               <div>
                 <span style={{ fontSize: '0.7rem', color: '#6366f1', fontWeight: 900, textTransform: 'uppercase' }}>Операції для деталі</span>
-                <h3 style={{ margin: '4px 0 0 0', fontSize: '1.2rem', fontWeight: 900, color: '#fff' }}>{activeInlinePart.name}</h3>
+                <h3 style={{ margin: '4px 0 0 0', fontSize: '1.25rem', fontWeight: 900, color: '#fff' }}>{activeInlinePart.name}</h3>
               </div>
-              <button onClick={() => { setActiveInlinePart(null); setSelectedMachine('') }} style={{ background: 'transparent', border: 'none', color: '#555', cursor: 'pointer' }}><X size={22}/></button>
+              <button onClick={() => { setActiveInlinePart(null); setSelectedMachine('') }} title="Закрити" style={{ background: 'transparent', border: 'none', color: '#888', cursor: 'pointer', padding: '6px' }}><X size={22}/></button>
             </div>
             
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
               <div>
-                <label style={{ fontSize: '0.7rem', color: '#666', fontWeight: 800, textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>Оберіть верстат</label>
-                <select value={selectedMachine} onChange={e => setSelectedMachine(e.target.value)} style={{ width: '100%', padding: '12px', background: '#111', border: '1px solid #222', color: '#fff', borderRadius: '10px', fontSize: '0.9rem' }}>
+                <label style={{ fontSize: '0.75rem', color: '#888', fontWeight: 800, textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>Оберіть верстат</label>
+                <select value={selectedMachine} onChange={e => { setSelectedMachine(e.target.value); setSaveSuccess(false) }} style={{ width: '100%', padding: '12px 14px', background: '#111', border: '1px solid #222', color: '#fff', borderRadius: '10px', fontSize: '0.9rem', outline: 'none', fontWeight: 600 }}>
                   <option value="">-- Оберіть тип верстата --</option>
                   {MACHINE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
 
               {selectedMachine && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap' }}>
                     {/* Render inputs side1 */}
-                    <div style={{ flex: 1, minWidth: '180px', background: '#0a0a0a', padding: '12px', borderRadius: '12px', border: '1px solid #111' }}>
-                      <h5 style={{ margin: '0 0 8px 0', fontSize: '0.75rem', color: 'var(--text-muted, #64748b)' }}>1 сторона</h5>
-                      {side1Ops.map((op, idx) => (
-                        <div key={idx} style={{ display: 'flex', gap: '5px', marginBottom: '5px' }}>
-                          <input value={op} onChange={e => { const copy = [...side1Ops]; copy[idx] = e.target.value; setSide1Ops(copy) }} style={{ flex: 1, padding: '6px', background: '#000', border: '1px solid #222', color: '#fff', borderRadius: '6px', fontSize: '0.75rem' }} />
-                          <button onClick={() => setSide1Ops(side1Ops.filter((_, i) => i !== idx))} style={{ background: '#7f1d1d', border: 'none', color: '#fff', borderRadius: '6px', padding: '0 8px', cursor: 'pointer' }}><Trash2 size={12}/></button>
-                        </div>
-                      ))}
-                      <button onClick={() => setSide1Ops([...side1Ops, ''])} style={{ width: '100%', padding: '5px', background: 'transparent', border: '1px dashed #222', color: '#3b82f6', borderRadius: '6px', cursor: 'pointer', fontSize: '0.7rem' }}>+ Додати</button>
+                    <div style={{ flex: '1 1 300px', minWidth: '240px', background: '#0a0a0a', padding: '16px', borderRadius: '14px', border: '1px solid #1a1a2e', display: 'flex', flexDirection: 'column' }}>
+                      <h5 style={{ margin: '0 0 10px 0', fontSize: '0.8rem', color: 'var(--text-muted, #94a3b8)', fontWeight: 800 }}>1 сторона</h5>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flex: 1 }}>
+                        {side1Ops.map((op, idx) => (
+                          <div key={idx} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                            <input value={op} onChange={e => { const copy = [...side1Ops]; copy[idx] = e.target.value; setSide1Ops(copy) }} placeholder="Введіть операцію..." style={{ flex: 1, minWidth: 0, padding: '8px 10px', background: '#000', border: '1px solid #222', color: '#fff', borderRadius: '8px', fontSize: '0.8rem', outline: 'none' }} />
+                            <button onClick={() => setSide1Ops(side1Ops.filter((_, i) => i !== idx))} title="Видалити" style={{ flexShrink: 0, background: '#7f1d1d', border: 'none', color: '#fff', borderRadius: '8px', padding: '0 10px', height: '34px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Trash2 size={13}/></button>
+                          </div>
+                        ))}
+                      </div>
+                      <button onClick={() => setSide1Ops([...side1Ops, ''])} style={{ width: '100%', padding: '7px', background: 'transparent', border: '1px dashed #333', color: '#3b82f6', borderRadius: '8px', cursor: 'pointer', fontSize: '0.74rem', fontWeight: 800, marginTop: '8px' }}>+ Додати</button>
                     </div>
 
                     {/* Render inputs side2 F2 */}
-                    <div style={{ flex: 1, minWidth: '180px', background: '#0a0a0a', padding: '12px', borderRadius: '12px', border: '1px solid #111' }}>
-                      <h5 style={{ margin: '0 0 8px 0', fontSize: '0.75rem', color: 'var(--text-muted, #64748b)' }}>2 сторона (Ф2)</h5>
-                      {side2OpsF2.map((op, idx) => (
-                        <div key={idx} style={{ display: 'flex', gap: '5px', marginBottom: '5px' }}>
-                          <input value={op} onChange={e => { const copy = [...side2OpsF2]; copy[idx] = e.target.value; setSide2OpsF2(copy) }} style={{ flex: 1, padding: '6px', background: '#000', border: '1px solid #222', color: '#fff', borderRadius: '6px', fontSize: '0.75rem' }} />
-                          <button onClick={() => setSide2OpsF2(side2OpsF2.filter((_, i) => i !== idx))} style={{ background: '#7f1d1d', border: 'none', color: '#fff', borderRadius: '6px', padding: '0 8px', cursor: 'pointer' }}><Trash2 size={12}/></button>
-                        </div>
-                      ))}
-                      <button onClick={() => setSide2OpsF2([...side2OpsF2, ''])} style={{ width: '100%', padding: '5px', background: 'transparent', border: '1px dashed #333', color: '#3b82f6', borderRadius: '6px', cursor: 'pointer', fontSize: '0.7rem' }}>+ Додати</button>
+                    <div style={{ flex: '1 1 300px', minWidth: '240px', background: '#0a0a0a', padding: '16px', borderRadius: '14px', border: '1px solid #1a1a2e', display: 'flex', flexDirection: 'column' }}>
+                      <h5 style={{ margin: '0 0 10px 0', fontSize: '0.8rem', color: 'var(--text-muted, #94a3b8)', fontWeight: 800 }}>2 сторона (Ф2)</h5>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flex: 1 }}>
+                        {side2OpsF2.map((op, idx) => (
+                          <div key={idx} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                            <input value={op} onChange={e => { const copy = [...side2OpsF2]; copy[idx] = e.target.value; setSide2OpsF2(copy) }} placeholder="Введіть операцію..." style={{ flex: 1, minWidth: 0, padding: '8px 10px', background: '#000', border: '1px solid #222', color: '#fff', borderRadius: '8px', fontSize: '0.8rem', outline: 'none' }} />
+                            <button onClick={() => setSide2OpsF2(side2OpsF2.filter((_, i) => i !== idx))} title="Видалити" style={{ flexShrink: 0, background: '#7f1d1d', border: 'none', color: '#fff', borderRadius: '8px', padding: '0 10px', height: '34px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Trash2 size={13}/></button>
+                          </div>
+                        ))}
+                      </div>
+                      <button onClick={() => setSide2OpsF2([...side2OpsF2, ''])} style={{ width: '100%', padding: '7px', background: 'transparent', border: '1px dashed #333', color: '#3b82f6', borderRadius: '8px', cursor: 'pointer', fontSize: '0.74rem', fontWeight: 800, marginTop: '8px' }}>+ Додати</button>
                     </div>
 
                     {/* Render inputs side2 F1.5 */}
-                    <div style={{ flex: 1, minWidth: '180px', background: '#0a0a0a', padding: '12px', borderRadius: '12px', border: '1px solid #111' }}>
-                      <h5 style={{ margin: '0 0 8px 0', fontSize: '0.75rem', color: 'var(--text-muted, #64748b)' }}>2 сторона (Ф1.5)</h5>
-                      {side2OpsF15.map((op, idx) => (
-                        <div key={idx} style={{ display: 'flex', gap: '5px', marginBottom: '5px' }}>
-                          <input value={op} onChange={e => { const copy = [...side2OpsF15]; copy[idx] = e.target.value; setSide2OpsF15(copy) }} style={{ flex: 1, padding: '6px', background: '#000', border: '1px solid #222', color: '#fff', borderRadius: '6px', fontSize: '0.75rem' }} />
-                          <button onClick={() => setSide2OpsF15(side2OpsF15.filter((_, i) => i !== idx))} style={{ background: '#7f1d1d', border: 'none', color: '#fff', borderRadius: '6px', padding: '0 8px', cursor: 'pointer' }}><Trash2 size={12}/></button>
-                        </div>
-                      ))}
-                      <button onClick={() => setSide2OpsF15([...side2OpsF15, ''])} style={{ width: '100%', padding: '5px', background: 'transparent', border: '1px dashed #333', color: '#3b82f6', borderRadius: '6px', cursor: 'pointer', fontSize: '0.7rem' }}>+ Додати</button>
+                    <div style={{ flex: '1 1 300px', minWidth: '240px', background: '#0a0a0a', padding: '16px', borderRadius: '14px', border: '1px solid #1a1a2e', display: 'flex', flexDirection: 'column' }}>
+                      <h5 style={{ margin: '0 0 10px 0', fontSize: '0.8rem', color: 'var(--text-muted, #94a3b8)', fontWeight: 800 }}>2 сторона (Ф1.5)</h5>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flex: 1 }}>
+                        {side2OpsF15.map((op, idx) => (
+                          <div key={idx} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                            <input value={op} onChange={e => { const copy = [...side2OpsF15]; copy[idx] = e.target.value; setSide2OpsF15(copy) }} placeholder="Введіть операцію..." style={{ flex: 1, minWidth: 0, padding: '8px 10px', background: '#000', border: '1px solid #222', color: '#fff', borderRadius: '8px', fontSize: '0.8rem', outline: 'none' }} />
+                            <button onClick={() => setSide2OpsF15(side2OpsF15.filter((_, i) => i !== idx))} title="Видалити" style={{ flexShrink: 0, background: '#7f1d1d', border: 'none', color: '#fff', borderRadius: '8px', padding: '0 10px', height: '34px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Trash2 size={13}/></button>
+                          </div>
+                        ))}
+                      </div>
+                      <button onClick={() => setSide2OpsF15([...side2OpsF15, ''])} style={{ width: '100%', padding: '7px', background: 'transparent', border: '1px dashed #333', color: '#3b82f6', borderRadius: '8px', cursor: 'pointer', fontSize: '0.74rem', fontWeight: 800, marginTop: '8px' }}>+ Додати</button>
                     </div>
 
                     {/* Render inputs side2cut F2 */}
-                    <div style={{ flex: 1, minWidth: '180px', background: '#0a0a0a', padding: '12px', borderRadius: '12px', border: '1px solid #111' }}>
-                      <h5 style={{ margin: '0 0 8px 0', fontSize: '0.75rem', color: 'var(--text-muted, #64748b)' }}>Вирізка (Ф2)</h5>
-                      {side2CutOpsF2.map((op, idx) => (
-                        <div key={idx} style={{ display: 'flex', gap: '5px', marginBottom: '5px' }}>
-                          <input value={op} onChange={e => { const copy = [...side2CutOpsF2]; copy[idx] = e.target.value; setSide2CutOpsF2(copy) }} style={{ flex: 1, padding: '6px', background: '#000', border: '1px solid #222', color: '#fff', borderRadius: '6px', fontSize: '0.75rem' }} />
-                          <button onClick={() => setSide2CutOpsF2(side2CutOpsF2.filter((_, i) => i !== idx))} style={{ background: '#7f1d1d', border: 'none', color: '#fff', borderRadius: '6px', padding: '0 8px', cursor: 'pointer' }}><Trash2 size={12}/></button>
-                        </div>
-                      ))}
-                      <button onClick={() => setSide2CutOpsF2([...side2CutOpsF2, ''])} style={{ width: '100%', padding: '5px', background: 'transparent', border: '1px dashed #333', color: '#3b82f6', borderRadius: '6px', cursor: 'pointer', fontSize: '0.7rem' }}>+ Додати</button>
+                    <div style={{ flex: '1 1 300px', minWidth: '240px', background: '#0a0a0a', padding: '16px', borderRadius: '14px', border: '1px solid #1a1a2e', display: 'flex', flexDirection: 'column' }}>
+                      <h5 style={{ margin: '0 0 10px 0', fontSize: '0.8rem', color: 'var(--text-muted, #94a3b8)', fontWeight: 800 }}>Вирізка (Ф2)</h5>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flex: 1 }}>
+                        {side2CutOpsF2.map((op, idx) => (
+                          <div key={idx} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                            <input value={op} onChange={e => { const copy = [...side2CutOpsF2]; copy[idx] = e.target.value; setSide2CutOpsF2(copy) }} placeholder="Введіть операцію..." style={{ flex: 1, minWidth: 0, padding: '8px 10px', background: '#000', border: '1px solid #222', color: '#fff', borderRadius: '8px', fontSize: '0.8rem', outline: 'none' }} />
+                            <button onClick={() => setSide2CutOpsF2(side2CutOpsF2.filter((_, i) => i !== idx))} title="Видалити" style={{ flexShrink: 0, background: '#7f1d1d', border: 'none', color: '#fff', borderRadius: '8px', padding: '0 10px', height: '34px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Trash2 size={13}/></button>
+                          </div>
+                        ))}
+                      </div>
+                      <button onClick={() => setSide2CutOpsF2([...side2CutOpsF2, ''])} style={{ width: '100%', padding: '7px', background: 'transparent', border: '1px dashed #333', color: '#3b82f6', borderRadius: '8px', cursor: 'pointer', fontSize: '0.74rem', fontWeight: 800, marginTop: '8px' }}>+ Додати</button>
                     </div>
 
                     {/* Render inputs side2cut F1.5 */}
-                    <div style={{ flex: 1, minWidth: '180px', background: '#0a0a0a', padding: '12px', borderRadius: '12px', border: '1px solid #111' }}>
-                      <h5 style={{ margin: '0 0 8px 0', fontSize: '0.75rem', color: 'var(--text-muted, #64748b)' }}>Вирізка (Ф1.5)</h5>
-                      {side2CutOpsF15.map((op, idx) => (
-                        <div key={idx} style={{ display: 'flex', gap: '5px', marginBottom: '5px' }}>
-                          <input value={op} onChange={e => { const copy = [...side2CutOpsF15]; copy[idx] = e.target.value; setSide2CutOpsF15(copy) }} style={{ flex: 1, padding: '6px', background: '#000', border: '1px solid #222', color: '#fff', borderRadius: '6px', fontSize: '0.75rem' }} />
-                          <button onClick={() => setSide2CutOpsF15(side2CutOpsF15.filter((_, i) => i !== idx))} style={{ background: '#7f1d1d', border: 'none', color: '#fff', borderRadius: '6px', padding: '0 8px', cursor: 'pointer' }}><Trash2 size={12}/></button>
-                        </div>
-                      ))}
-                      <button onClick={() => setSide2CutOpsF15([...side2CutOpsF15, ''])} style={{ width: '100%', padding: '5px', background: 'transparent', border: '1px dashed #333', color: '#3b82f6', borderRadius: '6px', cursor: 'pointer', fontSize: '0.7rem' }}>+ Додати</button>
+                    <div style={{ flex: '1 1 300px', minWidth: '240px', background: '#0a0a0a', padding: '16px', borderRadius: '14px', border: '1px solid #1a1a2e', display: 'flex', flexDirection: 'column' }}>
+                      <h5 style={{ margin: '0 0 10px 0', fontSize: '0.8rem', color: 'var(--text-muted, #94a3b8)', fontWeight: 800 }}>Вирізка (Ф1.5)</h5>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flex: 1 }}>
+                        {side2CutOpsF15.map((op, idx) => (
+                          <div key={idx} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                            <input value={op} onChange={e => { const copy = [...side2CutOpsF15]; copy[idx] = e.target.value; setSide2CutOpsF15(copy) }} placeholder="Введіть операцію..." style={{ flex: 1, minWidth: 0, padding: '8px 10px', background: '#000', border: '1px solid #222', color: '#fff', borderRadius: '8px', fontSize: '0.8rem', outline: 'none' }} />
+                            <button onClick={() => setSide2CutOpsF15(side2CutOpsF15.filter((_, i) => i !== idx))} title="Видалити" style={{ flexShrink: 0, background: '#7f1d1d', border: 'none', color: '#fff', borderRadius: '8px', padding: '0 10px', height: '34px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Trash2 size={13}/></button>
+                          </div>
+                        ))}
+                      </div>
+                      <button onClick={() => setSide2CutOpsF15([...side2CutOpsF15, ''])} style={{ width: '100%', padding: '7px', background: 'transparent', border: '1px dashed #333', color: '#3b82f6', borderRadius: '8px', cursor: 'pointer', fontSize: '0.74rem', fontWeight: 800, marginTop: '8px' }}>+ Додати</button>
                     </div>
 
                     {/* Render cutters */}
-                    {renderCutterListEditor(inlineCuttersList, setInlineCuttersList)}
+                    <div style={{ flex: '1 1 100%', minWidth: '100%' }}>
+                      {renderCutterListEditor(inlineCuttersList, setInlineCuttersList)}
+                    </div>
                   </div>
 
-                  <button onClick={handleSaveInlineOps} disabled={savingOps} style={{ width: '100%', padding: '12px', background: 'linear-gradient(135deg, #10b981, #059669)', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: 800, cursor: 'pointer', fontSize: '0.85rem', marginTop: '10px' }}>
-                    {savingOps ? 'Збереження...' : 'Зберегти операції'}
-                  </button>
+                  {saveSuccess && (
+                    <div style={{
+                      padding: '12px 18px',
+                      background: 'rgba(16, 185, 129, 0.15)',
+                      border: '1px solid #10b981',
+                      borderRadius: '12px',
+                      color: '#34d399',
+                      fontWeight: 800,
+                      fontSize: '0.86rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px'
+                    }}>
+                      <span style={{ fontSize: '1.2rem', lineHeight: 1 }}>✓</span>
+                      <span>Операції для деталі <strong>{activeInlinePart.name}</strong> ({selectedMachine}) збережено! Ви залишаєтесь у цьому вікні та можете продовжити налаштування.</span>
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', gap: '12px', marginTop: '6px' }}>
+                    <button
+                      onClick={handleSaveInlineOps}
+                      disabled={savingOps}
+                      style={{
+                        flex: 1,
+                        padding: '14px',
+                        background: saveSuccess ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #10b981, #059669)',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: '12px',
+                        fontWeight: 900,
+                        cursor: 'pointer',
+                        fontSize: '0.9rem',
+                        boxShadow: '0 4px 14px rgba(16,185,129,0.25)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      {savingOps ? 'Збереження...' : saveSuccess ? '✓ Збережено успішно' : 'Зберегти операції'}
+                    </button>
+                    <button
+                      onClick={() => { setActiveInlinePart(null); setSelectedMachine('') }}
+                      style={{
+                        padding: '14px 28px',
+                        background: '#1a1a2e',
+                        color: '#aaa',
+                        border: '1px solid #333',
+                        borderRadius: '12px',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        fontSize: '0.9rem',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      Закрити
+                    </button>
+                  </div>
                 </div>
               )}
             </div>

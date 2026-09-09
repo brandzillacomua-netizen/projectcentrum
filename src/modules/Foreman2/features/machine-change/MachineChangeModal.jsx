@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { X, Loader2 } from 'lucide-react'
 import { findMachineByName, MACHINE_TYPES } from '../../utils/foremanHelpers.js'
+import { resolveCutterOrVirtualType } from '../../../../utils/cutterCalculator.js'
 
 export default function MachineChangeModal({
   isOpen,
@@ -70,7 +71,7 @@ export default function MachineChangeModal({
       const cutterNomId = parts[1]
       const qtyPerSheet = parseFloat(parts[2]) || 0
       if (cutterNomId && qtyPerSheet > 0) {
-        const nom = nomenclatures?.find(n => String(n.id) === String(cutterNomId))
+        const nom = resolveCutterOrVirtualType(cutterNomId, nomenclatures)
         if (nom) {
           cutters.push({
             id: nom.id,

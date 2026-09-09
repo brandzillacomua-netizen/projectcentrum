@@ -3,6 +3,7 @@ import { Sparkles, X, AlertCircle, Trash2, Clock } from 'lucide-react'
 import { ERP_CATEGORY_SCHEMAS, inputStyle } from '../utils/nomenclatureHelpers'
 
 export const NomenclatureWizardModal = ({
+  items = [],
   editingItem,
   isWizardOpen,
   setIsWizardOpen,
@@ -30,6 +31,14 @@ export const NomenclatureWizardModal = ({
   removeSeriesItem,
   DEFAULT_LOAD_TIMINGS
 }) => {
+  const preparedSheets = React.useMemo(() => {
+    return (items || []).filter(it => {
+      const isSheetGroup = it.group_id === 'grp_prepared_sheets' || it.group_id === 'cat_sheets' || String(it.code || '').startsWith('RAW.PREP');
+      const isSheetName = String(it.name || '').toLowerCase().includes('лист') && (it.name?.includes('Т300') || it.name?.includes('Т700') || it.name?.includes('Т800'));
+      return isSheetGroup || isSheetName;
+    }).sort((a, b) => (a.name || '').localeCompare(b.name || '', 'uk-UA'));
+  }, [items]);
+
   if (!isWizardOpen) return null
 
   return (
@@ -756,68 +765,115 @@ export const NomenclatureWizardModal = ({
                   <input type="text" value={wizardParams.name || wizardParams.customName || ''} onChange={e => setWizardParams({...wizardParams, name: e.target.value, customName: e.target.value})} placeholder="напр. KR-10(218)-П-7-60" style={inputStyle} />
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1.2fr', gap: '10px' }}>
-                  <div>
-                    <label style={{ fontSize: '0.72rem', color: 'var(--text-muted, #64748b)', fontWeight: 800 }}>МАРКА СИРОВИНИ</label>
-                    <select 
-                      value={wizardParams.sheetGrade || 'Т300'} 
-                      onChange={e => {
-                        const grade = e.target.value;
-                        const thick = wizardParams.sheetThickness || '3';
-                        const gLabel = grade === 'custom' ? (wizardParams.customGrade || 'Т300') : grade;
-                        const tLabel = thick === 'custom' ? (wizardParams.customThickness || '3') : thick;
-                        const raw = `Лист ${gLabel} (${tLabel}мм)`;
-                        setWizardParams({...wizardParams, sheetGrade: grade, rawSheet: raw});
-                      }} 
-                      style={inputStyle}
-                    >
-                      {(refDicts.grades || ['Т300', 'Т700']).map(g => (
-                        <option key={g} value={g}>Карбон {g}</option>
-                      ))}
-                      <option value="custom">✏️ + Власна марка...</option>
-                    </select>
-                    {wizardParams.sheetGrade === 'custom' && (
-                      <input 
-                        type="text" 
-                        value={wizardParams.customGrade || ''} 
-                        onChange={e => setWizardParams({...wizardParams, customGrade: e.target.value})} 
-                        placeholder="напр. Т1000" 
-                        style={{ ...inputStyle, marginTop: '8px', border: '1px solid #ff9000' }} 
-                      />
+                {/* РОБОЧИЙ ЛИСТ (СИРОВИНА ЧПК) - СТРОГО ПО ID */}
+                <div style={{ background: 'rgba(255,144,0,0.05)', border: '1px solid rgba(255,144,0,0.25)', borderRadius: '16px', padding: '16px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <label style={{ fontSize: '0.75rem', color: '#d97706', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                      РОБОЧИЙ МАТЕРІАЛ / ЛИСТ ЧПК (ЗВ'ЯЗОК ЗА ID) *
+                    </label>
+                    {wizardParams.default_material_id ? (
+                      <span style={{ fontSize: '0.72rem', color: '#059669', fontWeight: 800, background: '#d1fae5', padding: '2px 8px', borderRadius: '6px' }}>
+                        ✓ {preparedSheets.find(s => s.id === wizardParams.default_material_id)?.name || 'Прив\'язано за ID'}
+                      </span>
+                    ) : (
+                      <span style={{ fontSize: '0.72rem', color: '#dc2626', fontWeight: 800, background: '#fee2e2', padding: '2px 8px', borderRadius: '6px' }}>
+                        ⚠️ Оберіть лист із каталогу
+                      </span>
                     )}
                   </div>
-                  <div>
-                    <label style={{ fontSize: '0.72rem', color: 'var(--text-muted, #64748b)', fontWeight: 800 }}>ТОВЩИНА (мм)</label>
-                    <select 
-                      value={wizardParams.sheetThickness || '3'} 
-                      onChange={e => {
-                        const thick = e.target.value;
-                        const grade = wizardParams.sheetGrade || 'Т300';
-                        const gLabel = grade === 'custom' ? (wizardParams.customGrade || 'Т300') : grade;
-                        const tLabel = thick === 'custom' ? (wizardParams.customThickness || '3') : thick;
-                        const raw = `Лист ${gLabel} (${tLabel}мм)`;
-                        setWizardParams({...wizardParams, sheetThickness: thick, rawSheet: raw});
-                      }} 
-                      style={inputStyle}
-                    >
-                      {(refDicts.thicknesses || ['1', '2', '2,5', '3', '4', '5', '6', '7', '8', '10']).map(t => (
-                        <option key={t} value={t}>{t} мм</option>
-                      ))}
-                      <option value="custom">✏️ + Власна товщина...</option>
-                    </select>
-                    {wizardParams.sheetThickness === 'custom' && (
+
+                  {/* Головний вибір листа зі списку номенклатури */}
+                  <select
+                    value={wizardParams.default_material_id || ''}
+                    onChange={e => {
+                      const selId = e.target.value;
+                      const s = preparedSheets.find(it => it.id === selId);
+                      if (s) {
+                        const mGrade = s.name.includes('Т700') ? 'Т700' : 'Т300';
+                        const mThick = s.name.match(/\((\d+(?:[.,]\d+)?)мм\)/)?.[1]?.replace(',', '.') || wizardParams.sheetThickness || '3';
+                        setWizardParams({
+                          ...wizardParams,
+                          default_material_id: s.id,
+                          rawSheet: s.name,
+                          sheetGrade: mGrade,
+                          sheetThickness: mThick
+                        });
+                      } else {
+                        setWizardParams({
+                          ...wizardParams,
+                          default_material_id: '',
+                          rawSheet: ''
+                        });
+                      }
+                    }}
+                    style={{ ...inputStyle, fontWeight: 800, borderColor: wizardParams.default_material_id ? '#10b981' : '#f59e0b', marginBottom: '12px' }}
+                  >
+                    <option value="">-- Оберіть робочий лист із каталогу V2 (Обов'язково) --</option>
+                    {preparedSheets.map(s => (
+                      <option key={s.id} value={s.id}>
+                        {s.name} [{s.code}]
+                      </option>
+                    ))}
+                  </select>
+
+                  {/* Швидкі селектори: Марка + Товщина */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.2fr 1fr', gap: '10px' }}>
+                    <div>
+                      <label style={{ fontSize: '0.7rem', color: 'var(--text-muted, #64748b)', fontWeight: 800 }}>ШВИДКИЙ ВИБІР: МАРКА</label>
+                      <select 
+                        value={wizardParams.sheetGrade || 'Т300'} 
+                        onChange={e => {
+                          const grade = e.target.value;
+                          const thick = wizardParams.sheetThickness || '3';
+                          const matched = preparedSheets.find(s => s.name.includes(grade) && (s.name.includes(`(${thick}мм)`) || s.name.includes(`(${thick.replace('.', ',')}мм)`)));
+                          setWizardParams({
+                            ...wizardParams,
+                            sheetGrade: grade,
+                            default_material_id: matched ? matched.id : wizardParams.default_material_id,
+                            rawSheet: matched ? matched.name : `Лист ${grade} (${thick}мм)`
+                          });
+                        }} 
+                        style={inputStyle}
+                      >
+                        {(refDicts.grades || ['Т300', 'Т700']).map(g => (
+                          <option key={g} value={g}>Карбон {g}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: '0.7rem', color: 'var(--text-muted, #64748b)', fontWeight: 800 }}>ШВИДКИЙ ВИБІР: ТОВЩИНА</label>
+                      <select 
+                        value={wizardParams.sheetThickness || '3'} 
+                        onChange={e => {
+                          const thick = e.target.value;
+                          const grade = wizardParams.sheetGrade || 'Т300';
+                          const matched = preparedSheets.find(s => s.name.includes(grade) && (s.name.includes(`(${thick}мм)`) || s.name.includes(`(${thick.replace('.', ',')}мм)`)));
+                          setWizardParams({
+                            ...wizardParams,
+                            sheetThickness: thick,
+                            default_material_id: matched ? matched.id : wizardParams.default_material_id,
+                            rawSheet: matched ? matched.name : `Лист ${grade} (${thick}мм)`
+                          });
+                        }} 
+                        style={inputStyle}
+                      >
+                        {(refDicts.thicknesses || ['1', '2', '2.5', '3', '4', '5', '6', '7', '8', '10']).map(t => (
+                          <option key={t} value={t}>{t} мм</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: '0.7rem', color: 'var(--text-muted, #64748b)', fontWeight: 800 }}>НОРМА (шт/л)</label>
                       <input 
-                        type="text" 
-                        value={wizardParams.customThickness || ''} 
-                        onChange={e => setWizardParams({...wizardParams, customThickness: e.target.value})} 
-                        placeholder="напр. 3,5" 
-                        style={{ ...inputStyle, marginTop: '8px', border: '1px solid #ff9000' }} 
+                        type="number" 
+                        value={wizardParams.unitsPerSheet || 1} 
+                        onChange={e => setWizardParams({...wizardParams, unitsPerSheet: Number(e.target.value) || 1})} 
+                        placeholder="60" 
+                        style={inputStyle} 
                       />
-                    )}
-                  </div>
-                  <div>
-                    <label style={{ fontSize: '0.72rem', color: 'var(--text-muted, #64748b)', fontWeight: 800 }}>НОРМА (шт/л)</label>
-                    <input type="number" value={wizardParams.unitsPerSheet || 1} onChange={e => setWizardParams({...wizardParams, unitsPerSheet: Number(e.target.value) || 1})} placeholder="60" style={inputStyle} />
+                    </div>
                   </div>
                 </div>
 
@@ -907,19 +963,25 @@ export const NomenclatureWizardModal = ({
 
           </div>
 
+          {wizardRuleType === 'frame_part' && !wizardParams.default_material_id && (
+            <div style={{ color: '#ef4444', fontSize: '0.8rem', fontWeight: 800, textAlign: 'center', background: '#fee2e2', padding: '8px', borderRadius: '10px' }}>
+              ⚠️ Оберіть робочий лист ЧПК зі списку для збереження деталі за ID
+            </div>
+          )}
+
           <button 
             type="submit" 
-            disabled={isDuplicate || !generatedName}
+            disabled={isDuplicate || !generatedName || (wizardRuleType === 'frame_part' && !wizardParams.default_material_id)}
             style={{ 
-              background: isDuplicate || !generatedName ? 'var(--border-color, #cbd5e1)' : '#ff9000', 
-              color: isDuplicate || !generatedName ? 'var(--text-muted, #64748b)' : '#ffffff', 
+              background: isDuplicate || !generatedName || (wizardRuleType === 'frame_part' && !wizardParams.default_material_id) ? 'var(--border-color, #cbd5e1)' : '#ff9000', 
+              color: isDuplicate || !generatedName || (wizardRuleType === 'frame_part' && !wizardParams.default_material_id) ? 'var(--text-muted, #64748b)' : '#ffffff', 
               border: 'none', 
               borderRadius: '14px', 
               padding: '16px', 
               fontWeight: 900, 
               fontSize: '0.95rem', 
-              cursor: isDuplicate || !generatedName ? 'not-allowed' : 'pointer',
-              boxShadow: isDuplicate || !generatedName ? 'none' : '0 5px 20px rgba(255,144,0,0.3)',
+              cursor: isDuplicate || !generatedName || (wizardRuleType === 'frame_part' && !wizardParams.default_material_id) ? 'not-allowed' : 'pointer',
+              boxShadow: isDuplicate || !generatedName || (wizardRuleType === 'frame_part' && !wizardParams.default_material_id) ? 'none' : '0 5px 20px rgba(255,144,0,0.3)',
               transition: 'all 0.2s'
             }}
           >

@@ -897,7 +897,21 @@ export function useMasterState() {
 
         const addToSummary = (typePrefix, qty) => {
           if (qty <= 0) return
-          const sheetNom = findWorkingSheetNom(typePrefix, matKeyBase, nomenclatures)
+          let sheetNom = null
+          if (part.nom.default_material_id) {
+            const defSheet = nomenclatures.find(n => n.id === part.nom.default_material_id)
+            if (defSheet) {
+              const defGrade = (defSheet.name || '').includes('Т700') ? 'Т700' : 'Т300'
+              if (defGrade === typePrefix) {
+                sheetNom = defSheet
+              } else {
+                sheetNom = findWorkingSheetNom(typePrefix, defSheet.name, nomenclatures) || defSheet
+              }
+            }
+          }
+          if (!sheetNom) {
+            sheetNom = findWorkingSheetNom(typePrefix, matKeyBase, nomenclatures)
+          }
           const matKey = sheetNom ? sheetNom.name : `Лист ${typePrefix} (${thicknessClean})`
           if (!summary[matKey]) {
             summary[matKey] = { name: matKey, sheets: 0, unit, nomenclature_id: sheetNom?.id || null }

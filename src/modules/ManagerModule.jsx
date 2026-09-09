@@ -291,6 +291,7 @@ const ManagerModule = () => {
     orderNum: '',
     invoiceNum: '',
     customer: '',
+    customer_id: null,
     official_customer: '',
     nomenclature_id: '',
     unit: 'шт',
@@ -318,6 +319,7 @@ const ManagerModule = () => {
     setIsEditMode(true)
     setEditingOrderHeader({
       customer: order.customer || '',
+      customer_id: order.customer_id || null,
       official_customer: order.official_customer || '',
       invoice_num: order.invoice_num || '',
       nomenclature_id: order.nomenclature_id || '',
@@ -439,7 +441,12 @@ const ManagerModule = () => {
   }
 
   const selectCustomer = (c) => {
-    setOrderHeader({ ...orderHeader, customer: c.name, official_customer: c.official_name || '' })
+    setOrderHeader({
+      ...orderHeader,
+      customer: c.name,
+      customer_id: c.id,
+      official_customer: c.official_name || ''
+    })
     setShowCustomerHints(false)
   }
 
@@ -465,6 +472,7 @@ const ManagerModule = () => {
         orderNum: '',
         invoiceNum: '',
         customer: '',
+        customer_id: null,
         official_customer: '',
         nomenclature_id: '',
         quantity: 1,

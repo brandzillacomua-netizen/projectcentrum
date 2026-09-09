@@ -8,6 +8,7 @@ import {
   combineOps, 
   autoClassify 
 } from '../utils/engineerHelpers.jsx'
+import { resolveCutterOrVirtualType } from '../../../utils/cutterCalculator.js'
 
 export function MachineOperationsTab() {
   const { nomenclatures: rawNoms, machines, machineOperations, supabase, bomItems, refreshTable, theme } = useMES()
@@ -874,7 +875,9 @@ export function MachineOperationsTab() {
                               if (cutterOps.length === 0) return null
                               const cuttersText = cutterOps.map(c => {
                                 const parts = c.split(':')
-                                const cNom = nomenclatures.find(n => String(n.id) === String(parts[1])) || (rawNoms || []).find(n => String(n.id) === String(parts[1]))
+                                const cNom = nomenclatures.find(n => String(n.id) === String(parts[1])) 
+                                  || (rawNoms || []).find(n => String(n.id) === String(parts[1]))
+                                  || resolveCutterOrVirtualType(parts[1], nomenclatures)
                                 return `${cNom ? cNom.name : 'Фреза'} (${parts[2]} шт/л.)`
                               }).join(', ')
                               return (
