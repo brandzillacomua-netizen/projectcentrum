@@ -14,7 +14,16 @@ export async function fetchFinalScrapTotals(supabase, taskIds = []) {
       .from('vkya_final_scrap_totals')
       .select('*')
       .in('task_id', taskChunk)
-    if (error) throw error
+    const isMissingTable = (err) => (
+      err?.code === 'PGRST205' ||
+      err?.status === 404 ||
+      String(err?.message || '').includes('schema cache') ||
+      String(err?.message || '').includes('Not Found')
+    )
+    if (error) {
+      if (isMissingTable(error)) return []
+      throw error
+    }
     rows.push(...(data || []))
   }
   return rows
@@ -24,6 +33,13 @@ export async function fetchVkyaReturnedTotals(supabase, taskIds = []) {
   const uniqueTaskIds = [...new Set(taskIds.filter(Boolean).map(String))]
   if (uniqueTaskIds.length === 0) return []
 
+  const isMissingTable = (err) => (
+    err?.code === 'PGRST205' ||
+    err?.status === 404 ||
+    String(err?.message || '').includes('schema cache') ||
+    String(err?.message || '').includes('Not Found')
+  )
+
   const rows = []
   for (const taskChunk of chunk(uniqueTaskIds, 40)) {
     const { data, error } = await supabase
@@ -31,7 +47,10 @@ export async function fetchVkyaReturnedTotals(supabase, taskIds = []) {
       .select('*')
       .in('task_id', taskChunk)
       .eq('disposition', 'returned_to_route')
-    if (error) throw error
+    if (error) {
+      if (isMissingTable(error)) return []
+      throw error
+    }
     rows.push(...(data || []))
   }
   return rows

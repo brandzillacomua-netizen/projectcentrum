@@ -117,33 +117,7 @@ export default function GenerateCardsModal({
   const poolIssuedRemaining = Math.max(0, singleKitting.issuedSheets - (singleKitting.usedByOtherPartsAcrossTask || 0) - alreadyGeneratedSheets)
 
   // A single part can NEVER consume more than its own remaining planned sheets, even if the warehouse issued extra for the whole task
-  const availableIssuedSheets = singleKitting.hasKittingReqs
-    ? Math.min(remainingPlannedSheets, poolIssuedRemaining)
-    : remainingPlannedSheets
-
-  const isPartialWarehouseIssue = singleKitting.hasKittingReqs && (availableIssuedSheets < remainingPlannedSheets)
-
-  // generationScope: 'warehouse' (only what warehouse issued) | 'plan' (full remaining plan)
-  const [generationScope, setGenerationScope] = useState('warehouse')
-
-  useEffect(() => {
-    if (config) {
-      if (singleKitting.hasKittingReqs && availableIssuedSheets > 0) {
-        setGenerationScope('warehouse')
-      } else if (singleKitting.hasKittingReqs && availableIssuedSheets <= 0) {
-        setGenerationScope('warehouse')
-      } else {
-        setGenerationScope('plan')
-      }
-    }
-  }, [config, singleKitting.hasKittingReqs, availableIssuedSheets])
-
-  const targetSheets = useMemo(() => {
-    if (singleKitting.hasKittingReqs) {
-      return generationScope === 'warehouse' ? availableIssuedSheets : remainingPlannedSheets
-    }
-    return remainingPlannedSheets
-  }, [singleKitting.hasKittingReqs, generationScope, availableIssuedSheets, remainingPlannedSheets])
+  const targetSheets = remainingPlannedSheets
 
   const [capacity, setCapacity] = useState(config?.capacityOverride || config?.capacity || 1)
   const [total, setTotal] = useState(config?.count || 1)
@@ -267,10 +241,7 @@ export default function GenerateCardsModal({
 
   const hasUnselectedCutters = (cutterRows || []).length > 0 && unselectedCuttersCount > 0
 
-  const isSingleKittingBlocked = singleKitting.hasKittingReqs &&
-    generationScope === 'warehouse' &&
-    availableIssuedSheets <= 0 &&
-    singleKitting.pendingSheets > 0
+  const isSingleKittingBlocked = false
 
   const MACHINE_TYPES = [...new Set((machines || []).map(m => m.name))]
 
@@ -486,75 +457,32 @@ export default function GenerateCardsModal({
         ) : (
           <>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginBottom: '30px' }}>
-              {/* Scope switch when material requires warehouse kitting */}
-              {singleKitting.hasKittingReqs && (
-                <div style={{ background: '#0a0a0a', border: '1px solid #222', borderRadius: '18px', padding: '16px' }}>
-                  <div style={{ fontSize: '0.68rem', fontWeight: 900, color: '#888', textTransform: 'uppercase', marginBottom: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span>📦 ДЖЕРЕЛО ЛИСТІВ ДЛЯ ГЕНЕРАЦІЇ:</span>
-                    <span style={{ color: availableIssuedSheets >= remainingPlannedSheets ? '#10b981' : '#eab308' }}>
-                      {availableIssuedSheets >= remainingPlannedSheets ? '✓ Повне забезпечення' : '⚠️ Часткова видача'}
-                    </span>
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setGenerationScope('warehouse')
-                        const cap = Number(capacity) || 1
-                        setTotal(Math.max(1, Math.ceil(availableIssuedSheets / cap)))
-                      }}
-                      style={{
-                        padding: '12px 14px',
-                        borderRadius: '14px',
-                        border: generationScope === 'warehouse' ? '2px solid #10b981' : '1px solid #222',
-                        background: generationScope === 'warehouse' ? 'rgba(16,185,129,0.12)' : '#121212',
-                        color: generationScope === 'warehouse' ? '#10b981' : '#777',
-                        fontWeight: 900,
-                        fontSize: '0.78rem',
-                        cursor: 'pointer',
-                        textAlign: 'left',
-                        transition: '0.2s'
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span>📦 Тільки видані складом</span>
-                      </div>
-                      <div style={{ fontSize: '1.1rem', color: generationScope === 'warehouse' ? '#fff' : '#aaa', fontWeight: 950, marginTop: '4px' }}>
-                        {availableIssuedSheets} л. <span style={{ fontSize: '0.7rem', color: '#666', fontWeight: 700 }}>з {effectivePartSheets} л.</span>
-                      </div>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setGenerationScope('plan')
-                        const cap = Number(capacity) || 1
-                        setTotal(Math.max(1, Math.ceil(remainingPlannedSheets / cap)))
-                      }}
-                      style={{
-                        padding: '12px 14px',
-                        borderRadius: '14px',
-                        border: generationScope === 'plan' ? '2px solid #3b82f6' : '1px solid #222',
-                        background: generationScope === 'plan' ? 'rgba(59,130,246,0.12)' : '#121212',
-                        color: generationScope === 'plan' ? '#3b82f6' : '#777',
-                        fontWeight: 900,
-                        fontSize: '0.78rem',
-                        cursor: 'pointer',
-                        textAlign: 'left',
-                        transition: '0.2s'
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span>⚡ Весь план наряду</span>
-                      </div>
-                      <div style={{ fontSize: '1.1rem', color: generationScope === 'plan' ? '#fff' : '#aaa', fontWeight: 950, marginTop: '4px' }}>
-                        {remainingPlannedSheets} л. <span style={{ fontSize: '0.7rem', color: '#666', fontWeight: 700 }}>залишок плану</span>
-                      </div>
-                    </button>
+              {/* Sheet & plan header indicator */}
+              <div style={{ background: '#0a0a0a', border: '1px solid #1e293b', borderRadius: '18px', padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <span style={{ fontSize: '0.68rem', fontWeight: 900, color: '#888', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    ПЛАН ДО ГЕНЕРАЦІЇ:
+                  </span>
+                  <div style={{ fontSize: '1.25rem', fontWeight: 950, color: '#ff9000' }}>
+                    {remainingPlannedSheets} л. <span style={{ fontSize: '0.75rem', color: '#666', fontWeight: 700 }}>з {effectivePartSheets} л. плану деталі</span>
                   </div>
                 </div>
-              )}
+                {singleKitting.hasKittingReqs && (
+                  <div style={{ textAlign: 'right' }}>
+                    <span style={{ 
+                      fontSize: '0.72rem', 
+                      fontWeight: 900, 
+                      padding: '6px 12px', 
+                      borderRadius: '8px', 
+                      background: singleKitting.issuedSheets > 0 ? 'rgba(16,185,129,0.12)' : 'rgba(234,179,8,0.12)', 
+                      color: singleKitting.issuedSheets > 0 ? '#10b981' : '#eab308',
+                      border: singleKitting.issuedSheets > 0 ? '1px solid rgba(16,185,129,0.3)' : '1px solid rgba(234,179,8,0.3)'
+                    }}>
+                      {singleKitting.issuedSheets > 0 ? `📦 Склад видав: ${singleKitting.issuedSheets} л.` : '⏳ Очікує видачі зі складу'}
+                    </span>
+                  </div>
+                )}
+              </div>
 
               <div>
                 <label style={{ display: 'block', color: machineName ? '#888' : '#eab308', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>
@@ -716,47 +644,19 @@ export default function GenerateCardsModal({
                   </>
                 )}
 
-                {isSingleKittingBlocked ? (
-                  <div style={{ fontSize: '0.78rem', color: '#ef4444', background: 'rgba(239, 68, 68, 0.1)', padding: '14px 18px', borderRadius: '14px', border: '1px solid rgba(239, 68, 68, 0.3)', marginTop: '8px', fontWeight: 800 }}>
-                    ⏳ Очікуємо погодження складу (немає листів). Видано: {singleKitting.issuedSheets} л. | Очікує видачі: {singleKitting.pendingSheets} листів з СО. Генерація заблокована до фактичної видачі.
-                    <div style={{ fontSize: '0.7rem', color: '#fca5a5', marginTop: '6px', fontWeight: 600 }}>
-                      💡 Якщо матеріал уже фізично в цеху, оберіть «⚡ Весь план наряду» вище для генерації карток наперед.
+                <div style={{ fontSize: '0.78rem', color: '#10b981', background: 'rgba(16, 185, 129, 0.08)', padding: '10px 14px', borderRadius: '12px', border: '1px solid rgba(16, 185, 129, 0.25)', marginTop: '8px', fontWeight: 800 }}>
+                  ✓ Буде сформовано {batchCards.length} карт(и) на {actualTotalSheets} листів (максимум для деталі: {remainingPlannedSheets} л.).
+                  {singleKitting.hasKittingReqs && singleKitting.issuedSheets < remainingPlannedSheets && (
+                    <div style={{ fontSize: '0.7rem', color: '#eab308', marginTop: '4px', fontWeight: 600 }}>
+                      ⚠️ Фактично погоджено складом: {singleKitting.issuedSheets} з {effectivePartSheets} л.
                     </div>
-                  </div>
-                ) : (
-                  singleKitting.hasKittingReqs ? (
-                    generationScope === 'warehouse' ? (
-                      isPartialWarehouseIssue ? (
-                        <div style={{ fontSize: '0.78rem', color: '#eab308', background: 'rgba(234, 179, 8, 0.08)', padding: '10px 14px', borderRadius: '12px', border: '1px solid rgba(234, 179, 8, 0.25)', marginTop: '8px', fontWeight: 800 }}>
-                          ⚠️ Склад видав {availableIssuedSheets} з {effectivePartSheets} л. для цієї деталі (всього видано по матеріалу: {singleKitting.issuedSheets} л.).
-                          <div style={{ fontSize: '0.7rem', color: '#bbb', marginTop: '4px', fontWeight: 600 }}>
-                            Зараз буде сформовано {batchCards.length} карт(и) на {actualTotalSheets} листів. Залишок ({remainingPlannedSheets - actualTotalSheets} л.) буде доступний після надходження зі складу, або оберіть «⚡ Весь план наряду» вище.
-                          </div>
-                        </div>
-                      ) : (
-                        <div style={{ fontSize: '0.78rem', color: '#10b981', background: 'rgba(16, 185, 129, 0.1)', padding: '10px 14px', borderRadius: '12px', border: '1px solid rgba(16, 185, 129, 0.3)', marginTop: '8px', fontWeight: 800 }}>
-                          ✓ Склад видав {singleKitting.issuedSheets} л. на наряд. Для цієї деталі повністю доступно: {availableIssuedSheets} з {effectivePartSheets} листів.
-                        </div>
-                      )
-                    ) : (
-                      <div style={{ fontSize: '0.78rem', color: '#38bdf8', background: 'rgba(56, 189, 248, 0.08)', padding: '10px 14px', borderRadius: '12px', border: '1px solid rgba(56, 189, 248, 0.25)', marginTop: '8px', fontWeight: 800 }}>
-                        ⚡ Режим повного плану: генеруємо карти на всі <strong>{actualTotalSheets} листів</strong> ({batchCards.length} карт).
-                        <div style={{ fontSize: '0.7rem', color: '#94a3b8', marginTop: '4px', fontWeight: 600 }}>
-                          План деталі: {effectivePartSheets} л. (по наряду зі складу видано: {singleKitting.issuedSheets} л.).
-                        </div>
-                      </div>
-                    )
-                  ) : (
-                    <div style={{ fontSize: '0.65rem', color: '#eab308', background: 'rgba(234, 179, 8, 0.08)', padding: '8px 12px', borderRadius: '10px', border: '1px solid rgba(234, 179, 8, 0.2)', marginTop: '2px' }}>
-                      ⏳ Запит на листи та фрези відправиться на Склад. Картки з'являться в Цеху №1 одразу після підтвердження складом!
-                    </div>
-                  )
-                )}
+                  )}
+                </div>
               </div>
             </div>
 
             <button
-              disabled={isGenerating || !machineName || isSingleKittingBlocked || hasUnselectedCutters}
+              disabled={isGenerating || !machineName || hasUnselectedCutters}
               onClick={() => {
                 if (!machineName) {
                   alert('Будь ласка, спочатку оберіть верстат!')

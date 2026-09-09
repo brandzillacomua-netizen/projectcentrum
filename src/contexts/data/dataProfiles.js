@@ -331,7 +331,17 @@ export const fetchWorkCardScrapTotals = async (taskIds = []) => {
         .in('task_id', taskChunk)
         .range(from, from + pageSize - 1)
 
-      if (error) return { data: null, error }
+      if (error) {
+        if (
+          error.code === 'PGRST205' ||
+          error.status === 404 ||
+          String(error.message || '').includes('schema cache') ||
+          String(error.message || '').includes('Not Found')
+        ) {
+          return { data: [], error: null }
+        }
+        return { data: null, error }
+      }
       const page = data || []
       allRows.push(...page)
       if (page.length < pageSize) break
