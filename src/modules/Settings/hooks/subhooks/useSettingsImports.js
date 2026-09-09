@@ -618,13 +618,55 @@ export function useSettingsImports({
       })
 
       // Словники пошуку для СГП
-      const sgpByNomId = new Map()
-      const sgByNormName = new Map()
+      // ВАЖЛИВО: дедублікуємо combinedSgpInventory перш ніж будувати Map.
+      // Якщо для одного nomenclature_id є кілька рядків — беремо той, у якого більший total_qty,
+      // а всі зайві запам'ятовуємо для подальшого обнулення.
+      const seenNomIds = new Map()   // nomId → canonical inventory row
+      const seenNormNames = new Map() // normName → canonical inventory row
+      const staleDuplicateIds = []   // зайві рядки для обнулення
+
       combinedSgpInventory.forEach(item => {
-        if (item.nomenclature_id) sgpByNomId.set(String(item.nomenclature_id), item)
         const norm = normalizeHomoglyphs(item.name)
-        if (norm) sgByNormName.set(norm, item)
+        const nomKey = item.nomenclature_id ? String(item.nomenclature_id) : null
+
+        if (nomKey) {
+          if (seenNomIds.has(nomKey)) {
+            // Залишаємо той, у кого більший total_qty як canonical
+            const existing = seenNomIds.get(nomKey)
+            if ((Number(item.total_qty) || 0) > (Number(existing.total_qty) || 0)) {
+              staleDuplicateIds.push(existing.id)
+              seenNomIds.set(nomKey, item)
+              seenNormNames.set(norm, item)
+            } else {
+              staleDuplicateIds.push(item.id)
+            }
+          } else {
+            seenNomIds.set(nomKey, item)
+            if (norm && !seenNormNames.has(norm)) seenNormNames.set(norm, item)
+          }
+        } else {
+          if (norm) {
+            if (seenNormNames.has(norm)) {
+              staleDuplicateIds.push(item.id)
+            } else {
+              seenNormNames.set(norm, item)
+            }
+          }
+        }
       })
+
+      const sgpByNomId = seenNomIds
+      const sgByNormName = seenNormNames
+
+      // Обнулюємо зайві дублікати в БД (silent cleanup)
+      if (staleDuplicateIds.length > 0) {
+        setBzUploadLog(prev => prev + `⚠️ Виявлено ${staleDuplicateIds.length} дублікат(ів) у СГП — обнуляємо зайві рядки...\n`)
+        const CLEAN_CHUNK = 50
+        for (let i = 0; i < staleDuplicateIds.length; i += CLEAN_CHUNK) {
+          const chunk = staleDuplicateIds.slice(i, i + CLEAN_CHUNK)
+          await supabase.from('inventory').update({ total_qty: 0, reserved_qty: 0 }).in('id', chunk)
+        }
+      }
 
       // 2. Словник номенклатур
       const dbNomMap = new Map()
@@ -664,7 +706,8 @@ export function useSettingsImports({
 
       // 4. Підготовка масивів оновлення та додавання
       const updates = []
-      const inserts = []
+      const insertsWithNomId = []    // записи з nomenclature_id → upsert по nomenclature_id
+      const insertsNameOnly = []     // записи без nomenclature_id → update existing або insert
 
       bzLeftovers.forEach(item => {
         const norm = normalizeHomoglyphs(item.name)
@@ -689,8 +732,9 @@ export function useSettingsImports({
             updated_at: new Date().toISOString()
           })
           setBzUploadLog(prev => prev + `[ОНОВИТИ СГП] ${canonicalName}: ${newTotal} шт (${bzRecordMode === 'add' ? `+${item.qty}` : 'перезапис'})\n`)
-        } else {
-          inserts.push({
+        } else if (nomId) {
+          // Немає у БД, але є nomenclature_id → upsert (не insert!) щоб уникнути дублів
+          insertsWithNomId.push({
             nomenclature_id: nomId,
             name: canonicalName,
             type: 'finished',
@@ -701,10 +745,22 @@ export function useSettingsImports({
             updated_at: new Date().toISOString()
           })
           setBzUploadLog(prev => prev + `[НОВИЙ СГП] ${canonicalName}: ${item.qty} шт\n`)
+        } else {
+          // Немає nomenclature_id → звичайний insert тільки якщо ніяк не знайдено
+          insertsNameOnly.push({
+            name: canonicalName,
+            type: 'finished',
+            warehouse: 'sgp',
+            unit: item.unit || 'шт',
+            total_qty: item.qty,
+            reserved_qty: 0,
+            updated_at: new Date().toISOString()
+          })
+          setBzUploadLog(prev => prev + `[НОВИЙ СГП (без ном.)] ${canonicalName}: ${item.qty} шт\n`)
         }
       })
 
-      setBzUploadLog(prev => prev + `\nЗапис змін у базі даних (оновлення: ${updates.length}, нових: ${inserts.length})...\n`)
+      setBzUploadLog(prev => prev + `\nЗапис змін у базі даних (оновлення: ${updates.length}, нових з ном.ID: ${insertsWithNomId.length}, нових без ном.ID: ${insertsNameOnly.length})...\n`)
 
       // 5. Швидкий пакетний запис (чанками по 50 записів)
       const CHUNK_SIZE = 50
@@ -714,8 +770,22 @@ export function useSettingsImports({
         if (updErr) throw updErr
       }
 
-      for (let i = 0; i < inserts.length; i += CHUNK_SIZE) {
-        const chunk = inserts.slice(i, i + CHUNK_SIZE)
+      // insertsWithNomId → upsert on nomenclature_id conflict (запобігає дублям)
+      for (let i = 0; i < insertsWithNomId.length; i += CHUNK_SIZE) {
+        const chunk = insertsWithNomId.slice(i, i + CHUNK_SIZE)
+        const { error: insErr } = await supabase
+          .from('inventory')
+          .upsert(chunk, { onConflict: 'nomenclature_id,warehouse' })
+        if (insErr) {
+          // Якщо немає unique constraint на nomenclature_id — fallback до звичайного insert
+          const { error: insErr2 } = await supabase.from('inventory').insert(chunk)
+          if (insErr2) throw insErr2
+        }
+      }
+
+      // insertsNameOnly → звичайний insert (тільки якщо не знайдено жодного збігу)
+      for (let i = 0; i < insertsNameOnly.length; i += CHUNK_SIZE) {
+        const chunk = insertsNameOnly.slice(i, i + CHUNK_SIZE)
         const { error: insErr } = await supabase.from('inventory').insert(chunk)
         if (insErr) throw insErr
       }

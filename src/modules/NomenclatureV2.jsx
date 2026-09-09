@@ -18,6 +18,7 @@ import { NomenclatureGroupModal } from './Nomenclature/components/NomenclatureGr
 import { NomenclatureEditModal } from './Nomenclature/components/NomenclatureEditModal'
 import { NomenclatureExportModal } from './Nomenclature/components/NomenclatureExportModal'
 import { NomenclatureCardModal } from './Nomenclature/components/NomenclatureCardModal'
+import { NomenclatureImportModal } from './Nomenclature/components/NomenclatureImportModal'
 import { generateNextV2Code } from '../utils/codeGenerator'
 
 export { DEFAULT_ERP_GROUPS, ERP_CATEGORY_SCHEMAS, generateStandardName, buildFlattenedGroupOptions }
