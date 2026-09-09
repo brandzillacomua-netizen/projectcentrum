@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react'
 import { X, Printer, Loader2 } from 'lucide-react'
 import { calculateCuttersForBatch } from '../../../../utils/cutterCalculator.js'
 import { CutterSelectorRow } from './components/CutterSelectorRow.jsx'
+import { useMES } from '../../../../MESContext.jsx'
 
 export default function GenerateCardsModal({
   config,
@@ -16,6 +17,8 @@ export default function GenerateCardsModal({
   onGenerate
 }) {
   const { task, part, isRepair } = config || {}
+  const mes = useMES?.() || {}
+  const isLight = mes.theme === 'light' || (typeof document !== 'undefined' && (document.body.classList.contains('light-theme') || document.documentElement.classList.contains('light-theme')))
 
   const findMachine = (mName) => {
     const baseName = (mName || '').split(' №')[0].trim()
@@ -224,9 +227,20 @@ export default function GenerateCardsModal({
       return nLower.includes('фрез') || n.type === 'consumable'
     })
 
-    const getStock = (nomId) => {
-      const item = (inv || []).find(i => (i.warehouse === 'operational' || !i.warehouse) && String(i.nomenclature_id) === String(nomId))
-      return item ? Math.max(0, (Number(item.total_qty) || 0) - (Number(item.reserved_qty) || 0)) : 0
+    const getStock = (nomId, nomName) => {
+      // Only look at explicitly operational warehouse rows (exclude null/pocket/etc)
+      const opItems = (inv || []).filter(i => {
+        const w = (i.warehouse || '').toLowerCase().trim()
+        const isOp = w === 'operational' || w === 'склад оперативний'
+        if (!isOp) return false
+        const idMatch = nomId && String(i.nomenclature_id) === String(nomId)
+        const nameMatch = nomName && i.name && i.name.trim().toLowerCase() === String(nomName).trim().toLowerCase()
+        return idMatch || nameMatch
+      })
+      if (opItems.length > 0) {
+        return Math.max(0, opItems.reduce((sum, item) => sum + (Number(item.total_qty) || 0) - (Number(item.reserved_qty) || 0), 0))
+      }
+      return 0
     }
 
     const matching = []
@@ -245,8 +259,8 @@ export default function GenerateCardsModal({
       }
     })
 
-    matching.sort((a, b) => getStock(b.id) - getStock(a.id))
-    others.sort((a, b) => getStock(b.id) - getStock(a.id))
+    matching.sort((a, b) => getStock(b.id, b.name) - getStock(a.id, a.name))
+    others.sort((a, b) => getStock(b.id, b.name) - getStock(a.id, a.name))
 
     return { matching, others, targetDia }
   }
@@ -269,17 +283,17 @@ export default function GenerateCardsModal({
   if (!config || !part) return null
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }} onClick={onClose}>
-      <div style={{ background: '#111', width: '100%', maxWidth: '600px', borderRadius: '24px', padding: '40px', position: 'relative', border: '1px solid #222', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)', maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+    <div style={{ position: 'fixed', inset: 0, background: isLight ? 'rgba(15,23,42,0.45)' : 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }} onClick={onClose}>
+      <div style={{ background: isLight ? '#ffffff' : '#111', width: '100%', maxWidth: '600px', borderRadius: '24px', padding: '40px', position: 'relative', border: isLight ? '1px solid #cbd5e1' : '1px solid #222', boxShadow: isLight ? '0 25px 50px -12px rgba(0,0,0,0.18)' : '0 25px 50px -12px rgba(0,0,0,0.5)', maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
         <button
           onClick={onClose}
-          style={{ position: 'absolute', top: '25px', right: '25px', background: '#222', border: 'none', color: '#fff', cursor: 'pointer', width: '35px', height: '35px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          style={{ position: 'absolute', top: '25px', right: '25px', background: isLight ? '#e2e8f0' : '#222', border: 'none', color: isLight ? '#0f172a' : '#fff', cursor: 'pointer', width: '35px', height: '35px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
         >
           <X size={20} />
         </button>
 
-        <h2 style={{ fontSize: '1.5rem', fontWeight: 950, margin: '0 0 10px', textAlign: 'center', textTransform: 'uppercase', letterSpacing: '1px', color: isRepair ? '#f97316' : '#fff' }}>{isRepair ? '🔄 ДОВИПУСК' : 'Генерація карток'}</h2>
-        <p style={{ color: '#555', textAlign: 'center', fontSize: '0.9rem', marginBottom: isRepair ? '10px' : '30px' }}>{part.nom?.name || part.name}</p>
+        <h2 style={{ fontSize: '1.5rem', fontWeight: 950, margin: '0 0 10px', textAlign: 'center', textTransform: 'uppercase', letterSpacing: '1px', color: isRepair ? '#f97316' : (isLight ? '#0f172a' : '#fff') }}>{isRepair ? '🔄 ДОВИПУСК' : 'Генерація карток'}</h2>
+        <p style={{ color: isLight ? '#64748b' : '#555', textAlign: 'center', fontSize: '0.9rem', marginBottom: isRepair ? '10px' : '30px' }}>{part.nom?.name || part.name}</p>
         {isRepair && (
           <div style={{ background: 'rgba(249,115,22,0.08)', border: '1px solid rgba(249,115,22,0.3)', borderRadius: '12px', padding: '10px 16px', marginBottom: '20px', fontSize: '0.72rem', color: '#f97316', fontWeight: 800, textAlign: 'center' }}>
             ⚠️ Для цієї деталі вже є картки. Нові картки будуть позначені як <strong>ДОВИПУСК</strong> (is_rework = true)
@@ -288,7 +302,7 @@ export default function GenerateCardsModal({
 
         {part.isSplitMode ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-            <div style={{ fontSize: '0.7rem', color: '#444', fontWeight: 900, marginBottom: '5px' }}>ОБЕРІТЬ ПАРТІЮ ДЛЯ ДРУКУ:</div>
+            <div style={{ fontSize: '0.7rem', color: isLight ? '#475569' : '#444', fontWeight: 900, marginBottom: '5px' }}>ОБЕРІТЬ ПАРТІЮ ДЛЯ ДРУКУ:</div>
             {(() => {
               const globalTotalLoadings = (part.splits || []).reduce((acc, s) => {
                 const cap = findMachine(s.machine)?.sheet_capacity || 1
@@ -359,15 +373,15 @@ export default function GenerateCardsModal({
                 const toGen = Math.min(maxAllowedToGen, partialCounts[`${part.nomId}_${sIdx}`] ?? remainingCount)
 
                 return (
-                  <div key={sIdx} style={{ background: '#080808', padding: '15px', borderRadius: '16px', border: isGenerated ? '1px solid #10b98133' : '1px solid #1a1a1a', display: 'flex', justifyContent: 'space-between', alignItems: 'center', opacity: isGenerated ? 0.8 : 1 }}>
+                  <div key={sIdx} style={{ background: isLight ? '#f8fafc' : '#080808', padding: '15px', borderRadius: '16px', border: isGenerated ? '1px solid #10b98133' : (isLight ? '1px solid #e2e8f0' : '1px solid #1a1a1a'), display: 'flex', justifyContent: 'space-between', alignItems: 'center', opacity: isGenerated ? 0.8 : 1 }}>
                     <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <div style={{ fontWeight: 900, color: isGenerated ? '#10b981' : '#fff', fontSize: '0.9rem' }}>{split.machine || '—'}</div>
-                        <span style={{ fontSize: '0.65rem', background: isGenerated ? '#10b98133' : '#222', color: isGenerated ? '#10b981' : '#888', padding: '2px 8px', borderRadius: '6px', fontWeight: 900 }}>
+                        <div style={{ fontWeight: 900, color: isGenerated ? '#10b981' : (isLight ? '#0f172a' : '#fff'), fontSize: '0.9rem' }}>{split.machine || '—'}</div>
+                        <span style={{ fontSize: '0.65rem', background: isGenerated ? '#10b98133' : (isLight ? '#e2e8f0' : '#222'), color: isGenerated ? '#10b981' : (isLight ? '#64748b' : '#888'), padding: '2px 8px', borderRadius: '6px', fontWeight: 900 }}>
                           {generatedCount} / {splitLoadings} КАРТ.
                         </span>
                       </div>
-                      <div style={{ fontSize: '0.65rem', color: '#555', marginTop: '4px' }}>
+                      <div style={{ fontSize: '0.65rem', color: isLight ? '#94a3b8' : '#555', marginTop: '4px' }}>
                         Листів: {splitSheets} | Деталей: {splitQty}
                       </div>
                       {(() => {
@@ -410,12 +424,12 @@ export default function GenerateCardsModal({
                               const val = Math.max(1, parseInt(e.target.value) || 1)
                               setCustomLoadingCapacities(prev => ({ ...prev, [capacityKey]: val }))
                             }}
-                            style={{ width: '45px', background: '#000', border: '1px solid rgba(255,144,0,0.4)', color: '#ff9000', textAlign: 'center', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 900, padding: '4px 0' }}
+                            style={{ width: '45px', background: isLight ? '#fff' : '#000', border: '1px solid rgba(255,144,0,0.4)', color: '#ff9000', textAlign: 'center', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 900, padding: '4px 0' }}
                             title="Кількість листів на одну загрузку (картку)"
                           />
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
-                          <span style={{ fontSize: '0.55rem', color: '#444', fontWeight: 900 }}>ДРУК</span>
+                          <span style={{ fontSize: '0.55rem', color: isLight ? '#64748b' : '#444', fontWeight: 900 }}>ДРУК</span>
                           <input
                             type="number"
                             min="1"
@@ -425,7 +439,7 @@ export default function GenerateCardsModal({
                               const val = Math.min(remainingCount, Math.max(1, parseInt(e.target.value) || 1))
                               setPartialCounts(prev => ({ ...prev, [`${part.nomId}_${sIdx}`]: val }))
                             }}
-                            style={{ width: '45px', background: '#000', border: '1px solid #333', color: '#fff', textAlign: 'center', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 900, padding: '4px 0' }}
+                            style={{ width: '45px', background: isLight ? '#fff' : '#000', border: isLight ? '1px solid #cbd5e1' : '1px solid #333', color: isLight ? '#0f172a' : '#fff', textAlign: 'center', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 900, padding: '4px 0' }}
                           />
                         </div>
                         <button
@@ -468,7 +482,7 @@ export default function GenerateCardsModal({
                       </div>
                     )}
                     {isGenerated && (
-                      <div style={{ color: '#444', fontSize: '0.7rem', fontWeight: 800 }}>ГОТОВО</div>
+                      <div style={{ color: isLight ? '#94a3b8' : '#444', fontSize: '0.7rem', fontWeight: 800 }}>ГОТОВО</div>
                     )}
                   </div>
                 )
@@ -479,13 +493,13 @@ export default function GenerateCardsModal({
           <>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginBottom: '30px' }}>
               {/* Sheet & plan header indicator */}
-              <div style={{ background: '#0a0a0a', border: '1px solid #1e293b', borderRadius: '18px', padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+              <div style={{ background: isLight ? '#f8fafc' : '#0a0a0a', border: isLight ? '1px solid #e2e8f0' : '1px solid #1e293b', borderRadius: '18px', padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <span style={{ fontSize: '0.68rem', fontWeight: 900, color: '#888', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  <span style={{ fontSize: '0.68rem', fontWeight: 900, color: isLight ? '#64748b' : '#888', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                     ПЛАН ДО ГЕНЕРАЦІЇ:
                   </span>
                   <div style={{ fontSize: '1.25rem', fontWeight: 950, color: '#ff9000' }}>
-                    {remainingPlannedSheets} л. <span style={{ fontSize: '0.75rem', color: '#666', fontWeight: 700 }}>з {effectivePartSheets} л. плану деталі</span>
+                    {remainingPlannedSheets} л. <span style={{ fontSize: '0.75rem', color: isLight ? '#94a3b8' : '#666', fontWeight: 700 }}>з {effectivePartSheets} л. плану деталі</span>
                   </div>
                 </div>
                 {singleKitting.hasKittingReqs && (
@@ -510,7 +524,7 @@ export default function GenerateCardsModal({
               </div>
 
               <div>
-                <label style={{ display: 'block', color: machineName ? '#888' : '#eab308', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>
+                <label style={{ display: 'block', color: machineName ? (isLight ? '#64748b' : '#888') : '#eab308', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>
                   {machineName ? 'Оберіть верстат для цієї партії:' : '⚠️ Оберіть верстат зі списку:'}
                 </label>
                 <select
@@ -523,7 +537,7 @@ export default function GenerateCardsModal({
                     setCapacity(newCapacity)
                     setTotal(Math.max(1, Math.ceil(targetSheets / newCapacity)))
                   }}
-                  style={{ width: '100%', background: '#000', border: machineName ? '1px solid #10b981' : '1px solid #eab308', color: machineName ? '#fff' : '#eab308', padding: '15px', borderRadius: '15px', fontSize: '0.95rem', outline: 'none', fontWeight: 800 }}
+                  style={{ width: '100%', background: isLight ? '#ffffff' : '#000', border: machineName ? '1px solid #10b981' : '1px solid #eab308', color: machineName ? (isLight ? '#0f172a' : '#fff') : '#eab308', padding: '15px', borderRadius: '15px', fontSize: '0.95rem', outline: 'none', fontWeight: 800 }}
                 >
                   <option value="">-- Оберіть верстат --</option>
                   {MACHINE_TYPES.map(t => {
@@ -536,14 +550,14 @@ export default function GenerateCardsModal({
               </div>
 
               {!isRepair && (
-                <div style={{ background: '#080808', padding: '18px', borderRadius: '20px', border: '1px solid #1a1a1a' }}>
+                <div style={{ background: isLight ? '#f1f5f9' : '#080808', padding: '18px', borderRadius: '20px', border: isLight ? '1px solid #e2e8f0' : '1px solid #1a1a1a' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-                    <span style={{ color: '#555', fontSize: '0.75rem', fontWeight: 800 }}>ПРОГРЕС ВИПУСКУ:</span>
+                    <span style={{ color: isLight ? '#64748b' : '#555', fontSize: '0.75rem', fontWeight: 800 }}>ПРОГРЕС ВИПУСКУ:</span>
                     <span style={{ color: '#3b82f6', fontSize: '0.75rem', fontWeight: 900 }}>
                       Згенеровано {part.productionCards?.length || 0} з {config.targetTotal || (total + (part.productionCards?.length || 0))} карт.
                     </span>
                   </div>
-                  <div style={{ height: '6px', background: '#1a1a1a', borderRadius: '3px', overflow: 'hidden' }}>
+                  <div style={{ height: '6px', background: isLight ? '#e2e8f0' : '#1a1a1a', borderRadius: '3px', overflow: 'hidden' }}>
                     <div style={{ width: `${Math.min(100, ((part.productionCards?.length || 0) / (config.targetTotal || (total + (part.productionCards?.length || 0)))) * 100)}%`, height: '100%', background: '#3b82f6', transition: '0.3s' }} />
                   </div>
                 </div>
@@ -581,7 +595,7 @@ export default function GenerateCardsModal({
                       }
                     }}
                     min="1"
-                    style={{ width: '100%', background: '#000', border: '1px solid rgba(255,144,0,0.5)', color: '#ff9000', fontSize: '1.5rem', fontWeight: 950, textAlign: 'center', padding: '10px', borderRadius: '15px', outline: 'none' }}
+                    style={{ width: '100%', background: isLight ? '#fff' : '#000', border: '1px solid rgba(255,144,0,0.5)', color: '#ff9000', fontSize: '1.5rem', fontWeight: 950, textAlign: 'center', padding: '10px', borderRadius: '15px', outline: 'none' }}
                   />
                 </div>
 
@@ -597,14 +611,14 @@ export default function GenerateCardsModal({
                       setTotal(val)
                     }}
                     min="1"
-                    style={{ width: '100%', background: '#000', border: '1px solid #10b98150', color: '#fff', fontSize: '1.5rem', fontWeight: 950, textAlign: 'center', padding: '10px', borderRadius: '15px', outline: 'none' }}
+                    style={{ width: '100%', background: isLight ? '#fff' : '#000', border: '1px solid #10b98150', color: isLight ? '#0f172a' : '#fff', fontSize: '1.5rem', fontWeight: 950, textAlign: 'center', padding: '10px', borderRadius: '15px', outline: 'none' }}
                   />
                 </div>
               </div>
 
               {/* Розрахунок матеріалів для порції */}
-              <div style={{ background: '#090909', border: '1px solid #1e293b', borderRadius: '18px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                <div style={{ fontSize: '0.7rem', fontWeight: 900, color: '#38bdf8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              <div style={{ background: isLight ? '#f8fafc' : '#090909', border: isLight ? '1px solid #e2e8f0' : '1px solid #1e293b', borderRadius: '18px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ fontSize: '0.7rem', fontWeight: 900, color: isLight ? '#0284c7' : '#38bdf8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                   📦 РОЗРАХУНОК ДЛЯ СКЛАДУ ОПЕРАТИВНОГО (КИТТИНГ):
                 </div>
 
@@ -618,14 +632,14 @@ export default function GenerateCardsModal({
                     {batchCards.length > 0 ? (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                         {batchCards.map((sh, idx) => (
-                          <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', padding: '5px 10px', background: '#0d1117', borderRadius: '8px', border: '1px solid #1a2435' }}>
-                            <span style={{ color: '#888' }}>📄 Картка {idx + 1}:</span>
-                            <span style={{ color: sh < (Number(capacity) || 1) ? '#eab308' : '#fff', fontWeight: 950 }}>{sh} л.{sh < (Number(capacity) || 1) ? ' ⚡ останній залишок' : ''}</span>
+                          <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', padding: '5px 10px', background: isLight ? '#ffffff' : '#0d1117', borderRadius: '8px', border: isLight ? '1px solid #e2e8f0' : '1px solid #1a2435' }}>
+                            <span style={{ color: isLight ? '#64748b' : '#888' }}>📄 Картка {idx + 1}:</span>
+                            <span style={{ color: sh < (Number(capacity) || 1) ? '#eab308' : (isLight ? '#0f172a' : '#fff'), fontWeight: 950 }}>{sh} л.{sh < (Number(capacity) || 1) ? ' ⚡ останній залишок' : ''}</span>
                           </div>
                         ))}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem', padding: '7px 10px', background: '#0a0a18', borderRadius: '10px', border: '1px solid #1e293b', marginTop: '2px' }}>
-                          <span style={{ color: '#38bdf8', fontWeight: 900 }}>📦 ВСЬОГО ЛИСТІВ:</span>
-                          <span style={{ color: '#fff', fontWeight: 950 }}>{actualTotalSheets} л.</span>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem', padding: '7px 10px', background: isLight ? '#eff6ff' : '#0a0a18', borderRadius: '10px', border: isLight ? '1px solid #bfdbfe' : '1px solid #1e293b', marginTop: '2px' }}>
+                          <span style={{ color: isLight ? '#0284c7' : '#38bdf8', fontWeight: 900 }}>📦 ВСЬОГО ЛИСТІВ:</span>
+                          <span style={{ color: isLight ? '#0f172a' : '#fff', fontWeight: 950 }}>{actualTotalSheets} л.</span>
                         </div>
                       </div>
                     ) : (
@@ -635,7 +649,7 @@ export default function GenerateCardsModal({
                     {/* Фрези */}
                     {cutterRows.length > 0 ? (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
-                        <div style={{ fontSize: '0.62rem', color: '#888', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: '2px' }}>
+                        <div style={{ fontSize: '0.62rem', color: isLight ? '#64748b' : '#888', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: '2px' }}>
                           ✂️ ФРЕЗИ ДЛЯ ПАРТІЇ (ОБЕРІТЬ МОДЕЛЬ ФРЕЗИ):
                         </div>
                         {cutterRows.map((cutter, idx) => {
@@ -651,6 +665,7 @@ export default function GenerateCardsModal({
                               inventory={inventory}
                               selectedNomId={selectedNomId}
                               getMatchingCutters={getMatchingCutters}
+                              isLight={isLight}
                               onSelectCutter={(key, name, val) => {
                                 setSelectedCutters(prev => ({
                                   ...prev,
@@ -664,7 +679,7 @@ export default function GenerateCardsModal({
                         })}
                       </div>
                     ) : (
-                      <div style={{ fontSize: '0.7rem', color: '#555', fontStyle: 'italic', textAlign: 'center', padding: '4px 0' }}>Фрези не визначено в плані обробки</div>
+                      <div style={{ fontSize: '0.7rem', color: isLight ? '#94a3b8' : '#555', fontStyle: 'italic', textAlign: 'center', padding: '4px 0' }}>Фрези не визначено в плані обробки</div>
                     )}
                   </>
                 )}
@@ -718,14 +733,14 @@ export default function GenerateCardsModal({
               }}
               style={{
                 width: '100%',
-                background: (machineName && !isSingleKittingBlocked && !hasUnselectedCutters) ? '#10b981' : '#222',
-                color: (machineName && !isSingleKittingBlocked && !hasUnselectedCutters) ? '#fff' : (hasUnselectedCutters ? '#eab308' : (isSingleKittingBlocked ? '#ef4444' : '#666')),
+                background: (machineName && !isSingleKittingBlocked && !hasUnselectedCutters) ? '#10b981' : (isLight ? '#f1f5f9' : '#222'),
+                color: (machineName && !isSingleKittingBlocked && !hasUnselectedCutters) ? '#fff' : (hasUnselectedCutters ? '#eab308' : (isSingleKittingBlocked ? '#ef4444' : (isLight ? '#64748b' : '#666'))),
                 padding: '20px',
                 borderRadius: '20px',
                 fontSize: '1rem',
                 fontWeight: 950,
                 cursor: (isGenerating || !machineName || isSingleKittingBlocked || hasUnselectedCutters) ? 'not-allowed' : 'pointer',
-                border: (machineName && !isSingleKittingBlocked && !hasUnselectedCutters) ? 'none' : (hasUnselectedCutters ? '1px solid rgba(234, 179, 8, 0.4)' : '1px solid #333'),
+                border: (machineName && !isSingleKittingBlocked && !hasUnselectedCutters) ? 'none' : (hasUnselectedCutters ? '1px solid rgba(234, 179, 8, 0.4)' : (isLight ? '1px solid #cbd5e1' : '1px solid #333')),
                 textTransform: 'uppercase',
                 letterSpacing: '1px',
                 boxShadow: (machineName && !isSingleKittingBlocked && !hasUnselectedCutters) ? '0 10px 20px -5px rgba(16, 185, 129, 0.4)' : 'none',
