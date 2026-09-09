@@ -8,10 +8,11 @@ const MasterActiveTaskCard = React.memo(({ task, order, nomenclatures, handleRep
     .filter(Boolean)
     .join(', ') || task.machine_name || 'Виріб...'
 
-  const isSkladConfirmed = task.warehouse_conf === 'true' || task.warehouse_conf === true
-  const isSkladPartial = task.warehouse_conf === 'partial'
-  const isTechConfirmed = task.engineer_conf === true
-  const isDirectorConfirmed = task.director_conf === true
+  const whConf = String(task.warehouse_conf || '').trim().toLowerCase()
+  const isSkladConfirmed = whConf === 'true' || task.warehouse_conf === true
+  const isSkladPartial = !isSkladConfirmed && whConf === 'partial'
+  const isTechConfirmed = task.engineer_conf === true || String(task.engineer_conf || '').trim().toLowerCase() === 'true'
+  const isDirectorConfirmed = task.director_conf === true || String(task.director_conf || '').trim().toLowerCase() === 'true'
 
   const totalSets = Number(task.planned_sets) || order?.order_items?.reduce((sum, it) => sum + Number(it.quantity), 0) || 0
 
