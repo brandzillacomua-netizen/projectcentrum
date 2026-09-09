@@ -35,32 +35,67 @@ export default function GenerateCardsModal({
       const match = String(str || '').match(/(\d+(?:[.,]\d+)?)\s*мм/)
       return match ? parseFloat(match[1].replace(',', '.')) : null
     }
+    const extractGrade = (str) => {
+      const match = String(str || '').toLowerCase().match(/[tт]\s*(300|700)/)
+      return match ? match[1] : null
+    }
     const baseThickness = extractThickness(baseMat)
+    const baseGrade = extractGrade(baseMat)
+
+    const matchesBaseMaterial = (candidate) => {
+      const candidateLower = String(candidate || '').toLowerCase()
+      const candidateThickness = extractThickness(candidateLower)
+      const candidateGrade = extractGrade(candidateLower)
+      if (baseThickness !== null && candidateThickness !== null && baseThickness !== candidateThickness) return false
+      if (baseGrade !== null && candidateGrade !== null && baseGrade !== candidateGrade) return false
+      if (baseThickness !== null && candidateThickness !== null) return true
+      const activeMaterials = baseMat.split('+').map(m => m.trim().toLowerCase()).filter(Boolean)
+      return activeMaterials.some(act => candidateLower.includes(act) || act.includes(candidateLower))
+    }
+
     const sheetReqs = taskReqs.filter(r => {
       const rNom = (nomenclatures || []).find(n => n.id === r.nomenclature_id)
-      const rName = rNom?.name || r.details || ''
+      const rName = `${rNom?.name || ''} ${rNom?.material_type || ''} ${r.details || ''}`
       const lowerName = rName.toLowerCase()
       const isSheet = lowerName.includes('лист') || lowerName.includes('sheet')
       if (!isSheet) return false
-      const reqThickness = extractThickness(lowerName)
-      if (baseThickness !== null && reqThickness !== null) {
-        return baseThickness === reqThickness
-      }
-      const activeMaterials = baseMat.split('+').map(m => m.trim().toLowerCase())
-      return activeMaterials.some(act => lowerName.includes(act) || act.includes(lowerName))
+      return matchesBaseMaterial(lowerName)
     })
     const issued = sheetReqs.filter(r => r.status === 'issued' || r.status === 'completed')
       .reduce((sum, r) => sum + getRequestQty(r), 0)
     const pending = sheetReqs.filter(r => r.status === 'pending')
       .reduce((sum, r) => sum + getRequestQty(r), 0)
+
+    // Sheets already used by OTHER parts in this same task that share this sheet material
+    const usedByOtherPartsAcrossTask = (workCards || []).filter(card => {
+      if (String(card.task_id) !== String(taskObj?.id) || card.is_rework) return false
+      if (String(card.nomenclature_id) === String(partNom?.id)) return false
+      const operation = String(card.operation || '').toLowerCase()
+      if (operation === 'склад бз' || operation.includes('склад bz')) return false
+      const cardNom = (nomenclatures || []).find(n => String(n.id) === String(card.nomenclature_id))
+      const cardEntry = (taskObj?.plan_snapshot || {})[String(card.nomenclature_id)]
+      return matchesBaseMaterial(cardEntry?.material || cardNom?.material_type || cardNom?.name || '')
+    }).reduce((sum, card) => {
+      const cardNom = (nomenclatures || []).find(n => String(n.id) === String(card.nomenclature_id))
+      const cardEntry = (taskObj?.plan_snapshot || {})[String(card.nomenclature_id)]
+      const unitsPerSheet = Math.max(1, Number(cardNom?.units_per_sheet) || Number(cardEntry?.units_per_sheet) || 1)
+      const cardSheets = Number(card.actualSheets || card.sheets)
+      return sum + (cardSheets > 0 ? cardSheets : Math.ceil((Number(card.quantity) || 0) / unitsPerSheet))
+    }, 0)
+
     const materialRequiresSheets = /(?:т|t)\s*(?:300|700)|лист|sheet/i.test(baseMat)
-    return { issuedSheets: issued, pendingSheets: pending, hasKittingReqs: materialRequiresSheets || sheetReqs.length > 0 }
+    return {
+      issuedSheets: issued,
+      pendingSheets: pending,
+      usedByOtherPartsAcrossTask,
+      hasKittingReqs: materialRequiresSheets || sheetReqs.length > 0
+    }
   }
 
   const singleKitting = useMemo(() => {
-    if (!task || !part?.nom || isRepair) return { issuedSheets: 0, pendingSheets: 0, hasKittingReqs: false }
+    if (!task || !part?.nom || isRepair) return { issuedSheets: 0, pendingSheets: 0, usedByOtherPartsAcrossTask: 0, hasKittingReqs: false }
     return getKittingSheets(task, part.nom)
-  }, [task, part, materialRequests, nomenclatures, isRepair])
+  }, [task, part, materialRequests, nomenclatures, workCards, isRepair])
 
   const alreadyGeneratedSheets = useMemo(() => {
     if (!part) return 0
@@ -79,8 +114,11 @@ export default function GenerateCardsModal({
     ? Number(config.maxSheetsToGenerate)
     : Math.max(0, effectivePartSheets - alreadyGeneratedSheets)
 
+  const poolIssuedRemaining = Math.max(0, singleKitting.issuedSheets - (singleKitting.usedByOtherPartsAcrossTask || 0) - alreadyGeneratedSheets)
+
+  // A single part can NEVER consume more than its own remaining planned sheets, even if the warehouse issued extra for the whole task
   const availableIssuedSheets = singleKitting.hasKittingReqs
-    ? Math.max(0, singleKitting.issuedSheets - alreadyGeneratedSheets)
+    ? Math.min(remainingPlannedSheets, poolIssuedRemaining)
     : remainingPlannedSheets
 
   const isPartialWarehouseIssue = singleKitting.hasKittingReqs && (availableIssuedSheets < remainingPlannedSheets)
@@ -312,13 +350,15 @@ export default function GenerateCardsModal({
                   currentGlobalSheets += cardSheets
                 })
 
-                const { issuedSheets, pendingSheets, hasKittingReqs } = getKittingSheets(task, part.nom)
+                const { issuedSheets, pendingSheets, usedByOtherPartsAcrossTask, hasKittingReqs } = getKittingSheets(task, part.nom)
                 const generatedCount = cardsBelongingToThisSplitCount
                 const isGenerated = sheetsUsedInThisSplit >= splitSheets
                 const remainingCount = Math.max(0, splitLoadings - generatedCount)
+                const splitRemainingSheets = Math.max(0, splitSheets - sheetsUsedInThisSplit)
+                const poolRemainingForTask = Math.max(0, issuedSheets - (usedByOtherPartsAcrossTask || 0) - sheetsUsedInThisSplit)
 
                 const maxAllowedToGen = hasKittingReqs 
-                  ? Math.min(remainingCount, Math.floor(Math.max(0, issuedSheets - sheetsUsedInThisSplit) / currentCapacity))
+                  ? Math.min(remainingCount, Math.floor(Math.min(splitRemainingSheets, poolRemainingForTask) / currentCapacity))
                   : remainingCount
                 const isKittingBlocked = hasKittingReqs && maxAllowedToGen <= 0
 
@@ -688,21 +728,21 @@ export default function GenerateCardsModal({
                     generationScope === 'warehouse' ? (
                       isPartialWarehouseIssue ? (
                         <div style={{ fontSize: '0.78rem', color: '#eab308', background: 'rgba(234, 179, 8, 0.08)', padding: '10px 14px', borderRadius: '12px', border: '1px solid rgba(234, 179, 8, 0.25)', marginTop: '8px', fontWeight: 800 }}>
-                          ⚠️ Склад видав <strong>{singleKitting.issuedSheets}</strong> з <strong>{effectivePartSheets}</strong> л. (доступно зараз: <strong>{availableIssuedSheets} л.</strong>).
+                          ⚠️ Склад видав {availableIssuedSheets} з {effectivePartSheets} л. для цієї деталі (всього видано по матеріалу: {singleKitting.issuedSheets} л.).
                           <div style={{ fontSize: '0.7rem', color: '#bbb', marginTop: '4px', fontWeight: 600 }}>
                             Зараз буде сформовано {batchCards.length} карт(и) на {actualTotalSheets} листів. Залишок ({remainingPlannedSheets - actualTotalSheets} л.) буде доступний після надходження зі складу, або оберіть «⚡ Весь план наряду» вище.
                           </div>
                         </div>
                       ) : (
                         <div style={{ fontSize: '0.78rem', color: '#10b981', background: 'rgba(16, 185, 129, 0.1)', padding: '10px 14px', borderRadius: '12px', border: '1px solid rgba(16, 185, 129, 0.3)', marginTop: '8px', fontWeight: 800 }}>
-                          ✓ Склад видав {singleKitting.issuedSheets} л. Доступно для генерації цієї партії: {availableIssuedSheets} листів.
+                          ✓ Склад видав {singleKitting.issuedSheets} л. на наряд. Для цієї деталі повністю доступно: {availableIssuedSheets} з {effectivePartSheets} листів.
                         </div>
                       )
                     ) : (
                       <div style={{ fontSize: '0.78rem', color: '#38bdf8', background: 'rgba(56, 189, 248, 0.08)', padding: '10px 14px', borderRadius: '12px', border: '1px solid rgba(56, 189, 248, 0.25)', marginTop: '8px', fontWeight: 800 }}>
                         ⚡ Режим повного плану: генеруємо карти на всі <strong>{actualTotalSheets} листів</strong> ({batchCards.length} карт).
                         <div style={{ fontSize: '0.7rem', color: '#94a3b8', marginTop: '4px', fontWeight: 600 }}>
-                          Склад за документами видав {singleKitting.issuedSheets} з {effectivePartSheets} л. Залишок має надійти зі складу.
+                          План деталі: {effectivePartSheets} л. (по наряду зі складу видано: {singleKitting.issuedSheets} л.).
                         </div>
                       </div>
                     )
