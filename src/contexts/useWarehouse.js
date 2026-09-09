@@ -292,13 +292,21 @@ export function createWarehouseActions({
         const nomId = it.nomenclature_id
         const itemName = it.name || it.reqDetails || it.details || ''
 
-        // Match by nomenclature_id first, then by normalized name
+        // Match by nomenclature_id first, then by normalized name, then by nomenclature catalog name
         let matches = []
         if (nomId) {
           matches = targetInv.filter(i => String(i.nomenclature_id) === String(nomId))
         }
         if (matches.length === 0 && itemName) {
-          matches = targetInv.filter(i => normalize(i.name) === normalize(itemName))
+          const normItemName = normalize(itemName)
+          matches = targetInv.filter(i => normalize(i.name) === normItemName)
+        }
+        if (matches.length === 0 && nomId) {
+          const nom = nomenclatures.find(n => String(n.id) === String(nomId))
+          if (nom?.name) {
+            const normNomName = normalize(nom.name)
+            matches = targetInv.filter(i => normalize(i.name) === normNomName)
+          }
         }
         // Last resort: exact name match (catches cases where normalize differs)
         if (matches.length === 0 && itemName) {
@@ -313,6 +321,7 @@ export function createWarehouseActions({
         if (existing) {
           const currentUpdate = updatesMap.get(existing.id) || { ...existing }
           currentUpdate.total_qty = (Number(currentUpdate.total_qty) || 0) + qtyToAdd
+          if (nomId && !currentUpdate.nomenclature_id) currentUpdate.nomenclature_id = nomId
           updatesMap.set(existing.id, currentUpdate)
           existing.total_qty = currentUpdate.total_qty
         } else {
@@ -356,17 +365,29 @@ export function createWarehouseActions({
       const finalUpdatesRaw = Array.from(updatesMap.values())
       let finalInsertsRaw = Array.from(insertsMap.values())
 
-      // ── Safety: filter out inserts whose name already exists in targetInv ──
-      // (covers edge cases where client-side matching was insufficient)
+      // ── Safety: filter out inserts whose nomenclature_id or name already exists in targetInv ──
+      // (guarantees no duplicate rows are created in target warehouse)
       finalInsertsRaw = finalInsertsRaw.filter(ins => {
-        const clash = targetInv.find(e => e.name === ins.name && e.warehouse === ins.warehouse)
+        const normInsName = normalize(ins.name)
+        const clash = targetInv.find(e => 
+          e.warehouse === ins.warehouse && (
+            (ins.nomenclature_id && String(e.nomenclature_id) === String(ins.nomenclature_id)) ||
+            e.name === ins.name ||
+            normalize(e.name) === normInsName
+          )
+        )
         if (clash) {
           // Merge into finalUpdatesRaw
           const existingUpd = finalUpdatesRaw.find(u => u.id === clash.id)
           if (existingUpd) {
             existingUpd.total_qty = (Number(existingUpd.total_qty) || 0) + (Number(ins.total_qty) || 0)
+            if (ins.nomenclature_id && !existingUpd.nomenclature_id) existingUpd.nomenclature_id = ins.nomenclature_id
           } else {
-            finalUpdatesRaw.push({ ...clash, total_qty: (Number(clash.total_qty) || 0) + (Number(ins.total_qty) || 0) })
+            finalUpdatesRaw.push({ 
+              ...clash, 
+              total_qty: (Number(clash.total_qty) || 0) + (Number(ins.total_qty) || 0),
+              nomenclature_id: clash.nomenclature_id || ins.nomenclature_id
+            })
           }
           return false
         }

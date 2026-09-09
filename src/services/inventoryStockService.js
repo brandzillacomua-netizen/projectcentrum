@@ -91,9 +91,9 @@ export async function incrementInventoryStock({
  */
 async function executeFallbackIncrement({ nomenclatureId, qty, type, itemName, unit }) {
   try {
-    const { data: existing, error: lookupError } = await supabase
+    let { data: existing, error: lookupError } = await supabase
       .from('inventory')
-      .select('id, total_qty')
+      .select('id, total_qty, nomenclature_id, name')
       .eq('nomenclature_id', nomenclatureId)
       .eq('type', type)
       .limit(1)
@@ -101,12 +101,25 @@ async function executeFallbackIncrement({ nomenclatureId, qty, type, itemName, u
 
     if (lookupError) throw lookupError
 
+    // Fallback: match by name if nomenclature_id was not yet attached to row
+    if (!existing && itemName) {
+      const { data: byName } = await supabase
+        .from('inventory')
+        .select('id, total_qty, nomenclature_id, name')
+        .eq('type', type)
+        .ilike('name', itemName.trim())
+        .limit(1)
+        .maybeSingle()
+      if (byName) existing = byName
+    }
+
     if (existing) {
       const newTotal = (Number(existing.total_qty) || 0) + Number(qty)
       const { error: updateError } = await supabase
         .from('inventory')
         .update({
           total_qty: newTotal,
+          nomenclature_id: nomenclatureId || existing.nomenclature_id,
           updated_at: new Date().toISOString()
         })
         .eq('id', existing.id)

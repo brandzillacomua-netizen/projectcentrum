@@ -536,6 +536,10 @@ export default function WarehouseFGPModule() {
         return isHardware(item)
       }
       if (activeTab === 'finished') {
+        // Exclude empty non-sgp operational/buffer ghost rows
+        if (item.warehouse !== 'sgp' && (Number(item.total_qty) || 0) <= 0 && (Number(item.reserved_qty) || 0) <= 0) {
+          return false
+        }
         return !isHardware(item) && (
           type === 'finished' || type === 'part' || type === 'product' ||
           type === 'bz' || type === 'bz_shop2' || type === 'wip_bz' ||
@@ -554,14 +558,23 @@ export default function WarehouseFGPModule() {
   const groupedItems = useMemo(() => {
     const map = new Map()
 
+    // Map normalized name to canonical nomenclature id for resilient grouping
+    const nomNameToId = new Map()
+    ;(nomenclatures || []).forEach(n => {
+      const norm = normalizeKey(n.name)
+      if (norm && !nomNameToId.has(norm)) nomNameToId.set(norm, String(n.id))
+    })
+
     rawTabItems.forEach(item => {
       const cleanName = (item.name || '').trim()
-      const key = item.nomenclature_id ? String(item.nomenclature_id) : normalizeKey(cleanName)
+      const normName = normalizeKey(cleanName)
+      const canonicalNomId = nomNameToId.get(normName) || (item.nomenclature_id ? String(item.nomenclature_id) : null)
+      const key = canonicalNomId ? `nom_${canonicalNomId}` : `name_${normName}`
 
       if (!map.has(key)) {
         map.set(key, {
           key,
-          nomenclature_id: item.nomenclature_id,
+          nomenclature_id: canonicalNomId || item.nomenclature_id,
           name: cleanName,
           unit: item.unit || 'шт',
           total_qty: 0,
@@ -579,7 +592,7 @@ export default function WarehouseFGPModule() {
     })
 
     return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name, 'uk'))
-  }, [rawTabItems])
+  }, [rawTabItems, nomenclatures])
 
   const filteredItems = useMemo(() => {
     if (!searchQuery.trim()) return groupedItems
@@ -827,11 +840,11 @@ export default function WarehouseFGPModule() {
 
       if (error) throw error
 
-      // If duplicate records exist in the database (e.g. bz_shop2 vs bz), zero them out
+      // If duplicate records exist in the database (e.g. bz_shop2 vs bz), delete stale duplicates
       if (item.rawItems && item.rawItems.length > 1) {
         const otherIds = item.rawItems.slice(1).map(r => r.id).filter(Boolean)
         if (otherIds.length > 0) {
-          await supabase.from('inventory').update({ total_qty: 0, reserved_qty: 0 }).in('id', otherIds)
+          await supabase.from('inventory').delete().in('id', otherIds)
         }
       }
 

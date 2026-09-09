@@ -617,63 +617,55 @@ export function useSettingsImports({
         }
       })
 
-      // Словники пошуку для СГП
-      // ВАЖЛИВО: дедублікуємо combinedSgpInventory перш ніж будувати Map.
-      // Якщо для одного nomenclature_id є кілька рядків — беремо той, у якого більший total_qty,
-      // а всі зайві запам'ятовуємо для подальшого обнулення.
-      const seenNomIds = new Map()   // nomId → canonical inventory row
-      const seenNormNames = new Map() // normName → canonical inventory row
-      const staleDuplicateIds = []   // зайві рядки для обнулення
-
-      combinedSgpInventory.forEach(item => {
-        const norm = normalizeHomoglyphs(item.name)
-        const nomKey = item.nomenclature_id ? String(item.nomenclature_id) : null
-
-        if (nomKey) {
-          if (seenNomIds.has(nomKey)) {
-            // Залишаємо той, у кого більший total_qty як canonical
-            const existing = seenNomIds.get(nomKey)
-            if ((Number(item.total_qty) || 0) > (Number(existing.total_qty) || 0)) {
-              staleDuplicateIds.push(existing.id)
-              seenNomIds.set(nomKey, item)
-              seenNormNames.set(norm, item)
-            } else {
-              staleDuplicateIds.push(item.id)
-            }
-          } else {
-            seenNomIds.set(nomKey, item)
-            if (norm && !seenNormNames.has(norm)) seenNormNames.set(norm, item)
-          }
-        } else {
-          if (norm) {
-            if (seenNormNames.has(norm)) {
-              staleDuplicateIds.push(item.id)
-            } else {
-              seenNormNames.set(norm, item)
-            }
-          }
-        }
-      })
-
-      const sgpByNomId = seenNomIds
-      const sgByNormName = seenNormNames
-
-      // Обнулюємо зайві дублікати в БД (silent cleanup)
-      if (staleDuplicateIds.length > 0) {
-        setBzUploadLog(prev => prev + `⚠️ Виявлено ${staleDuplicateIds.length} дублікат(ів) у СГП — обнуляємо зайві рядки...\n`)
-        const CLEAN_CHUNK = 50
-        for (let i = 0; i < staleDuplicateIds.length; i += CLEAN_CHUNK) {
-          const chunk = staleDuplicateIds.slice(i, i + CLEAN_CHUNK)
-          await supabase.from('inventory').update({ total_qty: 0, reserved_qty: 0 }).in('id', chunk)
-        }
-      }
-
-      // 2. Словник номенклатур
+      // 2. Словник номенклатур (будуємо на початку для точної канонізації)
       const dbNomMap = new Map()
+      const dbNomIdMap = new Map()
       ;(nomenclatures || []).forEach(n => {
         const norm = normalizeHomoglyphs(n.name)
         if (norm) dbNomMap.set(norm, n)
+        if (n.id) dbNomIdMap.set(String(n.id), n)
       })
+
+      // Словники пошуку для СГП
+      // ВАЖЛИВО: дедублікуємо combinedSgpInventory за канонічною номенклатурою / нормалізованою назвою.
+      // Якщо для одного виробу є кілька рядків — залишаємо master з найбільшим total_qty,
+      // а всі дублікати позначаємо на видалення з бази даних.
+      const sgpByNomId = new Map()    // canonical nomId → master inventory row
+      const sgByNormName = new Map()  // normName → master inventory row
+      const staleDuplicateIds = []    // ID зайвих дублікатів для повного видалення
+
+      combinedSgpInventory.forEach(item => {
+        const norm = normalizeHomoglyphs(item.name)
+        const canonicalNom = (item.nomenclature_id && dbNomIdMap.get(String(item.nomenclature_id))) || dbNomMap.get(norm)
+        const canonicalNomId = canonicalNom?.id ? String(canonicalNom.id) : (item.nomenclature_id ? String(item.nomenclature_id) : null)
+        const dedupKey = canonicalNomId ? `nom_${canonicalNomId}` : `name_${norm}`
+
+        const existing = (canonicalNomId && sgpByNomId.get(canonicalNomId)) || (norm && sgByNormName.get(norm))
+
+        if (existing) {
+          // Якщо поточний рядок має більшу кількість ніж знайдений — робимо його master
+          if ((Number(item.total_qty) || 0) > (Number(existing.total_qty) || 0)) {
+            staleDuplicateIds.push(existing.id)
+            if (canonicalNomId) sgpByNomId.set(canonicalNomId, item)
+            if (norm) sgByNormName.set(norm, item)
+          } else {
+            staleDuplicateIds.push(item.id)
+          }
+        } else {
+          if (canonicalNomId) sgpByNomId.set(canonicalNomId, item)
+          if (norm) sgByNormName.set(norm, item)
+        }
+      })
+
+      // Безповоротне видалення виявлених дублікатів з БД (чистка)
+      if (staleDuplicateIds.length > 0) {
+        setBzUploadLog(prev => prev + `🧹 Виявлено ${staleDuplicateIds.length} дублікат(ів) у СГП — видаляємо зайві рядки...\n`)
+        const CLEAN_CHUNK = 50
+        for (let i = 0; i < staleDuplicateIds.length; i += CLEAN_CHUNK) {
+          const chunk = staleDuplicateIds.slice(i, i + CLEAN_CHUNK)
+          await supabase.from('inventory').delete().in('id', chunk)
+        }
+      }
 
       // 3. Пакетне створення нових номенклатур (якщо будь-яких деталей ще немає в системі)
       const missingNoms = []

@@ -5,6 +5,13 @@
 -- КРОК 1: Перевіряємо і дропаємо старий неповний індекс (якщо є)
 DROP INDEX IF EXISTS uq_inventory_sgp_nomenclature;
 
+-- КРОК 1.5: Актуалізуємо nomenclature_id в inventory за активним довідником номенклатур (усуває биті/старі ID)
+UPDATE public.inventory i
+SET nomenclature_id = n.id
+FROM public.nomenclatures n
+WHERE lower(trim(i.name)) = lower(trim(n.name))
+  AND (i.nomenclature_id IS NULL OR i.nomenclature_id != n.id);
+
 -- КРОК 2: Знаходимо дублі по nomenclature_id і зливаємо в один рядок
 -- Зберігаємо той рядок де більший total_qty (або мінімальний id як tie-breaker)
 CREATE TEMP TABLE tmp_sgp_keep AS

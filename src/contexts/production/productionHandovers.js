@@ -471,25 +471,68 @@ export function createProductionHandoversActions({
         }
       }
 
-      // 3. Add to finished
+      // 3. Add to finished (always on warehouse sgp, merging into existing if present)
       if (finishedQty > 0) {
-        const finishedItem = existingInv?.find(i => (nomId && String(i.nomenclature_id) === String(nomId) || i.name === nomName) && i.type === 'finished')
+        const finishedItem = existingInv?.find(i => 
+          i.warehouse === 'sgp' && 
+          i.type === 'finished' && 
+          (
+            (nomId && String(i.nomenclature_id) === String(nomId)) || 
+            (nomName && (i.name === nomName || (i.name || '').trim().toLowerCase() === nomName.trim().toLowerCase()))
+          )
+        )
         if (finishedItem) {
-          updates.push({ ...finishedItem, total_qty: (Number(finishedItem.total_qty) || 0) + finishedQty })
+          updates.push({ 
+            ...finishedItem, 
+            total_qty: (Number(finishedItem.total_qty) || 0) + finishedQty,
+            nomenclature_id: nomId || finishedItem.nomenclature_id,
+            updated_at: new Date().toISOString()
+          })
         } else {
           const nom = nomenclatures.find(n => n.id === nomId)
-          inserts.push({ nomenclature_id: nomId, name: nom?.name || nomName || 'Готова продукція', unit: nom?.unit || 'шт', total_qty: finishedQty, reserved_qty: 0, type: 'finished' })
+          inserts.push({ 
+            nomenclature_id: nomId, 
+            name: nom?.name || nomName || 'Готова продукція', 
+            unit: nom?.unit || 'шт', 
+            total_qty: finishedQty, 
+            reserved_qty: 0, 
+            type: 'finished',
+            warehouse: 'sgp',
+            updated_at: new Date().toISOString()
+          })
         }
       }
 
-      // 4. Add to bz
+      // 4. Add to bz (always on warehouse sgp, merging into existing if present)
       if (actualBzQty > 0) {
-        const bzItem = existingInv?.find(i => (nomId && String(i.nomenclature_id) === String(nomId) || i.name === nomName) && i.type === 'bz')
+        const bzItem = existingInv?.find(i => 
+          i.warehouse === 'sgp' && 
+          i.type === 'bz' && 
+          (
+            (nomId && String(i.nomenclature_id) === String(nomId)) || 
+            (nomName && (i.name === nomName || (i.name || '').trim().toLowerCase() === nomName.trim().toLowerCase()))
+          )
+        )
         if (bzItem) {
-          updates.push({ ...bzItem, total_qty: (Number(bzItem.total_qty) || 0) + actualBzQty })
+          updates.push({ 
+            ...bzItem, 
+            total_qty: (Number(bzItem.total_qty) || 0) + actualBzQty,
+            nomenclature_id: nomId || bzItem.nomenclature_id,
+            updated_at: new Date().toISOString()
+          })
         } else {
           const nom = nomenclatures.find(n => n.id === nomId)
-          inserts.push({ nomenclature_id: nomId, name: nom?.name || nomName || 'Запас БЗ', unit: nom?.unit || 'шт', total_qty: actualBzQty, reserved_qty: 0, type: 'bz', pocket_owner: null })
+          inserts.push({ 
+            nomenclature_id: nomId, 
+            name: nom?.name || nomName || 'Запас БЗ', 
+            unit: nom?.unit || 'шт', 
+            total_qty: actualBzQty, 
+            reserved_qty: 0, 
+            type: 'bz', 
+            warehouse: 'sgp',
+            pocket_owner: null,
+            updated_at: new Date().toISOString()
+          })
         }
       }
 
