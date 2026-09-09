@@ -568,60 +568,16 @@ export const NomCreateModal = ({ onClose, onCreated, supabase, refreshTable, pre
                     ))}
                   </select>
 
-                  {/* Швидкі селектори: Марка + Товщина */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.2fr 1fr', gap: '10px' }}>
-                    <div>
-                      <label style={labelStyle}>ШВИДКИЙ ВИБІР: МАРКА</label>
-                      <select 
-                        value={wizardParams.sheetGrade || 'Т300'} 
-                        onChange={e => {
-                          const grade = e.target.value;
-                          const thick = wizardParams.sheetThickness || '3';
-                          const matched = preparedSheets.find(s => s.name.includes(grade) && (s.name.includes(`(${thick}мм)`) || s.name.includes(`(${thick.replace('.', ',')}мм)`)));
-                          setWizardParams({
-                            ...wizardParams,
-                            sheetGrade: grade,
-                            default_material_id: matched ? matched.id : wizardParams.default_material_id,
-                            rawSheet: matched ? matched.name : `Лист ${grade} (${thick}мм)`
-                          });
-                        }} 
-                        style={inputStyle}
-                      >
-                        {refDicts.grades.map(g => <option key={g} value={g}>Карбон {g}</option>)}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label style={labelStyle}>ШВИДКИЙ ВИБІР: ТОВЩИНА</label>
-                      <select 
-                        value={wizardParams.sheetThickness || '3'} 
-                        onChange={e => {
-                          const thick = e.target.value;
-                          const grade = wizardParams.sheetGrade || 'Т300';
-                          const matched = preparedSheets.find(s => s.name.includes(grade) && (s.name.includes(`(${thick}мм)`) || s.name.includes(`(${thick.replace('.', ',')}мм)`)));
-                          setWizardParams({
-                            ...wizardParams,
-                            sheetThickness: thick,
-                            default_material_id: matched ? matched.id : wizardParams.default_material_id,
-                            rawSheet: matched ? matched.name : `Лист ${grade} (${thick}мм)`
-                          });
-                        }} 
-                        style={inputStyle}
-                      >
-                        {refDicts.thicknesses.map(t => <option key={t} value={t}>{t} мм</option>)}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label style={labelStyle}>НОРМА (шт/л)</label>
-                      <input 
-                        type="number" 
-                        value={wizardParams.unitsPerSheet || 24} 
-                        onChange={e => setWizardParams({...wizardParams, unitsPerSheet: Number(e.target.value) || 1})} 
-                        placeholder="24" 
-                        style={inputStyle} 
-                      />
-                    </div>
+                  <div>
+                    <label style={{ ...labelStyle, marginBottom: '6px', display: 'block' }}>НОРМА ДЕТАЛЕЙ З 1 ЛИСТА (ШТ/Л) *</label>
+                    <input 
+                      type="number" 
+                      min="1"
+                      value={wizardParams.unitsPerSheet || ''} 
+                      onChange={e => setWizardParams({...wizardParams, unitsPerSheet: Number(e.target.value) || 1})} 
+                      placeholder="напр. 24" 
+                      style={{ ...inputStyle, maxWidth: '240px', fontWeight: 800 }} 
+                    />
                   </div>
                 </div>
 

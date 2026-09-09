@@ -1,12 +1,13 @@
 import React from 'react'
-import { Search, ChevronRight, Package, Plus, Clock, Edit2, Trash2 } from 'lucide-react'
+import { Search, ChevronRight, Package, Plus, Clock, Edit2, Trash2, Barcode } from 'lucide-react'
 
 const NomenclatureTableRow = React.memo(({
   item,
   groups,
   itemsMap,
   handleOpenEditItem,
-  handleDeleteItem
+  handleDeleteItem,
+  handleOpenCardModal
 }) => {
   const grp = groups.find(g => g.id === item.group_id)
   const isFinishedGood = item.rule_type === 'full_frame' || 
@@ -43,10 +44,21 @@ const NomenclatureTableRow = React.memo(({
 
   return (
     <tr style={{ borderBottom: '1px solid var(--border-color, #e2e8f0)', transition: 'background 0.2s' }} className="table-row-hover">
-      <td style={{ padding: '16px 20px', fontWeight: 900, color: '#d97706', fontSize: '0.85rem', fontFamily: 'monospace' }}>
-        {item.code}
+      <td 
+        style={{ padding: '16px 20px', fontWeight: 900, color: '#d97706', fontSize: '0.85rem', fontFamily: 'monospace', cursor: 'pointer' }}
+        onClick={() => handleOpenCardModal && handleOpenCardModal(item)}
+        title="Відкрити картку номенклатури (досьє)"
+      >
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+          <Barcode size={13} style={{ opacity: 0.75 }} />
+          <span>{item.code}</span>
+        </span>
       </td>
-      <td style={{ padding: '16px 20px', fontWeight: 800, fontSize: '0.9rem', color: 'var(--text, #0f172a)' }}>
+      <td 
+        style={{ padding: '16px 20px', fontWeight: 800, fontSize: '0.9rem', color: 'var(--text, #0f172a)', cursor: 'pointer' }}
+        onClick={() => handleOpenCardModal && handleOpenCardModal(item)}
+        title="Відкрити картку номенклатури (досьє)"
+      >
         <div>{item.name}</div>
         {item.rule_params?.loadTimings && Object.entries(item.rule_params.loadTimings).some(([_, v]) => v !== '' && v !== null && v !== undefined) && (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '6px' }}>
@@ -77,6 +89,13 @@ const NomenclatureTableRow = React.memo(({
       </td>
       <td style={{ padding: '16px 20px', textAlign: 'right', whiteSpace: 'nowrap' }}>
         <button 
+          onClick={() => handleOpenCardModal && handleOpenCardModal(item)}
+          style={{ background: 'rgba(255,144,0,0.12)', border: '1px solid rgba(255,144,0,0.35)', borderRadius: '8px', color: '#d97706', cursor: 'pointer', padding: '6px 8px', marginRight: '6px', transition: 'all 0.15s' }}
+          title="Картка номенклатури (досьє, штрихкод, друк стікера, ЧПК, залишки)"
+        >
+          <Barcode size={15} />
+        </button>
+        <button 
           onClick={() => handleOpenEditItem(item)}
           style={{ background: 'rgba(56,189,248,0.1)', border: '1px solid rgba(56,189,248,0.3)', borderRadius: '8px', color: '#0284c7', cursor: 'pointer', padding: '6px 8px', marginRight: '6px', transition: 'all 0.15s' }}
           title="Редагувати номенклатуру"
@@ -104,7 +123,8 @@ export const NomenclatureTable = ({
   visibleItems,
   handleOpenWizard,
   handleOpenEditItem,
-  handleDeleteItem
+  handleDeleteItem,
+  handleOpenCardModal
 }) => {
   const itemsMap = React.useMemo(() => {
     return new Map((items || []).map(it => [it.id, it]))
@@ -181,6 +201,7 @@ export const NomenclatureTable = ({
                 itemsMap={itemsMap}
                 handleOpenEditItem={handleOpenEditItem}
                 handleDeleteItem={handleDeleteItem}
+                handleOpenCardModal={handleOpenCardModal}
               />
             ))}
           </tbody>

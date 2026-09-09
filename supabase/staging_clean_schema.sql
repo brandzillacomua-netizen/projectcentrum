@@ -65,12 +65,15 @@ CREATE TABLE IF NOT EXISTS public.nomenclatures_v2 (
   is_active boolean DEFAULT true,
   unit text DEFAULT 'шт',
   notes text,
+  barcode text,
+  qr_code text,
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_nomenclatures_v2_default_material_id ON public.nomenclatures_v2(default_material_id);
 CREATE INDEX IF NOT EXISTS idx_nomenclatures_v2_group_id ON public.nomenclatures_v2(group_id);
+CREATE INDEX IF NOT EXISTS idx_nomenclatures_v2_barcode ON public.nomenclatures_v2(barcode);
 
 -- 4. Специфікація BOM (Bill of Materials)
 CREATE TABLE IF NOT EXISTS public.bom_items (

@@ -22,6 +22,8 @@ export const formatNomenclatureRowsForExport = (items = [], groups = []) => {
     
     return {
       'Код V2': item.code || '',
+      'Штрихкод': item.barcode || item.code || '',
+      'QR-код': item.qr_code || item.code || '',
       'Стандартизована назва': item.name || '',
       'Категорія (Група)': groupName,
       'ID Категорії': item.group_id || '',

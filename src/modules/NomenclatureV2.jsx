@@ -18,6 +18,7 @@ import { NomenclatureGroupModal } from './Nomenclature/components/NomenclatureGr
 import { NomenclatureEditModal } from './Nomenclature/components/NomenclatureEditModal'
 import { NomenclatureExportModal } from './Nomenclature/components/NomenclatureExportModal'
 import { NomenclatureImportModal } from './Nomenclature/components/NomenclatureImportModal'
+import { NomenclatureCardModal } from './Nomenclature/components/NomenclatureCardModal'
 
 export { DEFAULT_ERP_GROUPS, ERP_CATEGORY_SCHEMAS, generateStandardName, buildFlattenedGroupOptions }
 
@@ -96,6 +97,7 @@ const NomenclatureV2 = () => {
   const [newGroup, setNewGroup] = useState({ name: '', code: '', parent_id: null, rule_type: 'generic' })
   const [editingGroup, setEditingGroup] = useState(null)
   const [toastMessage, setToastMessage] = useState('')
+  const [selectedCardItem, setSelectedCardItem] = useState(null)
 
   const flattenedGroups = useMemo(() => {
     return buildFlattenedGroupOptions(groups)
@@ -460,8 +462,11 @@ const NomenclatureV2 = () => {
         return num > max ? num : max
       }, 90000) + 1
 
+      const newCodeStr = `V2-${nextCode}`
       const v2Payload = {
-        code: `V2-${nextCode}`,
+        code: newCodeStr,
+        barcode: newCodeStr,
+        qr_code: newCodeStr,
         name: generatedName,
         group_id: wizardGroup?.id || null,
         unit: wizardParams.unit || 'шт',
@@ -471,11 +476,19 @@ const NomenclatureV2 = () => {
         status: 'active'
       }
 
-      const { data: inserted, error: insertErr } = await supabase
+      let { data: inserted, error: insertErr } = await supabase
         .from('nomenclatures_v2')
         .insert([v2Payload])
         .select()
         .single()
+
+      if (insertErr && insertErr.code === '42703') {
+        // Fallback if barcode/qr_code columns not migrated yet in DB
+        const { barcode, qr_code, ...legacyPayload } = v2Payload
+        const retry = await supabase.from('nomenclatures_v2').insert([legacyPayload]).select().single()
+        inserted = retry.data
+        insertErr = retry.error
+      }
 
       if (insertErr) console.warn('DB insert fallback:', insertErr)
 
@@ -495,6 +508,17 @@ const NomenclatureV2 = () => {
 
   const handleOpenEditItem = (item) => {
     handleOpenWizard(null, item)
+  }
+
+  const handleOpenCardModal = (item) => {
+    setSelectedCardItem(item)
+  }
+
+  const handleItemUpdated = (updatedItem) => {
+    setItems(prev => prev.map(it => it.id === updatedItem.id ? { ...it, ...updatedItem } : it))
+    if (selectedCardItem && selectedCardItem.id === updatedItem.id) {
+      setSelectedCardItem(prev => ({ ...prev, ...updatedItem }))
+    }
   }
 
   const handleSaveEditItemSubmit = async (e) => {
@@ -606,6 +630,7 @@ const NomenclatureV2 = () => {
           handleOpenWizard={handleOpenWizard}
           handleOpenEditItem={handleOpenEditItem}
           handleDeleteItem={handleDeleteItem}
+          handleOpenCardModal={handleOpenCardModal}
         />
       </div>
 
@@ -680,6 +705,15 @@ const NomenclatureV2 = () => {
         flattenedGroups={flattenedGroups}
         handleSaveEditItemSubmit={handleSaveEditItemSubmit}
         onClose={() => { setIsEditModalOpen(false); setEditItem(null); }}
+      />
+
+      <NomenclatureCardModal
+        isOpen={!!selectedCardItem}
+        onClose={() => setSelectedCardItem(null)}
+        item={selectedCardItem}
+        groups={groups}
+        itemsMap={new Map(items.map(it => [it.id, it]))}
+        onItemUpdated={handleItemUpdated}
       />
 
       <style dangerouslySetInnerHTML={{ __html: `

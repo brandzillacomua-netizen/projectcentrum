@@ -55,6 +55,8 @@ export const executeBatchImport = async ({
 
       const itemPayload = {
         code: finalCode,
+        barcode: row.barcode || finalCode,
+        qr_code: row.qr_code || finalCode,
         name: row.name,
         group_id: row.resolved_group_id,
         unit: row.unit || 'шт',
@@ -75,15 +77,27 @@ export const executeBatchImport = async ({
     // Execute Inserts
     if (upsertPayloads.length > 0) {
       try {
-        const { error: insertErr } = await supabase
+        let { error: insertErr } = await supabase
           .from('nomenclatures_v2')
           .insert(upsertPayloads)
+
+        if (insertErr && insertErr.code === '42703') {
+          // Fallback without barcode/qr_code columns if not migrated yet
+          const legacyBatch = upsertPayloads.map(({ barcode, qr_code, ...rest }) => rest)
+          const retry = await supabase.from('nomenclatures_v2').insert(legacyBatch)
+          insertErr = retry.error
+        }
 
         if (insertErr) {
           console.warn('[BatchImport] Insert error, falling back to individual items:', insertErr)
           // Fallback row by row if batch insert hit unique constraint
           for (const item of upsertPayloads) {
-            const { error: singleErr } = await supabase.from('nomenclatures_v2').insert([item])
+            let { error: singleErr } = await supabase.from('nomenclatures_v2').insert([item])
+            if (singleErr && singleErr.code === '42703') {
+              const { barcode, qr_code, ...rest } = item
+              const retrySingle = await supabase.from('nomenclatures_v2').insert([rest])
+              singleErr = retrySingle.error
+            }
             if (singleErr) errorCount++
             else successCount++
           }

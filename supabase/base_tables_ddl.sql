@@ -248,7 +248,9 @@ CREATE TABLE IF NOT EXISTS public.nomenclatures_v2 (
   "status" text,
   "created_at" timestamptz,
   "updated_at" timestamptz,
-  "default_material_id" uuid
+  "default_material_id" uuid,
+  "barcode" text,
+  "qr_code" text
 );
 
 ALTER TABLE public.nomenclatures_v2 ENABLE ROW LEVEL SECURITY;
