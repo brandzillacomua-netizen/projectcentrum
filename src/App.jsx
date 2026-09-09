@@ -743,7 +743,7 @@ const AppLayout = ({ children, chatUnreadCount }) => {
   const isStagingMode = isTestEnvironment()
 
   return (
-    <div className="app-shell-wrapper" style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', overflow: 'hidden' }}>
+    <div className="app-shell-wrapper" style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', width: '100%' }}>
       {isStagingMode && (
         <div style={{
           background: 'linear-gradient(90deg, #6366f1 0%, #8b5cf6 50%, #d946ef 100%)',
@@ -756,6 +756,8 @@ const AppLayout = ({ children, chatUnreadCount }) => {
           fontWeight: 800,
           letterSpacing: '0.04em',
           textTransform: 'uppercase',
+          position: 'sticky',
+          top: 0,
           zIndex: 999999,
           boxShadow: '0 2px 10px rgba(0,0,0,0.5)',
           flexShrink: 0
@@ -785,7 +787,7 @@ const AppLayout = ({ children, chatUnreadCount }) => {
           </button>
         </div>
       )}
-      <div className="app-shell" style={{ flex: 1, height: isStagingMode ? 'calc(100vh - 29px)' : '100vh' }}>
+      <div className="app-shell" style={{ flex: 1, minHeight: isStagingMode ? 'calc(100vh - 29px)' : '100vh' }}>
         {!isTvDashboard && (
           <AppSidebar
             isCollapsed={isCollapsed}

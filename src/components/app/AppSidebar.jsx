@@ -152,8 +152,8 @@ export const AppSidebar = ({ isCollapsed, setIsCollapsed, chatUnreadCount, isMob
         }}
         style={{
           position: 'sticky',
-          top: 0,
-          height: '100vh',
+          top: isTestEnvironment() ? '29px' : 0,
+          height: isTestEnvironment() ? 'calc(100vh - 29px)' : '100vh',
           zIndex: 99999,
           overflow: 'visible',
           cursor: isCollapsed ? 'pointer' : 'default'
