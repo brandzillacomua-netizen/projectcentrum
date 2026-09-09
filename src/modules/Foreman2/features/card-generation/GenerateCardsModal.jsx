@@ -28,9 +28,18 @@ export default function GenerateCardsModal({
 
   const getKittingSheets = (taskObj, partNom) => {
     if (!taskObj || !partNom) return { issuedSheets: 0, pendingSheets: 0, hasKittingReqs: false }
-    const snapMat = (taskObj?.plan_snapshot || {})[String(partNom?.id)]?.material
+    const snapPart = (taskObj?.plan_snapshot || {})[String(partNom?.id)] || {}
+    const snapMat = snapPart?.material
     const baseMat = snapMat || partNom?.material_type || ''
-    const taskReqs = (materialRequests || []).filter(r => String(r.task_id) === String(taskObj?.id))
+    const partName = partNom?.name || snapPart?.name || ''
+    const partCode = partNom?.code || snapPart?.code || ''
+
+    // Match material requests for this task OR the parent order (tasks under same order share raw sheet requests)
+    const taskReqs = (materialRequests || []).filter(r => 
+      String(r.task_id) === String(taskObj?.id) ||
+      (r.order_id && taskObj?.order_id && String(r.order_id) === String(taskObj?.order_id))
+    )
+
     const extractThickness = (str) => {
       const match = String(str || '').match(/(\d+(?:[.,]\d+)?)\s*мм/)
       return match ? parseFloat(match[1].replace(',', '.')) : null
@@ -40,9 +49,21 @@ export default function GenerateCardsModal({
       return match ? match[1] : null
     }
     const baseThickness = extractThickness(baseMat)
-    const baseGrade = extractGrade(baseMat)
+    let baseGrade = extractGrade(baseMat)
+    // If the task specifically allocated T700 or T300 sheets for this part, use that grade
+    if (Number(snapPart?.sheets_t700) > 0 && !Number(snapPart?.sheets_t300)) {
+      baseGrade = '700'
+    } else if (Number(snapPart?.sheets_t300) > 0 && !Number(snapPart?.sheets_t700)) {
+      baseGrade = '300'
+    }
 
-    const matchesBaseMaterial = (candidate) => {
+    const matchesBaseMaterial = (candidate, reqObj) => {
+      // 1. Direct explicit mention in request details: e.g. "(Для: Київ К-ІП9...: 100шт)"
+      if (reqObj?.details) {
+        if (partName && reqObj.details.includes(partName)) return true
+        if (partCode && reqObj.details.includes(partCode)) return true
+      }
+
       const candidateLower = String(candidate || '').toLowerCase()
       const candidateThickness = extractThickness(candidateLower)
       const candidateGrade = extractGrade(candidateLower)
@@ -59,7 +80,7 @@ export default function GenerateCardsModal({
       const lowerName = rName.toLowerCase()
       const isSheet = lowerName.includes('лист') || lowerName.includes('sheet')
       if (!isSheet) return false
-      return matchesBaseMaterial(lowerName)
+      return matchesBaseMaterial(lowerName, r)
     })
     const issued = sheetReqs.filter(r => r.status === 'issued' || r.status === 'completed')
       .reduce((sum, r) => sum + getRequestQty(r), 0)
@@ -474,11 +495,15 @@ export default function GenerateCardsModal({
                       fontWeight: 900, 
                       padding: '6px 12px', 
                       borderRadius: '8px', 
-                      background: singleKitting.issuedSheets > 0 ? 'rgba(16,185,129,0.12)' : 'rgba(234,179,8,0.12)', 
-                      color: singleKitting.issuedSheets > 0 ? '#10b981' : '#eab308',
-                      border: singleKitting.issuedSheets > 0 ? '1px solid rgba(16,185,129,0.3)' : '1px solid rgba(234,179,8,0.3)'
+                      background: (singleKitting.issuedSheets > 0 || task?.warehouse_conf === 'true' || task?.warehouse_conf === 'partial') ? 'rgba(16,185,129,0.12)' : 'rgba(234,179,8,0.12)', 
+                      color: (singleKitting.issuedSheets > 0 || task?.warehouse_conf === 'true' || task?.warehouse_conf === 'partial') ? '#10b981' : '#eab308',
+                      border: (singleKitting.issuedSheets > 0 || task?.warehouse_conf === 'true' || task?.warehouse_conf === 'partial') ? '1px solid rgba(16,185,129,0.3)' : '1px solid rgba(234,179,8,0.3)'
                     }}>
-                      {singleKitting.issuedSheets > 0 ? `📦 Склад видав: ${singleKitting.issuedSheets} л.` : '⏳ Очікує видачі зі складу'}
+                      {singleKitting.issuedSheets > 0 
+                        ? `📦 Склад видав: ${singleKitting.issuedSheets} л.` 
+                        : (task?.warehouse_conf === 'true' || task?.warehouse_conf === 'partial')
+                          ? '📦 Склад видачу погодив'
+                          : '⏳ Очікує видачі зі складу'}
                     </span>
                   </div>
                 )}

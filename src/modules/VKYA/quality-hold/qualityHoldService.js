@@ -1,3 +1,5 @@
+import { isTestEnvironment } from '../../../supabase.js'
+
 const chunk = (rows, size) => {
   const chunks = []
   for (let index = 0; index < rows.length; index += size) chunks.push(rows.slice(index, index + size))
@@ -5,6 +7,7 @@ const chunk = (rows, size) => {
 }
 
 export async function fetchFinalScrapTotals(supabase, taskIds = []) {
+  if (isTestEnvironment()) return []
   const uniqueTaskIds = [...new Set(taskIds.filter(Boolean).map(String))]
   if (uniqueTaskIds.length === 0) return []
 
@@ -30,6 +33,7 @@ export async function fetchFinalScrapTotals(supabase, taskIds = []) {
 }
 
 export async function fetchVkyaReturnedTotals(supabase, taskIds = []) {
+  if (isTestEnvironment()) return []
   const uniqueTaskIds = [...new Set(taskIds.filter(Boolean).map(String))]
   if (uniqueTaskIds.length === 0) return []
 

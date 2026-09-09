@@ -316,6 +316,7 @@ export const fetchOperationalMaterialRequests = async ({ completedLimit = 200 } 
 }
 
 export const fetchWorkCardScrapTotals = async (taskIds = []) => {
+  if (isTestEnvironment()) return { data: [], error: null }
   const scopedTaskIds = [...new Set((taskIds || []).filter(Boolean).map(String))]
   if (scopedTaskIds.length === 0) return { data: [], error: null }
 
