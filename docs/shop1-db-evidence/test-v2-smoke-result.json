@@ -1,0 +1,10 @@
+{
+  "source": "User-provided TEST SQL Editor result",
+  "shop1_v2_smoke": {
+    "scope": "TEST synthetic sheets only",
+    "checks": ["reserve once", "three approvals", "batch replay", "start without consumption", "15-3=12", "completion replay", "later stage", "remaining batch"],
+    "result": "PASS",
+    "not_covered": "concurrent sessions, browser permissions, cutter restoration, scrap",
+    "data_changes": "rolled back by final ROLLBACK"
+  }
+}

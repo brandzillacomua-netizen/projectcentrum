@@ -1,0 +1,1366 @@
+[
+  {
+    "shop1_preflight": {
+      "columns": [
+        {
+          "data_type": "uuid",
+          "table_name": "cutter_restoration_batches",
+          "column_name": "id",
+          "is_nullable": "NO",
+          "column_default": "gen_random_uuid()"
+        },
+        {
+          "data_type": "text",
+          "table_name": "cutter_restoration_batches",
+          "column_name": "batch_number",
+          "is_nullable": "NO",
+          "column_default": null
+        },
+        {
+          "data_type": "uuid",
+          "table_name": "cutter_restoration_batches",
+          "column_name": "usage_event_id",
+          "is_nullable": "NO",
+          "column_default": null
+        },
+        {
+          "data_type": "uuid",
+          "table_name": "cutter_restoration_batches",
+          "column_name": "source_card_id",
+          "is_nullable": "NO",
+          "column_default": null
+        },
+        {
+          "data_type": "uuid",
+          "table_name": "cutter_restoration_batches",
+          "column_name": "task_id",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "uuid",
+          "table_name": "cutter_restoration_batches",
+          "column_name": "order_id",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "uuid",
+          "table_name": "cutter_restoration_batches",
+          "column_name": "nomenclature_id",
+          "is_nullable": "NO",
+          "column_default": null
+        },
+        {
+          "data_type": "text",
+          "table_name": "cutter_restoration_batches",
+          "column_name": "cutter_name",
+          "is_nullable": "NO",
+          "column_default": null
+        },
+        {
+          "data_type": "numeric",
+          "table_name": "cutter_restoration_batches",
+          "column_name": "received_qty",
+          "is_nullable": "NO",
+          "column_default": null
+        },
+        {
+          "data_type": "numeric",
+          "table_name": "cutter_restoration_batches",
+          "column_name": "restored_qty",
+          "is_nullable": "NO",
+          "column_default": "0"
+        },
+        {
+          "data_type": "numeric",
+          "table_name": "cutter_restoration_batches",
+          "column_name": "rejected_qty",
+          "is_nullable": "NO",
+          "column_default": "0"
+        },
+        {
+          "data_type": "text",
+          "table_name": "cutter_restoration_batches",
+          "column_name": "status",
+          "is_nullable": "NO",
+          "column_default": "'pending'::text"
+        },
+        {
+          "data_type": "text",
+          "table_name": "cutter_restoration_batches",
+          "column_name": "source_operator",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "text",
+          "table_name": "cutter_restoration_batches",
+          "column_name": "source_manager",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "text",
+          "table_name": "cutter_restoration_batches",
+          "column_name": "source_machine",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "bigint",
+          "table_name": "cutter_restoration_batches",
+          "column_name": "assigned_user_id",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "text",
+          "table_name": "cutter_restoration_batches",
+          "column_name": "assigned_user_name",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "timestamp with time zone",
+          "table_name": "cutter_restoration_batches",
+          "column_name": "started_at",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "timestamp with time zone",
+          "table_name": "cutter_restoration_batches",
+          "column_name": "finished_at",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "uuid",
+          "table_name": "cutter_restoration_batches",
+          "column_name": "reception_doc_id",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "text",
+          "table_name": "cutter_restoration_batches",
+          "column_name": "completion_note",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "timestamp with time zone",
+          "table_name": "cutter_restoration_batches",
+          "column_name": "created_at",
+          "is_nullable": "NO",
+          "column_default": "now()"
+        },
+        {
+          "data_type": "timestamp with time zone",
+          "table_name": "cutter_restoration_batches",
+          "column_name": "updated_at",
+          "is_nullable": "NO",
+          "column_default": "now()"
+        },
+        {
+          "data_type": "uuid",
+          "table_name": "cutter_usage_events",
+          "column_name": "id",
+          "is_nullable": "NO",
+          "column_default": "gen_random_uuid()"
+        },
+        {
+          "data_type": "uuid",
+          "table_name": "cutter_usage_events",
+          "column_name": "source_card_id",
+          "is_nullable": "NO",
+          "column_default": null
+        },
+        {
+          "data_type": "uuid",
+          "table_name": "cutter_usage_events",
+          "column_name": "task_id",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "uuid",
+          "table_name": "cutter_usage_events",
+          "column_name": "order_id",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "uuid",
+          "table_name": "cutter_usage_events",
+          "column_name": "nomenclature_id",
+          "is_nullable": "NO",
+          "column_default": null
+        },
+        {
+          "data_type": "numeric",
+          "table_name": "cutter_usage_events",
+          "column_name": "quantity",
+          "is_nullable": "NO",
+          "column_default": null
+        },
+        {
+          "data_type": "boolean",
+          "table_name": "cutter_usage_events",
+          "column_name": "is_faceting",
+          "is_nullable": "NO",
+          "column_default": "false"
+        },
+        {
+          "data_type": "text",
+          "table_name": "cutter_usage_events",
+          "column_name": "pocket_owner",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "bigint",
+          "table_name": "cutter_usage_events",
+          "column_name": "actor_id",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "text",
+          "table_name": "cutter_usage_events",
+          "column_name": "actor_name",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "timestamp with time zone",
+          "table_name": "cutter_usage_events",
+          "column_name": "created_at",
+          "is_nullable": "NO",
+          "column_default": "now()"
+        },
+        {
+          "data_type": "uuid",
+          "table_name": "inventory",
+          "column_name": "id",
+          "is_nullable": "NO",
+          "column_default": "gen_random_uuid()"
+        },
+        {
+          "data_type": "text",
+          "table_name": "inventory",
+          "column_name": "name",
+          "is_nullable": "NO",
+          "column_default": null
+        },
+        {
+          "data_type": "text",
+          "table_name": "inventory",
+          "column_name": "unit",
+          "is_nullable": "NO",
+          "column_default": "'шт'::text"
+        },
+        {
+          "data_type": "numeric",
+          "table_name": "inventory",
+          "column_name": "total_qty",
+          "is_nullable": "YES",
+          "column_default": "0"
+        },
+        {
+          "data_type": "numeric",
+          "table_name": "inventory",
+          "column_name": "reserved_qty",
+          "is_nullable": "YES",
+          "column_default": "0"
+        },
+        {
+          "data_type": "timestamp with time zone",
+          "table_name": "inventory",
+          "column_name": "updated_at",
+          "is_nullable": "YES",
+          "column_default": "now()"
+        },
+        {
+          "data_type": "text",
+          "table_name": "inventory",
+          "column_name": "type",
+          "is_nullable": "YES",
+          "column_default": "'raw'::text"
+        },
+        {
+          "data_type": "uuid",
+          "table_name": "inventory",
+          "column_name": "nomenclature_id",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "text",
+          "table_name": "inventory",
+          "column_name": "category",
+          "is_nullable": "YES",
+          "column_default": "'raw'::text"
+        },
+        {
+          "data_type": "text",
+          "table_name": "inventory",
+          "column_name": "warehouse",
+          "is_nullable": "YES",
+          "column_default": "'operational'::text"
+        },
+        {
+          "data_type": "text",
+          "table_name": "inventory",
+          "column_name": "pocket_owner",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "timestamp with time zone",
+          "table_name": "inventory",
+          "column_name": "created_at",
+          "is_nullable": "NO",
+          "column_default": "now()"
+        },
+        {
+          "data_type": "uuid",
+          "table_name": "material_requests",
+          "column_name": "id",
+          "is_nullable": "NO",
+          "column_default": "gen_random_uuid()"
+        },
+        {
+          "data_type": "uuid",
+          "table_name": "material_requests",
+          "column_name": "order_id",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "text",
+          "table_name": "material_requests",
+          "column_name": "details",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "text",
+          "table_name": "material_requests",
+          "column_name": "status",
+          "is_nullable": "YES",
+          "column_default": "'pending'::text"
+        },
+        {
+          "data_type": "timestamp with time zone",
+          "table_name": "material_requests",
+          "column_name": "created_at",
+          "is_nullable": "YES",
+          "column_default": "now()"
+        },
+        {
+          "data_type": "uuid",
+          "table_name": "material_requests",
+          "column_name": "inventory_id",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "numeric",
+          "table_name": "material_requests",
+          "column_name": "quantity",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "uuid",
+          "table_name": "material_requests",
+          "column_name": "nomenclature_id",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "uuid",
+          "table_name": "material_requests",
+          "column_name": "task_id",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "uuid",
+          "table_name": "material_requests",
+          "column_name": "card_id",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "text",
+          "table_name": "material_requests",
+          "column_name": "category",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "text",
+          "table_name": "material_requests",
+          "column_name": "target_warehouse",
+          "is_nullable": "YES",
+          "column_default": "'operational'::text"
+        },
+        {
+          "data_type": "uuid",
+          "table_name": "tasks",
+          "column_name": "id",
+          "is_nullable": "NO",
+          "column_default": "gen_random_uuid()"
+        },
+        {
+          "data_type": "uuid",
+          "table_name": "tasks",
+          "column_name": "order_id",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "text",
+          "table_name": "tasks",
+          "column_name": "step",
+          "is_nullable": "NO",
+          "column_default": null
+        },
+        {
+          "data_type": "text",
+          "table_name": "tasks",
+          "column_name": "operator_name",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "text",
+          "table_name": "tasks",
+          "column_name": "status",
+          "is_nullable": "YES",
+          "column_default": "'waiting'::text"
+        },
+        {
+          "data_type": "integer",
+          "table_name": "tasks",
+          "column_name": "good_qty",
+          "is_nullable": "YES",
+          "column_default": "0"
+        },
+        {
+          "data_type": "integer",
+          "table_name": "tasks",
+          "column_name": "scrap_qty",
+          "is_nullable": "YES",
+          "column_default": "0"
+        },
+        {
+          "data_type": "timestamp with time zone",
+          "table_name": "tasks",
+          "column_name": "started_at",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "timestamp with time zone",
+          "table_name": "tasks",
+          "column_name": "finished_at",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "timestamp with time zone",
+          "table_name": "tasks",
+          "column_name": "created_at",
+          "is_nullable": "YES",
+          "column_default": "now()"
+        },
+        {
+          "data_type": "timestamp with time zone",
+          "table_name": "tasks",
+          "column_name": "completed_at",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "integer",
+          "table_name": "tasks",
+          "column_name": "estimated_time",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "jsonb",
+          "table_name": "tasks",
+          "column_name": "scrap_data",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "boolean",
+          "table_name": "tasks",
+          "column_name": "engineer_conf",
+          "is_nullable": "YES",
+          "column_default": "false"
+        },
+        {
+          "data_type": "text",
+          "table_name": "tasks",
+          "column_name": "warehouse_conf",
+          "is_nullable": "YES",
+          "column_default": "false"
+        },
+        {
+          "data_type": "text",
+          "table_name": "tasks",
+          "column_name": "machine_name",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "boolean",
+          "table_name": "tasks",
+          "column_name": "director_conf",
+          "is_nullable": "YES",
+          "column_default": "false"
+        },
+        {
+          "data_type": "jsonb",
+          "table_name": "tasks",
+          "column_name": "plan_snapshot",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "timestamp without time zone",
+          "table_name": "tasks",
+          "column_name": "planned_deadline",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "integer",
+          "table_name": "tasks",
+          "column_name": "batch_index",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "numeric",
+          "table_name": "tasks",
+          "column_name": "planned_sets",
+          "is_nullable": "YES",
+          "column_default": "0"
+        },
+        {
+          "data_type": "uuid",
+          "table_name": "work_card_history",
+          "column_name": "id",
+          "is_nullable": "NO",
+          "column_default": "gen_random_uuid()"
+        },
+        {
+          "data_type": "uuid",
+          "table_name": "work_card_history",
+          "column_name": "card_id",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "uuid",
+          "table_name": "work_card_history",
+          "column_name": "nomenclature_id",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "text",
+          "table_name": "work_card_history",
+          "column_name": "stage_name",
+          "is_nullable": "NO",
+          "column_default": null
+        },
+        {
+          "data_type": "text",
+          "table_name": "work_card_history",
+          "column_name": "operator_name",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "integer",
+          "table_name": "work_card_history",
+          "column_name": "qty_at_start",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "integer",
+          "table_name": "work_card_history",
+          "column_name": "qty_completed",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "integer",
+          "table_name": "work_card_history",
+          "column_name": "scrap_qty",
+          "is_nullable": "YES",
+          "column_default": "0"
+        },
+        {
+          "data_type": "timestamp with time zone",
+          "table_name": "work_card_history",
+          "column_name": "started_at",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "timestamp with time zone",
+          "table_name": "work_card_history",
+          "column_name": "completed_at",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "timestamp with time zone",
+          "table_name": "work_card_history",
+          "column_name": "created_at",
+          "is_nullable": "NO",
+          "column_default": "now()"
+        },
+        {
+          "data_type": "boolean",
+          "table_name": "work_card_history",
+          "column_name": "is_archived_scrap",
+          "is_nullable": "YES",
+          "column_default": "false"
+        },
+        {
+          "data_type": "text",
+          "table_name": "work_card_history",
+          "column_name": "machine",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "uuid",
+          "table_name": "work_card_history",
+          "column_name": "machine_id",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "text",
+          "table_name": "work_card_history",
+          "column_name": "manager_name",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "text",
+          "table_name": "work_card_history",
+          "column_name": "shift_name",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "text",
+          "table_name": "work_card_history",
+          "column_name": "machine_name",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "integer",
+          "table_name": "work_card_history",
+          "column_name": "cutters_used",
+          "is_nullable": "YES",
+          "column_default": "0"
+        },
+        {
+          "data_type": "text",
+          "table_name": "work_card_history",
+          "column_name": "qc_scrap_reason",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "text",
+          "table_name": "work_card_history",
+          "column_name": "qc_scrap_comment",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "integer",
+          "table_name": "work_card_history",
+          "column_name": "galt_priority",
+          "is_nullable": "YES",
+          "column_default": "2"
+        },
+        {
+          "data_type": "text",
+          "table_name": "work_card_history",
+          "column_name": "card_info",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "uuid",
+          "table_name": "work_card_history",
+          "column_name": "task_id",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "uuid",
+          "table_name": "work_cards",
+          "column_name": "id",
+          "is_nullable": "NO",
+          "column_default": "gen_random_uuid()"
+        },
+        {
+          "data_type": "uuid",
+          "table_name": "work_cards",
+          "column_name": "task_id",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "uuid",
+          "table_name": "work_cards",
+          "column_name": "order_id",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "text",
+          "table_name": "work_cards",
+          "column_name": "operation",
+          "is_nullable": "NO",
+          "column_default": null
+        },
+        {
+          "data_type": "text",
+          "table_name": "work_cards",
+          "column_name": "machine",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "text",
+          "table_name": "work_cards",
+          "column_name": "status",
+          "is_nullable": "YES",
+          "column_default": "'pending'::text"
+        },
+        {
+          "data_type": "integer",
+          "table_name": "work_cards",
+          "column_name": "estimated_time",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "timestamp with time zone",
+          "table_name": "work_cards",
+          "column_name": "started_at",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "timestamp with time zone",
+          "table_name": "work_cards",
+          "column_name": "completed_at",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "timestamp with time zone",
+          "table_name": "work_cards",
+          "column_name": "created_at",
+          "is_nullable": "NO",
+          "column_default": "timezone('utc'::text, now())"
+        },
+        {
+          "data_type": "text",
+          "table_name": "work_cards",
+          "column_name": "card_info",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "text",
+          "table_name": "work_cards",
+          "column_name": "operator_name",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "uuid",
+          "table_name": "work_cards",
+          "column_name": "nomenclature_id",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "integer",
+          "table_name": "work_cards",
+          "column_name": "quantity",
+          "is_nullable": "YES",
+          "column_default": "0"
+        },
+        {
+          "data_type": "boolean",
+          "table_name": "work_cards",
+          "column_name": "is_rework",
+          "is_nullable": "YES",
+          "column_default": "false"
+        },
+        {
+          "data_type": "uuid",
+          "table_name": "work_cards",
+          "column_name": "machine_id",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "text",
+          "table_name": "work_cards",
+          "column_name": "manager_name",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "text",
+          "table_name": "work_cards",
+          "column_name": "shift_name",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "integer",
+          "table_name": "work_cards",
+          "column_name": "cutters_used",
+          "is_nullable": "YES",
+          "column_default": "0"
+        },
+        {
+          "data_type": "integer",
+          "table_name": "work_cards",
+          "column_name": "used_in_shop2_qty",
+          "is_nullable": "YES",
+          "column_default": "0"
+        },
+        {
+          "data_type": "integer",
+          "table_name": "work_cards",
+          "column_name": "galt_priority",
+          "is_nullable": "YES",
+          "column_default": "2"
+        },
+        {
+          "data_type": "text",
+          "table_name": "work_cards",
+          "column_name": "box_number",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "boolean",
+          "table_name": "work_cards",
+          "column_name": "is_box_prepared",
+          "is_nullable": "NO",
+          "column_default": "false"
+        }
+      ],
+      "indexes": [
+        {
+          "indexdef": "CREATE INDEX idx_inventory_created_at ON public.inventory USING btree (created_at, id)",
+          "indexname": "idx_inventory_created_at",
+          "tablename": "inventory",
+          "schemaname": "public"
+        },
+        {
+          "indexdef": "CREATE INDEX idx_inventory_name_lower ON public.inventory USING btree (lower(TRIM(BOTH FROM name)))",
+          "indexname": "idx_inventory_name_lower",
+          "tablename": "inventory",
+          "schemaname": "public"
+        },
+        {
+          "indexdef": "CREATE INDEX idx_inventory_nom_type ON public.inventory USING btree (nomenclature_id, type)",
+          "indexname": "idx_inventory_nom_type",
+          "tablename": "inventory",
+          "schemaname": "public"
+        },
+        {
+          "indexdef": "CREATE INDEX idx_inventory_nomenclature_id ON public.inventory USING btree (nomenclature_id)",
+          "indexname": "idx_inventory_nomenclature_id",
+          "tablename": "inventory",
+          "schemaname": "public"
+        },
+        {
+          "indexdef": "CREATE INDEX idx_inventory_type ON public.inventory USING btree (type)",
+          "indexname": "idx_inventory_type",
+          "tablename": "inventory",
+          "schemaname": "public"
+        },
+        {
+          "indexdef": "CREATE INDEX idx_inventory_warehouse ON public.inventory USING btree (warehouse)",
+          "indexname": "idx_inventory_warehouse",
+          "tablename": "inventory",
+          "schemaname": "public"
+        },
+        {
+          "indexdef": "CREATE UNIQUE INDEX inventory_name_type_warehouse_owner_unique ON public.inventory USING btree (name, type, warehouse, pocket_owner) NULLS NOT DISTINCT",
+          "indexname": "inventory_name_type_warehouse_owner_unique",
+          "tablename": "inventory",
+          "schemaname": "public"
+        },
+        {
+          "indexdef": "CREATE UNIQUE INDEX inventory_pkey ON public.inventory USING btree (id)",
+          "indexname": "inventory_pkey",
+          "tablename": "inventory",
+          "schemaname": "public"
+        },
+        {
+          "indexdef": "CREATE UNIQUE INDEX uq_inventory_item ON public.inventory USING btree (nomenclature_id, COALESCE(type, 'standard'::text), COALESCE(warehouse, 'main'::text), COALESCE(pocket_owner, 'none'::text)) WHERE (nomenclature_id IS NOT NULL)",
+          "indexname": "uq_inventory_item",
+          "tablename": "inventory",
+          "schemaname": "public"
+        },
+        {
+          "indexdef": "CREATE UNIQUE INDEX uq_inventory_sgp_nom_finished ON public.inventory USING btree (nomenclature_id) WHERE ((nomenclature_id IS NOT NULL) AND (warehouse = 'sgp'::text) AND (type = ANY (ARRAY['finished'::text, 'bz'::text, 'bz_shop2'::text, 'wip_bz'::text, 'semi'::text, 'semi_shop2'::text, 'part'::text, 'product'::text])) AND (pocket_owner IS NULL))",
+          "indexname": "uq_inventory_sgp_nom_finished",
+          "tablename": "inventory",
+          "schemaname": "public"
+        },
+        {
+          "indexdef": "CREATE INDEX idx_material_requests_active_created_desc ON public.material_requests USING btree (created_at DESC, id) WHERE (status <> 'completed'::text)",
+          "indexname": "idx_material_requests_active_created_desc",
+          "tablename": "material_requests",
+          "schemaname": "public"
+        },
+        {
+          "indexdef": "CREATE INDEX idx_material_requests_category_wh ON public.material_requests USING btree (target_warehouse, category)",
+          "indexname": "idx_material_requests_category_wh",
+          "tablename": "material_requests",
+          "schemaname": "public"
+        },
+        {
+          "indexdef": "CREATE INDEX idx_material_requests_completed_created_desc ON public.material_requests USING btree (created_at DESC, id) WHERE (status = 'completed'::text)",
+          "indexname": "idx_material_requests_completed_created_desc",
+          "tablename": "material_requests",
+          "schemaname": "public"
+        },
+        {
+          "indexdef": "CREATE INDEX idx_material_requests_open ON public.material_requests USING btree (created_at DESC, id DESC) WHERE (status <> 'completed'::text)",
+          "indexname": "idx_material_requests_open",
+          "tablename": "material_requests",
+          "schemaname": "public"
+        },
+        {
+          "indexdef": "CREATE INDEX idx_material_requests_order_id ON public.material_requests USING btree (order_id)",
+          "indexname": "idx_material_requests_order_id",
+          "tablename": "material_requests",
+          "schemaname": "public"
+        },
+        {
+          "indexdef": "CREATE INDEX idx_material_requests_status ON public.material_requests USING btree (status)",
+          "indexname": "idx_material_requests_status",
+          "tablename": "material_requests",
+          "schemaname": "public"
+        },
+        {
+          "indexdef": "CREATE INDEX idx_material_requests_task_id ON public.material_requests USING btree (task_id)",
+          "indexname": "idx_material_requests_task_id",
+          "tablename": "material_requests",
+          "schemaname": "public"
+        },
+        {
+          "indexdef": "CREATE INDEX idx_material_requests_task_report ON public.material_requests USING btree (task_id)",
+          "indexname": "idx_material_requests_task_report",
+          "tablename": "material_requests",
+          "schemaname": "public"
+        },
+        {
+          "indexdef": "CREATE INDEX idx_material_requests_task_status_created ON public.material_requests USING btree (task_id, status, created_at DESC)",
+          "indexname": "idx_material_requests_task_status_created",
+          "tablename": "material_requests",
+          "schemaname": "public"
+        },
+        {
+          "indexdef": "CREATE UNIQUE INDEX material_requests_pkey ON public.material_requests USING btree (id)",
+          "indexname": "material_requests_pkey",
+          "tablename": "material_requests",
+          "schemaname": "public"
+        },
+        {
+          "indexdef": "CREATE INDEX idx_tasks_active ON public.tasks USING btree (order_id, status) WHERE (status <> ALL (ARRAY['completed'::text, 'cancelled'::text]))",
+          "indexname": "idx_tasks_active",
+          "tablename": "tasks",
+          "schemaname": "public"
+        },
+        {
+          "indexdef": "CREATE INDEX idx_tasks_active_created_desc ON public.tasks USING btree (created_at DESC, id) WHERE (status <> 'completed'::text)",
+          "indexname": "idx_tasks_active_created_desc",
+          "tablename": "tasks",
+          "schemaname": "public"
+        },
+        {
+          "indexdef": "CREATE INDEX idx_tasks_completed_at ON public.tasks USING btree (completed_at DESC NULLS LAST)",
+          "indexname": "idx_tasks_completed_at",
+          "tablename": "tasks",
+          "schemaname": "public"
+        },
+        {
+          "indexdef": "CREATE INDEX idx_tasks_created_order_batch_monthly_report ON public.tasks USING btree (created_at, order_id, batch_index, id)",
+          "indexname": "idx_tasks_created_order_batch_monthly_report",
+          "tablename": "tasks",
+          "schemaname": "public"
+        },
+        {
+          "indexdef": "CREATE INDEX idx_tasks_open ON public.tasks USING btree (created_at DESC, id DESC) WHERE (status <> 'completed'::text)",
+          "indexname": "idx_tasks_open",
+          "tablename": "tasks",
+          "schemaname": "public"
+        },
+        {
+          "indexdef": "CREATE INDEX idx_tasks_order_batch_monthly_report ON public.tasks USING btree (order_id, batch_index, id)",
+          "indexname": "idx_tasks_order_batch_monthly_report",
+          "tablename": "tasks",
+          "schemaname": "public"
+        },
+        {
+          "indexdef": "CREATE INDEX idx_tasks_order_id ON public.tasks USING btree (order_id)",
+          "indexname": "idx_tasks_order_id",
+          "tablename": "tasks",
+          "schemaname": "public"
+        },
+        {
+          "indexdef": "CREATE INDEX idx_tasks_packaged_batches ON public.tasks USING btree (completed_at DESC, order_id, batch_index) WHERE ((plan_snapshot #> '{_metadata,is_packaged}'::text[]) = 'true'::jsonb)",
+          "indexname": "idx_tasks_packaged_batches",
+          "tablename": "tasks",
+          "schemaname": "public"
+        },
+        {
+          "indexdef": "CREATE INDEX idx_tasks_packaging_open_batches ON public.tasks USING btree (completed_at DESC, order_id, batch_index) WHERE ((status = 'completed'::text) AND (COALESCE((plan_snapshot #> '{_metadata,is_packaged}'::text[]), 'false'::jsonb) <> 'true'::jsonb))",
+          "indexname": "idx_tasks_packaging_open_batches",
+          "tablename": "tasks",
+          "schemaname": "public"
+        },
+        {
+          "indexdef": "CREATE INDEX idx_tasks_recent_completed_desc ON public.tasks USING btree (completed_at DESC, id) WHERE (status = 'completed'::text)",
+          "indexname": "idx_tasks_recent_completed_desc",
+          "tablename": "tasks",
+          "schemaname": "public"
+        },
+        {
+          "indexdef": "CREATE INDEX idx_tasks_report_created ON public.tasks USING btree (created_at DESC, id)",
+          "indexname": "idx_tasks_report_created",
+          "tablename": "tasks",
+          "schemaname": "public"
+        },
+        {
+          "indexdef": "CREATE INDEX idx_tasks_report_order ON public.tasks USING btree (order_id, created_at DESC)",
+          "indexname": "idx_tasks_report_order",
+          "tablename": "tasks",
+          "schemaname": "public"
+        },
+        {
+          "indexdef": "CREATE INDEX idx_tasks_shipped_batches ON public.tasks USING btree (completed_at DESC, order_id, batch_index) WHERE ((plan_snapshot #> '{_metadata,is_shipped}'::text[]) = 'true'::jsonb)",
+          "indexname": "idx_tasks_shipped_batches",
+          "tablename": "tasks",
+          "schemaname": "public"
+        },
+        {
+          "indexdef": "CREATE INDEX idx_tasks_shipping_open_batches ON public.tasks USING btree (completed_at DESC, order_id, batch_index) WHERE ((status = 'completed'::text) AND ((plan_snapshot #> '{_metadata,is_packaged}'::text[]) = 'true'::jsonb) AND (COALESCE((plan_snapshot #> '{_metadata,is_shipped}'::text[]), 'false'::jsonb) <> 'true'::jsonb))",
+          "indexname": "idx_tasks_shipping_open_batches",
+          "tablename": "tasks",
+          "schemaname": "public"
+        },
+        {
+          "indexdef": "CREATE INDEX idx_tasks_status ON public.tasks USING btree (status)",
+          "indexname": "idx_tasks_status",
+          "tablename": "tasks",
+          "schemaname": "public"
+        },
+        {
+          "indexdef": "CREATE UNIQUE INDEX tasks_pkey ON public.tasks USING btree (id)",
+          "indexname": "tasks_pkey",
+          "tablename": "tasks",
+          "schemaname": "public"
+        },
+        {
+          "indexdef": "CREATE INDEX idx_work_cards_active ON public.work_cards USING btree (task_id, status, operation) WHERE (status <> ALL (ARRAY['completed'::text, 'cancelled'::text]))",
+          "indexname": "idx_work_cards_active",
+          "tablename": "work_cards",
+          "schemaname": "public"
+        },
+        {
+          "indexdef": "CREATE INDEX idx_work_cards_active_created ON public.work_cards USING btree (created_at DESC) WHERE (status <> 'completed'::text)",
+          "indexname": "idx_work_cards_active_created",
+          "tablename": "work_cards",
+          "schemaname": "public"
+        },
+        {
+          "indexdef": "CREATE INDEX idx_work_cards_active_created_at ON public.work_cards USING btree (status, created_at DESC)",
+          "indexname": "idx_work_cards_active_created_at",
+          "tablename": "work_cards",
+          "schemaname": "public"
+        },
+        {
+          "indexdef": "CREATE INDEX idx_work_cards_active_created_desc ON public.work_cards USING btree (created_at DESC, id) WHERE (status <> 'completed'::text)",
+          "indexname": "idx_work_cards_active_created_desc",
+          "tablename": "work_cards",
+          "schemaname": "public"
+        },
+        {
+          "indexdef": "CREATE INDEX idx_work_cards_box_prepared ON public.work_cards USING btree (is_box_prepared) WHERE (is_box_prepared = true)",
+          "indexname": "idx_work_cards_box_prepared",
+          "tablename": "work_cards",
+          "schemaname": "public"
+        },
+        {
+          "indexdef": "CREATE INDEX idx_work_cards_status ON public.work_cards USING btree (status)",
+          "indexname": "idx_work_cards_status",
+          "tablename": "work_cards",
+          "schemaname": "public"
+        },
+        {
+          "indexdef": "CREATE INDEX idx_work_cards_status_created ON public.work_cards USING btree (status, created_at)",
+          "indexname": "idx_work_cards_status_created",
+          "tablename": "work_cards",
+          "schemaname": "public"
+        },
+        {
+          "indexdef": "CREATE INDEX idx_work_cards_task_id ON public.work_cards USING btree (task_id)",
+          "indexname": "idx_work_cards_task_id",
+          "tablename": "work_cards",
+          "schemaname": "public"
+        },
+        {
+          "indexdef": "CREATE INDEX idx_work_cards_task_report ON public.work_cards USING btree (task_id, id)",
+          "indexname": "idx_work_cards_task_report",
+          "tablename": "work_cards",
+          "schemaname": "public"
+        },
+        {
+          "indexdef": "CREATE INDEX idx_work_cards_task_status ON public.work_cards USING btree (task_id, status) WHERE (status <> 'completed'::text)",
+          "indexname": "idx_work_cards_task_status",
+          "tablename": "work_cards",
+          "schemaname": "public"
+        },
+        {
+          "indexdef": "CREATE INDEX idx_work_cards_task_status_created ON public.work_cards USING btree (task_id, status, created_at DESC)",
+          "indexname": "idx_work_cards_task_status_created",
+          "tablename": "work_cards",
+          "schemaname": "public"
+        },
+        {
+          "indexdef": "CREATE UNIQUE INDEX work_cards_pkey ON public.work_cards USING btree (id)",
+          "indexname": "work_cards_pkey",
+          "tablename": "work_cards",
+          "schemaname": "public"
+        }
+      ],
+      "policies": [
+        {
+          "cmd": "ALL",
+          "qual": "verify_app_secret()",
+          "roles": [
+            "anon",
+            "authenticated"
+          ],
+          "tablename": "inventory",
+          "policyname": "Allow operations with verified secret",
+          "schemaname": "public",
+          "with_check": "verify_app_secret()"
+        },
+        {
+          "cmd": "ALL",
+          "qual": "verify_app_secret()",
+          "roles": [
+            "anon",
+            "authenticated"
+          ],
+          "tablename": "material_requests",
+          "policyname": "Allow operations with verified secret",
+          "schemaname": "public",
+          "with_check": "verify_app_secret()"
+        },
+        {
+          "cmd": "ALL",
+          "qual": "verify_app_secret()",
+          "roles": [
+            "anon",
+            "authenticated"
+          ],
+          "tablename": "tasks",
+          "policyname": "Allow operations with verified secret",
+          "schemaname": "public",
+          "with_check": "verify_app_secret()"
+        },
+        {
+          "cmd": "ALL",
+          "qual": "verify_app_secret()",
+          "roles": [
+            "anon",
+            "authenticated"
+          ],
+          "tablename": "work_cards",
+          "policyname": "Allow operations with verified secret",
+          "schemaname": "public",
+          "with_check": "verify_app_secret()"
+        },
+        {
+          "cmd": "SELECT",
+          "qual": "verify_mes_session_or_app()",
+          "roles": [
+            "anon",
+            "authenticated"
+          ],
+          "tablename": "work_cards",
+          "policyname": "Allow read on work_cards",
+          "schemaname": "public",
+          "with_check": null
+        },
+        {
+          "cmd": "DELETE",
+          "qual": "false",
+          "roles": [
+            "anon"
+          ],
+          "tablename": "work_cards",
+          "policyname": "Block direct delete on work_cards",
+          "schemaname": "public",
+          "with_check": null
+        }
+      ],
+      "triggers": [
+        {
+          "definition": "CREATE TRIGGER trg_audit_legacy_bz_inventory_change AFTER INSERT OR DELETE OR UPDATE ON public.inventory FOR EACH ROW EXECUTE FUNCTION audit_legacy_bz_inventory_change()",
+          "table_name": "inventory",
+          "schema_name": "public",
+          "trigger_name": "trg_audit_legacy_bz_inventory_change",
+          "function_definition": "CREATE OR REPLACE FUNCTION public.audit_legacy_bz_inventory_change()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\ndeclare\r\n  v_old_qty numeric := coalesce(old.total_qty, 0);\r\n  v_new_qty numeric := coalesce(new.total_qty, 0);\r\n  v_nom uuid := coalesce(new.nomenclature_id, old.nomenclature_id);\r\n  v_type text := coalesce(new.type, old.type);\r\nbegin\r\n  if current_setting('app.bz_enriched_ledger', true) = '1' then\r\n    if tg_op = 'DELETE' then return old; else return new; end if;\r\n  end if;\r\n\r\n  if coalesce(old.type, '') not in ('bz', 'wip_bz', 'bz_shop2')\r\n     and coalesce(new.type, '') not in ('bz', 'wip_bz', 'bz_shop2') then\r\n    if tg_op = 'DELETE' then return old; else return new; end if;\r\n  end if;\r\n\r\n  if tg_op = 'UPDATE' and v_old_qty = v_new_qty and old.type is not distinct from new.type then\r\n    return new;\r\n  end if;\r\n\r\n  insert into public.bz_inventory_ledger (\r\n    nomenclature_id, movement_type, from_bucket, to_bucket, quantity,\r\n    from_balance_before, from_balance_after, to_balance_before, to_balance_after,\r\n    metadata\r\n  ) values (\r\n    v_nom,\r\n    case tg_op when 'INSERT' then 'legacy_insert'\r\n               when 'DELETE' then 'legacy_delete'\r\n               else 'legacy_adjustment' end,\r\n    case when tg_op <> 'INSERT' then old.type end,\r\n    case when tg_op <> 'DELETE' then new.type end,\r\n    abs(v_new_qty - v_old_qty),\r\n    case when tg_op <> 'INSERT' then v_old_qty end,\r\n    case when tg_op <> 'INSERT' then case when tg_op = 'DELETE' then 0 else v_new_qty end end,\r\n    case when tg_op <> 'DELETE' then case when tg_op = 'INSERT' then 0 else v_old_qty end end,\r\n    case when tg_op <> 'DELETE' then v_new_qty end,\r\n    jsonb_build_object('inventory_id', coalesce(new.id, old.id), 'database_operation', tg_op)\r\n  );\r\n\r\n  if tg_op = 'DELETE' then return old; else return new; end if;\r\nend;\r\n$function$\n"
+        },
+        {
+          "definition": "CREATE TRIGGER trg_reconcile_inventory_reserve AFTER INSERT OR DELETE OR UPDATE ON public.material_requests FOR EACH ROW EXECUTE FUNCTION reconcile_inventory_reserve()",
+          "table_name": "material_requests",
+          "schema_name": "public",
+          "trigger_name": "trg_reconcile_inventory_reserve",
+          "function_definition": "CREATE OR REPLACE FUNCTION public.reconcile_inventory_reserve()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\r\nbegin\r\n  -- Перераховуємо для старого товару (при оновленні або видаленні накладної)\r\n  if (tg_op = 'UPDATE' or tg_op = 'DELETE') and old.inventory_id is not null then\r\n    update public.inventory\r\n    set reserved_qty = coalesce((\r\n      select sum(quantity)\r\n      from public.material_requests\r\n      where inventory_id = old.inventory_id and status = 'issued'\r\n    ), 0),\r\n    updated_at = now()\r\n    where id = old.inventory_id;\r\n  end if;\r\n\r\n  -- Перераховуємо для нового товару (при додаванні або оновленні накладної)\r\n  if (tg_op = 'INSERT' or tg_op = 'UPDATE') and new.inventory_id is not null then\r\n    update public.inventory\r\n    set reserved_qty = coalesce((\r\n      select sum(quantity)\r\n      from public.material_requests\r\n      where inventory_id = new.inventory_id and status = 'issued'\r\n    ), 0),\r\n    updated_at = now()\r\n    where id = new.inventory_id;\r\n  end if;\r\n\r\n  return null;\r\nend;\r\n$function$\n"
+        }
+      ],
+      "functions": [
+        {
+          "proname": "reconcile_inventory_reserve",
+          "arguments": "",
+          "definition": "CREATE OR REPLACE FUNCTION public.reconcile_inventory_reserve()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\r\nbegin\r\n  -- Перераховуємо для старого товару (при оновленні або видаленні накладної)\r\n  if (tg_op = 'UPDATE' or tg_op = 'DELETE') and old.inventory_id is not null then\r\n    update public.inventory\r\n    set reserved_qty = coalesce((\r\n      select sum(quantity)\r\n      from public.material_requests\r\n      where inventory_id = old.inventory_id and status = 'issued'\r\n    ), 0),\r\n    updated_at = now()\r\n    where id = old.inventory_id;\r\n  end if;\r\n\r\n  -- Перераховуємо для нового товару (при додаванні або оновленні накладної)\r\n  if (tg_op = 'INSERT' or tg_op = 'UPDATE') and new.inventory_id is not null then\r\n    update public.inventory\r\n    set reserved_qty = coalesce((\r\n      select sum(quantity)\r\n      from public.material_requests\r\n      where inventory_id = new.inventory_id and status = 'issued'\r\n    ), 0),\r\n    updated_at = now()\r\n    where id = new.inventory_id;\r\n  end if;\r\n\r\n  return null;\r\nend;\r\n$function$\n",
+          "security_definer": false
+        },
+        {
+          "proname": "register_cutter_usage",
+          "arguments": "p_source_card_id uuid, p_items jsonb, p_actor_id bigint, p_actor_name text, p_source_metadata jsonb",
+          "definition": "CREATE OR REPLACE FUNCTION public.register_cutter_usage(p_source_card_id uuid, p_items jsonb, p_actor_id bigint DEFAULT NULL::bigint, p_actor_name text DEFAULT NULL::text, p_source_metadata jsonb DEFAULT '{}'::jsonb)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\ndeclare\r\n  v_card public.work_cards%rowtype;\r\n  v_item jsonb;\r\n  v_nom public.nomenclatures%rowtype;\r\n  v_usage public.cutter_usage_events%rowtype;\r\n  v_nom_id uuid;\r\n  v_qty numeric;\r\n  v_faceting boolean;\r\n  v_owner text;\r\n  v_batch_id uuid;\r\n  v_batches jsonb := '[]'::jsonb;\r\nbegin\r\n  select * into v_card\r\n  from public.work_cards\r\n  where id = p_source_card_id\r\n  for update;\r\n\r\n  if v_card.id is null then\r\n    raise exception 'Work card not found';\r\n  end if;\r\n\r\n  v_owner := nullif(coalesce(p_source_metadata->>'manager_name', v_card.manager_name), 'Не вказано');\r\n\r\n  for v_item in\r\n    select value from jsonb_array_elements(coalesce(p_items, '[]'::jsonb))\r\n  loop\r\n    v_nom_id := (v_item->>'nomenclature_id')::uuid;\r\n    v_qty := greatest(coalesce((v_item->>'quantity')::numeric, 0), 0);\r\n    if v_qty = 0 then continue; end if;\r\n\r\n    select * into v_nom from public.nomenclatures where id = v_nom_id;\r\n    if v_nom.id is null or v_nom.type <> 'consumable' then\r\n      raise exception 'Invalid cutter nomenclature: %', v_nom_id;\r\n    end if;\r\n\r\n    -- Idempotency barrier: a repeated terminal request won't duplicate usage events or restoration batches.\r\n    if exists (\r\n      select 1 from public.cutter_usage_events\r\n      where source_card_id = p_source_card_id and nomenclature_id = v_nom_id\r\n    ) then\r\n      continue;\r\n    end if;\r\n\r\n    v_faceting := public.is_faceting_cutter(v_nom_id);\r\n\r\n    insert into public.cutter_usage_events (\r\n      source_card_id, task_id, order_id, nomenclature_id, quantity,\r\n      is_faceting, pocket_owner, actor_id, actor_name\r\n    ) values (\r\n      v_card.id, v_card.task_id, v_card.order_id, v_nom_id, v_qty,\r\n      v_faceting, null, p_actor_id, p_actor_name\r\n    )\r\n    returning * into v_usage;\r\n\r\n    if v_faceting then\r\n      insert into public.cutter_restoration_batches (\r\n        batch_number, usage_event_id, source_card_id, task_id, order_id,\r\n        nomenclature_id, cutter_name, received_qty,\r\n        source_operator, source_manager, source_machine\r\n      ) values (\r\n        'FR-' || to_char(clock_timestamp(), 'YYYYMMDD') || '-' || upper(substr(replace(v_usage.id::text, '-', ''), 1, 6)),\r\n        v_usage.id, v_card.id, v_card.task_id, v_card.order_id,\r\n        v_nom_id, v_nom.name, v_qty,\r\n        coalesce(p_source_metadata->>'operator_name', v_card.operator_name),\r\n        coalesce(p_source_metadata->>'manager_name', v_card.manager_name),\r\n        coalesce(p_source_metadata->>'machine_name', v_card.machine)\r\n      )\r\n      returning id into v_batch_id;\r\n\r\n      insert into public.cutter_restoration_events (\r\n        batch_id, event_type, actor_id, actor_name, metadata\r\n      ) values (\r\n        v_batch_id, 'created', p_actor_id, p_actor_name,\r\n        jsonb_build_object('source_card_id', v_card.id, 'quantity', v_qty)\r\n      );\r\n\r\n      v_batches := v_batches || jsonb_build_array(v_batch_id);\r\n    end if;\r\n  end loop;\r\n\r\n  return jsonb_build_object('created_batch_ids', v_batches);\r\nend;\r\n$function$\n",
+          "security_definer": true
+        },
+        {
+          "proname": "rpc_deduct_inventory_atomic",
+          "arguments": "p_inventory_id uuid, p_deduct_total numeric, p_release_reserved numeric",
+          "definition": "CREATE OR REPLACE FUNCTION public.rpc_deduct_inventory_atomic(p_inventory_id uuid, p_deduct_total numeric DEFAULT 0, p_release_reserved numeric DEFAULT 0)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\nAS $function$\r\nDECLARE\r\n  v_inv RECORD;\r\n  v_new_total NUMERIC;\r\n  v_new_reserved NUMERIC;\r\nBEGIN\r\n  IF p_inventory_id IS NULL THEN\r\n    RETURN jsonb_build_object('success', false, 'error', 'inventory_id is required');\r\n  END IF;\r\n\r\n  SELECT * INTO v_inv\r\n  FROM public.inventory\r\n  WHERE id = p_inventory_id\r\n  FOR UPDATE;\r\n\r\n  IF NOT FOUND THEN\r\n    RETURN jsonb_build_object('success', false, 'error', 'Inventory row not found');\r\n  END IF;\r\n\r\n  v_new_total := GREATEST(0, COALESCE(v_inv.total_qty, 0) - COALESCE(p_deduct_total, 0));\r\n  v_new_reserved := GREATEST(0, COALESCE(v_inv.reserved_qty, 0) - COALESCE(p_release_reserved, 0));\r\n\r\n  UPDATE public.inventory\r\n  SET total_qty = v_new_total,\r\n      reserved_qty = v_new_reserved,\r\n      updated_at = NOW()\r\n  WHERE id = p_inventory_id;\r\n\r\n  RETURN jsonb_build_object(\r\n    'success', true,\r\n    'id', p_inventory_id,\r\n    'prev_total', v_inv.total_qty,\r\n    'new_total', v_new_total,\r\n    'prev_reserved', v_inv.reserved_qty,\r\n    'new_reserved', v_new_reserved\r\n  );\r\nEND;\r\n$function$\n",
+          "security_definer": true
+        },
+        {
+          "proname": "rpc_increment_inventory_stock",
+          "arguments": "p_nomenclature_id uuid, p_qty numeric, p_type text, p_item_name text, p_unit text",
+          "definition": "CREATE OR REPLACE FUNCTION public.rpc_increment_inventory_stock(p_nomenclature_id uuid, p_qty numeric, p_type text DEFAULT 'scrap_ready'::text, p_item_name text DEFAULT 'Деталь'::text, p_unit text DEFAULT 'шт'::text)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\nAS $function$\r\nDECLARE\r\n  v_inv_id UUID;\r\n  v_old_qty NUMERIC := 0;\r\n  v_new_qty NUMERIC := 0;\r\n  v_nom_name TEXT;\r\n  v_nom_unit TEXT;\r\nBEGIN\r\n  IF p_nomenclature_id IS NULL OR p_qty IS NULL OR p_qty <= 0 THEN\r\n    RETURN jsonb_build_object(\r\n      'success', false,\r\n      'error', 'Invalid nomenclature_id or non-positive quantity'\r\n    );\r\n  END IF;\r\n\r\n  -- Транзакційне блокування рядка складу (FOR UPDATE)\r\n  SELECT id, total_qty INTO v_inv_id, v_old_qty\r\n  FROM inventory\r\n  WHERE nomenclature_id = p_nomenclature_id AND type = p_type\r\n  LIMIT 1\r\n  FOR UPDATE;\r\n\r\n  IF FOUND THEN\r\n    v_new_qty := COALESCE(v_old_qty, 0) + p_qty;\r\n    UPDATE inventory\r\n    SET total_qty = v_new_qty,\r\n        updated_at = NOW()\r\n    WHERE id = v_inv_id;\r\n\r\n    RETURN jsonb_build_object(\r\n      'success', true,\r\n      'id', v_inv_id,\r\n      'prev_qty', v_old_qty,\r\n      'new_qty', v_new_qty,\r\n      'action', 'updated'\r\n    );\r\n  ELSE\r\n    SELECT name, unit INTO v_nom_name, v_nom_unit\r\n    FROM nomenclatures\r\n    WHERE id = p_nomenclature_id;\r\n\r\n    INSERT INTO inventory (\r\n      nomenclature_id,\r\n      name,\r\n      unit,\r\n      total_qty,\r\n      type,\r\n      warehouse,\r\n      updated_at\r\n    ) VALUES (\r\n      p_nomenclature_id,\r\n      COALESCE(p_item_name, v_nom_name, 'Деталь'),\r\n      COALESCE(p_unit, v_nom_unit, 'шт'),\r\n      p_qty,\r\n      p_type,\r\n      'operational',\r\n      NOW()\r\n    )\r\n    RETURNING id, total_qty INTO v_inv_id, v_new_qty;\r\n\r\n    RETURN jsonb_build_object(\r\n      'success', true,\r\n      'id', v_inv_id,\r\n      'prev_qty', 0,\r\n      'new_qty', v_new_qty,\r\n      'action', 'inserted'\r\n    );\r\n  END IF;\r\nEND;\r\n$function$\n",
+          "security_definer": true
+        },
+        {
+          "proname": "rpc_transition_work_card_atomic",
+          "arguments": "p_card_id uuid, p_card_update jsonb, p_history_data jsonb, p_idempotency_key text, p_session_id text",
+          "definition": "CREATE OR REPLACE FUNCTION public.rpc_transition_work_card_atomic(p_card_id uuid, p_card_update jsonb, p_history_data jsonb, p_idempotency_key text DEFAULT NULL::text, p_session_id text DEFAULT NULL::text)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\nAS $function$\r\nDECLARE\r\n  v_rpc_version CONSTANT TEXT := '2026-09-06.fsm_matrix_v3';\r\n  v_current_card RECORD;\r\n  v_target_status TEXT;\r\n  v_target_op TEXT;\r\n  v_existing_history_id BIGINT;\r\n  v_final_card_info TEXT;\r\n  v_effective_session TEXT;\r\n  v_is_legal BOOLEAN := false;\r\n  v_same_op BOOLEAN := true;\r\n  v_current_clean_op TEXT;\r\n  v_target_clean_op TEXT;\r\n  v_is_shift_change BOOLEAN := false;\r\n  v_incoming_operator TEXT;\r\n  v_current_operator TEXT;\r\nBEGIN\r\n  -- 1. ТРАНЗАКЦІЙНЕ БЛОКУВАННЯ РЯДКА КАРТКИ (SELECT ... FOR UPDATE)\r\n  SELECT * INTO v_current_card\r\n  FROM work_cards\r\n  WHERE id = p_card_id\r\n  FOR UPDATE;\r\n\r\n  IF NOT FOUND THEN\r\n    RETURN jsonb_build_object(\r\n      'success', false,\r\n      'conflict', true,\r\n      'card_not_found', true,\r\n      'error', 'Робочу картку не знайдено в базі даних',\r\n      'rpc_version', v_rpc_version\r\n    );\r\n  END IF;\r\n\r\n  v_target_status := p_card_update->>'status';\r\n  v_target_op := p_card_update->>'operation';\r\n  v_effective_session := COALESCE(p_session_id, p_history_data->>'session_id');\r\n\r\n  -- 2. ПЕРЕВІРКА ПЕРЕЗМІНКИ (SHARED TABLET / SHIFT CHANGE)\r\n  v_incoming_operator := LOWER(TRIM(COALESCE(p_card_update->>'operator', p_history_data->>'operator_name', '')));\r\n  v_current_operator  := LOWER(TRIM(COALESCE(v_current_card.operator, '')));\r\n\r\n  IF v_incoming_operator <> '' AND v_current_operator <> '' AND v_incoming_operator <> v_current_operator THEN\r\n    v_is_shift_change := true;\r\n  END IF;\r\n\r\n  -- 3. ПЕРЕВІРКА ІДЕМПОТЕНТНОСТІ (IDEMPOTENCY REPLAY CHECK)\r\n  IF p_idempotency_key IS NOT NULL AND p_idempotency_key <> '' THEN\r\n    SELECT id INTO v_existing_history_id\r\n    FROM work_card_history\r\n    WHERE card_id = p_card_id\r\n      AND card_info LIKE '%[IDEMPOTENCY_KEY:' || p_idempotency_key || ']%'\r\n    LIMIT 1;\r\n\r\n    IF v_existing_history_id IS NOT NULL THEN\r\n      RETURN jsonb_build_object(\r\n        'success', true,\r\n        'idempotent_replay', true,\r\n        'reason', 'Ця операція вже була успішно зафіксована раніше',\r\n        'card_id', p_card_id,\r\n        'status', v_current_card.status,\r\n        'operation', v_current_card.operation,\r\n        'rpc_version', v_rpc_version\r\n      );\r\n    END IF;\r\n  END IF;\r\n\r\n  -- 4. ВАЛІДАЦІЯ МАТРИЦІ ПЕРЕХОДІВ (FSM TRANSITION MATRIX)\r\n  v_current_clean_op := LOWER(TRIM(COALESCE(v_current_card.operation, '')));\r\n  v_target_clean_op  := LOWER(TRIM(COALESCE(v_target_op, v_current_clean_op)));\r\n  v_same_op := (v_current_clean_op = v_target_clean_op);\r\n\r\n  IF v_target_status IS NOT NULL THEN\r\n    CASE v_target_status\r\n      WHEN 'in-progress' THEN\r\n        IF v_current_card.status = 'in-progress' THEN\r\n          IF v_is_shift_change THEN\r\n            v_is_legal := true;\r\n          ELSIF NOT v_same_op THEN\r\n            v_is_legal := true;\r\n          ELSE\r\n            RETURN jsonb_build_object(\r\n              'success', false,\r\n              'conflict', true,\r\n              'already_claimed', true,\r\n              'claimed_by', v_current_card.operator,\r\n              'claimed_machine', v_current_card.machine,\r\n              'claimed_at', v_current_card.started_at,\r\n              'current_status', v_current_card.status,\r\n              'current_operation', v_current_card.operation,\r\n              'error', 'Картка вже взята в роботу оператором: ' || COALESCE(v_current_card.operator, 'іншим робітником'),\r\n              'rpc_version', v_rpc_version\r\n            );\r\n          END IF;\r\n        ELSIF v_current_card.status IN (\r\n          'new', 'paused', 'waiting-materials', 'waiting-cutters',\r\n          'at-buffer', 'at-shop2-buffer'\r\n        ) THEN\r\n          v_is_legal := true;\r\n        END IF;\r\n\r\n      WHEN 'paused' THEN\r\n        IF v_current_card.status = 'paused' THEN\r\n          RETURN jsonb_build_object(\r\n            'success', false,\r\n            'conflict', true,\r\n            'already_claimed', true,\r\n            'current_status', v_current_card.status,\r\n            'error', 'Картка вже знаходиться на паузі',\r\n            'rpc_version', v_rpc_version\r\n          );\r\n        ELSIF v_current_card.status = 'in-progress' THEN\r\n          v_is_legal := true;\r\n        END IF;\r\n\r\n      WHEN 'at-buffer' THEN\r\n        IF v_current_card.status = 'at-buffer' THEN\r\n          IF NOT v_same_op THEN\r\n            v_is_legal := true;\r\n          ELSE\r\n            RETURN jsonb_build_object(\r\n              'success', false,\r\n              'conflict', true,\r\n              'already_claimed', true,\r\n              'current_status', v_current_card.status,\r\n              'error', 'Картка вже передана в буферну зону',\r\n              'rpc_version', v_rpc_version\r\n            );\r\n          END IF;\r\n        ELSIF v_current_card.status = 'in-progress' THEN\r\n          v_is_legal := true;\r\n        END IF;\r\n\r\n      WHEN 'at-shop2-buffer' THEN\r\n        IF v_current_card.status = 'at-shop2-buffer' THEN\r\n          RETURN jsonb_build_object(\r\n            'success', false,\r\n            'conflict', true,\r\n            'already_claimed', true,\r\n            'current_status', v_current_card.status,\r\n            'error', 'Картка вже передана в буфер Цеху №2',\r\n            'rpc_version', v_rpc_version\r\n          );\r\n        ELSIF v_current_card.status IN ('in-progress', 'at-buffer') THEN\r\n          v_is_legal := true;\r\n        END IF;\r\n\r\n      WHEN 'completed' THEN\r\n        IF v_current_card.status = 'completed' THEN\r\n          RETURN jsonb_build_object(\r\n            'success', false,\r\n            'conflict', true,\r\n            'already_claimed', true,\r\n            'current_status', v_current_card.status,\r\n            'error', 'Картка вже була повністю завершена раніше',\r\n            'rpc_version', v_rpc_version\r\n          );\r\n        ELSIF v_current_card.status IN ('in-progress', 'at-buffer', 'at-shop2-buffer') THEN\r\n          v_is_legal := true;\r\n        END IF;\r\n\r\n      WHEN 'new' THEN\r\n        IF v_current_card.status = 'new' THEN\r\n          RETURN jsonb_build_object(\r\n            'success', false,\r\n            'conflict', true,\r\n            'already_claimed', true,\r\n            'current_status', v_current_card.status,\r\n            'error', 'Картка вже знаходиться у статусі нової',\r\n            'rpc_version', v_rpc_version\r\n          );\r\n        ELSE\r\n          v_is_legal := true;\r\n        END IF;\r\n\r\n      ELSE\r\n        v_is_legal := true;\r\n    END CASE;\r\n\r\n    IF NOT v_is_legal THEN\r\n      RETURN jsonb_build_object(\r\n        'success', false,\r\n        'conflict', true,\r\n        'illegal_transition', true,\r\n        'current_status', v_current_card.status,\r\n        'target_status', v_target_status,\r\n        'error', 'Неприпустимий перехід стану картки: з ' || v_current_card.status || ' у ' || v_target_status,\r\n        'rpc_version', v_rpc_version\r\n      );\r\n    END IF;\r\n  END IF;\r\n\r\n  -- 5. АТОМАРНЕ ОНОВЛЕННЯ СТАНУ КАРТКИ\r\n  UPDATE work_cards\r\n  SET\r\n    status = COALESCE(v_target_status, status),\r\n    operation = COALESCE(v_target_op, operation),\r\n    operator = COALESCE(p_card_update->>'operator', operator),\r\n    machine = COALESCE(p_card_update->>'machine', machine),\r\n    started_at = CASE \r\n      WHEN p_card_update ? 'started_at' THEN (p_card_update->>'started_at')::TIMESTAMPTZ \r\n      ELSE started_at \r\n    END,\r\n    card_info = COALESCE(p_card_update->>'card_info', card_info),\r\n    updated_at = NOW()\r\n  WHERE id = p_card_id;\r\n\r\n  -- 6. АТОМАРНИЙ ЗАПИС В ІСТОРІЮ З ВШИТИМ IDEMPOTENCY KEY ТА SESSION\r\n  IF p_history_data IS NOT NULL THEN\r\n    v_final_card_info := COALESCE(p_history_data->>'card_info', '');\r\n    IF p_idempotency_key IS NOT NULL AND v_final_card_info NOT LIKE '%[IDEMPOTENCY_KEY:%' THEN\r\n      v_final_card_info := TRIM(v_final_card_info || ' [IDEMPOTENCY_KEY:' || p_idempotency_key || ']');\r\n    END IF;\r\n    IF v_effective_session IS NOT NULL AND v_final_card_info NOT LIKE '%[SESSION:%' THEN\r\n      v_final_card_info := TRIM(v_final_card_info || ' [SESSION:' || v_effective_session || ']');\r\n    END IF;\r\n\r\n    INSERT INTO work_card_history (\r\n      card_id,\r\n      task_id,\r\n      nomenclature_id,\r\n      stage_name,\r\n      operator_name,\r\n      card_info,\r\n      qty_at_start,\r\n      qty_completed,\r\n      scrap_qty,\r\n      cutters_used,\r\n      started_at,\r\n      completed_at,\r\n      is_archived_scrap,\r\n      shift_name,\r\n      manager_name,\r\n      machine_name\r\n    ) VALUES (\r\n      p_card_id,\r\n      COALESCE((p_history_data->>'task_id')::UUID, v_current_card.task_id),\r\n      COALESCE((p_history_data->>'nomenclature_id')::UUID, v_current_card.nomenclature_id),\r\n      COALESCE(p_history_data->>'stage_name', v_target_op, v_current_card.operation),\r\n      COALESCE(p_history_data->>'operator_name', 'Не вказано'),\r\n      v_final_card_info,\r\n      COALESCE((p_history_data->>'qty_at_start')::NUMERIC, v_current_card.quantity, 0),\r\n      COALESCE((p_history_data->>'qty_completed')::NUMERIC, 0),\r\n      COALESCE((p_history_data->>'scrap_qty')::NUMERIC, 0),\r\n      COALESCE((p_history_data->>'cutters_used')::NUMERIC, 0),\r\n      (p_history_data->>'started_at')::TIMESTAMPTZ,\r\n      COALESCE((p_history_data->>'completed_at')::TIMESTAMPTZ, NOW()),\r\n      COALESCE((p_history_data->>'is_archived_scrap')::BOOLEAN, false),\r\n      p_history_data->>'shift_name',\r\n      p_history_data->>'manager_name',\r\n      p_history_data->>'machine_name'\r\n    );\r\n  END IF;\r\n\r\n  RETURN jsonb_build_object(\r\n    'success', true,\r\n    'card_id', p_card_id,\r\n    'status', COALESCE(v_target_status, v_current_card.status),\r\n    'operation', COALESCE(v_target_op, v_current_card.operation),\r\n    'rpc_version', v_rpc_version\r\n  );\r\nEND;\r\n$function$\n",
+          "security_definer": true
+        }
+      ],
+      "constraints": [
+        {
+          "conname": "inventory_name_type_warehouse_owner_unique",
+          "definition": "UNIQUE NULLS NOT DISTINCT (name, type, warehouse, pocket_owner)",
+          "table_name": "inventory"
+        },
+        {
+          "conname": "inventory_pkey",
+          "definition": "PRIMARY KEY (id)",
+          "table_name": "inventory"
+        },
+        {
+          "conname": "material_requests_card_id_fkey",
+          "definition": "FOREIGN KEY (card_id) REFERENCES work_cards(id) ON DELETE CASCADE",
+          "table_name": "material_requests"
+        },
+        {
+          "conname": "material_requests_inventory_id_fkey",
+          "definition": "FOREIGN KEY (inventory_id) REFERENCES inventory(id)",
+          "table_name": "material_requests"
+        },
+        {
+          "conname": "material_requests_order_id_fkey",
+          "definition": "FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE",
+          "table_name": "material_requests"
+        },
+        {
+          "conname": "material_requests_pkey",
+          "definition": "PRIMARY KEY (id)",
+          "table_name": "material_requests"
+        },
+        {
+          "conname": "material_requests_task_id_fkey",
+          "definition": "FOREIGN KEY (task_id) REFERENCES tasks(id)",
+          "table_name": "material_requests"
+        },
+        {
+          "conname": "tasks_order_id_fkey",
+          "definition": "FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE",
+          "table_name": "tasks"
+        },
+        {
+          "conname": "tasks_pkey",
+          "definition": "PRIMARY KEY (id)",
+          "table_name": "tasks"
+        },
+        {
+          "conname": "work_cards_machine_id_fkey",
+          "definition": "FOREIGN KEY (machine_id) REFERENCES machines(id)",
+          "table_name": "work_cards"
+        },
+        {
+          "conname": "work_cards_nomenclature_id_fkey",
+          "definition": "FOREIGN KEY (nomenclature_id) REFERENCES nomenclatures_v2(id) ON DELETE SET NULL NOT VALID",
+          "table_name": "work_cards"
+        },
+        {
+          "conname": "work_cards_order_id_fkey",
+          "definition": "FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE",
+          "table_name": "work_cards"
+        },
+        {
+          "conname": "work_cards_pkey",
+          "definition": "PRIMARY KEY (id)",
+          "table_name": "work_cards"
+        },
+        {
+          "conname": "work_cards_task_id_fkey",
+          "definition": "FOREIGN KEY (task_id) REFERENCES tasks(id)",
+          "table_name": "work_cards"
+        }
+      ]
+    }
+  }
+]

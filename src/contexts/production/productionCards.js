@@ -581,12 +581,8 @@ export function createProductionCardsActions({
             const curReserved = Number(sheetInvItem.reserved_qty) || 0
             const taskReservedForSheet = sheetRequests.filter(r => r.status === 'issued').reduce((sum, r) => sum + (Number(r.quantity) || 0), 0)
 
-            let releaseReserved = 0
-            if (isLastCard) {
-              releaseReserved = taskReservedForSheet > 0 ? taskReservedForSheet : curReserved
-            } else {
-              releaseReserved = taskReservedForSheet > 0 ? Math.min(taskReservedForSheet, cardSheets) : cardSheets
-            }
+            // Always release only this card's proportional share — last card is no different.
+            let releaseReserved = taskReservedForSheet > 0 ? Math.min(taskReservedForSheet, cardSheets) : cardSheets
             releaseReserved = Math.max(0, Math.min(curReserved, releaseReserved))
 
             await deductInventoryAtomic(supabase, {
@@ -597,19 +593,15 @@ export function createProductionCardsActions({
 
             let remainingToDeduct = releaseReserved
             for (const req of sheetRequests) {
-              if (remainingToDeduct <= 0 && !isLastCard) break
+              if (remainingToDeduct <= 0) break
               const reqQty = Number(req.quantity) || 0
-              if (isLastCard) {
+              const deductThis = Math.min(reqQty, remainingToDeduct)
+              const nextQty = Math.max(0, reqQty - deductThis)
+              remainingToDeduct -= deductThis
+              if (nextQty === 0) {
                 await supabase.from('material_requests').update({ quantity: 0, status: 'completed' }).eq('id', req.id)
               } else {
-                const deductThis = Math.min(reqQty, remainingToDeduct)
-                const nextQty = Math.max(0, reqQty - deductThis)
-                remainingToDeduct -= deductThis
-                if (nextQty === 0) {
-                  await supabase.from('material_requests').update({ quantity: 0, status: 'completed' }).eq('id', req.id)
-                } else {
-                  await supabase.from('material_requests').update({ quantity: nextQty }).eq('id', req.id)
-                }
+                await supabase.from('material_requests').update({ quantity: nextQty }).eq('id', req.id)
               }
             }
           }
@@ -712,13 +704,9 @@ export function createProductionCardsActions({
         })
         if (invItem) {
           const curReserved = Number(invItem.reserved_qty) || 0
-          let releaseReserved = 0
-          if (isLastCard) {
-            releaseReserved = taskReservedForCutter > 0 ? taskReservedForCutter : curReserved
-          } else {
-            const quotaToRelease = cardPlannedQty
-            releaseReserved = taskReservedForCutter > 0 ? Math.min(taskReservedForCutter, quotaToRelease) : quotaToRelease
-          }
+          // Always release only this card's planned quota — last card is no different.
+          const quotaToRelease = cardPlannedQty
+          let releaseReserved = taskReservedForCutter > 0 ? Math.min(taskReservedForCutter, quotaToRelease) : quotaToRelease
           releaseReserved = Math.min(curReserved, releaseReserved)
 
           await deductInventoryAtomic(supabase, {
@@ -730,19 +718,15 @@ export function createProductionCardsActions({
           // Update material_requests for this task
           let remainingToDeductFromReqs = releaseReserved
           for (const req of cutterRequests) {
-            if (remainingToDeductFromReqs <= 0 && !isLastCard) break
+            if (remainingToDeductFromReqs <= 0) break
             const reqQty = Number(req.quantity) || 0
-            if (isLastCard) {
+            const deductFromThisReq = Math.min(reqQty, remainingToDeductFromReqs)
+            const nextReqQty = Math.max(0, reqQty - deductFromThisReq)
+            remainingToDeductFromReqs -= deductFromThisReq
+            if (nextReqQty === 0) {
               await supabase.from('material_requests').update({ quantity: 0, status: 'completed' }).eq('id', req.id)
             } else {
-              const deductFromThisReq = Math.min(reqQty, remainingToDeductFromReqs)
-              const nextReqQty = Math.max(0, reqQty - deductFromThisReq)
-              remainingToDeductFromReqs -= deductFromThisReq
-              if (nextReqQty === 0) {
-                await supabase.from('material_requests').update({ quantity: 0, status: 'completed' }).eq('id', req.id)
-              } else {
-                await supabase.from('material_requests').update({ quantity: nextReqQty }).eq('id', req.id)
-              }
+              await supabase.from('material_requests').update({ quantity: nextReqQty }).eq('id', req.id)
             }
           }
 

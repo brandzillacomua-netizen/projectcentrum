@@ -6669,3 +6669,43 @@ body.light-theme .engineer-module-v2 input[type="number"] {
 
 
 
+
+/* Shop 1 start panel: readable semantic colors on light surfaces. */
+body.light-theme .s1-card-detail-view .s1-material-pending {
+  background: #fffbeb !important;
+  border-color: #fcd34d !important;
+  color: #92400e !important;
+}
+
+body.light-theme .s1-card-detail-view .s1-material-pending-list {
+  color: #78350f !important;
+}
+
+body.light-theme .s1-card-detail-view .s1-material-pending-hint {
+  color: #475569 !important;
+}
+
+body.light-theme .s1-card-detail-view .s1-material-ready {
+  background: #ecfdf5 !important;
+  border-color: #a7f3d0 !important;
+  color: #065f46 !important;
+}
+
+body.light-theme .s1-card-detail-view .s1-planned-quantity {
+  background: #fffbeb !important;
+  border-color: #fcd34d !important;
+}
+
+body.light-theme .s1-card-detail-view .s1-planned-quantity-label,
+body.light-theme .s1-card-detail-view .s1-start-heading {
+  color: #92400e !important;
+}
+
+body.light-theme .s1-card-detail-view .s1-planned-quantity-value {
+  color: #0f172a !important;
+}
+
+body.light-theme .s1-card-detail-view .s1-planned-quantity-value small {
+  color: #475569 !important;
+  opacity: 1 !important;
+}

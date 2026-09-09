@@ -150,37 +150,37 @@ export function Shop1CardDetails({
 
               {/* Індикатор забезпечення матеріалами / фрезами */}
               {pendingReqsForCard.length > 0 ? (
-                <div style={{ background: '#eab30815', border: '1px solid #eab30840', borderRadius: '16px', padding: '14px 18px', color: '#eab308', fontSize: '0.82rem', fontWeight: 800 }}>
+                <div className="s1-material-pending" style={{ background: '#eab30815', border: '1px solid #eab30840', borderRadius: '16px', padding: '14px 18px', color: '#eab308', fontSize: '0.82rem', fontWeight: 800 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
                     <span>⏳</span>
                     <strong>Очікує видачі зі складу ({pendingReqsForCard.length}):</strong>
                   </div>
-                  <ul style={{ margin: '4px 0 0 16px', padding: 0, color: '#fef08a', fontSize: '0.75rem', fontWeight: 700 }}>
+                  <ul className="s1-material-pending-list" style={{ margin: '4px 0 0 16px', padding: 0, color: '#fef08a', fontSize: '0.75rem', fontWeight: 700 }}>
                     {pendingReqsForCard.map((r, idx) => (
                       <li key={r.id || idx}>{r.details || 'Матеріали / фрези'}</li>
                     ))}
                   </ul>
-                  <div style={{ fontSize: '0.68rem', color: '#a1a1aa', marginTop: '8px' }}>
+                  <div className="s1-material-pending-hint" style={{ fontSize: '0.68rem', color: '#a1a1aa', marginTop: '8px' }}>
                     Зверніться на склад для підтвердження видачі.
                   </div>
                 </div>
               ) : (
                 (status === 'waiting-cutters' || status === 'waiting-materials' || status === 'waiting_material') && (
-                  <div style={{ background: '#10b98115', border: '1px solid #10b98140', borderRadius: '16px', padding: '12px 16px', color: '#10b981', fontSize: '0.82rem', fontWeight: 800, textAlign: 'center' }}>
+                  <div className="s1-material-ready" style={{ background: '#10b98115', border: '1px solid #10b98140', borderRadius: '16px', padding: '12px 16px', color: '#10b981', fontSize: '0.82rem', fontWeight: 800, textAlign: 'center' }}>
                     ✓ Матеріали та фрези видані складом. Картка готова до розкрою!
                   </div>
                 )
               )}
 
               {/* Акцентована планова кількість */}
-              <div style={{ background: '#eab30810', border: '1px solid #eab30830', borderRadius: '18px', padding: '20px', textAlign: 'center', marginBottom: '8px' }}>
-                <div style={{ fontSize: '0.65rem', fontWeight: 950, color: '#eab308', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '6px' }}>ПЛАНОВА КІЛЬКІСТЬ</div>
-                <div style={{ fontSize: '3rem', fontWeight: 1000, color: '#fff', lineHeight: 1 }}>
+              <div className="s1-planned-quantity" style={{ background: '#eab30810', border: '1px solid #eab30830', borderRadius: '18px', padding: '20px', textAlign: 'center', marginBottom: '8px' }}>
+                <div className="s1-planned-quantity-label" style={{ fontSize: '0.65rem', fontWeight: 950, color: '#eab308', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '6px' }}>ПЛАНОВА КІЛЬКІСТЬ</div>
+                <div className="s1-planned-quantity-value" style={{ fontSize: '3rem', fontWeight: 1000, color: '#fff', lineHeight: 1 }}>
                   {currentCard.quantity} <small style={{ fontSize: '1rem', opacity: 0.3 }}>шт</small>
                 </div>
               </div>
 
-              <div style={{ fontSize: '0.72rem', fontWeight: 900, color: '#eab308', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center' }}>
+              <div className="s1-start-heading" style={{ fontSize: '0.72rem', fontWeight: 900, color: '#eab308', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center' }}>
                 СТАРТ · {displayOp?.toUpperCase()}
               </div>
 

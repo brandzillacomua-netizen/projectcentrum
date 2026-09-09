@@ -1,0 +1,290 @@
+[
+  {
+    "schemaname": "public",
+    "tablename": "inventory",
+    "indexname": "idx_inventory_created_at",
+    "indexdef": "CREATE INDEX idx_inventory_created_at ON public.inventory USING btree (created_at, id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "inventory",
+    "indexname": "idx_inventory_name_lower",
+    "indexdef": "CREATE INDEX idx_inventory_name_lower ON public.inventory USING btree (lower(TRIM(BOTH FROM name)))"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "inventory",
+    "indexname": "idx_inventory_nom_type",
+    "indexdef": "CREATE INDEX idx_inventory_nom_type ON public.inventory USING btree (nomenclature_id, type)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "inventory",
+    "indexname": "idx_inventory_nomenclature_id",
+    "indexdef": "CREATE INDEX idx_inventory_nomenclature_id ON public.inventory USING btree (nomenclature_id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "inventory",
+    "indexname": "idx_inventory_type",
+    "indexdef": "CREATE INDEX idx_inventory_type ON public.inventory USING btree (type)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "inventory",
+    "indexname": "idx_inventory_warehouse",
+    "indexdef": "CREATE INDEX idx_inventory_warehouse ON public.inventory USING btree (warehouse)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "inventory",
+    "indexname": "inventory_name_type_warehouse_owner_unique",
+    "indexdef": "CREATE UNIQUE INDEX inventory_name_type_warehouse_owner_unique ON public.inventory USING btree (name, type, warehouse, pocket_owner) NULLS NOT DISTINCT"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "inventory",
+    "indexname": "inventory_pkey",
+    "indexdef": "CREATE UNIQUE INDEX inventory_pkey ON public.inventory USING btree (id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "inventory",
+    "indexname": "uq_inventory_item",
+    "indexdef": "CREATE UNIQUE INDEX uq_inventory_item ON public.inventory USING btree (nomenclature_id, COALESCE(type, 'standard'::text), COALESCE(warehouse, 'main'::text), COALESCE(pocket_owner, 'none'::text)) WHERE (nomenclature_id IS NOT NULL)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "inventory",
+    "indexname": "uq_inventory_sgp_nom_finished",
+    "indexdef": "CREATE UNIQUE INDEX uq_inventory_sgp_nom_finished ON public.inventory USING btree (nomenclature_id) WHERE ((nomenclature_id IS NOT NULL) AND (warehouse = 'sgp'::text) AND (type = ANY (ARRAY['finished'::text, 'bz'::text, 'bz_shop2'::text, 'wip_bz'::text, 'semi'::text, 'semi_shop2'::text, 'part'::text, 'product'::text])) AND (pocket_owner IS NULL))"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "material_requests",
+    "indexname": "idx_material_requests_active_created_desc",
+    "indexdef": "CREATE INDEX idx_material_requests_active_created_desc ON public.material_requests USING btree (created_at DESC, id) WHERE (status <> 'completed'::text)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "material_requests",
+    "indexname": "idx_material_requests_category_wh",
+    "indexdef": "CREATE INDEX idx_material_requests_category_wh ON public.material_requests USING btree (target_warehouse, category)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "material_requests",
+    "indexname": "idx_material_requests_completed_created_desc",
+    "indexdef": "CREATE INDEX idx_material_requests_completed_created_desc ON public.material_requests USING btree (created_at DESC, id) WHERE (status = 'completed'::text)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "material_requests",
+    "indexname": "idx_material_requests_open",
+    "indexdef": "CREATE INDEX idx_material_requests_open ON public.material_requests USING btree (created_at DESC, id DESC) WHERE (status <> 'completed'::text)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "material_requests",
+    "indexname": "idx_material_requests_order_id",
+    "indexdef": "CREATE INDEX idx_material_requests_order_id ON public.material_requests USING btree (order_id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "material_requests",
+    "indexname": "idx_material_requests_status",
+    "indexdef": "CREATE INDEX idx_material_requests_status ON public.material_requests USING btree (status)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "material_requests",
+    "indexname": "idx_material_requests_task_id",
+    "indexdef": "CREATE INDEX idx_material_requests_task_id ON public.material_requests USING btree (task_id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "material_requests",
+    "indexname": "idx_material_requests_task_report",
+    "indexdef": "CREATE INDEX idx_material_requests_task_report ON public.material_requests USING btree (task_id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "material_requests",
+    "indexname": "idx_material_requests_task_status_created",
+    "indexdef": "CREATE INDEX idx_material_requests_task_status_created ON public.material_requests USING btree (task_id, status, created_at DESC)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "material_requests",
+    "indexname": "material_requests_pkey",
+    "indexdef": "CREATE UNIQUE INDEX material_requests_pkey ON public.material_requests USING btree (id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "tasks",
+    "indexname": "idx_tasks_active",
+    "indexdef": "CREATE INDEX idx_tasks_active ON public.tasks USING btree (order_id, status) WHERE (status <> ALL (ARRAY['completed'::text, 'cancelled'::text]))"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "tasks",
+    "indexname": "idx_tasks_active_created_desc",
+    "indexdef": "CREATE INDEX idx_tasks_active_created_desc ON public.tasks USING btree (created_at DESC, id) WHERE (status <> 'completed'::text)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "tasks",
+    "indexname": "idx_tasks_completed_at",
+    "indexdef": "CREATE INDEX idx_tasks_completed_at ON public.tasks USING btree (completed_at DESC NULLS LAST)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "tasks",
+    "indexname": "idx_tasks_created_order_batch_monthly_report",
+    "indexdef": "CREATE INDEX idx_tasks_created_order_batch_monthly_report ON public.tasks USING btree (created_at, order_id, batch_index, id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "tasks",
+    "indexname": "idx_tasks_open",
+    "indexdef": "CREATE INDEX idx_tasks_open ON public.tasks USING btree (created_at DESC, id DESC) WHERE (status <> 'completed'::text)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "tasks",
+    "indexname": "idx_tasks_order_batch_monthly_report",
+    "indexdef": "CREATE INDEX idx_tasks_order_batch_monthly_report ON public.tasks USING btree (order_id, batch_index, id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "tasks",
+    "indexname": "idx_tasks_order_id",
+    "indexdef": "CREATE INDEX idx_tasks_order_id ON public.tasks USING btree (order_id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "tasks",
+    "indexname": "idx_tasks_packaged_batches",
+    "indexdef": "CREATE INDEX idx_tasks_packaged_batches ON public.tasks USING btree (completed_at DESC, order_id, batch_index) WHERE ((plan_snapshot #> '{_metadata,is_packaged}'::text[]) = 'true'::jsonb)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "tasks",
+    "indexname": "idx_tasks_packaging_open_batches",
+    "indexdef": "CREATE INDEX idx_tasks_packaging_open_batches ON public.tasks USING btree (completed_at DESC, order_id, batch_index) WHERE ((status = 'completed'::text) AND (COALESCE((plan_snapshot #> '{_metadata,is_packaged}'::text[]), 'false'::jsonb) <> 'true'::jsonb))"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "tasks",
+    "indexname": "idx_tasks_recent_completed_desc",
+    "indexdef": "CREATE INDEX idx_tasks_recent_completed_desc ON public.tasks USING btree (completed_at DESC, id) WHERE (status = 'completed'::text)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "tasks",
+    "indexname": "idx_tasks_report_created",
+    "indexdef": "CREATE INDEX idx_tasks_report_created ON public.tasks USING btree (created_at DESC, id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "tasks",
+    "indexname": "idx_tasks_report_order",
+    "indexdef": "CREATE INDEX idx_tasks_report_order ON public.tasks USING btree (order_id, created_at DESC)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "tasks",
+    "indexname": "idx_tasks_shipped_batches",
+    "indexdef": "CREATE INDEX idx_tasks_shipped_batches ON public.tasks USING btree (completed_at DESC, order_id, batch_index) WHERE ((plan_snapshot #> '{_metadata,is_shipped}'::text[]) = 'true'::jsonb)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "tasks",
+    "indexname": "idx_tasks_shipping_open_batches",
+    "indexdef": "CREATE INDEX idx_tasks_shipping_open_batches ON public.tasks USING btree (completed_at DESC, order_id, batch_index) WHERE ((status = 'completed'::text) AND ((plan_snapshot #> '{_metadata,is_packaged}'::text[]) = 'true'::jsonb) AND (COALESCE((plan_snapshot #> '{_metadata,is_shipped}'::text[]), 'false'::jsonb) <> 'true'::jsonb))"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "tasks",
+    "indexname": "idx_tasks_status",
+    "indexdef": "CREATE INDEX idx_tasks_status ON public.tasks USING btree (status)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "tasks",
+    "indexname": "tasks_pkey",
+    "indexdef": "CREATE UNIQUE INDEX tasks_pkey ON public.tasks USING btree (id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "work_cards",
+    "indexname": "idx_work_cards_active",
+    "indexdef": "CREATE INDEX idx_work_cards_active ON public.work_cards USING btree (task_id, status, operation) WHERE (status <> ALL (ARRAY['completed'::text, 'cancelled'::text]))"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "work_cards",
+    "indexname": "idx_work_cards_active_created",
+    "indexdef": "CREATE INDEX idx_work_cards_active_created ON public.work_cards USING btree (created_at DESC) WHERE (status <> 'completed'::text)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "work_cards",
+    "indexname": "idx_work_cards_active_created_at",
+    "indexdef": "CREATE INDEX idx_work_cards_active_created_at ON public.work_cards USING btree (status, created_at DESC)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "work_cards",
+    "indexname": "idx_work_cards_active_created_desc",
+    "indexdef": "CREATE INDEX idx_work_cards_active_created_desc ON public.work_cards USING btree (created_at DESC, id) WHERE (status <> 'completed'::text)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "work_cards",
+    "indexname": "idx_work_cards_box_prepared",
+    "indexdef": "CREATE INDEX idx_work_cards_box_prepared ON public.work_cards USING btree (is_box_prepared) WHERE (is_box_prepared = true)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "work_cards",
+    "indexname": "idx_work_cards_status",
+    "indexdef": "CREATE INDEX idx_work_cards_status ON public.work_cards USING btree (status)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "work_cards",
+    "indexname": "idx_work_cards_status_created",
+    "indexdef": "CREATE INDEX idx_work_cards_status_created ON public.work_cards USING btree (status, created_at)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "work_cards",
+    "indexname": "idx_work_cards_task_id",
+    "indexdef": "CREATE INDEX idx_work_cards_task_id ON public.work_cards USING btree (task_id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "work_cards",
+    "indexname": "idx_work_cards_task_report",
+    "indexdef": "CREATE INDEX idx_work_cards_task_report ON public.work_cards USING btree (task_id, id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "work_cards",
+    "indexname": "idx_work_cards_task_status",
+    "indexdef": "CREATE INDEX idx_work_cards_task_status ON public.work_cards USING btree (task_id, status) WHERE (status <> 'completed'::text)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "work_cards",
+    "indexname": "idx_work_cards_task_status_created",
+    "indexdef": "CREATE INDEX idx_work_cards_task_status_created ON public.work_cards USING btree (task_id, status, created_at DESC)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "work_cards",
+    "indexname": "work_cards_pkey",
+    "indexdef": "CREATE UNIQUE INDEX work_cards_pkey ON public.work_cards USING btree (id)"
+  }
+]

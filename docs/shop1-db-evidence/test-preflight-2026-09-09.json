@@ -1,0 +1,968 @@
+[
+  {
+    "shop1_preflight": {
+      "columns": [
+        {
+          "data_type": "uuid",
+          "table_name": "inventory",
+          "column_name": "id",
+          "is_nullable": "NO",
+          "column_default": "gen_random_uuid()"
+        },
+        {
+          "data_type": "text",
+          "table_name": "inventory",
+          "column_name": "name",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "text",
+          "table_name": "inventory",
+          "column_name": "category",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "numeric",
+          "table_name": "inventory",
+          "column_name": "quantity",
+          "is_nullable": "YES",
+          "column_default": "0"
+        },
+        {
+          "data_type": "numeric",
+          "table_name": "inventory",
+          "column_name": "reserved",
+          "is_nullable": "YES",
+          "column_default": "0"
+        },
+        {
+          "data_type": "text",
+          "table_name": "inventory",
+          "column_name": "unit",
+          "is_nullable": "YES",
+          "column_default": "'шт'::text"
+        },
+        {
+          "data_type": "timestamp with time zone",
+          "table_name": "inventory",
+          "column_name": "created_at",
+          "is_nullable": "YES",
+          "column_default": "now()"
+        },
+        {
+          "data_type": "timestamp with time zone",
+          "table_name": "inventory",
+          "column_name": "updated_at",
+          "is_nullable": "YES",
+          "column_default": "now()"
+        },
+        {
+          "data_type": "uuid",
+          "table_name": "inventory",
+          "column_name": "nomenclature_id",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "text",
+          "table_name": "inventory",
+          "column_name": "warehouse",
+          "is_nullable": "YES",
+          "column_default": "'production'::text"
+        },
+        {
+          "data_type": "numeric",
+          "table_name": "inventory",
+          "column_name": "total_qty",
+          "is_nullable": "YES",
+          "column_default": "0"
+        },
+        {
+          "data_type": "numeric",
+          "table_name": "inventory",
+          "column_name": "reserved_qty",
+          "is_nullable": "YES",
+          "column_default": "0"
+        },
+        {
+          "data_type": "text",
+          "table_name": "inventory",
+          "column_name": "type",
+          "is_nullable": "YES",
+          "column_default": "'raw'::text"
+        },
+        {
+          "data_type": "text",
+          "table_name": "inventory",
+          "column_name": "pocket_owner",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "uuid",
+          "table_name": "material_requests",
+          "column_name": "id",
+          "is_nullable": "NO",
+          "column_default": "gen_random_uuid()"
+        },
+        {
+          "data_type": "uuid",
+          "table_name": "material_requests",
+          "column_name": "task_id",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "uuid",
+          "table_name": "material_requests",
+          "column_name": "card_id",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "uuid",
+          "table_name": "material_requests",
+          "column_name": "nomenclature_id",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "numeric",
+          "table_name": "material_requests",
+          "column_name": "quantity",
+          "is_nullable": "NO",
+          "column_default": "1"
+        },
+        {
+          "data_type": "text",
+          "table_name": "material_requests",
+          "column_name": "category",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "text",
+          "table_name": "material_requests",
+          "column_name": "target_warehouse",
+          "is_nullable": "YES",
+          "column_default": "'operational'::text"
+        },
+        {
+          "data_type": "text",
+          "table_name": "material_requests",
+          "column_name": "status",
+          "is_nullable": "YES",
+          "column_default": "'pending'::text"
+        },
+        {
+          "data_type": "text",
+          "table_name": "material_requests",
+          "column_name": "notes",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "timestamp with time zone",
+          "table_name": "material_requests",
+          "column_name": "created_at",
+          "is_nullable": "YES",
+          "column_default": "now()"
+        },
+        {
+          "data_type": "timestamp with time zone",
+          "table_name": "material_requests",
+          "column_name": "updated_at",
+          "is_nullable": "YES",
+          "column_default": "now()"
+        },
+        {
+          "data_type": "uuid",
+          "table_name": "material_requests",
+          "column_name": "order_id",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "text",
+          "table_name": "material_requests",
+          "column_name": "details",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "uuid",
+          "table_name": "material_requests",
+          "column_name": "inventory_id",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "uuid",
+          "table_name": "tasks",
+          "column_name": "id",
+          "is_nullable": "NO",
+          "column_default": "gen_random_uuid()"
+        },
+        {
+          "data_type": "uuid",
+          "table_name": "tasks",
+          "column_name": "order_id",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "uuid",
+          "table_name": "tasks",
+          "column_name": "nomenclature_id",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "text",
+          "table_name": "tasks",
+          "column_name": "step",
+          "is_nullable": "NO",
+          "column_default": null
+        },
+        {
+          "data_type": "text",
+          "table_name": "tasks",
+          "column_name": "status",
+          "is_nullable": "YES",
+          "column_default": "'waiting'::text"
+        },
+        {
+          "data_type": "text",
+          "table_name": "tasks",
+          "column_name": "assigned_machine",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "text",
+          "table_name": "tasks",
+          "column_name": "machine_id",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "bigint",
+          "table_name": "tasks",
+          "column_name": "planned_quantity",
+          "is_nullable": "YES",
+          "column_default": "0"
+        },
+        {
+          "data_type": "bigint",
+          "table_name": "tasks",
+          "column_name": "completed_quantity",
+          "is_nullable": "YES",
+          "column_default": "0"
+        },
+        {
+          "data_type": "jsonb",
+          "table_name": "tasks",
+          "column_name": "task_info",
+          "is_nullable": "YES",
+          "column_default": "'{}'::jsonb"
+        },
+        {
+          "data_type": "timestamp with time zone",
+          "table_name": "tasks",
+          "column_name": "created_at",
+          "is_nullable": "YES",
+          "column_default": "now()"
+        },
+        {
+          "data_type": "timestamp with time zone",
+          "table_name": "tasks",
+          "column_name": "updated_at",
+          "is_nullable": "YES",
+          "column_default": "now()"
+        },
+        {
+          "data_type": "text",
+          "table_name": "tasks",
+          "column_name": "operator_name",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "numeric",
+          "table_name": "tasks",
+          "column_name": "good_qty",
+          "is_nullable": "YES",
+          "column_default": "0"
+        },
+        {
+          "data_type": "numeric",
+          "table_name": "tasks",
+          "column_name": "scrap_qty",
+          "is_nullable": "YES",
+          "column_default": "0"
+        },
+        {
+          "data_type": "timestamp with time zone",
+          "table_name": "tasks",
+          "column_name": "started_at",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "timestamp with time zone",
+          "table_name": "tasks",
+          "column_name": "finished_at",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "timestamp with time zone",
+          "table_name": "tasks",
+          "column_name": "completed_at",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "numeric",
+          "table_name": "tasks",
+          "column_name": "estimated_time",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "jsonb",
+          "table_name": "tasks",
+          "column_name": "scrap_data",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "boolean",
+          "table_name": "tasks",
+          "column_name": "engineer_conf",
+          "is_nullable": "YES",
+          "column_default": "false"
+        },
+        {
+          "data_type": "text",
+          "table_name": "tasks",
+          "column_name": "warehouse_conf",
+          "is_nullable": "YES",
+          "column_default": "'false'::text"
+        },
+        {
+          "data_type": "text",
+          "table_name": "tasks",
+          "column_name": "machine_name",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "boolean",
+          "table_name": "tasks",
+          "column_name": "director_conf",
+          "is_nullable": "YES",
+          "column_default": "false"
+        },
+        {
+          "data_type": "jsonb",
+          "table_name": "tasks",
+          "column_name": "plan_snapshot",
+          "is_nullable": "YES",
+          "column_default": "'{}'::jsonb"
+        },
+        {
+          "data_type": "text",
+          "table_name": "tasks",
+          "column_name": "planned_deadline",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "text",
+          "table_name": "tasks",
+          "column_name": "batch_index",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "numeric",
+          "table_name": "tasks",
+          "column_name": "planned_sets",
+          "is_nullable": "YES",
+          "column_default": "0"
+        },
+        {
+          "data_type": "uuid",
+          "table_name": "work_card_history",
+          "column_name": "id",
+          "is_nullable": "NO",
+          "column_default": "gen_random_uuid()"
+        },
+        {
+          "data_type": "uuid",
+          "table_name": "work_card_history",
+          "column_name": "card_id",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "text",
+          "table_name": "work_card_history",
+          "column_name": "from_status",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "text",
+          "table_name": "work_card_history",
+          "column_name": "to_status",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "uuid",
+          "table_name": "work_card_history",
+          "column_name": "actor_id",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "text",
+          "table_name": "work_card_history",
+          "column_name": "actor_login",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "jsonb",
+          "table_name": "work_card_history",
+          "column_name": "metadata",
+          "is_nullable": "YES",
+          "column_default": "'{}'::jsonb"
+        },
+        {
+          "data_type": "timestamp with time zone",
+          "table_name": "work_card_history",
+          "column_name": "created_at",
+          "is_nullable": "YES",
+          "column_default": "now()"
+        },
+        {
+          "data_type": "uuid",
+          "table_name": "work_card_history",
+          "column_name": "nomenclature_id",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "text",
+          "table_name": "work_card_history",
+          "column_name": "stage_name",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "text",
+          "table_name": "work_card_history",
+          "column_name": "operator_name",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "bigint",
+          "table_name": "work_card_history",
+          "column_name": "qty_at_start",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "bigint",
+          "table_name": "work_card_history",
+          "column_name": "qty_completed",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "bigint",
+          "table_name": "work_card_history",
+          "column_name": "scrap_qty",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "text",
+          "table_name": "work_card_history",
+          "column_name": "started_at",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "timestamp with time zone",
+          "table_name": "work_card_history",
+          "column_name": "completed_at",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "boolean",
+          "table_name": "work_card_history",
+          "column_name": "is_archived_scrap",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "text",
+          "table_name": "work_card_history",
+          "column_name": "machine",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "uuid",
+          "table_name": "work_card_history",
+          "column_name": "machine_id",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "text",
+          "table_name": "work_card_history",
+          "column_name": "manager_name",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "text",
+          "table_name": "work_card_history",
+          "column_name": "shift_name",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "text",
+          "table_name": "work_card_history",
+          "column_name": "machine_name",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "bigint",
+          "table_name": "work_card_history",
+          "column_name": "cutters_used",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "text",
+          "table_name": "work_card_history",
+          "column_name": "qc_scrap_reason",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "text",
+          "table_name": "work_card_history",
+          "column_name": "qc_scrap_comment",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "bigint",
+          "table_name": "work_card_history",
+          "column_name": "galt_priority",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "text",
+          "table_name": "work_card_history",
+          "column_name": "card_info",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "uuid",
+          "table_name": "work_card_history",
+          "column_name": "task_id",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "uuid",
+          "table_name": "work_cards",
+          "column_name": "id",
+          "is_nullable": "NO",
+          "column_default": "gen_random_uuid()"
+        },
+        {
+          "data_type": "uuid",
+          "table_name": "work_cards",
+          "column_name": "task_id",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "uuid",
+          "table_name": "work_cards",
+          "column_name": "nomenclature_id",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "bigint",
+          "table_name": "work_cards",
+          "column_name": "quantity",
+          "is_nullable": "NO",
+          "column_default": "1"
+        },
+        {
+          "data_type": "text",
+          "table_name": "work_cards",
+          "column_name": "status",
+          "is_nullable": "YES",
+          "column_default": "'created'::text"
+        },
+        {
+          "data_type": "text",
+          "table_name": "work_cards",
+          "column_name": "box_number",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "boolean",
+          "table_name": "work_cards",
+          "column_name": "is_box_prepared",
+          "is_nullable": "NO",
+          "column_default": "false"
+        },
+        {
+          "data_type": "text",
+          "table_name": "work_cards",
+          "column_name": "card_info",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "jsonb",
+          "table_name": "work_cards",
+          "column_name": "metadata",
+          "is_nullable": "YES",
+          "column_default": "'{}'::jsonb"
+        },
+        {
+          "data_type": "timestamp with time zone",
+          "table_name": "work_cards",
+          "column_name": "created_at",
+          "is_nullable": "YES",
+          "column_default": "now()"
+        },
+        {
+          "data_type": "timestamp with time zone",
+          "table_name": "work_cards",
+          "column_name": "updated_at",
+          "is_nullable": "YES",
+          "column_default": "now()"
+        },
+        {
+          "data_type": "uuid",
+          "table_name": "work_cards",
+          "column_name": "order_id",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "text",
+          "table_name": "work_cards",
+          "column_name": "operation",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "text",
+          "table_name": "work_cards",
+          "column_name": "machine",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "numeric",
+          "table_name": "work_cards",
+          "column_name": "estimated_time",
+          "is_nullable": "YES",
+          "column_default": "0"
+        },
+        {
+          "data_type": "timestamp with time zone",
+          "table_name": "work_cards",
+          "column_name": "started_at",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "timestamp with time zone",
+          "table_name": "work_cards",
+          "column_name": "completed_at",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "text",
+          "table_name": "work_cards",
+          "column_name": "operator_name",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "boolean",
+          "table_name": "work_cards",
+          "column_name": "is_rework",
+          "is_nullable": "YES",
+          "column_default": "false"
+        },
+        {
+          "data_type": "text",
+          "table_name": "work_cards",
+          "column_name": "machine_id",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "text",
+          "table_name": "work_cards",
+          "column_name": "manager_name",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "text",
+          "table_name": "work_cards",
+          "column_name": "shift_name",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "data_type": "numeric",
+          "table_name": "work_cards",
+          "column_name": "cutters_used",
+          "is_nullable": "YES",
+          "column_default": "0"
+        },
+        {
+          "data_type": "numeric",
+          "table_name": "work_cards",
+          "column_name": "used_in_shop2_qty",
+          "is_nullable": "YES",
+          "column_default": "0"
+        },
+        {
+          "data_type": "numeric",
+          "table_name": "work_cards",
+          "column_name": "galt_priority",
+          "is_nullable": "YES",
+          "column_default": "1"
+        }
+      ],
+      "indexes": [
+        {
+          "indexdef": "CREATE INDEX idx_inventory_nomenclature_id ON public.inventory USING btree (nomenclature_id)",
+          "indexname": "idx_inventory_nomenclature_id",
+          "tablename": "inventory",
+          "schemaname": "public"
+        },
+        {
+          "indexdef": "CREATE INDEX idx_inventory_warehouse ON public.inventory USING btree (warehouse)",
+          "indexname": "idx_inventory_warehouse",
+          "tablename": "inventory",
+          "schemaname": "public"
+        },
+        {
+          "indexdef": "CREATE UNIQUE INDEX inventory_pkey ON public.inventory USING btree (id)",
+          "indexname": "inventory_pkey",
+          "tablename": "inventory",
+          "schemaname": "public"
+        },
+        {
+          "indexdef": "CREATE INDEX idx_material_requests_category_wh ON public.material_requests USING btree (target_warehouse, category)",
+          "indexname": "idx_material_requests_category_wh",
+          "tablename": "material_requests",
+          "schemaname": "public"
+        },
+        {
+          "indexdef": "CREATE INDEX idx_material_requests_task_id ON public.material_requests USING btree (task_id)",
+          "indexname": "idx_material_requests_task_id",
+          "tablename": "material_requests",
+          "schemaname": "public"
+        },
+        {
+          "indexdef": "CREATE UNIQUE INDEX material_requests_pkey ON public.material_requests USING btree (id)",
+          "indexname": "material_requests_pkey",
+          "tablename": "material_requests",
+          "schemaname": "public"
+        },
+        {
+          "indexdef": "CREATE INDEX idx_tasks_order_id ON public.tasks USING btree (order_id)",
+          "indexname": "idx_tasks_order_id",
+          "tablename": "tasks",
+          "schemaname": "public"
+        },
+        {
+          "indexdef": "CREATE INDEX idx_tasks_status ON public.tasks USING btree (status)",
+          "indexname": "idx_tasks_status",
+          "tablename": "tasks",
+          "schemaname": "public"
+        },
+        {
+          "indexdef": "CREATE UNIQUE INDEX tasks_pkey ON public.tasks USING btree (id)",
+          "indexname": "tasks_pkey",
+          "tablename": "tasks",
+          "schemaname": "public"
+        },
+        {
+          "indexdef": "CREATE INDEX idx_work_cards_is_box_prepared ON public.work_cards USING btree (is_box_prepared)",
+          "indexname": "idx_work_cards_is_box_prepared",
+          "tablename": "work_cards",
+          "schemaname": "public"
+        },
+        {
+          "indexdef": "CREATE INDEX idx_work_cards_status ON public.work_cards USING btree (status)",
+          "indexname": "idx_work_cards_status",
+          "tablename": "work_cards",
+          "schemaname": "public"
+        },
+        {
+          "indexdef": "CREATE INDEX idx_work_cards_task_id ON public.work_cards USING btree (task_id)",
+          "indexname": "idx_work_cards_task_id",
+          "tablename": "work_cards",
+          "schemaname": "public"
+        },
+        {
+          "indexdef": "CREATE UNIQUE INDEX work_cards_pkey ON public.work_cards USING btree (id)",
+          "indexname": "work_cards_pkey",
+          "tablename": "work_cards",
+          "schemaname": "public"
+        }
+      ],
+      "policies": [
+        {
+          "cmd": "ALL",
+          "qual": "true",
+          "roles": [
+            "anon",
+            "authenticated"
+          ],
+          "tablename": "inventory",
+          "policyname": "staging_all_access_inventory",
+          "schemaname": "public",
+          "with_check": "true"
+        },
+        {
+          "cmd": "ALL",
+          "qual": "true",
+          "roles": [
+            "anon",
+            "authenticated"
+          ],
+          "tablename": "material_requests",
+          "policyname": "staging_all_access_material_requests",
+          "schemaname": "public",
+          "with_check": "true"
+        },
+        {
+          "cmd": "ALL",
+          "qual": "true",
+          "roles": [
+            "anon",
+            "authenticated"
+          ],
+          "tablename": "tasks",
+          "policyname": "staging_all_access_tasks",
+          "schemaname": "public",
+          "with_check": "true"
+        },
+        {
+          "cmd": "ALL",
+          "qual": "true",
+          "roles": [
+            "anon",
+            "authenticated"
+          ],
+          "tablename": "work_cards",
+          "policyname": "staging_all_access_work_cards",
+          "schemaname": "public",
+          "with_check": "true"
+        }
+      ],
+      "triggers": [
+        {
+          "definition": "CREATE TRIGGER trg_audit_legacy_bz_inventory_change AFTER INSERT OR DELETE OR UPDATE ON public.inventory FOR EACH ROW EXECUTE FUNCTION audit_legacy_bz_inventory_change()",
+          "table_name": "inventory",
+          "schema_name": "public",
+          "trigger_name": "trg_audit_legacy_bz_inventory_change",
+          "function_definition": "CREATE OR REPLACE FUNCTION public.audit_legacy_bz_inventory_change()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\nDECLARE\r\n  v_old_qty numeric := coalesce(old.total_qty, 0);\r\n  v_new_qty numeric := coalesce(new.total_qty, 0);\r\n  v_nom uuid := coalesce(new.nomenclature_id, old.nomenclature_id);\r\n  v_type text := coalesce(new.type, old.type);\r\nBEGIN\r\n  IF current_setting('app.bz_enriched_ledger', true) = '1' THEN\r\n    IF tg_op = 'DELETE' THEN RETURN old; ELSE RETURN new; END IF;\r\n  END IF;\r\n\r\n  IF coalesce(old.type, '') NOT IN ('bz', 'wip_bz', 'bz_shop2')\r\n     AND coalesce(new.type, '') NOT IN ('bz', 'wip_bz', 'bz_shop2') THEN\r\n    IF tg_op = 'DELETE' THEN RETURN old; ELSE RETURN new; END IF;\r\n  END IF;\r\n\r\n  IF tg_op = 'UPDATE' AND v_old_qty = v_new_qty AND old.type IS NOT DISTINCT FROM new.type THEN\r\n    RETURN new;\r\n  END IF;\r\n\r\n  INSERT INTO public.bz_inventory_ledger (\r\n    nomenclature_id, movement_type, from_bucket, to_bucket, quantity,\r\n    from_balance_before, from_balance_after, to_balance_before, to_balance_after,\r\n    metadata\r\n  ) VALUES (\r\n    v_nom,\r\n    CASE tg_op WHEN 'INSERT' THEN 'legacy_insert'\r\n               WHEN 'DELETE' THEN 'legacy_delete'\r\n               ELSE 'legacy_adjustment' END,\r\n    CASE WHEN tg_op <> 'INSERT' THEN old.type END,\r\n    CASE WHEN tg_op <> 'DELETE' THEN new.type END,\r\n    abs(v_new_qty - v_old_qty),\r\n    CASE WHEN tg_op <> 'INSERT' THEN v_old_qty END,\r\n    CASE WHEN tg_op <> 'INSERT' THEN CASE WHEN tg_op = 'DELETE' THEN 0 ELSE v_new_qty END END,\r\n    CASE WHEN tg_op <> 'DELETE' THEN CASE WHEN tg_op = 'INSERT' THEN 0 ELSE v_old_qty END END,\r\n    CASE WHEN tg_op <> 'DELETE' THEN v_new_qty END,\r\n    jsonb_build_object('inventory_id', coalesce(new.id, old.id), 'database_operation', tg_op)\r\n  );\r\n\r\n  IF tg_op = 'DELETE' THEN RETURN old; ELSE RETURN new; END IF;\r\nEND;\r\n$function$\n"
+        }
+      ],
+      "functions": [],
+      "constraints": [
+        {
+          "conname": "inventory_pkey",
+          "definition": "PRIMARY KEY (id)",
+          "table_name": "inventory"
+        },
+        {
+          "conname": "material_requests_card_id_fkey",
+          "definition": "FOREIGN KEY (card_id) REFERENCES work_cards(id) ON DELETE SET NULL",
+          "table_name": "material_requests"
+        },
+        {
+          "conname": "material_requests_nomenclature_id_fkey",
+          "definition": "FOREIGN KEY (nomenclature_id) REFERENCES nomenclatures_v2(id) ON DELETE SET NULL",
+          "table_name": "material_requests"
+        },
+        {
+          "conname": "material_requests_pkey",
+          "definition": "PRIMARY KEY (id)",
+          "table_name": "material_requests"
+        },
+        {
+          "conname": "material_requests_task_id_fkey",
+          "definition": "FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE",
+          "table_name": "material_requests"
+        },
+        {
+          "conname": "tasks_nomenclature_id_fkey",
+          "definition": "FOREIGN KEY (nomenclature_id) REFERENCES nomenclatures_v2(id) ON DELETE SET NULL",
+          "table_name": "tasks"
+        },
+        {
+          "conname": "tasks_order_id_fkey",
+          "definition": "FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE",
+          "table_name": "tasks"
+        },
+        {
+          "conname": "tasks_pkey",
+          "definition": "PRIMARY KEY (id)",
+          "table_name": "tasks"
+        },
+        {
+          "conname": "work_cards_nomenclature_id_fkey",
+          "definition": "FOREIGN KEY (nomenclature_id) REFERENCES nomenclatures_v2(id) ON DELETE SET NULL",
+          "table_name": "work_cards"
+        },
+        {
+          "conname": "work_cards_pkey",
+          "definition": "PRIMARY KEY (id)",
+          "table_name": "work_cards"
+        },
+        {
+          "conname": "work_cards_task_id_fkey",
+          "definition": "FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE",
+          "table_name": "work_cards"
+        }
+      ]
+    }
+  }
+]
