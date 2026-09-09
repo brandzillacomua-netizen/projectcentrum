@@ -484,15 +484,30 @@ export function createProductionCardsActions({
       }
       if (!cardSheets || cardSheets <= 0) cardSheets = 1
 
-      // Check if other uncompleted cards remain for this task
-      const otherActiveCards = (workCards || []).filter(c =>
-        String(c.task_id) === String(card.task_id) &&
-        String(c.id) !== String(card.id) &&
-        c.status !== 'completed' &&
-        c.status !== 'scrap' &&
-        c.status !== 'archived'
-      )
-      const isLastCard = otherActiveCards.length === 0
+      // Check if other uncompleted cards remain for this task — MUST use DB, not stale React state
+      // (freshly generated cards may not yet be in workCards state via realtime)
+      let isLastCard = false
+      try {
+        const { data: activeCardsDb } = await supabase
+          .from('work_cards')
+          .select('id')
+          .eq('task_id', card.task_id)
+          .neq('id', card.id)
+          .not('status', 'in', '(completed,scrap,archived)')
+          .limit(1)
+        isLastCard = !activeCardsDb || activeCardsDb.length === 0
+      } catch (e) {
+        // Fallback to in-memory state if DB query fails
+        console.warn('[confirmBuffer] DB activeCards query failed, using in-memory fallback:', e)
+        const otherActiveCards = (workCards || []).filter(c =>
+          String(c.task_id) === String(card.task_id) &&
+          String(c.id) !== String(card.id) &&
+          c.status !== 'completed' &&
+          c.status !== 'scrap' &&
+          c.status !== 'archived'
+        )
+        isLastCard = otherActiveCards.length === 0
+      }
 
       // Fetch fresh material_requests for this task
       let dbTaskRequests = []
@@ -538,21 +553,21 @@ export function createProductionCardsActions({
             sheetInvItem = (inventory || []).find(i => String(i.id) === String(targetInventoryId))
           }
           if (!sheetInvItem && defaultMatId) {
-            sheetInvItem = (inventory || []).find(i => String(i.nomenclature_id) === String(defaultMatId) && (i.warehouse === 'operational' || !i.warehouse))
+            sheetInvItem = (inventory || []).find(i => String(i.nomenclature_id) === String(defaultMatId) && i.warehouse === 'operational')
           }
           if (!sheetInvItem) {
             const rawSheetName = cardNom?.rule_params?.rawSheet || ''
             if (rawSheetName) {
               sheetInvItem = (inventory || []).find(i =>
                 (i.name || '').toLowerCase().includes(rawSheetName.toLowerCase()) &&
-                (i.warehouse === 'operational' || !i.warehouse)
+                i.warehouse === 'operational'
               )
             }
           }
           if (!sheetInvItem) {
             const opSheets = (inventory || []).filter(i =>
               (i.name || '').toLowerCase().includes('лист') &&
-              (i.warehouse === 'operational' || !i.warehouse)
+              i.warehouse === 'operational'
             )
             const thickMatch = (cardNom?.name || '').match(/[-_](\d+(?:[.,]\d+)?)(?:[-_]|$)/)
             if (thickMatch) {
@@ -690,7 +705,11 @@ export function createProductionCardsActions({
         const taskReservedForCutter = cutterRequests.reduce((sum, r) => sum + (Number(r.quantity) || 0), 0)
 
         // 2. Adjust inventory total_qty and reserved_qty proportionally
-        const invItem = inventory?.find(i => String(i.nomenclature_id) === String(nom.id) && (i.warehouse === 'operational' || i.type === 'consumable'))
+        // Only match explicitly operational warehouse (not pocket/null-warehouse items)
+        const invItem = inventory?.find(i => {
+          const w = (i.warehouse || '').toLowerCase().trim()
+          return String(i.nomenclature_id) === String(nom.id) && (w === 'operational' || w === 'склад оперативний')
+        })
         if (invItem) {
           const curReserved = Number(invItem.reserved_qty) || 0
           let releaseReserved = 0

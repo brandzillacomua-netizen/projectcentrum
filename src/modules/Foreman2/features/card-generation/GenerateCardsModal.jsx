@@ -224,7 +224,8 @@ export default function GenerateCardsModal({
       if (n.type === 'cutter_type') return false
       const nLower = (n.name || '').toLowerCase()
       if (nLower.startsWith('тип ф') || nLower.startsWith('тип f')) return false
-      return nLower.includes('фрез') || n.type === 'consumable'
+      // Must contain 'фрез' in name — consumable alone is not enough (screws, bolts, etc. are also consumable)
+      return nLower.includes('фрез')
     })
 
     const getStock = (nomId, nomName) => {
