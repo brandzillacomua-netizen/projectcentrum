@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { getInventoryDisplayName } from '../utils/inventoryDisplayName.js'
 
 export const normalize = (s) => (s || '').toLowerCase().trim()
   .replace(/[тt]/g, 't').replace(/[аa]/g, 'a').replace(/[еe]/g, 'e')
@@ -367,8 +368,11 @@ export const useWarehouseComputed = ({
   }, [workCards, tasks, nomenclatures, machineOperations, requests, inventory])
 
   const filteredInventory = useMemo(() => {
-    return (inventory || []).filter(i => {
-      const normName = (i.name || '').toLowerCase().replace(/[^a-z0-9а-яіїєґ]/gi, '')
+    return (inventory || []).map(i => ({
+      ...i,
+      displayName: getInventoryDisplayName(i, nomenclatures || [])
+    })).filter(i => {
+      const normName = `${i.name || ''} ${i.displayName}`.toLowerCase().replace(/[^a-z0-9а-яіїєґ]/gi, '')
       const normSearch = searchQuery.toLowerCase().replace(/[^a-z0-9а-яіїєґ]/gi, '')
       const matchesSearch = normName.includes(normSearch)
       

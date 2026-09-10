@@ -170,6 +170,7 @@ export function useDataFetchers(state) {
 
       // 1. Load canonical V2 nomenclatures first (Master Catalog)
       const unifiedMap = new Map()
+      const v2ById = new Map()
       const v2ByName = new Map()
       const v2ByCode = new Map()
 
@@ -178,6 +179,7 @@ export function useDataFetchers(state) {
           const mapped = mapV2ToStandardNom(n)
           mapped.legacy_ids = [String(n.id)]
           unifiedMap.set(String(n.id), mapped)
+          v2ById.set(String(n.id), mapped)
 
           const normName = String(mapped.name || '').trim().toLowerCase()
           if (normName) v2ByName.set(normName, mapped)
@@ -195,7 +197,10 @@ export function useDataFetchers(state) {
         const normCode = String(n.nomenclature_code || n.code || '').trim().toUpperCase()
         const legacyIdStr = String(n.id)
 
-        const canonicalV2 = (normName && v2ByName.get(normName)) || (normCode && v2ByCode.get(normCode))
+        // A renamed V2 record can retain its V1 ID. Never overwrite it with the
+        // legacy label just because names and codes no longer match.
+        const canonicalV2 = v2ById.get(legacyIdStr)
+          || (normName && v2ByName.get(normName)) || (normCode && v2ByCode.get(normCode))
 
         if (canonicalV2) {
           // Merge legacy ID so any lookup for this item finds the canonical V2 record

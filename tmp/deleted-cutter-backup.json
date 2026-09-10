@@ -1,0 +1,33 @@
+{
+  "savedAt": "2026-09-09T23:53:53.637Z",
+  "stock": {
+    "id": "9d8271f8-ebea-4a38-880c-50a5674afaa9",
+    "name": "Фреза 6мм твердосплавна HRC55 (Тайвань)",
+    "unit": "шт",
+    "total_qty": 999,
+    "reserved_qty": 0,
+    "updated_at": "2026-09-08T19:13:09.252955+00:00",
+    "type": "consumable",
+    "nomenclature_id": "d23887da-d00a-45a3-bf56-6cc9b0c8cd4b",
+    "category": "raw",
+    "warehouse": "operational",
+    "pocket_owner": null,
+    "created_at": "2026-08-28T12:14:10.437468+00:00"
+  },
+  "requests": [
+    {
+      "id": "a5c8a7aa-0d81-46a5-8a3e-3b6c5ae9c09f",
+      "order_id": "6900b524-0271-459a-9202-1de86897dd72",
+      "details": "ВИТРАТНІ МАТЕРІАЛИ ДЛЯ ДОВИПУСКУ 260902-3: Фреза 6мм твердосплавна HRC55 (Тайвань) — 2 од. (для F415-421-ІП27-В-3-26)",
+      "status": "cancelled",
+      "created_at": "2026-09-02T17:00:07.817164+00:00",
+      "inventory_id": "9d8271f8-ebea-4a38-880c-50a5674afaa9",
+      "quantity": 2,
+      "nomenclature_id": "d23887da-d00a-45a3-bf56-6cc9b0c8cd4b",
+      "task_id": "e395bdde-7e78-4e62-bb7d-60c7f3a52098",
+      "card_id": null,
+      "category": "cutter",
+      "target_warehouse": "operational"
+    }
+  ]
+}

@@ -1,6 +1,5 @@
 import React from 'react'
-import { Link } from 'react-router-dom'
-import { IconSGP } from '../../../components/WarehouseIcons.jsx'
+import { Archive, ArrowLeft } from 'lucide-react'
 
 export const WarehouseTabsBar = ({
   tabs,
@@ -8,10 +7,12 @@ export const WarehouseTabsBar = ({
   setActiveTab,
   setNewItem,
   newItem,
-  setSearchParams
+  setSearchParams,
+  isStockView,
+  onToggleStock
 }) => {
   return (
-    <div style={{ display: 'flex', gap: '10px', marginBottom: '25px', overflowX: 'auto', paddingBottom: '5px' }}>
+    <div className="so-workspace-navigation">
       {tabs.map(tab => (
         <button
           key={tab.id}
@@ -59,27 +60,10 @@ export const WarehouseTabsBar = ({
         </button>
       ))}
 
-      <Link
-        to="/warehouse-fgp"
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          background: 'rgba(16, 185, 129, 0.1)',
-          color: '#10b981',
-          border: '1px solid rgba(16, 185, 129, 0.3)',
-          padding: '12px 20px',
-          borderRadius: '14px',
-          fontSize: '0.85rem',
-          fontWeight: 900,
-          textDecoration: 'none',
-          whiteSpace: 'nowrap',
-          marginLeft: 'auto'
-        }}
-      >
-        <IconSGP size={20} color="#10b981" />
-        <span>Склад Готової Продукції (СГП) →</span>
-      </Link>
+      <button type="button" className="so-stock-access" onClick={onToggleStock} aria-pressed={isStockView}>
+        {isStockView ? <ArrowLeft size={20} /> : <Archive size={20} />}
+        <span>{isStockView ? 'До видачі на наряди' : 'Переглянути залишки СО'}</span>
+      </button>
     </div>
   )
 }

@@ -3,6 +3,7 @@ import { Warehouse as WarehouseIcon, Package, FolderOpen, History, Plus, Search 
 import { useSearchParams } from 'react-router-dom'
 import { useMES } from '../MESContext'
 import { supabase } from '../supabase'
+import { deleteInventoryItem } from '../services/inventoryDeletion'
 
 // Hooks
 import { getMaterialType, useWarehouseComputed } from './Warehouse/hooks/useWarehouseComputed'
@@ -14,7 +15,7 @@ import { ScannerPanel } from './Warehouse/components/ScannerPanel'
 import { ShortageModal } from './Warehouse/components/ShortageModal'
 import { MaterialDetailModal } from './Warehouse/components/MaterialDetailModal'
 import { KittingModal } from './Warehouse/components/KittingModal'
-import { ConsumablesQueue } from './Warehouse/components/ConsumablesQueue'
+import { WarehouseIssueWorkspace } from './Warehouse/components/WarehouseIssueWorkspace'
 import { BoxesView } from './Warehouse/components/BoxesView'
 import { RegistryView } from './Warehouse/components/RegistryView'
 import { ReserveAnalysisModal } from './Warehouse/components/ReserveAnalysisModal'
@@ -51,11 +52,26 @@ const WarehouseModuleV2 = () => {
   })
 
   useEffect(() => {
-    const tabParam = searchParams.get('tab')
-    if (tabParam && tabParam !== activeTab) {
+    const tabParam = searchParams.get('tab') || 'raw'
+    if (tabParam !== activeTab) {
       setActiveTab(tabParam)
     }
   }, [searchParams])
+
+  const isStockView = searchParams.get('view') === 'stock' || ['sheets', 'cutters'].includes(activeTab)
+  const isIssueView = !isStockView && activeTab === 'raw'
+  const changeWorkspace = (view, tab = 'raw') => {
+    setActiveTab(tab)
+    setSearchParams(previous => {
+      const next = new URLSearchParams(previous)
+      next.set('tab', tab)
+      if (view === 'stock') next.set('view', 'stock')
+      else next.delete('view')
+      return next
+    })
+  }
+  const changeWarehouseTab = params => changeWorkspace('queue', params.tab)
+  const changeStockFolder = params => changeWorkspace('stock', params.tab)
 
   const [showAdd, setShowAdd] = useState(false)
   const [showReception, setShowReception] = useState(false)
@@ -179,8 +195,7 @@ const WarehouseModuleV2 = () => {
     if (!itemToDelete || isDeleting) return
     setIsDeleting(true)
     try {
-      const { error } = await supabase.from('inventory').delete().eq('id', itemToDelete.id)
-      if (error) throw error
+      await deleteInventoryItem(supabase, itemToDelete.id)
       if (typeof refreshTable === 'function') refreshTable('inventory')
       if (typeof fetchData === 'function') fetchData(['inventory'])
       setItemToDelete(null)
@@ -302,8 +317,24 @@ const WarehouseModuleV2 = () => {
           refreshTable={refreshTable}
         />
 
+        {/* Tabs Bar */}
+        <WarehouseTabsBar
+          isStockView={isStockView}
+          onToggleStock={() => changeWorkspace(isStockView ? 'queue' : 'stock')}
+          tabs={tabs.map(tab => tab.id === 'raw' ? { ...tab, label: 'Видача на наряди', count: undefined } : tab)}
+          activeTab={isStockView ? null : activeTab}
+          setActiveTab={setActiveTab}
+          setNewItem={setNewItem}
+          newItem={newItem}
+          setSearchParams={changeWarehouseTab}
+        />
+
         {/* Consumables requests queue list */}
-        <ConsumablesQueue
+        {isIssueView && <WarehouseIssueWorkspace
+          onOpenStock={() => changeWorkspace('stock')}
+          onOpenBoxes={() => changeWorkspace('queue', 'boxes')}
+          boxesCount={cardsWithBoxes.filter(c => !c.isPrepared).length}
+          onRefresh={() => fetchData(['inventory', 'material_requests', 'tasks', 'orders', 'work_cards', 'reception_docs', 'purchase_requests'])}
           groupedRequests={groupedRequests}
           tasks={tasks}
           orders={orders}
@@ -323,23 +354,13 @@ const WarehouseModuleV2 = () => {
           approveWarehouse={approveWarehouse}
           handleReserveOrder={handlers.handleReserveOrder}
           workCards={workCards}
-        />
-
-        {/* Tabs Bar */}
-        <WarehouseTabsBar
-          tabs={tabs}
-          activeTab={activeTab}
-          setActiveTab={setActiveTab}
-          setNewItem={setNewItem}
-          newItem={newItem}
-          setSearchParams={setSearchParams}
-        />
+        />}
 
         {/* Main Content card */}
-        <div className="content-card glass-panel" style={{ padding: '25px 25px 120px', borderRadius: '24px', background: 'rgba(20,20,20,0.6)', border: '1px solid #222' }}>
+        {!isIssueView && <div className="content-card glass-panel" style={{ padding: '25px 25px 120px', borderRadius: '24px', background: 'rgba(20,20,20,0.6)', border: '1px solid #222' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px', marginBottom: '25px' }}>
             <h2 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 900 }}>
-              {tabs.find(t => t.id === activeTab)?.label.toUpperCase()}
+              {isStockView ? 'ЗАЛИШКИ СО' : tabs.find(t => t.id === activeTab)?.label.toUpperCase()}
             </h2>
             <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
               <div style={{ position: 'relative' }}>
@@ -350,19 +371,19 @@ const WarehouseModuleV2 = () => {
                   onChange={e => setSearchQuery(e.target.value)}
                 />
               </div>
-              <button
+              {isStockView && <button
                 onClick={() => setShowAdd(!showAdd)}
                 style={{ background: '#222', color: '#fff', border: 'none', padding: '8px 12px', borderRadius: '10px', cursor: 'pointer' }}
               >
                 <Plus size={20} />
-              </button>
+              </button>}
             </div>
           </div>
 
           <WarehouseCategoryFoldersBar
             activeTab={activeTab}
             setActiveTab={setActiveTab}
-            setSearchParams={setSearchParams}
+            setSearchParams={changeStockFolder}
             inventory={inventory}
           />
 
@@ -417,7 +438,7 @@ const WarehouseModuleV2 = () => {
               isProcessing={isProcessing}
             />
           )}
-        </div>
+        </div>}
       </div>
 
       <ShortageModal

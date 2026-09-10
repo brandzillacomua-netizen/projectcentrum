@@ -2,6 +2,7 @@ import React from 'react'
 import { Bell, Trash2, Pencil, Check } from 'lucide-react'
 import { parseMaterialName, normalize } from '../hooks/useWarehouseComputed'
 import { availableInventoryForRequest } from '../utils/materialInventoryMatching.js'
+import { getInventoryDisplayName } from '../utils/inventoryDisplayName.js'
 
 const isPreparedSheetName = (name) => {
   const nameLower = String(name || '').toLowerCase()
@@ -52,7 +53,7 @@ export const ConsumablesQueue = ({
       <h3 style={{ fontSize: '0.8rem', color: '#ff9000', marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '8px' }}>
         <Bell size={16} /> ЗАЯВКИ НА КОМПЛЕКТАЦІЮ
       </h3>
-      <div style={{ display: 'flex', gap: '15px', overflowX: 'auto', paddingBottom: '10px' }}>
+      <div className="consumable-naryad-list" style={{ display: 'flex', gap: '15px', overflowX: 'auto', paddingBottom: '10px' }}>
         {Object.entries(groupedRequests).map(([key, reqList]) => {
           const firstReq = reqList[0]
           const pendingReqs = reqList.filter(r => r.status === 'pending')
@@ -192,7 +193,7 @@ export const ConsumablesQueue = ({
 
           return (
             <div key={key} className="consumable-card" style={{ minWidth: '300px', padding: '15px', borderRadius: '15px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+              <div className="consumable-naryad-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                 <strong className="consumable-card-title" style={{ fontSize: '0.75rem', color: isCardGroup ? '#f59e0b' : undefined }}>{cardLabel}</strong>
                 {currentUser?.login === 'admin@workshop.local' && (
                   <button
@@ -207,7 +208,8 @@ export const ConsumablesQueue = ({
                   </button>
                 )}
               </div>
-              <ul style={{ listStyle: 'none', padding: 0, marginBottom: '15px' }}>
+              <div className="so-naryad-columns" aria-hidden="true"><span>Номенклатура матеріалу</span><span>Запитано / дії</span></div>
+              <ul className="consumable-naryad-items" style={{ listStyle: 'none', padding: 0, marginBottom: '15px' }}>
                 {(() => {
                   const displayedRequests = []
                   actionableReqs.forEach(r => {
@@ -228,7 +230,10 @@ export const ConsumablesQueue = ({
                   return displayedRequests.map(r => {
                     const parsedName = parseMaterialName(r.details)
                     const invItem = r.inventory_id ? (inventory || []).find(item => String(item.id) === String(r.inventory_id)) : null
-                    const displayName = invItem?.name || parsedName || r.details
+                    const displayName = getInventoryDisplayName({
+                      name: invItem?.name || parsedName || r.details,
+                      nomenclature_id: invItem?.nomenclature_id || r.nomenclature_id
+                    }, nomenclatures || [])
                     const nom = r.nomenclature_id ? (nomenclatures || []).find(n => String(n.id) === String(r.nomenclature_id)) : null
                     const isConsumable = nom?.type === 'consumable' || (parsedName || '').toLowerCase().includes('фреза')
                     const isEditing = editingQty.hasOwnProperty(r.id)

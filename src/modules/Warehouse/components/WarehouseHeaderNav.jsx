@@ -24,14 +24,14 @@ export const WarehouseHeaderNav = ({
       width: '100%',
       boxSizing: 'border-box'
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: window.innerWidth < 768 ? '8px' : '20px', width: '100%', justifyContent: 'space-between' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: window.innerWidth < 768 ? '8px' : '20px', width: '100%', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: window.innerWidth < 768 ? '8px' : '20px' }}>
           <Link to="/" className="back-link" style={{ color: '#555', transition: '0.3s', display: 'flex', alignItems: 'center' }}>
             <ArrowLeft size={18} /> <span className="hide-mobile" style={{ marginLeft: '5px' }}>Назад</span>
           </Link>
           <div className="module-title-group" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <IconSO className="text-secondary" size={20} color="#10b981" />
-            <h1 className="hide-mobile" style={{ margin: 0, fontSize: '1.1rem', fontWeight: 950, letterSpacing: '-0.02em' }}>СКЛАД ОПЕРАТИВНИЙ</h1>
+            <div className="hide-mobile"><h1 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 950, letterSpacing: '-0.02em' }}>СКЛАД ОПЕРАТИВНИЙ</h1><p style={{ margin: '4px 0 0', fontSize: '0.65rem', opacity: 0.65 }}>Робоче місце комірника: видача матеріалів на наряди</p></div>
             <span className="pillar-badge-erp hide-mobile" style={{ padding: '3px 8px', borderRadius: '12px', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase' }}>
               ERP WMS Pillar
             </span>
@@ -67,7 +67,7 @@ export const WarehouseHeaderNav = ({
           </div>
         </div>
         
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           <button
             type="button"
             onClick={() => setShowReception(!showReception)}

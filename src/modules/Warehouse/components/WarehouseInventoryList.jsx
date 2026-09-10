@@ -1,6 +1,7 @@
 import React from 'react'
 import { Pencil, Check, X } from 'lucide-react'
 import { useMES } from '../../../MESContext'
+import { WarehouseNomenclatureLink } from './WarehouseNomenclatureLink'
 
 export function WarehouseInventoryList({
   filteredInventory,
@@ -36,7 +37,7 @@ export function WarehouseInventoryList({
             return (
               <tr key={item.id} style={{ borderBottom: '1px solid #222' }}>
                 <td style={{ padding: '12px 16px' }}>
-                  <strong>{item.name}</strong>
+                  <strong><WarehouseNomenclatureLink item={item} /></strong>
                 </td>
                 <td style={{ padding: '12px 16px', textAlign: 'center' }}>
                   {isEditing ? (

@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react'
 import { useMES } from '../../../MESContext'
 import { apiService } from '../../../services/apiDispatcher'
 import { supabase } from '../../../supabase'
+import { deleteInventoryItem } from '../../../services/inventoryDeletion'
 import {
   getQR,
   setQR,
@@ -87,8 +88,7 @@ export function useSupplyData({ isProcurementOnly = false } = {}) {
           }
         }
       } else {
-        const { error } = await supabase.from('inventory').delete().eq('id', itemToDelete.id)
-        if (error) throw error
+        await deleteInventoryItem(supabase, itemToDelete.id)
       }
       if (typeof fetchData === 'function') fetchData(['inventory', 'nomenclatures'])
       setItemToDelete(null)

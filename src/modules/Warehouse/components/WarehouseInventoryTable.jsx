@@ -1,5 +1,6 @@
 import React from 'react'
 import { Pencil, Trash2, Check, X } from 'lucide-react'
+import { WarehouseNomenclatureLink } from './WarehouseNomenclatureLink'
 
 const WarehouseInventoryTableRow = React.memo(({
   item,
@@ -27,7 +28,7 @@ const WarehouseInventoryTableRow = React.memo(({
     <tr style={{ borderBottom: '1px solid #151515' }}>
       <td className="sticky-col" style={{ padding: '15px', fontWeight: 800 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-          <span>{item.name}</span>
+          <WarehouseNomenclatureLink item={item} />
           {item.type?.startsWith('scrap') && (() => {
             const types = {
               'scrap': { label: 'Прийомка', color: '#555' },
@@ -147,7 +148,7 @@ const WarehouseInventoryMobileCard = React.memo(({
     <div style={{ background: '#111', padding: '15px', borderRadius: '16px', border: '1px solid #222', marginBottom: '10px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', alignItems: 'center' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          <strong>{item.name}</strong>
+          <strong><WarehouseNomenclatureLink item={item} /></strong>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={{ fontSize: '0.7rem', color: '#444' }}>{item.unit}</span>
