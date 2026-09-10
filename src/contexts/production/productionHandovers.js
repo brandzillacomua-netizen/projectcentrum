@@ -1,4 +1,5 @@
 import { supabase } from '../../supabase.js'
+import { resolveCanonicalNomId, getLegacyIdsForNomId } from '../../modules/Nomenclature/utils/nomenclatureHelpers.js'
 
 export function createProductionHandoversActions({
   orders, tasks, inventory, nomenclatures, bomItems, workCards,
@@ -287,7 +288,10 @@ export function createProductionHandoversActions({
   const directHandoverToSGP = async (taskId, nomenclatureId, needQty, bzTotal) => {
     try {
       const task = tasks.find(t => String(t.id) === String(taskId))
-      const nom = nomenclatures.find(n => String(n.id) === String(nomenclatureId))
+      const canonicalNomId = resolveCanonicalNomId(nomenclatureId, nomenclatures) || String(nomenclatureId || '')
+      const legacyIds = getLegacyIdsForNomId(canonicalNomId, nomenclatures)
+      const allNomIds = Array.from(new Set([canonicalNomId, ...legacyIds].filter(Boolean)))
+      const nom = nomenclatures.find(n => String(n.id) === canonicalNomId)
       const order = orders.find(o => String(o.id) === String(task?.order_id))
       if (!task || !nom) return
 
@@ -295,7 +299,7 @@ export function createProductionHandoversActions({
       const { data: siblingCards } = await supabase.from('work_cards')
         .select('id, quantity, card_info, operation')
         .eq('task_id', taskId)
-        .eq('nomenclature_id', nomenclatureId)
+        .in('nomenclature_id', allNomIds)
         .eq('status', 'completed')
 
       let siblingFinishedSum = 0
@@ -311,21 +315,27 @@ export function createProductionHandoversActions({
       const totalQty = Number(needQty) + Number(bzTotal)
 
       let plannedNeed = Number(needQty)
-      const taskNeed = Number(task.plan_snapshot?.[String(nomenclatureId)]?.need)
+      let taskNeed = Number(task.plan_snapshot?.[canonicalNomId]?.need)
+      if (isNaN(taskNeed) && legacyIds.length > 0) {
+        for (const legId of legacyIds) {
+          const legNeed = Number(task.plan_snapshot?.[legId]?.need)
+          if (!isNaN(legNeed)) { taskNeed = legNeed; break }
+        }
+      }
       if (taskNeed && !isNaN(taskNeed)) plannedNeed = taskNeed
 
       const remainingNeed = Math.max(0, plannedNeed - siblingFinishedSum)
       const finishedQty = Math.min(totalQty, remainingNeed)
       const actualBzQty = Math.max(0, totalQty - finishedQty)
 
-      const { data: card, error: cardErr } = await supabase.from('work_cards').insert([{ task_id: taskId, order_id: task.order_id, nomenclature_id: nomenclatureId, quantity: totalQty, operation: 'Пакування/СГП', status: 'completed', operator_name: 'Система', completed_at: new Date().toISOString(), card_info: `[ЦЕХ №2] [NEED:${finishedQty}] [BZ:${actualBzQty}] Наряд №${order?.order_num || ''}${task.batch_index ? `/${task.batch_index}` : ''} [ПРЯМА ПЕРЕДАЧА]` }]).select().single()
+      const { data: card, error: cardErr } = await supabase.from('work_cards').insert([{ task_id: taskId, order_id: task.order_id, nomenclature_id: canonicalNomId, quantity: totalQty, operation: 'Пакування/СГП', status: 'completed', operator_name: 'Система', completed_at: new Date().toISOString(), card_info: `[ЦЕХ №2] [NEED:${finishedQty}] [BZ:${actualBzQty}] Наряд №${order?.order_num || ''}${task.batch_index ? `/${task.batch_index}` : ''} [ПРЯМА ПЕРЕДАЧА]` }]).select().single()
       if (cardErr) throw cardErr
 
       // Оновлюємо used_in_shop2_qty на source-картках (розподіляємо по черзі)
       const { data: sourceCards } = await supabase.from('work_cards')
         .select('*')
         .eq('order_id', task.order_id)
-        .eq('nomenclature_id', nomenclatureId)
+        .in('nomenclature_id', allNomIds)
         .eq('status', 'at-shop2-buffer')
 
       if (sourceCards && sourceCards.length > 0) {
@@ -344,10 +354,10 @@ export function createProductionHandoversActions({
       }
 
       const inventoryUpdates = []
-      const subFromS2Unified = async (nid, totalDeductQty) => {
+      const subFromS2Unified = async (nids, totalDeductQty) => {
         if (!totalDeductQty || totalDeductQty <= 0) return
         let remaining = totalDeductQty
-        const { data: rows } = await supabase.from('inventory').select('*').eq('nomenclature_id', nid).in('type', ['semi_shop2', 'bz_shop2'])
+        const { data: rows } = await supabase.from('inventory').select('*').in('nomenclature_id', nids).in('type', ['semi_shop2', 'bz_shop2'])
         const sortedRows = (rows || []).sort((a, b) => {
           if (a.type === 'semi_shop2' && b.type === 'bz_shop2') return -1
           if (a.type === 'bz_shop2' && b.type === 'semi_shop2') return 1
@@ -361,19 +371,19 @@ export function createProductionHandoversActions({
         }
       }
       const totalQtyToDeduct = finishedQty + actualBzQty
-      await subFromS2Unified(nomenclatureId, totalQtyToDeduct)
+      await subFromS2Unified(allNomIds, totalQtyToDeduct)
       if (finishedQty > 0) {
-        const { data: finishedItem } = await supabase.from('inventory').select('*').eq('nomenclature_id', nomenclatureId).eq('type', 'finished').limit(1).maybeSingle()
-        if (finishedItem) inventoryUpdates.push({ ...finishedItem, total_qty: (Number(finishedItem.total_qty) || 0) + finishedQty })
-        else await supabase.from('inventory').insert([{ nomenclature_id: nomenclatureId, name: nom.name, unit: nom.unit || 'шт', total_qty: finishedQty, reserved_qty: 0, type: 'finished' }])
+        const { data: finishedItem } = await supabase.from('inventory').select('*').in('nomenclature_id', allNomIds).eq('type', 'finished').limit(1).maybeSingle()
+        if (finishedItem) inventoryUpdates.push({ ...finishedItem, nomenclature_id: canonicalNomId, total_qty: (Number(finishedItem.total_qty) || 0) + finishedQty })
+        else await supabase.from('inventory').insert([{ nomenclature_id: canonicalNomId, name: nom.name, unit: nom.unit || 'шт', total_qty: finishedQty, reserved_qty: 0, type: 'finished' }])
       }
       if (actualBzQty > 0) {
-        const { data: bzItem } = await supabase.from('inventory').select('*').eq('nomenclature_id', nomenclatureId).eq('type', 'bz').limit(1).maybeSingle()
-        if (bzItem) inventoryUpdates.push({ ...bzItem, total_qty: (Number(bzItem.total_qty) || 0) + actualBzQty })
-        else await supabase.from('inventory').insert([{ nomenclature_id: nomenclatureId, name: nom.name, unit: nom.unit || 'шт', total_qty: actualBzQty, reserved_qty: 0, type: 'bz', pocket_owner: null }])
+        const { data: bzItem } = await supabase.from('inventory').select('*').in('nomenclature_id', allNomIds).eq('type', 'bz').limit(1).maybeSingle()
+        if (bzItem) inventoryUpdates.push({ ...bzItem, nomenclature_id: canonicalNomId, total_qty: (Number(bzItem.total_qty) || 0) + actualBzQty })
+        else await supabase.from('inventory').insert([{ nomenclature_id: canonicalNomId, name: nom.name, unit: nom.unit || 'шт', total_qty: actualBzQty, reserved_qty: 0, type: 'bz', pocket_owner: null }])
       }
       if (inventoryUpdates.length > 0) await supabase.from('inventory').upsert(inventoryUpdates)
-      await supabase.from('work_card_history').insert([{ card_id: card.id, nomenclature_id: nomenclatureId, stage_name: 'Пакування/СГП', operator_name: 'Система (ПРЯМА ПЕРЕДАЧА)', qty_at_start: totalQty, qty_completed: totalQty, scrap_qty: 0, completed_at: new Date().toISOString() }])
+      await supabase.from('work_card_history').insert([{ card_id: card.id, nomenclature_id: canonicalNomId, stage_name: 'Пакування/СГП', operator_name: 'Система (ПРЯМА ПЕРЕДАЧА)', qty_at_start: totalQty, qty_completed: totalQty, scrap_qty: 0, completed_at: new Date().toISOString() }])
       refreshTable('inventory'); refreshTable('tasks')
       return { success: true }
     } catch (e) { console.error("Direct handover error:", e); throw e }
@@ -385,7 +395,10 @@ export function createProductionHandoversActions({
       if (!freshCard) return
       if (freshCard.status === 'completed') { alert('Ця картка вже передана на СГП і завершена. Повторна передача неможлива.'); return }
       const card = freshCard
-      const nomId = card.nomenclature_id
+      const rawNomId = card.nomenclature_id
+      const nomId = resolveCanonicalNomId(rawNomId, nomenclatures) || String(rawNomId || '')
+      const legacyIds = getLegacyIdsForNomId(nomId, nomenclatures)
+      const allNomIds = Array.from(new Set([nomId, ...legacyIds].filter(Boolean)))
       const totalQty = Number(card.quantity) || 0
       const isRework = card.card_info?.includes('[REWORK]') || card.card_info?.includes('[RESTORATION]') || card.operation === 'Доопрацювання' || card.card_info?.includes('Автоматично з Сортування')
 
@@ -395,16 +408,21 @@ export function createProductionHandoversActions({
         const { data: tData } = await supabase.from('tasks').select('plan_snapshot').eq('id', card.task_id).maybeSingle()
         if (tData && tData.plan_snapshot) {
           const snap = tData.plan_snapshot
-          plannedNeed = Number(snap[String(nomId)]?.need) || 0
+          for (const nid of allNomIds) {
+            if (snap[nid]?.need) {
+              plannedNeed = Number(snap[nid].need) || 0
+              if (plannedNeed > 0) break
+            }
+          }
           if (!plannedNeed && snap.arrivals) {
-            const arrVal = snap.arrivals.find(a => String(a.id) === String(nomId))
+            const arrVal = snap.arrivals.find(a => allNomIds.includes(String(a.id)))
             if (arrVal) plannedNeed = Number(arrVal.semi) || 0
           }
         }
       }
       if (!plannedNeed) {
         const order = orders.find(o => String(o.id) === String(card.order_id))
-        const directItem = order?.order_items?.find(it => String(it.nomenclature_id) === String(nomId))
+        const directItem = order?.order_items?.find(it => allNomIds.includes(String(it.nomenclature_id)))
         if (directItem) plannedNeed = Number(directItem.quantity) || 0
       }
 
@@ -412,7 +430,7 @@ export function createProductionHandoversActions({
       const { data: siblingCards } = await supabase.from('work_cards')
         .select('id, quantity, card_info, operation')
         .eq('task_id', card.task_id)
-        .eq('nomenclature_id', nomId)
+        .in('nomenclature_id', allNomIds)
         .eq('status', 'completed')
 
       let siblingFinishedSum = 0
@@ -433,7 +451,7 @@ export function createProductionHandoversActions({
 
       const typesToFetch = ['semi_shop2', 'bz_shop2', 'finished', 'bz']
       const orFilters = []
-      if (nomId) orFilters.push(`nomenclature_id.eq.${nomId}`)
+      allNomIds.forEach(id => orFilters.push(`nomenclature_id.eq.${id}`))
       if (nomName) orFilters.push(`name.eq."${nomName.replace(/"/g, '""')}"`)
 
       let query = supabase.from('inventory').select('*').in('type', typesToFetch)
@@ -449,7 +467,7 @@ export function createProductionHandoversActions({
       if (!isRework && totalQty > 0) {
         let remaining = totalQty
         const s2Rows = existingInv?.filter(i => 
-          (nomId && String(i.nomenclature_id) === String(nomId) || i.name === nomName) && 
+          (allNomIds.includes(String(i.nomenclature_id)) || i.name === nomName) && 
           (i.type === 'semi_shop2' || i.type === 'bz_shop2')
         ) || []
         
@@ -477,7 +495,7 @@ export function createProductionHandoversActions({
           i.warehouse === 'sgp' && 
           i.type === 'finished' && 
           (
-            (nomId && String(i.nomenclature_id) === String(nomId)) || 
+            allNomIds.includes(String(i.nomenclature_id)) || 
             (nomName && (i.name === nomName || (i.name || '').trim().toLowerCase() === nomName.trim().toLowerCase()))
           )
         )
@@ -485,11 +503,11 @@ export function createProductionHandoversActions({
           updates.push({ 
             ...finishedItem, 
             total_qty: (Number(finishedItem.total_qty) || 0) + finishedQty,
-            nomenclature_id: nomId || finishedItem.nomenclature_id,
+            nomenclature_id: nomId,
             updated_at: new Date().toISOString()
           })
         } else {
-          const nom = nomenclatures.find(n => n.id === nomId)
+          const nom = nomenclatures.find(n => String(n.id) === nomId)
           inserts.push({ 
             nomenclature_id: nomId, 
             name: nom?.name || nomName || 'Готова продукція', 
@@ -509,7 +527,7 @@ export function createProductionHandoversActions({
           i.warehouse === 'sgp' && 
           i.type === 'bz' && 
           (
-            (nomId && String(i.nomenclature_id) === String(nomId)) || 
+            allNomIds.includes(String(i.nomenclature_id)) || 
             (nomName && (i.name === nomName || (i.name || '').trim().toLowerCase() === nomName.trim().toLowerCase()))
           )
         )
@@ -517,11 +535,11 @@ export function createProductionHandoversActions({
           updates.push({ 
             ...bzItem, 
             total_qty: (Number(bzItem.total_qty) || 0) + actualBzQty,
-            nomenclature_id: nomId || bzItem.nomenclature_id,
+            nomenclature_id: nomId,
             updated_at: new Date().toISOString()
           })
         } else {
-          const nom = nomenclatures.find(n => n.id === nomId)
+          const nom = nomenclatures.find(n => String(n.id) === nomId)
           inserts.push({ 
             nomenclature_id: nomId, 
             name: nom?.name || nomName || 'Запас БЗ', 
@@ -540,7 +558,7 @@ export function createProductionHandoversActions({
 
       const writeOps = [
         supabase.from('work_card_history').insert([{ card_id: cardId, nomenclature_id: nomId, stage_name: 'Пакування/СГП', operator_name: 'Система (ТЕРМІНАЛ)', qty_at_start: totalQty, qty_completed: totalQty, scrap_qty: 0, completed_at: new Date().toISOString() }]),
-        supabase.from('work_cards').update({ status: 'completed', operation: 'Пакування/СГП', card_info: updatedCardInfo }).eq('id', cardId)
+        supabase.from('work_cards').update({ status: 'completed', operation: 'Пакування/СГП', card_info: updatedCardInfo, nomenclature_id: nomId }).eq('id', cardId)
       ]
       if (updates.length > 0) writeOps.push(supabase.from('inventory').upsert(updates))
       if (inserts.length > 0) writeOps.push(supabase.from('inventory').insert(inserts))

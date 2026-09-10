@@ -150,12 +150,24 @@ export const shop2CardService = {
   /**
    * Deduct buffer quantity from matching Shop 1 source buffer cards
    */
-  async deductFromSourceBufferCards({ orderId, nomenclatureId, totalQtyToDeduct }) {
+  async deductFromSourceBufferCards({ orderId, nomenclatureId, totalQtyToDeduct, legacyIds = [] }) {
     try {
+      let searchIds = Array.from(new Set([nomenclatureId, ...(legacyIds || [])].filter(Boolean)))
+      if (searchIds.length === 1 && nomenclatureId) {
+        const { data: nomRow } = await supabase
+          .from('nomenclatures')
+          .select('id, legacy_ids')
+          .eq('id', nomenclatureId)
+          .maybeSingle()
+        if (nomRow && Array.isArray(nomRow.legacy_ids) && nomRow.legacy_ids.length > 0) {
+          searchIds = Array.from(new Set([nomenclatureId, ...nomRow.legacy_ids.map(String)]))
+        }
+      }
+
       const { data: sourceCards, error } = await supabase
         .from('work_cards')
         .select('id, quantity, used_in_shop2_qty, status, is_rework, order_id')
-        .eq('nomenclature_id', nomenclatureId)
+        .in('nomenclature_id', searchIds)
 
       if (error || !sourceCards) return
 

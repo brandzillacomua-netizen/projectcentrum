@@ -137,9 +137,6 @@ export function useShop2CardCreator({ tasks = [], fetchData, refreshTable }) {
       if (typeof fetchData === 'function') {
         fetchData(['work_cards', 'tasks', 'inventory']).catch(() => {})
       }
-      if (typeof refreshTable === 'function') {
-        refreshTable()
-      }
 
       closeGenModal()
     } catch (err) {

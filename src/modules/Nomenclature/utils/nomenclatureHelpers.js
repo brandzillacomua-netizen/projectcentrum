@@ -452,8 +452,59 @@ export const mapV2ToStandardNom = (v) => {
     units_per_sheet: rawUnitsPerSheet || 1,
     material_type: rawMaterial,
     material: rawMaterial,
+    characteristic: v.characteristic || v.rule_params?.characteristic || v.rule_params?.cutter_type_id || null,
+    additional_info: v.additional_info || v.rule_params?.additionalInfo || '',
     category: v.category || (String(v.group_id || '').startsWith('grp_carbon') || String(v.group_id || '').startsWith('cat_raw') ? 'Сировина' : 'Загальна')
   };
+};
+
+/**
+ * Resolves any nomenclature ID (V1 legacy ID or V2 UUID) or object containing an ID
+ * to its canonical V2 UUID using the provided nomenclatures catalog.
+ * If no match is found, returns the original ID string.
+ */
+export const resolveCanonicalNomId = (input, nomenclatures = []) => {
+  if (!input) return null;
+  const rawId = typeof input === 'object' 
+    ? String(input.id || input.nomenclature_id || input.v2_id || '') 
+    : String(input || '');
+  if (!rawId) return null;
+
+  if (!Array.isArray(nomenclatures) || nomenclatures.length === 0) {
+    return rawId;
+  }
+
+  // 1. Direct match on item.id or item.v2_id
+  const directMatch = nomenclatures.find(n => n && (String(n.id) === rawId || String(n.v2_id) === rawId));
+  if (directMatch) {
+    return String(directMatch.id || directMatch.v2_id);
+  }
+
+  // 2. Match in legacy_ids array or legacy_id property
+  const legacyMatch = nomenclatures.find(n => {
+    if (!n) return false;
+    const legacyIds = Array.isArray(n.legacy_ids) 
+      ? n.legacy_ids.map(String) 
+      : (n.legacy_id ? [String(n.legacy_id)] : []);
+    return legacyIds.includes(rawId);
+  });
+
+  if (legacyMatch) {
+    return String(legacyMatch.id || legacyMatch.v2_id);
+  }
+
+  return rawId;
+};
+
+/**
+ * Given any nomenclature ID (V1 or V2), returns an array of all associated legacy IDs.
+ */
+export const getLegacyIdsForNomId = (input, nomenclatures = []) => {
+  if (!input || !Array.isArray(nomenclatures)) return [];
+  const canonicalId = resolveCanonicalNomId(input, nomenclatures);
+  const nom = nomenclatures.find(n => n && String(n.id) === canonicalId);
+  if (!nom || !Array.isArray(nom.legacy_ids)) return [];
+  return nom.legacy_ids.map(String);
 };
 
 /**

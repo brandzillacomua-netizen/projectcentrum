@@ -10,6 +10,8 @@ const missingRpcError = error => {
   )
 }
 
+const recentSortingSubmissions = new Map()
+
 export const recordSortingHistoryGuaranteed = async (client, {
   card,
   operatorName,
@@ -19,6 +21,18 @@ export const recordSortingHistoryGuaranteed = async (client, {
   scrapQty,
   recordedAt
 }) => {
+  const cardId = String(card?.id || '')
+  if (cardId) {
+    const nowMs = Date.now()
+    const lastSub = recentSortingSubmissions.get(cardId)
+    if (lastSub && (nowMs - lastSub) < 5000) {
+      console.warn(`[sortingHistoryService] Duplicate sorting submission prevented for card ${cardId}`)
+      return { data: null, error: null, source: 'debounced-duplicate' }
+    }
+    recentSortingSubmissions.set(cardId, nowMs)
+    setTimeout(() => recentSortingSubmissions.delete(cardId), 10000)
+  }
+
   const timestamp = recordedAt || new Date().toISOString()
   const payload = {
     p_card_id: card.id,

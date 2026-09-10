@@ -67,18 +67,7 @@ export function EngineerCuttersTab() {
 
       for (const std of STANDARD_CUTTER_TYPES) {
         if (!existingNames.has(std.name.toLowerCase())) {
-          // Insert into nomenclatures (V1)
-          const { data: v1Row, error: err1 } = await supabase
-            .from('nomenclatures')
-            .insert([{
-              name: std.name,
-              type: 'cutter_type',
-              material_type: String(std.diameter)
-            }])
-            .select()
-            .single()
-
-          // Insert into nomenclatures_v2 (V2)
+          // V2 is the only writable nomenclature master.
           const { data: v2Row, error: err2 } = await supabase
             .from('nomenclatures_v2')
             .insert([{
@@ -93,8 +82,8 @@ export function EngineerCuttersTab() {
             .select()
             .single()
 
-          if (!err1 && v1Row) newlyCreated.push({ ...std, dbId: v1Row.id })
-          else if (!err2 && v2Row) newlyCreated.push({ ...std, dbId: v2Row.id })
+          if (err2) throw err2
+          if (v2Row) newlyCreated.push({ ...std, dbId: v2Row.id })
         }
       }
 
@@ -116,20 +105,7 @@ export function EngineerCuttersTab() {
       const cleanDiam = newCutterDiam.trim() || null
       const parsedDiam = cleanDiam ? parseFloat(cleanDiam.replace(',', '.')) : null
 
-      // 1. Insert into V1 nomenclatures
-      try {
-        await supabase.from('nomenclatures').insert([{
-          name: cleanName,
-          type: 'cutter_type',
-          material_type: cleanDiam
-        }])
-      } catch (err) {
-        console.warn('V1 insert skipped or failed:', err)
-      }
-
-      // 2. Insert into V2 nomenclatures_v2
-      try {
-        await supabase.from('nomenclatures_v2').insert([{
+      const { error } = await supabase.from('nomenclatures_v2').insert([{
           code: `CT-${Date.now()}`,
           name: cleanName,
           group_id: 'grp_mills',
@@ -138,9 +114,7 @@ export function EngineerCuttersTab() {
           unit: 'шт',
           status: 'active'
         }])
-      } catch (err) {
-        console.warn('V2 insert skipped or failed:', err)
-      }
+      if (error) throw error
 
       setNewCutterName('')
       setNewCutterDiam('')
@@ -156,22 +130,26 @@ export function EngineerCuttersTab() {
   const handleDeleteCutterType = async (id, name) => {
     if (!confirm(`Ви дійсно бажаєте видалити тип фрези "${name}"?`)) return
     try {
-      // 1. Зняти прив'язку зі всіх фізичних фрез
-      await supabase.from('nomenclatures').update({ characteristic: null }).eq('characteristic', id)
+      // 1. Зняти V2-прив'язку зі всіх фізичних фрез
+      const assigned = physicalCutters.filter(c => String(c.assignedCutterTypeId || '') === String(id))
+      for (const cutter of assigned) {
+        const nextParams = { ...(cutter.rule_params || {}), cutter_type_id: null, characteristic: null }
+        const { error: unlinkError } = await supabase
+          .from('nomenclatures_v2')
+          .update({ rule_params: nextParams })
+          .eq('id', cutter.id)
+        if (unlinkError) throw unlinkError
+      }
 
-      // 2. Видалити пов'язані профілі каталогу, щоб не порушувати FK
-      await supabase.from('nomenclature_catalog_profiles').delete().eq('nomenclature_id', id)
-
-      // 3. Видалити зв'язки з bom_items, якщо були
-      await supabase.from('bom_items').delete().eq('child_id', id)
-      await supabase.from('bom_items').delete().eq('parent_id', id)
-
-      // 4. Видалити сам тип фрези з nomenclatures та nomenclatures_v2
-      await supabase.from('nomenclatures').delete().eq('id', id)
-      await supabase.from('nomenclatures_v2').delete().eq('id', id)
+      // Історичні посилання зберігаємо: у V2.0 довідник лише архівується.
+      const { error: archiveError } = await supabase
+        .from('nomenclatures_v2')
+        .update({ status: 'archived', updated_at: new Date().toISOString() })
+        .eq('id', id)
+      if (archiveError) throw archiveError
 
       await refreshTable('nomenclatures')
-      alert('Тип фрези видалено!')
+      alert('Тип фрези архівовано!')
     } catch (err) {
       alert('Помилка видалення: ' + err.message)
     }
@@ -182,13 +160,7 @@ export function EngineerCuttersTab() {
     try {
       const val = genericId || null
 
-      // Update in V1 nomenclatures
-      await supabase
-        .from('nomenclatures')
-        .update({ characteristic: val })
-        .eq('id', physicalId)
-
-      // Update in V2 nomenclatures_v2 if item exists there
+      // Update the canonical V2 item.
       const targetV2 = (v2Noms || []).find(v => String(v.id) === String(physicalId))
       if (targetV2) {
         const currentParams = targetV2.rule_params || {}
@@ -202,6 +174,8 @@ export function EngineerCuttersTab() {
             }
           })
           .eq('id', physicalId)
+      } else {
+        throw new Error('Фізичну фрезу не знайдено у каталозі V2')
       }
 
       await refreshTable('nomenclatures')

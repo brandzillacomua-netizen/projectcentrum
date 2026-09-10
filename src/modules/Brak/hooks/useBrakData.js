@@ -1018,7 +1018,28 @@ export function useBrakData() {
   }, [totalDistributed])
 
   const readyItems = useMemo(() => {
-    return (localScrapHistory || [])
+    const rawList = localScrapHistory || []
+    const deduplicatedHistory = []
+    const seenMap = new Map()
+
+    for (const h of rawList) {
+      if (h.is_vkya_return || !h.card_id) {
+        deduplicatedHistory.push(h)
+        continue
+      }
+      const key = `${h.card_id}_${h.stage_name || ''}_${h.scrap_qty}`
+      const existing = seenMap.get(key)
+      if (existing) {
+        const timeDiffMs = Math.abs(new Date(h.created_at).getTime() - new Date(existing.created_at).getTime())
+        if (timeDiffMs < 10 * 60 * 1000) {
+          continue
+        }
+      }
+      seenMap.set(key, h)
+      deduplicatedHistory.push(h)
+    }
+
+    return deduplicatedHistory
       .filter(h => isScrapReadyForQc(h) && Number(h.scrap_qty) > 0)
       .map(h => {
         let sum = 0

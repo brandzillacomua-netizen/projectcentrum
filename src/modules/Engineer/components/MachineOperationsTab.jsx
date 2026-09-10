@@ -100,18 +100,6 @@ export function MachineOperationsTab() {
     }
     
     try {
-      // Ensure nomenclature exists in V1 shadow table in case of legacy FK
-      try {
-        const nomObj = (nomenclatures || []).find(n => String(n.id) === String(selectedNom))
-        if (nomObj) {
-          await supabase.from('nomenclatures').upsert([{
-            id: nomObj.id,
-            name: nomObj.name || 'Деталь',
-            type: 'part'
-          }], { onConflict: 'id' })
-        }
-      } catch (_) {}
-
       if (existing) {
         const { error } = await supabase.from('machine_operations').update(payload).eq('id', existing.id)
         if (error) throw error

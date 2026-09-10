@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { SHOP2_STAGE_NAMES, isShop2Operation, isPackagingOperation } from '../constants/shop2Stages'
+import { resolveCanonicalNomId } from '../../Nomenclature/utils/nomenclatureHelpers'
 
 export const SHOP2_STAGES = SHOP2_STAGE_NAMES
 
@@ -66,12 +67,8 @@ export function useShop2BufferData({
     const partMap = new Map()
 
     const getPartEntry = (nomId, sampleCard = null, orderId = '') => {
-      const nom = nomenclatures.find(n => String(n.id) === String(nomId))
-      // The unified nomenclature loader resolves legacy V1 IDs to the matching
-      // V2 catalog item. Always group and generate new cards with that canonical
-      // ID; otherwise a legacy buffer card can be displayed with a V2 code while
-      // still sending its obsolete UUID to the database.
-      const canonicalNomId = String(nom?.id || nomId)
+      const canonicalNomId = resolveCanonicalNomId(nomId, nomenclatures) || String(nomId || '')
+      const nom = nomenclatures.find(n => String(n.id) === canonicalNomId)
       let key = canonicalNomId
       if (groupBy === 'order') {
         key = `${canonicalNomId}_${orderId}`
@@ -251,7 +248,17 @@ export function useShop2BufferData({
         if (matchedOrd) {
           // Find matching tasks with plan_snapshot stock reservation
           const matchedTasks = tasks.filter(t => String(t.order_id) === String(matchedOrd.id) && t.plan_snapshot)
-          const snapEntry = matchedTasks[0]?.plan_snapshot?.[partEntry.nomId]
+          let snapEntry = matchedTasks[0]?.plan_snapshot?.[partEntry.nomId]
+          if (!snapEntry && matchedTasks[0]?.plan_snapshot) {
+            const nomObj = nomenclatures.find(n => String(n.id) === String(partEntry.nomId))
+            const legacyIds = (nomObj?.legacy_ids || []).map(String)
+            for (const legId of legacyIds) {
+              if (matchedTasks[0].plan_snapshot[legId]) {
+                snapEntry = matchedTasks[0].plan_snapshot[legId]
+                break
+              }
+            }
+          }
 
           if (snapEntry && Number(snapEntry.stock) > 0) {
             stockBzQty = Number(snapEntry.stock)

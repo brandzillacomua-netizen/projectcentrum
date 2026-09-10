@@ -18,6 +18,10 @@ export const shop2RerunService = {
       throw new Error('Вкажіть коректну кількість деталей для довипуску')
     }
 
+    const { data: resolvedNomId, error: resolveError } = await supabase
+      .rpc('resolve_nomenclature_v2_id', { p_id: nomenclatureId })
+    const canonicalNomId = !resolveError && resolvedNomId ? resolvedNomId : nomenclatureId
+
     // 1. Fetch parent Order if orderId is provided
     let parentOrder = null
     if (orderId) {
@@ -46,9 +50,9 @@ export const shop2RerunService = {
         order_num: rerunOrderNum,
         customer: parentOrder?.customer ? `${parentOrder.customer} (Довипуск)` : 'Довипуск Цех 1',
         status: 'in-progress',
-        nomenclature_id: parentOrder?.nomenclature_id || nomenclatureId,
-        planned_qty: qty,
-        notes: `Довипуск через брак у Цеху №2 (${qty} шт). Батьківський наряд: ${parentNum}`
+        nomenclature_id: parentOrder?.nomenclature_id || canonicalNomId,
+        quantity: qty,
+        accessories: `Довипуск через брак у Цеху №2 (${qty} шт). Батьківський наряд: ${parentNum}`
       }])
       .select()
       .single()
@@ -60,18 +64,25 @@ export const shop2RerunService = {
     rerunOrderObj = newOrder
 
     // 4. Create Task for Shop 1 (Laser Cutting)
-    const { data: newNom } = await supabase.from('nomenclatures').select('*').eq('id', nomenclatureId).maybeSingle()
+    const { data: newNom } = await supabase.from('nomenclatures_v2').select('*').eq('id', canonicalNomId).maybeSingle()
     const partName = newNom?.name || 'Деталь'
 
     const { data: newTask, error: taskErr } = await supabase
       .from('tasks')
       .insert([{
         order_id: rerunOrderObj.id,
-        order_num: rerunOrderNum,
         step: 'Розкрій (Довипуск)',
-        name: `Довипуск розкрою: ${partName} (${qty} шт)`,
         status: 'in-progress',
-        planned_qty: qty
+        planned_sets: qty,
+        plan_snapshot: {
+          [canonicalNomId]: {
+            id: canonicalNomId,
+            name: partName,
+            need: qty,
+            plan: qty,
+            units_per_sheet: Number(newNom?.rule_params?.unitsPerSheet) || 1
+          }
+        }
       }])
       .select()
       .single()
@@ -82,7 +93,7 @@ export const shop2RerunService = {
     }
 
     // 5. Create Work Card for Shop 1 Cutting Operator
-    const sheets = Math.ceil(qty / (newNom?.units_per_sheet || 1))
+    const sheets = Math.ceil(qty / (Number(newNom?.rule_params?.unitsPerSheet) || 1))
     const cardInfoText = `[ДОВИПУСК / РЕВАЛІДАЦІЯ] [SHOP:1] [NEED:${qty}]${sheets > 0 ? ` [SHEETS:${sheets}]` : ''} Наряд №${rerunOrderNum} (${reason})`
 
     const { data: newCard, error: cardErr } = await supabase
@@ -90,7 +101,7 @@ export const shop2RerunService = {
       .insert([{
         task_id: newTask.id,
         order_id: rerunOrderObj.id,
-        nomenclature_id: nomenclatureId,
+        nomenclature_id: canonicalNomId,
         operation: 'Розкрій (Довипуск)',
         machine: '—',
         quantity: qty,

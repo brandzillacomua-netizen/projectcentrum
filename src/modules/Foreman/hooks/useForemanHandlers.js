@@ -126,7 +126,7 @@ export function useForemanHandlers({
     try {
       const { data: materialRequests, error: reqError } = await supabase
         .from('material_requests')
-        .select('*, nomenclature:nomenclatures(*)')
+        .select('*, nomenclature:nomenclatures_v2(*)')
         .eq('task_id', task.id)
 
       if (reqError) console.warn('Error fetching material requests:', reqError.message)
@@ -184,7 +184,7 @@ export function useForemanHandlers({
     try {
       const { data: materialRequests, error: reqError } = await supabase
         .from('material_requests')
-        .select('*, nomenclature:nomenclatures(*)')
+        .select('*, nomenclature:nomenclatures_v2(*)')
         .eq('task_id', task.id)
 
       if (reqError) console.warn('Error fetching material requests:', reqError.message)

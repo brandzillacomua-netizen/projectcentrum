@@ -153,11 +153,12 @@ export default function GenerateCardsModal({
 
   useEffect(() => {
     if (config) {
-      setMachineName('')
+      const defaultMachine = config.part?.machine || config.task?.machine_name || ''
+      setMachineName(defaultMachine)
       setSelectedCutters({})
-      const cap = config.capacityOverride || 1
+      const cap = config.capacityOverride || (defaultMachine ? (findMachine(defaultMachine)?.sheet_capacity || 1) : 1)
       setCapacity(cap)
-      const rec = Math.max(1, Math.ceil((targetSheets || 1) / cap))
+      const rec = Math.max(1, Math.ceil((targetSheets || 1) / (Number(cap) || 1)))
       setTotal(config.count > 1 ? config.count : rec)
     }
   }, [config])

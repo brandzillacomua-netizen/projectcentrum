@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { FileUp, Clock, Loader2 } from 'lucide-react'
 import { useMES } from '../../../MESContext'
+import { generateNextV2Code } from '../../../utils/codeGenerator'
 
 export function ImportSpecTab() {
   const { nomenclatures, bomItems, supabase, refreshTable } = useMES()
@@ -84,6 +85,31 @@ export function ImportSpecTab() {
         const localNoms = [...nomenclatures]
         const createdBOM = []
 
+        const saveV2Nomenclature = async ({ existing, name, groupId, ruleType, ruleParams, unit = 'шт' }) => {
+          const code = existing?.code || existing?.nomenclature_code || await generateNextV2Code(supabase)
+          const payload = {
+            code,
+            name,
+            group_id: groupId,
+            unit,
+            rule_type: ruleType,
+            rule_params: ruleParams || {},
+            status: 'active'
+          }
+          const query = existing?.id
+            ? supabase.from('nomenclatures_v2').update(payload).eq('id', existing.id)
+            : supabase.from('nomenclatures_v2').insert([payload])
+          const { data, error } = await query.select().single()
+          if (error) throw error
+          return {
+            ...data,
+            nomenclature_code: data.code,
+            type: ruleType === 'full_frame' ? 'product' : (ruleType === 'frame_part' ? 'part' : 'raw'),
+            material_type: ruleParams?.rawSheet || ruleParams?.materialType || '',
+            units_per_sheet: Number(ruleParams?.unitsPerSheet) || 1
+          }
+        }
+
         for (const comp of parsed.components) {
           const nameLower = comp.name.toLowerCase()
           const charLower = (comp.characteristics || '').toLowerCase()
@@ -101,13 +127,23 @@ export function ImportSpecTab() {
 
             let rawNom = localNoms.find(n => n.name === rawName)
             if (!rawNom) {
-              const { data: rawData, error: rawErr } = await supabase.from('nomenclatures').insert([{ name: rawName, material_type: thickStr, type: 'raw' }]).select().single()
-              if (!rawErr && rawData) { rawNom = rawData; localNoms.push(rawData) }
+              rawNom = await saveV2Nomenclature({
+                name: rawName,
+                groupId: 'grp_carbon_t300',
+                ruleType: 'carbon',
+                ruleParams: { grade: 'Т300', thickness: comp.thickness, materialType: thickStr }
+              })
+              localNoms.push(rawNom)
             }
             let prepNom = localNoms.find(n => n.name === prepName)
             if (!prepNom) {
-              const { data: prepData, error: prepErr } = await supabase.from('nomenclatures').insert([{ name: prepName, material_type: thickStr, type: 'raw' }]).select().single()
-              if (!prepErr && prepData) { prepNom = prepData; localNoms.push(prepData) }
+              prepNom = await saveV2Nomenclature({
+                name: prepName,
+                groupId: 'grp_prepared_sheets',
+                ruleType: 'generic',
+                ruleParams: { grade: 'Т300', thickness: comp.thickness, materialType: thickStr }
+              })
+              localNoms.push(prepNom)
             }
             if (rawNom && prepNom) {
               await supabase.from('bom_items').delete().eq('parent_id', prepNom.id)
@@ -115,37 +151,36 @@ export function ImportSpecTab() {
             }
           }
 
-          const payload = {
-            name: fullName,
-            type: comp.category === 'structural' ? 'part' : 'hardware',
-            material_type: materialType,
-            units_per_sheet: comp.category === 'structural' ? (comp.unitsPerSheet || 0) : 0,
-            characteristic: comp.characteristics || '',
-            description: comp.description || comp.characteristics || '',
-            qty_per_unit: Number(comp.qtyPerOne) || 0
-          }
-
           const normalizedFullName = normalizeHomoglyphs(fullName)
           const existing = localNoms.find(n => normalizeHomoglyphs(n.name) === normalizedFullName)
-          if (existing) payload.id = existing.id
-
-          const { data: upserted, error } = await supabase.from('nomenclatures').upsert([payload]).select()
-          if (error) throw error
-          if (upserted && upserted[0]) {
-            if (!existing) localNoms.push(upserted[0])
-            createdBOM.push({ child_id: upserted[0].id, qty: comp.qtyPerOne, groupLabel: comp.groupLabel || 'Деталі' })
-          }
+          const saved = await saveV2Nomenclature({
+            existing,
+            name: fullName,
+            groupId: comp.category === 'structural' ? 'cat_parts' : 'grp_components_main',
+            ruleType: comp.category === 'structural' ? 'frame_part' : 'generic',
+            ruleParams: {
+              rawSheet: materialType,
+              unitsPerSheet: comp.category === 'structural' ? (comp.unitsPerSheet || 1) : 1,
+              characteristic: comp.characteristics || '',
+              description: comp.description || comp.characteristics || '',
+              qtyPerUnit: Number(comp.qtyPerOne) || 0
+            }
+          })
+          if (!existing) localNoms.push(saved)
+          createdBOM.push({ child_id: saved.id, qty: comp.qtyPerOne, groupLabel: comp.groupLabel || 'Деталі' })
         }
 
         const existingParent = localNoms.find(n => n.name === parsed.productName)
-        const parentPayload = { name: parsed.productName, type: 'product', material_type: 'Збірка' }
-        if (existingParent) parentPayload.id = existingParent.id
+        const parent = await saveV2Nomenclature({
+          existing: existingParent,
+          name: parsed.productName,
+          groupId: 'grp_production_frames',
+          ruleType: 'full_frame',
+          ruleParams: { name: parsed.productName }
+        })
 
-        const { data: pData, error: pErr } = await supabase.from('nomenclatures').upsert([parentPayload]).select()
-        if (pErr) throw pErr
-
-        if (pData && pData[0]) {
-          const parentId = pData[0].id
+        if (parent) {
+          const parentId = parent.id
           const aggregatedBOM = []
           createdBOM.forEach(item => {
             const ex = aggregatedBOM.find(it => it.child_id === item.child_id)

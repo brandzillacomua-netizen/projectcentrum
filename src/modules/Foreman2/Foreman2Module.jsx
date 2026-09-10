@@ -116,7 +116,17 @@ export default function Foreman2Module() {
     return taskModels.find(model => model.id === activeTaskId) || taskModels[0] || null
   }, [taskModels, activeTaskId])
 
-  const handleOpenReissue = (part) => setReissuePart(part)
+  const handleOpenReissue = (part) => {
+    if (!activeModel) return
+    const shortageSheets = Math.ceil(Number(part.shortage) / Math.max(1, Number(part.unitsPerSheet) || 1))
+    cardGen.openGenModal({
+      task: activeModel.task,
+      part,
+      count: 1,
+      maxSheetsToGenerate: shortageSheets,
+      isRepair: true
+    })
+  }
 
   const handleConfirmReissue = async ({ capacityOverride }) => {
     if (!activeModel || !reissuePart) return

@@ -27,7 +27,7 @@ export function createProductionOrdersActions({
 
     let supaNomenclatureId = null;
     if (header.productName) {
-      const { data: nomRow } = await supabase.from('nomenclatures').select('id').ilike('name', header.productName.trim()).maybeSingle();
+      const { data: nomRow } = await supabase.from('nomenclatures_v2').select('id').ilike('name', header.productName.trim()).maybeSingle();
       if (nomRow) {
         supaNomenclatureId = nomRow.id;
       } else {
@@ -497,7 +497,7 @@ export function createProductionOrdersActions({
 
     let supaNomenclatureId = header.nomenclature_id || header.nomenclatureId || null;
     if (!supaNomenclatureId && header.productName) {
-      const { data: nomRow } = await supabase.from('nomenclatures').select('id').ilike('name', header.productName.trim()).maybeSingle();
+      const { data: nomRow } = await supabase.from('nomenclatures_v2').select('id').ilike('name', header.productName.trim()).maybeSingle();
       if (nomRow) {
         supaNomenclatureId = nomRow.id;
       } else {

@@ -1,4 +1,5 @@
 import { supabase } from '../../supabase.js'
+import { generateNextV2Code } from '../../utils/codeGenerator.js'
 
 export function createProductionAuxiliaryActions({
   orders, tasks, inventory, nomenclatures, bomItems, workCards,
@@ -8,22 +9,38 @@ export function createProductionAuxiliaryActions({
   deductIssuedMaterialsForTask,
   maintenanceCheckEnabled
 }) {
-  const upsertNomenclature = async (nom) => { await supabase.from('nomenclatures').upsert([nom]); refreshTable('nomenclatures') }
+  const upsertNomenclature = async (nom) => {
+    const code = nom.code || nom.nomenclature_code || await generateNextV2Code(supabase, nomenclatures)
+    const type = String(nom.type || '').toLowerCase()
+    const payload = {
+      ...(nom.id ? { id: nom.id } : {}),
+      code,
+      name: nom.name,
+      group_id: nom.group_id || (type === 'product' ? 'cat_fg' : (type === 'part' ? 'cat_parts' : 'cat_raw')),
+      unit: nom.unit || 'шт',
+      rule_type: nom.rule_type || (type === 'product' ? 'full_frame' : (type === 'part' ? 'frame_part' : 'generic')),
+      rule_params: nom.rule_params || {
+        unitsPerSheet: Number(nom.units_per_sheet) || 1,
+        materialType: nom.material_type || null,
+        characteristic: nom.characteristic || null,
+        additionalInfo: nom.additional_info || null
+      },
+      status: type === 'archived' ? 'archived' : (nom.status || 'active')
+    }
+    const { error } = await supabase.from('nomenclatures_v2').upsert([payload], { onConflict: 'id' })
+    if (error) throw error
+    refreshTable('nomenclatures')
+  }
   const deleteNomenclature = async (id) => {
     try {
-      await supabase.from('machine_operations').delete().eq('nomenclature_id', id)
-      await supabase.from('bom_items').delete().eq('parent_id', id)
-      await supabase.from('bom_items').delete().eq('child_id', id)
-      await supabase.from('inventory').delete().eq('nomenclature_id', id)
-      await supabase.from('order_items').delete().eq('nomenclature_id', id)
-      await supabase.from('material_requests').delete().eq('nomenclature_id', id)
-      await supabase.from('replenishment_requests').delete().eq('nomenclature_id', id)
-      await supabase.from('nomenclature_catalog_profiles').delete().eq('nomenclature_id', id)
-      const { error } = await supabase.from('nomenclatures').delete().eq('id', id)
+      const { error } = await supabase
+        .from('nomenclatures_v2')
+        .update({ status: 'archived', updated_at: new Date().toISOString() })
+        .eq('id', id)
       if (error) throw error
     } catch (err) {
-      console.error("Failed to delete nomenclature cascades:", err)
-      alert("Не вдалося видалити номенклатуру: " + err.message)
+      console.error("Failed to archive nomenclature:", err)
+      alert("Не вдалося архівувати номенклатуру: " + err.message)
     }
     refreshTable('nomenclatures')
   }

@@ -203,15 +203,6 @@ export function SpecBuilderTab() {
         side2_cut_ops: [...combineOps(side2CutOpsF2, side2CutOpsF15), ...cutterStrings]
       }
       
-      // Ensure the nomenclature exists in public.nomenclatures (V1 shadow) so legacy FK doesn't fail
-      try {
-        await supabase.from('nomenclatures').upsert([{
-          id: activeInlinePart.id,
-          name: activeInlinePart.name || 'Деталь',
-          type: 'part'
-        }], { onConflict: 'id' })
-      } catch (_) {}
-
       if (existing) {
         const { error } = await supabase.from('machine_operations').update(payload).eq('id', existing.id)
         if (error) throw error
@@ -403,18 +394,6 @@ export function SpecBuilderTab() {
         }
       }
 
-      // Ensure V1 shadow exists for legacy modules
-      try {
-        const shadowRows = Object.values(agg).map(r => ({
-          id: r.nomId,
-          name: r.nomName || 'Деталь',
-          type: 'part'
-        }))
-        if (shadowRows.length > 0) {
-          await supabase.from('nomenclatures').upsert(shadowRows, { onConflict: 'id' })
-        }
-      } catch (_) {}
-      
       await refreshTable('nomenclatures')
       await refreshTable('nomenclatures_v2')
       await refreshTable('bom_items')
@@ -1405,11 +1384,13 @@ export function SpecBuilderTab() {
                                     <button
                                       onClick={async e => {
                                         e.stopPropagation()
-                                        if (!confirm(`Видалити позицію та специфікацію «${nom.name}»?`)) return
+                                        if (!confirm(`Архівувати позицію «${nom.name}»? Специфікація та історія будуть збережені.`)) return
                                         try {
-                                          await supabase.from('bom_items').delete().eq('parent_id', nom.id)
-                                          await supabase.from('nomenclature_catalog_profiles').delete().eq('nomenclature_id', nom.id)
-                                          await supabase.from('nomenclatures_v2').delete().eq('id', nom.id)
+                                          const { error } = await supabase
+                                            .from('nomenclatures_v2')
+                                            .update({ status: 'archived', updated_at: new Date().toISOString() })
+                                            .eq('id', nom.id)
+                                          if (error) throw error
 
                                           await refreshTable('bom_items')
                                           await refreshTable('nomenclatures')
@@ -1417,7 +1398,7 @@ export function SpecBuilderTab() {
                                           alert('Помилка видалення: ' + err.message)
                                         }
                                       }}
-                                      title="Видалити позицію з системи"
+                                      title="Архівувати позицію"
                                       style={{ padding: '5px 8px', background: 'rgba(239,68,68,0.06)', border: '1px solid #ef444420', color: '#ef4444', borderRadius: '6px', cursor: 'pointer' }}
                                     >
                                       <Trash2 size={12}/>

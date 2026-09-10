@@ -522,7 +522,7 @@ export function createWarehouseActions({
           supabase.from('material_requests').select('*').eq('task_id', taskIdToCheck).eq('status', 'pending'),
           supabase.from('work_cards').select('*').eq('task_id', taskIdToCheck).in('status', ['waiting-materials', 'waiting-cutters']),
           supabase.from('tasks').select('*').eq('id', taskIdToCheck).maybeSingle(),
-          supabase.from('nomenclatures').select('id, name')
+          supabase.from('nomenclatures_v2').select('id, name')
         ])
 
         if (candidateCards && candidateCards.length > 0) {
@@ -821,7 +821,7 @@ export function createWarehouseActions({
             ] = await Promise.all([
               supabase.from('work_cards').select('*').in('task_id', partialTasks).in('status', ['waiting-materials', 'waiting-cutters']),
               supabase.from('tasks').select('*').in('id', partialTasks),
-              supabase.from('nomenclatures').select('id, name')
+              supabase.from('nomenclatures_v2').select('id, name')
             ])
 
             if (candidateCards && candidateCards.length > 0) {

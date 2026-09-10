@@ -554,12 +554,15 @@ const NomenclatureV2 = () => {
   }
 
   const handleDeleteItem = async (itemId) => {
-    if (!window.confirm('Видалити цю позицію з V2 каталогу?')) return
+    if (!window.confirm('Архівувати цю позицію в каталозі V2.0?')) return
     try {
-      await supabase.from('nomenclatures_v2').delete().eq('id', itemId)
-      await supabase.from('nomenclature_catalog_profiles').delete().eq('nomenclature_id', itemId)
-      setItems(prev => prev.filter(it => it.id !== itemId))
-      showToast('Позицію видалено')
+      const { error } = await supabase
+        .from('nomenclatures_v2')
+        .update({ status: 'archived', updated_at: new Date().toISOString() })
+        .eq('id', itemId)
+      if (error) throw error
+      setItems(prev => prev.map(it => it.id === itemId ? { ...it, status: 'archived' } : it))
+      showToast('Позицію архівовано')
     } catch (err) {
       alert('Помилка: ' + err.message)
     }

@@ -809,13 +809,13 @@ export const useShop1ForemanData = () => {
 
       const { data: matReqs } = await supabase
         .from('material_requests')
-        .select('*, nomenclature:nomenclatures(*)')
+        .select('*, nomenclature:nomenclatures_v2(*)')
         .eq('task_id', task.id)
 
       const { data: dbOrderItems } = task.order_id
         ? await supabase
             .from('order_items')
-            .select('nomenclature_id, quantity, nomenclature:nomenclatures(id, name)')
+            .select('nomenclature_id, quantity, nomenclature:nomenclatures_v2(id, name)')
             .eq('order_id', task.order_id)
         : { data: [] }
 

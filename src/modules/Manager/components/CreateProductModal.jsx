@@ -132,45 +132,33 @@ export const CreateProductModal = ({ isOpen, onClose, onCreated, initialQuery = 
       let newNom = existingNom
 
       if (!existingNom) {
-        const { data: inserted, error: insertNomErr } = await supabase
-          .from('nomenclatures')
-          .insert([{
-            name: generatedName,
-            type: 'product',
-            unit: unit || 'шт'
-          }])
+        const autoCode = await generateNextV2Code(supabase, nomenclatures)
+        const codeStr = customCode.trim() || autoCode
+        const v2Payload = {
+          code: codeStr,
+          barcode: codeStr,
+          qr_code: codeStr,
+          name: generatedName,
+          group_id: 'grp_production_frames',
+          unit: unit || 'шт',
+          rule_type: 'full_frame',
+          rule_params: { projType, projNum: projNum.trim(), name: modelName.trim() },
+          status: 'active'
+        }
+
+        let { data: inserted, error: v2Err } = await supabase
+          .from('nomenclatures_v2')
+          .insert([v2Payload])
           .select()
           .single()
-
-        if (insertNomErr) throw insertNomErr
-        newNom = inserted
-      }
-
-      const autoCode = await generateNextV2Code(supabase, nomenclatures)
-      const codeStr = customCode.trim() || autoCode
-
-      const v2Payload = {
-        code: codeStr,
-        barcode: codeStr,
-        qr_code: codeStr,
-        name: generatedName,
-        group_id: 'grp_production_frames',
-        unit: unit || 'шт',
-        rule_type: 'full_frame',
-        rule_params: { projType, projNum: projNum.trim(), name: modelName.trim() },
-        status: 'active'
-      }
-
-      try {
-        let { error: v2Err } = await supabase.from('nomenclatures_v2').insert([v2Payload])
         if (v2Err && v2Err.code === '42703') {
           const { barcode, qr_code, ...legacyPayload } = v2Payload
-          const retry = await supabase.from('nomenclatures_v2').insert([legacyPayload])
+          const retry = await supabase.from('nomenclatures_v2').insert([legacyPayload]).select().single()
           v2Err = retry.error
+          inserted = retry.data
         }
-        if (v2Err) console.warn('nomenclatures_v2 insert warning:', v2Err)
-      } catch (v2Ex) {
-        console.warn('nomenclatures_v2 insert error:', v2Ex)
+        if (v2Err) throw v2Err
+        newNom = inserted
       }
 
       if (typeof refreshTable === 'function') {

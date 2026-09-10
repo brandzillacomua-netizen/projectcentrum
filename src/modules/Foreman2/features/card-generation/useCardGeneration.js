@@ -205,7 +205,7 @@ export function useCardGeneration({ mes }) {
               (r.category === 'sheet' || (r.details || '').toLowerCase().includes('лист')) &&
               r.status !== 'completed'
             )
-            const requestMode = hasExistingTaskSheetReq ? 'cutters_only' : 'both'
+            const requestMode = isRepair ? 'both' : (hasExistingTaskSheetReq ? 'cutters_only' : 'both')
             console.log('[CARD_GEN] Sending consolidated request for batch, sheets:', totalSheetsForBatch, 'mode:', requestMode, 'selectedCutters:', selectedCutters)
             await createDovypuskFn(task.id, task.order_id, resolvedPartNom, totalSheetsForBatch, totalQtyForBatch, selectedMachineName, null, requestMode, selectedCutters)
           } catch (reqErr) {

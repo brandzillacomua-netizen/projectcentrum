@@ -5,7 +5,6 @@ import { supabase } from '../../../supabase'
 import { deleteInventoryItem } from '../../../services/inventoryDeletion'
 import {
   getQR,
-  setQR,
   getNomLabel,
   parseMaterialName,
   resolveItemName,
@@ -80,12 +79,11 @@ export function useSupplyData({ isProcurementOnly = false } = {}) {
     try {
       if (itemToDelete.is_virtual_zero_stock) {
         if (itemToDelete.nomenclature_id) {
-          const { error } = await supabase.from('nomenclatures').delete().eq('id', itemToDelete.nomenclature_id)
-          if (error) {
-            // If foreign key constraint blocks deletion, mark as archived
-            const { error: archErr } = await supabase.from('nomenclatures').update({ type: 'archived' }).eq('id', itemToDelete.nomenclature_id)
-            if (archErr) throw error
-          }
+          const { error } = await supabase
+            .from('nomenclatures_v2')
+            .update({ status: 'archived', updated_at: new Date().toISOString() })
+            .eq('id', itemToDelete.nomenclature_id)
+          if (error) throw error
         }
       } else {
         await deleteInventoryItem(supabase, itemToDelete.id)
@@ -335,12 +333,12 @@ export function useSupplyData({ isProcurementOnly = false } = {}) {
   const handleSaveQrCode = useCallback(async (nomId, qrCodeVal) => {
     const nom = (nomenclatures || []).find(n => n.id === nomId)
     if (!nom) return false
-    const updatedInfo = setQR(nom, qrCodeVal.trim())
+    const normalizedQr = qrCodeVal.trim()
     setSavingQr(true)
     try {
       const { error } = await supabase
-        .from('nomenclatures')
-        .update({ additional_info: updatedInfo })
+        .from('nomenclatures_v2')
+        .update({ qr_code: normalizedQr || null, barcode: normalizedQr || nom.barcode || null })
         .eq('id', nomId)
       if (error) throw error
       if (typeof fetchData === 'function') fetchData(['nomenclatures'])
