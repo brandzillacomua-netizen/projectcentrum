@@ -100,8 +100,7 @@ BEGIN
   END IF;
 
   UPDATE public.work_cards
-  SET status = p_next_status,
-      updated_at = NOW()
+  SET status = p_next_status
   WHERE id = p_card_id;
 
   -- 2. Atomic Sheet Write-off
