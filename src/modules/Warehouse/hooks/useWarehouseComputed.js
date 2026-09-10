@@ -85,16 +85,19 @@ export const useWarehouseComputed = ({
 }) => {
   const cardsWithBoxes = useMemo(() => {
     const list = []
+    const nomMap = new Map((nomenclatures || []).map(n => [String(n.id), n]))
+    const taskMap = new Map((tasks || []).map(t => [String(t.id), t]))
+
     const activeCards = (workCards || []).filter(c => 
       (c.status === 'new' || c.status === 'waiting-materials' || c.status === 'waiting-cutters') &&
       (!c.operation || c.operation === 'Нова' || c.operation === 'Розкрій')
     )
     
     activeCards.forEach(card => {
-      const nom = nomenclatures.find(n => String(n.id) === String(card.nomenclature_id))
+      const nom = nomMap.get(String(card.nomenclature_id))
       if (!nom) return
 
-      const task = (tasks || []).find(t => t.id === card.task_id)
+      const task = taskMap.get(String(card.task_id))
       if (!task) return
       if (task.step !== 'Розкрій' && task.step !== 'Підготовка') return
 

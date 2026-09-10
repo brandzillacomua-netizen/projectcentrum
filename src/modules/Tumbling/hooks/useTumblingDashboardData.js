@@ -202,7 +202,20 @@ export function useTumblingDashboardData() {
         deadlineDate,
         deadlineStr
       }
-    }).filter(Boolean)
+    }).filter(kit => {
+      if (!kit) return false
+      // Exclude orders where ALL components have reached 100% completion (kitRatio >= 1.0)
+      const allComponentsComplete = kit.components.length > 0 && kit.components.every(c => c.kitRatio >= 1.0)
+      if (allComponentsComplete) return false
+
+      const hasIncompleteComp = kit.components.some(c => c.kitRatio < 1.0)
+      const hasCardsInTumbling = (workCards || []).some(c =>
+        String(c.order_id) === String(kit.orderId) &&
+        c.status !== 'completed' && c.status !== 'scrap' && c.status !== 'archived' &&
+        (c.operation === 'Розкрій' || c.operation?.startsWith('Галтовка'))
+      )
+      return hasIncompleteComp || hasCardsInTumbling
+    })
   }, [workCards, orders, bomItems, tasks, nomenclatures, workCardHistory])
 
   // Urgent Deficit for the Shift

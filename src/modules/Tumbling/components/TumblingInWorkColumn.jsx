@@ -1,6 +1,17 @@
 import React from 'react'
 import { Play, Clock } from 'lucide-react'
 
+// Helper to format card sequence number as "№X"
+const getCardSeqNumber = (cardInfo, idx) => {
+  if (!cardInfo) return `№${idx + 1}`
+  const match = String(cardInfo).match(/(?:№\s*|(\d+)\/\d+|(\d+))/i)
+  if (match) {
+    const num = match[1] || match[2]
+    if (num) return `№${num}`
+  }
+  return `№${idx + 1}`
+}
+
 export function TumblingInWorkColumn({
   col3Ref,
   inProgressQueue,
@@ -9,121 +20,129 @@ export function TumblingInWorkColumn({
   formatLiveDuration
 }) {
   return (
-    <section style={{
-      background: 'rgba(15, 15, 22, 0.6)',
-      border: '1px solid rgba(255, 255, 255, 0.03)',
+    <section className="tumbling-col-panel" style={{
+      background: 'var(--col-bg, #0f172a)',
+      border: '2px solid var(--col-border, #334155)',
       borderRadius: '20px',
       display: 'flex',
       flexDirection: 'column',
-      overflow: 'hidden'
+      overflow: 'hidden',
+      boxShadow: 'var(--col-shadow, 0 10px 30px rgba(0,0,0,0.15))'
     }}>
       <div style={{
-        padding: '16px 20px',
-        background: 'rgba(255, 255, 255, 0.02)',
-        borderBottom: '1px solid rgba(255, 255, 255, 0.04)',
+        padding: '14px 20px',
+        background: 'var(--col-head-bg, #1e293b)',
+        borderBottom: '2px solid var(--col-border, #334155)',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center'
       }}>
-        <h2 style={{ fontSize: '0.85rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#10b981', margin: 0 }}>
+        <h2 style={{ fontSize: '1rem', fontWeight: 950, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#059669', margin: 0 }}>
           Зараз у роботі ({inProgressQueue.length})
         </h2>
-        <Play size={14} color="#10b981" fill="currentColor" />
+        <Play size={18} color="#059669" fill="currentColor" />
       </div>
 
       <div ref={col3Ref} style={{
         flex: 1,
-        padding: '16px',
+        padding: '14px',
         overflowY: 'auto',
         display: 'flex',
         flexDirection: 'column',
-        gap: '10px',
+        gap: '12px',
         scrollbarWidth: 'none'
       }}>
         {inProgressQueue.length === 0 ? (
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', opacity: 0.15 }}>
-            <Play size={48} />
-            <div style={{ fontSize: '0.75rem', marginTop: '8px' }}>Зараз нічого не обробляється</div>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', opacity: 0.4 }}>
+            <Play size={52} color="#059669" />
+            <div style={{ fontSize: '0.9rem', marginTop: '10px', fontWeight: 900 }}>Зараз нічого не обробляється</div>
           </div>
         ) : (
-          inProgressQueue.map(card => {
+          inProgressQueue.map((card, idx) => {
             const nom = getNom(card.nomenclature_id)
+            const order = (orders || []).find(o => String(o.id) === String(card.order_id))
+            const seqPill = getCardSeqNumber(card.card_info, idx)
 
             return (
-              <div key={card.id} style={{
-                background: 'rgba(16, 185, 129, 0.02)',
-                border: '1px solid rgba(16, 185, 129, 0.12)',
-                borderRadius: '14px',
-                padding: '12px 14px'
+              <div key={card.id} className="tumbling-inwork-card" style={{
+                background: 'var(--card-item-bg, #ffffff)',
+                border: '3px solid #059669',
+                borderRadius: '16px',
+                padding: '14px',
+                display: 'grid',
+                gridTemplateColumns: 'minmax(140px, auto) 1fr',
+                gap: '14px',
+                alignItems: 'center',
+                boxShadow: '0 8px 24px rgba(5,150,105,0.18)'
               }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '6px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: '0.7rem', color: '#ff9000', fontWeight: 900 }}>
-                      #{card.id.slice(-8).toUpperCase()}
+                {/* LEFT COLUMN: ORDER NUM, SYSTEM CODE, CARD SEQ, STAGE */}
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '6px',
+                  alignItems: 'flex-start',
+                  borderRight: '2px solid var(--border-subtle, #cbd5e1)',
+                  paddingRight: '12px'
+                }}>
+                  {/* Order Number Badge */}
+                  <span className="tumbling-badge-blue">
+                    {order?.order_num || `Наряд #${String(card.order_id).slice(-6)}`}
+                  </span>
+
+                  {/* Card System Code - GOLD ON DARK SLATE */}
+                  <span className="tumbling-badge-gold">
+                    #{card.id.slice(-8).toUpperCase()}
+                  </span>
+
+                  {/* Card Sequence Pill - e.g. №1 */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span className="tumbling-badge-green">
+                      {seqPill}
                     </span>
-                    {(() => {
-                      const order = (orders || []).find(o => String(o.id) === String(card.order_id))
-                      return order?.order_num ? (
-                        <span style={{ background: 'rgba(255, 255, 255, 0.06)', color: '#aaa', border: '1px solid rgba(255, 255, 255, 0.1)', padding: '1px 6px', borderRadius: '5px', fontSize: '0.6rem', fontWeight: 900 }}>
-                          {order.order_num}
-                        </span>
-                      ) : null
-                    })()}
-                    {(() => {
-                      const seqMatch = (card.card_info || '').match(/(\d+\/\d+)/)
-                      return seqMatch ? (
-                        <span style={{ background: 'rgba(255, 144, 0, 0.15)', color: '#ff9000', border: '1px solid rgba(255, 144, 0, 0.3)', padding: '1px 6px', borderRadius: '5px', fontSize: '0.6rem', fontWeight: 900 }}>
-                          {seqMatch[1]}
-                        </span>
-                      ) : null
-                    })()}
                   </div>
-                  <span style={{
-                    background: 'rgba(16, 185, 129, 0.15)',
-                    color: '#10b981',
-                    fontSize: '0.55rem',
-                    padding: '2px 6px',
-                    borderRadius: '5px',
-                    fontWeight: 900,
-                    textTransform: 'uppercase'
-                  }}>
-                    {card.operation?.replace('Галтовка (', '').replace(')', '') || 'Обробка'}
+
+                  {/* Stage Pill */}
+                  <span className="tumbling-badge-amber">
+                    ⚡ {card.operation?.replace('Галтовка (', '').replace(')', '') || 'Обробка'}
                   </span>
                 </div>
 
-                <h4 style={{ fontSize: '0.8rem', fontWeight: 800, margin: '0 0 6px 0', color: '#fff' }}>
-                  {nom?.name || 'Невказана деталь'}
-                </h4>
-
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '0.65rem', color: '#888', fontWeight: 700 }}>
-                    К-сть: <strong style={{ color: '#fff' }}>{card.quantity} шт</strong>
-                  </span>
-                  
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    fontSize: '0.75rem',
-                    fontFamily: 'monospace',
-                    color: '#10b981',
-                    fontWeight: 900
+                {/* RIGHT COLUMN: NOMENCLATURE NAME, QUANTITY, LIVE TIMER */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', overflow: 'hidden' }}>
+                  {/* Nomenclature Name */}
+                  <h4 style={{
+                    fontSize: '1.15rem',
+                    fontWeight: 950,
+                    margin: 0,
+                    color: 'var(--card-title-color, #0f172a)',
+                    lineHeight: 1.25,
+                    wordBreak: 'break-word'
                   }}>
-                    <Clock size={11} />
-                    {formatLiveDuration(card.started_at)}
+                    {nom?.name || 'Невказана деталь'}
+                  </h4>
+
+                  {/* Quantity and Live Timer Row */}
+                  <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                    <div className="tumbling-badge-qty">
+                      К-сть: <strong>{card.quantity} шт</strong>
+                    </div>
+
+                    <div className="tumbling-timer-box">
+                      <Clock size={16} color="#10b981" />
+                      <strong>{formatLiveDuration(card.started_at)}</strong>
+                    </div>
                   </div>
+
+                  {card.operator_name && (
+                    <div style={{
+                      fontSize: '0.78rem',
+                      color: 'var(--text-muted, #475569)',
+                      fontWeight: 900
+                    }}>
+                      👤 Оператор: <strong style={{ color: 'var(--text-primary, #0f172a)' }}>{card.operator_name.split(' (')[0]}</strong>
+                    </div>
+                  )}
                 </div>
-
-                {card.operator_name && (
-                  <div style={{
-                    marginTop: '8px',
-                    fontSize: '0.62rem',
-                    color: '#666',
-                    fontWeight: 700
-                  }}>
-                    Оператор: <span style={{ color: '#aaa' }}>{card.operator_name.split(' (')[0]}</span>
-                  </div>
-                )}
               </div>
             )
           })

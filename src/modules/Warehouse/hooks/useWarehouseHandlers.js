@@ -116,25 +116,7 @@ export const useWarehouseHandlers = ({
       }
 
       for (const cutter of cutters) {
-        const { data: matchedInventory, error: invErr } = await supabaseClient
-          .from('inventory')
-          .select('*')
-          .eq('nomenclature_id', cutter.nomenclature_id)
-        
-        if (invErr) throw invErr
-
-        const invItem = (matchedInventory || []).find(i => i.warehouse === 'operational' || !i.warehouse) 
-          || (matchedInventory || [])[0]
-
         const qtyToDeduct = cutter.qty
-
-        if (invItem) {
-          await deductInventoryAtomic(supabaseClient, {
-            inventoryId: invItem.id,
-            deductTotal: qtyToDeduct,
-            releaseReserved: 0
-          })
-        }
 
         const { data: existingReq } = await supabaseClient
           .from('material_requests')
@@ -145,7 +127,7 @@ export const useWarehouseHandlers = ({
 
         if (existingReq) {
           await supabaseClient.from('material_requests')
-            .update({ quantity: qtyToDeduct, status: 'completed' })
+            .update({ quantity: qtyToDeduct, status: 'issued' })
             .eq('id', existingReq.id)
         } else {
           const cardLabel = card.card_info?.split(' ')[0] || `№${card.id.substring(0, 8)}`
@@ -155,7 +137,7 @@ export const useWarehouseHandlers = ({
             card_id: card.id,
             nomenclature_id: cutter.nomenclature_id,
             quantity: qtyToDeduct,
-            status: 'completed',
+            status: 'issued',
             details: `СКЛАД ОПЕРАТИВНИЙ (Картка ${cardLabel}) (ОБРАНО ВРУЧНУ): ${cutter.name} — ${qtyToDeduct} шт.`
           })
         }
@@ -175,7 +157,7 @@ export const useWarehouseHandlers = ({
 
       if (cardUpdateErr) throw cardUpdateErr
 
-      alert('Бокс фрез успішно укомплектовано та списано!')
+      alert('Бокс фрез успішно укомплектовано з зарезервованих фрез!')
       if (typeof fetchData === 'function') {
         fetchData(['inventory', 'material_requests', 'work_cards'])
       }
@@ -540,44 +522,13 @@ export const useWarehouseHandlers = ({
 
         const qtyToDeduct = Number(req.displayQty ?? req.quantity ?? 0) || 0
 
-        if (invItem) {
-          // Card-level cutter rows are synthetic, while their stock was
-          // reserved earlier by the task-level issued request. Release that
-          // reservation when the physical cutter is handed out for the card.
-          const wasReserved = req.status === 'issued' || Boolean(req.reservation_request_id)
-          const reservedQtyToRelease = wasReserved
-            ? (req.reservation_request_id ? Math.min(qtyToDeduct, Math.max(0, Number(req.reservation_quantity) || 0)) : qtyToDeduct)
-            : 0
-
-          await deductInventoryAtomic(supabaseClient, {
-            inventoryId: invItem.id,
-            deductTotal: qtyToDeduct,
-            releaseReserved: reservedQtyToRelease
-          })
-        }
-
         if (req.isSheet) {
-          const nextQty = Math.max(0, (Number(req.quantity) || 0) - qtyToDeduct)
-          // Preserve the consumed amount as a card-linked history row. Writing
-          // `completed / quantity: 0` onto the task-level reservation destroys
-          // the evidence that sheets were issued and later makes Foreman show
-          // "НЕМАЄ ЛИСТІВ" for old orders.
-          const { error: historyError } = await supabaseClient.from('material_requests').insert({
-            order_id: req.order_id,
-            task_id: req.task_id,
-            card_id: scannedCard?.id || req.card_id || null,
-            nomenclature_id: req.nomenclature_id,
-            inventory_id: req.inventory_id,
-            quantity: qtyToDeduct,
-            status: 'completed',
-            details: req.details
-          })
-          if (historyError) throw historyError
-
-          const remainderResult = nextQty === 0
-            ? await supabaseClient.from('material_requests').delete().eq('id', req.id)
-            : await supabaseClient.from('material_requests').update({ quantity: nextQty }).eq('id', req.id)
-          if (remainderResult.error) throw remainderResult.error
+          // Keep sheet reservation active; write-off will happen upon cutting completion
+          if (req.status === 'pending') {
+            await supabaseClient.from('material_requests')
+              .update({ status: 'issued' })
+              .eq('id', req.id)
+          }
         } else {
           if (req.isSynthetic) {
             await supabaseClient.from('material_requests').insert({
@@ -587,29 +538,12 @@ export const useWarehouseHandlers = ({
               nomenclature_id: req.nomenclature_id,
               inventory_id: invItem?.id || req.inventory_id || null,
               quantity: qtyToDeduct,
-              status: 'completed',
+              status: 'issued',
               details: req.details
             })
-
-            if (req.reservation_request_id) {
-              const { data: reservation, error: reservationError } = await supabaseClient
-                .from('material_requests')
-                .select('id,quantity,status')
-                .eq('id', req.reservation_request_id)
-                .maybeSingle()
-              if (reservationError) throw reservationError
-
-              if (reservation?.status === 'issued') {
-                const remainingReservedQty = Math.max(0, (Number(reservation.quantity) || 0) - qtyToDeduct)
-                const reservationResult = remainingReservedQty > 0
-                  ? await supabaseClient.from('material_requests').update({ quantity: remainingReservedQty }).eq('id', reservation.id)
-                  : await supabaseClient.from('material_requests').delete().eq('id', reservation.id)
-                if (reservationResult.error) throw reservationResult.error
-              }
-            }
           } else {
             await supabaseClient.from('material_requests')
-              .update({ quantity: qtyToDeduct, status: 'completed' })
+              .update({ status: 'issued' })
               .eq('id', req.id)
           }
         }
@@ -636,7 +570,7 @@ export const useWarehouseHandlers = ({
           .eq('id', scannedCard.id)
       }
 
-      alert('Матеріали успішно списано та видано!')
+      alert('Матеріали та фрези успішно видано під наряд!')
       setScannedCard(null)
       setScannedRequests([])
       setIsScanning(false)

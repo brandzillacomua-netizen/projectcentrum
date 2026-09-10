@@ -47,27 +47,7 @@ export function useWarehouseActions(dataHook) {
     try {
       const { card, cutters } = boxItem
       for (const cutter of cutters) {
-        const { data: matchedInventory, error: invErr } = await supabaseClient
-          .from('inventory')
-          .select('*')
-          .eq('nomenclature_id', cutter.nomenclature_id)
-        
-        if (invErr) throw invErr
-
-        const invItem = (matchedInventory || []).find(i => i.warehouse === 'operational' || !i.warehouse) 
-          || (matchedInventory || [])[0]
-
         const qtyToDeduct = cutter.qty
-
-        if (invItem) {
-          const nextTotal = Math.max(0, (Number(invItem.total_qty) || 0) - qtyToDeduct)
-          await supabaseClient.from('inventory')
-            .update({ 
-              total_qty: nextTotal, 
-              updated_at: new Date().toISOString() 
-            })
-            .eq('id', invItem.id)
-        }
 
         const { data: existingReq } = await supabaseClient
           .from('material_requests')
@@ -78,7 +58,7 @@ export function useWarehouseActions(dataHook) {
 
         if (existingReq) {
           await supabaseClient.from('material_requests')
-            .update({ quantity: qtyToDeduct, status: 'completed' })
+            .update({ quantity: qtyToDeduct, status: 'issued' })
             .eq('id', existingReq.id)
         } else {
           const cardLabel = card.card_info?.split(' ')[0] || `№${card.id.substring(0, 8)}`
@@ -90,7 +70,7 @@ export function useWarehouseActions(dataHook) {
             quantity: qtyToDeduct,
             category: 'cutter',
             target_warehouse: 'operational',
-            status: 'completed',
+            status: 'issued',
             details: `СКЛАД ОПЕРАТИВНИЙ (Картка ${cardLabel}) (ОБРАНО ВРУЧНУ): ${cutter.name} — ${qtyToDeduct} шт.`
           })
         }
@@ -109,7 +89,7 @@ export function useWarehouseActions(dataHook) {
 
       if (cardUpdateErr) throw cardUpdateErr
 
-      alert('Бокс фрез успішно укомплектовано та списано!')
+      alert('Бокс фрез успішно укомплектовано з зарезервованих фрез!')
       refreshTable('work_cards')
       refreshTable('inventory')
       refreshTable('material_requests')
@@ -138,17 +118,11 @@ export function useWarehouseActions(dataHook) {
 
         const qtyToDeduct = req.displayQty ?? Number(req.quantity) ?? 0
 
-        if (invItem) {
+        if (invItem && req.isSheet) {
           const nextTotal = Math.max(0, (Number(invItem.total_qty) || 0) - qtyToDeduct)
-          const wasReserved = req.status === 'issued'
-          const nextReserved = wasReserved 
-            ? Math.max(0, (Number(invItem.reserved_qty) || 0) - qtyToDeduct)
-            : (Number(invItem.reserved_qty) || 0)
-
           await supabaseClient.from('inventory')
             .update({ 
               total_qty: nextTotal, 
-              reserved_qty: nextReserved, 
               updated_at: new Date().toISOString() 
             })
             .eq('id', invItem.id)

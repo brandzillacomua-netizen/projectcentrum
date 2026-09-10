@@ -482,34 +482,6 @@ export const AppSidebar = ({ isCollapsed, setIsCollapsed, chatUnreadCount, isMob
           {!isCollapsed && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
               <button
-                onClick={() => {
-                  if (isTestEnvironment()) {
-                    localStorage.removeItem('centrum_env')
-                    window.location.href = '/master'
-                  } else {
-                    localStorage.setItem('centrum_env', 'test')
-                    window.location.href = '/test/master'
-                  }
-                }}
-                style={{
-                  background: isTestEnvironment() ? 'rgba(139, 92, 246, 0.25)' : 'rgba(255, 255, 255, 0.05)',
-                  border: isTestEnvironment() ? '1px solid #8b5cf6' : '1px solid rgba(255, 255, 255, 0.15)',
-                  color: isTestEnvironment() ? '#c084fc' : 'var(--text-muted)',
-                  cursor: 'pointer',
-                  padding: '5px 8px',
-                  borderRadius: '6px',
-                  fontSize: '11px',
-                  fontWeight: 900,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  letterSpacing: '0.02em'
-                }}
-                title={isTestEnvironment() ? 'Ви в тестовій базі. Натисніть щоб повернутися на PROD' : 'Перейти на ізольовану тестову базу'}
-              >
-                {isTestEnvironment() ? '🧪 ТЕСТ' : '🧪 ТЕСТ'}
-              </button>
-              <button
                 onClick={() => navigate('/user-settings')}
                 style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '6px', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                 title="Налаштування"

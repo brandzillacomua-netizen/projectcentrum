@@ -138,7 +138,7 @@ export function useShop2TerminalState() {
     setIsProcessing(true)
 
     let card = workCards.find(c => 
-      c.card_info?.includes('[ЦЕХ №2]') && (
+      isShop2Card(c) && (
         String(c.id).trim() === cleanInput || 
         String(c.id).toUpperCase().startsWith(cleanInput.toUpperCase()) ||
         String(c.id).toUpperCase().endsWith(cleanInput.toUpperCase())
@@ -150,7 +150,7 @@ export function useShop2TerminalState() {
         try { await fetchData(['work_cards']) } catch (e) { }
       }
       card = workCards.find(c => 
-        c.card_info?.includes('[ЦЕХ №2]') && (
+        isShop2Card(c) && (
           String(c.id).trim() === cleanInput || 
           String(c.id).toUpperCase().startsWith(cleanInput.toUpperCase()) ||
           String(c.id).toUpperCase().endsWith(cleanInput.toUpperCase())
@@ -427,11 +427,11 @@ export function useShop2TerminalState() {
 
   const queuedCards = useMemo(() => {
     return workCards.filter(c =>
-      c.card_info?.includes('[ЦЕХ №2]') &&
+      isShop2Card(c) &&
       (c.status === 'new' || c.status === 'at-buffer' || scannedCardIds.some(sid => String(sid) === String(c.id))) &&
       c.status !== 'in-progress' && c.status !== 'waiting-buffer' && c.status !== 'completed'
     )
-  }, [workCards, scannedCardIds])
+  }, [workCards, scannedCardIds, isShop2Card])
 
   const handleStartOperation = async () => {
     if (!currentCard || !selectedOperator) return
@@ -619,7 +619,6 @@ export function useShop2TerminalState() {
   const calculateTotalBufferParts = useCallback(() => {
     let totalBufferPartsCount = 0
     ;(workCards || []).forEach(card => {
-      if (isShop2Card(card)) return
       const status = String(card.status || '')
       const isSortedOrBuffer = status === 'at-shop2-buffer'
 
@@ -631,7 +630,7 @@ export function useShop2TerminalState() {
     })
 
     return totalBufferPartsCount
-  }, [workCards, isShop2Card])
+  }, [workCards])
 
   return {
     scrapReasons,

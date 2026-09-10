@@ -174,10 +174,12 @@ export default function Foreman2Module() {
             onMachineChange={(part) => machineChange.openMachineChange(activeModel.task, part)}
             onMaterialCorrection={materialCorrection.canCorrect ? (part) => materialCorrection.open(activeModel.task, part) : null}
             onGenerateCards={(part, count, capacityOverride, maxSheetsToGenerate) => {
-              // Dovypusk mode triggers ONLY when cards already exist, there is real scrap, and shortage > 0
+              // Dovypusk mode triggers ONLY when initial plan is fully generated, cards already exist, there is real scrap, and shortage > 0
+              const remainingPlannedSheets = Math.max(0, (Number(part.plannedSheets) || 0) - (Number(part.actualSheets) || 0))
+              const isInitialPlanFinished = remainingPlannedSheets <= 0
               const hasCards = (part.productionCards || []).length > 0
               const hasScrap = Number(part.scrap) > 0
-              const isDovypusk = hasCards && hasScrap && Number(part.shortage) > 0
+              const isDovypusk = isInitialPlanFinished && hasCards && hasScrap && Number(part.shortage) > 0
               cardGen.openGenModal({ task: activeModel.task, part, count: 1, capacityOverride, maxSheetsToGenerate, isRepair: isDovypusk })
             }}
             onPrintCards={(part, metadata) => cardGen.setPrintQueue({ task: activeModel.task, part, metadata })}

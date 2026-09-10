@@ -47,6 +47,7 @@ export function usePreparationDashboardData() {
   const orderById = useMemo(() => new Map((orders || []).map(order => [String(order.id), order])), [orders])
 
   const prepQueue = useMemo(() => {
+    const nomMap = new Map((nomenclatures || []).map(n => [String(n.id), n]))
     const queue = []
     ;(tasks || [])
       .filter(task => task.step === 'Підготовка' && task.status !== 'completed' && (
@@ -62,7 +63,7 @@ export function usePreparationDashboardData() {
             id: `${task.id}_${nomenclatureId}`,
             prepNum: snapshot._prep_num || 'НП------',
             orderNum: order?.order_num || '—',
-            name: item?.name || nomenclatures.find(n => String(n.id) === String(nomenclatureId))?.name || 'Матеріал',
+            name: item?.name || nomMap.get(String(nomenclatureId))?.name || 'Матеріал',
             plan: Number(item?.plan || item?.need || 0),
             status: item?.status || 'new',
             operator: item?.operator || 'Не призначено',

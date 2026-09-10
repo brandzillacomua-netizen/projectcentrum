@@ -156,14 +156,18 @@ export function useShop2BufferData({
       })
     })
 
-    // Process Work Cards (only for active, non-completed/shipped orders)
+    // Process Work Cards
     workCards.forEach(card => {
       const nomId = String(card.nomenclature_id || '')
       const orderId = String(card.order_id || '')
       if (!nomId) return
 
-      // Skip cards belonging to completed, shipped or cancelled orders
-      if (orderId) {
+      const status = String(card.status || '')
+      const op = String(card.operation || '')
+      const isSortedOrBuffer = status === 'at-shop2-buffer'
+
+      // Skip cards belonging to completed, shipped or cancelled orders UNLESS they are physical buffer stock
+      if (orderId && !isSortedOrBuffer) {
         const ord = orders.find(o => String(o.id) === orderId)
         if (ord && (ord.status === 'completed' || ord.status === 'shipped' || ord.status === 'cancelled')) {
           return
@@ -176,23 +180,17 @@ export function useShop2BufferData({
 
       const scrap = Number(card.scrap_qty || 0)
 
-      if (!isShop2Card) {
-        // ROUTE 1: Shop 1 cards physically delivered to Shop 2 buffer ('at-shop2-buffer', 'at-buffer', 'completed' on sorting, or 'Склад БЗ')
-        // ROUTE 2: Returned from VKYA or Rework/Dovypusk cards completed/at-buffer
-        const op = String(card.operation || '')
-        const status = String(card.status || '')
-        const isSortedOrBuffer = status === 'at-shop2-buffer'
+      if (isSortedOrBuffer) {
+        const qty = Number(card.quantity || 0)
+        const used = Number(card.used_in_shop2_qty || 0)
 
-        if (isSortedOrBuffer) {
-          const qty = Number(card.quantity || 0)
-          const used = Number(card.used_in_shop2_qty || 0)
+        partEntry.totalReceived += qty
+        partEntry.usedInShop2Qty += used
 
-          partEntry.totalReceived += qty
-          partEntry.usedInShop2Qty += used
-
-          orderSub.totalReceived += qty
-          orderSub.usedInShop2Qty += used
-        } else if (op === 'Склад БЗ' || op.toLowerCase().includes('склад бз') || op.toLowerCase().includes('склад bz')) {
+        orderSub.totalReceived += qty
+        orderSub.usedInShop2Qty += used
+      } else if (!isShop2Card) {
+        if (op === 'Склад БЗ' || op.toLowerCase().includes('склад бз') || op.toLowerCase().includes('склад bz')) {
           const qty = Number(card.quantity || 0)
           partEntry.bzCardQty = (partEntry.bzCardQty || 0) + qty
           orderSub.bzCardQty = (orderSub.bzCardQty || 0) + qty
