@@ -24,6 +24,9 @@ ALTER TABLE public.vkya_restoration_cards
 ALTER TABLE public.vkya_reclassification_queue
   DROP CONSTRAINT IF EXISTS vkya_reclassification_queue_source_history_id_fkey;
 
+ALTER TABLE public.scrap_classifications
+  DROP CONSTRAINT IF EXISTS scrap_classifications_source_history_id_fkey;
+
 -- 3. СТВОРЕННЯ ТІНЬОВОЇ СЕКЦІОНОВАНОЇ ТАБЛИЦІ
 CREATE TABLE IF NOT EXISTS public.work_card_history_partitioned (
   LIKE public.work_card_history INCLUDING DEFAULTS INCLUDING GENERATED,

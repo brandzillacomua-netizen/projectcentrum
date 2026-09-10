@@ -57,6 +57,7 @@ export const shop2CardService = {
         quantity: item.quantity,
         card_info: cardInfo,
         status: item.status || 'new',
+        completed_at: item.completed_at || null,
         is_rework: Boolean(item.is_rework)
       }
     })

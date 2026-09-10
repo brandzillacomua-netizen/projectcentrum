@@ -67,15 +67,20 @@ export function useShop2BufferData({
 
     const getPartEntry = (nomId, sampleCard = null, orderId = '') => {
       const nom = nomenclatures.find(n => String(n.id) === String(nomId))
-      let key = String(nomId)
+      // The unified nomenclature loader resolves legacy V1 IDs to the matching
+      // V2 catalog item. Always group and generate new cards with that canonical
+      // ID; otherwise a legacy buffer card can be displayed with a V2 code while
+      // still sending its obsolete UUID to the database.
+      const canonicalNomId = String(nom?.id || nomId)
+      let key = canonicalNomId
       if (groupBy === 'order') {
-        key = `${nomId}_${orderId}`
+        key = `${canonicalNomId}_${orderId}`
       }
 
       if (!partMap.has(key)) {
         partMap.set(key, {
           key,
-          nomId: String(nomId),
+          nomId: canonicalNomId,
           orderId: String(orderId),
           nomName: nom?.name || sampleCard?.name || 'Невідома деталь',
           nomCode: nom?.nomenclature_code || nom?.code || '',

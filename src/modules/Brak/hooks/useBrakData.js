@@ -1177,33 +1177,6 @@ export function useBrakData() {
     try {
       const categoriesToProcess = Object.entries(distribution).filter(([_, qty]) => Number(qty) > 0)
       
-      for (const [cat, qty] of categoriesToProcess) {
-        const type = `scrap_cat_${cat}`
-        const numQty = Number(qty)
-        
-        const { data: existing } = await supabase.from('inventory')
-          .select('*')
-          .eq('nomenclature_id', selectedItem.nomenclature_id)
-          .eq('type', type)
-          .limit(1).maybeSingle()
-          
-        if (existing) {
-          await supabase.from('inventory').update({
-            total_qty: (Number(existing.total_qty) || 0) + numQty,
-            updated_at: new Date().toISOString()
-          }).eq('id', existing.id)
-        } else {
-          await supabase.from('inventory').insert([{
-            nomenclature_id: selectedItem.nomenclature_id,
-            name: selectedItem.name,
-            unit: selectedItem.unit || 'шт',
-            total_qty: numQty,
-            type: type,
-            updated_at: new Date().toISOString()
-          }])
-        }
-      }
-      
       const absoluteRemaining = Number(selectedItem.total_qty) - totalDistributed
 
       try {
@@ -1256,7 +1229,15 @@ export function useBrakData() {
           restorationOriginHistoryId ? `[VKYA_ORIGIN_HISTORY:${restorationOriginHistoryId}]` : null
         ].filter(Boolean).join(' ')
 
-        const { error: rpcErr } = await supabase.rpc('record_scrap_classification', {
+        const idempotencyKey = typeof crypto !== 'undefined' && crypto.randomUUID
+          ? crypto.randomUUID()
+          : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, char => {
+              const random = Math.random() * 16 | 0
+              const value = char === 'x' ? random : (random & 0x3 | 0x8)
+              return value.toString(16)
+            })
+        const { error: rpcErr } = await supabase.rpc('record_scrap_classification_atomic', {
+          p_idempotency_key: idempotencyKey,
           p_source_history_id: selectedItem.is_vkya_return ? null : selectedItem.id,
           p_card_id: selectedItem.card_id || null,
           p_task_id: sourceCard?.task_id || selectedItem.task_id || null,
