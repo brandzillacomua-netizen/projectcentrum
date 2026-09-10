@@ -396,8 +396,17 @@ export function useSortingTerminalData() {
       }
 
       if (invUpdates.length > 0) writePromises.push(supabase.from('inventory').upsert(invUpdates))
-      const results = await Promise.all([...writePromises, ...stockIncrements])
-      for (const res of results) { if (res?.error) throw res.error }
+      // Inventory must be safely persisted before the card is allowed to leave
+      // Sorting. Running both groups in one Promise.all previously let the card
+      // advance even when the inventory increment failed with a unique-key error.
+      const stockResults = await Promise.all(stockIncrements)
+      for (const res of stockResults) {
+        if (res?.error) throw res.error
+        if (res?.success === false) throw new Error(res?.data?.error || res?.error || 'Не вдалося оновити залишок Цеху №2')
+      }
+
+      const writeResults = await Promise.all(writePromises)
+      for (const res of writeResults) { if (res?.error) throw res.error }
 
       setShowCompleteModal(false)
       setActiveCompletingCard(null)

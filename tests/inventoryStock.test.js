@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { incrementInventoryStock } from '../src/services/inventoryStockService.js'
 import { supabase } from '../src/supabase.js'
 
@@ -15,6 +15,27 @@ describe('Centralized incrementInventoryStock Service', () => {
 
     const r4 = await incrementInventoryStock({ nomenclatureId: 'a0000000-0000-0000-0000-000000000001', qty: NaN })
     expect(r4.success).toBe(false)
+  })
+
+  it('does not silently fall back after a real server-side inventory error', async () => {
+    const rpcSpy = vi.spyOn(supabase, 'rpc').mockResolvedValueOnce({
+      data: null,
+      error: {
+        code: '23505',
+        message: 'duplicate key value violates unique constraint inventory_name_type_warehouse_owner_unique'
+      }
+    })
+    const fromSpy = vi.spyOn(supabase, 'from')
+
+    await expect(incrementInventoryStock({
+      nomenclatureId: 'a0000000-0000-0000-0000-000000000001',
+      qty: 1,
+      type: 'semi_shop2'
+    })).rejects.toMatchObject({ code: '23505' })
+
+    expect(fromSpy).not.toHaveBeenCalled()
+    rpcSpy.mockRestore()
+    fromSpy.mockRestore()
   })
 
   it('correctly resolves nomenclature name and unit from list if provided', async () => {

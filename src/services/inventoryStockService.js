@@ -11,6 +11,18 @@
 import { supabase } from '../supabase.js'
 import { sentryLogger } from './sentryLogger.js'
 
+const isMissingInventoryRpcError = (error) => {
+  const code = String(error?.code || '')
+  const message = String(error?.message || '').toLowerCase()
+  return ['PGRST202', '42883'].includes(code) || (
+    message.includes('rpc_increment_inventory_stock') && (
+      message.includes('not find') ||
+      message.includes('does not exist') ||
+      message.includes('schema cache')
+    )
+  )
+}
+
 /**
  * Increment inventory stock atomically
  * 
@@ -58,12 +70,15 @@ export async function incrementInventoryStock({
     })
 
     if (error) {
-      console.warn('[InventoryStockService] RPC increment failed, activating graceful fallback:', error.message)
       sentryLogger.logWarning(
         new Error(`[MES INVENTORY RPC DEGRADATION] rpc_increment_inventory_stock: ${error.message}`),
         { nomenclatureId, qty: numQty, type, errorCode: error.code }
       )
-      return await executeFallbackIncrement({ nomenclatureId, qty: numQty, type, itemName: resolvedName, unit: resolvedUnit })
+      if (isMissingInventoryRpcError(error)) {
+        console.warn('[InventoryStockService] RPC is not installed; activating compatibility fallback:', error.message)
+        return await executeFallbackIncrement({ nomenclatureId, qty: numQty, type, itemName: resolvedName, unit: resolvedUnit })
+      }
+      throw error
     }
 
     if (data?.success === false) {
@@ -82,7 +97,10 @@ export async function incrementInventoryStock({
       new Error(`[MES INVENTORY RPC EXCEPTION] ${err.message}`),
       { nomenclatureId, qty: numQty, type }
     )
-    return await executeFallbackIncrement({ nomenclatureId, qty: numQty, type, itemName: resolvedName, unit: resolvedUnit })
+    if (isMissingInventoryRpcError(err)) {
+      return await executeFallbackIncrement({ nomenclatureId, qty: numQty, type, itemName: resolvedName, unit: resolvedUnit })
+    }
+    throw err
   }
 }
 
@@ -96,6 +114,8 @@ async function executeFallbackIncrement({ nomenclatureId, qty, type, itemName, u
       .select('id, total_qty, nomenclature_id, name')
       .eq('nomenclature_id', nomenclatureId)
       .eq('type', type)
+      .eq('warehouse', 'operational')
+      .is('pocket_owner', null)
       .limit(1)
       .maybeSingle()
 
@@ -107,6 +127,8 @@ async function executeFallbackIncrement({ nomenclatureId, qty, type, itemName, u
         .from('inventory')
         .select('id, total_qty, nomenclature_id, name')
         .eq('type', type)
+        .eq('warehouse', 'operational')
+        .is('pocket_owner', null)
         .ilike('name', itemName.trim())
         .limit(1)
         .maybeSingle()
