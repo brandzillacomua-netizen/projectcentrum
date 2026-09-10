@@ -253,17 +253,9 @@ export const useWarehouseComputed = ({
       }
 
       const isPrepared = Boolean(card.is_box_prepared || (card.card_info || '').includes('[BOX_PREPARED:true]'))
+      const isIssued   = Boolean(card.is_box_issued   || (card.card_info || '').includes('[BOX_ISSUED:true]'))
 
-      list.push({
-        card,
-        nom,
-        task,
-        cardSheets,
-        activeMaterialName,
-        cutters: preparedCutters,
-        isPrepared,
-        isIssued: false
-      })
+      list.push({ card, nom, task, cardSheets, activeMaterialName, cutters: preparedCutters, isPrepared, isIssued })
     })
 
     // Group items by task_id and activeMaterialName to allocate completed sheets
@@ -426,6 +418,19 @@ export const useWarehouseComputed = ({
   }, [inventory, nomenclatures, activeTab, searchQuery])
 
   const pendingRequests = useMemo(() => {
+    // Orders that have active packaging (kitting) requests for SGP parts:
+    // their raw-material / sheet requests should be hidden from SO tabs so
+    // warehouse staff doesn't try to cut parts that are already available in SGP.
+    const kittingOrderIds = new Set(
+      (requests || [])
+        .filter(r =>
+          r.details?.includes('ЗАПИТ НА КОМПЛЕКТУВАННЯ') &&
+          (r.status === 'pending' || r.status === 'issued')
+        )
+        .map(r => r.order_id)
+        .filter(Boolean)
+    )
+
     return (requests || []).filter(r => {
       if (r.status !== 'pending' && r.status !== 'issued') return false
       if (r.card_id) {
@@ -446,6 +451,19 @@ export const useWarehouseComputed = ({
         if (!task || task.warehouse_conf === 'true' || task.warehouse_conf === 'partial') return false
       }
       if (isPrepRequest(r, tasks)) return false
+
+      // If this order already has active SGP kitting requests — hide its regular
+      // raw-material / sheet requests from the operational warehouse (СО) tabs.
+      // Фрези та витратні матеріали не приховуємо — вони все одно беруться з СО.
+      if (activeTab !== 'finished' && r.order_id && kittingOrderIds.has(r.order_id)) {
+        const isCutterOrConsumableReq =
+          r.category === 'cutter' ||
+          r.category === 'consumable' ||
+          (r.details || '').toLowerCase().includes('фреза') ||
+          (r.details || '').includes('ВИТРАТНІ МАТЕРІАЛИ')
+        if (!isCutterOrConsumableReq) return false
+      }
+
       return getMaterialType(r, nomenclatures, inventory) === activeTab
     })
   }, [requests, tasks, nomenclatures, inventory, workCards, activeTab])

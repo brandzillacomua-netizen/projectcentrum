@@ -31,13 +31,26 @@ export const isF10Card = (card) => {
 export const USER_CACHE_KEY = 'MES_SESSION_USER'  // Full user object for instant restore
 export const TARGET_REFRESH_TTL_MS = 900
 export const TARGET_REFRESH_TTL_BY_TABLE = Object.freeze({
-  nomenclatures: 10 * 60 * 1000,
-  bom_items: 10 * 60 * 1000,
-  company_structure: 30 * 60 * 1000,
-  company_positions: 30 * 60 * 1000,
-  machine_operations: 15 * 60 * 1000,
+  // Static / rarely-changing tables — long TTL
+  nomenclatures:       10 * 60 * 1000,  // 10 min
+  bom_items:           10 * 60 * 1000,  // 10 min
+  company_structure:   30 * 60 * 1000,  // 30 min
+  company_positions:   30 * 60 * 1000,  // 30 min
+  system_users:         5 * 60 * 1000,  // 5 min
+  machine_operations:  15 * 60 * 1000,  // 15 min (heavy table, no realtime)
   work_card_flow_totals: 5 * 60 * 1000,
-  work_card_scrap_totals: 60 * 1000
+  work_card_scrap_totals: 60 * 1000,
+  // Operational tables — kept live by realtime subscriptions.
+  // TTL prevents redundant full refetches when navigating between modules
+  // (e.g. SGP → SO). 30s is plenty; realtime delivers changes instantly.
+  material_requests:  30 * 1000,  // 30 s
+  inventory:          30 * 1000,  // 30 s
+  tasks:              30 * 1000,  // 30 s
+  work_cards:         30 * 1000,  // 30 s
+  orders:             60 * 1000,  // 60 s
+  reception_docs:     60 * 1000,  // 60 s
+  purchase_requests:  60 * 1000,  // 60 s
+  work_card_history:  60 * 1000,  // 60 s
 })
 export const INITIAL_FETCH_JITTER_MS = 8000
 export const INITIAL_FETCH_RETRY_BASE_MS = 30 * 1000
@@ -85,8 +98,10 @@ export const ROUTE_DATA_PROFILES = Object.freeze({
   '/dashboard': ['orders', 'tasks', 'inventory', 'work_cards', 'nomenclatures', 'bom_items', 'work_card_history'],
   '/foreman-dashboard': ['orders', 'tasks', 'inventory', 'work_cards', 'nomenclatures', 'bom_items', 'work_card_scrap_totals', 'work_card_flow_totals'],
   '/manager': ['orders', 'tasks', 'nomenclatures'],
-  '/warehouse': ['inventory', 'material_requests', 'nomenclatures', 'reception_docs', 'orders', 'tasks', 'purchase_requests', 'machine_operations', 'work_cards', 'system_users'],
-  '/warehouse-boxes': ['inventory', 'material_requests', 'nomenclatures', 'orders', 'tasks', 'machine_operations', 'work_cards'],
+  // machine_operations (fetched without filters) and purchase_requests are NOT used in the
+  // Warehouse SO module — removing them eliminates the ~10s initial load delay.
+  '/warehouse': ['inventory', 'material_requests', 'nomenclatures', 'reception_docs', 'orders', 'tasks', 'work_cards', 'system_users'],
+  '/warehouse-boxes': ['inventory', 'material_requests', 'nomenclatures', 'orders', 'tasks', 'work_cards'],
   '/warehouse-fgp': ['inventory', 'material_requests', 'nomenclatures', 'reception_docs', 'orders', 'tasks', 'work_cards', 'work_card_history', 'system_users'],
   '/cutter-restoration': [],
   '/master': ['orders', 'tasks', 'nomenclatures', 'bom_items', 'inventory', 'material_requests', 'machines', 'machine_calls', 'machine_operations'],
@@ -279,7 +294,7 @@ export const fetchAllRows = async (table, { orderBy = 'created_at', ascending = 
 }
 
 export const fetchOperationalMaterialRequests = async ({ completedLimit = 200 } = {}) => {
-  const pageSize = 500
+  const pageSize = 1000  // was 500 — halves the number of sequential round-trips
   const activeRows = []
 
   for (let from = 0; ; from += pageSize) {

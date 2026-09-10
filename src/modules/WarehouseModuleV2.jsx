@@ -435,6 +435,7 @@ const WarehouseModuleV2 = () => {
               checkedCutters={checkedCutters}
               handleToggleCutterCheck={handlers.handleToggleCutterCheck}
               handlePrepareBox={handlers.handlePrepareBox}
+              handleIssueBox={handlers.handleIssueBox}
               isProcessing={isProcessing}
             />
           )}

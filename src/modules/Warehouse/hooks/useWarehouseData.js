@@ -7,11 +7,16 @@ export function useWarehouseData() {
   const [searchParams, setSearchParams] = useSearchParams()
   const { fetchData, machineCalls, currentUser, tasks, machines } = useMES()
 
-  useEffect(() => { 
+  // NOTE: No fetchData call on mount — the MES context loads all required tables
+  // via fetchCritical on app start, and realtime subscriptions keep data live.
+  // Calling fetchData here caused a ~5s re-fetch delay every time the user
+  // navigated to /warehouse (mirroring the approach used by WarehouseFGPModule).
+  useEffect(() => {
     if (typeof fetchData === 'function') {
-      fetchData(['inventory', 'material_requests', 'reception_docs', 'purchase_requests', 'tasks', 'work_cards', 'orders', 'machine_operations'])
+      fetchData(['material_requests', 'inventory'])  // lightweight refresh only for the two most critical tables
     }
   }, [])
+
 
   const [activeTab, setActiveTab] = useState(() => {
     return searchParams.get('tab') || 'raw'

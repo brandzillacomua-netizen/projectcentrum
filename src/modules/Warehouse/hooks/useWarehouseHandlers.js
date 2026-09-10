@@ -186,6 +186,24 @@ export const useWarehouseHandlers = ({
     }
   }
 
+  // Mark a prepared box as physically issued to the production worker
+  const handleIssueBox = async (boxItem) => {
+    if (!boxItem?.card?.id) return
+    setIsProcessing(true)
+    try {
+      const { error } = await supabaseClient
+        .from('work_cards')
+        .update({ is_box_issued: true })
+        .eq('id', boxItem.card.id)
+      if (error) throw error
+      if (typeof fetchData === 'function') fetchData(['work_cards'])
+    } catch (err) {
+      alert('Помилка видачі боксу: ' + err.message)
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
   const handleCardScan = async (cardId) => {
     try {
       let card = null
@@ -985,6 +1003,7 @@ export const useWarehouseHandlers = ({
   return {
     handleToggleCutterCheck,
     handlePrepareBox,
+    handleIssueBox,
     handleCardScan,
     handleIssueCardMaterials,
     handleSaveConsumableQty,
