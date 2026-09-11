@@ -1,4 +1,20 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
+
+const { supabaseMock } = vi.hoisted(() => ({
+  supabaseMock: {
+    rpc: vi.fn(async () => ({ data: { success: true }, error: null })),
+    from: vi.fn(() => ({
+      select: vi.fn(() => ({
+        eq: vi.fn(() => ({ maybeSingle: vi.fn(async () => ({ data: null, error: null })) }))
+      })),
+      update: vi.fn(() => ({ eq: vi.fn(async () => ({ error: null })) })),
+      insert: vi.fn(async () => ({ error: null }))
+    }))
+  }
+}))
+
+vi.mock('../src/supabase.js', () => ({ supabase: supabaseMock }))
+
 import {
   enqueueOfflineMutation,
   dequeueOfflineMutation,
