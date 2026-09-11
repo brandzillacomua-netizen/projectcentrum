@@ -20,7 +20,16 @@ import MaterialCorrectionModal from './features/material-correction/MaterialCorr
 import { useMaterialCorrection } from './features/material-correction/useMaterialCorrection.js'
 import CreateNaryadModal from './features/create-naryad/CreateNaryadModal.jsx'
 import ForemanPrintQueue from './components/ForemanPrintQueue.jsx'
+import { ForemanReportModal } from '../Foreman/components/ForemanReportModal.jsx'
 import { getDisplayMaterial } from './utils/foremanHelpers.js'
+import {
+  NARYAD_REPORT_SNAPSHOT_VERSION,
+  reconcileScrapDetailRows,
+  scopeReportCards,
+  summarizeReportProduction,
+  summarizeReportParts,
+  uniqueReportRows
+} from '../Foreman/utils/naryadReport.js'
 
 export default function Foreman2Module() {
   const mes = useMES()
@@ -32,9 +41,21 @@ export default function Foreman2Module() {
   const [isQueueOpen, setIsQueueOpen] = useState(false)
   const [isCreateNaryadOpen, setIsCreateNaryadOpen] = useState(false)
 
+  // Report Modal state
+  const [showReportModal, setShowReportModal] = useState(false)
+  const [reportTaskId, setReportTaskId] = useState(null)
+  const [reportLoading, setReportLoading] = useState(false)
+  const [reportData, setReportData] = useState(null)
+  const [reportStageFilter, setReportStageFilter] = useState('All')
+  const [reportNomFilter, setReportNomFilter] = useState('All')
+  const [reportSortBy, setReportSortBy] = useState('date')
+  const [reportOperatorFilter, setReportOperatorFilter] = useState('All')
+  const [reportDetailModal, setReportDetailModal] = useState(null)
+
   const {
     taskModels,
     allCards,
+    allHistory,
     loading,
     error,
     nomenclatures,
@@ -116,6 +137,151 @@ export default function Foreman2Module() {
     return taskModels.find(model => model.id === activeTaskId) || taskModels[0] || null
   }, [taskModels, activeTaskId])
 
+  const handleOpenReport = async (task, order, taskCardsOrForceRefresh = false, explicitForceRefresh = false) => {
+    if (!task) return
+    const forceRefresh = typeof taskCardsOrForceRefresh === 'boolean'
+      ? taskCardsOrForceRefresh
+      : Boolean(explicitForceRefresh)
+    setReportTaskId(task.id)
+    setShowReportModal(true)
+    setReportStageFilter('All')
+    setReportNomFilter('All')
+    setReportSortBy('date')
+    setReportOperatorFilter('All')
+
+    const expectedOrderId = task.order_id || order?.id || null
+    const reportModel = taskModels.find(model => String(model.id) === String(task.id))
+    const liveTaskCards = scopeReportCards(allCards || [], task.id, expectedOrderId)
+    const liveCardIds = new Set(liveTaskCards.map(card => String(card.id)))
+    const liveHistory = uniqueReportRows((allHistory || []).filter(row => liveCardIds.has(String(row.card_id))))
+    const liveScrapSummary = summarizeReportParts(reportModel?.parts || [])
+    const liveProductionSummary = summarizeReportProduction(reportModel?.parts || [])
+    const rawLiveScrapRows = uniqueReportRows(reportModel?.scrapRows || []).map(({ card: _card, ...row }) => row)
+    const liveScrapRows = reconcileScrapDetailRows({
+      parts: reportModel?.parts || [],
+      rows: rawLiveScrapRows
+    })
+    const withLiveArchiveData = data => ({
+      ...(data || {}),
+      version: NARYAD_REPORT_SNAPSHOT_VERSION,
+      taskId: task.id,
+      orderId: expectedOrderId,
+      taskCards: scopeReportCards([...(liveTaskCards || []), ...(data?.taskCards || [])], task.id, expectedOrderId),
+      historyRows: uniqueReportRows([...(liveHistory || []), ...(data?.historyRows || [])]),
+      scrapSummary: liveScrapSummary,
+      scrapDetailRows: liveScrapRows,
+      productionSummary: liveProductionSummary,
+      acceptedDetailRows: liveProductionSummary.rows
+    })
+
+    const cached = task?.plan_snapshot?._report_snapshot
+    const isUsableCache = Boolean(
+      cached &&
+      cached.version === NARYAD_REPORT_SNAPSHOT_VERSION &&
+      String(cached.taskId || '') === String(task.id) &&
+      String(cached.orderId || '') === String(expectedOrderId || '')
+    )
+    if (isUsableCache && !forceRefresh) {
+      setReportData(withLiveArchiveData(cached))
+      if (task.status === 'completed') {
+        setReportLoading(false)
+        return
+      }
+    }
+
+    setReportLoading(true)
+    if (!isUsableCache || forceRefresh) {
+      setReportData(null)
+    }
+
+    try {
+      const [{ data: materialRequests, error: reqError }, { data: allTaskCardsDB, error: cardsError }] = await Promise.all([
+        mes.supabase
+          .from('material_requests')
+          .select('*, nomenclature:nomenclatures_v2(*)')
+          .eq('task_id', task.id),
+        mes.supabase
+          .from('work_cards')
+          .select('*')
+          .eq('task_id', task.id)
+          .limit(10000)
+      ])
+
+      if (reqError) console.warn('Error fetching material requests:', reqError.message)
+      if (cardsError) throw cardsError
+
+      const finalTaskCards = scopeReportCards(
+        [...liveTaskCards, ...(allTaskCardsDB || [])],
+        task.id,
+        expectedOrderId
+      )
+      const allCardIds = finalTaskCards.map(c => c.id)
+      const scopedMaterialRequests = (materialRequests || []).filter(request => (
+        !expectedOrderId || !request.order_id || String(request.order_id) === String(expectedOrderId)
+      ))
+
+      if (allCardIds.length === 0) {
+        const finalData = withLiveArchiveData({
+          historyRows: [],
+          taskCards: finalTaskCards,
+          materialRequests: scopedMaterialRequests
+        })
+        setReportData(finalData)
+        setReportLoading(false)
+        return
+      }
+
+      const historyRows = []
+      const chunkSize = 25
+      const pageSize = 1000
+      for (let i = 0; i < allCardIds.length; i += chunkSize) {
+        const chunk = allCardIds.slice(i, i + chunkSize)
+        for (let from = 0; ; from += pageSize) {
+          const to = from + pageSize - 1
+          const { data, error } = await mes.supabase
+            .from('work_card_history')
+            .select('*')
+            .in('card_id', chunk)
+            .order('created_at', { ascending: true })
+            .range(from, to)
+
+          if (error) throw error
+          historyRows.push(...(data || []))
+          if (!data || data.length < pageSize) break
+        }
+      }
+
+      const uniqueHistory = Array.from(new Map(historyRows.filter(Boolean).map(row => [String(row.id), row])).values())
+      uniqueHistory.sort((a, b) => new Date(a.completed_at || 0) - new Date(b.completed_at || 0))
+      const fetchedHistoryCardIds = new Set(uniqueHistory.map(row => String(row.card_id)).filter(Boolean))
+      const supplementalLiveHistory = liveHistory.filter(row => (
+        !row.is_scrap_total || !fetchedHistoryCardIds.has(String(row.card_id))
+      ))
+
+      const finalData = withLiveArchiveData({
+        historyRows: uniqueReportRows([...supplementalLiveHistory, ...uniqueHistory]),
+        taskCards: finalTaskCards,
+        materialRequests: scopedMaterialRequests,
+        scrapSummary: liveScrapSummary
+      })
+      setReportData(finalData)
+
+      const updatedSnapshot = {
+        ...(task.plan_snapshot || {}),
+        _report_snapshot: finalData
+      }
+
+      await mes.supabase.from('tasks').update({ plan_snapshot: updatedSnapshot }).eq('id', task.id)
+    } catch (e) {
+      console.error(e)
+      if (!isUsableCache) {
+        alert('Помилка завантаження звіту: ' + e.message)
+      }
+    } finally {
+      setReportLoading(false)
+    }
+  }
+
   const handleOpenReissue = (part) => {
     if (!activeModel) return
     const shortageSheets = Math.ceil(Number(part.shortage) / Math.max(1, Number(part.unitsPerSheet) || 1))
@@ -170,6 +336,7 @@ export default function Foreman2Module() {
             model={activeModel}
             nomenclatures={nomenclatures}
             allCards={allCards}
+            onOpenReport={(task, order) => handleOpenReport(task, order)}
             onOpenReissue={handleOpenReissue}
             onMachineChange={(part) => machineChange.openMachineChange(activeModel.task, part)}
             onMaterialCorrection={materialCorrection.canCorrect ? (part) => materialCorrection.open(activeModel.task, part) : null}
@@ -287,6 +454,34 @@ export default function Foreman2Module() {
         machineOperations={mes.machineOperations || []}
         getDisplayMaterial={getDisplayMaterial}
         customers={mes.customers || []}
+      />
+
+      <ForemanReportModal
+        showReportModal={showReportModal}
+        setShowReportModal={setShowReportModal}
+        reportTaskId={reportTaskId}
+        reportLoading={reportLoading}
+        reportData={reportData}
+        reportStageFilter={reportStageFilter}
+        setReportStageFilter={setReportStageFilter}
+        reportNomFilter={reportNomFilter}
+        setReportNomFilter={setReportNomFilter}
+        reportSortBy={reportSortBy}
+        setReportSortBy={setReportSortBy}
+        reportOperatorFilter={reportOperatorFilter}
+        setReportOperatorFilter={setReportOperatorFilter}
+        reportDetailModal={reportDetailModal}
+        setReportDetailModal={setReportDetailModal}
+        handleOpenReport={handleOpenReport}
+        tasks={mes.tasks || []}
+        orders={mes.orders || []}
+        allOrdersMap={{}}
+        bomItems={mes.bomItems || []}
+        nomenclatures={mes.nomenclatures || []}
+        machineOperations={mes.machineOperations || []}
+        inventory={mes.inventory || []}
+        workCards={mes.workCards || []}
+        getRequestQty={(req) => Number(req?.quantity) || 0}
       />
     </Foreman2Layout>
   )

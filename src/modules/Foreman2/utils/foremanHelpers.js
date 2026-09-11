@@ -15,7 +15,6 @@ export const getRequestQty = (r) => {
   const match = (r.details || '').match(/—\s*(\d+)/)
   return match ? Number(match[1]) : 0
 }
-
 export const extractThickness = (str) => {
   if (!str) return null
   const mmMatch = String(str).replace(/,/g, '.').match(/(\d+(?:\.\d+)?)\s*мм/i)
@@ -188,8 +187,13 @@ export const formatDurationHMS = (seconds) => {
 export const getScrapBreakdown = (cards, historyList = [], allWorkCards = []) => {
   const cardArray = Array.isArray(cards) ? cards : [cards]
   const cardIdsStrings = cardArray.map(c => String(c.id))
+  const nomIdsStrings = cardArray.map(c => c.nomenclature_id ? String(c.nomenclature_id) : null).filter(Boolean)
 
-  const histories = historyList.filter(h => h.card_id && cardIdsStrings.includes(String(h.card_id)))
+  const histories = historyList.filter(h => {
+    if (h.card_id && cardIdsStrings.includes(String(h.card_id))) return true
+    if (h.nomenclature_id && nomIdsStrings.includes(String(h.nomenclature_id))) return true
+    return false
+  })
   const initialScrap = histories.reduce((sum, h) => sum + (Number(h.scrap_qty) || 0), 0)
 
   let returned = 0
@@ -209,20 +213,6 @@ export const getScrapBreakdown = (cards, historyList = [], allWorkCards = []) =>
     }
   })
 
-  if (allWorkCards && allWorkCards.length > 0) {
-    allWorkCards.forEach(ac => {
-      const info = ac.card_info || ''
-      if (info.includes('[SOURCE_CARD:')) {
-        const sourceMatch = info.match(/\[SOURCE_CARD:([^\]]+)\]/)
-        if (sourceMatch && cardIdsStrings.includes(sourceMatch[1])) {
-          if (!cardIdsStrings.includes(String(ac.id))) {
-            returned += Number(ac.quantity) || 0
-          }
-        }
-      }
-    })
-  }
-
   histories.forEach(h => {
     const info = h.card_info || ''
     const matches = info.match(/\[VKYA_(?:RESTORED_)?RETURN:[^:]+:(\d+)\]/g)
@@ -234,12 +224,16 @@ export const getScrapBreakdown = (cards, historyList = [], allWorkCards = []) =>
     }
   })
 
+  const inVkyaQty = cardArray.filter(c => c.status !== 'completed' && (c.status === 'at-vkya' || c.status === 'in-vkya' || c.status === 'quality-hold' || c.operation?.includes('ВКЯ'))).reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
   const safeReturned = Math.min(initialScrap, returned)
-  const util = Math.max(0, initialScrap - safeReturned)
+  const toRestoreQty = 0 // Future implementation
+  const util = Math.max(0, initialScrap - safeReturned - inVkyaQty - toRestoreQty)
 
   return {
     initialScrap,
     returned: safeReturned,
+    inVkyaQty,
+    toRestoreQty,
     util
   }
 }

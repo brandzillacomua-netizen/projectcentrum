@@ -1695,19 +1695,31 @@ const ForemanWorkplace = () => {
                               <div style={{ fontSize: '0.7rem', color: '#555', fontWeight: 800, paddingLeft: '10px' }}>
                                 ПРИЙНЯТО: <span style={{ color: netAvailable >= need ? '#10b981' : ((hasPartCardsInProgress && shortage <= 0) ? '#aaa' : '#ef4444'), fontWeight: 900 }}>{netAvailable}</span>
                               </div>
-                              <div style={{ fontSize: '0.7rem', color: groupBreakdown.initialScrap > 0 ? '#ef4444' : '#333', fontWeight: 950 }}>
-                                БРАК: {groupBreakdown.initialScrap}
-                              </div>
-                              {groupBreakdown.returned > 0 && (
-                                <div style={{ fontSize: '0.7rem', color: '#10b981', fontWeight: 950 }}>
-                                  ПОВЕРНУТО: {groupBreakdown.returned}
-                                </div>
-                              )}
-                              {groupBreakdown.initialScrap > 0 && (
-                                <div style={{ fontSize: '0.7rem', color: groupBreakdown.util > 0 ? '#f59e0b' : '#666', fontWeight: 950 }}>
-                                  УТИЛЬ: {groupBreakdown.util}
-                                </div>
-                              )}
+                                {(() => {
+                                  const inVkyaQty = groupBreakdown.inVkyaQty
+                                  const overallScrap = groupBreakdown.initialScrap
+                                  const toRestoreQty = groupBreakdown.toRestoreQty
+                                  const util = groupBreakdown.util
+                                  return (
+                                    <>
+                                      <div style={{ fontSize: '0.7rem', color: overallScrap > 0 ? '#f97316' : '#555', fontWeight: 950 }}>
+                                        ЗАГАЛЬНО БРАКУ: {overallScrap}
+                                      </div>
+                                      <div style={{ fontSize: '0.7rem', color: util > 0 ? '#ef4444' : '#555', fontWeight: 950 }}>
+                                        УТИЛЬ: {util}
+                                      </div>
+                                      <div style={{ fontSize: '0.7rem', color: toRestoreQty > 0 ? '#818cf8' : '#555', fontWeight: 950 }}>
+                                        БРАК (ВІДНОВЛЕННЯ): {toRestoreQty}
+                                      </div>
+                                      <div style={{ fontSize: '0.7rem', color: inVkyaQty > 0 ? '#f59e0b' : '#555', fontWeight: 950 }}>
+                                        НА ВКЯ: {inVkyaQty}
+                                      </div>
+                                      <div style={{ fontSize: '0.7rem', color: groupBreakdown.returned > 0 ? '#10b981' : '#555', fontWeight: 950 }}>
+                                        ПОВЕРНУТО: {groupBreakdown.returned}
+                                      </div>
+                                  </>
+                                )
+                              })()}
                               {activeCards.some(c => c.status === 'waiting-materials') && (
                                 <div style={{
                                   padding: '3px 8px',

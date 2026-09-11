@@ -1,6 +1,23 @@
 import { useEffect } from 'react'
 import { findMachineByName } from '../utils/foremanHelpers'
 import { calculateCuttersForBatch } from '../../../utils/cutterCalculator'
+import { NARYAD_REPORT_SNAPSHOT_VERSION, scopeReportCards, scopeReportSupplementalRows, uniqueReportRows } from '../utils/naryadReport'
+
+const isMissingReportProjection = error => (
+  error?.code === 'PGRST205' ||
+  error?.status === 404 ||
+  String(error?.message || '').includes('schema cache') ||
+  String(error?.message || '').includes('Not Found')
+)
+
+const fetchOptionalReportRows = async query => {
+  const { data, error } = await query
+  if (error) {
+    if (!isMissingReportProjection(error)) console.warn('Optional report projection is unavailable:', error.message)
+    return { rows: [], available: false }
+  }
+  return { rows: uniqueReportRows(data || []), available: true }
+}
 
 const fetchWorkCardHistoryByCardIds = async (supabase, cardIds = []) => {
   const rows = []
@@ -110,7 +127,14 @@ export function useForemanHandlers({
     setReportOperatorFilter('All')
 
     const cached = task?.plan_snapshot?._report_snapshot
-    if (cached && !forceRefresh) {
+    const isUsableCache = Boolean(
+      cached &&
+      cached.version === NARYAD_REPORT_SNAPSHOT_VERSION &&
+      cached.hasFinalScrapProjection === true &&
+      String(cached.taskId || '') === String(task.id) &&
+      String(cached.orderId || '') === String(task.order_id || order?.id || '')
+    )
+    if (isUsableCache && !forceRefresh) {
       setReportData(cached)
       if (task.status === 'completed') {
         setReportLoading(false)
@@ -119,48 +143,92 @@ export function useForemanHandlers({
     }
 
     setReportLoading(true)
-    if (!cached || forceRefresh) {
+    if (!isUsableCache || forceRefresh) {
       setReportData(null)
     }
 
     try {
-      const { data: materialRequests, error: reqError } = await supabase
-        .from('material_requests')
-        .select('*, nomenclature:nomenclatures_v2(*)')
-        .eq('task_id', task.id)
+      const [{ data: materialRequests, error: reqError }, { data: allTaskCardsDB, error: cardsError }] = await Promise.all([
+        supabase
+          .from('material_requests')
+          .select('*, nomenclature:nomenclatures_v2(*)')
+          .eq('task_id', task.id),
+        supabase
+          .from('work_cards')
+          .select('*')
+          .eq('task_id', task.id)
+          .limit(10000)
+      ])
 
       if (reqError) console.warn('Error fetching material requests:', reqError.message)
-
-      const { data: allTaskCardsDB } = await supabase
-        .from('work_cards')
-        .select('*')
-        .eq('task_id', task.id)
-        .limit(10000)
+      if (cardsError) throw cardsError
+      const expectedOrderId = String(task.order_id || order?.id || '')
+      const scopedMaterialRequests = (materialRequests || []).filter(request => (
+        !expectedOrderId || !request.order_id || String(request.order_id) === expectedOrderId
+      ))
 
       const cardsById = new Map()
       if (!forceRefresh) {
-        ;(taskCards || []).forEach(card => {
+        scopeReportCards(taskCards || [], task.id, task.order_id || order?.id).forEach(card => {
           if (card?.id) cardsById.set(String(card.id), card)
         })
       }
-      ;(allTaskCardsDB || []).forEach(card => {
+      scopeReportCards(allTaskCardsDB || [], task.id, task.order_id || order?.id).forEach(card => {
         if (card?.id) cardsById.set(String(card.id), card)
       })
       const finalTaskCards = Array.from(cardsById.values())
       const allCardIds = finalTaskCards.map(c => c.id)
 
       if (allCardIds.length === 0) {
-        const finalData = { historyRows: [], taskCards: finalTaskCards, materialRequests: materialRequests || [] }
+        const finalData = {
+          version: NARYAD_REPORT_SNAPSHOT_VERSION,
+          taskId: task.id,
+          orderId: task.order_id || order?.id || null,
+          historyRows: [],
+          taskCards: finalTaskCards,
+          materialRequests: scopedMaterialRequests,
+          finalScrapRows: [],
+          returnedRows: [],
+          hasFinalScrapProjection: false
+        }
         setReportData(finalData)
         setReportLoading(false)
         return
       }
 
-      const historyRows = await fetchWorkCardHistoryByCardIds(supabase, allCardIds)
+      const [historyRows, finalScrapResult, returnedResult] = await Promise.all([
+        fetchWorkCardHistoryByCardIds(supabase, allCardIds),
+        fetchOptionalReportRows(
+          supabase.from('vkya_final_scrap_totals').select('*').eq('task_id', task.id)
+        ),
+        fetchOptionalReportRows(
+          supabase
+            .from('vkya_quality_resolutions')
+            .select('*')
+            .eq('task_id', task.id)
+            .eq('disposition', 'returned_to_route')
+        )
+      ])
 
       historyRows.sort((a, b) => new Date(a.completed_at || 0) - new Date(b.completed_at || 0))
+      const reportCardIds = new Set(finalTaskCards.map(card => String(card.id)))
+      const reportScope = {
+        taskId: task.id,
+        orderId: task.order_id || order?.id,
+        cardIds: reportCardIds
+      }
 
-      const finalData = { historyRows: historyRows || [], taskCards: finalTaskCards, materialRequests: materialRequests || [] }
+      const finalData = {
+        version: NARYAD_REPORT_SNAPSHOT_VERSION,
+        taskId: task.id,
+        orderId: task.order_id || order?.id || null,
+        historyRows: uniqueReportRows(historyRows || []),
+        taskCards: finalTaskCards,
+        materialRequests: scopedMaterialRequests,
+        finalScrapRows: scopeReportSupplementalRows(finalScrapResult.rows, reportScope),
+        returnedRows: scopeReportSupplementalRows(returnedResult.rows, reportScope),
+        hasFinalScrapProjection: finalScrapResult.available
+      }
       setReportData(finalData)
 
       const updatedSnapshot = {
@@ -171,7 +239,7 @@ export function useForemanHandlers({
       await supabase.from('tasks').update({ plan_snapshot: updatedSnapshot }).eq('id', task.id)
     } catch (e) {
       console.error(e)
-      if (!cached) {
+      if (!isUsableCache) {
         alert('Помилка завантаження звіту: ' + e.message)
       }
     } finally {

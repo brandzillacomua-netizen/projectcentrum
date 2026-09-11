@@ -913,6 +913,11 @@ export function ForemanTaskDetails({
               return acc
             }, { waiting: 0, cutting: 0, tumbling: 0, reception: 0 })
 
+            const inVkyaQty = groupBreakdown.inVkyaQty
+            const overallScrap = groupBreakdown.initialScrap
+            const toRestoreQty = groupBreakdown.toRestoreQty
+            const util = groupBreakdown.util
+
             return (
               <div key={nomId} className="nomenclature-archive-group" style={{ marginBottom: '0' }}>
                 <div
@@ -946,19 +951,21 @@ export function ForemanTaskDetails({
                         {netAvailable}
                       </span>
                     </div>
-                    <div style={{ fontSize: '0.7rem', color: groupBreakdown.initialScrap > 0 ? '#ef4444' : '#333', fontWeight: 950 }}>
-                      БРАК: {groupBreakdown.initialScrap}
+                    <div style={{ fontSize: '0.7rem', color: overallScrap > 0 ? '#f97316' : '#555', fontWeight: 950 }}>
+                      ЗАГАЛЬНО БРАКУ: {overallScrap}
                     </div>
-                    {groupBreakdown.returned > 0 && (
-                      <div style={{ fontSize: '0.7rem', color: '#10b981', fontWeight: 950 }}>
-                        ПОВЕРНУТО: {groupBreakdown.returned}
-                      </div>
-                    )}
-                    {groupBreakdown.initialScrap > 0 && (
-                      <div style={{ fontSize: '0.7rem', color: groupBreakdown.util > 0 ? '#f59e0b' : '#666', fontWeight: 950 }}>
-                        УТИЛЬ: {groupBreakdown.util}
-                      </div>
-                    )}
+                    <div style={{ fontSize: '0.7rem', color: util > 0 ? '#ef4444' : '#555', fontWeight: 950 }}>
+                      УТИЛЬ: {util}
+                    </div>
+                    <div style={{ fontSize: '0.7rem', color: toRestoreQty > 0 ? '#818cf8' : '#555', fontWeight: 950 }}>
+                      БРАК (ВІДНОВЛЕННЯ): {toRestoreQty}
+                    </div>
+                    <div style={{ fontSize: '0.7rem', color: inVkyaQty > 0 ? '#f59e0b' : '#555', fontWeight: 950 }}>
+                      НА ВКЯ: {inVkyaQty}
+                    </div>
+                    <div style={{ fontSize: '0.7rem', color: groupBreakdown.returned > 0 ? '#10b981' : '#555', fontWeight: 950 }}>
+                      ПОВЕРНУТО: {groupBreakdown.returned}
+                    </div>
                     {activeCards.some(c => c.status === 'waiting-materials') && (
                       <div style={{ padding: '3px 8px', borderRadius: '6px', background: 'rgba(255, 144, 0, 0.1)', border: '1px solid rgba(255, 144, 0, 0.3)', color: '#ff9000', fontSize: '0.65rem', fontWeight: 900, letterSpacing: '0.5px' }}>
                         ОЧІКУЄ СКЛАД

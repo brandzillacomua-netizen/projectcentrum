@@ -70,10 +70,10 @@ export const calculatePartShortage = ({
 
   const totalSheets = productionCards.length > 0 ? Math.max(plannedSheets, actualSheets) : plannedSheets
   const spareFromSheets = (totalSheets * unitsPerSheet) + stockBZ - need
-  const observedScrap = asNumber(scrapByNom?.[nomId])
+  const observedScrapRaw = asNumber(scrapByNom?.[nomId])
   const scrap = hasFinalScrapProjection
     ? asNumber(finalScrapByTask?.[asId(task.id)]?.[nomId])
-    : observedScrap
+    : observedScrapRaw
   const shortage = scrap > 0 ? Math.max(0, scrap - Math.max(0, spareFromSheets)) : 0
 
   const returnedFromResolutionIndex = asNumber(vkyaReturnedByTask?.[asId(task.id)]?.[nomId])
@@ -88,8 +88,11 @@ export const calculatePartShortage = ({
   // Quality Hold (НА ВКЯ): parts sent to VKYA that have neither been written off as Cat4 Util (scrap) nor returned to order (returnedVkya)
   const qualityHoldFromCards = asNumber(qualityHoldCardsByNom?.[nomId])
   const qualityHoldFromPending = asNumber(pendingVkyaByNom?.[nomId])
-  const qualityHoldFromFormula = Math.max(0, observedScrap - scrap - returnedVkya)
+  const qualityHoldFromFormula = Math.max(0, observedScrapRaw - scrap - returnedVkya)
   const qualityHold = Math.max(qualityHoldFromCards, qualityHoldFromPending, qualityHoldFromFormula)
+
+  // Overall Total Scrap MUST BE at least (scrap + qualityHold + returnedVkya) so overallScrap is never smaller than scrap (util)
+  const observedScrap = Math.max(observedScrapRaw, scrap + qualityHold + returnedVkya)
 
   const splits = Array.isArray(snapshot.splits) ? snapshot.splits : []
   const isSplitMode = splits.length > 0

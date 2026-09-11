@@ -1,5 +1,7 @@
 import React from 'react'
 import { X, Loader2, Clock, Printer, RefreshCw, CheckCircle2, AlertTriangle } from 'lucide-react'
+import { getScrapBreakdown } from '../utils/foremanHelpers'
+import { buildNaryadScrapSummary, calculateActualSheetsForPart, scopeReportCards } from '../utils/naryadReport'
 
 const isCuttingHistoryRow = row => String(row.stage_name || '').trim().startsWith('Розкрій')
 
@@ -187,8 +189,8 @@ export function ForemanReportModal({
         background: '#0d0d0d',
         border: '1px solid #222',
         borderRadius: '24px',
-        width: '100%',
-        maxWidth: '850px',
+        width: '95vw',
+        maxWidth: '1400px',
         maxHeight: '90vh',
         overflowY: 'auto',
         padding: '30px',
@@ -247,7 +249,6 @@ export function ForemanReportModal({
           let totalActualSheets = 0
           let totalPlannedParts = 0
           let totalActualParts = 0
-          let totalScrap = 0
           const materialStats = {}
 
           const partsList = []
@@ -321,10 +322,16 @@ export function ForemanReportModal({
 
           partsList.forEach(p => {
             const partHistory = reportData.historyRows.filter(h => String(h.nomenclature_id) === String(p.nomId))
-            const cuttingHistory = partHistory.filter(h => h.stage_name === 'Розкрій')
             const acceptedHistory = partHistory.filter(h => h.stage_name === 'Прийомка' || h.stage_name === 'completed')
 
-            const sheetsDone = p.sheets || 0
+            const sheetsDone = calculateActualSheetsForPart({
+              cards: reportData.taskCards || reportData.cards || workCards || [],
+              historyRows: reportData.historyRows || [],
+              taskId: reportTaskId,
+              orderId: currentTask.order_id,
+              nomenclatureId: p.nomId,
+              unitsPerSheet: p.unitsPerSheet
+            })
 
             const acceptedQty = acceptedHistory.reduce((s, h) => s + (Number(h.qty_completed) || 0), 0)
 
@@ -342,8 +349,16 @@ export function ForemanReportModal({
             if (isNaN(plannedT300)) plannedT300 = defaultT300
             if (isNaN(plannedT700)) plannedT700 = defaultT700
 
-            const actualT300 = plannedT300
-            const actualT700 = plannedT700
+            let actualT300 = 0
+            let actualT700 = 0
+            if (plannedT300 > 0 && plannedT700 > 0) {
+              actualT300 = Math.min(plannedT300, sheetsDone)
+              actualT700 = Math.min(plannedT700, Math.max(0, sheetsDone - actualT300))
+            } else if (plannedT700 > 0) {
+              actualT700 = Math.min(plannedT700, sheetsDone)
+            } else {
+              actualT300 = Math.min(plannedT300, sheetsDone)
+            }
 
             const rawMat = p.material || '—'
             const thickMatch = rawMat.match(/(\d+(?:\.\d+)?)мм/i)
@@ -380,23 +395,49 @@ export function ForemanReportModal({
                 actualSheets: 0
               }
             }
-            materialStats[materialName].actualSheets += sheets
-            totalActualSheets += sheets
           })
 
-          totalScrap = reportData.historyRows.reduce((sum, row) => sum + (Number(row.scrap_qty) || 0), 0)
+          const rawNaryadCards = (Array.isArray(reportData.taskCards) && reportData.taskCards.length > 0)
+            ? reportData.taskCards
+            : (Array.isArray(reportData.cards) && reportData.cards.length > 0)
+              ? reportData.cards
+              : workCards || []
+          const naryadCards = scopeReportCards(rawNaryadCards, reportTaskId, currentTask.order_id)
+          const fallbackFromBz = naryadCards
+            .filter(card => String(card.operation || '').trim() === 'Склад БЗ')
+            .filter(card => ['completed', 'at-shop2-buffer', 'at-buffer', 'waiting-buffer'].includes(card.status))
+            .reduce((sum, card) => sum + (Number(card.quantity) || 0), 0)
+          const fallbackNeed = partsList.reduce((sum, part) => sum + (Number(part.need) || 0), 0)
+          const productionSummary = reportData.productionSummary || {
+            need: fallbackNeed,
+            plannedBz: Math.max(0, fallbackNeed - totalPlannedParts),
+            plannedShop1: totalPlannedParts,
+            fromBz: fallbackFromBz,
+            fromShop1: totalActualParts,
+            acceptedTotal: fallbackFromBz + totalActualParts
+          }
+          const legacyBreakdown = getScrapBreakdown(naryadCards, reportData.historyRows || [], naryadCards)
+          const calculatedScrapSummary = buildNaryadScrapSummary({
+            cards: naryadCards,
+            historyRows: reportData.historyRows || [],
+            finalScrapRows: reportData.finalScrapRows || [],
+            returnedRows: reportData.returnedRows || [],
+            taskId: reportTaskId,
+            orderId: currentTask.order_id,
+            hasFinalScrapProjection: Boolean(reportData.hasFinalScrapProjection),
+            legacyBreakdown
+          })
+          const scrapSummary = reportData.scrapSummary || calculatedScrapSummary
 
-          const cutterRequests = (reportData.materialRequests || []).filter(r => {
-            const nomName = r.nomenclature?.name?.toLowerCase() || ''
-            const detailsStr = r.details?.toLowerCase() || ''
-            return nomName.includes('фреза') || detailsStr.includes('фреза')
-          })
-          let plannedCuttersBreakdown = buildPlannedCuttersFromSnapshot({
-            task: currentTask,
-            nomenclatures,
-            machineOperations,
-            inventory
-          })
+          const {
+            total: totalOverallScrap,
+            util: totalUtilScrap,
+            restoration: totalToRestoreScrap,
+            inVkya: totalInVkyaScrap,
+            returned: totalReturnedScrap
+          } = scrapSummary
+
+          let plannedCuttersBreakdown = {}
           const snapshotCutters = Array.isArray(currentTask?.plan_snapshot?.consumables)
             ? currentTask.plan_snapshot.consumables.filter(item => String(item?.name || '').toLowerCase().includes('фреза'))
             : []
@@ -408,18 +449,17 @@ export function ForemanReportModal({
             return selectedNom?.name || selectedInv?.name || item.name || 'Фреза'
           }
 
-          if (Object.keys(plannedCuttersBreakdown).length > 0) {
-            // Freshly calculated from per-detail snapshot and machine operations.
-          } else if (snapshotCutters.length > 0) {
+          if (snapshotCutters.length > 0) {
             snapshotCutters.forEach(item => {
               const name = resolveSnapshotCutterName(item)
               plannedCuttersBreakdown[name] = (plannedCuttersBreakdown[name] || 0) + (Number(item.total) || 0)
             })
           } else {
-            cutterRequests.forEach(r => {
-              const name = r.nomenclature?.name || 'Фреза'
-              const fallbackQty = getRequestQty(r)
-              plannedCuttersBreakdown[name] = (plannedCuttersBreakdown[name] || 0) + getDeclaredRequestQty(r, fallbackQty)
+            plannedCuttersBreakdown = buildPlannedCuttersFromSnapshot({
+              task: currentTask,
+              nomenclatures,
+              machineOperations,
+              inventory
             })
           }
 
@@ -581,8 +621,29 @@ export function ForemanReportModal({
                   <div style={{ color: '#888', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>Деталі та Брак</div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ color: '#aaa', fontSize: '0.9rem', fontWeight: 500 }}>План:</span>
-                      <strong style={{ color: '#fff', fontSize: '0.9rem', fontWeight: 700 }}>{totalPlannedParts} шт</strong>
+                      <span style={{ color: '#aaa', fontSize: '0.9rem', fontWeight: 500 }}>Потреба наряду:</span>
+                      <strong style={{ color: '#fff', fontSize: '0.9rem', fontWeight: 700 }}>{productionSummary.need} шт</strong>
+                    </div>
+
+                    <div style={{ paddingLeft: '10px', borderLeft: '2px solid #222', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: '#888', fontWeight: 800 }}>
+                        <span>План із БЗ:</span>
+                        <span>{productionSummary.plannedBz} шт</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: '#888', fontWeight: 800 }}>
+                        <span>План цеху №1:</span>
+                        <span>{productionSummary.plannedShop1} шт</span>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ color: '#aaa', fontSize: '0.9rem', fontWeight: 500 }}>Фактично взято з БЗ:</span>
+                      <strong style={{ color: '#3b82f6', fontSize: '0.9rem', fontWeight: 700 }}>{productionSummary.fromBz} шт</strong>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ color: '#aaa', fontSize: '0.9rem', fontWeight: 500 }}>Передано з цеху №1:</span>
+                      <strong style={{ color: '#10b981', fontSize: '0.9rem', fontWeight: 700 }}>{productionSummary.fromShop1} шт</strong>
                     </div>
 
                     <div
@@ -592,7 +653,7 @@ export function ForemanReportModal({
                       onMouseLeave={e => e.currentTarget.style.opacity = 1}
                       title="Клікніть для деталізації прийнятих деталей"
                     >
-                      <span style={{ color: '#aaa', fontSize: '0.9rem', fontWeight: 500 }}>Прийнято:</span>
+                      <span style={{ color: '#aaa', fontSize: '0.9rem', fontWeight: 500 }}>Разом забезпечено:</span>
                       <strong
                         style={{
                           color: '#10b981',
@@ -603,7 +664,7 @@ export function ForemanReportModal({
                         }}
                         className="text-accent-green"
                       >
-                        {totalActualParts} шт
+                        {productionSummary.acceptedTotal} шт
                       </strong>
                     </div>
 
@@ -614,7 +675,7 @@ export function ForemanReportModal({
                       onMouseLeave={e => e.currentTarget.style.opacity = 1}
                       title="Клікніть для деталізації браку за етапами"
                     >
-                      <span style={{ color: '#aaa', fontSize: '0.9rem', fontWeight: 500 }}>Брак:</span>
+                      <span style={{ color: '#aaa', fontSize: '0.9rem', fontWeight: 500 }}>Загально браку:</span>
                       <strong
                         style={{
                           color: '#ef4444',
@@ -625,8 +686,27 @@ export function ForemanReportModal({
                         }}
                         className="text-accent-red"
                       >
-                        {totalScrap} шт
+                        {totalOverallScrap} шт
                       </strong>
+                    </div>
+
+                    <div style={{ paddingLeft: '10px', marginTop: '4px', borderLeft: '2px solid #222', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: totalUtilScrap > 0 ? '#ef4444' : '#666', fontWeight: 800 }}>
+                        <span>Утиль:</span>
+                        <span>{totalUtilScrap} шт</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: totalToRestoreScrap > 0 ? '#818cf8' : '#666', fontWeight: 800 }}>
+                        <span>Брак (відновлення):</span>
+                        <span>{totalToRestoreScrap} шт</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: totalInVkyaScrap > 0 ? '#f59e0b' : '#666', fontWeight: 800 }}>
+                        <span>На ВКЯ:</span>
+                        <span>{totalInVkyaScrap} шт</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: totalReturnedScrap > 0 ? '#10b981' : '#666', fontWeight: 800 }}>
+                        <span>Повернуто:</span>
+                        <span>{totalReturnedScrap} шт</span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -991,7 +1071,20 @@ export function ForemanReportModal({
 
                           const nom = nomenclatures.find(n => n.id === row.nomenclature_id)
                           const seqMatch = (row.card_info || card?.card_info || '').match(/(\d+\/\d+)/)
-                          const seqStr = seqMatch ? seqMatch[1] : `ID: #${row.card_id?.slice(-8).toUpperCase()}`
+                          const cardSuffix = String(row.card_id || '').slice(-8).toUpperCase()
+                          const seqStr = seqMatch ? seqMatch[1] : cardSuffix ? `ID: #${cardSuffix}` : '—'
+                          const stageName = String(row.stage_name || '').trim() || 'Не вказано'
+                          const isBufferStage = stageName.startsWith('Буфер')
+                          const isReceptionStage = stageName === 'Прийомка' || stageName === 'completed'
+                          const stageKind = isBufferStage
+                            ? 'buffer'
+                            : stageName === 'Розкрій'
+                              ? 'cutting'
+                              : stageName === 'Галтовка'
+                                ? 'tumbling'
+                                : isReceptionStage
+                                  ? 'reception'
+                                  : 'sorting'
 
                           return (
                             <tr key={row.id || idx} style={{ borderBottom: idx < processedRows.length - 1 ? '1px solid #222' : 'none' }}>
@@ -1007,22 +1100,18 @@ export function ForemanReportModal({
                               <td style={{ padding: '12px 15px', textAlign: 'center', color: '#3b82f6', fontWeight: 700 }}>{factStr}</td>
                               <td style={{ padding: '12px 15px' }}>
                                 <span
-                                  className={`stage-badge stage-${row.stage_name.startsWith('Буфер') ? 'buffer' :
-                                    row.stage_name === 'Розкрій' ? 'cutting' :
-                                      row.stage_name === 'Галтовка' ? 'tumbling' :
-                                        (row.stage_name === 'Прийомка' || row.stage_name === 'completed') ? 'reception' : 'sorting'
-                                      }`}
+                                  className={`stage-badge stage-${stageKind}`}
                                   style={{
-                                    background: row.stage_name.startsWith('Буфер') ? '#a78bfa1e' : row.stage_name === 'Розкрій' ? '#3b82f61a' : row.stage_name === 'Галтовка' ? '#eab3081a' : row.stage_name === 'Прийомка' || row.stage_name === 'completed' ? '#10b9811a' : '#14b8a61a',
-                                    color: row.stage_name.startsWith('Буфер') ? '#a78bfa' : row.stage_name === 'Розкрій' ? '#3b82f6' : row.stage_name === 'Галтовка' ? '#eab308' : row.stage_name === 'Прийомка' || row.stage_name === 'completed' ? '#10b981' : '#14b8a6',
+                                    background: isBufferStage ? '#a78bfa1e' : stageName === 'Розкрій' ? '#3b82f61a' : stageName === 'Галтовка' ? '#eab3081a' : isReceptionStage ? '#10b9811a' : '#14b8a61a',
+                                    color: isBufferStage ? '#a78bfa' : stageName === 'Розкрій' ? '#3b82f6' : stageName === 'Галтовка' ? '#eab308' : isReceptionStage ? '#10b981' : '#14b8a6',
                                     padding: '4px 8px',
                                     borderRadius: '6px',
                                     fontWeight: 900,
                                     fontSize: '0.7rem',
-                                    border: row.stage_name.startsWith('Буфер') ? '1px solid #a78bfa33' : 'none'
+                                    border: isBufferStage ? '1px solid #a78bfa33' : 'none'
                                   }}
                                 >
-                                  {row.stage_name === 'completed' ? 'Прийомка' : row.stage_name}
+                                  {stageName === 'completed' ? 'Прийомка' : stageName}
                                 </span>
                               </td>
                               <td style={{ padding: '12px 15px' }}>
@@ -1124,8 +1213,8 @@ export function ForemanReportModal({
               background: '#0d0d0d',
               border: '1px solid #222',
               borderRadius: '20px',
-              width: '100%',
-              maxWidth: '550px',
+              width: '90vw',
+              maxWidth: '850px',
               maxHeight: '85vh',
               overflowY: 'auto',
               padding: '25px',
@@ -1166,19 +1255,39 @@ export function ForemanReportModal({
                   acceptedMap[nomId] = {
                     name: nom?.name || 'Невідома деталь',
                     code: nom?.nomenclature_code || 'БЕЗ КОДУ',
+                    fromBz: 0,
+                    fromShop1: 0,
                     qty: 0
                   }
                 }
-                acceptedMap[nomId].qty += (Number(row.qty_completed) || 0)
+                const acceptedQty = Number(row.qty_completed) || 0
+                acceptedMap[nomId].fromShop1 += acceptedQty
+                acceptedMap[nomId].qty += acceptedQty
               })
 
-              const items = Object.values(acceptedMap).sort((a, b) => b.qty - a.qty)
+              const suppliedRows = Array.isArray(reportData?.acceptedDetailRows) ? reportData.acceptedDetailRows : []
+              const items = (suppliedRows.length > 0
+                ? suppliedRows.map(row => ({
+                    name: row.name || 'Невідома деталь',
+                    code: row.code || 'БЕЗ КОДУ',
+                    fromBz: Number(row.fromBz) || 0,
+                    fromShop1: Number(row.fromShop1) || 0,
+                    qty: Number(row.acceptedTotal) || 0
+                  }))
+                : Object.values(acceptedMap)
+              ).sort((a, b) => b.qty - a.qty)
+              const totalAcceptedSum = items.reduce((sum, item) => sum + (Number(item.qty) || 0), 0)
 
               return (
                 <div>
-                  <h3 style={{ margin: '0 0 20px 0', fontSize: '1.2rem', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px', color: '#10b981' }}>
-                    <CheckCircle2 size={20} /> Деталізація прийнятих деталей
-                  </h3>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingRight: '30px', flexWrap: 'wrap', gap: '10px' }}>
+                    <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px', color: '#10b981' }}>
+                      <CheckCircle2 size={20} /> Деталізація забезпечення наряду
+                    </h3>
+                    <div style={{ background: 'rgba(16, 185, 129, 0.15)', border: '1px solid rgba(16, 185, 129, 0.3)', color: '#10b981', padding: '4px 12px', borderRadius: '8px', fontWeight: 900, fontSize: '0.85rem' }}>
+                      Разом забезпечено: {totalAcceptedSum} шт
+                    </div>
+                  </div>
                   {items.length === 0 ? (
                     <div style={{ padding: '20px', textAlign: 'center', color: '#666' }}>Деталей ще не прийнято</div>
                   ) : (
@@ -1187,7 +1296,9 @@ export function ForemanReportModal({
                         <thead>
                           <tr style={{ background: '#161616', color: '#666', borderBottom: '1px solid #222', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase' }}>
                             <th style={{ padding: '10px 12px' }}>Деталь</th>
-                            <th style={{ padding: '10px 12px', textAlign: 'right' }}>Прийнято</th>
+                            <th style={{ padding: '10px 12px', textAlign: 'right' }}>З БЗ</th>
+                            <th style={{ padding: '10px 12px', textAlign: 'right' }}>Цех №1</th>
+                            <th style={{ padding: '10px 12px', textAlign: 'right' }}>Разом</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1197,7 +1308,13 @@ export function ForemanReportModal({
                                 <div style={{ fontWeight: 800, color: '#fff' }}>{item.name}</div>
                                 <div style={{ fontSize: '0.65rem', color: '#555', marginTop: '2px' }}>{item.code}</div>
                               </td>
-                              <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 900, color: '#10b981', fontSize: '0.9rem' }}>
+                              <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 800, color: '#3b82f6', fontSize: '0.85rem' }}>
+                                {item.fromBz} шт
+                              </td>
+                              <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 800, color: '#10b981', fontSize: '0.85rem' }}>
+                                {item.fromShop1} шт
+                              </td>
+                              <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 900, color: '#fff', fontSize: '0.9rem' }}>
                                 {item.qty} шт
                               </td>
                             </tr>
@@ -1209,7 +1326,8 @@ export function ForemanReportModal({
                 </div>
               )
             })() : (() => {
-              const scrapRows = (reportData?.historyRows || []).filter(h => (Number(h.scrap_qty) || 0) > 0)
+              const scrapRows = (reportData?.scrapDetailRows || reportData?.historyRows || [])
+                .filter(h => (Number(h.scrap_qty ?? h.scrapQty) || 0) > 0)
 
               const items = scrapRows.map(row => {
                 const nom = nomenclatures.find(n => String(n.id) === String(row.nomenclature_id))
@@ -1219,8 +1337,8 @@ export function ForemanReportModal({
                 return {
                   name: nom?.name || 'Невідома деталь',
                   code: nom?.nomenclature_code || 'БЕЗ КОДУ',
-                  stage: row.stage_name === 'completed' ? 'Прийомка' : row.stage_name,
-                  qty: Number(row.scrap_qty) || 0,
+                  stage: row.stage_name === 'completed' ? 'Прийомка' : (String(row.stage_name || '').trim() || 'Не вказано'),
+                  qty: Number(row.scrap_qty ?? row.scrapQty) || 0,
                   operator: row.operator_name || '—',
                   shift: row.shift_name || '—',
                   machine: row.machine_name || '—',
@@ -1228,11 +1346,18 @@ export function ForemanReportModal({
                 }
               }).sort((a, b) => b.qty - a.qty)
 
+              const totalScrapSum = items.reduce((sum, item) => sum + (Number(item.qty) || 0), 0)
+
               return (
                 <div>
-                  <h3 style={{ margin: '0 0 20px 0', fontSize: '1.2rem', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px', color: '#ef4444' }}>
-                    <AlertTriangle size={20} /> Деталізація браку за етапами
-                  </h3>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingRight: '30px', flexWrap: 'wrap', gap: '10px' }}>
+                    <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px', color: '#ef4444' }}>
+                      <AlertTriangle size={20} /> Деталізація браку за етапами
+                    </h3>
+                    <div style={{ background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#ef4444', padding: '4px 12px', borderRadius: '8px', fontWeight: 900, fontSize: '0.85rem' }}>
+                      Всього браку: {totalScrapSum} шт
+                    </div>
+                  </div>
                   {items.length === 0 ? (
                     <div style={{ padding: '20px', textAlign: 'center', color: '#666' }}>Бракованих деталей немає</div>
                   ) : (

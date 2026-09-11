@@ -273,19 +273,25 @@ const WorkCardsArchive = ({ parts, task, expandedId, onToggle, onOpenReissue, on
                       Довипуск: {redoCards.length}
                     </div>
                   )}
-                  {/* ── Right-side QC metrics block ── */}
+                  {/* ── Right-side QC metrics block (5 standard fields) ── */}
                   <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                     <div style={{ fontSize: '0.68rem', color: 'var(--text-dim, #64748b)', fontWeight: 900, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
                       Прийнято: <span style={{ color: '#3b82f6' }}>{formatQty(part.produced)}</span>
                     </div>
-                    {part.observedScrap > 0 && (
-                      <div style={{ fontSize: '0.68rem', color: '#f97316', fontWeight: 950, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
-                        Брак: <span style={{ color: '#f97316' }}>{formatQty(part.observedScrap)}</span>
-                      </div>
-                    )}
+                    <div style={{ fontSize: '0.68rem', color: part.observedScrap > 0 ? '#f97316' : 'var(--text-dim, #64748b)', fontWeight: 950, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+                      Загально браку: <span style={{ color: part.observedScrap > 0 ? '#f97316' : 'var(--text-muted, #94a3b8)' }}>{formatQty(part.observedScrap)}</span>
+                    </div>
                     <div style={{ fontSize: '0.68rem', color: part.scrap > 0 ? '#ef4444' : 'var(--text-dim, #64748b)', fontWeight: 950, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
                       Утиль: <span style={{ color: part.scrap > 0 ? '#ef4444' : 'var(--text-muted, #94a3b8)' }}>{formatQty(part.scrap)}</span>
                     </div>
+                    {(() => {
+                      const toRestore = Math.max(0, part.observedScrap - part.scrap - part.qualityHold - part.returnedVkya)
+                      return (
+                        <div style={{ fontSize: '0.68rem', color: toRestore > 0 ? '#818cf8' : 'var(--text-dim, #64748b)', fontWeight: 950, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+                          Брак (відновлення): <span style={{ color: toRestore > 0 ? '#818cf8' : 'var(--text-muted, #94a3b8)' }}>{formatQty(toRestore)}</span>
+                        </div>
+                      )
+                    })()}
                     <div style={{ fontSize: '0.68rem', color: part.qualityHold > 0 ? '#f59e0b' : 'var(--text-dim, #64748b)', fontWeight: 950, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
                       На ВКЯ: <span style={{ color: part.qualityHold > 0 ? '#f59e0b' : 'var(--text-muted, #94a3b8)' }}>{formatQty(part.qualityHold)}</span>
                     </div>
