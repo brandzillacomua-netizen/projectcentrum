@@ -155,7 +155,11 @@ export default function GenerateCardsModal({
     if (config) {
       const defaultMachine = config.part?.machine || config.task?.machine_name || ''
       setMachineName(defaultMachine)
-      setSelectedCutters({})
+      const nomKey = String(config.part?.nomId || config.part?.id || '')
+      const existingCutters = config.task?.plan_snapshot?.[nomKey]?.selected_cutters
+        || config.task?.plan_snapshot?.selectedCutters
+        || {}
+      setSelectedCutters(existingCutters)
       const cap = config.capacityOverride || (defaultMachine ? (findMachine(defaultMachine)?.sheet_capacity || 1) : 1)
       setCapacity(cap)
       const rec = Math.max(1, Math.ceil((targetSheets || 1) / (Number(cap) || 1)))
@@ -220,6 +224,8 @@ export default function GenerateCardsModal({
 
   const getMatchingCutters = (categoryName, noms = [], inv = [], cutterTypeId = null) => {
     const targetDia = extractCutterDiameter(categoryName)
+    const targetAngleMatch = String(categoryName || '').match(/(\d+)\s*°/)
+    const targetAngle = targetAngleMatch ? targetAngleMatch[1] : null
 
     const cutterNoms = (noms || []).filter(n => {
       if (n.type === 'cutter_type') return false
@@ -254,7 +260,13 @@ export default function GenerateCardsModal({
         return
       }
       const dia = extractCutterDiameter(n.name)
-      if (targetDia && dia === targetDia) {
+      const nAngleMatch = String(n.name || '').match(/(\d+)\s*°/)
+      const nAngle = nAngleMatch ? nAngleMatch[1] : null
+
+      const isDiaMatch = targetDia && dia === targetDia
+      const isAngleMatch = targetAngle ? (nAngle === targetAngle) : true
+
+      if (isDiaMatch && isAngleMatch) {
         matching.push(n)
       } else {
         others.push(n)

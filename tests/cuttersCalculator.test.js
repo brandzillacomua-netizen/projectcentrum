@@ -56,4 +56,60 @@ describe('Cutter Calculator & Virtual Cutter Types Suite', () => {
     expect(rowF3).toBeDefined()
     expect(rowF3.qty).toBe(9) // 3 sheets * 3 qty/sheet
   })
+
+  it('groups multiple operations referencing physical cutters into single Cutter Type rows', () => {
+    const partNom = {
+      id: 'part-uuid-1',
+      name: 'Деталь Тестова'
+    }
+
+    const mockNoms = [
+      { id: 'cut-1', name: 'Фреза двопера 3,175x3,175x42x65', type: 'consumable' },
+      { id: 'cut-2', name: 'Фреза двопера 3,175x12x38', type: 'consumable' },
+      { id: 'cut-3', name: 'Фреза фасочна 6x38x90°', type: 'consumable' },
+      { id: 'cut-4', name: 'Фреза фасочна 6x38x120°', type: 'consumable' }
+    ]
+
+    const machineOperations = [
+      {
+        nomenclature_id: 'part-uuid-1',
+        machine_type: 'CNC 1200x800 - 4 листи (Малий)',
+        side2_cut_ops: [
+          '__CUTTER__:cut-1:1',
+          '__CUTTER__:cut-2:2',
+          '__CUTTER__:cut-3:1',
+          '__CUTTER__:cut-4:1'
+        ]
+      }
+    ]
+
+    const cutterRows = calculateCuttersForBatch({
+      partNom,
+      machineName: 'CNC 12x8',
+      sheets: 4,
+      task: { id: 'task-1' },
+      machineOperations,
+      nomenclatures: mockNoms,
+      inventory: []
+    })
+
+    // cut-1 (1 qty) + cut-2 (2 qty) both resolve to 'Тип Ф3.175' => merged to 1 row with 3 * 4 = 12 total
+    // cut-3 resolves to 'Тип Ф6 (90°)' => 1 * 4 = 4 total
+    // cut-4 resolves to 'Тип Ф6 (120°)' => 1 * 4 = 4 total
+    expect(cutterRows).toHaveLength(3)
+
+    const row3175 = cutterRows.find(r => r.name === 'Тип Ф3.175')
+    const row6_90 = cutterRows.find(r => r.name === 'Тип Ф6 (90°)')
+    const row6_120 = cutterRows.find(r => r.name === 'Тип Ф6 (120°)')
+
+    expect(row3175).toBeDefined()
+    expect(row3175.qty).toBe(12)
+
+    expect(row6_90).toBeDefined()
+    expect(row6_90.qty).toBe(4)
+
+    expect(row6_120).toBeDefined()
+    expect(row6_120.qty).toBe(4)
+  })
 })
+
