@@ -82,8 +82,7 @@ describe('Offline Queue & Resilience Service', () => {
 
   it('executeAtomicCardTransition gracefully buffers mutation when offline', async () => {
     // Simulate browser going offline
-    const originalOnLine = navigator.onLine
-    Object.defineProperty(navigator, 'onLine', { value: false, configurable: true })
+    vi.stubGlobal('navigator', { onLine: false })
 
     try {
       const cardId = 'a1111111-2222-3333-4444-555555555555'
@@ -104,7 +103,7 @@ describe('Offline Queue & Resilience Service', () => {
       expect(res.isOffline).toBe(true)
       expect(getOfflineQueueCount()).toBeGreaterThan(0)
     } finally {
-      Object.defineProperty(navigator, 'onLine', { value: originalOnLine, configurable: true })
+      vi.unstubAllGlobals()
     }
   })
 
