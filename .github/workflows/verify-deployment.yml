@@ -25,7 +25,8 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (github.event.deployment_status.state == 'success' &&
-       github.event.deployment.environment == 'Production')
+       startsWith(github.event.deployment.environment, 'Production') &&
+       endsWith(github.event.deployment.environment, 'projectcentrum88'))
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
