@@ -37,6 +37,9 @@ jobs:
       - name: Enforce RLS Migration Boundaries
         run: npm run security:rls
 
+      - name: Enforce Read-Only Diagnostics
+        run: npm run security:diagnostics
+
       - name: Enforce Client Data-Access Contract
         run: npm run security:access-contract
 
