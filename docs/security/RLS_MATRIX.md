@@ -60,7 +60,7 @@
 
 1. **Хвиля A — спостереження і контракт (виконано).** Зафіксувати таблиці та операції, підключити блокування регресій у CI. Ризик для production: низький.
 2. **Хвиля B — єдина серверна ідентичність (виконано 2026-09-12).** `npm run audit:auth-bindings` перевіряє каталог через звичайний JWT, а `supabase/diagnostics/auth_identity_binding_preflight.sql` звіряє `system_users` з внутрішнім `auth.users`. Production preflight: 139 MES-користувачів, 139 прив'язаних, 0 пропущених, 0 сиріт, 0 конфліктів metadata, 0 дублів; статус `PASS`.
-3. **Хвиля C — довідники та ізольовані модулі.** Спочатку обмежити таблиці з малою кількістю call sites (`system_configs`, `nomenclature_prices`, довідники ВКЯ), провести рольові smoke-тести. Ризик: низький/середній.
+3. **Хвиля C — довідники та ізольовані модулі (C1 застосовано 2026-09-12).** `system_configs`, `scrap_reasons`, `vkya_restoration_stages` переведено на least-privilege grants і рольові write-policy; production postcondition `PASS` з нульовими відхиленнями. `nomenclature_prices` виключено, оскільки таблиця відсутня у production. Точний rollback збережено за runbook `docs/security/WAVE_C1_CATALOG_RBAC.md`.
 4. **Хвиля D — CRM, чат, обладнання, задачі.** Вводити політики по одному домену, із журналюванням відмов RLS і canary-групою користувачів. Ризик: середній/високий.
 5. **Хвиля E — виробниче ядро.** `orders`, `inventory`, `material_requests`, `work_cards`, `work_card_history` переводити лише після E2E-матриці ролей і перевіреного відновлення БД. Ризик: критичний.
 

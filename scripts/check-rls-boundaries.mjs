@@ -22,6 +22,12 @@ for (const file of files) {
   if (/GRANT\s+[\s\S]{0,120}\b(?:UPDATE|DELETE|TRUNCATE|REFERENCES|TRIGGER)\b[\s\S]{0,120}\bTO\s+(?:PUBLIC|anon)\b/i.test(sql)) {
     findings.push(`${file}: mutating table privileges for PUBLIC/anon are forbidden`)
   }
+  if (/GRANT\s+ALL(?:\s+PRIVILEGES)?\s+ON\s+(?:TABLE\s+)?[\w.,\s]+\s+TO\s+authenticated\b/i.test(sql)) {
+    findings.push(`${file}: broad ALL table privileges for authenticated are forbidden`)
+  }
+  if (/FOR\s+ALL\s+TO\s+authenticated\b/i.test(sql)) {
+    findings.push(`${file}: broad FOR ALL policy for authenticated is forbidden`)
+  }
 
   for (const grant of sql.matchAll(/GRANT\s+EXECUTE\s+ON\s+FUNCTION\s+([\w.]+)\s*\([^;]*?\)\s+TO\s+([^;]+);/gi)) {
     const functionName = grant[1].toLowerCase()

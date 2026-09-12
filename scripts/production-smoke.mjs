@@ -56,6 +56,14 @@ try {
     })
     const profile = await profileResponse.json().catch(() => null)
     record('audit profile link', profileResponse.ok && Boolean(profile?.id), `HTTP ${profileResponse.status}`)
+
+    for (const table of ['system_configs', 'scrap_reasons', 'vkya_restoration_stages']) {
+      const catalogResponse = await fetch(`${supabaseUrl}/rest/v1/${table}?select=*&limit=1`, {
+        headers: authHeaders
+      })
+      record(`authenticated catalog read: ${table}`, catalogResponse.ok, `HTTP ${catalogResponse.status}`)
+    }
+
     await fetch(`${supabaseUrl}/auth/v1/logout`, { method: 'POST', headers: authHeaders })
   }
 } catch (error) {
