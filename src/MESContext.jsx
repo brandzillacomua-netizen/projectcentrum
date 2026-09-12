@@ -6,6 +6,7 @@ import { createAuthActions } from './contexts/useAuth'
 import { createProductionActions } from './contexts/useProduction'
 import { createWarehouseActions } from './contexts/useWarehouse'
 import { useAppTheme } from './contexts/useAppTheme'
+import { useUserPresence } from './contexts/useUserPresence'
 import {
   formatUserName,
   selectFilteredManagerNames,
@@ -19,6 +20,7 @@ const MESContext = createContext()
 export const MESProvider = ({ children }) => {
   const data = useData()
   const { theme, toggleTheme } = useAppTheme()
+  useUserPresence(data.currentUser?.id, supabase)
 
   // ── USER AUTH STATUS LOG ──
   useEffect(() => {
@@ -26,57 +28,6 @@ export const MESProvider = ({ children }) => {
       console.log(`%c[Centrum Auth] 🛡️ Активна JWT сесія підтверджена! Користувач: "${data.currentUser.login}" (${data.currentUser.position || 'Працівник'})`, 'color: #22c55e; font-weight: bold; font-size: 13px;')
     }
   }, [data.currentUser?.id, data.currentUser?.login])
-
-  // ── USER PRESENCE HEARTBEAT ──
-  useEffect(() => {
-    if (!data.currentUser?.id) return
-
-    let cancelled = false
-    let timer = null
-    let inFlight = false
-
-    const updatePresence = async () => {
-      if (cancelled || inFlight || document.visibilityState !== 'visible' || !navigator.onLine) return
-      inFlight = true
-      try {
-        // 1. Спроба через швидкісний атомарний RPC
-        const { error: rpcErr } = await supabase.rpc('rpc_touch_user_presence', {
-          p_user_id: data.currentUser.id
-        })
-
-        if (rpcErr) {
-          throw rpcErr
-        }
-      } catch (err) {
-        console.warn('[Presence] Не вдалося оновити статус присутності:', err?.message || err)
-      } finally {
-        inFlight = false
-      }
-    }
-
-    const schedulePresence = () => {
-      if (cancelled) return
-      // Jitter prevents every terminal from writing last_seen in the same second.
-      timer = setTimeout(async () => {
-        await updatePresence()
-        schedulePresence()
-      }, 45000 + Math.floor(Math.random() * 15000))
-    }
-
-    const handleVisibility = () => {
-      if (document.visibilityState === 'visible') updatePresence()
-    }
-
-    updatePresence()
-    schedulePresence()
-    document.addEventListener('visibilitychange', handleVisibility)
-
-    return () => {
-      cancelled = true
-      if (timer) clearTimeout(timer)
-      document.removeEventListener('visibilitychange', handleVisibility)
-    }
-  }, [data.currentUser?.id])
 
   // ── AUTH ──
   const authActions = createAuthActions({
