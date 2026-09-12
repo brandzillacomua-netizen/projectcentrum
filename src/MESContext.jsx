@@ -1,10 +1,11 @@
-import React, { createContext, useContext, useEffect, useState } from 'react'
+import React, { createContext, useContext, useEffect } from 'react'
 import { supabase } from './supabase'
 
 import { useData } from './contexts/useData'
 import { createAuthActions } from './contexts/useAuth'
 import { createProductionActions } from './contexts/useProduction'
 import { createWarehouseActions } from './contexts/useWarehouse'
+import { useAppTheme } from './contexts/useAppTheme'
 import {
   formatUserName,
   selectFilteredManagerNames,
@@ -17,29 +18,7 @@ const MESContext = createContext()
 
 export const MESProvider = ({ children }) => {
   const data = useData()
-
-  const [theme, setThemeState] = useState(() => {
-    if (!localStorage.getItem('theme-reset-light-v1')) {
-      localStorage.setItem('app-theme', 'light')
-      localStorage.setItem('theme-reset-light-v1', 'true')
-      return 'light'
-    }
-    return localStorage.getItem('app-theme') || 'light'
-  })
-
-  useEffect(() => {
-    if (theme === 'light') {
-      document.body.classList.add('light-theme')
-    } else {
-      document.body.classList.remove('light-theme')
-    }
-  }, [theme])
-
-  const toggleTheme = () => {
-    const next = theme === 'dark' ? 'light' : 'dark'
-    setThemeState(next)
-    localStorage.setItem('app-theme', next)
-  }
+  const { theme, toggleTheme } = useAppTheme()
 
   // ── USER AUTH STATUS LOG ──
   useEffect(() => {
