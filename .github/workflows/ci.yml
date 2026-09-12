@@ -33,7 +33,10 @@ jobs:
         run: npm ci
 
       - name: Validate Database Migrations
-        run: node scripts/validate-migrations.mjs
+        run: npm run validate:migrations
+
+      - name: Enforce Production Rollout Contracts
+        run: npm run validate:production-migrations
 
       - name: Reject Committed Secrets and Browser-side Credentials
         run: npm run security:secrets
