@@ -12,7 +12,7 @@ const https = require('https')
 
 const SUPABASE_URL = 'https://hurzutjytlcvtbvihnry.supabase.co'
 const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh1cnp1dGp5dGxjdnRidmlobnJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQwMjc4NzksImV4cCI6MjA4OTYwMzg3OX0.0GETYIfUpEDVcpcMoZcAe3dLXtiafNNE1eegbbK1XUI'
-const MES_SECRET = 'CentrumMES2026SecretKey_a9f8'
+const MES_SECRET = 'REVOKED_MES_SECRET_DO_NOT_USE'
 
 const headers = {
   'apikey': ANON_KEY,

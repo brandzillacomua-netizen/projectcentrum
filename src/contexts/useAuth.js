@@ -7,7 +7,6 @@ const getAuthKeys = () => {
   return {
     userKey: isTest ? 'MES_SESSION_USER_STAGING' : 'MES_SESSION_USER',
     loginKey: isTest ? 'MES_SESSION_LOGIN_STAGING' : 'MES_SESSION_LOGIN',
-    tokenKey: isTest ? 'BACKEND_TOKEN_STAGING' : 'BACKEND_TOKEN',
     strictKey: isTest ? 'MES_SESSION_STRICT_STAGING' : 'MES_SESSION_STRICT'
   }
 }
@@ -19,105 +18,53 @@ const getAuthKeys = () => {
 export function createAuthActions({ currentUser, setCurrentUser, setSystemUsers, clearAllData, setSessionLoading }) {
 
   const login = async (loginName, password) => {
-    const { userKey, loginKey, tokenKey, strictKey } = getAuthKeys()
+    const { userKey, loginKey, strictKey } = getAuthKeys()
     const cleanLogin = String(loginName || '').trim().toLowerCase()
     const email = cleanLogin.includes('@') ? cleanLogin : `${cleanLogin}@centrum.local`
 
-    // ── Спроба 1: Офіційний Supabase Auth (випуск персонального JWT) ─────────
     try {
-      console.log(`[useAuth] 🔑 Спроба входу для: "${cleanLogin}" (email: "${email}")...`)
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password
       })
 
-      if (!authError && authData?.session) {
-        const token = authData.session.access_token
-        localStorage.setItem(tokenKey, token)
-        localStorage.setItem(strictKey, 'true')
-        console.log(`[useAuth] 🛡️ Supabase Auth JWT успішно отримано! (UID: ${authData.session.user?.id})`)
-
-        const { data: profile, error: profErr } = await supabase
-          .from('system_users')
-          .select('id, login, first_name, last_name, position, access_rights, department, shift, notification_settings, avatar')
-          .ilike('login', cleanLogin)
-          .maybeSingle()
-
-        if (profile) {
-          const nowIso = new Date().toISOString()
-          const cleanUser = { ...profile, last_seen: nowIso, token }
-          localStorage.setItem(loginKey, cleanUser.login)
-          localStorage.setItem(userKey, JSON.stringify(cleanUser))
-          if (setSessionLoading) setSessionLoading(false)
-          setCurrentUser(cleanUser)
-          sentryLogger.setUserContext(cleanUser)
-          
-          // Миттєвий тач присутності на бекенді при вході
-          Promise.resolve(supabase.rpc('rpc_touch_user_presence', { p_user_id: cleanUser.id })).catch(() => {})
-          if (setSystemUsers) {
-            setSystemUsers(prev => prev.map(u => u.id === cleanUser.id ? { ...u, last_seen: nowIso } : u))
-          }
-
-          console.log(`[useAuth] ✅ Успішний вхід за персональним JWT для користувача: ${cleanUser.login} (${cleanUser.position})`)
-          return { success: true, user: cleanUser }
-        } else {
-          console.warn('[useAuth] Профіль у system_users не знайдено, помилка:', profErr)
-        }
-      } else {
-        console.warn(`[useAuth] ⚠️ Supabase Auth не спрацював (${authError?.message || 'Немає сесії'}). Переходимо на RPC fallback...`)
+      if (authError || !authData?.session) {
+        return { success: false, error: 'Невірний логін або пароль' }
       }
-    } catch (authErr) {
-      console.warn('[useAuth] Supabase Auth signIn помилка, перехід на RPC:', authErr?.message || authErr)
-    }
 
-    // ── Спроба 2 (Graceful Fallback): Перевірка через RPC verify_user_password ──
-    console.log(`[useAuth] 🔄 Виконуємо перевірку через RPC verify_user_password...`)
-    const loginPromise = supabase
-      .rpc('verify_user_password', { login_name: loginName, plain_password: password })
-      .maybeSingle()
-
-    const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('TIMEOUT')), 8000)
-    )
-
-    let response;
-    try {
-      response = await Promise.race([loginPromise, timeoutPromise])
-    } catch (err) {
-      if (err.message === 'TIMEOUT') {
-        return { success: false, error: 'Помилка підключення: Сервер не відповідає. Спробуйте увійти знову. Якщо проблема повторюється, перевірте, чи не призупинено проект в Supabase.' }
+      const { data: profile, error: profileError } = await supabase.rpc('rpc_current_user_profile')
+      if (profileError || !profile) {
+        await supabase.auth.signOut()
+        return { success: false, error: 'Профіль користувача не прив’язаний до захищеної сесії' }
       }
-      return { success: false, error: 'Помилка підключення до сервера бази даних. Спробуйте пізніше.' }
+
+      const cleanUser = { ...profile, last_seen: new Date().toISOString() }
+      localStorage.setItem(loginKey, cleanUser.login)
+      localStorage.setItem(userKey, JSON.stringify(cleanUser))
+      localStorage.setItem(strictKey, 'true')
+      localStorage.removeItem('BACKEND_TOKEN')
+      localStorage.removeItem('BACKEND_TOKEN_STAGING')
+      if (setSessionLoading) setSessionLoading(false)
+      setCurrentUser(cleanUser)
+      sentryLogger.setUserContext(cleanUser)
+      Promise.resolve(supabase.rpc('rpc_touch_user_presence', { p_user_id: cleanUser.id })).catch(() => {})
+      if (setSystemUsers) {
+        setSystemUsers(prev => prev.map(u => u.id === cleanUser.id ? cleanUser : u))
+      }
+      return { success: true, user: cleanUser }
+    } catch (authError) {
+      console.warn('[useAuth] Захищений вхід не виконано:', authError?.message || authError)
+      return { success: false, error: 'Помилка підключення до сервера авторизації. Спробуйте пізніше.' }
     }
-
-    const { data, error: rpcError } = response
-
-    if (rpcError || !data) {
-      return { success: false, error: 'Невірний логін або пароль' }
-    }
-
-    // Cache BEFORE setCurrentUser so App.jsx gate never sees sessionLoading=true
-    const cleanUser = { ...data }
-    delete cleanUser.password
-    localStorage.setItem(loginKey, cleanUser.login)
-    localStorage.setItem(userKey, JSON.stringify(cleanUser))
-    localStorage.removeItem(tokenKey)
-    localStorage.setItem(strictKey, 'true')
-    // Immediately unblock the session gate — no spinner after login
-    if (setSessionLoading) setSessionLoading(false)
-    setCurrentUser(cleanUser)
-    sentryLogger.setUserContext(cleanUser)
-    console.log(`[useAuth] ℹ️ Успішний вхід через RPC verify_user_password (старий режим): ${cleanUser.login}`)
-
-    return { success: true, user: cleanUser }
   }
 
   const logout = () => {
-    const { userKey, loginKey, tokenKey, strictKey } = getAuthKeys()
+    const { userKey, loginKey, strictKey } = getAuthKeys()
     sentryLogger.setUserContext(null)
     supabase.auth.signOut().catch(() => {})
     localStorage.removeItem(loginKey)
-    localStorage.removeItem(tokenKey)
+    localStorage.removeItem('BACKEND_TOKEN')
+    localStorage.removeItem('BACKEND_TOKEN_STAGING')
     localStorage.removeItem(userKey)
     localStorage.removeItem(strictKey)
     if (clearAllData) {
@@ -137,12 +84,9 @@ export function createAuthActions({ currentUser, setCurrentUser, setSystemUsers,
       delete payload.password
     }
 
-    const adminId = currentUser?.id || null
-
     // ── 1. Спроба виконати через атомарний Enterprise RPC ──
     try {
       const { data: rpcRes, error: rpcErr } = await supabase.rpc('rpc_admin_upsert_user', {
-        p_admin_id: adminId,
         p_user_payload: payload
       })
 
@@ -160,50 +104,19 @@ export function createAuthActions({ currentUser, setCurrentUser, setSystemUsers,
         return { data: result, error: null }
       }
 
-      // Якщо помилка валідації або прав — повертаємо без фолбеку
       if (rpcRes && !rpcRes.success && rpcRes.error) {
         return { data: null, error: new Error(rpcRes.error) }
       }
-      if (rpcErr && rpcErr.code !== 'PGRST202') {
-        return { data: null, error: rpcErr }
-      }
+      return { data: null, error: rpcErr || new Error('Захищена операція не виконана') }
     } catch (e) {
-      console.warn('[useAuth] rpc_admin_upsert_user fallback:', e?.message || e)
+      return { data: null, error: e }
     }
-
-    // ── 2. Graceful Fallback для прямої таблиці ──
-    let query = supabase.from('system_users')
-    if (payload.id) {
-      query = query.update(payload).eq('id', payload.id)
-    } else {
-      query = query.insert([payload])
-    }
-
-    const { data, error } = await query
-      .select('id, login, first_name, last_name, position, access_rights, department, shift, notification_settings, avatar, last_seen, shift_calendar')
-    
-    const result = (data && data.length > 0) ? data[0] : null
-    if (!error && result) {
-      setSystemUsers(prev => {
-        const idx = prev.findIndex(u => u.id === result.id)
-        if (idx >= 0) { const next = [...prev]; next[idx] = result; return next }
-        return [...prev, result]
-      })
-      if (currentUser && currentUser.id === result.id) {
-        setCurrentUser(result)
-        sentryLogger.setUserContext(result)
-      }
-    }
-    return { data: result, error }
   }
 
   const deleteUser = async (id) => {
-    const adminId = currentUser?.id || null
-
     // ── 1. Спроба виконати через атомарний Enterprise RPC ──
     try {
       const { data: rpcRes, error: rpcErr } = await supabase.rpc('rpc_admin_delete_user', {
-        p_admin_id: adminId,
         p_target_user_id: id
       })
 
@@ -215,17 +128,10 @@ export function createAuthActions({ currentUser, setCurrentUser, setSystemUsers,
       if (rpcRes && !rpcRes.success && rpcRes.error) {
         return { error: new Error(rpcRes.error) }
       }
-      if (rpcErr && rpcErr.code !== 'PGRST202') {
-        return { error: rpcErr }
-      }
+      return { error: rpcErr || new Error('Захищена операція не виконана') }
     } catch (e) {
-      console.warn('[useAuth] rpc_admin_delete_user fallback:', e?.message || e)
+      return { error: e }
     }
-
-    // ── 2. Graceful Fallback ──
-    const { error } = await supabase.from('system_users').delete().eq('id', id)
-    if (!error) setSystemUsers(prev => prev.filter(u => u.id !== id))
-    return { error }
   }
 
   const searchCustomers = async (query, setCustomers) => {

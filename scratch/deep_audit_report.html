@@ -616,7 +616,7 @@ CREATE UNIQUE INDEX uq_inventory_item ON inventory (
       <tr>
         <td><strong>Безпека доступу (RLS)</strong></td>
         <td><span class="badge yellow">P1 (Medium-High)</span></td>
-        <td>Спільний секрет <code>x-mes-secret: CentrumMES2026SecretKey_a9f8</code> вшито у фронтенд-бандл. Будь-хто через F12 може скопіювати ключ і виконати запит повз UI.</td>
+        <td>Спільний секрет <code>x-mes-secret: REVOKED_MES_SECRET_DO_NOT_USE</code> вшито у фронтенд-бандл. Будь-хто через F12 може скопіювати ключ і виконати запит повз UI.</td>
         <td>Поступовий перехід на індивідуальні JWT-токени Supabase Auth із прив'язкою RLS-політик до ролей користувача (<code>access_rights</code>).</td>
       </tr>
       <tr>

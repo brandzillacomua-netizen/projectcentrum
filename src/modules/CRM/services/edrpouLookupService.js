@@ -1,10 +1,12 @@
 import { OpendatabotCompanyLookup } from './novaPoshtaTtnService'
+import { callNpApi } from '../../../services/novaPoshtaService.js'
 
 /**
  * Real EDRPOU & Counterparty Search Service
  * Searches Opendatabot / Custom DB for clean UI name, and Nova Poshta API for Express Waybill (ЕН) counterparty.
  */
 export const searchEdrpouCounterparty = async (code, customNpKey = '') => {
+  void customNpKey
   const cleanCode = code.trim().replace(/\D/g, '')
   if (!cleanCode || (cleanCode.length !== 8 && cleanCode.length !== 10)) {
     return null
@@ -16,26 +18,14 @@ export const searchEdrpouCounterparty = async (code, customNpKey = '') => {
     return openDataMatch
   }
 
-  // 2. Try Nova Poshta API searchCounterparties if API key is present
-  const apiKey = customNpKey || localStorage.getItem('np_api_key') || ''
-  if (apiKey) {
-    try {
-      const npResponse = await fetch('https://api.novaposhta.ua/v2.0/json/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          apiKey: apiKey,
-          modelName: 'Counterparty',
-          calledMethod: 'searchCounterparties',
-          methodProperties: {
+  // 2. Try Nova Poshta through the authenticated server gateway.
+  try {
+      const npData = await callNpApi('Counterparty', 'searchCounterparties', {
             CounterpartyProperty: 'Recipient',
             FindByString: cleanCode
-          }
-        })
       })
-      const npData = await npResponse.json()
-      if (npData && npData.success && npData.data && npData.data.length > 0) {
-        const match = npData.data[0]
+      if (npData?.length > 0) {
+        const match = npData[0]
         const companyName = match.Description || `${match.OwnershipFormDescription || ''} ${match.FirstName || ''} ${match.LastName || ''}`.trim()
         if (companyName) {
           return {
@@ -45,9 +35,8 @@ export const searchEdrpouCounterparty = async (code, customNpKey = '') => {
           }
         }
       }
-    } catch (e) {
-      console.warn('NP Counterparty API error:', e)
-    }
+  } catch (e) {
+    console.warn('NP Counterparty API error:', e)
   }
 
   // 3. Fallback database for test/demo companies

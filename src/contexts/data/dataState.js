@@ -295,16 +295,12 @@ export function useDataState() {
 
   // ── Session Verification & User State ──
   useEffect(() => {
-    const savedLogin = localStorage.getItem('MES_SESSION_LOGIN')
-    if (!savedLogin) {
-      return
-    }
-
-    const verifyPromise = supabase
-      .from('system_users')
-      .select('id,login,password,first_name,last_name,position,access_rights,department,shift')
-      .eq('login', savedLogin)
-      .maybeSingle()
+    const verifyPromise = supabase.auth.getUser().then(async ({ data: authData, error: authError }) => {
+      if (authError || !authData?.user) return { data: null }
+      const { data, error } = await supabase.rpc('rpc_current_user_profile')
+      if (error) throw error
+      return { data }
+    })
 
     const timeoutPromise = new Promise((_, reject) =>
       setTimeout(() => reject(new Error('TIMEOUT')), 8000)
@@ -314,8 +310,7 @@ export function useDataState() {
       .then((res) => {
         const { data } = res || {}
         if (data) {
-          const token = localStorage.getItem('BACKEND_TOKEN')
-          setCurrentUser({ ...data, token })
+          setCurrentUser(data)
           localStorage.setItem(USER_CACHE_KEY, JSON.stringify(data))
         } else {
           localStorage.removeItem('MES_SESSION_LOGIN')
@@ -333,11 +328,11 @@ export function useDataState() {
     if (currentUser?.id && systemUsers.length > 0) {
       const fresh = systemUsers.find(u => u.id === currentUser.id)
       if (fresh) {
-        const fields = ['login', 'password', 'first_name', 'last_name', 'position', 'department', 'shift', 'access_rights', 'avatar', 'notification_settings']
+        const fields = ['login', 'first_name', 'last_name', 'position', 'department', 'shift', 'access_rights', 'avatar', 'notification_settings']
         const hasDiff = fields.some(k => JSON.stringify(currentUser[k]) !== JSON.stringify(fresh[k]))
         if (hasDiff) {
           queueMicrotask(() => {
-            setCurrentUser(prev => ({ ...fresh, token: prev?.token }))
+            setCurrentUser(fresh)
           })
         }
       }

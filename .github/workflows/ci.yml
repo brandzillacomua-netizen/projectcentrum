@@ -31,6 +31,15 @@ jobs:
       - name: Validate Database Migrations
         run: node scripts/validate-migrations.mjs
 
+      - name: Reject Committed Secrets and Browser-side Credentials
+        run: npm run security:secrets
+
+      - name: Audit Production Dependencies
+        run: npm run security:audit
+
+      - name: Lint Security-Critical Code
+        run: npm run lint:security
+
       - name: Run Unit & Integration Tests (Vitest)
         run: npm test
 

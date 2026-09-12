@@ -9559,7 +9559,7 @@ BEGIN
 
   -- Перевірка 4 (Перехідний період): Дозволяємо доступ на читання за перехідним ключем додатка
   BEGIN
-    IF (headers::json->>'x-mes-secret') = 'CentrumMES2026SecretKey_a9f8' THEN
+    IF (headers::json->>'x-mes-secret') = 'REVOKED_MES_SECRET_DO_NOT_USE' THEN
       RETURN TRUE;
     END IF;
   EXCEPTION WHEN OTHERS THEN

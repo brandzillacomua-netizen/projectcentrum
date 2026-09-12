@@ -2,8 +2,8 @@ import { supabase } from '../supabase.js';
 
 export const CORE_ENGINE_CONFIG = {
   USE_BACKEND_CORE: false,
-  SHADOW_TESTING_MODE: true,
-  CORE_URL: 'http://localhost:4000'
+  SHADOW_TESTING_MODE: false,
+  CORE_URL: import.meta.env.VITE_CORE_ENGINE_URL || ''
 };
 
 /**
@@ -153,21 +153,6 @@ export const apiService = {
   },
 
   submitBufferConfirmation: async (cardId, scrapData, fallback, cuttersUsed = 0, cuttersBreakdown = null) => {
-    if (CORE_ENGINE_CONFIG.SHADOW_TESTING_MODE) {
-      try {
-        fetch(`${CORE_ENGINE_CONFIG.CORE_URL}/api/v1/cutting/confirm-buffer`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ cardId, scrapData, cuttersUsed, cuttersBreakdown, nextStatus: 'at-sorting-buffer' })
-        }).then(r => r.json()).then(res => {
-          console.log('🧪 [Shadow Core Engine Test] Buffer confirmation result:', res);
-        }).catch(err => {
-          console.warn('🧪 [Shadow Core Engine Test] Server unreachable:', err.message);
-        });
-      } catch (err) {
-        // Non-blocking shadow call
-      }
-    }
     if (typeof fallback === 'function') await fallback(cardId, scrapData, cuttersUsed, cuttersBreakdown);
     return true;
   },

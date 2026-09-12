@@ -6,7 +6,7 @@ async function testFetch() {
     headers: {
       'apikey': supabaseAnonKey,
       'Authorization': `Bearer ${supabaseAnonKey}`,
-      'x-mes-secret': 'CentrumMES2026SecretKey_a9f8'
+      'x-mes-secret': 'REVOKED_MES_SECRET_DO_NOT_USE'
     }
   })
 

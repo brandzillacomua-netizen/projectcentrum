@@ -1,72 +1,35 @@
 /**
  * Nova Poshta API v2.0 Integration Service
- * Supports VITE_NOVA_POSHTA_API_KEY, localStorage, counterparties lookup, warehouse search & InternetDocument.save (TTN creation)
+ * All privileged calls are proxied through an authenticated server endpoint.
  */
 
+import { supabase } from '../supabase.js'
+
 export const getNpApiKey = () => {
-  const localKey = (localStorage.getItem('np_api_key') || localStorage.getItem('nova_poshta_api_key') || '').trim()
-  if (localKey) return localKey
-  const envKey = import.meta.env.VITE_NOVA_POSHTA_API_KEY || import.meta.env.NOVA_POSHTA_API_KEY || import.meta.env.VITE_NP_API_KEY || import.meta.env.NP_API_KEY
-  if (envKey && envKey.trim()) return envKey.trim()
   return ''
 }
 
-export const saveNpApiKey = (key) => {
-  if (key && key.trim()) {
-    localStorage.setItem('np_api_key', key.trim())
-    localStorage.setItem('nova_poshta_api_key', key.trim())
-  } else {
-    localStorage.removeItem('np_api_key')
-    localStorage.removeItem('nova_poshta_api_key')
-  }
+export const saveNpApiKey = () => {
+  localStorage.removeItem('np_api_key')
+  localStorage.removeItem('nova_poshta_api_key')
+}
+
+const getAuthorizationHeader = async () => {
+  const { data, error } = await supabase.auth.getSession()
+  if (error || !data?.session?.access_token) throw new Error('Сесія завершилась. Увійдіть повторно.')
+  return `Bearer ${data.session.access_token}`
 }
 
 /**
  * Universal caller for Nova Poshta API v2.0 JSON endpoint
  */
 export const callNpApi = async (modelName, calledMethod, methodProperties = {}, customKey = null) => {
-  const apiKey = customKey || getNpApiKey()
-
-  // 1. Try Vercel Serverless proxy endpoint (/api/nova-poshta) first to keep API key hidden on server as Secret
-  try {
-    const serverResponse = await fetch('/api/nova-poshta', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        apiKey,
-        modelName,
-        calledMethod,
-        methodProperties
-      })
-    })
-
-    const contentType = serverResponse.headers.get('content-type') || ''
-    if (contentType.includes('application/json')) {
-      const data = await serverResponse.json()
-      if (data.success) {
-        return data.data
-      }
-      if (data.errors && data.errors.length > 0) {
-        const errorMsg = Array.isArray(data.errors) ? data.errors.join('; ') : String(data.errors)
-        throw new Error(errorMsg)
-      }
-    }
-  } catch (serverErr) {
-    if (serverErr.message && !serverErr.message.includes('Unexpected token') && !serverErr.message.includes('Failed to fetch')) {
-      throw serverErr
-    }
-  }
-
-  // 2. Direct client fetch fallback (for local development or if serverless function is unrouted)
-  if (!apiKey) {
-    throw new Error('API ключ Нової Пошти не знайдено. Вкажіть NOVA_POSHTA_API_KEY у Vercel та виконайте Redeploy.')
-  }
-
-  const response = await fetch('https://api.novaposhta.ua/v2.0/json/', {
+  void customKey
+  const authorization = await getAuthorizationHeader()
+  const response = await fetch('/api/nova-poshta', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', Authorization: authorization },
     body: JSON.stringify({
-      apiKey,
       modelName,
       calledMethod,
       methodProperties
@@ -74,7 +37,7 @@ export const callNpApi = async (modelName, calledMethod, methodProperties = {}, 
   })
 
   if (!response.ok) {
-    throw new Error(`Помилка мережі API Нової Пошти: HTTP ${response.status}`)
+    throw new Error(`Помилка захищеного шлюзу Нової Пошти: HTTP ${response.status}`)
   }
 
   const data = await response.json()
@@ -86,6 +49,24 @@ export const callNpApi = async (modelName, calledMethod, methodProperties = {}, 
   }
 
   return data.data
+}
+
+export const openNpPrintDocument = async (url) => {
+  if (!url || !url.startsWith('/api/nova-poshta-print?')) {
+    throw new Error('Некоректне посилання на документ Нової Пошти')
+  }
+  const authorization = await getAuthorizationHeader()
+  const response = await fetch(url, { headers: { Authorization: authorization } })
+  if (!response.ok) throw new Error(`Не вдалося отримати PDF: HTTP ${response.status}`)
+  const blobUrl = URL.createObjectURL(await response.blob())
+  const popup = window.open(blobUrl, '_blank', 'noopener,noreferrer')
+  if (!popup) {
+    const anchor = document.createElement('a')
+    anchor.href = blobUrl
+    anchor.download = 'nova-poshta.pdf'
+    anchor.click()
+  }
+  window.setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000)
 }
 
 /**
@@ -331,9 +312,8 @@ export const generateNpTTN = async ({
   const estimatedCost = doc.CostOnSite || ''
 
   // Print sticker links (100x100 marking sticker & standard express waybill A4/A5)
-  const apiKey = customKey || getNpApiKey()
-  const printStickerUrl = `https://my.novaposhta.ua/orders/printMarking100x100/orders[]/${ref}/type/pdf/apiKey/${apiKey}`
-  const printDocUrl = `https://my.novaposhta.ua/orders/printDocument/orders[]/${ref}/type/pdf/apiKey/${apiKey}`
+  const printStickerUrl = `/api/nova-poshta-print?kind=marking&ref=${encodeURIComponent(ref)}`
+  const printDocUrl = `/api/nova-poshta-print?kind=document&ref=${encodeURIComponent(ref)}`
 
   return {
     ttnNumber,

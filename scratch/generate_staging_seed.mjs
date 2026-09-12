@@ -18,7 +18,7 @@ async function main() {
   console.log('1. Authenticating with PROD...');
   const { error: authErr } = await prod.auth.signInWithPassword({
     email: 'alexinj@centrum.local',
-    password: '9eFAZQ6yaDjA-kwRp7dKkg!A9z'
+    password: 'REVOKED_AUDIT_PASSWORD_DO_NOT_USE'
   });
   if (authErr) throw new Error('PROD Auth failed: ' + authErr.message);
   console.log('✓ Authenticated to PROD');

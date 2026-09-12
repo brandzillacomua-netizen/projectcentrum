@@ -5,12 +5,12 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 
 // Session 1 (Tablet A - e.g. Operator 1)
 const sessionA = createClient(SUPABASE_URL, SUPABASE_KEY, {
-  global: { headers: { 'x-mes-secret': 'CentrumMES2026SecretKey_a9f8', 'x-client-session': 'tablet-A' } }
+  global: { headers: { 'x-mes-secret': 'REVOKED_MES_SECRET_DO_NOT_USE', 'x-client-session': 'tablet-A' } }
 });
 
 // Session 2 (Tablet B - e.g. Operator 2 or network retry worker)
 const sessionB = createClient(SUPABASE_URL, SUPABASE_KEY, {
-  global: { headers: { 'x-mes-secret': 'CentrumMES2026SecretKey_a9f8', 'x-client-session': 'tablet-B' } }
+  global: { headers: { 'x-mes-secret': 'REVOKED_MES_SECRET_DO_NOT_USE', 'x-client-session': 'tablet-B' } }
 });
 
 /**

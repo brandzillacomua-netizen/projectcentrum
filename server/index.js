@@ -6,14 +6,29 @@ import { handleShippingRoute } from './src/routes/shippingRoutes.js'
 import { handleConfirmBufferCutting } from './src/controllers/cuttingController.js'
 import { handleDeductInventory } from './src/controllers/inventoryController.js'
 import { handleVkyaDefectRestore, handleVkyaDovypusk, handleTransferToShop2, handleGetShop2Buffer } from './src/controllers/vkyaController.js'
+import { verifyAuthToken } from './src/middleware/authMiddleware.js'
 
 const PORT = process.env.PORT || 4000
 
+const allowedOrigins = new Set(String(process.env.CORE_ALLOWED_ORIGINS || 'http://localhost:5173')
+  .split(',').map(value => value.trim().replace(/\/$/, '')).filter(Boolean))
+
 const server = http.createServer((req, res) => {
-  // CORS Headers
-  res.setHeader('Access-Control-Allow-Origin', '*')
+  const origin = String(req.headers.origin || '').replace(/\/$/, '')
+  if (origin && allowedOrigins.has(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin)
+    res.setHeader('Vary', 'Origin')
+  }
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+  res.setHeader('X-Content-Type-Options', 'nosniff')
+  res.setHeader('X-Frame-Options', 'DENY')
+  res.setHeader('Cache-Control', 'no-store')
+
+  if (origin && !allowedOrigins.has(origin)) {
+    res.writeHead(403, { 'Content-Type': 'application/json' })
+    return res.end(JSON.stringify({ success: false, error: 'Cross-origin request rejected' }))
+  }
 
   if (req.method === 'OPTIONS') {
     res.writeHead(204)
@@ -21,8 +36,16 @@ const server = http.createServer((req, res) => {
   }
 
   let body = ''
-  req.on('data', chunk => { body += chunk })
+  let bodyTooLarge = false
+  req.on('data', chunk => {
+    body += chunk
+    if (Buffer.byteLength(body) > 256 * 1024) bodyTooLarge = true
+  })
   req.on('end', async () => {
+    if (bodyTooLarge) {
+      res.writeHead(413, { 'Content-Type': 'application/json' })
+      return res.end(JSON.stringify({ success: false, error: 'Request body too large' }))
+    }
     let payload = {}
     try { if (body) payload = JSON.parse(body) } catch (e) {}
 
@@ -38,6 +61,8 @@ const server = http.createServer((req, res) => {
         coverage: '100% Full Lifecycle Coverage (Orders -> Tasks -> Cards -> Cutting -> Warehouse -> Shipping)'
       }))
     }
+
+    if (!(await verifyAuthToken(req, res))) return
 
     if (url === '/api/v1/status' && req.method === 'GET') {
       res.writeHead(200, { 'Content-Type': 'application/json' })

@@ -12,7 +12,10 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "validate:migrations": "node scripts/validate-migrations.mjs",
-    "ci": "node scripts/validate-migrations.mjs && npm test && npm run build",
+    "security:secrets": "node scripts/check-secrets.mjs",
+    "security:audit": "npm audit --omit=dev --audit-level=high",
+    "lint:security": "eslint api src/contexts/useAuth.js src/contexts/data/dataState.js src/services/alerting src/services/novaPoshtaService.js server",
+    "ci": "npm run security:secrets && npm run security:audit && node scripts/validate-migrations.mjs && npm run lint:security && npm test && npm run build",
     "inspect": "node inspect_users.cjs",
     "load:test:staging": "node scripts/loadtest-readonly.mjs"
   },
@@ -22,13 +25,14 @@
     "@tanstack/react-virtual": "^3.14.10",
     "date-fns": "^4.1.0",
     "emoji-picker-react": "^4.19.1",
+    "html5-qrcode": "^2.3.8",
     "jsbarcode": "^3.12.3",
     "lucide-react": "^0.477.0",
     "qrcode.react": "^4.2.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-router-dom": "^7.2.0",
-    "xlsx": "^0.18.5"
+    "react-router-dom": "^7.18.2",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

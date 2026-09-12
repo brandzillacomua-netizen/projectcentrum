@@ -1,15 +1,20 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
+import { Html5Qrcode } from 'html5-qrcode'
 import App from './App'
 import { AppErrorBoundary, ConnectionStatus, ServiceWorkerUpdateManager } from './components/SystemResilience'
 import { sentryLogger } from './services/sentryLogger'
-import { supabase } from './supabase'
 import './index.css'
 import './light.css'
 
 if (typeof window !== 'undefined') {
-  window.supabase = supabase
+  window.Html5Qrcode = Html5Qrcode
+  if (!localStorage.getItem('theme-reset-light-v1')) {
+    localStorage.setItem('app-theme', 'light')
+    localStorage.setItem('theme-reset-light-v1', 'true')
+  }
+  document.body.classList.toggle('light-theme', localStorage.getItem('app-theme') !== 'dark')
 }
 
 // Initialize Sentry passive/active tracking engine

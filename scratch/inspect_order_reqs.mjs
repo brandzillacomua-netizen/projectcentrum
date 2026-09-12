@@ -6,7 +6,7 @@ const prodClient = createClient(
   {
     global: {
       headers: {
-        'x-mes-secret': 'CentrumMES2026SecretKey_a9f8'
+        'x-mes-secret': 'REVOKED_MES_SECRET_DO_NOT_USE'
       }
     }
   }
@@ -15,7 +15,7 @@ const prodClient = createClient(
 async function inspectOrder() {
   await prodClient.auth.signInWithPassword({
     email: 'alexinj@centrum.local',
-    password: '9eFAZQ6yaDjA-kwRp7dKkg!A9z'
+    password: 'REVOKED_AUDIT_PASSWORD_DO_NOT_USE'
   });
 
   const orderId = 'e7610d90-7f82-445d-a876-ab754d9397eb';

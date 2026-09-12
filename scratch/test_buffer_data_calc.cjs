@@ -6,7 +6,7 @@ const PROD_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsI
 async function main() {
   console.log(`Checking PROD DB...`);
   const client = createClient(PROD_URL, PROD_KEY, {
-    global: { headers: { 'x-mes-secret': 'CentrumMES2026SecretKey_a9f8' } }
+    global: { headers: { 'x-mes-secret': 'REVOKED_MES_SECRET_DO_NOT_USE' } }
   });
   const { data: cards, error: cErr } = await client.from('work_cards').select('*');
   const { data: orders, error: oErr } = await client.from('orders').select('*');

@@ -172,20 +172,13 @@ export function SettingsSystemAdminTab(props) {
           </div>
         </div>
 
-        {/* Nova Poshta API Key Section */}
+        {/* Nova Poshta server integration */}
         <div style={{ borderTop: '1px solid rgba(255,255,255,0.04)', paddingTop: '24px', marginTop: '24px' }}>
-          <h4 style={{ fontSize: '0.8rem', fontWeight: 900, color: '#888', marginBottom: '15px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>API КЛЮЧ НОВОЇ ПОШТИ</h4>
+          <h4 style={{ fontSize: '0.8rem', fontWeight: 900, color: '#888', marginBottom: '15px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>СЕРВЕРНА ІНТЕГРАЦІЯ НОВОЇ ПОШТИ</h4>
           <div style={{ display: 'flex', gap: '10px' }}>
-            <input 
-              style={inputStyle}
-              type="password"
-              value={npApiKeyInput}
-              onChange={e => setNpApiKeyInput(e.target.value)}
-              placeholder="Ключ API з кабінету НП..."
-            />
             <button
               onClick={handleTestAndSaveNpKey}
-              disabled={npTesting || !npApiKeyInput.trim()}
+              disabled={npTesting}
               style={{
                 background: npTesting ? '#222' : 'linear-gradient(135deg, #ff9000, #ff6a00)',
                 color: npTesting ? '#555' : '#000',
@@ -198,9 +191,10 @@ export function SettingsSystemAdminTab(props) {
                 fontSize: '0.78rem'
               }}
             >
-              {npTesting ? 'ПЕРЕВІРКА...' : 'ЗБЕРЕГТИ І ПЕРЕВІРИТИ'}
+              {npTesting ? 'ПЕРЕВІРКА...' : 'ПЕРЕВІРИТИ ПІДКЛЮЧЕННЯ'}
             </button>
           </div>
+          <p style={{ color: '#64748b', fontSize: '0.72rem', marginTop: '10px' }}>API-ключ зберігається лише у змінній NOVA_POSHTA_API_KEY на сервері.</p>
           {npTestResult && (
             <div style={{
               marginTop: '12px',

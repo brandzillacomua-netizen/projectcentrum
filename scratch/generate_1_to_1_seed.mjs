@@ -17,7 +17,7 @@ function escapeSql(val) {
 async function main() {
   await prod.auth.signInWithPassword({
     email: 'alexinj@centrum.local',
-    password: '9eFAZQ6yaDjA-kwRp7dKkg!A9z'
+    password: 'REVOKED_AUDIT_PASSWORD_DO_NOT_USE'
   });
 
   const { data: compStruct } = await prod.from('company_structure').select('*');

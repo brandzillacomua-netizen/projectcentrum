@@ -9,7 +9,7 @@ const key = supabaseFile.match(/export\s+const\s+supabaseAnonKey\s*=\s*['"`]([^'
 const supabase = createClient(url, key, {
   global: {
     headers: {
-      'x-mes-secret': 'CentrumMES2026SecretKey_a9f8'
+      'x-mes-secret': 'REVOKED_MES_SECRET_DO_NOT_USE'
     }
   }
 });

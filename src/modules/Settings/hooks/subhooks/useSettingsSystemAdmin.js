@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { getNpApiKey, saveNpApiKey, testNpApiKey } from '../../../../services/novaPoshtaService'
+import { testNpApiKey } from '../../../../services/novaPoshtaService'
 
 export function useSettingsSystemAdmin({
   fortnetUrl,
@@ -11,8 +11,8 @@ export function useSettingsSystemAdmin({
   const [activeTab, setActiveTab] = useState('users') 
   const [tempFortnetUrl, setTempFortnetUrl] = useState(fortnetUrl)
 
-  // Nova Poshta API Key state
-  const [npApiKeyInput, setNpApiKeyInput] = useState(() => getNpApiKey())
+  // The credential is server-managed; this state is kept for component API compatibility.
+  const [npApiKeyInput, setNpApiKeyInput] = useState('')
   const [npTestResult, setNpTestResult] = useState(null)
   const [npTesting, setNpTesting] = useState(false)
 
@@ -20,10 +20,8 @@ export function useSettingsSystemAdmin({
     setNpTesting(true)
     setNpTestResult(null)
     try {
-      const keyToTest = npApiKeyInput.trim()
-      const res = await testNpApiKey(keyToTest)
+      const res = await testNpApiKey()
       if (res.success) {
-        saveNpApiKey(keyToTest)
         setNpTestResult({
           success: true,
           message: `✅ Успішно! Знайдено відправника: «${res.senderName}»`
@@ -31,7 +29,7 @@ export function useSettingsSystemAdmin({
       } else {
         setNpTestResult({
           success: false,
-          message: `❌ Помилка ключа API НП: ${res.message}`
+          message: `❌ Серверна інтеграція НП недоступна: ${res.message}`
         })
       }
     } catch (err) {

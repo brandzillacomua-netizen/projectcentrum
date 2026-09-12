@@ -1556,7 +1556,10 @@ export function useSettingsImports({
     
     try {
       setImportLog(prev => prev + `Надсилання ${payloads.length} записів до Supabase...\n`)
-      const { data: resultData, error } = await supabase.from('system_users').upsert(payloads).select()
+      const { data: importResult, error } = await supabase.rpc('rpc_admin_import_users', {
+        p_user_payloads: payloads
+      })
+      const resultData = importResult?.data || []
       
       if (error) throw error
       

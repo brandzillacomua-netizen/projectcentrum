@@ -7,7 +7,7 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
   global: {
     headers: {
-      'x-mes-secret': 'CentrumMES2026SecretKey_a9f8'
+      'x-mes-secret': 'REVOKED_MES_SECRET_DO_NOT_USE'
     }
   }
 })

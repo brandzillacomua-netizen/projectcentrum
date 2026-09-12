@@ -13,7 +13,7 @@ function sendRequest(method, path, body = null) {
       headers: {
         'apikey': key,
         'Authorization': 'Bearer ' + key,
-        'x-mes-secret': 'CentrumMES2026SecretKey_a9f8',
+        'x-mes-secret': 'REVOKED_MES_SECRET_DO_NOT_USE',
         'Content-Type': 'application/json',
         'Prefer': 'return=representation'
       }

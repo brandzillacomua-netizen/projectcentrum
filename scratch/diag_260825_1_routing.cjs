@@ -6,7 +6,7 @@ const KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZ
 function q(path) {
   return new Promise((resolve, reject) => {
     https.get(`https://${BASE}/rest/v1/${path}`, {
-      headers: { apikey: KEY, Authorization: 'Bearer ' + KEY, 'x-mes-secret': 'CentrumMES2026SecretKey_a9f8' }
+      headers: { apikey: KEY, Authorization: 'Bearer ' + KEY, 'x-mes-secret': 'REVOKED_MES_SECRET_DO_NOT_USE' }
     }, res => {
       let b = ''; res.on('data', c => b += c);
       res.on('end', () => { try { resolve(JSON.parse(b)); } catch(e) { reject(e); } });

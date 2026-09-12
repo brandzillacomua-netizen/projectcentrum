@@ -1,6 +1,6 @@
 import React from 'react'
 import { Truck, X, CheckCircle2, Printer, FileText, Plus, Trash2 } from 'lucide-react'
-import { saveNpApiKey } from '../../../../services/novaPoshtaService'
+import { openNpPrintDocument } from '../../../../services/novaPoshtaService'
 
 export const NovaPoshtaTtnModal = React.memo(({
   isNpModalOpen,
@@ -60,26 +60,8 @@ export const NovaPoshtaTtnModal = React.memo(({
         {npError && (
           <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171', padding: '14px 16px', borderRadius: '14px', fontSize: '0.82rem', fontWeight: 700, marginBottom: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
             <div>❌ {npError}</div>
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-              <input
-                type="password"
-                value={npKeyInput}
-                onChange={e => setNpKeyInput(e.target.value)}
-                placeholder="Введіть API Ключ Нової Пошти..."
-                style={{ flex: 1, minWidth: '220px', background: 'var(--card-inner-bg, #141414)', border: '1px solid #ff9000', borderRadius: '10px', padding: '8px 12px', color: 'var(--text, #fff)', fontSize: '0.82rem', fontWeight: 700 }}
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  if (npKeyInput.trim()) {
-                    saveNpApiKey(npKeyInput.trim())
-                    handleOpenNpModal()
-                  }
-                }}
-                style={{ background: 'linear-gradient(135deg, #ff9000, #ea580c)', color: '#fff', border: 'none', borderRadius: '10px', padding: '8px 16px', fontSize: '0.82rem', fontWeight: 900, cursor: 'pointer', whiteSpace: 'nowrap' }}
-              >
-                💾 Зберегти та завантажити
-              </button>
+            <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
+              Ключ Нової Пошти зберігається лише на сервері. Зверніться до адміністратора, якщо інтеграцію ще не налаштовано.
             </div>
           </div>
         )}
@@ -95,22 +77,20 @@ export const NovaPoshtaTtnModal = React.memo(({
             </div>
 
             <div style={{ display: 'flex', gap: '12px', marginTop: '10px' }}>
-              <a 
-                href={npSuccessData.printStickerUrl} 
-                target="_blank" 
-                rel="noreferrer"
+              <button
+                type="button"
+                onClick={() => openNpPrintDocument(npSuccessData.printStickerUrl)}
                 style={{ background: 'linear-gradient(135deg, #ff9000, #ea580c)', color: '#fff', padding: '12px 20px', borderRadius: '12px', fontWeight: 900, textDecoration: 'none', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}
               >
                 <Printer size={16} /> ДРУК СТІКЕРА (100x100)
-              </a>
-              <a 
-                href={npSuccessData.printDocUrl} 
-                target="_blank" 
-                rel="noreferrer"
+              </button>
+              <button
+                type="button"
+                onClick={() => openNpPrintDocument(npSuccessData.printDocUrl)}
                 style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', padding: '12px 20px', borderRadius: '12px', fontWeight: 800, textDecoration: 'none', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}
               >
                 <FileText size={16} /> ДРУК ЕН (А4/А5)
-              </a>
+              </button>
             </div>
 
             <button 

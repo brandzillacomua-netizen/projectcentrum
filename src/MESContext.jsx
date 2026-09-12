@@ -37,12 +37,7 @@ export const MESProvider = ({ children }) => {
   // ── USER AUTH STATUS LOG ──
   useEffect(() => {
     if (data.currentUser?.login) {
-      const token = localStorage.getItem('BACKEND_TOKEN')
-      if (token) {
-        console.log(`%c[Centrum Auth] 🛡️ Активна JWT сесія підтверджена! Користувач: "${data.currentUser.login}" (${data.currentUser.position || 'Працівник'})`, 'color: #22c55e; font-weight: bold; font-size: 13px;')
-      } else {
-        console.log(`%c[Centrum Auth] ℹ️ Сесія без JWT (старий режим). Користувач: "${data.currentUser.login}"`, 'color: #eab308; font-weight: bold; font-size: 13px;')
-      }
+      console.log(`%c[Centrum Auth] 🛡️ Активна JWT сесія підтверджена! Користувач: "${data.currentUser.login}" (${data.currentUser.position || 'Працівник'})`, 'color: #22c55e; font-weight: bold; font-size: 13px;')
     }
   }, [data.currentUser?.id, data.currentUser?.login])
 
@@ -63,13 +58,8 @@ export const MESProvider = ({ children }) => {
           p_user_id: data.currentUser.id
         })
 
-        // 2. Фолбек на прямий UPDATE, якщо RPC ще не прогрітий у схемі
         if (rpcErr) {
-          const { error } = await supabase
-            .from('system_users')
-            .update({ last_seen: new Date().toISOString() })
-            .eq('id', data.currentUser.id)
-          if (error) throw error
+          throw rpcErr
         }
       } catch (err) {
         console.warn('[Presence] Не вдалося оновити статус присутності:', err?.message || err)
@@ -114,9 +104,8 @@ export const MESProvider = ({ children }) => {
   // ── STRICT JWT ENFORCEMENT GUARD ──
   useEffect(() => {
     if (data.currentUser?.id) {
-      const token = localStorage.getItem('BACKEND_TOKEN')
       const isStrict = localStorage.getItem('MES_SESSION_STRICT') === 'true'
-      if (!token || !isStrict) {
+      if (!isStrict) {
         console.warn('[Centrum Auth] ⚠️ Виявлено сесію старого режиму без JWT. Примусовий вихід на екран авторизації...')
         authActions.logout()
       }

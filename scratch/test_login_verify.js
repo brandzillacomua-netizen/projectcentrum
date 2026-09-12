@@ -19,7 +19,7 @@ if (urlMatch && keyMatch) {
     const clientWithHeader = createClient(urlMatch[1], keyMatch[1], {
       global: {
         headers: {
-          'x-mes-secret': 'CentrumMES2026SecretKey_a9f8'
+          'x-mes-secret': 'REVOKED_MES_SECRET_DO_NOT_USE'
         }
       }
     })

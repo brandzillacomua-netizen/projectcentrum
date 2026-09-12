@@ -4,6 +4,8 @@
  * plus Nova Poshta API Counterparty.save & InternetDocument.save (ЕН generation).
  */
 
+import { callNpApi } from '../../../services/novaPoshtaService.js'
+
 export const OpendatabotCompanyLookup = async (edrpouCode) => {
   const clean = edrpouCode.trim().replace(/\D/g, '')
   if (!clean || (clean.length !== 8 && clean.length !== 10)) return null
@@ -60,22 +62,10 @@ export const createNpCounterpartyByEdrpou = async ({
   phone = '',
   cityRef = ''
 }) => {
-  if (!apiKey) {
-    return {
-      success: false,
-      message: 'Для створення контрагента в НП потрібен API Key Нової Пошти'
-    }
-  }
+  void apiKey
 
   try {
-    const response = await fetch('https://api.novaposhta.ua/v2.0/json/', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        apiKey: apiKey,
-        modelName: 'Counterparty',
-        calledMethod: 'save',
-        methodProperties: {
+    const responseData = await callNpApi('Counterparty', 'save', {
           CounterpartyProperty: 'Recipient',
           CounterpartyType: edrpou ? 'Organization' : 'PrivatePerson',
           EDRPOU: edrpou,
@@ -85,22 +75,19 @@ export const createNpCounterpartyByEdrpou = async ({
           Phone: phone,
           Email: '',
           CityRef: cityRef
-        }
-      })
     })
-
-    const data = await response.json()
-    if (data && data.success && data.data && data.data[0]) {
+    const record = responseData?.[0]
+    if (record) {
       return {
         success: true,
-        counterpartyRef: data.data[0].Ref,
-        contactPersonRef: data.data[0].ContactPerson?.data[0]?.Ref || '',
+        counterpartyRef: record.Ref,
+        contactPersonRef: record.ContactPerson?.data?.[0]?.Ref || '',
         message: 'Контрагент успішно зареєстрований в системі НП'
       }
     } else {
       return {
         success: false,
-        message: data.errors?.[0] || 'Помилка створення контрагента НП'
+        message: 'Помилка створення контрагента НП'
       }
     }
   } catch (e) {

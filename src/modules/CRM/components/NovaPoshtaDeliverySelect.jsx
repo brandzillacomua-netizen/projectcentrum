@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { Truck, MapPin, Search, Building2, Package, Check, Building, FileText, CheckCircle2, Loader2 } from 'lucide-react'
 import { searchEdrpouCounterparty } from '../services/edrpouLookupService'
+import { callNpApi } from '../../../services/novaPoshtaService.js'
 
 // Popular Ukrainian cities for instant suggestion / fallback
 const POPULAR_CITIES = [
@@ -157,22 +158,12 @@ export const NovaPoshtaDeliverySelect = ({
 
     const timer = setTimeout(async () => {
       try {
-        const response = await fetch('https://api.novaposhta.ua/v2.0/json/', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            apiKey: '',
-            modelName: 'Address',
-            calledMethod: 'searchSettlements',
-            methodProperties: {
+        const apiData = await callNpApi('Address', 'searchSettlements', {
               CityName: cityQuery.trim(),
               Limit: '15'
-            }
-          })
         })
-        const data = await response.json()
-        if (data && data.success && data.data && data.data[0]?.Addresses) {
-          const apiCities = data.data[0].Addresses.map(item => item.Present)
+        if (apiData?.[0]?.Addresses) {
+          const apiCities = apiData[0].Addresses.map(item => item.Present)
           setCitySuggestions(apiCities.length > 0 ? apiCities : POPULAR_CITIES)
         } else {
           const filtered = POPULAR_CITIES.filter(c => c.toLowerCase().includes(cityQuery.toLowerCase()))
@@ -199,23 +190,13 @@ export const NovaPoshtaDeliverySelect = ({
 
     const timer = setTimeout(async () => {
       try {
-        const response = await fetch('https://api.novaposhta.ua/v2.0/json/', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            apiKey: '',
-            modelName: 'Address',
-            calledMethod: 'getWarehouses',
-            methodProperties: {
+        const apiData = await callNpApi('Address', 'getWarehouses', {
               CityName: currentCity,
               TypeOfWarehouseRef: isPostomatMode ? 'f931c480-5f2d-425d-bc2c-ac7cd29de9f5' : undefined,
               Limit: '100'
-            }
-          })
         })
-        const data = await response.json()
-        if (data && data.success && data.data && data.data.length > 0) {
-          let apiWhs = data.data.map(item => item.Description)
+        if (apiData?.length > 0) {
+          let apiWhs = apiData.map(item => item.Description)
           if (isPostomatMode) {
             const filteredPostomats = apiWhs.filter(w => w.toLowerCase().includes('поштомат'))
             apiWhs = filteredPostomats.length > 0 ? filteredPostomats : apiWhs
@@ -275,23 +256,13 @@ export const NovaPoshtaDeliverySelect = ({
 
     const timer = setTimeout(async () => {
       try {
-        const response = await fetch('https://api.novaposhta.ua/v2.0/json/', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            apiKey: '',
-            modelName: 'Address',
-            calledMethod: 'searchSettlementStreets',
-            methodProperties: {
+        const apiData = await callNpApi('Address', 'searchSettlementStreets', {
               StreetName: addressText.trim(),
               SettlementRef: '',
               Limit: '10'
-            }
-          })
         })
-        const data = await response.json()
-        if (data && data.success && data.data && data.data[0]?.Addresses) {
-          setStreetSuggestions(data.data[0].Addresses.map(item => item.Present))
+        if (apiData?.[0]?.Addresses) {
+          setStreetSuggestions(apiData[0].Addresses.map(item => item.Present))
         }
       } catch (e) {}
     }, 300)

@@ -1,36 +1,53 @@
+import {
+  enforceRateLimit,
+  enforceSameOrigin,
+  hasValidBodySize,
+  requireMesUser,
+  setApiSecurityHeaders
+} from './_security.js'
+
+const ALLOWED_OPERATIONS = new Set([
+  'Address.searchSettlements',
+  'Address.searchSettlementStreets',
+  'Address.getWarehouses',
+  'Counterparty.getCounterparties',
+  'Counterparty.getCounterpartyContactPersons',
+  'Counterparty.getCounterpartyAddresses',
+  'Counterparty.searchCounterparties',
+  'Counterparty.save',
+  'InternetDocument.save'
+])
+
 export default async function handler(req, res) {
-  // Enable CORS headers
-  res.setHeader('Access-Control-Allow-Origin', '*')
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+  setApiSecurityHeaders(res)
+  if (!enforceSameOrigin(req, res)) return
 
   if (req.method === 'OPTIONS') {
-    return res.status(200).end()
+    return res.status(204).end()
   }
 
   if (req.method !== 'POST') {
     return res.status(405).json({ success: false, errors: ['Method not allowed'] })
   }
 
-  const serverApiKey = (
-    process.env.NOVA_POSHTA_API_KEY ||
-    process.env.VITE_NOVA_POSHTA_API_KEY ||
-    process.env.VITE_NP_API_KEY ||
-    process.env.NP_API_KEY ||
-    ''
-  ).trim()
+  if (!enforceRateLimit(req, res, { limit: 40, scope: 'nova-poshta' })) return
+  if (!hasValidBodySize(req, res)) return
+  const user = await requireMesUser(req, res, ['shipping', 'manager', 'crm', 'director', 'admin'])
+  if (!user) return
 
-  const clientApiKey = (req.body?.apiKey || '').trim()
-  const requestApiKey = clientApiKey || serverApiKey
+  const requestApiKey = String(process.env.NOVA_POSHTA_API_KEY || '').trim()
 
   if (!requestApiKey) {
     return res.status(400).json({
       success: false,
-      errors: ['API ключ Нової Пошти не знайдено у Vercel. Вкажіть змінну NOVA_POSHTA_API_KEY у Vercel Settings -> Environment Variables, увімкніть галочку Production та зробіть Redeploy.']
+      errors: ['Nova Poshta integration is not configured on the server']
     })
   }
 
   const { modelName, calledMethod, methodProperties } = req.body || {}
+  if (!ALLOWED_OPERATIONS.has(`${modelName}.${calledMethod}`)) {
+    return res.status(403).json({ success: false, errors: ['Nova Poshta operation is not allowed'] })
+  }
 
   try {
     const response = await fetch('https://api.novaposhta.ua/v2.0/json/', {
@@ -47,6 +64,7 @@ export default async function handler(req, res) {
     const data = await response.json()
     return res.status(200).json(data)
   } catch (err) {
-    return res.status(500).json({ success: false, errors: [err.message] })
+    console.error('[nova-poshta] upstream request failed', { message: err?.message, userId: user.id })
+    return res.status(502).json({ success: false, errors: ['Nova Poshta upstream request failed'] })
   }
 }

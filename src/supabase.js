@@ -48,8 +48,7 @@ const SUPABASE_READ_ONLY_RPCS = new Set([
   'mes_monthly_report',
   'mes_monthly_naryad_detail',
   'shop1_naryad_catalog',
-  'shop1_naryad_report',
-  'verify_user_password'
+  'shop1_naryad_report'
 ])
 const SUPABASE_HEAVY_ANALYTICAL_RPCS = new Set([
   'mes_monthly_report',
@@ -234,24 +233,13 @@ const trackedSupabaseFetch = async (...args) => {
   health.total += 1
   health.maxActive = Math.max(health.maxActive, health.active)
 
-  // Enterprise JWT Attachment: Ensure Bearer token is attached if available and matches the active project
-  // Never attach custom token to verify_user_password or auth endpoints (they must use the valid anonKey)
+  // Preserve the Supabase SDK Authorization header and reject cross-project JWTs.
   const isTest = isTestEnvironment()
   const expectedRef = isTest ? 'qpiysrkhvdgctaqmfsew' : 'hurzutjytlcvtbvihnry'
-  const tokenKey = isTest ? 'BACKEND_TOKEN_STAGING' : 'BACKEND_TOKEN'
   const anonKey = isTest ? STAGING_ANON_KEY : PROD_ANON_KEY
-  const isAuthEndpoint = rpcName === 'verify_user_password' || (typeof args[0] === 'string' && args[0].includes('/auth/v1/'))
+  const isAuthEndpoint = typeof args[0] === 'string' && args[0].includes('/auth/v1/')
 
   if (typeof window !== 'undefined' && !isAuthEndpoint) {
-    let token = localStorage.getItem(tokenKey)
-    if (token) {
-      const tokenRef = getJwtProjectRef(token)
-      if (!tokenRef || tokenRef !== expectedRef) {
-        localStorage.removeItem(tokenKey)
-        token = null
-      }
-    }
-
     const existingHeaders = fetchArgs[1]?.headers || (fetchArgs[0] instanceof Request ? fetchArgs[0].headers : null)
     const headers = new Headers(existingHeaders || {})
     
@@ -265,9 +253,6 @@ const trackedSupabaseFetch = async (...args) => {
         headers.set('apikey', anonKey)
         localStorage.removeItem(`sb-${expectedRef}-auth-token`)
       }
-    } else if (token) {
-      headers.set('Authorization', `Bearer ${token}`)
-      headers.set('apikey', anonKey)
     } else {
       headers.set('Authorization', `Bearer ${anonKey}`)
       headers.set('apikey', anonKey)
@@ -290,7 +275,6 @@ const trackedSupabaseFetch = async (...args) => {
       health.failed += 1
       health.lastErrorAt = Date.now()
       if (response.status === 401 && typeof window !== 'undefined') {
-        localStorage.removeItem(tokenKey)
         localStorage.removeItem(`sb-${expectedRef}-auth-token`)
       }
     }
@@ -666,8 +650,3 @@ export const supabase = new Proxy(prodClient, {
     return Reflect.set(target, prop, value, receiver)
   }
 })
-
-if (typeof window !== 'undefined') {
-  window.supabase = supabase
-}
-

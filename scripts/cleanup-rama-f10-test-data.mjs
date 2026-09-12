@@ -12,7 +12,7 @@ async function cleanupTestData() {
     // 0. Авторизація
     await supabase.auth.signInWithPassword({
       email: 'alexinj@centrum.local',
-      password: '9eFAZQ6yaDjA-kwRp7dKkg!A9z'
+      password: 'REVOKED_AUDIT_PASSWORD_DO_NOT_USE'
     })
 
     // 1. Пошук тестових карток

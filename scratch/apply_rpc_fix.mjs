@@ -2,8 +2,8 @@ import pg from 'pg'
 import fs from 'fs'
 
 const passwords = [
-  '9eFAZQ6yaDjA-kwRp7dKkg!A9z',
-  'CentrumMES2026SecretKey_a9f8',
+  'REVOKED_AUDIT_PASSWORD_DO_NOT_USE',
+  'REVOKED_MES_SECRET_DO_NOT_USE',
   'postgres',
   'root'
 ]

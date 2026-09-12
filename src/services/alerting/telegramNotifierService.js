@@ -18,7 +18,7 @@ class TelegramNotifierService {
   async sendTelegramCrashAlert(errorRecord = {}) {
     // 1. Перевірка активності конфігурації
     const config = telegramTransport.getConfig()
-    if (!config.isEnabled || !config.botToken || !config.chatId) {
+    if (!config.isEnabled) {
       return { sent: false, reason: 'NOT_CONFIGURED_OR_DISABLED' }
     }
 
@@ -50,9 +50,9 @@ class TelegramNotifierService {
   /**
    * Відправка тестового повідомлення з вікна налаштувань
    */
-  async sendTestNotification(overrideConfig = null, senderName = 'Адміністратор') {
+  async sendTestNotification(_overrideConfig = null, senderName = 'Адміністратор') {
     const htmlMessage = formatTestAlertMessage(senderName)
-    return await telegramTransport.sendMessage(htmlMessage, overrideConfig)
+    return await telegramTransport.sendMessage(htmlMessage, { kind: 'test' })
   }
 
   getConfig() {

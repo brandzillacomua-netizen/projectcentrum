@@ -17,7 +17,7 @@ async function runRamaF10Simulation() {
     // 0. Авторизація системного користувача для проходження RLS
     const { data: authData } = await supabase.auth.signInWithPassword({
       email: 'alexinj@centrum.local',
-      password: '9eFAZQ6yaDjA-kwRp7dKkg!A9z'
+      password: 'REVOKED_AUDIT_PASSWORD_DO_NOT_USE'
     })
 
     if (authData?.user) {
