@@ -22,7 +22,7 @@ describe('source architecture regression budget', () => {
     'src/modules/MasterModule.jsx': 500,
     'src/modules/Master/hooks/useMasterState.js': 1200,
     'src/modules/EngineerV2Module.jsx': 200,
-    'src/modules/WarehouseFGPModule.jsx': 2700,
+    'src/modules/WarehouseFGPModule.jsx': 2670,
     'src/modules/Shop1ForemanModule.jsx': 200,
     'src/modules/Foreman/components/ForemanReportModal.jsx': 1400
   }
