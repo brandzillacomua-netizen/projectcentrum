@@ -19,7 +19,7 @@ WHERE n.nspname = 'public'
 
 -- Function EXECUTE defaults to PUBLIC in PostgreSQL. Remove that implicit path,
 -- then restore exactly the access authenticated/service roles had beforehand.
-REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA public FROM PUBLIC, anon;
+REVOKE EXECUTE ON ALL ROUTINES IN SCHEMA public FROM PUBLIC, anon;
 
 DO $$
 DECLARE permission_row RECORD;
@@ -43,6 +43,26 @@ GRANT EXECUTE ON FUNCTION public.rpc_public_create_machine_call(UUID, TEXT, TEXT
 -- Revoke both table-level and any legacy column-level grants.
 REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM anon;
 REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM anon;
+
+-- Some legacy objects can retain per-object ACL entries even after the schema
+-- wide command. Remove every explicit table grant reported by information_schema.
+DO $$
+DECLARE table_grant RECORD;
+BEGIN
+  FOR table_grant IN
+    SELECT table_schema, table_name, privilege_type
+    FROM information_schema.table_privileges
+    WHERE grantee = 'anon' AND table_schema = 'public'
+  LOOP
+    EXECUTE format(
+      'REVOKE %s ON TABLE %I.%I FROM anon',
+      table_grant.privilege_type,
+      table_grant.table_schema,
+      table_grant.table_name
+    );
+  END LOOP;
+END;
+$$;
 
 DO $$
 DECLARE column_grant RECORD;
@@ -119,10 +139,11 @@ $$;
 -- Safe defaults for objects created by this migration owner in the future.
 ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON TABLES FROM anon;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON SEQUENCES FROM anon;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC, anon;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE EXECUTE ON ROUTINES FROM PUBLIC, anon;
 
 -- Postconditions: abort the migration if any direct anonymous ACL survived.
 DO $$
+DECLARE survivor_summary JSONB;
 BEGIN
   IF EXISTS (
     SELECT 1 FROM information_schema.table_privileges
@@ -131,12 +152,48 @@ BEGIN
     SELECT 1 FROM information_schema.column_privileges
     WHERE grantee = 'anon' AND table_schema = 'public'
   ) OR EXISTS (
-    SELECT 1 FROM information_schema.routine_privileges
-    WHERE grantee IN ('anon', 'PUBLIC')
-      AND specific_schema = 'public'
-      AND routine_name NOT IN ('rpc_public_machine_call_context', 'rpc_public_create_machine_call')
+    SELECT 1
+    FROM pg_proc AS p
+    JOIN pg_namespace AS n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public'
+      AND p.proname NOT IN ('rpc_public_machine_call_context', 'rpc_public_create_machine_call')
+      AND has_function_privilege('anon', p.oid, 'EXECUTE')
+      AND NOT EXISTS (
+        SELECT 1
+        FROM pg_depend AS d
+        WHERE d.classid = 'pg_proc'::regclass
+          AND d.objid = p.oid
+          AND d.deptype = 'e'
+      )
   ) THEN
-    RAISE EXCEPTION 'Anonymous lockdown postcondition failed';
+    SELECT jsonb_build_object(
+      'tables', COALESCE((
+        SELECT jsonb_agg(jsonb_build_object('name', table_name, 'privilege', privilege_type))
+        FROM information_schema.table_privileges
+        WHERE grantee = 'anon' AND table_schema = 'public'
+      ), '[]'::JSONB),
+      'columns', COALESCE((
+        SELECT jsonb_agg(jsonb_build_object('table', table_name, 'column', column_name, 'privilege', privilege_type))
+        FROM information_schema.column_privileges
+        WHERE grantee = 'anon' AND table_schema = 'public'
+      ), '[]'::JSONB),
+      'routines', COALESCE((
+        SELECT jsonb_agg(jsonb_build_object('name', p.proname, 'signature', p.oid::regprocedure::TEXT))
+        FROM pg_proc AS p
+        JOIN pg_namespace AS n ON n.oid = p.pronamespace
+        WHERE n.nspname = 'public'
+          AND p.proname NOT IN ('rpc_public_machine_call_context', 'rpc_public_create_machine_call')
+          AND has_function_privilege('anon', p.oid, 'EXECUTE')
+          AND NOT EXISTS (
+            SELECT 1
+            FROM pg_depend AS d
+            WHERE d.classid = 'pg_proc'::regclass
+              AND d.objid = p.oid
+              AND d.deptype = 'e'
+          )
+      ), '[]'::JSONB)
+    ) INTO survivor_summary;
+    RAISE EXCEPTION 'Anonymous lockdown postcondition failed: %', survivor_summary;
   END IF;
 END;
 $$;
