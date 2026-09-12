@@ -55,14 +55,40 @@ const readBearerToken = (req) => {
   return header.startsWith('Bearer ') ? header.slice(7).trim() : ''
 }
 
-const serverSupabaseConfig = () => ({
-  url: String(process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').replace(/\/$/, ''),
-  anonKey: String(process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '')
-})
+// Supabase anon keys are public client identifiers, not credentials. These
+// fallbacks keep serverless JWT verification operational when Vite build vars
+// are unavailable at function runtime. The token is still verified by GoTrue.
+const PUBLIC_PROJECTS = {
+  hurzutjytlcvtbvihnry: {
+    url: 'https://hurzutjytlcvtbvihnry.supabase.co',
+    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh1cnp1dGp5dGxjdnRidmlobnJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQwMjc4NzksImV4cCI6MjA4OTYwMzg3OX0.0GETYIfUpEDVcpcMoZcAe3dLXtiafNNE1eegbbK1XUI'
+  },
+  qpiysrkhvdgctaqmfsew: {
+    url: 'https://qpiysrkhvdgctaqmfsew.supabase.co',
+    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFwaXlzcmtodmRnY3RhcW1mc2V3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg4OTcxMzUsImV4cCI6MjEwNDQ3MzEzNX0.Jvx-saMNE97zyy8IaXk9dd7C1q-quoK-R0IopUsVXI8'
+  }
+}
+
+const readUnverifiedProjectRef = token => {
+  try {
+    const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8'))
+    if (payload.ref) return String(payload.ref)
+    return new URL(String(payload.iss || '')).hostname.split('.')[0]
+  } catch { return '' }
+}
+
+const serverSupabaseConfig = token => {
+  const configured = {
+    url: String(process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').replace(/\/$/, ''),
+    anonKey: String(process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '')
+  }
+  if (configured.url && configured.anonKey) return configured
+  return PUBLIC_PROJECTS[readUnverifiedProjectRef(token)] || { url: '', anonKey: '' }
+}
 
 export async function requireMesUser(req, res, requiredRights = []) {
   const token = readBearerToken(req)
-  const { url, anonKey } = serverSupabaseConfig()
+  const { url, anonKey } = serverSupabaseConfig(token)
   if (!token || !url || !anonKey) {
     res.status(401).json({ success: false, errors: ['Authentication required'] })
     return null

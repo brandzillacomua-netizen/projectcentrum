@@ -43,7 +43,7 @@ export async function verifyAuthToken(req, res, requiredRole = null) {
     }
 
     return true
-  } catch (err) {
+  } catch {
     res.writeHead(401, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify({ success: false, error: 'Unauthorized authentication error' }))
     return false

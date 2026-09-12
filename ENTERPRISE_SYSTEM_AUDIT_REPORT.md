@@ -1,5 +1,7 @@
 # 🏛️ ІНЖЕНЕРНИЙ АРХІТЕКТУРНИЙ ЗВІТ ТА АУДИТ СИСТЕМИ CENTRUM MES v2.0
 
+> **Архівний документ.** Оцінка 9/10 нижче була завищеною і не підтверджувалась повним security/E2E/DR-аудитом. Актуальний контрольований стан, обмеження та план релізу зафіксовано в `ENTERPRISE_READINESS_ROADMAP.md`.
+
 **Роль:** Senior Solutions Architect & Enterprise Systems Tech Lead  
 **Об'єкт аудиту:** Виробничо-виконавча система (MES / WMS / ERP) CENTRUM MES v2.0  
 **Статус системи:** Production Grade (Специфікація Enterprise 9.0 / 10)  

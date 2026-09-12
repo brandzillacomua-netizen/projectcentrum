@@ -1,8 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { writeFileSync } from 'node:fs'
 const client = createClient(process.env.VITE_SUPABASE_URL, process.env.VITE_SUPABASE_ANON_KEY, {
-  auth: { persistSession: false, autoRefreshToken: false },
-  global: { headers: { 'x-mes-secret': process.env.VITE_MES_SECRET } }
+  auth: { persistSession: false, autoRefreshToken: false }
 })
 const { error: authError } = await client.auth.signInWithPassword({ email: process.env.AUDIT_EMAIL, password: process.env.AUDIT_PASSWORD })
 if (authError) throw authError

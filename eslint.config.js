@@ -51,5 +51,17 @@ export default [
         ...globals.node
       }
     }
+  },
+  {
+    files: ['api/**/*.js', 'server/**/*.js'],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'module',
+      globals: { ...globals.node, fetch: 'readonly' }
+    },
+    rules: {
+      'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' }],
+      'no-empty': ['warn', { allowEmptyCatch: true }]
+    }
   }
 ]

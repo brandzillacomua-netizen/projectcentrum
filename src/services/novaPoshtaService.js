@@ -179,7 +179,7 @@ export const createOrGetRecipient = async ({
   recipientName = '',
   phone = '',
   edrpou = '',
-  cityName = ''
+  cityName: _cityName = ''
 }, customKey = null) => {
   const cleanPhone = phone.replace(/\D/g, '')
 

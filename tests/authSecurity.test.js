@@ -22,27 +22,14 @@ describe('Enterprise Auth & User Governance Security Tests', () => {
     vi.clearAllMocks()
   })
 
-  it('login sanitizes user object and NEVER stores plaintext password in localStorage', async () => {
+  it('rejects invalid Supabase Auth credentials without legacy password fallback', async () => {
     // Mock signInWithPassword so unit tests don't make real network calls in CI
     const authSpy = vi.spyOn(supabase.auth, 'signInWithPassword').mockResolvedValue({
       data: null,
       error: new Error('Invalid login credentials')
     })
 
-    // Mock verify_user_password RPC response returning a user with potential password field
-    const rpcSpy = vi.spyOn(supabase, 'rpc').mockReturnValue({
-      maybeSingle: vi.fn().mockResolvedValue({
-        data: {
-          id: 1,
-          login: 'test_admin',
-          first_name: 'Test',
-          last_name: 'Admin',
-          password: 'sensitive_bcrypt_or_plain',
-          access_rights: { admin: true }
-        },
-        error: null
-      })
-    })
+    const rpcSpy = vi.spyOn(supabase, 'rpc')
 
     const auth = createAuthActions({
       currentUser,
@@ -54,34 +41,23 @@ describe('Enterprise Auth & User Governance Security Tests', () => {
 
     const result = await auth.login('test_admin', 'Secret123!')
 
-    expect(result.success).toBe(true)
-    expect(result.user).toBeDefined()
-    expect(result.user.password).toBeUndefined()
-
-    // Verify localStorage cache does not contain password
-    const cachedRaw = localStorage.getItem('MES_SESSION_USER')
-    expect(cachedRaw).not.toBeNull()
-    const cachedUser = JSON.parse(cachedRaw)
-    expect(cachedUser.login).toBe('test_admin')
-    expect(cachedUser.password).toBeUndefined()
+    expect(result.success).toBe(false)
+    expect(rpcSpy).not.toHaveBeenCalled()
+    expect(localStorage.getItem('MES_SESSION_USER')).toBeNull()
 
     rpcSpy.mockRestore()
     authSpy.mockRestore()
   })
 
-  it('login succeeds with JWT and sets BACKEND_TOKEN and MES_SESSION_STRICT', async () => {
+  it('login succeeds with JWT profile and never duplicates JWT in custom storage', async () => {
     const authSpy = vi.spyOn(supabase.auth, 'signInWithPassword').mockResolvedValue({
       data: { session: { access_token: 'fake-jwt-token-123', user: { id: 'uuid-123' } } },
       error: null
     })
-    const fromSpy = vi.spyOn(supabase, 'from').mockReturnValue({
-      select: vi.fn().mockReturnThis(),
-      ilike: vi.fn().mockReturnThis(),
-      maybeSingle: vi.fn().mockResolvedValue({
-        data: { id: 1, login: 'test_admin', position: 'Адмін' },
-        error: null
-      })
-    })
+    const rpcSpy = vi.spyOn(supabase, 'rpc').mockImplementation(name => Promise.resolve({
+      data: name === 'rpc_current_user_profile' ? { id: 1, login: 'test_admin', position: 'Адмін' } : null,
+      error: null
+    }))
 
     const auth = createAuthActions({
       currentUser,
@@ -93,14 +69,14 @@ describe('Enterprise Auth & User Governance Security Tests', () => {
 
     const res = await auth.login('test_admin', 'Secret123!')
     expect(res.success).toBe(true)
-    expect(localStorage.getItem('BACKEND_TOKEN')).toBe('fake-jwt-token-123')
+    expect(localStorage.getItem('BACKEND_TOKEN')).toBeNull()
     expect(localStorage.getItem('MES_SESSION_STRICT')).toBe('true')
 
     authSpy.mockRestore()
-    fromSpy.mockRestore()
+    rpcSpy.mockRestore()
   })
 
-  it('upsertUser attempts rpc_admin_upsert_user with caller ID and payload', async () => {
+  it('upsertUser uses auth-bound RPC without caller-controlled admin ID', async () => {
     const adminUser = { id: 99, login: 'superadmin', access_rights: { admin: true } }
     let current = adminUser
 
@@ -144,14 +120,13 @@ describe('Enterprise Auth & User Governance Security Tests', () => {
     expect(data.id).toBe(42)
     expect(data.login).toBe('new_operator')
     expect(rpcSpy).toHaveBeenCalledWith('rpc_admin_upsert_user', {
-      p_admin_id: 99,
       p_user_payload: expect.objectContaining({ login: 'new_operator' })
     })
 
     rpcSpy.mockRestore()
   })
 
-  it('deleteUser attempts rpc_admin_delete_user and updates systemUsers state', async () => {
+  it('deleteUser uses auth-bound RPC and updates systemUsers state', async () => {
     const adminUser = { id: 99, login: 'superadmin', access_rights: { admin: true } }
     systemUsers = [
       { id: 10, login: 'user_to_delete' },
@@ -180,7 +155,6 @@ describe('Enterprise Auth & User Governance Security Tests', () => {
 
     expect(error).toBeNull()
     expect(rpcSpy).toHaveBeenCalledWith('rpc_admin_delete_user', {
-      p_admin_id: 99,
       p_target_user_id: 10
     })
     expect(systemUsers.find(u => u.id === 10)).toBeUndefined()

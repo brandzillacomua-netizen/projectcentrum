@@ -21,8 +21,9 @@ for (const file of tracked) {
   let content
   try { content = readFileSync(file, 'utf8') } catch { continue }
   if (content.includes('\0')) continue
+  const activeContent = content.split(/\r?\n/).filter(line => !line.includes('REVOKED_')).join('\n')
   for (const [label, pattern] of secretPatterns) {
-    if (pattern.test(content) && !content.includes('REVOKED_')) findings.push(`${file}: ${label}`)
+    if (pattern.test(activeContent)) findings.push(`${file}: ${label}`)
   }
 }
 

@@ -20,12 +20,17 @@ export default async function handler(req, res) {
     return res.status(400).json({ success: false, errors: ['Invalid print request'] })
   }
 
-  const path = kind === 'document' ? 'printDocument' : 'printMarking100x100'
-  const upstream = await fetch(`https://my.novaposhta.ua/orders/${path}/orders[]/${encodeURIComponent(ref)}/type/pdf/apiKey/${encodeURIComponent(apiKey)}`)
-  if (!upstream.ok) return res.status(502).json({ success: false, errors: ['Print document is unavailable'] })
+  try {
+    const path = kind === 'document' ? 'printDocument' : 'printMarking100x100'
+    const upstream = await fetch(`https://my.novaposhta.ua/orders/${path}/orders[]/${encodeURIComponent(ref)}/type/pdf/apiKey/${encodeURIComponent(apiKey)}`)
+    if (!upstream.ok) return res.status(502).json({ success: false, errors: ['Print document is unavailable'] })
 
-  const payload = Buffer.from(await upstream.arrayBuffer())
-  res.setHeader('Content-Type', 'application/pdf')
-  res.setHeader('Content-Disposition', `inline; filename="nova-poshta-${kind}.pdf"`)
-  return res.status(200).send(payload)
+    const payload = Buffer.from(await upstream.arrayBuffer())
+    res.setHeader('Content-Type', 'application/pdf')
+    res.setHeader('Content-Disposition', `inline; filename="nova-poshta-${kind}.pdf"`)
+    return res.status(200).send(payload)
+  } catch (error) {
+    console.error('[nova-poshta-print] upstream request failed', { message: error?.message, userId: user.id })
+    return res.status(502).json({ success: false, errors: ['Print document is unavailable'] })
+  }
 }

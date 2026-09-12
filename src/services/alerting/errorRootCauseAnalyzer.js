@@ -10,8 +10,6 @@
  */
 export function analyzeRootCause(errorRecord = {}) {
   const msg = String(errorRecord.message || '').toLowerCase()
-  const stack = String(errorRecord.stack || '').toLowerCase()
-  const compStack = String(errorRecord.componentStack || '').toLowerCase()
   const name = String(errorRecord.name || '').toLowerCase()
 
   // 1. Помилка завантаження динамічних модулів (Vite chunk load failure після деплою)

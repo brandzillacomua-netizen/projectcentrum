@@ -27,6 +27,7 @@ export default defineConfig({
           'vendor-supabase': ['@supabase/supabase-js'],
           'vendor-ui': ['lucide-react'],
           'vendor-qrcode': ['qrcode.react'],
+          'vendor-scanner': ['html5-qrcode'],
           'vendor-utils': ['date-fns'],
           'vendor-virtual': ['@tanstack/react-virtual'],
           'vendor-excel': ['xlsx'],
@@ -36,4 +37,3 @@ export default defineConfig({
     }
   }
 })
-

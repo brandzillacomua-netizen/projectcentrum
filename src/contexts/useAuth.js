@@ -1,5 +1,4 @@
 import { supabase, isTestEnvironment } from '../supabase'
-import { apiService } from '../services/apiDispatcher'
 import { sentryLogger } from '../services/sentryLogger'
 
 const getAuthKeys = () => {

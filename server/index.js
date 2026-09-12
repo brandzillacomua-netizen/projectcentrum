@@ -47,7 +47,10 @@ const server = http.createServer((req, res) => {
       return res.end(JSON.stringify({ success: false, error: 'Request body too large' }))
     }
     let payload = {}
-    try { if (body) payload = JSON.parse(body) } catch (e) {}
+    try { if (body) payload = JSON.parse(body) } catch {
+      res.writeHead(400, { 'Content-Type': 'application/json' })
+      return res.end(JSON.stringify({ success: false, error: 'Invalid JSON body' }))
+    }
 
     const url = req.url || '/'
 

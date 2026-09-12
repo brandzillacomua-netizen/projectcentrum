@@ -34,6 +34,9 @@ jobs:
       - name: Reject Committed Secrets and Browser-side Credentials
         run: npm run security:secrets
 
+      - name: Enforce RLS Migration Boundaries
+        run: npm run security:rls
+
       - name: Audit Production Dependencies
         run: npm run security:audit
 
