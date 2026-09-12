@@ -30,7 +30,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
-      RELEASE_URL: ${{ github.event_name == 'workflow_dispatch' && inputs.deployment_url || github.event.deployment_status.environment_url }}
+      # Vercel's immutable deployment URL is SSO-protected (HTTP 302). Verify the public production alias.
+      RELEASE_URL: ${{ github.event_name == 'workflow_dispatch' && inputs.deployment_url || 'https://projectcentrum88.vercel.app' }}
       EXPECTED_RELEASE_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.expected_sha || github.event.deployment.sha }}
 
     steps:

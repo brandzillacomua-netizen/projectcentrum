@@ -19,6 +19,8 @@ describe('production release verification workflow', () => {
     expect(workflow).toContain('actions/checkout@11d5960a326750d5838078e36cf38b85af677262')
     expect(workflow).toContain('actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020')
     expect(workflow).toContain('github.event.deployment.sha')
+    expect(workflow).toContain("|| 'https://projectcentrum88.vercel.app'")
+    expect(workflow).not.toContain('github.event.deployment_status.environment_url')
     expect(workflow).toContain('npm run verify:deployment')
   })
 })

@@ -187,7 +187,7 @@ export function useDataState() {
 
   // ── Incremental Catch-up on reconnect ──
   const performIncrementalCatchUp = useCallback(async (targetTables = []) => {
-    if (!targetTables || targetTables.length === 0) return
+    if (!targetTables || targetTables.length === 0) return { failedTables: [] }
     const baseTime = lastSyncTimestampRef.current || Date.now()
     const lastSyncISO = new Date(baseTime - 5000).toISOString()
     lastSyncTimestampRef.current = Date.now()
@@ -200,11 +200,15 @@ export function useDataState() {
           .from(table)
           .select('*')
           .gt('updated_at', lastSyncISO)
-        if (error || !data || data.length === 0) return { table, rows: [] }
+        if (error) {
+          console.warn(`[CatchUpSync] Incremental query failed for ${table}:`, error.code || error.message)
+          return { table, rows: [], failed: true }
+        }
+        if (!data || data.length === 0) return { table, rows: [], failed: false }
         return { table, rows: data }
       } catch (err) {
         console.warn(`[CatchUpSync] Failed to fetch catch-up data for ${table}:`, err)
-        return { table, rows: [] }
+        return { table, rows: [], failed: true }
       }
     })
 
@@ -240,6 +244,10 @@ export function useDataState() {
         })
       }
     })
+
+    return {
+      failedTables: results.filter(result => result.failed).map(result => result.table)
+    }
   }, [])
 
   // ── IndexedDB initial hydration ──

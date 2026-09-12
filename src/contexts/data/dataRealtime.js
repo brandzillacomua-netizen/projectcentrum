@@ -41,7 +41,7 @@ export function useDataRealtime(state, fetchers) {
     targetRefreshLastRef
   } = state
 
-  const { refreshProductionSummary, fetchData } = fetchers
+  const { refreshProductionSummary, fetchData, getTargetRefreshKey } = fetchers
 
   // ── Primary Channel: Operational & Production Data ──
   useEffect(() => {
@@ -264,6 +264,23 @@ export function useDataRealtime(state, fetchers) {
     let reconnectRefreshTimer = null
     let onlineCatchUpTimer = null
 
+    const catchUpWithFullRefreshFallback = async (targets) => {
+      let failedTables = targets
+      try {
+        const result = await performIncrementalCatchUp(targets)
+        failedTables = result?.failedTables || []
+      } catch (error) {
+        console.warn('[CatchUpSync] Incremental catch-up crashed; using full refresh:', error)
+      }
+
+      if (failedTables.length === 0) return
+      console.warn(`[CatchUpSync] Falling back to full refresh for [${failedTables.join(', ')}]`)
+      failedTables.forEach(tableName => {
+        delete targetRefreshLastRef.current[getTargetRefreshKey(tableName)]
+      })
+      await fetchData(failedTables)
+    }
+
     const handleOnlineNetworkCatchUp = () => {
       if (onlineCatchUpTimer) clearTimeout(onlineCatchUpTimer)
       const jitterMs = 300 + Math.floor(Math.random() * 1500)
@@ -271,7 +288,10 @@ export function useDataRealtime(state, fetchers) {
         onlineCatchUpTimer = null
         const targets = ['tasks', 'work_cards', 'inventory', 'material_requests', 'orders']
           .filter(tableName => routeHasTable(tableName))
-        if (targets.length > 0) performIncrementalCatchUp(targets)
+        if (targets.length > 0) {
+          catchUpWithFullRefreshFallback(targets)
+            .catch(error => console.warn('[CatchUpSync] Full refresh fallback failed:', error))
+        }
       }, jitterMs)
     }
 
@@ -289,7 +309,10 @@ export function useDataRealtime(state, fetchers) {
         reconnectRefreshTimer = null
         const targets = ['tasks', 'work_cards', 'inventory', 'material_requests', 'orders']
           .filter(tableName => routeHasTable(tableName))
-        if (targets.length > 0) performIncrementalCatchUp(targets)
+        if (targets.length > 0) {
+          catchUpWithFullRefreshFallback(targets)
+            .catch(error => console.warn('[CatchUpSync] Full refresh fallback failed:', error))
+        }
       }, reconnectJitterMs)
     })
 
@@ -307,6 +330,8 @@ export function useDataRealtime(state, fetchers) {
     routeHasTable,
     needsProductionSummary,
     performIncrementalCatchUp,
+    fetchData,
+    getTargetRefreshKey,
     refreshProductionSummary,
     setInventory,
     setServerProductionData,
@@ -316,6 +341,7 @@ export function useDataRealtime(state, fetchers) {
     setWorkCardScrapTotals,
     setWorkCards,
     systemUsersRef,
+    targetRefreshLastRef,
     workCardHistoryRef
   ])
 
