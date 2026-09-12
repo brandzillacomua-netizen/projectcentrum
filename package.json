@@ -16,7 +16,7 @@
     "security:rls": "node scripts/check-rls-boundaries.mjs",
     "security:diagnostics": "node scripts/check-readonly-diagnostics.mjs",
     "security:audit": "npm audit --omit=dev --audit-level=high",
-    "lint:security": "eslint api src/contexts/useAuth.js src/contexts/data/dataState.js src/services/alerting src/services/novaPoshtaService.js server",
+    "lint:security": "eslint api src/contexts/useAuth.js src/contexts/data/dataState.js src/services/alerting src/services/novaPoshtaService.js src/services/sentryLogger.js src/utils/telemetrySanitizer.js server",
     "ci": "npm run security:secrets && npm run security:rls && npm run security:diagnostics && npm run security:access-contract && npm run security:audit && node scripts/validate-migrations.mjs && npm run lint:security && npm test && npm run build",
     "smoke:production": "node --env-file=.env scripts/production-smoke.mjs",
     "smoke:atomic-transition": "node --env-file=.env scripts/smoke-atomic-transition-readonly.mjs",

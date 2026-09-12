@@ -1,5 +1,6 @@
 import * as Sentry from '@sentry/react'
 import { telegramNotifierService } from './alerting/telegramNotifierService.js'
+import { sanitizeTelemetry, sanitizeTelemetryString, telemetrySafeUrl } from '../utils/telemetrySanitizer.js'
 
 const MAX_BUFFER_SIZE = 20
 const ERROR_STORAGE_KEY = 'mes_recent_errors'
@@ -15,7 +16,8 @@ class SentryLoggerService {
   loadStoredErrors() {
     try {
       const stored = localStorage.getItem(ERROR_STORAGE_KEY)
-      return stored ? JSON.parse(stored) : []
+      const parsed = stored ? sanitizeTelemetry(JSON.parse(stored)) : []
+      return Array.isArray(parsed) ? parsed.slice(-MAX_BUFFER_SIZE) : []
     } catch {
       return []
     }
@@ -43,10 +45,8 @@ class SentryLoggerService {
           ],
           tracesSampleRate: import.meta.env.PROD ? 0.2 : 1.0,
           environment: import.meta.env.MODE || 'production',
-          beforeSend(event) {
-            // Sanitize sensitive tokens if present in context
-            return event
-          }
+          sendDefaultPii: false,
+          beforeSend: (event) => sanitizeTelemetry(event)
         })
         this.isInitialized = true
         console.log('[SentryLogger] Sentry exception tracking initialized successfully.')
@@ -59,10 +59,13 @@ class SentryLoggerService {
   }
 
   setUserContext(user) {
-    if (!user) return
+    if (!user) {
+      this.currentUser = null
+      if (this.isInitialized) Sentry.setUser(null)
+      return
+    }
     this.currentUser = {
       id: user.id || user.user_id,
-      name: user.name || user.full_name || user.email,
       role: user.role || user.user_role,
       department: user.department || user.dept
     }
@@ -70,7 +73,6 @@ class SentryLoggerService {
     if (this.isInitialized) {
       Sentry.setUser({
         id: String(this.currentUser.id),
-        username: this.currentUser.name,
         role: this.currentUser.role
       })
     }
@@ -90,13 +92,15 @@ class SentryLoggerService {
     const errorRecord = {
       id: `err_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
       timestamp,
-      message: error?.message || String(error),
+      message: sanitizeTelemetryString(error?.message || String(error)),
       name: error?.name || 'Error',
-      stack: error?.stack || null,
-      componentStack: errorInfo?.componentStack || null,
-      url: window.location.href,
+      stack: error?.stack ? sanitizeTelemetryString(error.stack) : null,
+      componentStack: errorInfo?.componentStack
+        ? sanitizeTelemetryString(errorInfo.componentStack)
+        : null,
+      url: telemetrySafeUrl(window.location.href),
       user: this.currentUser ? { id: this.currentUser.id, role: this.currentUser.role } : null,
-      ...extraContext
+      context: sanitizeTelemetry(extraContext)
     }
 
     // Log locally to console with high visibility
@@ -115,17 +119,17 @@ class SentryLoggerService {
         if (this.currentUser) {
           scope.setUser({
             id: String(this.currentUser.id),
-            username: this.currentUser.name,
             role: this.currentUser.role
           })
         }
 
         if (errorInfo?.componentStack) {
-          scope.setExtra('componentStack', errorInfo.componentStack)
+          scope.setExtra('componentStack', sanitizeTelemetryString(errorInfo.componentStack))
         }
 
-        Object.keys(extraContext).forEach((key) => {
-          scope.setExtra(key, extraContext[key])
+        const safeContext = sanitizeTelemetry(extraContext)
+        Object.keys(safeContext).forEach((key) => {
+          scope.setExtra(key, safeContext[key])
         })
 
         Sentry.captureException(error)
@@ -160,8 +164,9 @@ class SentryLoggerService {
     if (this.isInitialized) {
       Sentry.withScope((scope) => {
         scope.setLevel('warning')
-        Object.keys(context).forEach((k) => scope.setExtra(k, context[k]))
-        Sentry.captureMessage(warnObj.message)
+        const safeContext = sanitizeTelemetry(context)
+        Object.keys(safeContext).forEach((k) => scope.setExtra(k, safeContext[k]))
+        Sentry.captureMessage(sanitizeTelemetryString(warnObj.message))
       })
     }
   }

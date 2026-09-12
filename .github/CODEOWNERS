@@ -1,0 +1,13 @@
+# Default ownership. Branch protection must require Code Owner review for enforcement.
+* @brandzillacomua-netizen
+
+# Security, identity, production automation, and database boundaries.
+/.github/workflows/ @brandzillacomua-netizen
+/api/ @brandzillacomua-netizen
+/server/ @brandzillacomua-netizen
+/supabase/migrations/ @brandzillacomua-netizen
+/supabase/rollbacks/ @brandzillacomua-netizen
+/src/contexts/useAuth.js @brandzillacomua-netizen
+/src/supabase.js @brandzillacomua-netizen
+/src/services/alerting/ @brandzillacomua-netizen
+/src/services/sentryLogger.js @brandzillacomua-netizen
