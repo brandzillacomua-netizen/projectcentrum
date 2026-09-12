@@ -1,9 +1,25 @@
-import { describe, it, expect, beforeEach } from 'vitest'
-import { scannerDebounceGuard } from '../src/services/scannerDebounceGuard.js'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { scannerDebounceGuard, triggerHapticAudioFeedback } from '../src/services/scannerDebounceGuard.js'
 
 describe('Scanner Debounce Guard Unit Tests', () => {
   beforeEach(() => {
     scannerDebounceGuard.reset()
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('does not request vibration before the first user interaction', () => {
+    const vibrate = vi.fn()
+    vi.stubGlobal('navigator', {
+      vibrate,
+      userActivation: { hasBeenActive: false }
+    })
+
+    triggerHapticAudioFeedback(true)
+
+    expect(vibrate).not.toHaveBeenCalled()
   })
 
   it('accepts initial scan and rejects immediate duplicate within 700ms', () => {

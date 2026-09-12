@@ -28,6 +28,7 @@ import { processOfflineMutation } from '../src/services/offlineProcessor.js'
 describe('Offline Queue & Resilience Service', () => {
   beforeEach(() => {
     clearOfflineQueue()
+    vi.clearAllMocks()
   })
 
   it('enqueues mutations and guards against duplicate keys', () => {
@@ -102,6 +103,33 @@ describe('Offline Queue & Resilience Service', () => {
       expect(res.queued).toBe(true)
       expect(res.isOffline).toBe(true)
       expect(getOfflineQueueCount()).toBeGreaterThan(0)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('uses the deployed five-argument RPC contract', async () => {
+    vi.stubGlobal('navigator', { onLine: true })
+    supabaseMock.rpc.mockResolvedValueOnce({ data: { success: true }, error: null })
+
+    try {
+      const result = await executeAtomicCardTransition({
+        cardId: 'a1111111-2222-3333-4444-555555555555',
+        cardUpdate: { status: 'in-progress', operation: 'Розкрій' },
+        historyData: { stage_name: 'Розкрій' },
+        idempotencyKey: 'contract-test-key',
+        clientSession: 'contract-test-session'
+      })
+
+      expect(result).toMatchObject({ success: true, viaRpc: true })
+      expect(supabaseMock.rpc).toHaveBeenCalledWith('rpc_transition_work_card_atomic', {
+        p_card_id: 'a1111111-2222-3333-4444-555555555555',
+        p_card_update: { status: 'in-progress', operation: 'Розкрій' },
+        p_history_data: { stage_name: 'Розкрій' },
+        p_idempotency_key: 'contract-test-key',
+        p_session_id: 'contract-test-session'
+      })
+      expect(supabaseMock.rpc.mock.calls[0][1]).not.toHaveProperty('p_client_session')
     } finally {
       vi.unstubAllGlobals()
     }

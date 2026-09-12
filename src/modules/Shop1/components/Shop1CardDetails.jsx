@@ -580,7 +580,7 @@ export function Shop1CardDetails({
                     <label style={labelStyle}>Відповідальний за прийомку</label>
                     <select value={selectedOperator} onChange={e => setSelectedOperator(e.target.value)} disabled={!selectedShift} style={{ ...selectStyle, opacity: selectedShift ? 1 : 0.5, cursor: selectedShift ? 'pointer' : 'not-allowed' }}>
                       <option value="">{selectedShift ? '— Оберіть оператора —' : '— Спочатку оберіть зміну —'}</option>
-                      {getFilteredOperators('Прийомка', selectedShift, 'Прийомка').map(o => <option key={o} value={o}>{o}</option>)}
+                      {getFilteredOperators('Цех №1', selectedShift, 'Прийомка').map(o => <option key={o} value={o}>{o}</option>)}
                     </select>
                   </div>
                   <button onClick={handleAcceptToStock} disabled={!selectedOperator || !selectedShift || isProcessing}

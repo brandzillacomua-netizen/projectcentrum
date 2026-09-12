@@ -109,7 +109,7 @@ export async function executeAtomicCardTransition({
       p_card_update: cardUpdate,
       p_history_data: historyData,
       p_idempotency_key: resolvedKey,
-      p_client_session: resolvedSession
+      p_session_id: resolvedSession
     });
 
     if (error) {
@@ -253,4 +253,3 @@ export async function executeAtomicCardTransition({
 }
 
 export default executeAtomicCardTransition;
-

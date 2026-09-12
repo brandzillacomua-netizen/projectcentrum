@@ -40,7 +40,11 @@ function playAudioFallback(isSuccess) {
 export function triggerHapticAudioFeedback(isSuccess) {
   try {
     // 1. Dual/Multi-pulse Vibration for distinct physical feedback
-    if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+    if (
+      typeof navigator !== 'undefined' &&
+      typeof navigator.vibrate === 'function' &&
+      navigator.userActivation?.hasBeenActive !== false
+    ) {
       try {
         if (isSuccess) {
           // Sharp double-pulse: 180ms on, 60ms pause, 180ms on
@@ -120,7 +124,11 @@ if (typeof window !== 'undefined') {
         }
       }
       // Prime haptic vibration permissions on user tap
-      if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+      if (
+        typeof navigator !== 'undefined' &&
+        typeof navigator.vibrate === 'function' &&
+        navigator.userActivation?.hasBeenActive !== false
+      ) {
         try { navigator.vibrate(10); } catch {}
       }
     } catch {}

@@ -25,7 +25,7 @@ export const ACCENT = '#a78bfa'
 export const ACCENT_RGB = '167,139,250'
 
 export function useReceptionTerminalData() {
-  const { workCards, nomenclatures, getFilteredOperators, fetchData, currentUser } = useMES()
+  const { workCards, nomenclatures, getFilteredOperators, fetchData, currentUser, formatUserName } = useMES()
 
   const [currentTime, setCurrentTime] = useState(new Date())
   const [selectedShift, setSelectedShift] = useState('')
@@ -56,17 +56,15 @@ export function useReceptionTerminalData() {
   useEffect(() => {
     if (currentUser) {
       setSelectedShift(currentUser.shift || 'Без зміни')
-      const fullName = [currentUser.first_name, currentUser.last_name].filter(Boolean).join(' ')
-      const displayName = fullName || currentUser.login || ''
-      const nameWithPosition = currentUser.position ? `${displayName} (${currentUser.position})` : displayName
+      const displayName = formatUserName(currentUser)
       const allowedOps = getFilteredOperators('Цех №1', currentUser.shift || 'Без зміни', 'Прийомка')
-      if (allowedOps.includes(nameWithPosition)) {
-        setSelectedOperator(nameWithPosition)
+      if (allowedOps.includes(displayName)) {
+        setSelectedOperator(displayName)
       } else {
         setSelectedOperator('')
       }
     }
-  }, [currentUser, getFilteredOperators])
+  }, [currentUser, getFilteredOperators, formatUserName])
 
   const getNom = (card) => nomenclatures.find(n => n.id === card?.nomenclature_id)
 

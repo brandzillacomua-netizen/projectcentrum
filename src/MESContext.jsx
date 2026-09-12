@@ -5,6 +5,7 @@ import { useData } from './contexts/useData'
 import { createAuthActions } from './contexts/useAuth'
 import { createProductionActions } from './contexts/useProduction'
 import { createWarehouseActions } from './contexts/useWarehouse'
+import { filterReceptionOperators } from './utils/operatorFiltering'
 
 const MESContext = createContext()
 
@@ -231,22 +232,7 @@ export const MESProvider = ({ children }) => {
       } else if (stageLower.includes('галтовка')) {
         list = list.filter(u => u.position && u.position.toLowerCase().includes('галтовщик'))
       } else if (stageLower === 'прийомка') {
-        // Also include users from 'Прийомка' department (not only the filtered dept)
-        const priyomkaDept = (data.systemUsers || []).filter(u => {
-          if (shift && shift !== 'Без зміни') {
-            if (u.shift !== shift && u.shift !== 'Без зміни') return false
-          }
-          return u.department === 'Прийомка'
-        })
-        list = list.filter(u => {
-          if (!u.position) return false
-          const pos = u.position.toLowerCase()
-          return pos.includes('прийом') || pos.includes('прийма') || pos.includes('склад') || pos.includes('працівник')
-        })
-        // Merge, deduplicate by login
-        const merged = [...list]
-        priyomkaDept.forEach(u => { if (!merged.find(m => m.id === u.id)) merged.push(u) })
-        list = merged
+        list = filterReceptionOperators(data.systemUsers, shift, department)
       } else if (stageLower === 'сортування') {
         // Also include users from 'Сортування' department
         const sortDept = (data.systemUsers || []).filter(u => {
