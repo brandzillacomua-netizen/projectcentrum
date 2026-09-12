@@ -3,7 +3,8 @@ import { useScrapReasons } from '../../../hooks/useScrapReasons'
 import { useMES } from '../../../MESContext'
 import { apiService } from '../../../services/apiDispatcher'
 import { supabase } from '../../../supabase'
-import { translateCyrillic } from '../utils/shop2Helpers'
+import { createMachineCall } from '../../../services/machineCallService'
+import { cyrillicToLatinMap, translateCyrillic } from '../utils/shop2Helpers'
 import scannerDebounceGuard, { triggerHapticAudioFeedback } from '../../../services/scannerDebounceGuard'
 import { executeAtomicQcScrap } from '../../../services/atomicQcScrapService'
 import { executeAtomicCardTransition } from '../../../services/atomicCardTransitionService'
@@ -235,17 +236,12 @@ export function useShop2TerminalState() {
   const handleCreateCall = async (role, employeeId = null) => {
     try {
       const operatorName = selectedOperator || 'Оператор терміналу'
-      const emp = (systemUsers || []).find(u => u.id === employeeId)
-      const empName = emp ? `${emp.first_name || ''} ${emp.last_name || ''}`.trim() : null
-      const { error } = await supabase.from('machine_calls').insert({
-        machine_id: machineCallModal.id,
-        called_role: role === 'qc' ? 'quality' : role,
-        operator_name: operatorName,
-        called_employee_id: employeeId || null,
-        called_employee_name: empName || null,
-        status: 'pending'
+      await createMachineCall({
+        machineId: machineCallModal.id,
+        role: role === 'qc' ? 'quality' : role,
+        operatorName,
+        employeeId
       })
-      if (error) throw error
       const label = role === 'master' ? 'Майстра' : role === 'engineer' ? 'Інженера' : 'ВКЯ'
       setMachineCallSuccess(`Виклик для ${label} надіслано!`)
       setTimeout(() => {

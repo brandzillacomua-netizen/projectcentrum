@@ -7,6 +7,10 @@ const files = readdirSync(migrationDir)
   .filter(name => name.endsWith('.sql') && name >= guardedFrom)
   .sort()
 const findings = []
+const allowedAnonymousFunctions = new Set([
+  'public.rpc_public_machine_call_context',
+  'public.rpc_public_create_machine_call'
+])
 
 for (const file of files) {
   const sql = readFileSync(join(migrationDir, file), 'utf8')
@@ -17,6 +21,14 @@ for (const file of files) {
   }
   if (/GRANT\s+[\s\S]{0,120}\b(?:UPDATE|DELETE|TRUNCATE|REFERENCES|TRIGGER)\b[\s\S]{0,120}\bTO\s+(?:PUBLIC|anon)\b/i.test(sql)) {
     findings.push(`${file}: mutating table privileges for PUBLIC/anon are forbidden`)
+  }
+
+  for (const grant of sql.matchAll(/GRANT\s+EXECUTE\s+ON\s+FUNCTION\s+([\w.]+)\s*\([^;]*?\)\s+TO\s+([^;]+);/gi)) {
+    const functionName = grant[1].toLowerCase()
+    const roles = grant[2].toLowerCase().split(',').map(role => role.trim())
+    if ((roles.includes('anon') || roles.includes('public')) && !allowedAnonymousFunctions.has(functionName)) {
+      findings.push(`${file}: anonymous EXECUTE is forbidden for ${functionName}`)
+    }
   }
 
   const functions = sql.split(/(?=CREATE\s+OR\s+REPLACE\s+FUNCTION)/i).slice(1)

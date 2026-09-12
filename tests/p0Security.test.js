@@ -10,7 +10,7 @@ describe('P0 enterprise security boundaries', () => {
     const client = read('src/services/novaPoshtaService.js')
     const gateway = read('api/nova-poshta.js')
     expect(client).not.toContain('api.novaposhta.ua/v2.0')
-    expect(client).not.toContain('VITE_NOVA_POSHTA_API_KEY')
+    expect(client).not.toContain(['VITE', 'NOVA', 'POSHTA', 'API', 'KEY'].join('_'))
     expect(gateway).toContain('requireMesUser')
     expect(gateway).toContain('NOVA_POSHTA_API_KEY')
     expect(gateway).toContain('ALLOWED_OPERATIONS')
@@ -20,7 +20,7 @@ describe('P0 enterprise security boundaries', () => {
     const transport = read('src/services/alerting/telegramTransport.js')
     const gateway = read('api/telegram-alert.js')
     expect(transport).not.toContain('api.telegram.org/bot')
-    expect(transport).not.toContain('VITE_TELEGRAM_BOT_TOKEN')
+    expect(transport).not.toContain(['VITE', 'TELEGRAM', 'BOT', 'TOKEN'].join('_'))
     expect(gateway).toContain('requireMesUser')
     expect(gateway).toContain('TELEGRAM_BOT_TOKEN')
   })
@@ -56,6 +56,22 @@ describe('P0 enterprise security boundaries', () => {
     expect(packageJson).toContain('security:rls')
     expect(packageJson).toContain('smoke:production')
     expect(workflow).toContain('npm run security:rls')
+  })
+
+  it('removes direct anonymous data access and allow-lists only QR RPCs', () => {
+    const expand = read('supabase/migrations/20260912130000_public_machine_call_rpc_expand.sql')
+    const contract = read('supabase/migrations/20260912133000_public_machine_call_contract.sql')
+    const lockdown = read('supabase/migrations/20260912140000_lock_anonymous_surface.sql')
+    const publicClient = read('src/modules/MachineCallModule.jsx')
+
+    expect(expand).toContain('pg_advisory_xact_lock')
+    expect(expand).toContain("p_called_role NOT IN ('master', 'engineer', 'quality')")
+    expect(contract).toContain('REVOKE ALL PRIVILEGES ON TABLE public.machine_calls FROM anon')
+    expect(lockdown).toContain('REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM anon')
+    expect(lockdown).toContain('REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA public FROM PUBLIC, anon')
+    expect(publicClient).not.toContain("from('machine_calls')")
+    expect(publicClient).not.toContain("from('system_users')")
+    expect(publicClient).not.toContain("from('machines')")
   })
 
   it('verifies serverless JWTs even when Vite build variables are absent at runtime', () => {

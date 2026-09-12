@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { Cpu, AlertTriangle, Check, PhoneCall, Hammer, ShieldAlert, ArrowLeft, RefreshCw } from 'lucide-react'
-import { supabase } from '../supabase'
+import { Cpu, AlertTriangle, Check, PhoneCall, Hammer, ShieldAlert } from 'lucide-react'
+import { createMachineCall, fetchPublicMachineCallContext } from '../services/machineCallService'
 
 const MachineCallModule = () => {
   const { id } = useParams()
@@ -16,42 +16,31 @@ const MachineCallModule = () => {
   const [selectedEngineerId, setSelectedEngineerId] = useState('')
   const [selectedQualityId, setSelectedQualityId] = useState('')
   
-  const fetchMachineAndCalls = async () => {
+  const fetchMachineAndCalls = useCallback(async () => {
     try {
-      const { data: mData } = await supabase.from('machines').select('*').eq('id', id).maybeSingle()
-      if (mData) setMachine(mData)
-      
-      const { data: cData } = await supabase.from('machine_calls').select('*').eq('machine_id', id).eq('status', 'pending')
-      if (cData) setActiveCalls(cData)
-
-      const { data: uData } = await supabase.from('system_users').select('id, first_name, last_name, position, access_rights').order('first_name')
-      if (uData) setUsers(uData)
+      const context = await fetchPublicMachineCallContext(id)
+      setMachine(context.machine)
+      setActiveCalls(context.calls)
+      setUsers(context.users)
     } catch (e) {
       console.error(e)
     } finally {
       setLoading(false)
     }
-  }
+  }, [id])
 
   useEffect(() => {
-    fetchMachineAndCalls()
-    
-    // Subscribe to calls for real-time updates
-    const channel = supabase.channel(`calls-${id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'machine_calls', filter: `machine_id=eq.${id}` }, () => {
-        // Refetch active calls on any change
-        supabase.from('machine_calls').select('*').eq('machine_id', id).eq('status', 'pending').then(({ data }) => {
-          if (data) setActiveCalls(data)
-        })
-      })
-      .subscribe()
-      
-    return () => { supabase.removeChannel(channel) }
-  }, [id])
+    const initialFetchId = window.setTimeout(fetchMachineAndCalls, 0)
+    const pollId = window.setInterval(fetchMachineAndCalls, 10_000)
+    return () => {
+      window.clearTimeout(initialFetchId)
+      window.clearInterval(pollId)
+    }
+  }, [fetchMachineAndCalls])
   
-  const masters = users.filter(u => u.access_rights?.master || u.access_rights?.foreman || (u.position && u.position.toLowerCase().includes('майстер')))
-  const engineers = users.filter(u => u.access_rights?.engineer || (u.position && u.position.toLowerCase().includes('інженер')))
-  const qualities = users.filter(u => u.access_rights?.brak || (u.position && (u.position.toLowerCase().includes('вкя') || u.position.toLowerCase().includes('якост'))))
+  const masters = users.filter(u => u.call_roles?.includes('master'))
+  const engineers = users.filter(u => u.call_roles?.includes('engineer'))
+  const qualities = users.filter(u => u.call_roles?.includes('quality'))
 
   const handleCall = async (role) => {
     if (isSubmitting) return
@@ -73,29 +62,16 @@ const MachineCallModule = () => {
     else if (role === 'engineer') employeeId = selectedEngineerId
     else if (role === 'quality') employeeId = selectedQualityId
 
-    const emp = users.find(u => u.id === employeeId)
-    const empName = emp ? `${emp.first_name || ''} ${emp.last_name || ''}`.trim() : null
-
-    const { error } = await supabase.from('machine_calls').insert({
-      machine_id: id,
-      called_role: role,
-      operator_name: operatorName.trim() || 'Оператор верстата',
-      called_employee_id: employeeId || null,
-      called_employee_name: empName || null,
-      status: 'pending'
-    })
-    
-    setIsSubmitting(false)
-    
-    if (error) {
-      alert('Помилка: ' + error.message)
-    } else {
+    try {
+      await createMachineCall({ machineId: id, role, operatorName, employeeId })
       let roleLabel = role === 'master' ? 'Майстра' : role === 'engineer' ? 'Інженера' : 'ВКЯ'
       setSuccessMsg(`Виклик ${roleLabel} успішно надіслано!`)
       setTimeout(() => setSuccessMsg(''), 4000)
-      // Refetch immediately
-      const { data } = await supabase.from('machine_calls').select('*').eq('machine_id', id).eq('status', 'pending')
-      if (data) setActiveCalls(data)
+      await fetchMachineAndCalls()
+    } catch (error) {
+      alert('Помилка: ' + error.message)
+    } finally {
+      setIsSubmitting(false)
     }
   }
   

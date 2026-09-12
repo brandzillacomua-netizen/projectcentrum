@@ -48,7 +48,8 @@ const SUPABASE_READ_ONLY_RPCS = new Set([
   'mes_monthly_report',
   'mes_monthly_naryad_detail',
   'shop1_naryad_catalog',
-  'shop1_naryad_report'
+  'shop1_naryad_report',
+  'rpc_public_machine_call_context'
 ])
 const SUPABASE_HEAVY_ANALYTICAL_RPCS = new Set([
   'mes_monthly_report',

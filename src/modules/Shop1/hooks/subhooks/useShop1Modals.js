@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { createMachineCall } from '../../../../services/machineCallService';
 
 export function useShop1Modals({
   currentUser,
@@ -94,18 +95,12 @@ export function useShop1Modals({
     if (!machineCallModal?.id) return;
     try {
       const operatorName = selectedOperator || currentUser?.name || currentUser?.login || 'Оператор терміналу';
-      const emp = (systemUsers || []).find(u => u.id === employeeId);
-      const empName = emp ? `${emp.first_name || ''} ${emp.last_name || ''}`.trim() : null;
-
-      const { error } = await supabase.from('machine_calls').insert({
-        machine_id: machineCallModal.id,
-        called_role: role === 'qc' ? 'quality' : role,
-        operator_name: operatorName,
-        called_employee_id: employeeId || null,
-        called_employee_name: empName || null,
-        status: 'pending'
+      await createMachineCall({
+        machineId: machineCallModal.id,
+        role: role === 'qc' ? 'quality' : role,
+        operatorName,
+        employeeId
       });
-      if (error) throw error;
 
       const label = role === 'master' ? 'Майстра' : role === 'engineer' ? 'Інженера' : 'ВКЯ';
       setMachineCallSuccess(`Виклик для ${label} надіслано!`);

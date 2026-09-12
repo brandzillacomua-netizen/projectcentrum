@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../../supabase'
+import { createMachineCall } from '../../../services/machineCallService'
 import { isMachineMatch } from '../../../utils/cutterCalculator'
 import scannerDebounceGuard, { triggerHapticAudioFeedback } from '../../../services/scannerDebounceGuard'
 
@@ -110,17 +111,12 @@ export const useOperatorTerminalData = ({
   const handleCreateCall = async (role, employeeId = null) => {
     try {
       const operatorName = selectedOperator || 'Оператор терміналу'
-      const emp = (systemUsers || []).find(u => u.id === employeeId)
-      const empName = emp ? `${emp.first_name || ''} ${emp.last_name || ''}`.trim() : null
-      const { error } = await supabase.from('machine_calls').insert({
-        machine_id: machineCallModal.id,
-        called_role: role === 'qc' ? 'quality' : role,
-        operator_name: operatorName,
-        called_employee_id: employeeId || null,
-        called_employee_name: empName || null,
-        status: 'pending'
+      await createMachineCall({
+        machineId: machineCallModal.id,
+        role: role === 'qc' ? 'quality' : role,
+        operatorName,
+        employeeId
       })
-      if (error) throw error
       const label = role === 'master' ? 'Майстра' : role === 'engineer' ? 'Інженера' : 'ВКЯ'
       setMachineCallSuccess(`Виклик для ${label} надіслано!`)
       setTimeout(() => {
