@@ -7,6 +7,7 @@ import { createProductionActions } from './contexts/useProduction'
 import { createWarehouseActions } from './contexts/useWarehouse'
 import { useAppTheme } from './contexts/useAppTheme'
 import { useUserPresence } from './contexts/useUserPresence'
+import { createContextSupportActions } from './contexts/contextSupportActions'
 import {
   formatUserName,
   selectFilteredManagerNames,
@@ -49,45 +50,11 @@ export const MESProvider = ({ children }) => {
     }
   }, [data.currentUser?.id])
 
-  // ── CUSTOMERS ──
-  const searchCustomers = async (query) => {
-    if (!query) return []
-    const { data: cData } = await supabase.from('customers').select('*').ilike('name', `%${query}%`).limit(20)
-    // IMPORTANT: do NOT call setCustomers here — that would replace the full
-    // cached list with just 5 search hits, breaking every other dropdown.
-    // Instead return the results for the caller to use locally.
-    return cData || []
-  }
-
-  const addTaskProject = async (project) => {
-    const payload = { ...project, created_by: data.currentUser?.login || 'system' }
-    const { data: rows, error } = await supabase.from('task_projects').insert([payload]).select()
-    if (!error && rows?.[0]) data.setTaskProjects(prev => prev.some(p => p.id === rows[0].id) ? prev : [rows[0], ...prev])
-    return { data: rows?.[0], error }
-  }
-
-  const updateTaskProject = async (id, updates) => {
-    data.setTaskProjects(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p))
-    if (updates.columns) {
-      try {
-        const saved = JSON.parse(localStorage.getItem('centrum_project_columns') || '{}')
-        saved[id] = updates.columns
-        localStorage.setItem('centrum_project_columns', JSON.stringify(saved))
-      } catch (e) {}
-    }
-    try {
-      const { data: rows, error } = await supabase.from('task_projects').update(updates).eq('id', id).select()
-      return { data: rows?.[0], error }
-    } catch (err) {
-      return { data: null, error: err }
-    }
-  }
-
-  const deleteTaskProject = async (id) => {
-    const { error } = await supabase.from('task_projects').delete().eq('id', id)
-    if (!error) data.setTaskProjects(prev => prev.filter(p => p.id !== id))
-    return { error }
-  }
+  const supportActions = createContextSupportActions({
+    client: supabase,
+    currentUser: data.currentUser,
+    setTaskProjects: data.setTaskProjects
+  })
 
   // ── WAREHOUSE ──
   const warehouseActions = createWarehouseActions({
@@ -145,11 +112,11 @@ export const MESProvider = ({ children }) => {
       ...authActions,
       ...warehouseActions,
       ...productionActions,
-      searchCustomers,
+      searchCustomers: supportActions.searchCustomers,
       addManagementTask: (p) => productionActions.addManagementTask(p, data.currentUser?.login),
-      addTaskProject,
-      updateTaskProject,
-      deleteTaskProject,
+      addTaskProject: supportActions.addTaskProject,
+      updateTaskProject: supportActions.updateTaskProject,
+      deleteTaskProject: supportActions.deleteTaskProject,
       confirmReceptionDoc: warehouseActions.confirmReception,
       totalProduced: data.productionData.totalProduced,
       totalScrapCount: data.productionData.totalScrap,
