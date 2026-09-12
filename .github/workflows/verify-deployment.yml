@@ -1,0 +1,45 @@
+name: CENTRUM MES — Production Release Verification
+
+on:
+  deployment_status:
+  workflow_dispatch:
+    inputs:
+      deployment_url:
+        description: Production URL to verify
+        required: true
+        default: https://projectcentrum88.vercel.app
+      expected_sha:
+        description: Full 40-character Git commit SHA
+        required: true
+
+permissions:
+  contents: read
+  deployments: read
+
+concurrency:
+  group: production-release-verification
+  cancel-in-progress: true
+
+jobs:
+  verify-production-release:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.deployment_status.state == 'success' &&
+       github.event.deployment.environment == 'Production')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      RELEASE_URL: ${{ github.event_name == 'workflow_dispatch' && inputs.deployment_url || github.event.deployment_status.environment_url }}
+      EXPECTED_RELEASE_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.expected_sha || github.event.deployment.sha }}
+
+    steps:
+      - name: Checkout verified source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Setup Node.js (20.x)
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20
+
+      - name: Verify deployed commit identity
+        run: npm run verify:deployment
