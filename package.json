@@ -21,6 +21,7 @@
     "smoke:production": "node --env-file=.env scripts/production-smoke.mjs",
     "smoke:atomic-transition": "node --env-file=.env scripts/smoke-atomic-transition-readonly.mjs",
     "verify:deployment": "node scripts/verify-deployed-release.mjs",
+    "backup:preflight": "node scripts/backup-restore-preflight.mjs",
     "audit:anon": "node --env-file=.env scripts/audit-anon-surface.mjs",
     "audit:access": "node scripts/audit-client-data-access.mjs",
     "audit:auth-bindings": "node --env-file=.env scripts/audit-auth-bindings.mjs",
