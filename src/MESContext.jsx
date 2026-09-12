@@ -5,7 +5,13 @@ import { useData } from './contexts/useData'
 import { createAuthActions } from './contexts/useAuth'
 import { createProductionActions } from './contexts/useProduction'
 import { createWarehouseActions } from './contexts/useWarehouse'
-import { filterReceptionOperators } from './utils/operatorFiltering'
+import {
+  formatUserName,
+  selectFilteredManagerNames,
+  selectFilteredOperatorNames,
+  selectManagerNames,
+  selectOperatorNames
+} from './contexts/userDirectorySelectors'
 
 const MESContext = createContext()
 
@@ -193,140 +199,12 @@ export const MESProvider = ({ children }) => {
     requests: data.requests
   })
 
-  const formatUserName = (u) => {
-    // Display as: Прізвище Ім'я (without position)
-    const lastName = (u.last_name || '').trim()
-    const firstName = (u.first_name || '').trim()
-    const fullName = [lastName, firstName].filter(Boolean).join(' ')
-    return (fullName || u.login || '').trim()
-  }
-
-  const operators = (data.systemUsers || [])
-    .filter(u => {
-      if (!u.position) return false
-      const pos = u.position.toLowerCase()
-      return ['оператор', 'галтовщик', 'пресов', 'пресув', 'маляр', 'слюсар', 'чистил', 'працівник', 'вкя', 'якост', 'підготов'].some(kw => pos.includes(kw))
-    })
-    .map(formatUserName)
-    .filter(Boolean)
-
-  const getFilteredOperators = (department, shift, stage = null) => {
-    let list = (data.systemUsers || [])
-    
-    // 1. Filter by Department
-    if (department) {
-      list = list.filter(u => u.department === department)
-    }
-    
-    // 2. Filter by Shift
-    if (shift && shift !== 'Без зміни') {
-      list = list.filter(u => u.shift === shift || u.shift === 'Без зміни')
-    }
-
-    // 3. Filter by Position / Stage assignment
-    if (stage) {
-      const stageLower = stage.toLowerCase()
-
-      if (stageLower === 'розкрій') {
-        list = list.filter(u => u.position && u.position.toLowerCase().includes('оператор'))
-      } else if (stageLower.includes('галтовка')) {
-        list = list.filter(u => u.position && u.position.toLowerCase().includes('галтовщик'))
-      } else if (stageLower === 'прийомка') {
-        list = filterReceptionOperators(data.systemUsers, shift, department)
-      } else if (stageLower === 'сортування') {
-        // Also include users from 'Сортування' department
-        const sortDept = (data.systemUsers || []).filter(u => {
-          if (shift && shift !== 'Без зміни') {
-            if (u.shift !== shift && u.shift !== 'Без зміни') return false
-          }
-          return u.department === 'Сортування'
-        })
-        list = list.filter(u => {
-          if (!u.position) return false
-          const pos = u.position.toLowerCase()
-          return pos.includes('сортув') || pos.includes('сортувал') || pos.includes('працівник')
-        })
-        const merged = [...list]
-        sortDept.forEach(u => { if (!merged.find(m => m.id === u.id)) merged.push(u) })
-        list = merged
-      } else if (stageLower === 'доопрацювання') {
-        const doopDept = (data.systemUsers || []).filter(u => {
-          if (shift && shift !== 'Без зміни') {
-            if (u.shift !== shift && u.shift !== 'Без зміни') return false
-          }
-          return u.department === 'Доопрацювання' || u.department === 'Відділ Доопрацювання'
-        })
-        list = list.filter(u => {
-          if (!u.position) return false
-          const pos = u.position.toLowerCase()
-          return pos.includes('слюсар') || pos.includes('майстер') || pos.includes('доопрац')
-        })
-        const merged = [...list]
-        doopDept.forEach(u => { if (!merged.find(m => m.id === u.id)) merged.push(u) })
-        list = merged
-      } else if (stageLower === 'фарбування') {
-        list = list.filter(u => u.position && u.position.toLowerCase().includes('маляр'))
-      } else if (stageLower === 'пресування') {
-        list = list.filter(u => u.position && (u.position.toLowerCase().includes('прес') || u.position.toLowerCase().includes('пресув')))
-      } else if (stageLower === 'підготовка') {
-        list = list.filter(u => u.position && (
-          u.position.toLowerCase().includes('працівник вп') || 
-          u.position.toLowerCase().includes('підготов') ||
-          u.department === 'Відділ Підготовки'
-        ))
-      } else {
-        list = list.filter(u => {
-          if (!u.position) return false
-          const pos = u.position.toLowerCase()
-          return ['оператор', 'галтовщик', 'пресов', 'пресув', 'маляр', 'слюсар', 'чистил', 'працівник', 'вкя', 'якост', 'підготов'].some(kw => pos.includes(kw))
-        })
-      }
-    } else {
-      list = list.filter(u => {
-        if (!u.position) return false
-        const pos = u.position.toLowerCase()
-        return ['оператор', 'галтовщик', 'пресов', 'пресув', 'маляр', 'слюсар', 'чистил', 'працівник', 'вкя', 'якост', 'підготов'].map(kw => kw === 'преsuв' ? 'пресув' : kw).some(kw => pos.includes(kw))
-      })
-    }
-
-    // Sort alphabetically by last_name, then first_name
-    list = list.sort((a, b) => {
-      const aName = (a.last_name || '').localeCompare(b.last_name || '', 'uk') ||
-                    (a.first_name || '').localeCompare(b.first_name || '', 'uk')
-      return aName
-    })
-    return list.map(formatUserName).filter(Boolean)
-  }
-
-  const getFilteredManagers = (department) => {
-    let list = (data.systemUsers || [])
-    if (department) {
-      list = list.filter(u => !u.department || u.department === department || u.department === 'Керівництво')
-    }
-    return list
-      .filter(u => {
-        if (!u.position) return false
-        const pos = u.position.toLowerCase()
-        return pos.includes('майстер') ||
-               pos.includes('нач') ||
-               pos.includes('директор') ||
-               pos.includes('адмін')
-      })
-      .map(formatUserName)
-      .filter(Boolean)
-  }
-
-  const managers = (data.systemUsers || [])
-    .filter(u => {
-      if (!u.position) return false
-      const pos = u.position.toLowerCase()
-      return pos.includes('майстер') ||
-             pos.includes('нач') ||
-             pos.includes('директор') ||
-             pos.includes('адмін')
-    })
-    .map(formatUserName)
-    .filter(Boolean)
+  const operators = selectOperatorNames(data.systemUsers)
+  const getFilteredOperators = (department, shift, stage = null) => (
+    selectFilteredOperatorNames(data.systemUsers, department, shift, stage)
+  )
+  const getFilteredManagers = department => selectFilteredManagerNames(data.systemUsers, department)
+  const managers = selectManagerNames(data.systemUsers)
   const productionStages = ["Підготовка", "Розкрій", "Галтовка", "Пресування", "Фарбування", "Паквання"]
 
   return (
