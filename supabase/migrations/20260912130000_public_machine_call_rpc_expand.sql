@@ -136,7 +136,7 @@ BEGIN
       AND su.auth_user_id IS NOT NULL
       AND CASE p_called_role
         WHEN 'master' THEN
-          su.access_rights @> ANY (ARRAY['{"master": true}'::JSONB, '{"foreman": true}'::JSONB)
+          su.access_rights @> ANY (ARRAY['{"master": true}'::JSONB, '{"foreman": true}'::JSONB])
           OR COALESCE(su.position, '') ILIKE '%майстер%'
         WHEN 'engineer' THEN
           su.access_rights @> '{"engineer": true}'::JSONB
@@ -205,4 +205,3 @@ REVOKE ALL ON FUNCTION public.rpc_public_machine_call_context(UUID) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.rpc_public_create_machine_call(UUID, TEXT, TEXT, BIGINT) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.rpc_public_machine_call_context(UUID) TO anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.rpc_public_create_machine_call(UUID, TEXT, TEXT, BIGINT) TO anon, authenticated, service_role;
-

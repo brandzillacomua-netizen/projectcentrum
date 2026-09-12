@@ -7,7 +7,7 @@
  * Перевіряє:
  * 1. Відповідність імен файлів стандарту хронології (ISO timestamp префікси).
  * 2. Хронологічний порядок міграцій без дублювання таймстемпів.
- * 3. Базовий синтаксичний аудит (закриття $$ блоків, безпечність DROP операцій).
+ * 3. Базовий синтаксичний аудит (закриття $$ блоків/ARRAY[], безпечність DROP операцій).
  * 4. Відсутність порожніх або битих файлів міграцій.
  */
 
@@ -76,6 +76,17 @@ for (const file of files) {
   const dollarMatches = content.match(/\$\$/g);
   if (dollarMatches && dollarMatches.length % 2 !== 0) {
     console.error(`❌ [Syntax Error] Незбалансовані $$ теги у функції: ${file}`);
+    hasErrors = true;
+  }
+
+  const structuralContent = content
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/--.*$/gm, '')
+    .replace(/'(?:''|[^'])*'/gs, "''");
+  const openSquareBrackets = (structuralContent.match(/\[/g) || []).length;
+  const closeSquareBrackets = (structuralContent.match(/\]/g) || []).length;
+  if (openSquareBrackets !== closeSquareBrackets) {
+    console.error(`❌ [Syntax Error] Незбалансовані квадратні дужки у ${file}: ${openSquareBrackets} відкрито / ${closeSquareBrackets} закрито`);
     hasErrors = true;
   }
 

@@ -66,6 +66,7 @@ describe('P0 enterprise security boundaries', () => {
 
     expect(expand).toContain('pg_advisory_xact_lock')
     expect(expand).toContain("p_called_role NOT IN ('master', 'engineer', 'quality')")
+    expect(expand).toContain(`ANY (ARRAY['{"master": true}'::JSONB, '{"foreman": true}'::JSONB])`)
     expect(contract).toContain('REVOKE ALL PRIVILEGES ON TABLE public.machine_calls FROM anon')
     expect(lockdown).toContain('REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM anon')
     expect(lockdown).toContain('REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA public FROM PUBLIC, anon')
