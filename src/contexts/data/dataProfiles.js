@@ -273,25 +273,6 @@ export const fetchActiveWorkCards = async () => {
   return { data: uniqueCards, error: null }
 }
 
-export const fetchAllRows = async (table, { orderBy = 'created_at', ascending = false, pageSize = 1000 } = {}) => {
-  const allRows = []
-
-  for (let from = 0; ; from += pageSize) {
-    const { data, error } = await supabase
-      .from(table)
-      .select('*')
-      .order(orderBy, { ascending })
-      .range(from, from + pageSize - 1)
-
-    if (error) return { data: allRows.length > 0 ? allRows : null, error }
-    const page = data || []
-    allRows.push(...page)
-    if (page.length < pageSize) break
-  }
-
-  const uniqueRows = Array.from(new Map(allRows.map(row => [String(row.id), row])).values())
-  return { data: uniqueRows, error: null }
-}
 
 export const fetchOperationalMaterialRequests = async ({ completedLimit = 200 } = {}) => {
   const pageSize = 1000  // was 500 — halves the number of sequential round-trips

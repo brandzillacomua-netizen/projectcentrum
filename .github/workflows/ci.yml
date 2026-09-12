@@ -37,6 +37,9 @@ jobs:
       - name: Enforce RLS Migration Boundaries
         run: npm run security:rls
 
+      - name: Enforce Client Data-Access Contract
+        run: npm run security:access-contract
+
       - name: Audit Production Dependencies
         run: npm run security:audit
 
