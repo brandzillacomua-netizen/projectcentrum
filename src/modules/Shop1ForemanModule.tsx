@@ -9,7 +9,7 @@ import { StaffManagementView } from './Shop1/components/StaffManagementView'
 import { useShop1ForemanData } from './Shop1/hooks/useShop1ForemanData'
 import './Shop1/Shop1ForemanStyles.css'
 
-export default function Shop1ForemanModule() {
+export const Shop1ForemanModule: React.FC = () => {
   const {
     activeTab,
     setActiveTab,
@@ -43,7 +43,6 @@ export default function Shop1ForemanModule() {
     setNariadNomFilter,
     nariadSortBy,
     setNariadSortBy,
-    nariadDetailModal,
     setNariadDetailModal,
     nariadCatalogLoading,
     nariadCatalogTotal,
@@ -71,7 +70,7 @@ export default function Shop1ForemanModule() {
     inventory,
     machineOperations,
     formatUserName
-  } = useShop1ForemanData()
+  }: any = useShop1ForemanData()
 
   return (
     <div className="shop1-foreman-module">
@@ -165,3 +164,5 @@ export default function Shop1ForemanModule() {
     </div>
   )
 }
+
+export default Shop1ForemanModule

@@ -1,17 +1,17 @@
 import React from 'react'
 import { AlertTriangle, X } from 'lucide-react'
-import { usePressingTerminalData } from './Pressing/hooks/usePressingTerminalData.js'
+import { usePaintingTerminalData, ACCENT_RGB } from './Painting/hooks/usePaintingTerminalData.js'
 
-import PressingTerminalHeader from './Pressing/components/PressingTerminalHeader.jsx'
-import PressingTerminalScannerBar from './Pressing/components/PressingTerminalScannerBar.jsx'
-import PressingTerminalFilters from './Pressing/components/PressingTerminalFilters.jsx'
-import PressingTerminalCardList from './Pressing/components/PressingTerminalCardList.jsx'
-import PressingTerminalFloatingControls from './Pressing/components/PressingTerminalFloatingControls.jsx'
-import PressingStartConfirmModal from './Pressing/components/modals/PressingStartConfirmModal.jsx'
-import PressingCompleteModal from './Pressing/components/modals/PressingCompleteModal.jsx'
-import PressingQRScannerModal from './Pressing/components/modals/PressingQRScannerModal.jsx'
+import PaintingTerminalHeader from './Painting/components/PaintingTerminalHeader'
+import PaintingTerminalScannerBar from './Painting/components/PaintingTerminalScannerBar'
+import PaintingTerminalFilters from './Painting/components/PaintingTerminalFilters'
+import PaintingTerminalCardList from './Painting/components/PaintingTerminalCardList'
+import PaintingTerminalFloatingControls from './Painting/components/PaintingTerminalFloatingControls'
+import PaintingStartConfirmModal from './Painting/components/modals/PaintingStartConfirmModal'
+import PaintingCompleteModal from './Painting/components/modals/PaintingCompleteModal'
+import PaintingQRScannerModal from './Painting/components/modals/PaintingQRScannerModal'
 
-export default function PressingTerminal() {
+export const PaintingTerminal: React.FC = () => {
   const {
     currentTime,
     selectedShift,
@@ -37,28 +37,28 @@ export default function PressingTerminal() {
     filterMode,
     setFilterMode,
     getNom,
-    startPressingCard,
+    startPaintingCard,
     openCompleteModal,
-    submitPressingComplete,
+    submitPaintingComplete,
     handleManualSubmit,
     formatDuration,
     waitingCards,
     inWorkCards,
     displayedCards
-  } = usePressingTerminalData()
+  }: any = usePaintingTerminalData()
 
   return (
     <div style={{ background: 'var(--bg, #070709)', minHeight: '100vh', color: 'var(--text, #fff)', fontFamily: "'Outfit', 'Inter', sans-serif", display: 'flex', flexDirection: 'column' }}>
 
       {/* HEADER */}
-      <PressingTerminalHeader
+      <PaintingTerminalHeader
         currentTime={currentTime}
         selectedShift={selectedShift}
         setSelectedShift={setSelectedShift}
       />
 
       {/* SCANNER BAR */}
-      <PressingTerminalScannerBar
+      <PaintingTerminalScannerBar
         setIsScanning={setIsScanning}
         manualId={manualId}
         setManualId={setManualId}
@@ -81,7 +81,7 @@ export default function PressingTerminal() {
         <section style={{ flex: 1, background: 'var(--card-bg, #0c0c10)', borderRadius: '24px', border: '1px solid var(--glass-border, rgba(255,255,255,0.03))', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           
           {/* Filter tabs */}
-          <PressingTerminalFilters
+          <PaintingTerminalFilters
             filterMode={filterMode}
             setFilterMode={setFilterMode}
             waitingCards={waitingCards}
@@ -89,7 +89,7 @@ export default function PressingTerminal() {
           />
 
           {/* Cards List */}
-          <PressingTerminalCardList
+          <PaintingTerminalCardList
             displayedCards={displayedCards}
             getNom={getNom}
             formatDuration={formatDuration}
@@ -101,16 +101,16 @@ export default function PressingTerminal() {
       </main>
 
       {/* CONFIRM START MODAL */}
-      <PressingStartConfirmModal
+      <PaintingStartConfirmModal
         pendingStartCard={pendingStartCard}
         onClose={() => setPendingStartCard(null)}
-        startPressingCard={startPressingCard}
+        startPaintingCard={startPaintingCard}
         getNom={getNom}
         isProcessing={isProcessing}
       />
 
       {/* COMPLETE MODAL */}
-      <PressingCompleteModal
+      <PaintingCompleteModal
         showCompleteModal={showCompleteModal}
         activeCompletingCard={activeCompletingCard}
         onClose={() => setShowCompleteModal(false)}
@@ -118,13 +118,13 @@ export default function PressingTerminal() {
         setFinishedCount={setFinishedCount}
         scrapCount={scrapCount}
         setScrapCount={setScrapCount}
-        submitPressingComplete={submitPressingComplete}
+        submitPaintingComplete={submitPaintingComplete}
         getNom={getNom}
         isProcessing={isProcessing}
       />
 
       {/* QR-SCANNER MODAL */}
-      <PressingQRScannerModal
+      <PaintingQRScannerModal
         isScanning={isScanning}
         setIsScanning={setIsScanning}
         showManualInput={showManualInput}
@@ -138,7 +138,7 @@ export default function PressingTerminal() {
       />
 
       {/* Floating Controls (Search and QR) */}
-      <PressingTerminalFloatingControls
+      <PaintingTerminalFloatingControls
         manualId={manualId}
         setManualId={setManualId}
         handleManualSubmit={handleManualSubmit}
@@ -282,3 +282,5 @@ export default function PressingTerminal() {
     </div>
   )
 }
+
+export default PaintingTerminal

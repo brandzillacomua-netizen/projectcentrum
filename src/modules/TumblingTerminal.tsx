@@ -2,15 +2,15 @@ import React from 'react'
 import { AlertTriangle, X } from 'lucide-react'
 import { useTumblingTerminalData } from './Tumbling/hooks/useTumblingTerminalData.js'
 
-import TumblingTerminalHeader from './Tumbling/components/TumblingTerminalHeader.jsx'
-import TumblingTerminalFilters from './Tumbling/components/TumblingTerminalFilters.jsx'
-import TumblingTerminalCardList from './Tumbling/components/TumblingTerminalCardList.jsx'
-import TumblingTerminalFloatingControls from './Tumbling/components/TumblingTerminalFloatingControls.jsx'
-import TumblingStartConfirmModal from './Tumbling/components/modals/TumblingStartConfirmModal.jsx'
-import TumblingCompleteModal from './Tumbling/components/modals/TumblingCompleteModal.jsx'
-import TumblingQRScannerModal from './Tumbling/components/modals/TumblingQRScannerModal.jsx'
+import TumblingTerminalHeader from './Tumbling/components/TumblingTerminalHeader'
+import TumblingTerminalFilters from './Tumbling/components/TumblingTerminalFilters'
+import TumblingTerminalCardList from './Tumbling/components/TumblingTerminalCardList'
+import TumblingTerminalFloatingControls from './Tumbling/components/TumblingTerminalFloatingControls'
+import TumblingStartConfirmModal from './Tumbling/components/modals/TumblingStartConfirmModal'
+import TumblingCompleteModal from './Tumbling/components/modals/TumblingCompleteModal'
+import TumblingQRScannerModal from './Tumbling/components/modals/TumblingQRScannerModal'
 
-export default function TumblingTerminal() {
+export const TumblingTerminal: React.FC = () => {
   const {
     currentTime,
     selectedShift,
@@ -50,7 +50,7 @@ export default function TumblingTerminal() {
     priorityMap,
     bottleneckNomenclaturesMap,
     orderKits
-  } = useTumblingTerminalData()
+  }: any = useTumblingTerminalData()
 
   return (
     <div style={{ background: 'var(--bg, #070709)', minHeight: '100vh', color: 'var(--text, #fff)', fontFamily: "'Outfit', 'Inter', sans-serif", display: 'flex', flexDirection: 'column' }}>
@@ -265,3 +265,5 @@ export default function TumblingTerminal() {
     </div>
   )
 }
+
+export default TumblingTerminal

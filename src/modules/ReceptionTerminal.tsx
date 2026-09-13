@@ -1,16 +1,15 @@
 import React from 'react'
-import { useSortingTerminalData } from './Sorting/hooks/useSortingTerminalData'
-import SortingTerminalHeader from './Sorting/components/SortingTerminalHeader'
-import SortingTerminalScannerBar from './Sorting/components/SortingTerminalScannerBar'
-import SortingTerminalFilters from './Sorting/components/SortingTerminalFilters'
-import SortingTerminalCardList from './Sorting/components/SortingTerminalCardList'
-import SortingStartConfirmModal from './Sorting/components/modals/SortingStartConfirmModal'
-import SortingCompleteModal from './Sorting/components/modals/SortingCompleteModal'
-import SortingQRScannerModal from './Sorting/components/modals/SortingQRScannerModal'
+import { useReceptionTerminalData, ACCENT_RGB } from './Reception/hooks/useReceptionTerminalData.js'
 
-const ACCENT_RGB = '52,211,153'
+import ReceptionTerminalHeader from './Reception/components/ReceptionTerminalHeader'
+import ReceptionTerminalScannerBar from './Reception/components/ReceptionTerminalScannerBar'
+import ReceptionTerminalFilters from './Reception/components/ReceptionTerminalFilters'
+import ReceptionTerminalCardList from './Reception/components/ReceptionTerminalCardList'
+import ReceptionStartConfirmModal from './Reception/components/modals/ReceptionStartConfirmModal'
+import ReceptionCompleteModal from './Reception/components/modals/ReceptionCompleteModal'
+import ReceptionQRScannerModal from './Reception/components/modals/ReceptionQRScannerModal'
 
-export default function SortingTerminal() {
+export const ReceptionTerminal: React.FC = () => {
   const {
     currentTime,
     selectedShift,
@@ -29,8 +28,6 @@ export default function SortingTerminal() {
     activeCompletingCard,
     scrapCount,
     setScrapCount,
-    reworkCount,
-    setReworkCount,
     finishedCount,
     setFinishedCount,
     pendingStartCard,
@@ -38,96 +35,96 @@ export default function SortingTerminal() {
     filterMode,
     setFilterMode,
     getNom,
-    startSortingCard,
+    startReceptionCard,
     openCompleteModal,
-    submitSortingComplete,
+    submitReceptionComplete,
     handleManualSubmit,
     formatDuration,
     waitingCards,
     inWorkCards,
     displayedCards
-  } = useSortingTerminalData()
+  }: any = useReceptionTerminalData()
 
   return (
-    <div className="sorting-terminal terminal-module-root" style={{ background: '#070709', minHeight: '100vh', color: '#fff', fontFamily: "'Outfit', 'Inter', sans-serif", display: 'flex', flexDirection: 'column' }}>
+    <div style={{ background: 'var(--bg, #070709)', minHeight: '100vh', color: 'var(--text, #fff)', fontFamily: "'Outfit', 'Inter', sans-serif", display: 'flex', flexDirection: 'column' }}>
 
       {/* HEADER */}
-      <SortingTerminalHeader
+      <ReceptionTerminalHeader
+        currentTime={currentTime}
         selectedShift={selectedShift}
         setSelectedShift={setSelectedShift}
-        currentTime={currentTime}
       />
 
       {/* SCANNER BAR */}
-      <SortingTerminalScannerBar
+      <ReceptionTerminalScannerBar
+        setIsScanning={setIsScanning}
         manualId={manualId}
         setManualId={setManualId}
-        isProcessing={isProcessing}
+        handleManualSubmit={handleManualSubmit}
         scanError={scanError}
         setScanError={setScanError}
-        setIsScanning={setIsScanning}
-        handleManualSubmit={handleManualSubmit}
+        isProcessing={isProcessing}
       />
 
       {/* MAIN */}
       <main style={{ flex: 1, padding: '24px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <section style={{ flex: 1, background: '#0c0c10', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.03)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <section style={{ flex: 1, background: 'var(--card-bg, #0c0c10)', borderRadius: '24px', border: '1px solid var(--glass-border, rgba(255,255,255,0.03))', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          
           {/* Filter tabs */}
-          <SortingTerminalFilters
+          <ReceptionTerminalFilters
             filterMode={filterMode}
             setFilterMode={setFilterMode}
-            waitingCount={waitingCards.length}
-            inWorkCount={inWorkCards.length}
+            waitingCards={waitingCards}
+            inWorkCards={inWorkCards}
           />
 
           {/* Cards List */}
-          <SortingTerminalCardList
+          <ReceptionTerminalCardList
             displayedCards={displayedCards}
             getNom={getNom}
             formatDuration={formatDuration}
-            isProcessing={isProcessing}
             setPendingStartCard={setPendingStartCard}
             openCompleteModal={openCompleteModal}
+            isProcessing={isProcessing}
           />
         </section>
       </main>
 
       {/* CONFIRM START MODAL */}
-      <SortingStartConfirmModal
+      <ReceptionStartConfirmModal
         pendingStartCard={pendingStartCard}
-        setPendingStartCard={setPendingStartCard}
-        isProcessing={isProcessing}
-        startSortingCard={startSortingCard}
+        onClose={() => setPendingStartCard(null)}
+        startReceptionCard={startReceptionCard}
         getNom={getNom}
+        isProcessing={isProcessing}
       />
 
       {/* COMPLETE MODAL */}
-      <SortingCompleteModal
+      <ReceptionCompleteModal
         showCompleteModal={showCompleteModal}
-        setShowCompleteModal={setShowCompleteModal}
         activeCompletingCard={activeCompletingCard}
-        isProcessing={isProcessing}
-        getNom={getNom}
+        onClose={() => setShowCompleteModal(false)}
         finishedCount={finishedCount}
         setFinishedCount={setFinishedCount}
         scrapCount={scrapCount}
         setScrapCount={setScrapCount}
-        reworkCount={reworkCount}
-        setReworkCount={setReworkCount}
-        submitSortingComplete={submitSortingComplete}
+        submitReceptionComplete={submitReceptionComplete}
+        getNom={getNom}
+        isProcessing={isProcessing}
       />
 
       {/* QR Scanner Modal */}
-      <SortingQRScannerModal
+      <ReceptionQRScannerModal
         isScanning={isScanning}
         setIsScanning={setIsScanning}
         showManualInput={showManualInput}
         setShowManualInput={setShowManualInput}
         manualId={manualId}
         setManualId={setManualId}
-        isProcessing={isProcessing}
         handleManualSubmit={handleManualSubmit}
+        scanError={scanError}
         setScanError={setScanError}
+        isProcessing={isProcessing}
       />
 
       <style dangerouslySetInnerHTML={{ __html: `
@@ -143,3 +140,5 @@ export default function SortingTerminal() {
     </div>
   )
 }
+
+export default ReceptionTerminal
