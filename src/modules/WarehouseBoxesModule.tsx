@@ -7,7 +7,7 @@ import { MaterialDetailModal } from './Warehouse/components/MaterialDetailModal.
 import { ManualInventoryIssueUI, ManualIssueJournalButton } from './Warehouse/ManualIssue/ManualInventoryIssueUI.jsx'
 import { useWarehouseBoxesData } from './Warehouse/hooks/useWarehouseBoxesData.jsx'
 
-const WarehouseBoxesModule = () => {
+export const WarehouseBoxesModule: React.FC = () => {
   const {
     nomenclatures,
     checkedCutters,
@@ -41,7 +41,7 @@ const WarehouseBoxesModule = () => {
     nomenclatureGroups,
     toggleGroup,
     handleBoxCardScan
-  } = useWarehouseBoxesData()
+  }: any = useWarehouseBoxesData()
 
   return (
     <div className="warehouse-boxes-module" style={{ background: '#080808', minHeight: '100vh', color: '#fff', display: 'flex', flexDirection: 'column', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
@@ -74,10 +74,10 @@ const WarehouseBoxesModule = () => {
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <ManualIssueJournalButton onClick={manualIssue.openJournal} compact={isMobile} />
           <span style={{ fontSize: '0.68rem', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', padding: '3px 8px', borderRadius: '6px', fontWeight: 950 }}>
-            ЗІБРАНО: {allBoxes.filter(b => b.isPrepared).length}/{allBoxes.length}
+            ЗІБРАНО: {allBoxes.filter((b: any) => b.isPrepared).length}/{allBoxes.length}
           </span>
           <span style={{ fontSize: '0.68rem', background: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6', padding: '3px 8px', borderRadius: '6px', fontWeight: 950 }}>
-            ВИДАНО: {allBoxes.filter(b => b.isIssued).length}/{allBoxes.length}
+            ВИДАНО: {allBoxes.filter((b: any) => b.isIssued).length}/{allBoxes.length}
           </span>
         </div>
       </nav>
@@ -156,7 +156,7 @@ const WarehouseBoxesModule = () => {
                 <span style={{ background: '#181818', color: '#aaa', fontSize: '0.7rem', padding: '2px 8px', borderRadius: '6px' }}>{allBoxes.length}</span>
               </button>
 
-              {orderList.map(ord => (
+              {orderList.map((ord: any) => (
                 <button
                   key={ord.orderNum}
                   onClick={() => setSelectedOrderNum(ord.orderNum)}
@@ -220,7 +220,7 @@ const WarehouseBoxesModule = () => {
                   }}
                 >
                   <option value="all">Усі наряди ({allBoxes.length} шт)</option>
-                  {orderList.map(ord => (
+                  {orderList.map((ord: any) => (
                     <option key={ord.orderNum} value={ord.orderNum}>
                       #{ord.orderNum} ({ord.pending > 0 ? `Очікує: ${ord.pending}` : 'Зібрано'})
                     </option>
@@ -308,7 +308,7 @@ const WarehouseBoxesModule = () => {
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '10px' : '14px', paddingBottom: isMobile ? '86px' : '20px' }}>
-              {nomenclatureGroups.map(group => {
+              {nomenclatureGroups.map((group: any) => {
                 const isExpanded = !!expandedGroups[group.key]
                 const progress = group.items.length ? Math.round((group.prepared / group.items.length) * 100) : 0
 
@@ -355,8 +355,8 @@ const WarehouseBoxesModule = () => {
                       </span>
                       <span style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
                         <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', whiteSpace: 'nowrap' }}>
-                          <strong style={{ fontSize: '0.78rem', color: group.items.filter(b => b.isIssued).length === group.items.length ? '#3b82f6' : group.pending ? '#ff9000' : '#10b981' }}>
-                            Зібр: {group.prepared}/{group.items.length} • Вид: {group.items.filter(b => b.isIssued).length}
+                          <strong style={{ fontSize: '0.78rem', color: group.items.filter((b: any) => b.isIssued).length === group.items.length ? '#3b82f6' : group.pending ? '#ff9000' : '#10b981' }}>
+                            Зібр: {group.prepared}/{group.items.length} • Вид: {group.items.filter((b: any) => b.isIssued).length}
                           </strong>
                           <span style={{ fontSize: '0.54rem', color: '#777', fontWeight: 800, textTransform: 'uppercase' }}>статус комплектації</span>
                         </span>
@@ -372,9 +372,9 @@ const WarehouseBoxesModule = () => {
                         padding: isMobile ? '10px' : '14px',
                         borderTop: '1px solid #242424'
                       }}>
-                        {group.items.map(boxItem => {
+                        {group.items.map((boxItem: any) => {
                           const cardId = boxItem.card.id
-                          const isAllChecked = boxItem.cutters.every(c => checkedCutters[cardId]?.[c.nomenclature_id])
+                          const isAllChecked = boxItem.cutters.every((c: any) => checkedCutters[cardId]?.[c.nomenclature_id])
                           const isSheetChecked = !!checkedSheets[cardId] || boxItem.isPrepared
                           const canSubmit = isAllChecked && isSheetChecked
 
@@ -443,7 +443,7 @@ const WarehouseBoxesModule = () => {
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                   {/* Sheets check */}
                                   <div 
-                                    onClick={() => !boxItem.isPrepared && setCheckedSheets(prev => ({ ...prev, [cardId]: !prev[cardId] }))}
+                                    onClick={() => !boxItem.isPrepared && setCheckedSheets((prev: any) => ({ ...prev, [cardId]: !prev[cardId] }))}
                                     style={{ 
                                       display: 'flex', 
                                       alignItems: 'center', 
@@ -473,7 +473,7 @@ const WarehouseBoxesModule = () => {
                                   </div>
 
                                   {/* Cutters checks */}
-                                  {boxItem.cutters.map(cutter => {
+                                  {boxItem.cutters.map((cutter: any) => {
                                     const isChecked = !!checkedCutters[cardId]?.[cutter.nomenclature_id] || boxItem.isPrepared
                                     return (
                                       <div 

@@ -16,7 +16,7 @@ import { useSupplyData } from './Supply/hooks/useSupplyData.jsx'
 
 export { getQR, setQR }
 
-const SupplyModule = ({ isProcurementOnly = false }) => {
+export const SupplyModuleV2: React.FC<{ isProcurementOnly?: boolean }> = ({ isProcurementOnly = false }) => {
   const {
     inventory,
     nomenclatures,
@@ -111,7 +111,7 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
     handleDeletePrepRequestGroup,
     handleDeletePurchaseRequest,
     handleAcceptReceptionDoc
-  } = useSupplyData({ isProcurementOnly })
+  }: any = useSupplyData({ isProcurementOnly })
 
   return (
     <div className="supply-module-v2" style={{ background: 'var(--card-inner-bg, #0a0a0a)', minHeight: '100vh', color: 'var(--text-color, #fff)', display: 'flex', flexDirection: 'column' }}>
@@ -245,7 +245,7 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
           nomenclatures={nomenclatures}
           isProcessing={processingDocs.has(receptionDocToAccept.id)}
           onClose={() => setReceptionDocToAccept(null)}
-          onConfirm={(payload) => handleAcceptReceptionDoc(receptionDocToAccept, payload)}
+          onConfirm={(payload: any) => handleAcceptReceptionDoc(receptionDocToAccept, payload)}
         />
       )}
 
@@ -298,4 +298,4 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
   )
 }
 
-export default SupplyModule
+export default SupplyModuleV2

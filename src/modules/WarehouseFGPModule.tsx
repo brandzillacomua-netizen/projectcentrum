@@ -1,39 +1,18 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react'
+import React, { useState, useMemo } from 'react'
 import {
   Archive,
-  ArrowLeft,
   Package,
   Layers,
   AlertTriangle,
-  CheckCircle2,
   History,
-  Search,
-  Plus,
-  Trash2,
-  Pencil,
-  Truck,
-  ExternalLink,
-  ShieldCheck,
-  Eye,
-  Wrench,
-  Check,
-  Box,
-  Clock,
-  User,
-  ChevronDown,
-  ChevronUp,
-  ChevronsUpDown,
-  Filter,
-  RefreshCw,
-  ClipboardList
+  Wrench
 } from 'lucide-react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import { useMES } from '../MESContext'
 import { useStore } from '../store/index.js'
 import { supabase } from '../supabase'
-import { IconSO, IconSGP } from '../components/WarehouseIcons'
+import { IconSGP } from '../components/WarehouseIcons'
 import { ReserveAnalysisModal } from './Warehouse/components/ReserveAnalysisModal.jsx'
-import { isHardware, normalizeKey } from './WarehouseFGP/warehouseFgpInventory.js'
 import { useWarehouseTheme } from './WarehouseFGP/hooks/useWarehouseTheme.js'
 import { useWarehouseRealtime } from './WarehouseFGP/hooks/useWarehouseRealtime.js'
 import { useShop2Buffer } from './WarehouseFGP/hooks/useShop2Buffer.js'
@@ -42,31 +21,31 @@ import { useInventoryGrouping } from './WarehouseFGP/hooks/useInventoryGrouping.
 import { PackagingQueueTab } from './WarehouseFGP/components/PackagingQueueTab.jsx'
 import { InventoryView } from './WarehouseFGP/components/InventoryView.jsx'
 
-export default function WarehouseFGPModule() {
+export const WarehouseFGPModule: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams()
   const {
     refreshTable,
     fetchData,
     theme
-  } = useMES()
+  }: any = useMES()
 
-  const inventory = useStore(state => state.inventory)
-  const requests = useStore(state => state.requests)
-  const nomenclatures = useStore(state => state.nomenclatures)
-  const orders = useStore(state => state.orders)
-  const tasks = useStore(state => state.tasks)
-  const workCards = useStore(state => state.workCards)
-  const workCardHistory = useStore(state => state.workCardHistory)
-  const currentUser = useStore(state => state.currentUser)
+  const inventory = useStore((state: any) => state.inventory)
+  const requests = useStore((state: any) => state.requests)
+  const nomenclatures = useStore((state: any) => state.nomenclatures)
+  const orders = useStore((state: any) => state.orders)
+  const tasks = useStore((state: any) => state.tasks)
+  const workCards = useStore((state: any) => state.workCards)
+  const workCardHistory = useStore((state: any) => state.workCardHistory)
+  const currentUser = useStore((state: any) => state.currentUser)
 
   const { isDark, t } = useWarehouseTheme(theme)
 
-  const [requestQueueTab, setRequestQueueTab] = useState('active') // 'active' | 'all' | 'history'
-  const { liveRequests, isRefreshingQueue, fetchQueueFromDb } = useWarehouseRealtime(fetchData)
+  const [requestQueueTab, setRequestQueueTab] = useState<'active' | 'all' | 'history'>('active')
+  const { liveRequests, isRefreshingQueue, fetchQueueFromDb }: any = useWarehouseRealtime(fetchData)
 
-  const [viewMode, setViewMode] = useState(() => searchParams.get('mode') || 'requests') // 'requests' | 'inventory'
+  const [viewMode, setViewMode] = useState<string>(() => searchParams.get('mode') || 'requests')
   const [requestSearchQuery, setRequestSearchQuery] = useState('')
-  const [activeTab, setActiveTab] = useState(() => {
+  const [activeTab, setActiveTab] = useState<string>(() => {
     const tabParam = searchParams.get('tab')
     if (tabParam === 'bz') return 'finished'
     if (tabParam === 'semi') return 'shop2_buffer'
@@ -76,8 +55,8 @@ export default function WarehouseFGPModule() {
   const [showAdd, setShowAdd] = useState(false)
   const [newItem, setNewItem] = useState({ name: '', total_qty: '', unit: 'шт', type: 'finished' })
 
-  const [orderStatusFilter, setOrderStatusFilter] = useState('all') // 'all' | 'ready' | 'shortage'
-  const [reserveAnalysisItem, setReserveAnalysisItem] = useState(null)
+  const [orderStatusFilter, setOrderStatusFilter] = useState<'all' | 'ready' | 'shortage'>('all')
+  const [reserveAnalysisItem, setReserveAnalysisItem] = useState<any>(null)
 
   const isAdmin = currentUser?.login === 'admin@workshop.local' || currentUser?.role === 'admin' || currentUser?.role === 'director' || (currentUser?.position || '').toLowerCase().includes('адмін')
 
@@ -96,14 +75,13 @@ export default function WarehouseFGPModule() {
     shop2BufferTaskGroups,
     filteredShop2BufferTaskGroups,
     shop2BufferConsolidatedItems
-  } = useShop2Buffer({ tasks, workCards, orders, nomenclatures, searchQuery })
+  }: any = useShop2Buffer({ tasks, workCards, orders, nomenclatures, searchQuery })
 
   const {
-    rawTabItems,
     groupedItems,
     filteredItems,
     tabCounts
-  } = useInventoryGrouping({
+  }: any = useInventoryGrouping({
     inventory,
     activeTab,
     nomenclatures,
@@ -128,7 +106,7 @@ export default function WarehouseFGPModule() {
     completedPackagingRequests,
     allPackagingRequests,
     pendingPackagingRequests
-  } = usePackagingQueue({
+  }: any = usePackagingQueue({
     liveRequests,
     requests,
     orders,
@@ -143,7 +121,7 @@ export default function WarehouseFGPModule() {
     refreshTable
   })
 
-  const handleAddInventoryItem = async (e) => {
+  const handleAddInventoryItem = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newItem.name.trim() || !newItem.total_qty) return
     try {
@@ -159,7 +137,7 @@ export default function WarehouseFGPModule() {
       if (typeof refreshTable === 'function') refreshTable('inventory')
       setNewItem({ name: '', total_qty: '', unit: 'шт', type: 'finished' })
       setShowAdd(false)
-    } catch (err) {
+    } catch (err: any) {
       alert(`Помилка створення: ${err.message}`)
     }
   }
@@ -167,8 +145,8 @@ export default function WarehouseFGPModule() {
   const orderStats = useMemo(() => {
     let ready = 0
     let shortage = 0
-    groupedPackagingRequests.forEach(group => {
-      const isAllReady = group.items.every(req => {
+    groupedPackagingRequests.forEach((group: any) => {
+      const isAllReady = group.items.every((req: any) => {
         const dName = getItemDisplayName(req)
         const stock = getSgpStock(req, dName)
         return stock >= (Number(req.quantity) || 0)
@@ -180,20 +158,20 @@ export default function WarehouseFGPModule() {
   }, [groupedPackagingRequests, inventory, nomenclatures])
 
   const filteredOrderGroups = useMemo(() => {
-    return groupedPackagingRequests.filter(group => {
+    return groupedPackagingRequests.filter((group: any) => {
       if (requestSearchQuery.trim()) {
         const q = requestSearchQuery.toLowerCase()
         const matches = String(group.orderNum).toLowerCase().includes(q) || (group.customer || '').toLowerCase().includes(q)
         if (!matches) return false
       }
       if (orderStatusFilter === 'ready') {
-        return group.items.every(req => {
+        return group.items.every((req: any) => {
           const dName = getItemDisplayName(req)
           return getSgpStock(req, dName) >= (Number(req.quantity) || 0)
         })
       }
       if (orderStatusFilter === 'shortage') {
-        return group.items.some(req => {
+        return group.items.some((req: any) => {
           const dName = getItemDisplayName(req)
           return getSgpStock(req, dName) < (Number(req.quantity) || 0)
         })
@@ -392,7 +370,6 @@ export default function WarehouseFGPModule() {
         refreshTable={refreshTable}
       />
 
-
       {reserveAnalysisItem && (
         <ReserveAnalysisModal
           item={reserveAnalysisItem}
@@ -406,3 +383,5 @@ export default function WarehouseFGPModule() {
     </div>
   )
 }
+
+export default WarehouseFGPModule
