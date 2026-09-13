@@ -45,6 +45,24 @@ function runDocker(args, env = process.env) {
   return output
 }
 
+export function runReadOnlyProductionSql(sql, env = process.env) {
+  const validation = validateProductionDatabaseUrl(env.PRODUCTION_DATABASE_URL)
+  if (!validation.ok) throw new Error(validation.error)
+  const childEnv = {
+    ...env,
+    PGOPTIONS: '-c default_transaction_read_only=on',
+    MES_READONLY_SQL: sql
+  }
+  return runDocker([
+    'run', '--rm',
+    '--env', 'PRODUCTION_DATABASE_URL',
+    '--env', 'PGOPTIONS',
+    '--env', 'MES_READONLY_SQL',
+    'postgres:17.6-alpine',
+    'sh', '-c', 'psql --dbname="$PRODUCTION_DATABASE_URL" -X -v ON_ERROR_STOP=1 -Atc "$MES_READONLY_SQL"'
+  ], childEnv)
+}
+
 function parseJsonOutput(output) {
   const line = output.split(/\r?\n/).find(value => value.trim().startsWith('{'))
   if (!line) throw new Error(`Metrics query returned no JSON: ${output}`)
@@ -52,19 +70,7 @@ function parseJsonOutput(output) {
 }
 
 function collectProductionMetrics(env) {
-  const childEnv = {
-    ...env,
-    PGOPTIONS: '-c default_transaction_read_only=on',
-    MES_METRICS_SQL: METRICS_SQL
-  }
-  return parseJsonOutput(runDocker([
-    'run', '--rm',
-    '--env', 'PRODUCTION_DATABASE_URL',
-    '--env', 'PGOPTIONS',
-    '--env', 'MES_METRICS_SQL',
-    'postgres:17.6-alpine',
-    'sh', '-c', 'psql --dbname="$PRODUCTION_DATABASE_URL" -X -v ON_ERROR_STOP=1 -Atc "$MES_METRICS_SQL"'
-  ], childEnv))
+  return parseJsonOutput(runReadOnlyProductionSql(METRICS_SQL, env))
 }
 
 function collectRestoredMetrics() {
