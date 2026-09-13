@@ -83,10 +83,14 @@ export function useShippingData() {
     }
   }, [orders])
 
-  // 2. Fetch missing orders from Supabase into persistent cache
+  // 2. Fetch missing orders ONLY for relevant shipping tasks from Supabase into persistent cache
   useEffect(() => {
     if (!tasks || tasks.length === 0 || !supabase) return
-    const orderIds = Array.from(new Set(tasks.map(t => t.order_id).filter(Boolean)))
+    const shippingTasks = tasks.filter(t =>
+      t.plan_snapshot?._metadata?.is_packaged === true ||
+      t.plan_snapshot?._metadata?.is_shipped === true
+    )
+    const orderIds = Array.from(new Set(shippingTasks.map(t => t.order_id).filter(Boolean)))
     const missingIds = orderIds.filter(id => !ordersCacheRef.current[id])
 
     if (missingIds.length > 0) {
@@ -112,10 +116,27 @@ export function useShippingData() {
     }
   }, [tasks, supabase])
 
-  // 3. Stable list of all known orders
+  // 3. Stable list of all known orders and fast lookup maps
   const allKnownOrders = useMemo(() => {
     return Object.values(ordersCacheRef.current)
   }, [cacheVer])
+
+  const orderMap = useMemo(() => {
+    const map = new Map()
+    allKnownOrders.forEach(o => {
+      if (o?.id) map.set(String(o.id), o)
+      if (o?.order_num) map.set(String(o.order_num), o)
+    })
+    return map
+  }, [allKnownOrders])
+
+  const nomMap = useMemo(() => {
+    const map = new Map()
+    ;(nomenclatures || []).forEach(n => {
+      if (n?.id) map.set(String(n.id), n)
+    })
+    return map
+  }, [nomenclatures])
 
   // Список відвантажувальників
   const shippingWorkers = useMemo(() =>
@@ -153,11 +174,7 @@ export function useShippingData() {
     return Object.values(batchMap).map(taskList => {
       const t = taskList[0]
       const meta = t.plan_snapshot?._metadata || {}
-      const order = allKnownOrders.find(o =>
-        String(o.id) === String(t.order_id) ||
-        String(o.order_num) === String(t.order_id) ||
-        (meta.order_num && String(o.order_num) === String(meta.order_num))
-      )
+      const order = orderMap.get(String(t.order_id)) || (meta.order_num ? orderMap.get(String(meta.order_num)) : null)
       
       let resolvedOrderNum = order?.order_num || meta.order_num || meta.order_number || t.order_num || t.order_number
       if (!resolvedOrderNum) {
@@ -185,7 +202,7 @@ export function useShippingData() {
       let productNames = ''
       if (order && Array.isArray(order.order_items) && order.order_items.length > 0) {
         productNames = order.order_items.map(it => {
-          const nom = (nomenclatures || []).find(n => String(n.id) === String(it.nomenclature_id))
+          const nom = nomMap.get(String(it.nomenclature_id))
           return nom?.name || it.nomenclature_name || it.name || ''
         }).filter(Boolean).join(', ')
       }
@@ -197,7 +214,7 @@ export function useShippingData() {
       }
       if (!productNames) {
         const names = taskList.map(tk => {
-          const nom = (nomenclatures || []).find(n => String(n.id) === String(tk.nomenclature_id))
+          const nom = nomMap.get(String(tk.nomenclature_id))
           return nom?.name || tk.name || tk.title || ''
         }).filter(Boolean)
         productNames = Array.from(new Set(names)).slice(0, 3).join(', ')
@@ -229,7 +246,7 @@ export function useShippingData() {
         batchColor: meta.batch_color || '',
       }
     })
-  }, [tasks, allKnownOrders, nomenclatures])
+  }, [tasks, orderMap, nomMap])
 
   // Відвантажені партії (для архіву)
   const shippedBatches = useMemo(() => {
@@ -242,14 +259,18 @@ export function useShippingData() {
       if (!batchMap[key]) batchMap[key] = []
       batchMap[key].push(t)
     })
-    return Object.values(batchMap).map(taskList => {
+    
+    // Sort raw batch taskLists by shipped_at descending BEFORE mapping, and slice top 30
+    const sortedTaskLists = Object.values(batchMap).sort((a, b) => {
+      const dateA = a[0]?.plan_snapshot?._metadata?.shipped_at || a[0]?.completed_at || a[0]?.updated_at || ''
+      const dateB = b[0]?.plan_snapshot?._metadata?.shipped_at || b[0]?.completed_at || b[0]?.updated_at || ''
+      return dateB.localeCompare(dateA)
+    }).slice(0, 30)
+
+    return sortedTaskLists.map(taskList => {
       const t = taskList[0]
       const meta = t.plan_snapshot?._metadata || {}
-      const order = allKnownOrders.find(o =>
-        String(o.id) === String(t.order_id) ||
-        String(o.order_num) === String(t.order_id) ||
-        (meta.order_num && String(o.order_num) === String(meta.order_num))
-      )
+      const order = orderMap.get(String(t.order_id)) || (meta.order_num ? orderMap.get(String(meta.order_num)) : null)
       
       let resolvedOrderNum = order?.order_num || meta.order_num || meta.order_number || t.order_num || t.order_number
       if (!resolvedOrderNum) {
@@ -277,7 +298,7 @@ export function useShippingData() {
       let productNames = ''
       if (order && Array.isArray(order.order_items) && order.order_items.length > 0) {
         productNames = order.order_items.map(it => {
-          const nom = (nomenclatures || []).find(n => String(n.id) === String(it.nomenclature_id))
+          const nom = nomMap.get(String(it.nomenclature_id))
           return nom?.name || it.nomenclature_name || it.name || ''
         }).filter(Boolean).join(', ')
       }
@@ -289,7 +310,7 @@ export function useShippingData() {
       }
       if (!productNames) {
         const names = taskList.map(tk => {
-          const nom = (nomenclatures || []).find(n => String(n.id) === String(tk.nomenclature_id))
+          const nom = nomMap.get(String(tk.nomenclature_id))
           return nom?.name || tk.name || tk.title || ''
         }).filter(Boolean)
         productNames = Array.from(new Set(names)).slice(0, 3).join(', ')
@@ -321,9 +342,8 @@ export function useShippingData() {
         batchColor: meta.batch_color || '',
         packingSlipNumber: meta.packing_slip_number || null,
       }
-    }).sort((a, b) => (b.shippedAt || '').localeCompare(a.shippedAt || ''))
-      .slice(0, 20)
-  }, [tasks, allKnownOrders, nomenclatures])
+    })
+  }, [tasks, orderMap, nomMap])
 
   // ─── Завантаження коробок з БД ────────────────────────────────────────────
   const loadBoxes = useCallback(async (batch) => {

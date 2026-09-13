@@ -79,6 +79,12 @@ export const ShippingModule: React.FC = () => {
     handleViewPackingSlip
   }: any = useShippingData()
 
+  const [visibleReadyCount, setVisibleReadyCount] = React.useState(15)
+
+  const visibleReadyBatches = React.useMemo(() => {
+    return readyBatches.slice(0, visibleReadyCount)
+  }, [readyBatches, visibleReadyCount])
+
   return (
     <div className="shipping-module-v2 shipping-module-container" style={{ background: 'var(--bg, #050505)', minHeight: '100vh', color: 'var(--text, #e2e8f0)', display: 'flex', flexDirection: 'column', fontFamily: 'Inter, system-ui, sans-serif' }}>
 
@@ -111,7 +117,7 @@ export const ShippingModule: React.FC = () => {
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {readyBatches.map((batch: any) => (
+              {visibleReadyBatches.map((batch: any) => (
                 <ReadyBatchCard
                   key={`${batch.orderId}_${batch.batchIndex}`}
                   batch={batch}
@@ -119,6 +125,43 @@ export const ShippingModule: React.FC = () => {
                   isProcessing={isProcessing}
                 />
               ))}
+
+              {readyBatches.length > visibleReadyCount && (
+                <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', marginTop: '10px' }}>
+                  <button
+                    onClick={() => setVisibleReadyCount(prev => prev + 15)}
+                    style={{
+                      background: 'rgba(255, 144, 0, 0.12)',
+                      border: '1px solid rgba(255, 144, 0, 0.3)',
+                      color: '#ff9000',
+                      padding: '12px 20px',
+                      borderRadius: '14px',
+                      fontWeight: 800,
+                      fontSize: '0.8rem',
+                      cursor: 'pointer',
+                      transition: '0.2s'
+                    }}
+                  >
+                    Показати ще 15 партій (Залишилось {readyBatches.length - visibleReadyCount})
+                  </button>
+                  <button
+                    onClick={() => setVisibleReadyCount(readyBatches.length)}
+                    style={{
+                      background: 'transparent',
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      color: 'var(--text-secondary, #888)',
+                      padding: '12px 18px',
+                      borderRadius: '14px',
+                      fontWeight: 700,
+                      fontSize: '0.8rem',
+                      cursor: 'pointer',
+                      transition: '0.2s'
+                    }}
+                  >
+                    Показати всі ({readyBatches.length})
+                  </button>
+                </div>
+              )}
 
               {readyBatches.length === 0 && (
                 <div style={{ textAlign: 'center', padding: '80px 40px', color: '#222' }}>
