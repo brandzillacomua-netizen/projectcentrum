@@ -73,10 +73,12 @@ export function usePackagingData() {
 
       const all = [...(active || []), ...(completed || [])]
       const unique = Array.from(new Map(all.map(t => [t.id, t])).values())
-      setLocalTasks(unique)
+      const unpackagedTasks = unique.filter(t => t.plan_snapshot?._metadata?.is_packaged !== true)
+      
+      setLocalTasks(unpackagedTasks)
       localTasksLoadedRef.current = true
 
-      const orderIds = [...new Set(unique.map(t => t.order_id).filter(Boolean))]
+      const orderIds = [...new Set(unpackagedTasks.map(t => t.order_id).filter(Boolean))]
       if (orderIds.length > 0) {
         const chunkSize = 50
         const chunks = []

@@ -109,10 +109,12 @@ export function useDataFetchers(state: any) {
       return { ...result, profileKey }
     }
 
-    const fulfillmentResult = await fetchFulfillmentTasks(supabase, normalizedPath)
-    if (fulfillmentResult.error) return fulfillmentResult
+    const [fulfillmentResult, operationalResult] = await Promise.all([
+      fetchFulfillmentTasks(supabase, normalizedPath),
+      fetchActiveTasksOnly()
+    ])
 
-    const operationalResult = await fetchActiveTasksOnly()
+    if (fulfillmentResult.error) return fulfillmentResult
     if (operationalResult.error) return operationalResult
 
     return {
@@ -281,12 +283,13 @@ export function useDataFetchers(state: any) {
         const data = requireData(taskResult)
         if ((taskResult as any).profileKey !== getTaskDataProfileKey(normalizedPathRef?.current || normalizedPath)) return
         if (data) {
-          const hydrationResult = await hydrateOrdersForTaskRows(data)
-          if (hydrationResult.error) throw hydrationResult.error
           setTasks((prev: any[]) => {
             return isFulfillmentRoute(normalizedPath)
               ? reconcileFulfillmentTaskRows(prev, data, normalizedPath)
               : mergeTaskRows(prev, data)
+          })
+          hydrateOrdersForTaskRows(data).catch(err => {
+            console.warn('[dataFetchers] Background order hydration error:', err)
           })
         }
       } else if (tableName === 'orders') {
