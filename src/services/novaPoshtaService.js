@@ -88,24 +88,52 @@ export const testNpApiKey = async (customKey = null) => {
   }
 }
 
+const NP_CACHE_PREFIX = 'NP_CACHE_V1_'
+const NP_CACHE_TTL_MS = 24 * 60 * 60 * 1000 // 24 hours
+
+const getCachedNp = (key) => {
+  try {
+    const raw = sessionStorage.getItem(NP_CACHE_PREFIX + key)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    if (Date.now() - (parsed.ts || 0) < NP_CACHE_TTL_MS) {
+      return parsed.data
+    }
+  } catch { /* ignore storage error */ }
+  return null
+}
+
+const setCachedNp = (key, data) => {
+  try {
+    sessionStorage.setItem(NP_CACHE_PREFIX + key, JSON.stringify({ ts: Date.now(), data }))
+  } catch { /* ignore storage error */ }
+}
+
 /**
  * Search cities/settlements by name
  */
 export const searchNpCities = async (cityName, customKey = null) => {
   if (!cityName || cityName.trim().length < 2) return []
+  const normName = cityName.trim().toLowerCase()
+  const cacheKey = `cities_${normName}`
+  const cached = getCachedNp(cacheKey)
+  if (cached) return cached
+
   try {
     const data = await callNpApi('Address', 'searchSettlements', {
       CityName: cityName.trim(),
       Limit: '20'
     }, customKey)
     const items = data?.[0]?.Addresses || []
-    return items.map(c => ({
+    const mapped = items.map(c => ({
       ref: c.DeliveryCity || c.Ref,
       mainDescription: c.MainDescription,
       area: c.Area,
       region: c.Region,
       fullName: `${c.MainDescription} (${c.Area} обл.)`
     }))
+    setCachedNp(cacheKey, mapped)
+    return mapped
   } catch (err) {
     console.warn('[NovaPoshta] searchCities error:', err)
     return []
@@ -117,6 +145,10 @@ export const searchNpCities = async (cityName, customKey = null) => {
  */
 export const fetchNpWarehouses = async (cityRef, cityName = '', customKey = null) => {
   if (!cityRef && !cityName) return []
+  const cacheKey = `wh_${cityRef || cityName}`
+  const cached = getCachedNp(cacheKey)
+  if (cached) return cached
+
   try {
     let data = null
     if (cityRef) {
@@ -130,7 +162,7 @@ export const fetchNpWarehouses = async (cityRef, cityName = '', customKey = null
         data = await callNpApi('Address', 'getWarehouses', { CityName: cleanName, Limit: '500' }, customKey)
       }
     }
-    return (data || []).map(w => ({
+    const mapped = (data || []).map(w => ({
       ref: w.Ref,
       number: String(w.Number),
       description: w.Description,
@@ -138,6 +170,8 @@ export const fetchNpWarehouses = async (cityRef, cityName = '', customKey = null
       phone: w.Phone,
       categoryOfWarehouse: w.CategoryOfWarehouse
     }))
+    setCachedNp(cacheKey, mapped)
+    return mapped
   } catch (err) {
     console.warn('[NovaPoshta] fetchWarehouses error:', err)
     return []
@@ -148,6 +182,10 @@ export const fetchNpWarehouses = async (cityRef, cityName = '', customKey = null
  * Fetch Sender details (Counterparty, Address/Warehouse, Contact Person)
  */
 export const fetchSenderDetails = async (customKey = null) => {
+  const cacheKey = 'sender_details'
+  const cached = getCachedNp(cacheKey)
+  if (cached) return cached
+
   try {
     const counterparties = await callNpApi('Counterparty', 'getCounterparties', { CounterpartyProperty: 'Sender' }, customKey)
     if (!counterparties || counterparties.length === 0) return null
@@ -156,7 +194,7 @@ export const fetchSenderDetails = async (customKey = null) => {
     const contacts = await callNpApi('Counterparty', 'getCounterpartyContactPersons', { Ref: sender.Ref }, customKey)
     const addresses = await callNpApi('Counterparty', 'getCounterpartyAddresses', { Ref: sender.Ref, CounterpartyProperty: 'Sender' }, customKey)
 
-    return {
+    const result = {
       senderRef: sender.Ref,
       senderName: sender.Description,
       contacts: contacts || [],
@@ -166,6 +204,8 @@ export const fetchSenderDetails = async (customKey = null) => {
       addresses: addresses || [],
       addressRef: addresses?.[0]?.Ref || ''
     }
+    setCachedNp(cacheKey, result)
+    return result
   } catch (err) {
     console.warn('[NovaPoshta] fetchSenderDetails error:', err)
     throw err

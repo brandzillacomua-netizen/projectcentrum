@@ -13,6 +13,8 @@ import { SettingsUsersTab } from './Settings/components/SettingsUsersTab'
 import { SettingsStructureTab } from './Settings/components/SettingsStructureTab'
 import { SettingsSystemAdminTab } from './Settings/components/SettingsSystemAdminTab'
 import { SettingsSnapshotCorrTab } from './Settings/components/SettingsSnapshotCorrTab'
+import { SettingsAuditLogTab } from './Settings/components/SettingsAuditLogTab'
+import { ShieldAlert } from 'lucide-react'
 
 const SettingsModule = () => {
   const state = useSettingsState()
@@ -80,6 +82,11 @@ const SettingsModule = () => {
              </button>
            )}
            {isAdmin && (
+             <button onClick={() => setActiveTab('audit')} className={`tab-btn-v2 ${activeTab === 'audit' ? 'active' : ''}`}>
+               <ShieldAlert size={16} /> ЖУРНАЛ АУДИТУ БЕЗПЕКИ
+             </button>
+           )}
+           {isAdmin && (
              <button onClick={() => setActiveTab('corrections')} className={`tab-btn-v2 ${activeTab === 'corrections' ? 'active' : ''}`}>
                <Sliders size={16} /> КОРЕКЦІЯ СНАПШОТІВ
              </button>
@@ -101,7 +108,12 @@ const SettingsModule = () => {
           <SettingsSystemAdminTab {...state} />
         )}
 
-        {/* ── TAB 4: SNAPSHOT CORRECTIONS ── */}
+        {/* ── TAB 4: SECURITY AUDIT LOG ── */}
+        {activeTab === 'audit' && isAdmin && (
+          <SettingsAuditLogTab systemUsers={state.systemUsers || []} />
+        )}
+
+        {/* ── TAB 5: SNAPSHOT CORRECTIONS ── */}
         {activeTab === 'corrections' && isAdmin && (
           <SettingsSnapshotCorrTab {...state} />
         )}

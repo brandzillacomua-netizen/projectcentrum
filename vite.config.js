@@ -10,6 +10,11 @@ export default defineConfig({
   ],
   server: {
     proxy: {
+      '/api': {
+        target: process.env.VITE_VERCEL_DEV_URL || 'https://centrumbox.vercel.app',
+        changeOrigin: true,
+        secure: false
+      },
       '/fortnet-api': {
         target: 'http://192.168.1.100:8090',
         changeOrigin: true,

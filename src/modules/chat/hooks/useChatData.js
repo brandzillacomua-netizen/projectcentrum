@@ -554,6 +554,9 @@ export const useChatData = () => {
     if (!silent) setLoadingThreads(true)
     setError('')
     try {
+      const { data: sessionData } = await supabase.auth.getSession()
+      if (!sessionData?.session) return
+
       const { data: myParticipantRows, error: participantError } = await supabase
         .from('chat_participants')
         .select('*')

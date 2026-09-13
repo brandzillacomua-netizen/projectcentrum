@@ -79,7 +79,8 @@ export function useDataFetchers(state) {
     productionSummaryInFlightRef,
     fullFetchInFlightRef,
     initialFetchCompletedUserIdRef,
-    currentUserIdRef
+    currentUserIdRef,
+    lastSyncTimestampRef
   } = state
 
   const normalize = (s) => (s || '').toLowerCase().trim()
@@ -508,6 +509,7 @@ export function useDataFetchers(state) {
           .filter(tableName => bootstrapResultByTable.has(tableName))
           .every(tableName => Array.isArray(bootstrapResultByTable.get(tableName)))
         const bootstrapCompletedAt = Date.now()
+        if (lastSyncTimestampRef) lastSyncTimestampRef.current = bootstrapCompletedAt
         bootstrapResults.forEach(([tableName, data]) => {
           if (Array.isArray(data)) targetRefreshLastRef.current[getTargetRefreshKey(tableName)] = bootstrapCompletedAt
         })

@@ -68,6 +68,8 @@ export const useUserPresence = (userId, client) => {
     const heartbeat = createPresenceHeartbeat({
       userId,
       touchPresence: async id => {
+        const { data: sessionData } = await client.auth.getSession()
+        if (!sessionData?.session) return
         const { error } = await client.rpc('rpc_touch_user_presence', { p_user_id: id })
         if (error) throw error
       }

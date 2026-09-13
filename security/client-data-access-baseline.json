@@ -62,6 +62,7 @@
     "scrap_classifications": ["select"],
     "scrap_reasons": ["select"],
     "scrap_report_by_reason": ["select"],
+    "system_access_logs": ["select"],
     "system_configs": ["select", "upsert"],
     "system_users": ["select", "update"],
     "task_projects": ["delete", "insert", "select", "update"],

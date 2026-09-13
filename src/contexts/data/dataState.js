@@ -189,9 +189,12 @@ export function useDataState() {
   // ── Incremental Catch-up on reconnect ──
   const performIncrementalCatchUp = useCallback(async (targetTables = []) => {
     if (!targetTables || targetTables.length === 0) return { failedTables: [] }
-    const baseTime = lastSyncTimestampRef.current || Date.now()
-    const lastSyncISO = new Date(baseTime - 5000).toISOString()
-    lastSyncTimestampRef.current = Date.now()
+    const now = Date.now()
+    // Fallback to 10 minutes ago if lastSyncTimestampRef was never initialized
+    const baseTime = lastSyncTimestampRef.current > 0 ? lastSyncTimestampRef.current : (now - 10 * 60 * 1000)
+    // 10-second safety overlap window to ensure no race conditions at boundary
+    const lastSyncISO = new Date(Math.max(0, baseTime - 10000)).toISOString()
+    lastSyncTimestampRef.current = now
 
     console.info(`[CatchUpSync] Performing incremental catch-up for tables [${targetTables.join(', ')}] since ${lastSyncISO}...`)
 
@@ -289,17 +292,20 @@ export function useDataState() {
   useEffect(() => {
     if (!currentUser?.id) return undefined
 
-    supabase.from('system_configs').select('*').eq('key', 'maintenance_check_enabled').maybeSingle()
-      .then(({ data }) => {
-        if (data && data.value) {
-          const val = data.value.enabled === true
-          setMaintenanceCheckEnabled(val)
-          localStorage.setItem('maintenance_check_enabled', String(val))
-        }
-      })
-      .catch(e => {
-        console.warn('system_configs table not created yet or inaccessible:', e)
-      })
+    supabase.auth.getSession().then(({ data: sessionData }) => {
+      if (!sessionData?.session) return
+      supabase.from('system_configs').select('*').eq('key', 'maintenance_check_enabled').maybeSingle()
+        .then(({ data }) => {
+          if (data && data.value) {
+            const val = data.value.enabled === true
+            setMaintenanceCheckEnabled(val)
+            localStorage.setItem('maintenance_check_enabled', String(val))
+          }
+        })
+        .catch(e => {
+          console.warn('system_configs table not created yet or inaccessible:', e)
+        })
+    }).catch(() => {})
   }, [currentUser?.id])
 
   // ── Session Verification & User State ──
@@ -551,6 +557,6 @@ export function useDataState() {
     initialFetchScheduleRef, currentUserIdRef, cacheTimerRef, matReqPushBufferRef,
     lastVisibilityRefreshRef, initialFetchTimerRef, visibilityRefreshTimerRef,
     nomenclaturesRef, bomItemsRef, nomenclaturesLoadedRef, bomItemsLoadedRef,
-    normalizedPathRef
+    normalizedPathRef, lastSyncTimestampRef
   }
 }

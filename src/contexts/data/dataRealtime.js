@@ -38,7 +38,8 @@ export function useDataRealtime(state, fetchers) {
     tasksRef,
     ordersRef,
     matReqPushBufferRef,
-    targetRefreshLastRef
+    targetRefreshLastRef,
+    lastSyncTimestampRef
   } = state
 
   const { refreshProductionSummary, fetchData, getTargetRefreshKey } = fetchers

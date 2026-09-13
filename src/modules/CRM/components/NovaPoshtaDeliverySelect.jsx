@@ -361,20 +361,25 @@ export const NovaPoshtaDeliverySelect = ({
                 }}
               />
               {showCityHints && citySuggestions.length > 0 && (
-                <div style={{
-                  position: 'absolute',
-                  top: '100%',
-                  left: 0,
-                  right: 0,
-                  zIndex: 100,
-                  marginTop: '4px',
-                  maxHeight: '200px',
-                  overflowY: 'auto',
-                  background: 'var(--card-bg, #ffffff)',
-                  border: '1px solid var(--glass-border)',
-                  borderRadius: '12px',
-                  boxShadow: '0 10px 25px rgba(0,0,0,0.2)'
-                }}>
+                <div
+                  onMouseDown={(e) => e.preventDefault()}
+                  style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    right: 0,
+                    zIndex: 100,
+                    marginTop: '4px',
+                    maxHeight: '220px',
+                    overflowY: 'auto',
+                    WebkitOverflowScrolling: 'touch',
+                    overscrollBehavior: 'contain',
+                    background: 'var(--card-bg, #ffffff)',
+                    border: '1px solid var(--glass-border)',
+                    borderRadius: '12px',
+                    boxShadow: '0 10px 25px rgba(0,0,0,0.2)'
+                  }}
+                >
                   {citySuggestions.map((c, i) => (
                     <div
                       key={i}
@@ -439,20 +444,25 @@ export const NovaPoshtaDeliverySelect = ({
                   }}
                 />
                 {showStreetHints && streetSuggestions.length > 0 && (
-                  <div style={{
-                    position: 'absolute',
-                    top: '100%',
-                    left: 0,
-                    right: 0,
-                    zIndex: 100,
-                    marginTop: '4px',
-                    maxHeight: '180px',
-                    overflowY: 'auto',
-                    background: 'var(--card-bg, #ffffff)',
-                    border: '1px solid var(--glass-border)',
-                    borderRadius: '12px',
-                    boxShadow: '0 10px 25px rgba(0,0,0,0.2)'
-                  }}>
+                  <div
+                    onMouseDown={(e) => e.preventDefault()}
+                    style={{
+                      position: 'absolute',
+                      top: '100%',
+                      left: 0,
+                      right: 0,
+                      zIndex: 100,
+                      marginTop: '4px',
+                      maxHeight: '180px',
+                      overflowY: 'auto',
+                      WebkitOverflowScrolling: 'touch',
+                      overscrollBehavior: 'contain',
+                      background: 'var(--card-bg, #ffffff)',
+                      border: '1px solid var(--glass-border)',
+                      borderRadius: '12px',
+                      boxShadow: '0 10px 25px rgba(0,0,0,0.2)'
+                    }}
+                  >
                     {streetSuggestions.map((st, i) => (
                       <div
                         key={i}
@@ -501,20 +511,25 @@ export const NovaPoshtaDeliverySelect = ({
                   }}
                 />
                 {showWarehouseHints && filteredWarehouseSuggestions.length > 0 && (
-                  <div style={{
-                    position: 'absolute',
-                    top: '100%',
-                    left: 0,
-                    right: 0,
-                    zIndex: 100,
-                    marginTop: '4px',
-                    maxHeight: '200px',
-                    overflowY: 'auto',
-                    background: 'var(--card-bg, #ffffff)',
-                    border: '1px solid var(--glass-border)',
-                    borderRadius: '12px',
-                    boxShadow: '0 10px 25px rgba(0,0,0,0.2)'
-                  }}>
+                  <div
+                    onMouseDown={(e) => e.preventDefault()}
+                    style={{
+                      position: 'absolute',
+                      top: '100%',
+                      left: 0,
+                      right: 0,
+                      zIndex: 100,
+                      marginTop: '4px',
+                      maxHeight: '220px',
+                      overflowY: 'auto',
+                      WebkitOverflowScrolling: 'touch',
+                      overscrollBehavior: 'contain',
+                      background: 'var(--card-bg, #ffffff)',
+                      border: '1px solid var(--glass-border)',
+                      borderRadius: '12px',
+                      boxShadow: '0 10px 25px rgba(0,0,0,0.2)'
+                    }}
+                  >
                     {filteredWarehouseSuggestions.map((wh, i) => (
                       <div
                         key={i}
