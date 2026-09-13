@@ -9,15 +9,15 @@ export default [
   },
   js.configs.recommended,
   {
-    files: ['src/**/*.{js,jsx,ts,tsx}'],
+    files: ['src/**/*.{js,jsx}'],
     ...reactHooks.configs.flat.recommended
   },
   {
-    files: ['src/**/*.{js,jsx,ts,tsx}'],
+    files: ['src/**/*.{js,jsx}'],
     ...reactRefresh.configs.vite
   },
   {
-    files: ['src/**/*.{js,jsx,ts,tsx}'],
+    files: ['src/**/*.{js,jsx}'],
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module',
