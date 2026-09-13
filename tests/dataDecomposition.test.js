@@ -103,23 +103,15 @@ describe('useData Decomposition Parity & Structure', () => {
     const expectedMethods = [
       'normalize',
       'fetchOrders',
+      'fetchUnifiedNomenclatures',
+      'refreshTable',
+      'triggerTargetedRefresh',
+      'fetchTasksForCurrentRoute',
+      'hydrateOrdersForTaskRows',
+      'getTargetRefreshKey',
       'fetchData',
       'fetchCritical',
-      'fetchModuleData',
-      'refreshProductionSummary',
-      'fetchTaskPlanSnapshot',
-      'fetchHistoryRange',
-      'fetchTaskArchiveCards',
-      'fetchCompletedManagementTasks',
-      'fetchCompletedManagementTasksCount',
-      'refreshTable',
-      'upsertCompanyStructure',
-      'deleteCompanyStructure',
-      'upsertCompanyPosition',
-      'deleteCompanyPosition',
-      'fetchTasksForCurrentRoute',
-      'getTargetRefreshKey',
-      'hydrateOrdersForTaskRows'
+      'refreshProductionSummary'
     ]
 
     expectedMethods.forEach(method => {

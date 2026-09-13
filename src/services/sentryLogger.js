@@ -1,6 +1,6 @@
 import * as Sentry from '@sentry/react'
 import { telegramNotifierService } from './alerting/telegramNotifierService.js'
-import { sanitizeTelemetry, sanitizeTelemetryString, telemetrySafeUrl } from '../utils/telemetrySanitizer.js'
+import { sanitizeTelemetry, sanitizeTelemetryString, telemetrySafeUrl } from '../utils/telemetrySanitizer'
 
 const MAX_BUFFER_SIZE = 20
 const ERROR_STORAGE_KEY = 'mes_recent_errors'

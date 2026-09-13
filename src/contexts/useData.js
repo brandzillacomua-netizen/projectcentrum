@@ -1,5 +1,5 @@
-import { useDataState } from './data/dataState.js'
-import { useDataFetchers } from './data/dataFetchers.js'
+import { useDataState } from './data/dataState'
+import { useDataFetchers } from './data/dataFetchers'
 import { useDataRealtime } from './data/dataRealtime.js'
 import { useDataLifecycle } from './data/dataLifecycle.js'
 

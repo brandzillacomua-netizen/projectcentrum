@@ -9,7 +9,7 @@
  * Maintains full backward compatibility with existing calls.
  */
 
-import { hasBeenProcessed, markAsProcessed } from './idempotencyService.js'
+import { hasBeenProcessed, markAsProcessed } from './idempotencyService'
 import { getIndexedCache, setIndexedCache } from './indexedDbCache.js'
 
 export interface OfflineMutation<T = unknown> {

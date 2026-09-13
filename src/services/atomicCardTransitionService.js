@@ -10,7 +10,7 @@
 
 import { supabase } from '../supabase.js'
 import { sentryLogger } from './sentryLogger.js'
-import { enqueueOfflineMutation } from './offlineQueueService.js'
+import { enqueueOfflineMutation } from './offlineQueueService'
 
 const isNetworkError = (err) => {
   if (typeof navigator !== 'undefined' && !navigator.onLine) return true

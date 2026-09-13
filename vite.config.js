@@ -1,10 +1,33 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import basicSsl from '@vitejs/plugin-basic-ssl'
+import fs from 'node:fs'
+import path from 'node:path'
+
+const tsFileResolverPlugin = () => ({
+  name: 'vite-plugin-ts-file-resolver',
+  resolveId(source, importer) {
+    if (importer && source.startsWith('.') && source.endsWith('.js')) {
+      const dir = path.dirname(importer)
+      const absolutePathWithoutExt = path.resolve(dir, source.slice(0, -3))
+
+      if (!fs.existsSync(absolutePathWithoutExt + '.js')) {
+        if (fs.existsSync(absolutePathWithoutExt + '.ts')) {
+          return absolutePathWithoutExt + '.ts'
+        }
+        if (fs.existsSync(absolutePathWithoutExt + '.tsx')) {
+          return absolutePathWithoutExt + '.tsx'
+        }
+      }
+    }
+    return null
+  }
+})
 
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
+    tsFileResolverPlugin(),
     react(),
     basicSsl()
   ],

@@ -10,7 +10,7 @@ const selectorPattern = /useStore\(state\s*=>\s*state\.([A-Za-z0-9_]+)/g
 const sourceFiles = directory => readdirSync(directory, { withFileTypes: true }).flatMap(entry => {
   const path = join(directory, entry.name)
   if (entry.isDirectory()) return sourceFiles(path)
-  return ['.js', '.jsx', '.mjs'].includes(extname(entry.name)) ? [path] : []
+  return ['.js', '.jsx', '.mjs', '.ts', '.tsx'].includes(extname(entry.name)) ? [path] : []
 })
 
 const selectedStoreKeys = () => {
@@ -36,7 +36,7 @@ describe('Zustand read-model contract', () => {
   })
 
   it('mirrors every selected read model from dataState', () => {
-    const dataStateSource = readFileSync(new URL('../src/contexts/data/dataState.js', import.meta.url), 'utf8')
+    const dataStateSource = readFileSync(new URL('../src/contexts/data/dataState.ts', import.meta.url), 'utf8')
     const syncBlock = dataStateSource.match(/useStore\.setState\(\{([\s\S]*?)\}\)/)?.[1] || ''
     const missingFromSync = selectedStoreKeys().filter(key => (
       key !== 'setStoreData' && !new RegExp(`\\b${key}\\b`).test(syncBlock)
