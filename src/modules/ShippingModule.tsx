@@ -8,7 +8,7 @@ import ShippingWorkModal from './Shipping/components/modals/ShippingWorkModal.js
 import NovaPoshtaTtnModal from './Shipping/components/modals/NovaPoshtaTtnModal.jsx'
 import PackingSlipModal from './Shipping/components/modals/PackingSlipModal.jsx'
 
-const ShippingModule = () => {
+export const ShippingModule: React.FC = () => {
   const {
     currentUser,
     activeMobileSection,
@@ -77,7 +77,7 @@ const ShippingModule = () => {
     packingSlip,
     setPackingSlip,
     handleViewPackingSlip
-  } = useShippingData()
+  }: any = useShippingData()
 
   return (
     <div className="shipping-module-v2 shipping-module-container" style={{ background: 'var(--bg, #050505)', minHeight: '100vh', color: 'var(--text, #e2e8f0)', display: 'flex', flexDirection: 'column', fontFamily: 'Inter, system-ui, sans-serif' }}>
@@ -111,7 +111,7 @@ const ShippingModule = () => {
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {readyBatches.map(batch => (
+              {readyBatches.map((batch: any) => (
                 <ReadyBatchCard
                   key={`${batch.orderId}_${batch.batchIndex}`}
                   batch={batch}
@@ -143,7 +143,7 @@ const ShippingModule = () => {
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {shippedBatches.map(batch => (
+              {shippedBatches.map((batch: any) => (
                 <ShippedBatchCard
                   key={`${batch.orderId}_${batch.batchIndex}`}
                   batch={batch}

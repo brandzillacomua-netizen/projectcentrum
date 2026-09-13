@@ -1,14 +1,15 @@
-import { ArrowLeft, CheckCircle2, ChevronLeft, ChevronRight, Clock3, CornerUpLeft, Play, RefreshCw, Search, ShieldCheck, Wrench, X } from 'lucide-react'
+import React from 'react'
+import { ArrowLeft, CheckCircle2, ChevronLeft, ChevronRight, Clock3, CornerUpLeft, Play, RefreshCw, Search, Wrench, X } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useVKYARestorationData } from './VKYA/hooks/useVKYARestorationData'
 
-const STATUS = {
+const STATUS: Record<string, { label: string; color: string }> = {
   new: { label: 'ОЧІКУЄ', color: '#f59e0b' },
   in_progress: { label: 'В РОБОТІ', color: '#06b6d4' },
   completed: { label: 'ЗАВЕРШЕНО', color: '#10b981' }
 }
 
-export default function VKYARestorationTerminal() {
+export const VKYARestorationTerminal: React.FC = () => {
   const {
     PAGE_SIZE,
     cards,
@@ -48,7 +49,7 @@ export default function VKYARestorationTerminal() {
     returnLegacyToBZ,
     dispatchToShop2,
     assignLegacyItem
-  } = useVKYARestorationData()
+  }: any = useVKYARestorationData()
 
   return <div style={{ minHeight: '100vh', background: 'var(--bg, #050505)', color: 'var(--text, #fff)', padding: '28px clamp(16px, 3vw, 42px)' }}>
     <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '20px', flexWrap: 'wrap', marginBottom: '32px' }}>
@@ -62,23 +63,23 @@ export default function VKYARestorationTerminal() {
 
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(150px, 1fr))', gap: 12, marginBottom: 22 }}>
       {[
-        ['Очікують', cards.filter(c => c.status === 'new').length, '#f59e0b', Clock3],
-        ['В роботі', cards.filter(c => c.status === 'in_progress').length, '#06b6d4', Wrench],
-        ['Завершено', cards.filter(c => c.status === 'completed').length, '#10b981', CheckCircle2]
-      ].map(([label, value, color, Icon]) => <div key={label} style={{ background: 'var(--card-bg, #0d0d0d)', border: `1px solid ${color}33`, borderTop: `3px solid ${color}`, borderRadius: 18, padding: 18, boxShadow: 'var(--shadow, 0 4px 20px rgba(0,0,0,0.1))' }}><Icon size={19} color={color}/><div style={{ fontSize: '1.8rem', fontWeight: 1000, marginTop: 10, color: 'var(--text, #fff)' }}>{value}</div><div style={{ color: 'var(--text-muted, #64748b)', fontSize: '.72rem', fontWeight: 850 }}>{label}</div></div>)}
+        ['Очікують', cards.filter((c: any) => c.status === 'new').length, '#f59e0b', Clock3],
+        ['В роботі', cards.filter((c: any) => c.status === 'in_progress').length, '#06b6d4', Wrench],
+        ['Завершено', cards.filter((c: any) => c.status === 'completed').length, '#10b981', CheckCircle2]
+      ].map(([label, value, color, Icon]: any) => <div key={label} style={{ background: 'var(--card-bg, #0d0d0d)', border: `1px solid ${color}33`, borderTop: `3px solid ${color}`, borderRadius: 18, padding: 18, boxShadow: 'var(--shadow, 0 4px 20px rgba(0,0,0,0.1))' }}><Icon size={19} color={color}/><div style={{ fontSize: '1.8rem', fontWeight: 1000, marginTop: 10, color: 'var(--text, #fff)' }}>{value}</div><div style={{ color: 'var(--text-muted, #64748b)', fontSize: '.72rem', fontWeight: 850 }}>{label}</div></div>)}
     </div>
 
     {legacyItems.length > 0 && <section style={{ background: 'var(--card-bg, #0d0d0d)', border: '1px solid #f59e0b44', borderRadius: 20, padding: 20, marginBottom: 24, boxShadow: 'var(--shadow, 0 4px 20px rgba(0,0,0,0.1))' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 15, alignItems: 'center', marginBottom: 14, flexWrap: 'wrap' }}><div><div style={{ color: '#f59e0b', fontSize: '.7rem', fontWeight: 1000 }}>СТАРИЙ ОБЛІК ВІДНОВЛЕННЯ</div><h2 style={{ margin: '6px 0 3px', fontSize: '1.15rem', color: 'var(--text, #fff)' }}>Нерозподілений залишок</h2><div style={{ color: 'var(--text-muted, #64748b)', fontSize: '.72rem' }}>Виберіть позицію, кількість та етап — система створить звичайну карту.</div></div><div style={{ color: '#f59e0b', fontWeight: 1000 }}>{legacyItems.reduce((sum, item) => sum + Number(item.total_qty || 0), 0)} шт</div></div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>{legacyItems.map(item => <button key={item.id} onClick={() => { setLegacyDraft(item); setLegacyQuantity(''); setLegacyStageId('') }} style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'center', textAlign: 'left', background: 'var(--card-bg, #111)', color: 'var(--text, #fff)', border: '1px solid var(--glass-border, #252525)', borderRadius: 13, padding: '13px 15px', cursor: 'pointer' }}><span style={{ fontWeight: 850, overflowWrap: 'anywhere', color: 'var(--text, #fff)' }}>{item.name}</span><span style={{ color: '#f59e0b', fontWeight: 1000, whiteSpace: 'nowrap' }}>{item.total_qty} {item.unit || 'шт'}</span></button>)}</div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 15, alignItems: 'center', marginBottom: 14, flexWrap: 'wrap' }}><div><div style={{ color: '#f59e0b', fontSize: '.7rem', fontWeight: 1000 }}>СТАРИЙ ОБЛІК ВІДНОВЛЕННЯ</div><h2 style={{ margin: '6px 0 3px', fontSize: '1.15rem', color: 'var(--text, #fff)' }}>Нерозподілений залишок</h2><div style={{ color: 'var(--text-muted, #64748b)', fontSize: '.72rem' }}>Виберіть позицію, кількість та етап — система створить звичайну карту.</div></div><div style={{ color: '#f59e0b', fontWeight: 1000 }}>{legacyItems.reduce((sum: number, item: any) => sum + Number(item.total_qty || 0), 0)} шт</div></div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>{legacyItems.map((item: any) => <button key={item.id} onClick={() => { setLegacyDraft(item); setLegacyQuantity(''); setLegacyStageId('') }} style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'center', textAlign: 'left', background: 'var(--card-bg, #111)', color: 'var(--text, #fff)', border: '1px solid var(--glass-border, #252525)', borderRadius: 13, padding: '13px 15px', cursor: 'pointer' }}><span style={{ fontWeight: 850, overflowWrap: 'anywhere', color: 'var(--text, #fff)' }}>{item.name}</span><span style={{ color: '#f59e0b', fontWeight: 1000, whiteSpace: 'nowrap' }}>{item.total_qty} {item.unit || 'шт'}</span></button>)}</div>
     </section>}
 
     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 20 }}>
       {[
-        ['active', 'АКТИВНІ КАРТИ', cards.filter(c => c.status !== 'completed').length],
-        ['awaiting_action', 'ОЧІКУЮТЬ РІШЕННЯ', cards.filter(c => c.status === 'completed' && !c.shop2_card_id && !c.route_card_id && Number(c.completed_quantity) > 0).length],
-        ['completed', 'ЗАВЕРШЕНІ', cards.filter(c => c.status === 'completed' && (Boolean(c.shop2_card_id) || Boolean(c.route_card_id) || Number(c.completed_quantity) === 0)).length]
-      ].map(([value, label, count]) => (
+        ['active', 'АКТИВНІ КАРТИ', cards.filter((c: any) => c.status !== 'completed').length],
+        ['awaiting_action', 'ОЧІКУЮТЬ РІШЕННЯ', cards.filter((c: any) => c.status === 'completed' && !c.shop2_card_id && !c.route_card_id && Number(c.completed_quantity) > 0).length],
+        ['completed', 'ЗАВЕРШЕНІ', cards.filter((c: any) => c.status === 'completed' && (Boolean(c.shop2_card_id) || Boolean(c.route_card_id) || Number(c.completed_quantity) === 0)).length]
+      ].map(([value, label, count]: any) => (
         <button
           key={value}
           onClick={() => setTab(value)}
@@ -125,7 +126,7 @@ export default function VKYARestorationTerminal() {
         {totalPages > 1 && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <button
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              onClick={() => setCurrentPage((p: number) => Math.max(1, p - 1))}
               disabled={currentPage === 1}
               style={{ background: 'var(--card-bg, #141414)', border: '1px solid var(--glass-border, #282828)', color: currentPage === 1 ? 'var(--text-dim, #444)' : 'var(--text, #fff)', borderRadius: 8, padding: '6px 12px', cursor: currentPage === 1 ? 'default' : 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: '.8rem', fontWeight: 900 }}
             >
@@ -135,7 +136,7 @@ export default function VKYARestorationTerminal() {
               <strong style={{ color: 'var(--text, #fff)' }}>{currentPage}</strong> / {totalPages}
             </span>
             <button
-              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              onClick={() => setCurrentPage((p: number) => Math.min(totalPages, p + 1))}
               disabled={currentPage === totalPages}
               style={{ background: 'var(--card-bg, #141414)', border: '1px solid var(--glass-border, #282828)', color: currentPage === totalPages ? 'var(--text-dim, #444)' : 'var(--text, #fff)', borderRadius: 8, padding: '6px 12px', cursor: currentPage === totalPages ? 'default' : 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: '.8rem', fontWeight: 900 }}
             >
@@ -147,7 +148,7 @@ export default function VKYARestorationTerminal() {
     )}
 
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      {paginatedCards.map(card => {
+      {paginatedCards.map((card: any) => {
         const meta = STATUS[card.status] || STATUS.new;
         const canOpen = card.status !== 'completed' || (!card.shop2_card_id && !card.route_card_id);
         return (
@@ -204,7 +205,7 @@ export default function VKYARestorationTerminal() {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <button
-            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+            onClick={() => setCurrentPage((p: number) => Math.max(1, p - 1))}
             disabled={currentPage === 1}
             style={{ background: 'var(--card-bg, #141414)', border: '1px solid var(--glass-border, #282828)', color: currentPage === 1 ? 'var(--text-dim, #444)' : 'var(--text, #fff)', borderRadius: 9, padding: '7px 14px', cursor: currentPage === 1 ? 'default' : 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: '.82rem', fontWeight: 900 }}
           >
@@ -238,7 +239,7 @@ export default function VKYARestorationTerminal() {
               )
             })}
           <button
-            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+            onClick={() => setCurrentPage((p: number) => Math.min(totalPages, p + 1))}
             disabled={currentPage === totalPages}
             style={{ background: 'var(--card-bg, #141414)', border: '1px solid var(--glass-border, #282828)', color: currentPage === totalPages ? 'var(--text-dim, #444)' : 'var(--text, #fff)', borderRadius: 9, padding: '7px 14px', cursor: currentPage === totalPages ? 'default' : 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: '.82rem', fontWeight: 900 }}
           >
@@ -293,6 +294,8 @@ export default function VKYARestorationTerminal() {
         </div>
       )}
     </div></div>}
-    {legacyDraft && <div onClick={() => !saving && setLegacyDraft(null)} style={{ position: 'fixed', inset: 0, zIndex: 10060, background: 'rgba(0,0,0,.88)', display: 'grid', placeItems: 'center', padding: 20 }}><div onClick={event => event.stopPropagation()} style={{ width: '100%', maxWidth: 500, background: 'var(--card-bg, #0d0d0d)', border: '1px solid #f59e0b55', borderRadius: 22, padding: 25, color: 'var(--text, #fff)' }}><div style={{ display: 'flex', justifyContent: 'space-between', gap: 14 }}><div><div style={{ color: '#f59e0b', fontSize: '.68rem', fontWeight: 1000 }}>РОЗПОДІЛИТИ У КАРТУ</div><h2 style={{ margin: '7px 0 3px', overflowWrap: 'anywhere', color: 'var(--text, #fff)' }}>{legacyDraft.name}</h2><div style={{ color: 'var(--text-muted, #777)' }}>Доступно: {legacyDraft.total_qty} {legacyDraft.unit || 'шт'}</div></div><button onClick={() => setLegacyDraft(null)} style={{ alignSelf: 'flex-start', background: 'transparent', border: 0, color: 'var(--text-muted, #777)', cursor: 'pointer' }}><X/></button></div><label style={{ display: 'block', color: 'var(--text-muted, #888)', fontSize: '.7rem', fontWeight: 950, margin: '22px 0 7px' }}>КІЛЬКІСТЬ</label><input autoFocus type="number" min="1" max={legacyDraft.total_qty} value={legacyQuantity} onChange={event => setLegacyQuantity(event.target.value)} style={{ boxSizing: 'border-box', width: '100%', background: 'var(--bg, #050505)', border: '1px solid var(--glass-border, #333)', borderRadius: 11, color: 'var(--text, #fff)', padding: 13 }}/><label style={{ display: 'block', color: 'var(--text-muted, #888)', fontSize: '.7rem', fontWeight: 950, margin: '17px 0 7px' }}>ЕТАП ВІДНОВЛЕННЯ</label><select value={legacyStageId} onChange={event => setLegacyStageId(event.target.value)} style={{ boxSizing: 'border-box', width: '100%', background: 'var(--bg, #050505)', border: '1px solid var(--glass-border, #333)', borderRadius: 11, color: 'var(--text, #fff)', padding: 13 }}><option value="">Оберіть етап</option>{restorationStages.map(stage => <option key={stage.id} value={stage.id}>{stage.name}</option>)}</select><button onClick={assignLegacyItem} disabled={saving || !legacyStageId || !Number.isInteger(Number(legacyQuantity)) || Number(legacyQuantity) <= 0 || Number(legacyQuantity) > Number(legacyDraft.total_qty)} style={{ width: '100%', marginTop: 21, background: '#f59e0b', color: '#170d00', border: 0, borderRadius: 12, padding: 14, fontWeight: 1000, cursor: 'pointer' }}>{saving ? 'СТВОРЕННЯ...' : 'СТВОРИТИ КАРТУ'}</button></div></div>}
+    {legacyDraft && <div onClick={() => !saving && setLegacyDraft(null)} style={{ position: 'fixed', inset: 0, zIndex: 10060, background: 'rgba(0,0,0,.88)', display: 'grid', placeItems: 'center', padding: 20 }}><div onClick={event => event.stopPropagation()} style={{ width: '100%', maxWidth: 500, background: 'var(--card-bg, #0d0d0d)', border: '1px solid #f59e0b55', borderRadius: 22, padding: 25, color: 'var(--text, #fff)' }}><div style={{ display: 'flex', justifyContent: 'space-between', gap: 14 }}><div><div style={{ color: '#f59e0b', fontSize: '.68rem', fontWeight: 1000 }}>РОЗПОДІЛИТИ У КАРТУ</div><h2 style={{ margin: '7px 0 3px', overflowWrap: 'anywhere', color: 'var(--text, #fff)' }}>{legacyDraft.name}</h2><div style={{ color: 'var(--text-muted, #777)' }}>Доступно: {legacyDraft.total_qty} {legacyDraft.unit || 'шт'}</div></div><button onClick={() => setLegacyDraft(null)} style={{ alignSelf: 'flex-start', background: 'transparent', border: 0, color: 'var(--text-muted, #777)', cursor: 'pointer' }}><X/></button></div><label style={{ display: 'block', color: 'var(--text-muted, #888)', fontSize: '.7rem', fontWeight: 950, margin: '22px 0 7px' }}>КІЛЬКІСТЬ</label><input autoFocus type="number" min="1" max={legacyDraft.total_qty} value={legacyQuantity} onChange={event => setLegacyQuantity(event.target.value)} style={{ boxSizing: 'border-box', width: '100%', background: 'var(--bg, #050505)', border: '1px solid var(--glass-border, #333)', borderRadius: 11, color: 'var(--text, #fff)', padding: 13 }}/><label style={{ display: 'block', color: 'var(--text-muted, #888)', fontSize: '.7rem', fontWeight: 950, margin: '17px 0 7px' }}>ЕТАП ВІДНОВЛЕННЯ</label><select value={legacyStageId} onChange={event => setLegacyStageId(event.target.value)} style={{ boxSizing: 'border-box', width: '100%', background: 'var(--bg, #050505)', border: '1px solid var(--glass-border, #333)', borderRadius: 11, color: 'var(--text, #fff)', padding: 13 }}><option value="">Оберіть етап</option>{restorationStages.map((stage: any) => <option key={stage.id} value={stage.id}>{stage.name}</option>)}</select><button onClick={assignLegacyItem} disabled={saving || !legacyStageId || !Number.isInteger(Number(legacyQuantity)) || Number(legacyQuantity) <= 0 || Number(legacyQuantity) > Number(legacyDraft.total_qty)} style={{ width: '100%', marginTop: 21, background: '#f59e0b', color: '#170d00', border: 0, borderRadius: 12, padding: 14, fontWeight: 1000, cursor: 'pointer' }}>{saving ? 'СТВОРЕННЯ...' : 'СТВОРИТИ КАРТУ'}</button></div></div>}
   </div>
 }
+
+export default VKYARestorationTerminal

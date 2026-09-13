@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowLeft, CheckCircle2, Clock3, History, PackageCheck,
   Play, RefreshCw, Search, Settings2, ShieldCheck, Sparkles, Wrench
@@ -6,21 +6,21 @@ import {
 import { useNavigate } from 'react-router-dom'
 import { useMES } from '../MESContext'
 
-const STATUS = {
+const STATUS: Record<string, { label: string; color: string }> = {
   pending: { label: 'Очікує', color: '#f59e0b' },
   in_progress: { label: 'В роботі', color: '#38bdf8' },
   awaiting_reception: { label: 'На прийомці СО', color: '#a78bfa' },
   completed: { label: 'Завершено', color: '#22c55e' }
 }
 
-const formatDate = value => value
+const formatDate = (value?: string | null) => value
   ? new Intl.DateTimeFormat('uk-UA', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value))
   : '—'
 
-const userName = user =>
+const userName = (user?: any) =>
   [user?.last_name, user?.first_name].filter(Boolean).join(' ') || user?.login || 'Користувач'
 
-const cutterTypeKey = value => String(value || '')
+const cutterTypeKey = (value?: string | null) => String(value || '')
   .toLowerCase()
   .replace(/фреза|фасочна|фасочная|cutter|ф/g, '')
   .replace(/[х×*]/g, 'x')
@@ -29,15 +29,15 @@ const cutterTypeKey = value => String(value || '')
   .replace(/\s+/g, '')
   .replace(/[^a-zа-яіїєґ0-9.x()]/g, '')
 
-export default function CutterRestorationModule() {
+export const CutterRestorationModule: React.FC = () => {
   const navigate = useNavigate()
-  const { supabase, currentUser } = useMES()
-  const [batches, setBatches] = useState([])
+  const { supabase, currentUser }: any = useMES()
+  const [batches, setBatches] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [working, setWorking] = useState(false)
   const [filter, setFilter] = useState('active')
   const [search, setSearch] = useState('')
-  const [selected, setSelected] = useState(null)
+  const [selected, setSelected] = useState<any>(null)
   const [result, setResult] = useState({ restored: '', rejected: '', note: '' })
   const historySyncStarted = useRef(false)
 
@@ -55,11 +55,9 @@ export default function CutterRestorationModule() {
     }
     if (!silent) setLoading(false)
 
-    // Reconciliation can scan a large history table. It must never block the
-    // queue read or run again for every realtime batch update.
     if (!historySyncStarted.current) {
       historySyncStarted.current = true
-      supabase.rpc('reconcile_cutter_restoration_from_history').then(({ data: created, error: syncError }) => {
+      supabase.rpc('reconcile_cutter_restoration_from_history').then(({ data: created, error: syncError }: any) => {
         if (syncError && syncError.code !== 'PGRST202' && syncError.code !== '42883') {
           console.warn('[Cutter restoration] Background history synchronization failed:', syncError.message)
           return
@@ -81,7 +79,7 @@ export default function CutterRestorationModule() {
     }
   }, [load, supabase])
 
-  const isChamferCutter = (name) => {
+  const isChamferCutter = (name?: string | null) => {
     const n = String(name || '').toLowerCase()
     return n.includes('фасоч') || n.includes('фаска') || n.includes('chamfer')
   }
@@ -106,7 +104,7 @@ export default function CutterRestorationModule() {
       return [row.batch_number, row.cutter_name, row.source_machine, row.source_manager, row.assigned_user_name]
         .some(value => String(value || '').toLowerCase().includes(needle))
     })
-    const groups = new Map()
+    const groups = new Map<string, any>()
     filtered.forEach(row => {
       const assignee = row.status === 'in_progress' ? String(row.assigned_user_id || '') : ''
       const typeKey = cutterTypeKey(row.cutter_name) || String(row.nomenclature_id || '')
@@ -132,20 +130,17 @@ export default function CutterRestorationModule() {
       group.batch_ids.push(row.id)
       if (new Date(row.created_at) > new Date(group.created_at)) group.created_at = row.created_at
     })
-    return [...groups.values()].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+    return [...groups.values()].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
   }, [batches, filter, search])
 
-  const startBatch = async batch => {
+  const startBatch = async (batch: any) => {
     setWorking(true)
-    let { data, error } = await supabase.rpc('start_cutter_restoration_stack', {
+    let { data, error }: any = await supabase.rpc('start_cutter_restoration_stack', {
       p_type_key: batch.cutter_type_key,
       p_actor_id: currentUser?.id,
       p_actor_name: userName(currentUser)
     })
 
-    // Compatibility path for environments where the canonical-stack
-    // migration has not reached PostgREST yet. The legacy RPC is already
-    // transactional per batch, so start every row from the displayed stack.
     const stackRpcMissing = error && (
       error.code === 'PGRST202'
       || error.code === '42883'
@@ -189,12 +184,12 @@ export default function CutterRestorationModule() {
     load(true)
   }
 
-  const openFinish = batch => {
+  const openFinish = (batch: any) => {
     setSelected(batch)
     setResult({ restored: String(batch.received_qty), rejected: '0', note: '' })
   }
 
-  const finishBatch = async event => {
+  const finishBatch = async (event: React.FormEvent) => {
     event.preventDefault()
     const restored = Number(result.restored)
     const rejected = Number(result.rejected)
@@ -275,7 +270,7 @@ export default function CutterRestorationModule() {
               <label><span>Відновлено, шт.</span><input type="number" min="0" step="1" value={result.restored} onChange={e => setResult(v => ({ ...v, restored: e.target.value }))} /></label>
               <label><span>Не підлягає відновленню, шт.</span><input type="number" min="0" step="1" value={result.rejected} onChange={e => setResult(v => ({ ...v, rejected: e.target.value }))} /></label>
             </div>
-            <label className="cr-note"><span>Коментар</span><textarea rows="3" value={result.note} onChange={e => setResult(v => ({ ...v, note: e.target.value }))} placeholder="Стан фрез, причина списання..." /></label>
+            <label className="cr-note"><span>Коментар</span><textarea rows={3} value={result.note} onChange={e => setResult(v => ({ ...v, note: e.target.value }))} placeholder="Стан фрез, причина списання..." /></label>
             <div className="cr-info"><PackageCheck size={18} /><span>Після підтвердження відновлена кількість створить документ прийомки на Склад Оперативний.</span></div>
             <button className="cr-primary" disabled={working}>{working ? 'Збереження...' : 'Завершити та передати на прийомку'}</button>
           </form>
@@ -286,19 +281,19 @@ export default function CutterRestorationModule() {
   )
 }
 
-function Stat({ icon, label, value, color, suffix }) {
-  return <div className="cr-stat" style={{ '--accent': color }}><div className="cr-stat-icon">{icon}</div><div><span>{label}</span><strong>{value} {suffix && <small>{suffix}</small>}</strong></div></div>
+function Stat({ icon, label, value, color, suffix }: any) {
+  return <div className="cr-stat" style={{ '--accent': color } as React.CSSProperties}><div className="cr-stat-icon">{icon}</div><div><span>{label}</span><strong>{value} {suffix && <small>{suffix}</small>}</strong></div></div>
 }
 
-function Empty({ icon, title, subtitle }) {
+function Empty({ icon, title, subtitle }: any) {
   return <div className="cr-empty">{icon}<strong>{title}</strong>{subtitle && <span>{subtitle}</span>}</div>
 }
 
-function BatchCard({ batch, currentUser, working, onStart, onFinish }) {
+function BatchCard({ batch, currentUser, working, onStart, onFinish }: any) {
   const state = STATUS[batch.status] || STATUS.pending
   const mine = String(batch.assigned_user_id || '') === String(currentUser?.id || '')
   return (
-    <article className="cr-card" style={{ '--status': state.color }}>
+    <article className="cr-card" style={{ '--status': state.color } as React.CSSProperties}>
       <div className="cr-card-head"><span className="cr-batch">{batch.group_count} надходжень</span><span className="cr-status">{state.label}</span></div>
       <h3>{batch.cutter_name}</h3>
       <div className="cr-qty"><strong>{batch.received_qty}</strong><span>шт. у спільному кошику</span></div>
@@ -351,3 +346,5 @@ const styles = `
   @media(max-width:1000px){.cr-grid{grid-template-columns:repeat(2,1fr)}.cr-stats{grid-template-columns:repeat(2,1fr)}}
   @media(max-width:680px){.cr-header{padding:0 14px}.cr-user span,.cr-brand p{display:none}.cr-main{padding:22px 14px 50px}.cr-hero{align-items:flex-start}.cr-hero h2{font-size:23px}.cr-refresh{font-size:0;padding:0 12px}.cr-stats{gap:8px}.cr-stat{padding:13px}.cr-stat strong{font-size:21px}.cr-toolbar{align-items:stretch;flex-direction:column}.cr-tabs{overflow:auto}.cr-tabs button{white-space:nowrap}.cr-search{width:auto}.cr-grid{grid-template-columns:1fr}.cr-result-grid{grid-template-columns:1fr}}
 `
+
+export default CutterRestorationModule
