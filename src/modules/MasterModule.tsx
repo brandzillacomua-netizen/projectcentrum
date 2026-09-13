@@ -14,9 +14,11 @@ import { MasterNaryadModal } from './Master/components/modals/MasterNaryadModal'
 import { useMES } from '../MESContext'
 import { useStore } from '../store/index.js'
 import { AlertTriangle, ListChecks, History, X, Clock } from 'lucide-react'
+import { useSearchParams } from 'react-router-dom'
 
-export function MasterModule() {
+export const MasterModule: React.FC = () => {
   const masterState = useMasterState()
+  const [, setSearchParams] = useSearchParams()
   const {
     activeCalls,
     handleResolveCall,
@@ -120,13 +122,13 @@ export function MasterModule() {
     theme
   } = useMES()
 
-  const tasks = useStore(state => state.tasks)
-  const orders = useStore(state => state.orders)
-  const nomenclatures = useStore(state => state.nomenclatures)
-  const inventory = useStore(state => state.inventory)
-  const machines = useStore(state => state.machines)
-  const machineOperations = useStore(state => state.machineOperations)
-  const currentUser = useStore(state => state.currentUser)
+  const tasks = useStore((state: any) => state.tasks)
+  const orders = useStore((state: any) => state.orders)
+  const nomenclatures = useStore((state: any) => state.nomenclatures)
+  const inventory = useStore((state: any) => state.inventory)
+  const machines = useStore((state: any) => state.machines)
+  const machineOperations = useStore((state: any) => state.machineOperations)
+  const currentUser = useStore((state: any) => state.currentUser)
 
   const isLight = theme === 'light'
   const [showCallsModal, setShowCallsModal] = useState(false)
@@ -142,7 +144,7 @@ export function MasterModule() {
             color: '#fff', 
             padding: '10px 20px', 
             display: 'flex', 
-            justify: 'space-between', 
+            justifyContent: 'space-between', 
             alignItems: 'center', 
             cursor: 'pointer',
             fontWeight: 900,
@@ -210,6 +212,7 @@ export function MasterModule() {
               orders={orders}
               allOrdersMap={allOrdersMap}
               handleReprint={handleReprint}
+              setIsDrawerOpen={setIsDrawerOpen}
               theme={theme}
             />
           </section>
@@ -225,7 +228,7 @@ export function MasterModule() {
             inset: 0,
             zIndex: 9999,
             display: 'flex',
-            justify: 'flex-end',
+            justifyContent: 'flex-end',
             background: 'rgba(0, 0, 0, 0.8)',
             backdropFilter: 'blur(4px)',
             animation: 'fadeIn 0.2s ease-out'
@@ -273,7 +276,7 @@ export function MasterModule() {
                   borderRadius: '50%',
                   display: 'flex',
                   alignItems: 'center',
-                  justify: 'center',
+                  justifyContent: 'center',
                   cursor: 'pointer'
                 }}
               >
@@ -315,9 +318,8 @@ export function MasterModule() {
 
       {/* ALL MODAL COMPONENTS */}
       <MasterMachineCallsModal 
-        showCallsModal={showCallsModal}
-        setShowCallsModal={setShowCallsModal}
         activeCalls={activeCalls}
+        machines={machines}
         handleResolveCall={handleResolveCall}
       />
 
@@ -374,14 +376,9 @@ export function MasterModule() {
         isReprintMode={isReprintMode}
         reprintTask={reprintTask}
         setReprintTask={setReprintTask}
-        selectedMachine={selectedMachine}
-        setSelectedMachine={setSelectedMachine}
         rowMachines={rowMachines}
-        setRowMachines={setRowMachines}
         rowMachinesSplits={rowMachinesSplits}
-        setRowMachinesSplits={setRowMachinesSplits}
         materialSplits={materialSplits}
-        setMaterialSplits={setMaterialSplits}
         selectedCutters={selectedCutters}
         setSelectedCutters={setSelectedCutters}
         partCutterOverrides={partCutterOverrides}
@@ -401,23 +398,19 @@ export function MasterModule() {
         openDropdownRowKey={openDropdownRowKey}
         setOpenDropdownRowKey={setOpenDropdownRowKey}
         isSubmitting={isSubmitting}
-        isSavingDraftOrder={isSavingDraftOrder}
         handlePrint={handlePrint}
-        handleSaveVirtualDraft={handleSaveVirtualDraft}
-        getBOMParts={getBOMParts}
         getDisplayPartsForOrderItem={getDisplayPartsForOrderItem}
-        currentMachine={currentMachine}
         getBatchSuffix={getBatchSuffix}
         isPartBZActive={isPartBZActive}
         handleShowStockInfo={handleShowStockInfo}
         setStockInfoModalData={setStockInfoModalData}
+        stockInfoModalData={stockInfoModalData}
+        setSearchParams={setSearchParams}
         getPlannedQty={getPlannedQty}
         nomenclatures={nomenclatures}
         inventory={inventory}
-        machines={machines}
         machineOperations={machineOperations}
-        currentUser={currentUser}
-        materialSummary={materialSummary}
+        materialSummary={materialSummary as any}
         productNames={productNames}
         isSheetDistributionComplete={isSheetDistributionComplete}
         isPrintDisabled={isPrintDisabled}

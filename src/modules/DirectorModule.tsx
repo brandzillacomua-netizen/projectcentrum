@@ -1,7 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import { useMES } from '../MESContext'
 import { useStore } from '../store/index.js'
-import { apiService } from '../services/apiDispatcher'
 
 import { DirectorHeader } from './Director/components/DirectorHeader'
 import { GoogleCalendarView } from './Director/components/GoogleCalendarView'
@@ -10,7 +9,28 @@ import { ApprovalsDrawer } from './Director/components/ApprovalsDrawer'
 import { OrderDossierModal } from './Director/components/OrderDossierModal'
 import './Director/DirectorStyles.css'
 
-const toLocalISO = (dateVal) => {
+export interface CalendarDay {
+  day: number
+  isCurrentMonth: boolean
+  dateKey: string | null
+  isToday: boolean
+  isWeekend: boolean
+  dayOfWeek: number
+}
+
+export interface CalendarEvent {
+  id: string | number
+  taskId?: string | number
+  orderNum: string
+  customer: string
+  productName: string
+  qty: number
+  status: string
+  isOrder?: boolean
+  isBatch?: boolean
+}
+
+const toLocalISO = (dateVal: string | number | Date | null | undefined): string | null => {
   if (!dateVal) return null
   try {
     if (typeof dateVal === 'string' && dateVal.includes('.')) {
@@ -23,37 +43,37 @@ const toLocalISO = (dateVal) => {
     const mon = String(d.getMonth() + 1).padStart(2, '0')
     const day = String(d.getDate()).padStart(2, '0')
     return `${year}-${mon}-${day}`
-  } catch (e) { return null }
+  } catch { return null }
 }
 
-const DirectorModule = () => {
+export const DirectorModule: React.FC = () => {
   const { approveDirector, supabase } = useMES()
-  const tasks = useStore(state => state.tasks)
-  const orders = useStore(state => state.orders)
-  const nomenclatures = useStore(state => state.nomenclatures)
-  const requests = useStore(state => state.requests)
-  const workCards = useStore(state => state.workCards)
-  const [viewDate, setViewDate] = useState(new Date())
-  const [viewMode, setViewMode] = useState('calendar') // 'calendar' | 'matrix'
+  const tasks = useStore((state: any) => state.tasks)
+  const orders = useStore((state: any) => state.orders)
+  const nomenclatures = useStore((state: any) => state.nomenclatures)
+  const requests = useStore((state: any) => state.requests)
+  const workCards = useStore((state: any) => state.workCards)
+  const [viewDate, setViewDate] = useState<Date>(new Date())
+  const [viewMode, setViewMode] = useState<'calendar' | 'matrix'>('calendar')
   const [isApprovalsOpen, setIsApprovalsOpen] = useState(false)
-  const [selectedCell, setSelectedCell] = useState(null)
-  const [hoveredPid, setHoveredPid] = useState(null)
-  const [selectedOrderId, setSelectedOrderId] = useState(null)
-  const [expandedReqs, setExpandedReqs] = useState({})
-  const [expandedNaryads, setExpandedNaryads] = useState({})
-  const [allOrdersMap, setAllOrdersMap] = useState({})
+  const [selectedCell, setSelectedCell] = useState<any>(null)
+  const [hoveredPid, setHoveredPid] = useState<any>(null)
+  const [selectedOrderId, setSelectedOrderId] = useState<any>(null)
+  const [expandedReqs, setExpandedReqs] = useState<Record<string, boolean>>({})
+  const [expandedNaryads, setExpandedNaryads] = useState<Record<string, boolean>>({})
+  const [allOrdersMap, setAllOrdersMap] = useState<Record<string, any>>({})
 
   const calendarGridDays = useMemo(() => {
     const year = viewDate.getFullYear()
     const month = viewDate.getMonth()
 
     const firstDayOfMonth = new Date(year, month, 1)
-    let firstDayIndex = (firstDayOfMonth.getDay() + 6) % 7
+    const firstDayIndex = (firstDayOfMonth.getDay() + 6) % 7
 
     const lastDateOfMonth = new Date(year, month + 1, 0).getDate()
     const lastDateOfPrevMonth = new Date(year, month, 0).getDate()
 
-    const days = []
+    const days: CalendarDay[] = []
     const todayKey = toLocalISO(new Date())
 
     for (let i = firstDayIndex - 1; i >= 0; i--) {
@@ -103,8 +123,8 @@ const DirectorModule = () => {
   }, [viewDate])
 
   const calendarEventsByDate = useMemo(() => {
-    const map = {}
-    const addEvent = (dateKey, event) => {
+    const map: Record<string, CalendarEvent[]> = {}
+    const addEvent = (dateKey: string | null, event: CalendarEvent) => {
       if (!dateKey) return
       if (!map[dateKey]) map[dateKey] = []
       map[dateKey].push(event)
@@ -121,9 +141,9 @@ const DirectorModule = () => {
       const orderDeadline = toLocalISO(o.deadline)
       if (!orderDeadline) return
 
-      const orderTasks = tasks.filter(t => String(t.order_id) === String(o.id))
-      const batches = {}
-      orderTasks.forEach(t => {
+      const orderTasks = tasks.filter((t: any) => String(t.order_id) === String(o.id))
+      const batches: Record<string, number> = {}
+      orderTasks.forEach((t: any) => {
         const key = t.batch_index || `task_${t.id}`
         const qty = Number(t.planned_sets) || 0
         if (!batches[key] || qty > batches[key]) {
@@ -131,10 +151,10 @@ const DirectorModule = () => {
         }
       })
       const totalPlanned = Object.values(batches).reduce((acc, q) => acc + q, 0)
-      const totalOrderQty = o.order_items?.reduce((sum, it) => sum + (Number(it.quantity) || 0), 0) || Number(o.quantity) || 0
+      const totalOrderQty = o.order_items?.reduce((sum: number, it: any) => sum + (Number(it.quantity) || 0), 0) || Number(o.quantity) || 0
 
-      const productName = o.order_items?.map(it => {
-        const nom = nomenclatures.find(n => String(n.id) === String(it.nomenclature_id))
+      const productName = o.order_items?.map((it: any) => {
+        const nom = nomenclatures.find((n: any) => String(n.id) === String(it.nomenclature_id))
         return nom ? nom.name : null
       }).filter(Boolean).join(', ') || 'Замовлення'
 
@@ -149,7 +169,7 @@ const DirectorModule = () => {
       })
     })
 
-    tasks.filter(t => t.step === 'Розкрій' || t.step === 'Різка' || String(t.step).includes('ЦЕХ')).forEach(t => {
+    tasks.filter((t: any) => t.step === 'Розкрій' || t.step === 'Різка' || String(t.step).includes('ЦЕХ')).forEach((t: any) => {
       const taskDeadline = toLocalISO(t.planned_deadline || t.created_at)
       if (!taskDeadline) return
 
@@ -157,8 +177,8 @@ const DirectorModule = () => {
       const batchQty = Number(t.planned_sets) || 0
 
       if (order && batchQty > 0) {
-        const productName = order.order_items?.map(it => {
-          const nom = nomenclatures.find(n => String(n.id) === String(it.nomenclature_id))
+        const productName = order.order_items?.map((it: any) => {
+          const nom = nomenclatures.find((n: any) => String(n.id) === String(it.nomenclature_id))
           return nom ? nom.name : null
         }).filter(Boolean).join(', ') || 'Партія'
 
@@ -183,10 +203,10 @@ const DirectorModule = () => {
 
   useEffect(() => {
     if (!tasks || tasks.length === 0) return
-    const neededOrderIds = [...new Set(tasks.map(t => t.order_id).filter(Boolean))]
+    const neededOrderIds = [...new Set(tasks.map((t: any) => t.order_id).filter(Boolean))]
     const missingIds = neededOrderIds.filter(id => 
-      !orders.find(o => String(o.id) === String(id)) && 
-      !allOrdersMap[id]
+      !orders.find((o: any) => String(o.id) === String(id)) && 
+      !allOrdersMap[id as string]
     )
     if (missingIds.length === 0) return
 
@@ -194,7 +214,7 @@ const DirectorModule = () => {
       .from('orders')
       .select('*, order_items(*)')
       .in('id', missingIds)
-      .then(({ data, error }) => {
+      .then(({ data, error }: any) => {
         if (error) {
           console.error('DirectorModule: Error fetching missing orders:', error)
           return
@@ -202,22 +222,22 @@ const DirectorModule = () => {
         if (data && data.length > 0) {
           setAllOrdersMap(prev => {
             const next = { ...prev }
-            data.forEach(o => { next[o.id] = o; })
+            data.forEach((o: any) => { next[o.id] = o; })
             return next
           })
         }
       })
-  }, [tasks, orders, supabase])
+  }, [tasks, orders, supabase, allOrdersMap])
 
-  const toggleReq = (id) => {
+  const toggleReq = (id: string | number) => {
     setExpandedReqs(prev => ({ ...prev, [id]: !prev[id] }))
   }
 
-  const toggleNaryad = (id) => {
+  const toggleNaryad = (id: string | number) => {
     setExpandedNaryads(prev => ({ ...prev, [id]: !prev[id] }))
   }
 
-  const pendingTasks = tasks.filter(t => 
+  const pendingTasks = tasks.filter((t: any) => 
     t.status !== 'completed' && t.status !== 'cancelled' && 
     (t.warehouse_conf === 'true' || t.warehouse_conf === 'partial') && 
     t.engineer_conf === true && 
@@ -244,19 +264,19 @@ const DirectorModule = () => {
 
   const activeProducts = useMemo(() => {
     const productIdsInOrders = new Set()
-    orders.forEach(o => {
-      o.order_items?.forEach(item => productIdsInOrders.add(item.nomenclature_id))
+    orders.forEach((o: any) => {
+      o.order_items?.forEach((item: any) => productIdsInOrders.add(item.nomenclature_id))
     })
-    Object.values(allOrdersMap).forEach(o => {
-      o.order_items?.forEach(item => productIdsInOrders.add(item.nomenclature_id))
+    Object.values(allOrdersMap).forEach((o: any) => {
+      o.order_items?.forEach((item: any) => productIdsInOrders.add(item.nomenclature_id))
     })
-    return nomenclatures.filter(n => n.type === 'product' && productIdsInOrders.has(n.id))
+    return nomenclatures.filter((n: any) => n.type === 'product' && productIdsInOrders.has(n.id))
   }, [orders, allOrdersMap, nomenclatures])
 
   const matrixData = useMemo(() => {
-    const map = {}
+    const map: Record<string, Record<string, any[]>> = {}
     
-    const addEntry = (dateKey, pid, entry) => {
+    const addEntry = (dateKey: string | null, pid: string | number, entry: any) => {
        if (!dateKey) return
        if (!map[dateKey]) map[dateKey] = {}
        if (!map[dateKey][pid]) map[dateKey][pid] = []
@@ -274,9 +294,9 @@ const DirectorModule = () => {
       const orderDeadline = toLocalISO(o.deadline)
       if (!orderDeadline) return
 
-      const orderTasks = tasks.filter(t => String(t.order_id) === String(o.id))
-      const batches = {}
-      orderTasks.forEach(t => {
+      const orderTasks = tasks.filter((t: any) => String(t.order_id) === String(o.id))
+      const batches: Record<string, number> = {}
+      orderTasks.forEach((t: any) => {
         const key = t.batch_index || `task_${t.id}`
         const qty = Number(t.planned_sets) || 0
         if (!batches[key] || qty > batches[key]) {
@@ -285,7 +305,7 @@ const DirectorModule = () => {
       })
       const totalPlanned = Object.values(batches).reduce((acc, q) => acc + q, 0)
 
-      o.order_items?.forEach(item => {
+      o.order_items?.forEach((item: any) => {
         const totalQty = Number(item.quantity) || 0
         const itemRemaining = Math.max(0, totalQty - totalPlanned)
 
@@ -301,7 +321,7 @@ const DirectorModule = () => {
       })
     })
 
-    tasks.filter(t => t.step === 'Розкрій' || t.step === 'Різка').forEach(t => {
+    tasks.filter((t: any) => t.step === 'Розкрій' || t.step === 'Різка').forEach((t: any) => {
       const taskDeadline = toLocalISO(t.planned_deadline || t.created_at)
       if (!taskDeadline) return
       
@@ -309,7 +329,7 @@ const DirectorModule = () => {
       const batchQty = Number(t.planned_sets) || 0
       
       if (order && batchQty > 0) {
-        order.order_items?.forEach(item => {
+        order.order_items?.forEach((item: any) => {
           addEntry(taskDeadline, item.nomenclature_id, {
              orderNum: `${order.order_num}${t.batch_index ? `/${t.batch_index}` : ''}`,
              customer: order.customer,
@@ -325,7 +345,7 @@ const DirectorModule = () => {
     return map
   }, [orders, allOrdersMap, tasks])
 
-  const parseRequestDetails = (details) => {
+  const parseRequestDetails = (details: string | null | undefined) => {
     if (!details) return { main: '—', sub: '' }
     const parts = details.split(': ')
     const prefix = parts[0] || ''
@@ -335,13 +355,13 @@ const DirectorModule = () => {
       const [mat, rest] = content.split(' — ')
       const [qtyInfo, metaRaw] = rest.split(' (')
       
-      let breakdown = []
+      let breakdown: Array<{ label: string; qty: string }> = []
       if (metaRaw && metaRaw.includes('Для: ')) {
          const forPart = metaRaw.split('Для: ')[1]?.replace(')', '')
          if (forPart) {
            breakdown = forPart.split(', ').map(item => {
              const [label, q] = item.split(': ')
-             return { label: label?.trim(), qty: q?.trim() }
+             return { label: label?.trim() || '', qty: q?.trim() || '' }
            })
          }
       }
@@ -356,14 +376,14 @@ const DirectorModule = () => {
     return { prefix, material: content, qty: '', breakdown: [] }
   }
 
-  const changeMonth = (offset) => {
+  const changeMonth = (offset: number) => {
     const newDate = new Date(viewDate)
     newDate.setMonth(newDate.getMonth() + offset)
     setViewDate(newDate)
   }
 
-  const getStatusLabel = (s) => {
-    const map = {
+  const getStatusLabel = (s: string) => {
+    const map: Record<string, string> = {
       'pending': 'ОЧІКУЄ',
       'in-progress': 'В РОБОТІ',
       'completed': 'ВИКОНАНО',

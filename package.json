@@ -20,6 +20,7 @@
     "security:diagnostics": "node scripts/check-readonly-diagnostics.mjs",
     "security:audit": "npm audit --omit=dev --audit-level=high",
     "lint:security": "eslint api src/contexts/useAuth.js src/services/alerting src/services/novaPoshtaService.js src/services/sentryLogger.js server",
+    "db:types": "node scripts/db-types-sync.mjs",
     "typecheck": "tsc --noEmit",
     "ci": "npm run typecheck && npm run security:secrets && npm run security:rls && npm run security:diagnostics && npm run security:access-contract && npm run security:audit && npm run validate:migrations && npm run validate:production-migrations && node scripts/check-monthly-partitions.mjs && npm run lint:security && npm test && npm run build && npm run build:check",
     "smoke:production": "node --env-file=.env scripts/production-smoke.mjs",
