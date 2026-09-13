@@ -87,38 +87,79 @@ export function useShippingData() {
     }
   }, [orders])
 
+  const getTaskMeta = useCallback((t) => {
+    if (!t) return {}
+    const snap = t.plan_snapshot
+    if (!snap) return {}
+    if (typeof snap === 'object') return snap._metadata || {}
+    if (typeof snap === 'string') {
+      try {
+        const parsed = JSON.parse(snap)
+        return parsed?._metadata || {}
+      } catch (e) {
+        return {}
+      }
+    }
+    return {}
+  }, [])
+
+  const isTaskPackaged = useCallback((t) => {
+    const snap = t?.plan_snapshot
+    if (!snap) return false
+    if (typeof snap === 'object') return snap._metadata?.is_packaged === true || String(snap._metadata?.is_packaged) === 'true'
+    if (typeof snap === 'string') return snap.includes('"is_packaged":true') || snap.includes('"is_packaged": true') || snap.includes('"is_packaged":"true"')
+    return false
+  }, [])
+
+  const isTaskShipped = useCallback((t) => {
+    const snap = t?.plan_snapshot
+    if (!snap) return false
+    if (typeof snap === 'object') return snap._metadata?.is_shipped === true || String(snap._metadata?.is_shipped) === 'true'
+    if (typeof snap === 'string') return snap.includes('"is_shipped":true') || snap.includes('"is_shipped": true') || snap.includes('"is_shipped":"true"')
+    return false
+  }, [])
+
   // 2. Fetch missing orders ONLY for relevant shipping tasks from Supabase into persistent cache
   useEffect(() => {
     if (!tasks || tasks.length === 0 || !supabase) return
-    const shippingTasks = tasks.filter(t =>
-      t.plan_snapshot?._metadata?.is_packaged === true ||
-      t.plan_snapshot?._metadata?.is_shipped === true
-    )
+    const shippingTasks = tasks.filter(t => isTaskPackaged(t) || isTaskShipped(t))
     const orderIds = Array.from(new Set(shippingTasks.map(t => t.order_id).filter(Boolean)))
-    const missingIds = orderIds.filter(id => !ordersCacheRef.current[id])
+    // Only check if it's strictly undefined so we don't refetch failed/null orders infinitely
+    const missingIds = orderIds.filter(id => ordersCacheRef.current[id] === undefined)
 
     if (missingIds.length > 0) {
+      // Mark immediately as null to prevent infinite fetching loops on re-renders
+      missingIds.forEach(id => {
+        ordersCacheRef.current[id] = null
+      })
+
       const fetchMissing = async () => {
         try {
-          const { data } = await supabase
-            .from('orders')
-            .select('*, order_items(*)')
-            .in('id', missingIds)
+          let anyUpdated = false
+          // Chunk into batches of 50 to avoid URL length limits in Supabase
+          for (let i = 0; i < missingIds.length; i += 50) {
+            const chunk = missingIds.slice(i, i + 50)
+            const { data } = await supabase
+              .from('orders')
+              .select('*, order_items(*)')
+              .in('id', chunk)
 
-          if (data && data.length > 0) {
-            data.forEach(ord => {
-              if (ord?.id) ordersCacheRef.current[ord.id] = ord
-              if (ord?.order_num) ordersCacheRef.current[ord.order_num] = ord
-            })
-            setCacheVer(v => v + 1)
+            if (data && data.length > 0) {
+              data.forEach(ord => {
+                if (ord?.id) ordersCacheRef.current[ord.id] = ord
+                if (ord?.order_num) ordersCacheRef.current[ord.order_num] = ord
+              })
+              anyUpdated = true
+            }
           }
+          if (anyUpdated) setCacheVer(v => v + 1)
         } catch (err) {
           console.warn('[Shipping] fetch missing orders error:', err)
         }
       }
       fetchMissing()
     }
-  }, [tasks, supabase])
+  }, [tasks, supabase, isTaskPackaged, isTaskShipped])
 
   // 3. Stable list of all known orders and fast lookup maps
   const allKnownOrders = useMemo(() => {
@@ -165,9 +206,7 @@ export function useShippingData() {
   // Партії готові до відвантаження
   const readyBatches = useMemo(() => {
     const allReady = (tasks || []).filter(t =>
-      t.status === 'completed' &&
-      t.plan_snapshot?._metadata?.is_packaged === true &&
-      t.plan_snapshot?._metadata?.is_shipped !== true
+      isTaskPackaged(t) && !isTaskShipped(t)
     )
     const batchMap = {}
     allReady.forEach(t => {
@@ -177,7 +216,7 @@ export function useShippingData() {
     })
     return Object.values(batchMap).map(taskList => {
       const t = taskList[0]
-      const meta = t.plan_snapshot?._metadata || {}
+      const meta = getTaskMeta(t)
       const order = orderMap.get(String(t.order_id)) || (meta.order_num ? orderMap.get(String(meta.order_num)) : null)
       
       let resolvedOrderNum = order?.order_num || meta.order_num || meta.order_number || t.order_num || t.order_number
@@ -229,7 +268,7 @@ export function useShippingData() {
       const plannedSets = (t.batch_index && taskSets > 0)
         ? taskSets
         : (
-            taskList.reduce((max, cur) => Math.max(max, Number(cur.planned_sets) || Number(cur.plan_snapshot?._metadata?.planned_sets) || 0), 0) ||
+            taskList.reduce((max, cur) => Math.max(max, Number(cur.planned_sets) || Number(getTaskMeta(cur)?.planned_sets) || 0), 0) ||
             order?.order_items?.reduce((acc, it) => acc + (Number(it.quantity) || 0), 0) ||
             taskList[0]?.planned_sets ||
             0
@@ -250,13 +289,11 @@ export function useShippingData() {
         batchColor: meta.batch_color || '',
       }
     })
-  }, [tasks, orderMap, nomMap])
+  }, [tasks, orderMap, nomMap, getTaskMeta, isTaskPackaged, isTaskShipped])
 
   // Відвантажені партії (для архіву)
   const shippedBatches = useMemo(() => {
-    const shipped = (tasks || []).filter(t =>
-      t.plan_snapshot?._metadata?.is_shipped === true
-    )
+    const shipped = (tasks || []).filter(t => isTaskShipped(t))
     const batchMap = {}
     shipped.forEach(t => {
       const key = `${t.order_id}_${t.batch_index ?? '0'}`
@@ -266,14 +303,16 @@ export function useShippingData() {
     
     // Sort raw batch taskLists by shipped_at descending BEFORE mapping, and slice top 30
     const sortedTaskLists = Object.values(batchMap).sort((a, b) => {
-      const dateA = a[0]?.plan_snapshot?._metadata?.shipped_at || a[0]?.completed_at || a[0]?.updated_at || ''
-      const dateB = b[0]?.plan_snapshot?._metadata?.shipped_at || b[0]?.completed_at || b[0]?.updated_at || ''
+      const metaA = getTaskMeta(a[0])
+      const metaB = getTaskMeta(b[0])
+      const dateA = metaA?.shipped_at || a[0]?.completed_at || a[0]?.updated_at || ''
+      const dateB = metaB?.shipped_at || b[0]?.completed_at || b[0]?.updated_at || ''
       return dateB.localeCompare(dateA)
     }).slice(0, 30)
 
     return sortedTaskLists.map(taskList => {
       const t = taskList[0]
-      const meta = t.plan_snapshot?._metadata || {}
+      const meta = getTaskMeta(t)
       const order = orderMap.get(String(t.order_id)) || (meta.order_num ? orderMap.get(String(meta.order_num)) : null)
       
       let resolvedOrderNum = order?.order_num || meta.order_num || meta.order_number || t.order_num || t.order_number
