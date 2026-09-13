@@ -34,6 +34,25 @@ const tsFileResolverPlugin = () => ({
       }
     }
     return null
+  },
+  configureServer(server) {
+    server.middlewares.use((req, res, next) => {
+      if (req.url) {
+        const [pathname, query] = req.url.split('?')
+        if (pathname.endsWith('.jsx') || pathname.endsWith('.js')) {
+          const extLength = pathname.endsWith('.jsx') ? 4 : 3
+          const absolutePathWithoutExt = path.join(process.cwd(), pathname.slice(0, -extLength))
+          if (!fs.existsSync(absolutePathWithoutExt + '.jsx') && !fs.existsSync(absolutePathWithoutExt + '.js')) {
+            if (fs.existsSync(absolutePathWithoutExt + '.tsx')) {
+              req.url = pathname.slice(0, -extLength) + '.tsx' + (query ? '?' + query : '')
+            } else if (fs.existsSync(absolutePathWithoutExt + '.ts')) {
+              req.url = pathname.slice(0, -extLength) + '.ts' + (query ? '?' + query : '')
+            }
+          }
+        }
+      }
+      next()
+    })
   }
 })
 

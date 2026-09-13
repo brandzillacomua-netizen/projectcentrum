@@ -38,10 +38,10 @@ export const AppSidebar = ({ isCollapsed, setIsCollapsed, chatUnreadCount, isMob
       const sidebarEl = document.querySelector('.app-sidebar')
       if (!sidebarEl) return
       
-      // If click is inside sidebar, do nothing
-      if (sidebarEl.contains(e.target)) return
+      // If click is inside sidebar or on toggle buttons/backdrop, do nothing
+      if (sidebarEl.contains(e.target) || e.target.closest('.mobile-menu-toggle-btn, .sidebar-toggle-edge-btn, .mobile-backdrop-overlay')) return
 
-      // If click is on ANY button, link, input, card, or interactive element on the page, DO NOT collapse (let the button click work directly on 1st click!)
+      // If click is on ANY button, link, input, card, or interactive element on the page, DO NOT collapse
       const isInteractive = e.target.closest(
         'button, a, input, select, textarea, [role="button"], .portal-card-v2, .glass-panel, .glass-modal, [role="dialog"], .mobile-menu-toggle-btn, .sidebar-toggle-edge-btn, .card, .btn'
       );
@@ -76,7 +76,11 @@ export const AppSidebar = ({ isCollapsed, setIsCollapsed, chatUnreadCount, isMob
         {/* Left: Logo 🦊 + Brand + Menu Toggle Arrow */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <button
-            onClick={() => setIsCollapsed(prev => !prev)}
+            onClick={(e) => {
+              e.stopPropagation()
+              e.preventDefault()
+              setIsCollapsed(prev => !prev)
+            }}
             className="mobile-menu-toggle-btn"
             title={isCollapsed ? "Відкрити меню" : "Згорнути меню"}
           >
@@ -141,14 +145,20 @@ export const AppSidebar = ({ isCollapsed, setIsCollapsed, chatUnreadCount, isMob
       {!isCollapsed && (
         <div
           className="mobile-backdrop-overlay"
-          onClick={() => setIsCollapsed(true)}
+          onClick={(e) => {
+            e.stopPropagation()
+            setIsCollapsed(true)
+          }}
         />
       )}
 
       <aside
         className={`app-sidebar no-print ${isCollapsed ? 'collapsed' : ''}`}
-        onClick={() => {
-          if (isCollapsed) setIsCollapsed(false);
+        onClick={(e) => {
+          if (isCollapsed) {
+            e.stopPropagation()
+            setIsCollapsed(false)
+          }
         }}
         style={{
           position: 'sticky',
@@ -176,7 +186,11 @@ export const AppSidebar = ({ isCollapsed, setIsCollapsed, chatUnreadCount, isMob
           </Link>
 
           <button
-            onClick={() => setIsCollapsed(prev => !prev)}
+            onClick={(e) => {
+              e.stopPropagation()
+              e.preventDefault()
+              setIsCollapsed(prev => !prev)
+            }}
             className="sidebar-toggle-edge-btn"
             title={isCollapsed ? "Розгорнути меню" : "Згорнути меню"}
           >
