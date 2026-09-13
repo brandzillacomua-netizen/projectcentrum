@@ -19,8 +19,9 @@
     "security:rls": "node scripts/check-rls-boundaries.mjs",
     "security:diagnostics": "node scripts/check-readonly-diagnostics.mjs",
     "security:audit": "npm audit --omit=dev --audit-level=high",
-    "lint:security": "eslint api src/contexts/useAuth.js src/contexts/data/dataState.js src/services/alerting src/services/novaPoshtaService.js src/services/sentryLogger.js src/utils/telemetrySanitizer.js server",
-    "ci": "npm run security:secrets && npm run security:rls && npm run security:diagnostics && npm run security:access-contract && npm run security:audit && npm run validate:migrations && npm run validate:production-migrations && node scripts/check-monthly-partitions.mjs && npm run lint:security && npm test && npm run build && npm run build:check",
+    "lint:security": "eslint api src/contexts/useAuth.js src/contexts/data/dataState.js src/services/alerting src/services/novaPoshtaService.js src/services/sentryLogger.js src/utils/telemetrySanitizer.ts server",
+    "typecheck": "tsc --noEmit",
+    "ci": "npm run typecheck && npm run security:secrets && npm run security:rls && npm run security:diagnostics && npm run security:access-contract && npm run security:audit && npm run validate:migrations && npm run validate:production-migrations && node scripts/check-monthly-partitions.mjs && npm run lint:security && npm test && npm run build && npm run build:check",
     "smoke:production": "node --env-file=.env scripts/production-smoke.mjs",
     "smoke:public-release": "node scripts/smoke-public-release.mjs",
     "smoke:anon-storage": "node --env-file=.env scripts/smoke-anon-storage.mjs",
@@ -60,6 +61,8 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.63.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-basic-ssl": "^2.3.0",
     "@vitejs/plugin-react": "^4.3.4",
     "eslint": "^10.7.0",
@@ -68,6 +71,7 @@
     "globals": "^17.7.0",
     "pg": "^8.23.0",
     "supabase": "2.117.0",
+    "typescript": "^7.0.2",
     "vite": "^6.2.0",
     "vitest": "^5.0.0"
   }

@@ -412,49 +412,31 @@ if (typeof window !== 'undefined') {
   stagingClient.auth.onAuthStateChange(syncAuth)
 }
 
-// Sync time drift and patch Date globally to use synchronized time
-const OriginalDate = typeof window !== 'undefined' ? window.Date : (typeof globalThis !== 'undefined' ? globalThis.Date : Date);
-
+// Sync time drift safely without monkey-patching native Date globally
 if (typeof window !== 'undefined') {
-  window.timeDrift = window.timeDrift || 0;
-}
-
-const PatchedDate = function(...args) {
-  const drift = (typeof window !== 'undefined' && window.timeDrift) || 0;
-  if (!(this instanceof PatchedDate)) {
-    return new OriginalDate(OriginalDate.now() + drift).toString();
-  }
-  if (args.length === 0) {
-    return new OriginalDate(OriginalDate.now() + drift);
-  }
-  return new OriginalDate(...args);
-};
-
-PatchedDate.prototype = OriginalDate.prototype;
-PatchedDate.now = function () {
-  const drift = (typeof window !== 'undefined' && window.timeDrift) || 0;
-  return OriginalDate.now() + drift;
-};
-
-if (OriginalDate.parse) PatchedDate.parse = OriginalDate.parse;
-if (OriginalDate.UTC) PatchedDate.UTC = OriginalDate.UTC;
-
-if (typeof window !== 'undefined') {
-  window.Date = PatchedDate;
+  window.timeDrift = window.timeDrift || 0
 }
 
 export function getCurrentTime() {
-  return new PatchedDate();
+  const drift = (typeof window !== 'undefined' && window.timeDrift) || 0
+  return new Date(Date.now() + drift)
 }
+
+export function getSynchronizedNow() {
+  const drift = (typeof window !== 'undefined' && window.timeDrift) || 0
+  return Date.now() + drift
+}
+
 if (typeof window !== 'undefined') {
-  window.getCurrentTime = getCurrentTime;
+  window.getCurrentTime = getCurrentTime
+  window.getSynchronizedNow = getSynchronizedNow
 }
 
 // Sync time immediately on load and every 5 minutes
 async function syncTimeDrift() {
   // 1. Primary: Supabase REST date header (authoritative backend server time, zero 3rd-party latency)
   try {
-    const start = OriginalDate.now();
+    const start = Date.now();
     const response = await fetch(`${supabaseUrl}/auth/v1/health`, {
       method: 'GET',
       headers: {
@@ -464,9 +446,9 @@ async function syncTimeDrift() {
     });
     const serverDate = response.headers.get('date');
     if (serverDate) {
-      const serverTimeMs = new OriginalDate(serverDate).getTime();
-      const latency = (OriginalDate.now() - start) / 2;
-      window.timeDrift = (serverTimeMs + latency) - OriginalDate.now();
+      const serverTimeMs = new Date(serverDate).getTime();
+      const latency = (Date.now() - start) / 2;
+      window.timeDrift = (serverTimeMs + latency) - Date.now();
       console.log('[Time Sync] Server drift synchronized via Supabase header:', window.timeDrift, 'ms');
       return;
     }
@@ -477,16 +459,16 @@ async function syncTimeDrift() {
   // 2. Fallback: Try same-origin header in production browser
   if (typeof window !== 'undefined' && window.location && window.location.origin) {
     try {
-      const start = OriginalDate.now();
-      const response = await fetch(window.location.origin + '/?t=' + OriginalDate.now(), {
+      const start = Date.now();
+      const response = await fetch(window.location.origin + '/?t=' + Date.now(), {
         method: 'HEAD',
         cache: 'no-store'
       });
       const serverDate = response.headers.get('date');
       if (serverDate) {
-        const serverTimeMs = new OriginalDate(serverDate).getTime();
-        const latency = (OriginalDate.now() - start) / 2;
-        window.timeDrift = (serverTimeMs + latency) - OriginalDate.now();
+        const serverTimeMs = new Date(serverDate).getTime();
+        const latency = (Date.now() - start) / 2;
+        window.timeDrift = (serverTimeMs + latency) - Date.now();
         console.log('[Time Sync] Server drift synchronized via same-origin header:', window.timeDrift, 'ms');
         return;
       }

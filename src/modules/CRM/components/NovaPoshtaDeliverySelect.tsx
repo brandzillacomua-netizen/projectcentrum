@@ -1,10 +1,24 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react'
-import { Truck, MapPin, Search, Building2, Package, Check, Building, FileText, CheckCircle2, Loader2 } from 'lucide-react'
+import { Truck, MapPin, Building2, Package, CheckCircle2, Loader2 } from 'lucide-react'
 import { searchEdrpouCounterparty } from '../services/edrpouLookupService'
 import { callNpApi } from '../../../services/novaPoshtaService.js'
 
+export interface NovaPoshtaDeliverySelectProps {
+  deliveryMethod?: 'np_warehouse' | 'np_postomat' | 'np_courier' | 'pickup' | string
+  city?: string
+  warehouse?: string
+  address?: string
+  recipientName?: string
+  recipientPhone?: string
+  isLegalEntity?: boolean
+  edrpou?: string
+  legalEntityName?: string
+  onChange: (data: Record<string, any>) => void
+  isEditing?: boolean
+}
+
 // Popular Ukrainian cities for instant suggestion / fallback
-const POPULAR_CITIES = [
+const POPULAR_CITIES: string[] = [
   'Київ', 'Львів', 'Дніпро', 'Одеса', 'Харків', 
   'Запоріжжя', 'Вінниця', 'Полтава', 'Черкаси', 'Івано-Франківськ',
   'Тернопіль', 'Рівне', 'Хмельницький', 'Кропивницький', 'Кривий Ріг',
@@ -12,7 +26,7 @@ const POPULAR_CITIES = [
 ]
 
 // Fallback warehouses for main cities
-const POPULAR_WAREHOUSES = {
+const POPULAR_WAREHOUSES: Record<string, string[]> = {
   'Київ': [
     'Відділення №1: вул. Пирогівський шлях, 135',
     'Відділення №2: вул. Бережанська, 9',
@@ -40,7 +54,7 @@ const POPULAR_WAREHOUSES = {
 }
 
 // Fallback Postomats for main cities
-const POPULAR_POSTOMATS = {
+const POPULAR_POSTOMATS: Record<string, string[]> = {
   'Київ': [
     'Поштомат №1001: вул. Хрещатик, 22',
     'Поштомат №1002: вул. Басейна, 5',
@@ -67,7 +81,7 @@ const POPULAR_POSTOMATS = {
   ]
 }
 
-export const NovaPoshtaDeliverySelect = ({
+export function NovaPoshtaDeliverySelect({
   deliveryMethod = 'np_warehouse',
   city = '',
   warehouse = '',
@@ -79,26 +93,26 @@ export const NovaPoshtaDeliverySelect = ({
   legalEntityName = '',
   onChange,
   isEditing = false
-}) => {
-  const [cityQuery, setCityQuery] = useState(city || '')
-  const [showCityHints, setShowCityHints] = useState(false)
-  const [citySuggestions, setCitySuggestions] = useState([])
+}: NovaPoshtaDeliverySelectProps): React.JSX.Element {
+  const [cityQuery, setCityQuery] = useState<string>(city || '')
+  const [showCityHints, setShowCityHints] = useState<boolean>(false)
+  const [citySuggestions, setCitySuggestions] = useState<string[]>([])
 
-  const [warehouseQuery, setWarehouseQuery] = useState(warehouse || '')
-  const [showWarehouseHints, setShowWarehouseHints] = useState(false)
-  const [warehouseSuggestions, setWarehouseSuggestions] = useState([])
+  const [warehouseQuery, setWarehouseQuery] = useState<string>(warehouse || '')
+  const [showWarehouseHints, setShowWarehouseHints] = useState<boolean>(false)
+  const [warehouseSuggestions, setWarehouseSuggestions] = useState<string[]>([])
 
-  const [addressText, setAddressText] = useState(address || '')
-  const [streetSuggestions, setStreetSuggestions] = useState([])
-  const [showStreetHints, setShowStreetHints] = useState(false)
+  const [addressText, setAddressText] = useState<string>(address || '')
+  const [streetSuggestions, setStreetSuggestions] = useState<string[]>([])
+  const [showStreetHints, setShowStreetHints] = useState<boolean>(false)
 
-  const [edrpouCode, setEdrpouCode] = useState(edrpou || '')
-  const [companyName, setCompanyName] = useState(legalEntityName || '')
-  const [edrpouMatch, setEdrpouMatch] = useState(null)
-  const [isSearchingEdrpou, setIsSearchingEdrpou] = useState(false)
+  const [edrpouCode, setEdrpouCode] = useState<string>(edrpou || '')
+  const [companyName, setCompanyName] = useState<string>(legalEntityName || '')
+  const [edrpouMatch, setEdrpouMatch] = useState<any | null>(null)
+  const [isSearchingEdrpou, setIsSearchingEdrpou] = useState<boolean>(false)
 
-  const cityInputRef = useRef(null)
-  const warehouseInputRef = useRef(null)
+  const cityInputRef = useRef<HTMLInputElement>(null)
+  const warehouseInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     setCityQuery(city || '')
@@ -121,7 +135,7 @@ export const NovaPoshtaDeliverySelect = ({
   }, [legalEntityName])
 
   // Live EDRPOU Lookup
-  const handleEdrpouChange = async (code) => {
+  const handleEdrpouChange = async (code: string): Promise<void> => {
     const cleanCode = code.trim().replace(/\D/g, '')
     setEdrpouCode(cleanCode)
     onChange({ edrpou: cleanCode, tin: cleanCode })
@@ -159,11 +173,11 @@ export const NovaPoshtaDeliverySelect = ({
     const timer = setTimeout(async () => {
       try {
         const apiData = await callNpApi('Address', 'searchSettlements', {
-              CityName: cityQuery.trim(),
-              Limit: '15'
+          CityName: cityQuery.trim(),
+          Limit: '15'
         })
         if (apiData?.[0]?.Addresses) {
-          const apiCities = apiData[0].Addresses.map(item => item.Present)
+          const apiCities = apiData[0].Addresses.map((item: any) => item.Present)
           setCitySuggestions(apiCities.length > 0 ? apiCities : POPULAR_CITIES)
         } else {
           const filtered = POPULAR_CITIES.filter(c => c.toLowerCase().includes(cityQuery.toLowerCase()))
@@ -191,14 +205,14 @@ export const NovaPoshtaDeliverySelect = ({
     const timer = setTimeout(async () => {
       try {
         const apiData = await callNpApi('Address', 'getWarehouses', {
-              CityName: currentCity,
-              TypeOfWarehouseRef: isPostomatMode ? 'f931c480-5f2d-425d-bc2c-ac7cd29de9f5' : undefined,
-              Limit: '100'
+          CityName: currentCity,
+          TypeOfWarehouseRef: isPostomatMode ? 'f931c480-5f2d-425d-bc2c-ac7cd29de9f5' : undefined,
+          Limit: '100'
         })
         if (apiData?.length > 0) {
-          let apiWhs = apiData.map(item => item.Description)
+          let apiWhs = apiData.map((item: any) => item.Description)
           if (isPostomatMode) {
-            const filteredPostomats = apiWhs.filter(w => w.toLowerCase().includes('поштомат'))
+            const filteredPostomats = apiWhs.filter((w: string) => w.toLowerCase().includes('поштомат'))
             apiWhs = filteredPostomats.length > 0 ? filteredPostomats : apiWhs
           }
           setWarehouseSuggestions(apiWhs)
@@ -219,7 +233,7 @@ export const NovaPoshtaDeliverySelect = ({
     return () => clearTimeout(timer)
   }, [cityQuery, deliveryMethod])
 
-  // Filter and prioritize warehouse suggestions based on warehouseQuery (e.g. typing "5" shows Branch №5 first)
+  // Filter and prioritize warehouse suggestions based on warehouseQuery
   const filteredWarehouseSuggestions = useMemo(() => {
     if (!warehouseSuggestions || warehouseSuggestions.length === 0) return []
     if (!warehouseQuery || !warehouseQuery.trim()) return warehouseSuggestions
@@ -257,12 +271,12 @@ export const NovaPoshtaDeliverySelect = ({
     const timer = setTimeout(async () => {
       try {
         const apiData = await callNpApi('Address', 'searchSettlementStreets', {
-              StreetName: addressText.trim(),
-              SettlementRef: '',
-              Limit: '10'
+          StreetName: addressText.trim(),
+          SettlementRef: '',
+          Limit: '10'
         })
         if (apiData?.[0]?.Addresses) {
-          setStreetSuggestions(apiData[0].Addresses.map(item => item.Present))
+          setStreetSuggestions(apiData[0].Addresses.map((item: any) => item.Present))
         }
       } catch (e) {}
     }, 300)
@@ -270,19 +284,19 @@ export const NovaPoshtaDeliverySelect = ({
     return () => clearTimeout(timer)
   }, [addressText, cityQuery, deliveryMethod])
 
-  const handleSelectCity = (selectedCity) => {
+  const handleSelectCity = (selectedCity: string): void => {
     setCityQuery(selectedCity)
     setShowCityHints(false)
     onChange({ city: selectedCity, deliveryCity: selectedCity, warehouse: '' })
   }
 
-  const handleSelectWarehouse = (selectedWh) => {
+  const handleSelectWarehouse = (selectedWh: string): void => {
     setWarehouseQuery(selectedWh)
     setShowWarehouseHints(false)
     onChange({ warehouse: selectedWh, deliveryWarehouse: selectedWh })
   }
 
-  const handleSelectStreet = (street) => {
+  const handleSelectStreet = (street: string): void => {
     setAddressText(street)
     setShowStreetHints(false)
     onChange({ address: street, deliveryAddress: street })
@@ -328,7 +342,7 @@ export const NovaPoshtaDeliverySelect = ({
         })}
       </div>
 
-      {/* 2. Main Delivery Inputs Grid (City + Warehouse/Postomat/Address) */}
+      {/* 2. Main Delivery Inputs Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
         {/* City Input with Autocomplete */}
         <div style={{ position: 'relative' }}>
@@ -348,18 +362,19 @@ export const NovaPoshtaDeliverySelect = ({
                 }}
                 onFocus={() => setShowCityHints(true)}
                 onBlur={() => setTimeout(() => setShowCityHints(false), 200)}
-                placeholder="Введіть місто (напр. Київ, Калуш, Львів)..."
+                placeholder="Введіть місто (напр. Калуш)..."
                 style={{
                   width: '100%',
-                  padding: '10px 12px',
+                  padding: '9px 12px',
                   borderRadius: '10px',
                   border: '1px solid var(--glass-border)',
-                  background: 'var(--card-bg, rgba(0,0,0,0.15))',
-                  color: 'var(--text)',
-                  fontSize: '0.85rem',
-                  outline: 'none'
+                  background: 'var(--input-bg, #000)',
+                  color: 'var(--text, #fff)',
+                  fontSize: '0.82rem',
+                  fontWeight: 700
                 }}
               />
+
               {showCityHints && citySuggestions.length > 0 && (
                 <div
                   onMouseDown={(e) => e.preventDefault()}
@@ -372,12 +387,11 @@ export const NovaPoshtaDeliverySelect = ({
                     marginTop: '4px',
                     maxHeight: '220px',
                     overflowY: 'auto',
-                    WebkitOverflowScrolling: 'touch',
-                    overscrollBehavior: 'contain',
-                    background: 'var(--card-bg, #ffffff)',
-                    border: '1px solid var(--glass-border)',
                     borderRadius: '12px',
-                    boxShadow: '0 10px 25px rgba(0,0,0,0.2)'
+                    border: '1px solid var(--glass-border)',
+                    background: 'var(--modal-bg, #111)',
+                    boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
+                    padding: '6px'
                   }}
                 >
                   {citySuggestions.map((c, i) => (
@@ -385,41 +399,38 @@ export const NovaPoshtaDeliverySelect = ({
                       key={i}
                       onClick={() => handleSelectCity(c)}
                       style={{
-                        padding: '10px 14px',
-                        fontSize: '0.82rem',
-                        color: 'var(--text)',
+                        padding: '8px 12px',
+                        borderRadius: '8px',
                         cursor: 'pointer',
-                        borderBottom: '1px solid var(--glass-border)',
-                        fontWeight: 600
+                        fontSize: '0.8rem',
+                        fontWeight: 600,
+                        color: 'var(--text, #fff)',
+                        transition: 'background 0.15s'
                       }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,144,0,0.1)'}
-                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,144,0,0.15)')}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
                     >
-                      📍 {c}
+                      {c}
                     </div>
                   ))}
                 </div>
               )}
             </div>
           ) : (
-            <div style={{ fontSize: '0.88rem', fontWeight: 800, color: 'var(--text)' }}>
-              {city || 'Не вказано'}
+            <div style={{ padding: '9px 12px', borderRadius: '10px', background: 'rgba(255,255,255,0.03)', fontSize: '0.82rem', fontWeight: 800 }}>
+              {cityQuery || '—'}
             </div>
           )}
         </div>
 
-        {/* Warehouse / Postomat / Address Input */}
+        {/* Warehouse / Postomat / Courier Address */}
         <div style={{ position: 'relative' }}>
           <label style={{ fontSize: '0.7rem', fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>
-            {deliveryMethod === 'np_courier' || deliveryMethod === 'pickup'
-              ? 'Вулиця / Адреса Доставки'
-              : deliveryMethod === 'np_postomat'
-              ? 'Поштомат НП'
-              : 'Відділення НП'}
+            {deliveryMethod === 'np_postomat' ? 'Поштомат НП' : deliveryMethod === 'np_courier' ? 'Адреса доставки (Вулиця, буд.)' : 'Відділення НП'}
           </label>
+
           {isEditing ? (
-            deliveryMethod === 'np_courier' || deliveryMethod === 'pickup' ? (
-              /* Address Delivery Input */
+            deliveryMethod === 'np_courier' ? (
               <div style={{ position: 'relative' }}>
                 <input
                   type="text"
@@ -431,18 +442,19 @@ export const NovaPoshtaDeliverySelect = ({
                   }}
                   onFocus={() => setShowStreetHints(true)}
                   onBlur={() => setTimeout(() => setShowStreetHints(false), 200)}
-                  placeholder="вул. Дзвонарська, буд. 15, оф. 4..."
+                  placeholder="Введіть вулицю та номер будинку..."
                   style={{
                     width: '100%',
-                    padding: '10px 12px',
+                    padding: '9px 12px',
                     borderRadius: '10px',
                     border: '1px solid var(--glass-border)',
-                    background: 'var(--card-bg, rgba(0,0,0,0.15))',
-                    color: 'var(--text)',
-                    fontSize: '0.85rem',
-                    outline: 'none'
+                    background: 'var(--input-bg, #000)',
+                    color: 'var(--text, #fff)',
+                    fontSize: '0.82rem',
+                    fontWeight: 700
                   }}
                 />
+
                 {showStreetHints && streetSuggestions.length > 0 && (
                   <div
                     onMouseDown={(e) => e.preventDefault()}
@@ -453,39 +465,38 @@ export const NovaPoshtaDeliverySelect = ({
                       right: 0,
                       zIndex: 100,
                       marginTop: '4px',
-                      maxHeight: '180px',
+                      maxHeight: '220px',
                       overflowY: 'auto',
-                      WebkitOverflowScrolling: 'touch',
-                      overscrollBehavior: 'contain',
-                      background: 'var(--card-bg, #ffffff)',
-                      border: '1px solid var(--glass-border)',
                       borderRadius: '12px',
-                      boxShadow: '0 10px 25px rgba(0,0,0,0.2)'
+                      border: '1px solid var(--glass-border)',
+                      background: 'var(--modal-bg, #111)',
+                      boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
+                      padding: '6px'
                     }}
                   >
-                    {streetSuggestions.map((st, i) => (
+                    {streetSuggestions.map((s, i) => (
                       <div
                         key={i}
-                        onClick={() => handleSelectStreet(st)}
+                        onClick={() => handleSelectStreet(s)}
                         style={{
                           padding: '8px 12px',
-                          fontSize: '0.8rem',
-                          color: 'var(--text)',
+                          borderRadius: '8px',
                           cursor: 'pointer',
-                          borderBottom: '1px solid var(--glass-border)',
-                          fontWeight: 600
+                          fontSize: '0.8rem',
+                          fontWeight: 600,
+                          color: 'var(--text, #fff)',
+                          transition: 'background 0.15s'
                         }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,144,0,0.1)'}
-                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                        onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,144,0,0.15)')}
+                        onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
                       >
-                        🗺️ {st}
+                        {s}
                       </div>
                     ))}
                   </div>
                 )}
               </div>
             ) : (
-              /* Warehouse or Postomat Input with Autocomplete */
               <div style={{ position: 'relative' }}>
                 <input
                   ref={warehouseInputRef}
@@ -498,18 +509,19 @@ export const NovaPoshtaDeliverySelect = ({
                   }}
                   onFocus={() => setShowWarehouseHints(true)}
                   onBlur={() => setTimeout(() => setShowWarehouseHints(false), 200)}
-                  placeholder={deliveryMethod === 'np_postomat' ? "№ поштомату або адреса (напр. 1001)..." : "№ відділення або назва вулиці..."}
+                  placeholder={deliveryMethod === 'np_postomat' ? 'Пошук поштомату...' : 'Введіть номер або адресу (напр. 5 або Дзвонарська)...'}
                   style={{
                     width: '100%',
-                    padding: '10px 12px',
+                    padding: '9px 12px',
                     borderRadius: '10px',
                     border: '1px solid var(--glass-border)',
-                    background: 'var(--card-bg, rgba(0,0,0,0.15))',
-                    color: 'var(--text)',
-                    fontSize: '0.85rem',
-                    outline: 'none'
+                    background: 'var(--input-bg, #000)',
+                    color: 'var(--text, #fff)',
+                    fontSize: '0.82rem',
+                    fontWeight: 700
                   }}
                 />
+
                 {showWarehouseHints && filteredWarehouseSuggestions.length > 0 && (
                   <div
                     onMouseDown={(e) => e.preventDefault()}
@@ -522,30 +534,30 @@ export const NovaPoshtaDeliverySelect = ({
                       marginTop: '4px',
                       maxHeight: '220px',
                       overflowY: 'auto',
-                      WebkitOverflowScrolling: 'touch',
-                      overscrollBehavior: 'contain',
-                      background: 'var(--card-bg, #ffffff)',
-                      border: '1px solid var(--glass-border)',
                       borderRadius: '12px',
-                      boxShadow: '0 10px 25px rgba(0,0,0,0.2)'
+                      border: '1px solid var(--glass-border)',
+                      background: 'var(--modal-bg, #111)',
+                      boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
+                      padding: '6px'
                     }}
                   >
-                    {filteredWarehouseSuggestions.map((wh, i) => (
+                    {filteredWarehouseSuggestions.map((w, i) => (
                       <div
                         key={i}
-                        onClick={() => handleSelectWarehouse(wh)}
+                        onClick={() => handleSelectWarehouse(w)}
                         style={{
-                          padding: '10px 14px',
-                          fontSize: '0.82rem',
-                          color: 'var(--text)',
+                          padding: '8px 12px',
+                          borderRadius: '8px',
                           cursor: 'pointer',
-                          borderBottom: '1px solid var(--glass-border)',
-                          fontWeight: 600
+                          fontSize: '0.8rem',
+                          fontWeight: 600,
+                          color: 'var(--text, #fff)',
+                          transition: 'background 0.15s'
                         }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,144,0,0.1)'}
-                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                        onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,144,0,0.15)')}
+                        onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
                       >
-                        {deliveryMethod === 'np_postomat' ? '📮' : '📦'} {wh}
+                        {w}
                       </div>
                     ))}
                   </div>
@@ -553,157 +565,124 @@ export const NovaPoshtaDeliverySelect = ({
               </div>
             )
           ) : (
-            <div style={{ fontSize: '0.88rem', fontWeight: 800, color: 'var(--text)' }}>
-              {deliveryMethod === 'np_courier' || deliveryMethod === 'pickup' ? (addressText || 'Не вказано') : (warehouseQuery || 'Не вказано')}
+            <div style={{ padding: '9px 12px', borderRadius: '10px', background: 'rgba(255,255,255,0.03)', fontSize: '0.82rem', fontWeight: 800 }}>
+              {deliveryMethod === 'np_courier' ? (addressText || '—') : (warehouseQuery || '—')}
             </div>
           )}
         </div>
       </div>
 
-      {/* 3. Recipient Contact Details Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+      {/* 3. Recipient Info & Legal Entity EDRPOU Verification */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginTop: '4px' }}>
         <div>
           <label style={{ fontSize: '0.7rem', fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>
-            ПІБ Представника / Отримувача
+            Отримувач (ПІБ)
           </label>
           {isEditing ? (
             <input
               type="text"
-              value={recipientName || ''}
-              onChange={(e) => onChange({ recipientName: e.target.value, deliveryRecipientName: e.target.value })}
-              placeholder="Іванов Іван Іванович..."
+              value={recipientName}
+              onChange={(e) => onChange({ recipientName: e.target.value, recipient_name: e.target.value })}
+              placeholder="Іванов Іван Іванович"
               style={{
                 width: '100%',
-                padding: '10px 12px',
+                padding: '9px 12px',
                 borderRadius: '10px',
                 border: '1px solid var(--glass-border)',
-                background: 'var(--card-bg, rgba(0,0,0,0.15))',
-                color: 'var(--text)',
-                fontSize: '0.85rem',
-                outline: 'none'
+                background: 'var(--input-bg, #000)',
+                color: 'var(--text, #fff)',
+                fontSize: '0.82rem',
+                fontWeight: 700
               }}
             />
           ) : (
-            <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text)' }}>
-              {recipientName || 'Збігається з контактом клієнта'}
+            <div style={{ padding: '9px 12px', borderRadius: '10px', background: 'rgba(255,255,255,0.03)', fontSize: '0.82rem', fontWeight: 800 }}>
+              {recipientName || '—'}
             </div>
           )}
         </div>
 
         <div>
           <label style={{ fontSize: '0.7rem', fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>
-            Телефон Отримувача
+            Телефон отримувача
           </label>
           {isEditing ? (
             <input
               type="text"
-              value={recipientPhone || ''}
-              onChange={(e) => onChange({ recipientPhone: e.target.value, deliveryRecipientPhone: e.target.value })}
-              placeholder="+380 (67) 123-45-67..."
+              value={recipientPhone}
+              onChange={(e) => onChange({ recipientPhone: e.target.value, recipient_phone: e.target.value, phone: e.target.value })}
+              placeholder="+380..."
               style={{
                 width: '100%',
-                padding: '10px 12px',
+                padding: '9px 12px',
                 borderRadius: '10px',
                 border: '1px solid var(--glass-border)',
-                background: 'var(--card-bg, rgba(0,0,0,0.15))',
-                color: 'var(--text)',
-                fontSize: '0.85rem',
-                outline: 'none'
+                background: 'var(--input-bg, #000)',
+                color: 'var(--text, #fff)',
+                fontSize: '0.82rem',
+                fontWeight: 700
               }}
             />
           ) : (
-            <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text)' }}>
-              {recipientPhone || 'Основний контактний телефон'}
+            <div style={{ padding: '9px 12px', borderRadius: '10px', background: 'rgba(255,255,255,0.03)', fontSize: '0.82rem', fontWeight: 800 }}>
+              {recipientPhone || '—'}
             </div>
           )}
         </div>
       </div>
 
-      {/* 4. Legal Entity Checkbox Toggle & EDRPOU Block — Placed BELOW Delivery */}
-      <div style={{
-        marginTop: '8px',
-        paddingTop: '16px',
-        borderTop: '1px dashed var(--glass-border)',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '12px'
-      }}>
+      {/* 4. Legal Entity EDRPOU Live Lookup Box */}
+      {isLegalEntity && (
         <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '10px',
-          background: isLegalEntity ? 'rgba(99, 102, 241, 0.08)' : 'var(--glass-border, rgba(0,0,0,0.03))',
-          border: isLegalEntity ? '1px solid #6366f1' : '1px solid var(--glass-border)',
-          borderRadius: '12px',
-          padding: '10px 14px',
-          transition: 'all 0.2s'
+          padding: '14px 16px',
+          borderRadius: '14px',
+          border: '1px solid rgba(255, 144, 0, 0.3)',
+          background: 'rgba(255, 144, 0, 0.04)',
+          marginTop: '6px'
         }}>
-          <input
-            type="checkbox"
-            id="legalEntityCheckbox"
-            disabled={!isEditing}
-            checked={isLegalEntity}
-            onChange={(e) => onChange({ isLegalEntity: e.target.checked })}
-            style={{ width: '18px', height: '18px', cursor: isEditing ? 'pointer' : 'default', accentColor: '#6366f1' }}
-          />
-          <label htmlFor="legalEntityCheckbox" style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text)', cursor: isEditing ? 'pointer' : 'default', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <Building size={16} color="#6366f1" /> Отримувач — Юридична особа (ТОВ, ПП, Організація)
-          </label>
-        </div>
+          <div style={{ fontSize: '0.78rem', fontWeight: 900, color: '#ff9000', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Building2 size={14} /> РЕКВІЗИТИ ЮРИДИЧНОЇ ОСОБИ (ПОШУК ЄДРПОУ)
+          </div>
 
-        {/* Legal Entity Search Fields — Stacked in 2 Clean Rows */}
-        {isLegalEntity && (
-          <div style={{
-            background: 'rgba(99, 102, 241, 0.06)',
-            border: '1px solid rgba(99, 102, 241, 0.25)',
-            borderRadius: '14px',
-            padding: '16px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '14px'
-          }}>
-            {/* Row 1: EDRPOU / IPN Code Field */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '12px' }}>
             <div>
-              <label style={{ fontSize: '0.7rem', fontWeight: 900, color: '#6366f1', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>
-                Код ЄДРПОУ / ІПН (Пошук)
+              <label style={{ fontSize: '0.68rem', fontWeight: 800, color: '#aaa', display: 'block', marginBottom: '4px' }}>
+                Код ЄДРПОУ / ІПН
               </label>
               {isEditing ? (
                 <div style={{ position: 'relative' }}>
                   <input
                     type="text"
-                    maxLength={10}
                     value={edrpouCode}
                     onChange={(e) => handleEdrpouChange(e.target.value)}
-                    placeholder="Введіть код 8 цифр (ЄДРПОУ) або 10 цифр (ІПН ФОП)..."
+                    placeholder="12345678"
+                    maxLength={10}
                     style={{
                       width: '100%',
-                      padding: '10px 12px',
-                      borderRadius: '10px',
-                      border: '1px solid #6366f1',
-                      background: 'var(--card-bg, rgba(0,0,0,0.2))',
-                      color: 'var(--text)',
-                      fontSize: '0.88rem',
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      border: '1px solid var(--glass-border)',
+                      background: '#000',
+                      color: '#fff',
+                      fontSize: '0.8rem',
                       fontWeight: 800,
-                      outline: 'none'
+                      fontFamily: 'monospace'
                     }}
                   />
-                  {isSearchingEdrpou ? (
-                    <Loader2 size={16} color="#6366f1" className="spin" style={{ position: 'absolute', right: '10px', top: '12px' }} />
-                  ) : edrpouMatch && edrpouMatch.name ? (
-                    <CheckCircle2 size={16} color="#10b981" style={{ position: 'absolute', right: '10px', top: '12px' }} />
-                  ) : null}
+                  {isSearchingEdrpou && (
+                    <Loader2 size={14} className="spin" style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', color: '#ff9000' }} />
+                  )}
                 </div>
               ) : (
-                <div style={{ fontSize: '0.88rem', fontWeight: 800, color: 'var(--text)' }}>
-                  {edrpouCode || 'Не вказано'}
+                <div style={{ padding: '8px 12px', borderRadius: '8px', background: 'rgba(0,0,0,0.3)', fontFamily: 'monospace', fontSize: '0.8rem', fontWeight: 800 }}>
+                  {edrpouCode || '—'}
                 </div>
               )}
             </div>
 
-            {/* Row 2: Legal Entity / FOP Name Field */}
             <div>
-              <label style={{ fontSize: '0.7rem', fontWeight: 900, color: '#6366f1', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>
-                Назва Організації / Компанії / ФОП (Підтягнута по ЄДРПОУ)
+              <label style={{ fontSize: '0.68rem', fontWeight: 800, color: '#aaa', display: 'block', marginBottom: '4px' }}>
+                Назва ТОВ / ФОП (Автозаповнення)
               </label>
               {isEditing ? (
                 <input
@@ -713,64 +692,33 @@ export const NovaPoshtaDeliverySelect = ({
                     setCompanyName(e.target.value)
                     onChange({ legalEntityName: e.target.value, company: e.target.value })
                   }}
-                  placeholder="напр. ТОВ Брандзілла або ФОП..."
+                  placeholder="ТОВ 'ТОРГОВИЙ ДІМ'..."
                   style={{
                     width: '100%',
-                    padding: '10px 12px',
-                    borderRadius: '10px',
+                    padding: '8px 12px',
+                    borderRadius: '8px',
                     border: '1px solid var(--glass-border)',
-                    background: 'var(--card-bg, rgba(0,0,0,0.2))',
-                    color: 'var(--text)',
-                    fontSize: '0.88rem',
-                    fontWeight: 850,
-                    outline: 'none'
+                    background: '#000',
+                    color: '#fff',
+                    fontSize: '0.8rem',
+                    fontWeight: 700
                   }}
                 />
               ) : (
-                <div style={{ fontSize: '0.88rem', fontWeight: 850, color: 'var(--text)' }}>
-                  {companyName || 'Не вказано'}
+                <div style={{ padding: '8px 12px', borderRadius: '8px', background: 'rgba(0,0,0,0.3)', fontSize: '0.8rem', fontWeight: 800 }}>
+                  {companyName || '—'}
                 </div>
               )}
             </div>
-
-            {edrpouMatch && edrpouMatch.name && (
-              <div style={{ fontSize: '0.75rem', color: '#10b981', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <CheckCircle2 size={13} /> Знайдено ({edrpouMatch.source}): {edrpouMatch.name}
-              </div>
-            )}
-
-            {edrpouMatch && edrpouMatch.notFound && (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap' }}>
-                <div style={{ fontSize: '0.73rem', color: 'var(--text-muted)', fontWeight: 700 }}>
-                  ℹ️ За кодом <span style={{ color: '#6366f1' }}>{edrpouCode}</span> автоматичного запису не знайдено в відкритих API. Введіть назву компанії/ФОП вручну.
-                </div>
-                {recipientName && recipientName.trim().length > 3 && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const fop = `ФОП ${recipientName.trim().toUpperCase()}`
-                      setCompanyName(fop)
-                      onChange({ legalEntityName: fop, company: fop })
-                    }}
-                    style={{
-                      padding: '4px 10px',
-                      borderRadius: '8px',
-                      border: '1px solid #6366f1',
-                      background: 'rgba(99,102,241,0.1)',
-                      color: '#6366f1',
-                      fontSize: '0.7rem',
-                      fontWeight: 800,
-                      cursor: 'pointer'
-                    }}
-                  >
-                    + Вставити як "ФОП {recipientName.trim()}"
-                  </button>
-                )}
-              </div>
-            )}
           </div>
-        )}
-      </div>
+
+          {edrpouMatch && !('notFound' in edrpouMatch) && (
+            <div style={{ marginTop: '10px', fontSize: '0.75rem', color: '#10b981', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700 }}>
+              <CheckCircle2 size={14} /> Перевірено в ЄДР: {edrpouMatch.name} (Директор: {edrpouMatch.ceo || '—'})
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

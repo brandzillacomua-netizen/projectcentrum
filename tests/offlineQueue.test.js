@@ -13,14 +13,20 @@ const { supabaseMock } = vi.hoisted(() => ({
   }
 }))
 
-vi.mock('../src/supabase.js', () => ({ supabase: supabaseMock }))
+vi.mock('../src/supabase.js', () => ({
+  supabase: supabaseMock,
+  isTestEnvironment: () => false,
+  getCurrentTime: () => new Date()
+}))
 
 import {
   enqueueOfflineMutation,
   dequeueOfflineMutation,
   getOfflineQueueCount,
   flushOfflineQueue,
-  clearOfflineQueue
+  clearOfflineQueue,
+  getDeadLetterQueue,
+  clearDeadLetterQueue
 } from '../src/services/offlineQueueService.js'
 import { executeAtomicCardTransition } from '../src/services/atomicCardTransitionService.js'
 import { processOfflineMutation } from '../src/services/offlineProcessor.js'
@@ -28,6 +34,7 @@ import { processOfflineMutation } from '../src/services/offlineProcessor.js'
 describe('Offline Queue & Resilience Service', () => {
   beforeEach(() => {
     clearOfflineQueue()
+    clearDeadLetterQueue()
     vi.clearAllMocks()
   })
 
@@ -150,5 +157,34 @@ describe('Offline Queue & Resilience Service', () => {
     const res = await processOfflineMutation(mockItem)
     expect(res).toBeDefined()
     expect(typeof res.success).toBe('boolean')
+  })
+
+  it('moves item to Dead-Letter Queue (DLQ) after 3 unrecoverable failures', async () => {
+    clearDeadLetterQueue()
+    enqueueOfflineMutation({
+      key: 'failing-item-1',
+      actionType: 'TRANSITION_WORK_CARD',
+      payload: { cardId: 'bad-card-id' }
+    })
+
+    const failingProcessor = vi.fn(async () => {
+      throw new Error('400 Bad Request: Invalid Card ID')
+    })
+
+    // 1st attempt
+    await flushOfflineQueue(failingProcessor)
+    expect(getOfflineQueueCount()).toBe(1)
+    expect(getDeadLetterQueue()).toHaveLength(0)
+
+    // 2nd attempt
+    await flushOfflineQueue(failingProcessor)
+    expect(getOfflineQueueCount()).toBe(1)
+    expect(getDeadLetterQueue()).toHaveLength(0)
+
+    // 3rd attempt -> moves to DLQ and removes from queue
+    await flushOfflineQueue(failingProcessor)
+    expect(getOfflineQueueCount()).toBe(0)
+    expect(getDeadLetterQueue()).toHaveLength(1)
+    expect(getDeadLetterQueue()[0].key).toBe('failing-item-1')
   })
 })

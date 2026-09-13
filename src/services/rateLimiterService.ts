@@ -6,9 +6,33 @@
  * Prevents rapid script floods while guaranteeing zero interruption for operator scans.
  */
 
-const buckets = new Map()
+export interface RateLimiterConfig {
+  maxTokens: number
+  refillRatePerSec: number
+  windowMs?: number
+}
 
-const DEFAULT_CONFIG = {
+export interface RateLimitOptions {
+  cost?: number
+  isOfflineRetry?: boolean
+  config?: Partial<RateLimiterConfig>
+}
+
+export interface RateLimitCheckResult {
+  allowed: boolean
+  tokensRemaining: number
+  resetMs: number
+}
+
+interface Bucket {
+  tokens: number
+  lastRefill: number
+  cfg: RateLimiterConfig
+}
+
+const buckets = new Map<string, Bucket>()
+
+const DEFAULT_CONFIG: RateLimiterConfig = {
   maxTokens: 60,         // Burst capacity (allows up to 60 rapid scans)
   refillRatePerSec: 2,   // Refills 2 tokens per second (120/min sustained)
   windowMs: 60000
@@ -17,8 +41,8 @@ const DEFAULT_CONFIG = {
 /**
  * Gets or initializes a rate limiter bucket for a given scope
  */
-function getBucket(scope, config = {}) {
-  const cfg = { ...DEFAULT_CONFIG, ...config }
+function getBucket(scope: string, config: Partial<RateLimiterConfig> = {}): Bucket {
+  const cfg: RateLimiterConfig = { ...DEFAULT_CONFIG, ...config }
   const now = Date.now()
   let bucket = buckets.get(scope)
 
@@ -47,13 +71,13 @@ function getBucket(scope, config = {}) {
  * Checks if a consume request is allowed under rate limiting rules.
  * Automatically bypasses rate limits for offline queue retries.
  */
-export function checkRateLimit(scope = 'default', options = {}) {
+export function checkRateLimit(scope: string = 'default', options: RateLimitOptions = {}): RateLimitCheckResult {
   if (options.isOfflineRetry) {
     return { allowed: true, tokensRemaining: DEFAULT_CONFIG.maxTokens, resetMs: 0 }
   }
 
   const bucket = getBucket(scope, options.config)
-  const cost = Number.isInteger(options.cost) && options.cost > 0 ? options.cost : 1
+  const cost = typeof options.cost === 'number' && Number.isInteger(options.cost) && options.cost > 0 ? options.cost : 1
 
   if (bucket.tokens >= cost) {
     return {
@@ -77,14 +101,14 @@ export function checkRateLimit(scope = 'default', options = {}) {
  * Attempts to consume tokens for an operation.
  * Returns true if allowed and consumed, false if rate limited.
  */
-export function consumeRateLimit(scope = 'default', options = {}) {
+export function consumeRateLimit(scope: string = 'default', options: RateLimitOptions = {}): boolean {
   if (options.isOfflineRetry) return true
 
   const check = checkRateLimit(scope, options)
   if (!check.allowed) return false
 
   const bucket = getBucket(scope, options.config)
-  const cost = Number.isInteger(options.cost) && options.cost > 0 ? options.cost : 1
+  const cost = typeof options.cost === 'number' && Number.isInteger(options.cost) && options.cost > 0 ? options.cost : 1
   bucket.tokens -= cost
 
   return true
@@ -93,7 +117,7 @@ export function consumeRateLimit(scope = 'default', options = {}) {
 /**
  * Resets a specific scope or all rate limit buckets
  */
-export function resetRateLimiter(scope = null) {
+export function resetRateLimiter(scope: string | null = null): void {
   if (scope) {
     buckets.delete(scope)
   } else {

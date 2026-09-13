@@ -2,28 +2,33 @@ import React, { useState, useEffect, useMemo } from 'react'
 import {
   ShieldAlert,
   Search,
-  Filter,
   Download,
-  Calendar,
-  UserCheck,
-  KeyRound,
-  FileSpreadsheet,
   RefreshCw,
   Clock,
-  ShieldCheck,
-  AlertTriangle
+  ShieldCheck
 } from 'lucide-react'
 import { supabase } from '../../../supabase.js'
+import { SystemAccessLog, SystemUser } from '../../../types/database.types.js'
 
-export function SettingsAuditLogTab({ systemUsers = [] }) {
-  const [logs, setLogs] = useState([])
-  const [loading, setLoading] = useState(false)
-  const [searchTerm, setSearchTerm] = useState('')
-  const [selectedCategory, setSelectedCategory] = useState('all')
-  const [selectedUser, setSelectedUser] = useState('all')
-  const [dateRange, setDateRange] = useState('7d')
+interface SettingsAuditLogTabProps {
+  systemUsers?: SystemUser[]
+}
 
-  const fetchAuditLogs = async () => {
+interface CategoryBadge {
+  label: string
+  bg: string
+  color: string
+  border: string
+}
+
+export function SettingsAuditLogTab({ systemUsers = [] }: SettingsAuditLogTabProps): React.JSX.Element {
+  const [logs, setLogs] = useState<SystemAccessLog[]>([])
+  const [loading, setLoading] = useState<boolean>(false)
+  const [searchTerm, setSearchTerm] = useState<string>('')
+  const [selectedCategory, setSelectedCategory] = useState<string>('all')
+  const [selectedUser, setSelectedUser] = useState<string>('all')
+
+  const fetchAuditLogs = async (): Promise<void> => {
     setLoading(true)
     try {
       const { data, error } = await supabase
@@ -32,11 +37,11 @@ export function SettingsAuditLogTab({ systemUsers = [] }) {
         .order('created_at', { ascending: false })
         .limit(500)
 
-      if (error && error.code !== 'PGRST205' && error.status !== 404) {
+      if (error && error.code !== 'PGRST205' && (error as any).status !== 404) {
         console.warn('[AuditLog] Supabase audit fetch notice:', error.message)
       }
 
-      setLogs(Array.isArray(data) ? data : [])
+      setLogs(Array.isArray(data) ? (data as SystemAccessLog[]) : [])
     } catch (err) {
       console.warn('[AuditLog] Error fetching audit logs:', err)
       setLogs([])
@@ -45,7 +50,7 @@ export function SettingsAuditLogTab({ systemUsers = [] }) {
     }
   }
 
-  const handleCreateTestLog = async () => {
+  const handleCreateTestLog = async (): Promise<void> => {
     setLoading(true)
     try {
       await supabase.rpc('rpc_log_security_event', {
@@ -82,7 +87,7 @@ export function SettingsAuditLogTab({ systemUsers = [] }) {
     })
   }, [logs, searchTerm, selectedCategory, selectedUser])
 
-  const exportAuditCsv = () => {
+  const exportAuditCsv = (): void => {
     if (filteredLogs.length === 0) return
     const headers = ['ID', 'Час', 'Користувач', 'Категорія', 'Тип Події', 'IP Адреса', 'Деталі']
     const rows = filteredLogs.map(l => [
@@ -105,7 +110,7 @@ export function SettingsAuditLogTab({ systemUsers = [] }) {
     URL.revokeObjectURL(url)
   }
 
-  const getCategoryBadge = (category) => {
+  const getCategoryBadge = (category: string): CategoryBadge => {
     switch (category) {
       case 'security':
         return { label: 'Безпека & Права', bg: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)' }

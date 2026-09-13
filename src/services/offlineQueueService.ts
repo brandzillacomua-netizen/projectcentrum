@@ -12,10 +12,38 @@
 import { hasBeenProcessed, markAsProcessed } from './idempotencyService.js'
 import { getIndexedCache, setIndexedCache } from './indexedDbCache.js'
 
+export interface OfflineMutation<T = unknown> {
+  key: string
+  actionType: string
+  payload: T
+  timestamp: number
+  retryCount?: number
+}
+
+export interface DeadLetterItem<T = unknown> extends OfflineMutation<T> {
+  failedAt: string
+  errorReason: string
+}
+
+export interface EnqueueOptions<T = unknown> {
+  key: string
+  actionType: string
+  payload: T
+  timestamp?: number
+}
+
+export interface FlushResult {
+  flushed: number
+  failed: number
+}
+
 const LEGACY_STORAGE_KEY = 'centrum_offline_queue_v1'
 const IDB_QUEUE_KEY = 'centrum_offline_queue_v2'
+const IDB_DLQ_KEY = 'centrum_offline_dlq_v1'
+const MAX_RETRY_ATTEMPTS = 3
 
-let memoryQueue = []
+let memoryQueue: OfflineMutation[] = []
+let memoryDlq: DeadLetterItem[] = []
 let isHydrated = false
 
 // Synchronous bootstrap from localStorage as fast initial seed
@@ -33,10 +61,10 @@ try {
 /**
  * Asynchronously hydrate and migrate queue from IndexedDB
  */
-export const hydrateOfflineQueueFromIdb = async () => {
+export const hydrateOfflineQueueFromIdb = async (): Promise<OfflineMutation[]> => {
   if (typeof window === 'undefined') return memoryQueue
   try {
-    const idbData = await getIndexedCache(IDB_QUEUE_KEY)
+    const idbData = (await getIndexedCache(IDB_QUEUE_KEY)) as OfflineMutation[] | null
     if (Array.isArray(idbData) && idbData.length > 0) {
       // Merge unique items between IDB and memory
       const existingKeys = new Set(idbData.map(i => i.key))
@@ -52,6 +80,12 @@ export const hydrateOfflineQueueFromIdb = async () => {
       // Migrate existing localStorage records into IndexedDB
       await setIndexedCache(IDB_QUEUE_KEY, memoryQueue).catch(() => {})
     }
+
+    const dlqData = (await getIndexedCache(IDB_DLQ_KEY)) as DeadLetterItem[] | null
+    if (Array.isArray(dlqData)) {
+      memoryDlq = dlqData
+    }
+
     isHydrated = true
   } catch (e) {
     console.warn('[OfflineQueue] IDB hydration error (using memory queue):', e)
@@ -64,7 +98,7 @@ if (typeof window !== 'undefined') {
   hydrateOfflineQueueFromIdb().catch(() => {})
 }
 
-const notifyQueueChanged = (count) => {
+const notifyQueueChanged = (count: number): void => {
   if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
     try {
       window.dispatchEvent(new CustomEvent('mes:offline-queue-changed', { detail: { count } }))
@@ -75,7 +109,7 @@ const notifyQueueChanged = (count) => {
 /**
  * Persist queue to IndexedDB (primary, unlimited) and localStorage (secondary best-effort)
  */
-const persistQueue = (queue) => {
+const persistQueue = (queue: OfflineMutation[]): void => {
   memoryQueue = queue
   notifyQueueChanged(queue.length)
 
@@ -93,7 +127,36 @@ const persistQueue = (queue) => {
     }
   } catch (e) {
     // QuotaExceededError is safely ignored because IndexedDB stores the complete queue
-    console.warn('[OfflineQueue] LocalStorage quota exceeded, safely relying on IndexedDB:', e?.message || e)
+    console.warn('[OfflineQueue] LocalStorage quota exceeded, safely relying on IndexedDB:', e)
+  }
+}
+
+/**
+ * Push rejected item to Dead-Letter Queue (DLQ)
+ */
+export const pushToDeadLetterQueue = async <T = unknown>(item: OfflineMutation<T>, errorReason: unknown): Promise<void> => {
+  const dlqItem: DeadLetterItem<T> = {
+    ...item,
+    failedAt: new Date().toISOString(),
+    errorReason: String(errorReason || 'Max retry limit reached')
+  }
+  memoryDlq = [...memoryDlq, dlqItem as DeadLetterItem]
+
+  if (typeof window !== 'undefined') {
+    setIndexedCache(IDB_DLQ_KEY, memoryDlq).catch(() => {})
+    try {
+      window.dispatchEvent(new CustomEvent('mes:offline-dlq-item', { detail: { item: dlqItem } }))
+    } catch (_) {}
+  }
+  console.warn(`[OfflineQueue] Item ${item.key} moved to Dead-Letter Queue (DLQ):`, errorReason)
+}
+
+export const getDeadLetterQueue = (): DeadLetterItem[] => [...memoryDlq]
+
+export const clearDeadLetterQueue = (): void => {
+  memoryDlq = []
+  if (typeof window !== 'undefined') {
+    setIndexedCache(IDB_DLQ_KEY, []).catch(() => {})
   }
 }
 
@@ -114,7 +177,7 @@ if (typeof window !== 'undefined') {
 /**
  * Enqueues a pending mutation to local storage & IndexedDB
  */
-export const enqueueOfflineMutation = ({ key, actionType, payload, timestamp = Date.now() }) => {
+export const enqueueOfflineMutation = <T = unknown>({ key, actionType, payload, timestamp = Date.now() }: EnqueueOptions<T>): void => {
   if (hasBeenProcessed(key)) {
     console.info(`[OfflineQueue] Key ${key} already processed. Skipping enqueue.`)
     return
@@ -125,13 +188,14 @@ export const enqueueOfflineMutation = ({ key, actionType, payload, timestamp = D
     return
   }
 
-  const updatedQueue = [
+  const updatedQueue: OfflineMutation[] = [
     ...memoryQueue,
     {
       key,
       actionType,
       payload,
-      timestamp
+      timestamp,
+      retryCount: 0
     }
   ]
 
@@ -142,14 +206,14 @@ export const enqueueOfflineMutation = ({ key, actionType, payload, timestamp = D
 /**
  * Gets number of pending queued mutations (0ms synchronous RAM read)
  */
-export const getOfflineQueueCount = () => {
+export const getOfflineQueueCount = (): number => {
   return memoryQueue.length
 }
 
 /**
  * Removes a mutation from queue
  */
-export const dequeueOfflineMutation = (key) => {
+export const dequeueOfflineMutation = (key: string): void => {
   const filtered = memoryQueue.filter(item => item.key !== key)
   persistQueue(filtered)
 }
@@ -157,7 +221,7 @@ export const dequeueOfflineMutation = (key) => {
 /**
  * Flushes all pending mutations chronologically using the provided processor
  */
-export const flushOfflineQueue = async (processorFn) => {
+export const flushOfflineQueue = async (processorFn: (item: OfflineMutation) => Promise<unknown>): Promise<FlushResult> => {
   if (!isHydrated) {
     await hydrateOfflineQueueFromIdb().catch(() => {})
   }
@@ -183,12 +247,25 @@ export const flushOfflineQueue = async (processorFn) => {
       markAsProcessed(item.key, res)
       dequeueOfflineMutation(item.key)
       flushed++
-    } catch (e) {
+    } catch (e: any) {
       console.error(`[OfflineQueue] Failed to process queued item ${item.key}:`, e)
       failed++
-      // Stop flushing if network error recurs
-      if (e?.name === 'TypeError' || e?.message?.includes('fetch')) {
+      
+      // Stop flushing if network connectivity issue occurs
+      const isNetworkError = e?.name === 'TypeError' || String(e?.message || '').toLowerCase().includes('fetch') || e?.status === 0
+      if (isNetworkError) {
         break
+      }
+
+      // Track retry count for non-network business/schema errors
+      item.retryCount = (item.retryCount || 0) + 1
+      if (item.retryCount >= MAX_RETRY_ATTEMPTS) {
+        dequeueOfflineMutation(item.key)
+        await pushToDeadLetterQueue(item, e?.message || e)
+      } else {
+        // Update item in memory queue with incremented retryCount
+        const updated = memoryQueue.map(q => q.key === item.key ? { ...q, retryCount: item.retryCount } : q)
+        persistQueue(updated)
       }
     }
   }
@@ -200,7 +277,7 @@ export const flushOfflineQueue = async (processorFn) => {
 /**
  * Resets the offline queue (clears memory, localStorage, and IndexedDB)
  */
-export const clearOfflineQueue = () => {
+export const clearOfflineQueue = (): void => {
   persistQueue([])
   if (typeof window !== 'undefined') {
     setIndexedCache(IDB_QUEUE_KEY, []).catch(() => {})

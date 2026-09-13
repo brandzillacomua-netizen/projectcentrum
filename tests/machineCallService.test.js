@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('../src/supabase', () => ({ supabase: { rpc: vi.fn() } }))
+vi.mock('../src/supabase', () => ({
+  supabase: { rpc: vi.fn() },
+  isTestEnvironment: () => false,
+  getCurrentTime: () => new Date()
+}))
 
 import { supabase } from '../src/supabase'
 import { createMachineCall, fetchPublicMachineCallContext } from '../src/services/machineCallService'

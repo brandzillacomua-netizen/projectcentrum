@@ -3,7 +3,11 @@ import { supabase } from '../src/supabase.js'
 import { useDataFetchers } from '../src/contexts/data/dataFetchers.js'
 import { getInventoryDisplayName } from '../src/modules/Warehouse/utils/inventoryDisplayName.js'
 
-vi.mock('../src/supabase.js', () => ({ supabase: { from: vi.fn() } }))
+vi.mock('../src/supabase.js', () => ({
+  supabase: { from: vi.fn() },
+  isTestEnvironment: () => false,
+  getCurrentTime: () => new Date()
+}))
 
 describe('Warehouse working sheet names', () => {
   it('keeps the V2 name when a legacy sheet has the same ID and a different name', async () => {
