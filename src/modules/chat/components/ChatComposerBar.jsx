@@ -38,11 +38,11 @@ export const ChatComposerBar = ({
   scrollToBottom
 }) => {
   if (!canPostHere) {
-    return <ReadOnlyChannelNotice />
+    return <ReadOnlyChannelNotice visible />
   }
 
   return (
-    <footer className="chat-composer">
+    <footer className="composer">
       {pendingImage && (
         <div className="pending-img-preview" style={{ padding: '8px 12px', background: '#111', borderBottom: '1px solid #222', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderRadius: '12px 12px 0 0', marginBottom: '8px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.75rem' }}>

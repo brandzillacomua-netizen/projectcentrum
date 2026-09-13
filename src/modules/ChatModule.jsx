@@ -18,7 +18,7 @@ export const ChatModule = () => {
 
   return (
     <div className="chat-module">
-      <div className="chat-shell">
+      <div className={`chat-shell ${chat.activeThreadId ? 'thread-open' : 'thread-list-open'}`}>
         <ChatSidebar
           isSuperAdmin={chat.isSuperAdmin}
           navigate={chat.navigate}

@@ -903,6 +903,18 @@
     border: 0;
     border-radius: 0;
   }
+  .chat-shell.thread-list-open .chat-sidebar {
+    display: flex;
+  }
+  .chat-shell.thread-list-open .chat-main {
+    display: none;
+  }
+  .chat-shell.thread-open .chat-sidebar {
+    display: none;
+  }
+  .chat-shell.thread-open .chat-main {
+    display: flex;
+  }
   .chat-sidebar-head {
     min-height: 64px;
     padding: 14px;
@@ -1702,4 +1714,3 @@ body.light-theme .chat-options-menu button {
 body.light-theme .chat-options-menu button:hover {
   background: #f1f5f9;
 }
-
