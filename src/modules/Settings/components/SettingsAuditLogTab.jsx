@@ -26,36 +26,37 @@ export function SettingsAuditLogTab({ systemUsers = [] }) {
   const fetchAuditLogs = async () => {
     setLoading(true)
     try {
-      // Query system access logs or generate runtime security audit log feed
       const { data, error } = await supabase
         .from('system_access_logs')
         .select('*')
         .order('created_at', { ascending: false })
-        .limit(300)
+        .limit(500)
 
       if (error && error.code !== 'PGRST205' && error.status !== 404) {
         console.warn('[AuditLog] Supabase audit fetch notice:', error.message)
       }
 
-      if (Array.isArray(data) && data.length > 0) {
-        setLogs(data)
-      } else {
-        // Fallback: Generate synthetic audit trail from active systemUsers activity logs
-        const mockAuditStream = (systemUsers || []).slice(0, 30).map((u, i) => ({
-          id: `audit_${u.id || i}_${Date.now()}`,
-          created_at: u.last_seen || new Date(Date.now() - i * 3600 * 1000).toISOString(),
-          user_login: u.login || 'system',
-          user_name: `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.login,
-          action_type: i % 4 === 0 ? 'LOGIN_SUCCESS' : i % 4 === 1 ? 'ROLE_UPDATED' : i % 4 === 2 ? 'DATA_EXPORT' : 'TERMINAL_ACCESS',
-          category: i % 4 === 0 ? 'auth' : i % 4 === 1 ? 'security' : i % 4 === 2 ? 'data' : 'production',
-          ip_address: `192.168.1.${10 + (i % 50)}`,
-          status: i === 3 ? 'warning' : 'success',
-          details: i % 4 === 1 ? `Зміна прав доступу посади (${u.position || 'Оператор'})` : `Успішний вхід у термінал (${u.department || 'Цех №1'})`
-        }))
-        setLogs(mockAuditStream)
-      }
+      setLogs(Array.isArray(data) ? data : [])
     } catch (err) {
       console.warn('[AuditLog] Error fetching audit logs:', err)
+      setLogs([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleCreateTestLog = async () => {
+    setLoading(true)
+    try {
+      await supabase.rpc('rpc_log_security_event', {
+        p_action_type: 'AUDIT_VERIFIED',
+        p_category: 'security',
+        p_details: 'Успішна активація та перевірка реального журналу аудиту БД',
+        p_status: 'success'
+      })
+      await fetchAuditLogs()
+    } catch (err) {
+      console.warn('[AuditLog] Test log RPC failed:', err)
     } finally {
       setLoading(false)
     }
@@ -242,9 +243,27 @@ export function SettingsAuditLogTab({ systemUsers = [] }) {
             <tbody>
               {filteredLogs.length === 0 ? (
                 <tr>
-                  <td colSpan={6} style={{ textAlign: 'center', padding: '50px 20px', color: '#555' }}>
-                    <ShieldCheck size={36} style={{ marginBottom: '10px', opacity: 0.3 }} />
-                    <div style={{ fontWeight: 700 }}>Журнал аудиту порожній або не знайдено записів</div>
+                  <td colSpan={6} style={{ textAlign: 'center', padding: '50px 20px', color: '#888' }}>
+                    <ShieldCheck size={36} color="#ff9000" style={{ marginBottom: '10px', opacity: 0.6 }} />
+                    <div style={{ fontWeight: 800, color: '#fff', fontSize: '0.9rem' }}>Таблицю `system_access_logs` створено та активовано в БД</div>
+                    <div style={{ fontSize: '0.78rem', color: '#aaa', marginTop: '4px', marginBottom: '16px' }}>Поки що немає збережених реальних подій або фільтри не знайшли записів.</div>
+                    <button
+                      type="button"
+                      onClick={handleCreateTestLog}
+                      disabled={loading}
+                      style={{
+                        padding: '8px 16px',
+                        borderRadius: '10px',
+                        border: '1px solid #ff9000',
+                        background: 'rgba(255,144,0,0.15)',
+                        color: '#ff9000',
+                        fontSize: '0.8rem',
+                        fontWeight: 900,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      + Записати тестову подію в журнал БД
+                    </button>
                   </td>
                 </tr>
               ) : (
