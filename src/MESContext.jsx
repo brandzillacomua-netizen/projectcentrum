@@ -139,4 +139,4 @@ export const MESProvider = ({ children }) => {
   )
 }
 
-export const useMES = () => useContext(MESContext)
+export const useMES = () => useContext(MESContext) || {}

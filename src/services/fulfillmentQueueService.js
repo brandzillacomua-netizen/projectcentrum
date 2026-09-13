@@ -71,14 +71,20 @@ export const fetchFulfillmentTasks = async (client, pathname = '') => {
 
     // Also fetch RPC for completed/archived batches ready for packaging
     let rpcTasks = []
-    const { data: rpcData, error: rpcError } = await client.rpc('mes_fulfillment_queue', {
-      p_queue: config.queue,
-      p_open_batch_limit: config.openBatchLimit,
-      p_archive_batch_limit: config.archiveBatchLimit
-    })
+    try {
+      const { data: rpcData, error: rpcError } = await client.rpc('mes_fulfillment_queue', {
+        p_queue: config.queue,
+        p_open_batch_limit: config.openBatchLimit,
+        p_archive_batch_limit: config.archiveBatchLimit
+      })
 
-    if (!rpcError && rpcData) {
-      rpcTasks = flattenRpcBatches(rpcData)
+      if (!rpcError && rpcData) {
+        rpcTasks = flattenRpcBatches(rpcData)
+      } else if (rpcError) {
+        console.warn('[fulfillmentQueueService] mes_fulfillment_queue RPC warning, using active tasks:', rpcError?.message || rpcError)
+      }
+    } catch (err) {
+      console.warn('[fulfillmentQueueService] mes_fulfillment_queue call exception:', err)
     }
 
     // Merge: active tasks + RPC completed tasks, deduplicated
@@ -93,21 +99,27 @@ export const fetchFulfillmentTasks = async (client, pathname = '') => {
   }
 
   // For other routes (shipping etc.) — keep original RPC-first logic
-  const { data, error } = await client.rpc('mes_fulfillment_queue', {
-    p_queue: config.queue,
-    p_open_batch_limit: config.openBatchLimit,
-    p_archive_batch_limit: config.archiveBatchLimit
-  })
+  try {
+    const { data, error } = await client.rpc('mes_fulfillment_queue', {
+      p_queue: config.queue,
+      p_open_batch_limit: config.openBatchLimit,
+      p_archive_batch_limit: config.archiveBatchLimit
+    })
 
-  if (!error) {
-    const flattened = flattenRpcBatches(data || [])
-    if (flattened.length > 0) {
-      return { data: flattened, error: null, source: 'rpc' }
+    if (!error) {
+      const flattened = flattenRpcBatches(data || [])
+      if (flattened.length > 0) {
+        return { data: flattened, error: null, source: 'rpc' }
+      }
+    } else {
+      console.warn('[fulfillmentQueueService] mes_fulfillment_queue RPC error, using fallback:', error?.message || error)
     }
+  } catch (err) {
+    console.warn('[fulfillmentQueueService] mes_fulfillment_queue call exception:', err)
   }
 
   const fallback = await fetchCompatibilityQueue(client, config.queue)
-  return { ...fallback, source: error ? 'compatibility-fallback-error' : 'compatibility-fallback-empty-rpc' }
+  return { ...fallback, source: 'compatibility-fallback' }
 }
 
 
