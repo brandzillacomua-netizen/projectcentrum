@@ -3,7 +3,6 @@ import { Camera, RefreshCw, Search, QrCode, X } from 'lucide-react'
 import { useShop2TerminalState } from './Shop2/hooks/useShop2TerminalState'
 import { Shop2Header } from './Shop2/components/Shop2Header'
 import { Shop2QueueList } from './Shop2/components/Shop2QueueList'
-import { Shop2ActiveCardsTable } from './Shop2/components/Shop2ActiveCardsTable'
 import { Shop2Dashboard } from './Shop2/components/Shop2Dashboard'
 import { Shop2CardDetails } from './Shop2/components/Shop2CardDetails'
 import { Shop2QCModal } from './Shop2/components/modals/Shop2QCModal'
@@ -13,68 +12,49 @@ import { Shop2ScrapModal } from './Shop2/components/modals/Shop2ScrapModal'
 import { Shop2StorageExplorerModal } from './Shop2/components/modals/Shop2StorageExplorerModal'
 import { Shop2DetailStageModal } from './Shop2/components/modals/Shop2DetailStageModal'
 
-const Shop2Terminal = () => {
-  const state = useShop2TerminalState()
+export const Shop2Terminal: React.FC = () => {
+  const state: any = useShop2TerminalState()
 
   return (
     <div className="operator-terminal-shop2" style={{ background: '#0a0a0a', height: '100vh', display: 'flex', flexDirection: 'column', color: '#fff', overflow: 'hidden' }}>
       <Shop2Header
         currentTime={state.currentTime}
-        setIsDrawerOpen={state.setIsDrawerOpen}
+        onOpenDrawer={() => state.setIsDrawerOpen(true)}
         queuedCardsCount={state.queuedCards.length}
-        setShowStorageExplorer={state.setShowStorageExplorer}
+        onOpenStorageExplorer={() => state.setShowStorageExplorer(true)}
         isAdmin={state.isAdmin}
-        setShowAdminCardModal={state.setShowAdminCardModal}
+        onOpenAdminCardModal={() => state.setShowAdminCardModal(true)}
       />
 
       <div className="main-layout-responsive" style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         {/* Desktop Side Panel */}
-        <div className="side-panel hide-mobile" style={{ width: '300px', background: '#121212', borderRight: '1px solid #222', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
-          <div style={{ padding: '20px', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 800, color: '#555', display: 'flex', alignItems: 'center', gap: '10px' }}>
-            📋 ЧЕРГА ЦЕХ №2 ({state.queuedCards.length})
-          </div>
-          <Shop2QueueList
-            queuedCards={state.queuedCards}
-            selectedCardId={state.selectedCardId}
-            setSelectedCardId={state.setSelectedCardId}
-            getNomFromCard={state.getNomFromCard}
-            onSelectCard={() => state.setScanError(null)}
-          />
-          <div style={{ padding: '15px', borderTop: '1px solid #1a1a1a' }}>
-            <button
-              onClick={() => state.setIsScanning(true)}
-              style={{ width: '100%', background: '#8b5cf615', border: '1px solid #8b5cf630', color: '#8b5cf6', padding: '14px', borderRadius: '12px', fontWeight: 900, fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
-            >
-              <Camera size={18} /> СКАНУВАТИ
-            </button>
-          </div>
-        </div>
+        <Shop2QueueList
+          queuedCards={state.queuedCards}
+          selectedCardId={state.selectedCardId}
+          setSelectedCardId={state.setSelectedCardId}
+          setIsDrawerOpen={state.setIsDrawerOpen}
+          setScanError={state.setScanError}
+          setIsScanning={state.setIsScanning}
+          getNomFromCard={state.getNomFromCard}
+          isMobile={false}
+        />
 
         {/* Mobile Drawer */}
         {state.isDrawerOpen && (
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 99999 }} onClick={() => state.setIsDrawerOpen(false)} />
         )}
-        <div style={{ position: 'fixed', left: state.isDrawerOpen ? 0 : '-300px', top: 0, bottom: 0, width: '300px', background: '#121212', zIndex: 100000, transition: '0.3s', display: 'flex', flexDirection: 'column' }}>
-          <div style={{ padding: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #222' }}>
-            <span style={{ fontSize: '0.8rem', fontWeight: 900 }}>ОБЕРІТЬ КАРТУ</span>
-            <X size={20} onClick={() => state.setIsDrawerOpen(false)} style={{ cursor: 'pointer' }} />
-          </div>
+        {state.isDrawerOpen && (
           <Shop2QueueList
             queuedCards={state.queuedCards}
             selectedCardId={state.selectedCardId}
             setSelectedCardId={state.setSelectedCardId}
+            setIsDrawerOpen={state.setIsDrawerOpen}
+            setScanError={state.setScanError}
+            setIsScanning={state.setIsScanning}
             getNomFromCard={state.getNomFromCard}
-            onSelectCard={() => { state.setIsDrawerOpen(false); state.setScanError(null) }}
+            isMobile={true}
           />
-          <div style={{ padding: '15px', borderTop: '1px solid #1a1a1a' }}>
-            <button
-              onClick={() => state.setIsScanning(true)}
-              style={{ width: '100%', background: '#8b5cf615', border: '1px solid #8b5cf630', color: '#8b5cf6', padding: '14px', borderRadius: '12px', fontWeight: 900, fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
-            >
-              <Camera size={18} /> СКАНУВАТИ
-            </button>
-          </div>
-        </div>
+        )}
 
         {/* Main Content Area */}
         <div className="content-panel" style={{ flex: 1, padding: '20px 15px', background: '#0a0a0a', overflowY: 'auto', position: 'relative' }}>
@@ -103,12 +83,12 @@ const Shop2Terminal = () => {
               selectedOperator={state.selectedOperator}
               setSelectedOperator={state.setSelectedOperator}
               getFilteredOperators={state.getFilteredOperators}
+              selectedMachine={state.selectedMachine}
               handleStartOperation={state.handleStartOperation}
               isProcessing={state.isProcessing}
               handoverToSGP={state.handoverToSGP}
               setScannedCardIds={state.setScannedCardIds}
               setIsProcessing={state.setIsProcessing}
-              formatElapsedTime={state.formatElapsedTime}
               submitCompletion={state.submitCompletion}
             />
           ) : (
@@ -120,7 +100,6 @@ const Shop2Terminal = () => {
                 workCards={state.workCards}
                 workCardHistory={state.workCardHistory}
                 isShop2Card={state.isShop2Card}
-                matchesStage={state.matchesStage}
                 setDetailStage={state.setDetailStage}
                 isSyncing={state.isSyncing}
                 setSelectedCardId={state.setSelectedCardId}

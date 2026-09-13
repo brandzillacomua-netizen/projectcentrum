@@ -7,16 +7,19 @@ import path from 'node:path'
 const tsFileResolverPlugin = () => ({
   name: 'vite-plugin-ts-file-resolver',
   resolveId(source, importer) {
-    if (importer && source.startsWith('.') && source.endsWith('.js')) {
-      const dir = path.dirname(importer)
-      const absolutePathWithoutExt = path.resolve(dir, source.slice(0, -3))
+    if (importer && source.startsWith('.')) {
+      if (source.endsWith('.js') || source.endsWith('.jsx')) {
+        const extLength = source.endsWith('.jsx') ? 4 : 3
+        const dir = path.dirname(importer)
+        const absolutePathWithoutExt = path.resolve(dir, source.slice(0, -extLength))
 
-      if (!fs.existsSync(absolutePathWithoutExt + '.js')) {
-        if (fs.existsSync(absolutePathWithoutExt + '.ts')) {
-          return absolutePathWithoutExt + '.ts'
-        }
-        if (fs.existsSync(absolutePathWithoutExt + '.tsx')) {
-          return absolutePathWithoutExt + '.tsx'
+        if (!fs.existsSync(absolutePathWithoutExt + '.js') && !fs.existsSync(absolutePathWithoutExt + '.jsx')) {
+          if (fs.existsSync(absolutePathWithoutExt + '.tsx')) {
+            return absolutePathWithoutExt + '.tsx'
+          }
+          if (fs.existsSync(absolutePathWithoutExt + '.ts')) {
+            return absolutePathWithoutExt + '.ts'
+          }
         }
       }
     }

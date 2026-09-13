@@ -13,8 +13,8 @@ import { PackagingActionRow } from './Packaging/components/PackagingActionRow.js
 import { Packaging1CJournal } from './Packaging/components/Packaging1CJournal.jsx'
 import { Packaging1CDocumentView } from './Packaging/components/Packaging1CDocumentView.jsx'
 
-const PackagingModule = () => {
-  const [layoutMode, setLayoutMode] = React.useState('1c') // '1c' | 'split'
+export const PackagingModule: React.FC = () => {
+  const [layoutMode] = React.useState<string>('1c') // '1c' | 'split'
 
   const {
     nomenclatures,
@@ -63,7 +63,7 @@ const PackagingModule = () => {
     setShowSplitModal,
     handleSplitPackagingTask,
     fetchData
-  } = usePackagingData()
+  }: any = usePackagingData()
 
   return (
     <div className="packaging-module" style={{ background: 'var(--bg, #f0f2f7)', minHeight: '100vh', color: 'var(--text, #0f172a)', display: 'flex', flexDirection: 'column' }}>
@@ -143,8 +143,8 @@ const PackagingModule = () => {
             ) : (
               <Packaging1CJournal
                 batchList={batchList}
-                onSelectBatch={(batch) => setSelectedBatch(batch)}
-                onOpenSplitModal={(batch) => {
+                onSelectBatch={(batch: any) => setSelectedBatch(batch)}
+                onOpenSplitModal={(batch: any) => {
                   setSelectedBatch(batch)
                   setShowSplitModal(true)
                 }}
@@ -263,7 +263,7 @@ const PackagingModule = () => {
           batchSchedule={activeBatchData?.batchSchedule || []}
           alreadyPackedCount={
             activeBatchData?.plan_snapshot?._metadata?.packed_sets ||
-            (savedBoxes?.length > 0 ? Math.max(...savedBoxes.map(b => Number(b.quantity) || 0)) : 0)
+            (savedBoxes?.length > 0 ? Math.max(...savedBoxes.map((b: any) => Number(b.quantity) || 0)) : 0)
           }
           onConfirmSplit={handleSplitPackagingTask}
           isProcessing={isProcessing}

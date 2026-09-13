@@ -16,27 +16,27 @@ import { Shop1Dashboard } from './Shop1/components/Shop1Dashboard'
 import { useShop1TerminalState } from './Shop1/hooks/useShop1TerminalState'
 import { supabase } from '../supabase'
 
-// Стилі-константи
-const labelStyle = { display: 'block', fontSize: '0.65rem', color: '#444', fontWeight: 900, textTransform: 'uppercase', marginBottom: '7px' }
-const selectStyle = { width: '100%', background: '#0d0d0d', border: '1px solid #222', color: '#fff', padding: '13px', borderRadius: '12px', fontSize: '0.95rem', fontWeight: 700, boxSizing: 'border-box' }
-const btnPrimary = { background: '#3b82f6', color: '#fff', border: 'none', padding: '18px', borderRadius: '14px', fontSize: '1.1rem', fontWeight: 900, cursor: 'pointer', width: '100%', transition: 'opacity 0.2s' }
-const btnGreen = { background: '#10b981', color: '#fff', border: 'none', padding: '18px', borderRadius: '14px', fontSize: '1.1rem', fontWeight: 900, cursor: 'pointer', width: '100%', transition: 'opacity 0.2s' }
+// Style constants
+const labelStyle: React.CSSProperties = { display: 'block', fontSize: '0.65rem', color: '#444', fontWeight: 900, textTransform: 'uppercase', marginBottom: '7px' }
+const selectStyle: React.CSSProperties = { width: '100%', background: '#0d0d0d', border: '1px solid #222', color: '#fff', padding: '13px', borderRadius: '12px', fontSize: '0.95rem', fontWeight: 700, boxSizing: 'border-box' }
+const btnPrimary: React.CSSProperties = { background: '#3b82f6', color: '#fff', border: 'none', padding: '18px', borderRadius: '14px', fontSize: '1.1rem', fontWeight: 900, cursor: 'pointer', width: '100%', transition: 'opacity 0.2s' }
+const btnGreen: React.CSSProperties = { background: '#10b981', color: '#fff', border: 'none', padding: '18px', borderRadius: '14px', fontSize: '1.1rem', fontWeight: 900, cursor: 'pointer', width: '100%', transition: 'opacity 0.2s' }
 
-export default function Shop1Terminal() {
-  const s = useShop1TerminalState()
+export const Shop1Terminal: React.FC = () => {
+  const s: any = useShop1TerminalState()
 
   const {
-    scrapReasons, workCards, setWorkCards, nomenclatures, operators, getFilteredOperators,
-    getFilteredManagers, managers, workCardHistory, inventory, fetchData, orders, tasks,
-    currentUser, machines, systemUsers, currentTime, selectedCardId, setSelectedCardId,
+    scrapReasons, workCards, nomenclatures, getFilteredOperators,
+    getFilteredManagers, workCardHistory, inventory, fetchData, orders, tasks,
+    currentTime, selectedCardId, setSelectedCardId,
     selectedCardHistory, isScanning, setIsScanning, manualId, setManualId, scanError, setScanError,
     isSyncing, isProcessing, setIsProcessing, movingScrapIds, setMovingScrapIds, isBulkMoving,
     setIsBulkMoving, isDrawerOpen, setIsDrawerOpen, selectedOperator, setSelectedOperator,
     selectedManager, setSelectedManager, selectedShift, setSelectedShift, selectedMachine,
     setSelectedMachine, machineNumber, setMachineNumber, showCompleteModal, setShowCompleteModal,
     showSortingModal, setShowSortingModal, queueSectionFilter, setQueueSectionFilter, finalOperator,
-    setFinalOperator, scrapCount, setScrapCount, reworkCount, setReworkCount, cuttersUsed,
-    setCuttersUsed, cuttersBreakdown, setCuttersBreakdown, cuttersTouched, setCuttersTouched,
+    setFinalOperator, scrapCount, setScrapCount, reworkCount, setReworkCount,
+    cuttersBreakdown, setCuttersBreakdown, cuttersTouched, setCuttersTouched,
     showShiftChangeModal, setShowShiftChangeModal, shiftChangeOperator, setShiftChangeOperator,
     shiftChangeShift, setShiftChangeShift, scrapOperator, setScrapOperator, showPauseModal,
     setShowPauseModal, pauseReason, setPauseReason, customPauseReason, setCustomPauseReason,
@@ -52,7 +52,7 @@ export default function Shop1Terminal() {
     qcScrapTotal, cardOperators, getNom, getCardTimeMetrics, getCardStartDate, getCuttersForCard,
     formatSec, formatTime, nextStageFor, queueTasksOptions, queueNomOptions, queueCards,
     handleStart, handleShiftChange, handlePauseCard, handleResumeCard, handleCompleteToBuffer,
-    handleStartNext, handleRequestRework, handleFinishSortingActive, handleSortToShop2,
+    handleStartNext, handleRequestRework, handleSortToShop2,
     handleAcceptToStock, handleQCScrapOverride, stageStats, handleArchiveStageScrap,
     processCardScan, handleManualEntry, CHAIN
   } = s
@@ -61,13 +61,13 @@ export default function Shop1Terminal() {
     ? getCuttersForCard(currentCard)
     : []
   const requiresCuttersFact = showCompleteModal && currentCard?.operation === 'Розкрій' && completeModalCutters.length > 0
-  const hasCuttersFact = !requiresCuttersFact || completeModalCutters.some(name => Number(cuttersBreakdown[name]) > 0) || completeModalCutters.every(name => cuttersTouched[name])
+  const hasCuttersFact = !requiresCuttersFact || completeModalCutters.some((name: string) => Number(cuttersBreakdown[name]) > 0) || completeModalCutters.every((name: string) => cuttersTouched[name])
   const completeToBufferDisabled = isProcessing || !hasCuttersFact
 
   return (
     <div style={{ background: '#0a0a0a', height: '100vh', display: 'flex', flexDirection: 'column', color: '#fff', overflow: 'hidden' }}>
 
-      {/* Хедер */}
+      {/* Header */}
       <Shop1Header
         currentTime={currentTime}
         queueCardsCount={queueCards.length}
@@ -77,7 +77,7 @@ export default function Shop1Terminal() {
       {/* Layout */}
       <div className="main-layout-responsive" style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
 
-        {/* Ліва панель черги (Десктоп) */}
+        {/* Left Queue Panel (Desktop) */}
         <div className="side-panel hide-mobile" style={{ width: '280px', background: '#111', borderRight: '1px solid #1a1a1a', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
           <Shop1QueueList
             queueCards={queueCards}
@@ -104,7 +104,7 @@ export default function Shop1Terminal() {
           />
         </div>
 
-        {/* Мобільний дравер */}
+        {/* Mobile Drawer */}
         {isDrawerOpen && <div className="drawer-backdrop" onClick={() => setIsDrawerOpen(false)} />}
         <div className={`side-drawer ${isDrawerOpen ? 'open' : ''}`}>
           <Shop1QueueList
@@ -132,7 +132,7 @@ export default function Shop1Terminal() {
           />
         </div>
 
-        {/* Основний контент */}
+        {/* Main Content */}
         <div className="content-panel" style={{ flex: 1, minWidth: 0, overflowY: 'auto', padding: '20px 24px 100px', background: '#0a0a0a' }}>
           {scanError && (
             <div style={{ background: '#ef444420', border: '1px solid #ef444440', borderRadius: '10px', padding: '12px 16px', marginBottom: '18px', display: 'flex', alignItems: 'center', gap: '10px', color: '#ef4444', maxWidth: '680px' }}>
@@ -174,7 +174,7 @@ export default function Shop1Terminal() {
               setScrapCount={setScrapCount}
               setReworkCount={setReworkCount}
               setFinalOperator={setFinalOperator}
-              setCuttersUsed={setCuttersUsed}
+              setCuttersUsed={() => {}}
               setPauseReason={setPauseReason}
               setCustomPauseReason={setCustomPauseReason}
               getCardTimeMetrics={getCardTimeMetrics}
@@ -219,13 +219,13 @@ export default function Shop1Terminal() {
         </div>
       </div>
 
-      {/* QR-сканер */}
+      {/* QR Scanner Panel */}
       <ScannerPanel
         isScanning={isScanning}
         setIsScanning={setIsScanning}
         manualCardInput={manualId}
         setManualCardInput={setManualId}
-        handleCardScan={async (scannedId) => {
+        handleCardScan={async (scannedId: string) => {
           const success = await processCardScan(scannedId)
           if (!success) {
             throw new Error(scanError || 'Картку не знайдено в базі даних')
@@ -234,7 +234,7 @@ export default function Shop1Terminal() {
         color="#eab308"
       />
 
-      {/* Модалки завершення етапу та сортування */}
+      {/* Complete & Sorting Modals */}
       <Shop1CompleteModal
         showCompleteModal={showCompleteModal}
         showSortingModal={showSortingModal}
@@ -277,7 +277,7 @@ export default function Shop1Terminal() {
         labelStyle={labelStyle}
       />
 
-      {/* Модалка ПЕРЕЗМІНКА */}
+      {/* Shift Change Modal */}
       <Shop1ShiftChangeModal
         showShiftChangeModal={showShiftChangeModal}
         onClose={() => setShowShiftChangeModal(false)}
@@ -293,7 +293,7 @@ export default function Shop1Terminal() {
         labelStyle={labelStyle}
       />
 
-      {/* Модалка ПАУЗА / ЗУПИНИТИ ВЕРСТАТ */}
+      {/* Pause Modal */}
       <Shop1PauseModal
         showPauseModal={showPauseModal}
         onClose={() => setShowPauseModal(false)}
@@ -309,7 +309,7 @@ export default function Shop1Terminal() {
         labelStyle={labelStyle}
       />
 
-      {/* Модалка корекції браку від ВКЯ */}
+      {/* QC Scrap Correction Modal */}
       <Shop1QCModal
         showQCModal={showQCModal}
         onClose={() => setShowQCModal(false)}
@@ -330,7 +330,7 @@ export default function Shop1Terminal() {
         labelStyle={labelStyle}
       />
 
-      {/* Модалка деталей етапу */}
+      {/* Stage Detail Modal */}
       <Shop1DetailStageModal
         detailStage={detailStage}
         onClose={() => setDetailStage(null)}
@@ -344,7 +344,7 @@ export default function Shop1Terminal() {
         handleArchiveStageScrap={handleArchiveStageScrap}
       />
 
-      {/* ХАБ-СКЛАД ЦЕХУ 1 Модалка */}
+      {/* Shop1 Hub Explorer Modal */}
       <Shop1StorageExplorerModal
         showStorageExplorer={showStorageExplorer}
         onClose={() => setShowStorageExplorer(false)}
@@ -362,7 +362,7 @@ export default function Shop1Terminal() {
         supabase={supabase}
       />
 
-      {/* Виклик майстра/інженера/ВКЯ */}
+      {/* Call Master / Engineer / QC Modal */}
       <Shop1MachineCallModal
         machineCallModal={machineCallModal}
         onClose={() => setMachineCallModal(null)}
@@ -447,3 +447,5 @@ export default function Shop1Terminal() {
     </div>
   )
 }
+
+export default Shop1Terminal
