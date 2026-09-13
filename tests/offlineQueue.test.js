@@ -28,7 +28,7 @@ import {
   getDeadLetterQueue,
   clearDeadLetterQueue
 } from '../src/services/offlineQueueService.js'
-import { executeAtomicCardTransition } from '../src/services/atomicCardTransitionService.js'
+import { executeAtomicCardTransition } from '../src/services/atomicCardTransitionService'
 import { processOfflineMutation } from '../src/services/offlineProcessor.js'
 
 describe('Offline Queue & Resilience Service', () => {

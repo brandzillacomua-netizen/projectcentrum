@@ -1,6 +1,6 @@
 import { supabase } from '../supabase.js'
-import { executeAtomicCardTransition } from './atomicCardTransitionService.js'
-import { executeAtomicQcScrap } from './atomicQcScrapService.js'
+import { executeAtomicCardTransition } from './atomicCardTransitionService'
+import { executeAtomicQcScrap } from './atomicQcScrapService'
 import { incrementInventoryStock } from './inventoryStockService.js'
 import { sentryLogger } from './sentryLogger.js'
 

@@ -1,10 +1,10 @@
 import React, { useState, useMemo, useEffect } from 'react'
-import { Warehouse as WarehouseIcon, Package, FolderOpen, History, Plus, Search } from 'lucide-react'
+import { Warehouse as WarehouseIcon, Package, History, Plus, Search } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { useMES } from '../MESContext'
 import { useStore } from '../store/index.js'
-import { supabase } from '../supabase'
-import { deleteInventoryItem } from '../services/inventoryDeletion'
+import { supabase } from '../supabase.js'
+import { deleteInventoryItem } from '../services/inventoryDeletion.js'
 
 // Hooks
 import { getMaterialType, useWarehouseComputed } from './Warehouse/hooks/useWarehouseComputed'
@@ -33,23 +33,24 @@ import { WarehouseInventoryTable } from './Warehouse/components/WarehouseInvento
 import { WarehouseFloatingControls } from './Warehouse/components/WarehouseFloatingControls.jsx'
 import { WarehouseDeleteConfirmModal } from './Warehouse/components/modals/WarehouseDeleteConfirmModal.jsx'
 
-const WarehouseModuleV2 = () => {
+export const WarehouseModuleV2: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams()
+  const mes: any = useMES()
   const {
     confirmReception,
     approveWarehouse, createPurchaseRequest,
     fetchData, managers, refreshTable
-  } = useMES()
+  } = mes
 
-  const inventory = useStore(state => state.inventory)
-  const requests = useStore(state => state.requests)
-  const receptionDocs = useStore(state => state.receptionDocs)
-  const orders = useStore(state => state.orders)
-  const tasks = useStore(state => state.tasks)
-  const purchaseRequests = useStore(state => state.purchaseRequests)
-  const currentUser = useStore(state => state.currentUser)
-  const machineOperations = useStore(state => state.machineOperations)
-  const workCards = useStore(state => state.workCards)
+  const inventory = useStore((state: any) => state.inventory)
+  const requests = useStore((state: any) => state.requests)
+  const receptionDocs = useStore((state: any) => state.receptionDocs)
+  const orders = useStore((state: any) => state.orders)
+  const tasks = useStore((state: any) => state.tasks)
+  const purchaseRequests = useStore((state: any) => state.purchaseRequests)
+  const currentUser = useStore((state: any) => state.currentUser)
+  const machineOperations = useStore((state: any) => state.machineOperations)
+  const workCards = useStore((state: any) => state.workCards)
 
   // Load warehouse-specific data on mount
   useEffect(() => { 
@@ -58,7 +59,7 @@ const WarehouseModuleV2 = () => {
     }
   }, [])
 
-  const [activeTab, setActiveTab] = useState(() => {
+  const [activeTab, setActiveTab] = useState<string>(() => {
     return searchParams.get('tab') || 'raw'
   })
 
@@ -71,7 +72,8 @@ const WarehouseModuleV2 = () => {
 
   const isStockView = searchParams.get('view') === 'stock' || ['sheets', 'cutters'].includes(activeTab)
   const isIssueView = !isStockView && activeTab === 'raw'
-  const changeWorkspace = (view, tab = 'raw') => {
+
+  const changeWorkspace = (view: string, tab = 'raw') => {
     setActiveTab(tab)
     setSearchParams(previous => {
       const next = new URLSearchParams(previous)
@@ -81,53 +83,54 @@ const WarehouseModuleV2 = () => {
       return next
     })
   }
-  const changeWarehouseTab = params => changeWorkspace('queue', params.tab)
-  const changeStockFolder = params => changeWorkspace('stock', params.tab)
 
-  const [showAdd, setShowAdd] = useState(false)
-  const [showReception, setShowReception] = useState(false)
-  const [shortages, setShortages] = useState(null)
-  const [newItem, setNewItem] = useState({ name: '', unit: 'шт', total_qty: '', type: 'raw' })
-  const [searchQuery, setSearchQuery] = useState('')
-  const [isProcessing, setIsProcessing] = useState(false)
-  const [processingDocs, setProcessingDocs] = useState(new Set())
-  const [processingTasks, setProcessingTasks] = useState(new Set())
-  const [expandedDoc, setExpandedDoc] = useState(null)
+  const changeWarehouseTab = (params: { tab: string }) => changeWorkspace('queue', params.tab)
+  const changeStockFolder = (params: { tab: string }) => changeWorkspace('stock', params.tab)
+
+  const [showAdd, setShowAdd] = useState<boolean>(false)
+  const [showReception, setShowReception] = useState<boolean>(false)
+  const [shortages, setShortages] = useState<any>(null)
+  const [newItem, setNewItem] = useState<{ name: string; unit: string; total_qty: string; type: string }>({ name: '', unit: 'шт', total_qty: '', type: 'raw' })
+  const [searchQuery, setSearchQuery] = useState<string>('')
+  const [isProcessing, setIsProcessing] = useState<boolean>(false)
+  const [processingDocs, setProcessingDocs] = useState<Set<any>>(new Set())
+  const [processingTasks, setProcessingTasks] = useState<Set<any>>(new Set())
+  const [expandedDoc, setExpandedDoc] = useState<any>(null)
   
   // editingQty: { [requestId]: inputValue }
-  const [editingQty, setEditingQty] = useState({})
-  const [savingQty, setSavingQty] = useState(new Set())
+  const [editingQty, setEditingQty] = useState<Record<string, any>>({})
+  const [savingQty, setSavingQty] = useState<Set<any>>(new Set())
 
   // Cutter box state
-  const [checkedCutters, setCheckedCutters] = useState({})
-  const [expandedNaryads, setExpandedNaryads] = useState({})
-  const [expandedNomenclatures, setExpandedNomenclatures] = useState({})
+  const [checkedCutters, setCheckedCutters] = useState<Record<string, any>>({})
+  const [expandedNaryads, setExpandedNaryads] = useState<Record<string, any>>({})
+  const [expandedNomenclatures, setExpandedNomenclatures] = useState<Record<string, any>>({})
 
   // Super admin inventory editing state
-  const [editingInvId, setEditingInvId] = useState(null)
-  const [editingInvTotal, setEditingInvTotal] = useState('')
-  const [editingInvReserved, setEditingInvReserved] = useState('')
-  const [savingInv, setSavingInv] = useState(false)
+  const [editingInvId, setEditingInvId] = useState<string | null>(null)
+  const [editingInvTotal, setEditingInvTotal] = useState<string>('')
+  const [editingInvReserved, setEditingInvReserved] = useState<string>('')
+  const [savingInv, setSavingInv] = useState<boolean>(false)
 
-  const [isScanning, setIsScanning] = useState(false)
-  const [scannedCard, setScannedCard] = useState(null)
-  const [scannedRequests, setScannedRequests] = useState([])
-  const [kittingBoxItem, setKittingBoxItem] = useState(null)
-  const [isIssuingCard] = useState(false)
-  const [cameraError, setCameraError] = useState(null)
-  const [manualCardInput, setManualCardInput] = useState('')
-  const [manualSearchInput, setManualSearchInput] = useState('')
-  const [reserveAnalysisItem, setReserveAnalysisItem] = useState(null)
+  const [isScanning, setIsScanning] = useState<boolean>(false)
+  const [scannedCard, setScannedCard] = useState<any>(null)
+  const [scannedRequests, setScannedRequests] = useState<any[]>([])
+  const [kittingBoxItem, setKittingBoxItem] = useState<any>(null)
+  const [isIssuingCard] = useState<boolean>(false)
+  const [cameraError, setCameraError] = useState<any>(null)
+  const [manualCardInput, setManualCardInput] = useState<string>('')
+  const [manualSearchInput, setManualSearchInput] = useState<string>('')
+  const [reserveAnalysisItem, setReserveAnalysisItem] = useState<any>(null)
 
   // Computed values
   const {
     cardsWithBoxes,
     filteredInventory,
     groupedRequests
-  } = useWarehouseComputed({
+  }: any = useWarehouseComputed({
     inventory,
     requests,
-    nomenclatures: useStore(state => state.nomenclatures),
+    nomenclatures: useStore((state: any) => state.nomenclatures),
     receptionDocs,
     tasks,
     workCards,
@@ -136,10 +139,10 @@ const WarehouseModuleV2 = () => {
     searchQuery
   })
 
-  const nomenclatures = useStore(state => state.nomenclatures)
+  const nomenclatures = useStore((state: any) => state.nomenclatures)
 
   // Handlers Hook
-  const handlers = useWarehouseHandlers({
+  const handlers: any = useWarehouseHandlers({
     nomenclatures,
     inventory,
     tasks,
@@ -149,7 +152,7 @@ const WarehouseModuleV2 = () => {
     activeTab,
     fetchData,
     refreshTable,
-    issueMaterialsBatch: useMES().issueMaterialsBatch,
+    issueMaterialsBatch: mes.issueMaterialsBatch,
     createPurchaseRequest,
     approveWarehouse,
     setIsScanning,
@@ -184,7 +187,7 @@ const WarehouseModuleV2 = () => {
     newItem
   })
 
-  const manualIssue = useManualInventoryIssue({
+  const manualIssue: any = useManualInventoryIssue({
     nomenclatures,
     inventory,
     currentUser,
@@ -192,12 +195,12 @@ const WarehouseModuleV2 = () => {
     refreshTable
   })
 
-  const [itemToDelete, setItemToDelete] = useState(null)
-  const [isDeleting, setIsDeleting] = useState(false)
+  const [itemToDelete, setItemToDelete] = useState<any>(null)
+  const [isDeleting, setIsDeleting] = useState<boolean>(false)
 
   const isAdmin = currentUser?.login === 'admin@workshop.local' || currentUser?.role === 'admin' || currentUser?.role === 'director' || (currentUser?.position || '').toLowerCase().includes('адмін') || (currentUser?.position || '').toLowerCase().includes('директор')
 
-  const handleDeleteInventoryItem = (item) => {
+  const handleDeleteInventoryItem = (item: any) => {
     if (!item || !item.id) return
     setItemToDelete(item)
   }
@@ -210,7 +213,7 @@ const WarehouseModuleV2 = () => {
       if (typeof refreshTable === 'function') refreshTable('inventory')
       if (typeof fetchData === 'function') fetchData(['inventory'])
       setItemToDelete(null)
-    } catch (err) {
+    } catch (err: any) {
       alert(`Помилка видалення: ${err.message || err}`)
     } finally {
       setIsDeleting(false)
@@ -219,7 +222,7 @@ const WarehouseModuleV2 = () => {
 
   useEffect(() => {
     if (!itemToDelete) return
-    const handleKeyDown = (e) => {
+    const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Enter') {
         e.preventDefault()
         confirmDeleteInventoryItem()
@@ -232,7 +235,7 @@ const WarehouseModuleV2 = () => {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [itemToDelete, isDeleting])
 
-  const handleWarehouseScan = async rawValue => {
+  const handleWarehouseScan = async (rawValue: string) => {
     if (manualIssue.handleScannedCode(rawValue)) {
       setIsScanning(false)
       return
@@ -242,15 +245,15 @@ const WarehouseModuleV2 = () => {
 
   const pendingDocs = useMemo(() => {
     return receptionDocs
-      ? receptionDocs.filter(d => (d.status === 'shipped' || d.status === 'ordered') && d.target_warehouse === 'operational')
+      ? receptionDocs.filter((d: any) => (d.status === 'shipped' || d.status === 'ordered') && d.target_warehouse === 'operational')
       : []
   }, [receptionDocs])
 
   const tabs = useMemo(() => {
-    const taskMap = new Map((tasks || []).map(task => [String(task.id), task]))
+    const taskMap = new Map<string, any>((tasks || []).map((task: any) => [String(task.id), task]))
     const groupedByType = new Map()
 
-    ;(requests || []).forEach(r => {
+    ;(requests || []).forEach((r: any) => {
       if (r.status !== 'pending' && r.status !== 'issued') return
       const task = r.task_id ? taskMap.get(String(r.task_id)) : null
       if (r.status === 'issued' && (!task || task.warehouse_conf === 'true' || task.warehouse_conf === 'partial')) return
@@ -262,30 +265,30 @@ const WarehouseModuleV2 = () => {
       groupedByType.get(itemType).add(r.task_id || `order-${r.order_id}`)
     })
 
-    const receptionCounts = (receptionDocs || []).reduce((counts, doc) => {
+    const receptionCounts = (receptionDocs || []).reduce((counts: any, doc: any) => {
       if (doc.status !== 'shipped' && doc.status !== 'ordered') return counts
       if (doc.target_warehouse === 'operational') counts.raw += 1
       return counts
     }, { raw: 0 })
 
-    const getCount = tabId => (groupedByType.get(tabId)?.size || 0) + (receptionCounts[tabId] || 0)
+    const getCount = (tabId: string) => (groupedByType.get(tabId)?.size || 0) + (receptionCounts[tabId] || 0)
     return [
       { id: 'raw', label: 'Оперативний', icon: <Package size={18} />, count: getCount('raw') },
-      { id: 'boxes', label: 'Бокси фрез', icon: <WarehouseIcon size={18} />, count: cardsWithBoxes.filter(c => !c.isPrepared).length },
+      { id: 'boxes', label: 'Бокси фрез', icon: <WarehouseIcon size={18} />, count: cardsWithBoxes.filter((c: any) => !c.isPrepared).length },
       { id: 'registry', label: 'Реєстр', icon: <History size={18} /> }
     ]
   }, [requests, tasks, receptionDocs, nomenclatures, inventory, cardsWithBoxes])
 
-  const getItemReservedQty = (item) => {
+  const getItemReservedQty = (item: any): number => {
     if (!item) return 0
     const dbReserved = Number(item.reserved_qty) || 0
     const approvedQty = (requests || [])
-      .filter(r => 
+      .filter((r: any) => 
         (r.status === 'approved' || r.status === 'reserved' || r.status === 'issued') &&
         ((r.inventory_id && String(r.inventory_id) === String(item.id)) ||
          (!r.inventory_id && r.nomenclature_id && String(r.nomenclature_id) === String(item.nomenclature_id)))
       )
-      .reduce((sum, r) => sum + (Number(r.quantity) || 0), 0)
+      .reduce((sum: number, r: any) => sum + (Number(r.quantity) || 0), 0)
     return Math.max(dbReserved, approvedQty)
   }
 
@@ -310,7 +313,6 @@ const WarehouseModuleV2 = () => {
         <ScannerPanel
           isScanning={isScanning}
           setIsScanning={setIsScanning}
-          cameraError={cameraError}
           manualCardInput={manualCardInput}
           setManualCardInput={setManualCardInput}
           handleCardScan={handleWarehouseScan}
@@ -344,7 +346,7 @@ const WarehouseModuleV2 = () => {
         {isIssueView && <WarehouseIssueWorkspace
           onOpenStock={() => changeWorkspace('stock')}
           onOpenBoxes={() => changeWorkspace('queue', 'boxes')}
-          boxesCount={cardsWithBoxes.filter(c => !c.isPrepared).length}
+          boxesCount={cardsWithBoxes.filter((c: any) => !c.isPrepared).length}
           onRefresh={() => fetchData(['inventory', 'material_requests', 'tasks', 'orders', 'work_cards', 'reception_docs', 'purchase_requests'])}
           groupedRequests={groupedRequests}
           tasks={tasks}
@@ -482,10 +484,6 @@ const WarehouseModuleV2 = () => {
       <ReserveAnalysisModal
         item={reserveAnalysisItem}
         onClose={() => setReserveAnalysisItem(null)}
-        requests={requests}
-        orders={orders}
-        tasks={tasks}
-        nomenclatures={nomenclatures}
       />
 
       <style>{`

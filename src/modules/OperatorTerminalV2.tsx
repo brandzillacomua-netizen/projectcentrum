@@ -1,7 +1,7 @@
 import React from 'react'
 import { useMES } from '../MESContext'
 import { useStore } from '../store/index.js'
-import { apiService } from '../services/apiDispatcher'
+import { apiService } from '../services/apiDispatcher.js'
 
 import { useOperatorTerminalData } from './Operator/hooks/useOperatorTerminalData'
 import { OperatorHeader } from './Operator/components/OperatorHeader'
@@ -15,8 +15,8 @@ import { OperatorScrapModal } from './Operator/components/modals/OperatorScrapMo
 import { OperatorDetailStageModal } from './Operator/components/modals/OperatorDetailStageModal'
 import { OperatorMachineCallModal } from './Operator/components/modals/OperatorMachineCallModal'
 
-const OperatorTerminal = () => {
-  const mes = useMES()
+export const OperatorTerminal: React.FC = () => {
+  const mes: any = useMES()
   const {
     startWorkCard,
     completeWorkCard,
@@ -29,19 +29,19 @@ const OperatorTerminal = () => {
     maintenanceCheckEnabled
   } = mes
 
-  const workCards = useStore(state => state.workCards)
-  const orders = useStore(state => state.orders)
-  const nomenclatures = useStore(state => state.nomenclatures)
-  const machines = useStore(state => state.machines)
-  const workCardHistory = useStore(state => state.workCardHistory)
-  const systemUsers = useStore(state => state.systemUsers)
-  const currentUser = useStore(state => state.currentUser)
-  const machineOperations = useStore(state => state.machineOperations)
-  const tasks = useStore(state => state.tasks)
-  const inventory = useStore(state => state.inventory)
-  const requests = useStore(state => state.requests)
+  const workCards = useStore((state: any) => state.workCards)
+  const orders = useStore((state: any) => state.orders)
+  const nomenclatures = useStore((state: any) => state.nomenclatures)
+  const machines = useStore((state: any) => state.machines)
+  const workCardHistory = useStore((state: any) => state.workCardHistory)
+  const systemUsers = useStore((state: any) => state.systemUsers)
+  const currentUser = useStore((state: any) => state.currentUser)
+  const machineOperations = useStore((state: any) => state.machineOperations)
+  const tasks = useStore((state: any) => state.tasks)
+  const inventory = useStore((state: any) => state.inventory)
+  const requests = useStore((state: any) => state.requests)
 
-  const data = useOperatorTerminalData({
+  const data: any = useOperatorTerminalData({
     workCards,
     orders,
     nomenclatures,
@@ -65,11 +65,14 @@ const OperatorTerminal = () => {
 
   const {
     selectedCardId, setSelectedCardId,
-    selectedStage, setSelectedStage,
-    selectedOperator, setSelectedOperator,
-    selectedMaster, setSelectedMaster,
-    selectedShift, setSelectedShift,
+    selectedStage,
+    selectedOperator,
+    selectedMaster,
+    selectedShift,
     selectedMachine, setSelectedMachine,
+    setSelectedMaster,
+    setSelectedShift,
+    setSelectedOperator,
     currentTime,
     isProcessing, setIsProcessing,
     isDrawerOpen, setIsDrawerOpen,
@@ -79,16 +82,15 @@ const OperatorTerminal = () => {
     isScanning, setIsScanning,
     showScrapModal, setShowScrapModal,
     scrapCounts, setScrapCounts,
-    cuttersUsed, setCuttersUsed,
+    setCuttersUsed,
     cuttersBreakdown, setCuttersBreakdown,
     showPinModal, setShowPinModal,
     pin, setPin,
     pinError, setPinError,
     detailStage, setDetailStage,
     detailTab, setDetailTab,
-    filterStage, setFilterStage,
     machineCallModal, setMachineCallModal,
-    machineCallSuccess, setMachineCallSuccess,
+    machineCallSuccess,
     selectedCallMasterId, setSelectedCallMasterId,
     selectedCallEngineerId, setSelectedCallEngineerId,
     selectedCallQCId, setSelectedCallQCId,
@@ -99,17 +101,16 @@ const OperatorTerminal = () => {
     getCardDept,
     getNomFromCard,
     getQtyFromCard,
-    getSheetsFromCard,
-    getOrderFromCard
+    getSheetsFromCard
   } = data
 
-  const matchesStage = (cardOp, stageName) => {
+  const matchesStage = (cardOp: string | null | undefined, stageName: string | null | undefined): boolean => {
     const op = (cardOp || '').toLowerCase()
     const sk = (stageName || '').toLowerCase()
     return op === sk || op.includes(sk) || sk.includes(op)
   }
 
-  const queuedCards = workCards.filter(c =>
+  const queuedCards = workCards.filter((c: any) =>
     (c.status === 'new' || scannedCardIds.includes(c.id)) &&
     c.status !== 'in-progress' && c.status !== 'waiting-buffer' && c.status !== 'completed' && c.status !== 'at-buffer'
   )
@@ -118,7 +119,7 @@ const OperatorTerminal = () => {
     if (!currentCard || !selectedStage || !selectedOperator) return
     setIsProcessing(true)
     try {
-      const selectedMachineObj = machines.find(m => m.id === selectedMachine || m.name === selectedMachine)
+      const selectedMachineObj = machines.find((m: any) => m.id === selectedMachine || m.name === selectedMachine)
       await apiService.submitOperatorAction('start', currentCard.task_id, currentCard.id, selectedOperator, {
         stage_name: selectedStage || currentCard.operation,
         machine_name: selectedMachineObj?.name || selectedMachine,
@@ -126,8 +127,8 @@ const OperatorTerminal = () => {
         manager_name: selectedMaster,
         shift_name: selectedShift
       }, startWorkCard)
-      if (!scannedCardIds.includes(currentCard.id)) setScannedCardIds(prev => [...prev, currentCard.id])
-    } catch (e) {
+      if (!scannedCardIds.includes(currentCard.id)) setScannedCardIds((prev: string[]) => [...prev, currentCard.id])
+    } catch (e: any) {
       alert('Помилка при старті: ' + e.message)
     } finally {
       setIsProcessing(false)
@@ -138,7 +139,7 @@ const OperatorTerminal = () => {
     if (pin === '555') {
       setIsProcessing(true)
       try {
-        const selectedMachineObj = machines.find(m => m.id === selectedMachine || m.name === selectedMachine)
+        const selectedMachineObj = machines.find((m: any) => m.id === selectedMachine || m.name === selectedMachine)
         await apiService.submitOperatorAction('start', currentCard.task_id, currentCard.id, 'Оператор Тест (555)', {
           machine_id: selectedMachineObj?.id || null,
           manager_name: selectedMaster,
@@ -168,12 +169,12 @@ const OperatorTerminal = () => {
     if (!currentCard) return
     setIsProcessing(true)
     try {
-      const cuttersQty = matchesStage(currentCard.operation, 'Розкрій') ? Object.values(cuttersBreakdown).reduce((sum, v) => sum + (Number(v) || 0), 0) : 0
+      const cuttersQty = matchesStage(currentCard.operation, 'Розкрій') ? Object.values(cuttersBreakdown).reduce((sum: number, v: any) => sum + (Number(v) || 0), 0) : 0
       await apiService.submitBufferConfirmation(currentCard.id, scrapCounts, confirmBuffer, cuttersQty, cuttersBreakdown)
       setSelectedCardId(null)
       setShowScrapModal(false)
-      setScannedCardIds(prev => prev.filter(id => id !== currentCard.id))
-    } catch (e) {
+      setScannedCardIds((prev: string[]) => prev.filter(id => id !== currentCard.id))
+    } catch (e: any) {
       alert('Помилка при оприбуткуванні: ' + e.message)
     } finally {
       setIsProcessing(false)

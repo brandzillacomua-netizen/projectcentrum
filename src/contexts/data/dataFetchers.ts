@@ -7,6 +7,7 @@ import {
 import { fetchProductionSummary } from '../../services/statisticsService.js'
 import {
   getTaskDataProfileKey,
+  getRouteDataTables,
   fetchOperationalTasks,
   fetchActiveTasksOnly,
   fetchActiveWorkCards,
@@ -436,6 +437,202 @@ export function useDataFetchers(state: any) {
     await fetchData(criticalTables)
   }
 
+  const fetchModuleData = async (moduleNameOrRoute?: string) => {
+    const targetPath = moduleNameOrRoute
+      ? (moduleNameOrRoute.startsWith('/') ? moduleNameOrRoute : `/${moduleNameOrRoute}`)
+      : normalizedPath
+    const tables = getRouteDataTables(targetPath)
+    if (tables && tables.length > 0) {
+      await fetchData(tables)
+    }
+  }
+
+  const fetchTaskPlanSnapshot = async (taskId: string) => {
+    if (!taskId) return null
+    try {
+      const { data, error } = await supabase
+        .from('tasks')
+        .select('id, step, plan_snapshot')
+        .eq('id', taskId)
+        .maybeSingle()
+      if (!error && data && data.plan_snapshot) {
+        setTasks((prev: any[]) => prev.map(t => String(t.id) === String(taskId) ? { ...t, plan_snapshot: data.plan_snapshot } : t))
+      }
+      return data
+    } catch (err) {
+      console.warn('[dataFetchers] Failed to fetch task plan snapshot:', err)
+      return null
+    }
+  }
+
+  const fetchHistoryRange = async (startDate: string, endDate: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('work_card_history')
+        .select('*')
+        .gte('created_at', startDate)
+        .lte('created_at', endDate)
+        .order('created_at', { ascending: false })
+      if (error) throw error
+      return data || []
+    } catch (err) {
+      console.warn('[dataFetchers] Failed to fetch history range:', err)
+      return []
+    }
+  }
+
+  const fetchTaskArchiveCards = async (taskId: string) => {
+    if (!taskId) return []
+    try {
+      const { data, error } = await supabase
+        .from('work_cards')
+        .select('*')
+        .eq('task_id', taskId)
+        .order('card_perm_number')
+      if (error) throw error
+      return data || []
+    } catch (err) {
+      console.warn('[dataFetchers] Failed to fetch task archive cards:', err)
+      return []
+    }
+  }
+
+  const fetchCompletedManagementTasks = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('management_tasks')
+        .select('*')
+        .eq('status', 'done')
+        .order('completed_at', { ascending: false })
+        .limit(200)
+      if (error) throw error
+      return data || []
+    } catch (err) {
+      console.warn('[dataFetchers] Failed to fetch completed management tasks:', err)
+      return []
+    }
+  }
+
+  const fetchCompletedManagementTasksCount = async () => {
+    try {
+      const { count, error } = await supabase
+        .from('management_tasks')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'done')
+      if (error) throw error
+      return count || 0
+    } catch (err) {
+      console.warn('[dataFetchers] Failed to fetch completed management tasks count:', err)
+      return 0
+    }
+  }
+
+  const upsertCompanyStructure = async (node: any) => {
+    try {
+      const payload = { ...node }
+      if (!payload.id || payload.id.length < 5) {
+        delete payload.id
+      }
+      const { data: res, error } = await supabase.from('company_structure').upsert([payload]).select()
+      if (error) throw error
+      if (res && res.length > 0) {
+        setCompanyStructure((prev: any[]) => {
+          const idx = prev.findIndex(item => item.id === res[0].id)
+          if (idx >= 0) {
+            const next = [...prev]; next[idx] = res[0]; return next
+          }
+          return [...prev, res[0]]
+        })
+        return { data: res[0], error: null }
+      }
+      return { data: null, error: null }
+    } catch (e: any) {
+      console.error("Failed to upsert company structure:", e)
+      const fallbackNode = { ...node }
+      if (!fallbackNode.id) fallbackNode.id = String(Date.now())
+      setCompanyStructure((prev: any[]) => {
+        const idx = prev.findIndex(item => item.id === fallbackNode.id || item.name === fallbackNode.name)
+        if (idx >= 0) {
+          const next = [...prev]; next[idx] = fallbackNode; return next
+        }
+        return [...prev, fallbackNode]
+      })
+      return { data: fallbackNode, error: e }
+    }
+  }
+
+  const deleteCompanyStructure = async (id: string) => {
+    try {
+      const { error } = await supabase.from('company_structure').delete().eq('id', id)
+      if (error) throw error
+      setCompanyStructure((prev: any[]) => prev.filter(item => item.id !== id))
+      return { error: null }
+    } catch (e: any) {
+      console.error("Failed to delete company structure:", e)
+      setCompanyStructure((prev: any[]) => prev.filter(item => item.id !== id))
+      return { error: e }
+    }
+  }
+
+  const upsertCompanyPosition = async (pos: any) => {
+    try {
+      const payload = { ...pos }
+      if (!payload.id || payload.id.length < 5) {
+        delete payload.id
+      }
+      let { data: res, error } = await supabase.from('company_positions').upsert([payload]).select()
+      
+      if (error && error.message && error.message.includes('department_id') && 'department_id' in payload) {
+        console.warn("department_id column is missing, retrying without it:", error.message)
+        const fallbackPayload = { ...payload }
+        delete fallbackPayload.department_id
+        const retry = await supabase.from('company_positions').upsert([fallbackPayload]).select()
+        if (!retry.error) {
+          res = retry.data
+          error = null
+        }
+      }
+      
+      if (error) throw error
+      if (res && res.length > 0) {
+        setCompanyPositions((prev: any[]) => {
+          const idx = prev.findIndex(item => item.id === res[0].id)
+          if (idx >= 0) {
+            const next = [...prev]; next[idx] = res[0]; return next
+          }
+          return [...prev, res[0]]
+        })
+        return { data: res[0], error: null }
+      }
+      return { data: null, error: null }
+    } catch (e: any) {
+      console.error("Failed to upsert company position:", e)
+      const fallbackPos = { ...pos }
+      if (!fallbackPos.id) fallbackPos.id = String(Date.now())
+      setCompanyPositions((prev: any[]) => {
+        const idx = prev.findIndex(item => item.id === fallbackPos.id || item.name === fallbackPos.name)
+        if (idx >= 0) {
+          const next = [...prev]; next[idx] = fallbackPos; return next
+        }
+        return [...prev, fallbackPos]
+      })
+      return { data: fallbackPos, error: e }
+    }
+  }
+
+  const deleteCompanyPosition = async (id: string) => {
+    try {
+      const { error } = await supabase.from('company_positions').delete().eq('id', id)
+      if (error) throw error
+      setCompanyPositions((prev: any[]) => prev.filter(item => item.id !== id))
+      return { error: null }
+    } catch (e: any) {
+      console.error("Failed to delete company position:", e)
+      setCompanyPositions((prev: any[]) => prev.filter(item => item.id !== id))
+      return { error: e }
+    }
+  }
+
   const refreshProductionSummary = async () => {
     try {
       const summary = await fetchProductionSummary()
@@ -456,6 +653,16 @@ export function useDataFetchers(state: any) {
     getTargetRefreshKey,
     fetchData,
     fetchCritical,
-    refreshProductionSummary
+    fetchModuleData,
+    refreshProductionSummary,
+    fetchTaskPlanSnapshot,
+    fetchHistoryRange,
+    fetchTaskArchiveCards,
+    fetchCompletedManagementTasks,
+    fetchCompletedManagementTasksCount,
+    upsertCompanyStructure,
+    deleteCompanyStructure,
+    upsertCompanyPosition,
+    deleteCompanyPosition
   }
 }
