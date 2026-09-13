@@ -22,5 +22,6 @@ describe('production release verification workflow', () => {
     expect(workflow).toContain("|| 'https://projectcentrum88.vercel.app'")
     expect(workflow).not.toContain('github.event.deployment_status.environment_url')
     expect(workflow).toContain('npm run verify:deployment')
+    expect(workflow).toContain('npm run smoke:public-release')
   })
 })

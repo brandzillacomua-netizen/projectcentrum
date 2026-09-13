@@ -45,3 +45,6 @@ jobs:
 
       - name: Verify deployed commit identity
         run: npm run verify:deployment
+
+      - name: Verify public production surface
+        run: npm run smoke:public-release
