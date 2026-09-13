@@ -7,19 +7,29 @@ import path from 'node:path'
 const tsFileResolverPlugin = () => ({
   name: 'vite-plugin-ts-file-resolver',
   resolveId(source, importer) {
-    if (importer && source.startsWith('.')) {
-      if (source.endsWith('.js') || source.endsWith('.jsx')) {
-        const extLength = source.endsWith('.jsx') ? 4 : 3
-        const dir = path.dirname(importer)
-        const absolutePathWithoutExt = path.resolve(dir, source.slice(0, -extLength))
+    const cleanSource = source.split('?')[0]
+    if (cleanSource.endsWith('.js') || cleanSource.endsWith('.jsx')) {
+      const extLength = cleanSource.endsWith('.jsx') ? 4 : 3
+      let absolutePathWithoutExt = ''
 
-        if (!fs.existsSync(absolutePathWithoutExt + '.js') && !fs.existsSync(absolutePathWithoutExt + '.jsx')) {
-          if (fs.existsSync(absolutePathWithoutExt + '.tsx')) {
-            return absolutePathWithoutExt + '.tsx'
-          }
-          if (fs.existsSync(absolutePathWithoutExt + '.ts')) {
-            return absolutePathWithoutExt + '.ts'
-          }
+      if (cleanSource.startsWith('.')) {
+        if (!importer) return null
+        const dir = path.dirname(importer)
+        absolutePathWithoutExt = path.resolve(dir, cleanSource.slice(0, -extLength))
+      } else if (cleanSource.startsWith('/src/')) {
+        absolutePathWithoutExt = path.resolve(process.cwd(), cleanSource.slice(1, -extLength))
+      } else if (path.isAbsolute(cleanSource)) {
+        absolutePathWithoutExt = cleanSource.slice(0, -extLength)
+      } else {
+        return null
+      }
+
+      if (!fs.existsSync(absolutePathWithoutExt + '.js') && !fs.existsSync(absolutePathWithoutExt + '.jsx')) {
+        if (fs.existsSync(absolutePathWithoutExt + '.tsx')) {
+          return absolutePathWithoutExt + '.tsx'
+        }
+        if (fs.existsSync(absolutePathWithoutExt + '.ts')) {
+          return absolutePathWithoutExt + '.ts'
         }
       }
     }
