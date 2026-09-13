@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import { useMES } from '../MESContext'
+import { useStore } from '../store/index.js'
 import { apiService } from '../services/apiDispatcher'
 
 import { DirectorHeader } from './Director/components/DirectorHeader'
@@ -26,7 +27,12 @@ const toLocalISO = (dateVal) => {
 }
 
 const DirectorModule = () => {
-  const { tasks, orders, approveDirector, nomenclatures, requests, workCards, supabase } = useMES()
+  const { approveDirector, supabase } = useMES()
+  const tasks = useStore(state => state.tasks)
+  const orders = useStore(state => state.orders)
+  const nomenclatures = useStore(state => state.nomenclatures)
+  const requests = useStore(state => state.requests)
+  const workCards = useStore(state => state.workCards)
   const [viewDate, setViewDate] = useState(new Date())
   const [viewMode, setViewMode] = useState('calendar') // 'calendar' | 'matrix'
   const [isApprovalsOpen, setIsApprovalsOpen] = useState(false)

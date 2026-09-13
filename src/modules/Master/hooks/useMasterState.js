@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useMES } from '../../../MESContext'
+import { useStore } from '../../../store/index.js'
 import { apiService } from '../../../services/apiDispatcher'
 import { supabase } from '../../../supabase'
 import { MACHINE_TYPES, isShop1Task } from '../utils/masterHelpers'
@@ -9,13 +10,20 @@ import { getAvailableSGPStock, findWorkingSheetNom } from '../../Nomenclature/ut
 export function useMasterState() {
   const [searchParams, setSearchParams] = useSearchParams()
   const {
-    orders, tasks, nomenclatures, bomItems, inventory,
-    totalProduced, totalScrapCount,
     createNaryad, issueMaterials, approveWarehouse,
     fetchModuleData,
-    machines,
-    machineCalls, currentUser, machineOperations, requests
+    totalProduced, totalScrapCount,
+    machineOperations, requests
   } = useMES()
+
+  const orders = useStore(state => state.orders)
+  const tasks = useStore(state => state.tasks)
+  const nomenclatures = useStore(state => state.nomenclatures)
+  const bomItems = useStore(state => state.bomItems)
+  const inventory = useStore(state => state.inventory)
+  const machines = useStore(state => state.machines)
+  const machineCalls = useStore(state => state.machineCalls)
+  const currentUser = useStore(state => state.currentUser)
 
   useEffect(() => { fetchModuleData('master') }, [])
 

@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { ArrowLeft, Monitor, ListTodo, X, Clock, CheckCircle2, ChevronRight, Menu, Printer, Tablet } from 'lucide-react'
 import { useMES } from '../MESContext'
+import { useStore } from '../store/index.js'
 import { supabase } from '../supabase'
 import { QRCodeCanvas } from 'qrcode.react'
 
@@ -12,20 +13,21 @@ const Shop2Module = () => {
   const { names: scrapReasons } = useScrapReasons()
   const location = useLocation()
   const {
-    orders,
-    tasks,
-    workCards,
-    inventory,
-    nomenclatures,
-    bomItems,
     fetchData,
     completeTaskShop2,
     directHandoverToSGP,
     fetchTaskArchiveCards,
     fetchTaskPlanSnapshot,
-    workCardHistory,
     refreshTable
   } = useMES()
+
+  const orders = useStore(state => state.orders)
+  const tasks = useStore(state => state.tasks)
+  const workCards = useStore(state => state.workCards)
+  const inventory = useStore(state => state.inventory)
+  const nomenclatures = useStore(state => state.nomenclatures)
+  const bomItems = useStore(state => state.bomItems)
+  const workCardHistory = useStore(state => state.workCardHistory)
 
   const [activeTaskId, setActiveTaskId] = useState(location.state?.taskId || null)
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)

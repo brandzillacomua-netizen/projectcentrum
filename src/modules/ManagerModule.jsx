@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { LayoutDashboard, ArrowLeft } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
+import { useStore } from '../store/index.js'
 import { apiService } from '../services/apiDispatcher'
 import { supabase } from '../supabase'
 
@@ -15,20 +16,21 @@ import './Manager/ManagerStyles.css'
 
 const ManagerModule = () => {
   const {
-    nomenclatures,
     addOrder,
     updateOrder,
     deleteOrder,
     superDeleteOrder,
-    orders,
     fetchOrders,
     hasMoreOrders,
     searchCustomers,
-    currentUser,
     loading,
     getOrderProductionProgress,
     refreshTable
   } = useMES()
+
+  const nomenclatures = useStore(state => state.nomenclatures)
+  const orders = useStore(state => state.orders)
+  const currentUser = useStore(state => state.currentUser)
 
   const [v2Nomenclatures, setV2Nomenclatures] = useState([])
 

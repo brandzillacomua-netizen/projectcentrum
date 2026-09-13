@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react'
 import { Warehouse as WarehouseIcon, Package, FolderOpen, History, Plus, Search } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { useMES } from '../MESContext'
+import { useStore } from '../store/index.js'
 import { supabase } from '../supabase'
 import { deleteInventoryItem } from '../services/inventoryDeletion'
 
@@ -35,10 +36,20 @@ import { WarehouseDeleteConfirmModal } from './Warehouse/components/modals/Wareh
 const WarehouseModuleV2 = () => {
   const [searchParams, setSearchParams] = useSearchParams()
   const {
-    inventory, requests, receptionDocs, confirmReception,
-    orders, tasks, approveWarehouse, createPurchaseRequest,
-    purchaseRequests, currentUser, fetchData, managers, refreshTable, machineOperations, workCards
+    confirmReception,
+    approveWarehouse, createPurchaseRequest,
+    fetchData, managers, refreshTable
   } = useMES()
+
+  const inventory = useStore(state => state.inventory)
+  const requests = useStore(state => state.requests)
+  const receptionDocs = useStore(state => state.receptionDocs)
+  const orders = useStore(state => state.orders)
+  const tasks = useStore(state => state.tasks)
+  const purchaseRequests = useStore(state => state.purchaseRequests)
+  const currentUser = useStore(state => state.currentUser)
+  const machineOperations = useStore(state => state.machineOperations)
+  const workCards = useStore(state => state.workCards)
 
   // Load warehouse-specific data on mount
   useEffect(() => { 
@@ -116,7 +127,7 @@ const WarehouseModuleV2 = () => {
   } = useWarehouseComputed({
     inventory,
     requests,
-    nomenclatures: useMES().nomenclatures,
+    nomenclatures: useStore(state => state.nomenclatures),
     receptionDocs,
     tasks,
     workCards,
@@ -125,7 +136,7 @@ const WarehouseModuleV2 = () => {
     searchQuery
   })
 
-  const { nomenclatures } = useMES()
+  const nomenclatures = useStore(state => state.nomenclatures)
 
   // Handlers Hook
   const handlers = useWarehouseHandlers({

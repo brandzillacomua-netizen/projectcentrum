@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams, useLocation } from 'react-router-dom'
 import { ListTodo, Tablet } from 'lucide-react'
 import { useMES } from '../../MESContext.jsx'
+import { useStore } from '../../store/index.js'
 import { apiService } from '../../services/apiDispatcher.js'
 import Foreman2Layout from './components/Foreman2Layout.jsx'
 import TaskQueue from './components/TaskQueue.jsx'
@@ -33,6 +34,19 @@ import {
 
 export default function Foreman2Module() {
   const mes = useMES()
+  const currentUser = useStore(state => state.currentUser)
+  const machines = useStore(state => state.machines)
+  const tasks = useStore(state => state.tasks)
+  const relevantTasks = useStore(state => state.tasks)
+  const nomenclatures = useStore(state => state.nomenclatures)
+  const machineOperations = useStore(state => state.machineOperations)
+  const inventory = useStore(state => state.inventory)
+  const machineCalls = useStore(state => state.machineCalls)
+  const orders = useStore(state => state.orders)
+  const bomItems = useStore(state => state.bomItems)
+  const workCards = useStore(state => state.workCards)
+  const materialRequests = useStore(state => state.requests)
+  const customers = useStore(state => state.customers)
   const [searchParams, setSearchParams] = useSearchParams()
   const location = useLocation()
   const urlTaskId = searchParams.get('task') || location.state?.taskId || null
@@ -58,7 +72,6 @@ export default function Foreman2Module() {
     allHistory,
     loading,
     error,
-    nomenclatures,
     refreshForeman2
   } = useForeman2Data({ mes })
 
@@ -67,42 +80,42 @@ export default function Foreman2Module() {
     createWorkCardsBatch: mes.createWorkCardsBatch,
     createDovypuskMaterialRequests,
     fetchData: mes.fetchData,
-    machines: mes.machines || []
+    machines: machines || []
   })
 
   const machineChange = useMachineChange({
-    tasks: mes.tasks || [],
-    relevantTasks: mes.relevantTasks || [],
-    nomenclatures: mes.nomenclatures || [],
-    machineOperations: mes.machineOperations || [],
-    inventory: mes.inventory || [],
+    tasks: tasks || [],
+    relevantTasks: relevantTasks || [],
+    nomenclatures: nomenclatures || [],
+    machineOperations: machineOperations || [],
+    inventory: inventory || [],
     fetchData: mes.fetchData,
     setCustomAlert: () => {} // we can plug in custom alerts later if needed
   })
 
   const cardGen = useCardGeneration({ mes })
   const adminCardDelete = useAdminCardDelete({
-    currentUser: mes.currentUser,
+    currentUser: currentUser,
     fetchData: mes.fetchData,
     onDeleted: refreshForeman2
   })
   const materialCorrection = useMaterialCorrection({
-    currentUser: mes.currentUser,
-    nomenclatures: mes.nomenclatures || [],
-    inventory: mes.inventory || [],
+    currentUser: currentUser,
+    nomenclatures: nomenclatures || [],
+    inventory: inventory || [],
     fetchData: mes.fetchData,
     onCorrected: refreshForeman2
   })
 
-  const activeCalls = (mes.machineCalls || []).filter(c =>
+  const activeCalls = (machineCalls || []).filter(c =>
     c.status === 'pending' &&
     c.called_role === 'master' &&
-    (!c.called_employee_id || c.called_employee_id === mes.currentUser?.id)
+    (!c.called_employee_id || c.called_employee_id === currentUser?.id)
   )
 
   const handleResolveCall = async (callId) => {
     try {
-      await apiService.resolveMachineCall(callId, mes.currentUser)
+      await apiService.resolveMachineCall(callId, currentUser)
       mes.fetchData(['machine_calls']).catch(() => {})
     } catch (e) {
       alert('Помилка: ' + e.message)
@@ -321,7 +334,7 @@ export default function Foreman2Module() {
         <div className="content-panel no-print" style={{ flex: 1, background: '#0a0a0a', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
           <ActiveCallsWidget
             activeCalls={activeCalls}
-            machines={mes.machines || []}
+            machines={machines || []}
             onResolveCall={handleResolveCall}
           />
           <div className="foreman2-tabs no-print" style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid #222', background: '#090909', flexShrink: 0, marginTop: activeCalls.length > 0 ? '0' : '0' }}>
@@ -354,7 +367,7 @@ export default function Foreman2Module() {
               adminCardDelete.isSuperAdmin ? (
                 <AdminCardDeletePanel
                   model={activeModel}
-                  currentUser={mes.currentUser}
+                  currentUser={currentUser}
                   onDeleteCards={adminCardDelete.deleteCards}
                   isDeleting={adminCardDelete.isDeleting}
                   error={adminCardDelete.error}
@@ -376,25 +389,25 @@ export default function Foreman2Module() {
 
       <MachineChangeModal
         isOpen={!!machineChange.changeNomMachineTaskId}
-        task={activeModel?.task}
-        partId={machineChange.changeNomMachineNomId}
-        partName={machineChange.changeNomMachineName}
-        partMachine={machineChange.changeNomMachineCurrentMachine}
-        machines={mes.machines || []}
-        inventory={mes.inventory || []}
-        nomenclatures={mes.nomenclatures || []}
-        machineOperations={mes.machineOperations || []}
-        planPartInfo={activeModel?.task?.plan_snapshot?.[machineChange.changeNomMachineNomId]}
-        onClose={machineChange.closeMachineChange}
-        onSave={machineChange.saveMachineChange}
-        isSaving={machineChange.isSavingMachineChange}
-      />
+          task={activeModel?.task}
+          partId={machineChange.changeNomMachineNomId}
+          partName={machineChange.changeNomMachineName}
+          partMachine={machineChange.changeNomMachineCurrentMachine}
+          machines={machines || []}
+          inventory={inventory || []}
+          nomenclatures={nomenclatures || []}
+          machineOperations={machineOperations || []}
+          planPartInfo={activeModel?.task?.plan_snapshot?.[machineChange.changeNomMachineNomId]}
+          onClose={machineChange.closeMachineChange}
+          onSave={machineChange.saveMachineChange}
+          isSaving={machineChange.isSavingMachineChange}
+        />
 
       {reissuePart && (
         <ReissueModal
           task={activeModel?.task}
           part={reissuePart}
-          machines={mes.machines || []}
+          machines={machines || []}
           isBusy={isReissuing}
           error={reissueError}
           onClose={() => setReissuePart(null)}
@@ -405,12 +418,12 @@ export default function Foreman2Module() {
       {cardGen.genModalConfig && (
         <GenerateCardsModal
           config={cardGen.genModalConfig}
-          machines={mes.machines || []}
-          nomenclatures={mes.nomenclatures || []}
-          machineOperations={mes.machineOperations || []}
-          inventory={mes.inventory || []}
-          workCards={mes.workCards || []}
-          materialRequests={mes.requests || mes.materialRequests || []}
+          machines={machines || []}
+          nomenclatures={nomenclatures || []}
+          machineOperations={machineOperations || []}
+          inventory={inventory || []}
+          workCards={workCards || []}
+          materialRequests={materialRequests || []}
           isGenerating={cardGen.isGenerating}
           onClose={cardGen.closeGenModal}
           onGenerate={cardGen.handleGenerateCards}
@@ -431,12 +444,12 @@ export default function Foreman2Module() {
       <CreateNaryadModal
         isOpen={isCreateNaryadOpen}
         onClose={() => setIsCreateNaryadOpen(false)}
-        orders={mes.orders || []}
-        tasks={mes.tasks || []}
-        nomenclatures={mes.nomenclatures || []}
-        bomItems={mes.bomItems || []}
-        inventory={mes.inventory || []}
-        machines={mes.machines || []}
+        orders={orders || []}
+        tasks={tasks || []}
+        nomenclatures={nomenclatures || []}
+        bomItems={bomItems || []}
+        inventory={inventory || []}
+        machines={machines || []}
         createNaryad={mes.createNaryad}
         onNaryadCreated={(createdTask) => {
           refreshForeman2()
@@ -447,13 +460,13 @@ export default function Foreman2Module() {
       <ForemanPrintQueue
         printQueue={cardGen.printQueue}
         setPrintQueue={cardGen.setPrintQueue}
-        orders={mes.orders || []}
+        orders={orders || []}
         allOrdersMap={{}}
-        nomenclatures={mes.nomenclatures || []}
-        machines={mes.machines || []}
-        machineOperations={mes.machineOperations || []}
+        nomenclatures={nomenclatures || []}
+        machines={machines || []}
+        machineOperations={machineOperations || []}
         getDisplayMaterial={getDisplayMaterial}
-        customers={mes.customers || []}
+        customers={customers || []}
       />
 
       <ForemanReportModal
@@ -473,14 +486,14 @@ export default function Foreman2Module() {
         reportDetailModal={reportDetailModal}
         setReportDetailModal={setReportDetailModal}
         handleOpenReport={handleOpenReport}
-        tasks={mes.tasks || []}
-        orders={mes.orders || []}
+        tasks={tasks || []}
+        orders={orders || []}
         allOrdersMap={{}}
-        bomItems={mes.bomItems || []}
-        nomenclatures={mes.nomenclatures || []}
-        machineOperations={mes.machineOperations || []}
-        inventory={mes.inventory || []}
-        workCards={mes.workCards || []}
+        bomItems={bomItems || []}
+        nomenclatures={nomenclatures || []}
+        machineOperations={machineOperations || []}
+        inventory={inventory || []}
+        workCards={workCards || []}
         getRequestQty={(req) => Number(req?.quantity) || 0}
       />
     </Foreman2Layout>

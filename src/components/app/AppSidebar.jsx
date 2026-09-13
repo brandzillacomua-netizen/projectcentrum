@@ -76,7 +76,7 @@ export const AppSidebar = ({ isCollapsed, setIsCollapsed, chatUnreadCount, isMob
         {/* Left: Logo 🦊 + Brand + Menu Toggle Arrow */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <button
-            onClick={() => setIsCollapsed(!isCollapsed)}
+            onClick={() => setIsCollapsed(prev => !prev)}
             className="mobile-menu-toggle-btn"
             title={isCollapsed ? "Відкрити меню" : "Згорнути меню"}
           >
@@ -176,7 +176,7 @@ export const AppSidebar = ({ isCollapsed, setIsCollapsed, chatUnreadCount, isMob
           </Link>
 
           <button
-            onClick={() => setIsCollapsed(!isCollapsed)}
+            onClick={() => setIsCollapsed(prev => !prev)}
             className="sidebar-toggle-edge-btn"
             title={isCollapsed ? "Розгорнути меню" : "Згорнути меню"}
           >

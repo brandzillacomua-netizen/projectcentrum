@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useScrapReasons } from '../../../hooks/useScrapReasons';
 import { useMES } from '../../../MESContext';
+import { useStore } from '../../../store/index.js';
 import { supabase } from '../../../supabase';
 import { CHAIN, formatSec } from '../utils/shop1Helpers';
 
@@ -14,29 +15,30 @@ import { useShop1CardWorkflow } from './subhooks/useShop1CardWorkflow';
 export function useShop1TerminalState() {
   const { names: scrapReasons } = useScrapReasons();
   const {
-    workCards,
-    setWorkCards,
-    nomenclatures,
-    operators,
     getFilteredOperators,
     getFilteredManagers,
     managers,
-    workCardHistory,
-    inventory,
+    operators,
+    setWorkCards,
     fetchData,
     createWorkCard,
-    orders,
-    tasks,
-    currentUser,
     machines,
-    systemUsers,
-    machineOperations,
     formatUserName,
-    requests,
     theme,
     toggleTheme,
     maintenanceCheckEnabled
   } = useMES();
+
+  const workCards = useStore(state => state.workCards);
+  const nomenclatures = useStore(state => state.nomenclatures);
+  const workCardHistory = useStore(state => state.workCardHistory);
+  const inventory = useStore(state => state.inventory);
+  const orders = useStore(state => state.orders);
+  const tasks = useStore(state => state.tasks);
+  const currentUser = useStore(state => state.currentUser);
+  const systemUsers = useStore(state => state.systemUsers);
+  const machineOperations = useStore(state => state.machineOperations);
+  const requests = useStore(state => state.requests);
 
   // Initial load
   useEffect(() => {
@@ -465,7 +467,6 @@ export function useShop1TerminalState() {
     handleArchiveStageScrap: workflow.handleArchiveStageScrap,
     processCardScan: scanner.processCardScan,
     handleManualEntry: scanner.handleManualEntry,
-    requests,
     CHAIN
   };
 }

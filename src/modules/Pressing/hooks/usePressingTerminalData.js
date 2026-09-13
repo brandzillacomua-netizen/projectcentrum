@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useMES } from '../../../MESContext'
+import { useStore } from '../../../store/index.js'
 import { supabase } from '../../../supabase'
 import scannerDebounceGuard from '../../../services/scannerDebounceGuard'
 import { executeAtomicCardTransition } from '../../../services/atomicCardTransitionService'
@@ -24,7 +25,10 @@ export const ACCENT = '#8b5cf6'
 export const ACCENT_RGB = '139,92,246'
 
 export function usePressingTerminalData() {
-  const { workCards, nomenclatures, getFilteredOperators, fetchData, currentUser } = useMES()
+  const { getFilteredOperators, fetchData, currentUser } = useMES()
+
+  const workCards = useStore(state => state.workCards)
+  const nomenclatures = useStore(state => state.nomenclatures)
 
   const [currentTime, setCurrentTime] = useState(new Date())
   const [selectedShift, setSelectedShift] = useState('')

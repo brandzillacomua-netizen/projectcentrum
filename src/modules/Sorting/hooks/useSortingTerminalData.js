@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useMES } from '../../../MESContext'
+import { useStore } from '../../../store/index.js'
 import { supabase } from '../../../supabase'
 import { recordSortingHistoryGuaranteed } from '../../../services/sortingHistoryService'
 import scannerDebounceGuard, { triggerHapticAudioFeedback } from '../../../services/scannerDebounceGuard'
@@ -24,7 +25,10 @@ export const translateCyrillic = (str) => {
 }
 
 export function useSortingTerminalData() {
-  const { workCards, nomenclatures, getFilteredOperators, fetchData, currentUser } = useMES()
+  const { getFilteredOperators, fetchData, currentUser } = useMES()
+
+  const workCards = useStore(state => state.workCards)
+  const nomenclatures = useStore(state => state.nomenclatures)
 
   const [currentTime, setCurrentTime] = useState(new Date())
   const [selectedShift, setSelectedShift] = useState('')

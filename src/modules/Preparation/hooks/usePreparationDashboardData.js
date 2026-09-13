@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useMES } from '../../../MESContext'
+import { useStore } from '../../../store/index.js'
 import { useWarehouseComputed } from '../../Warehouse/hooks/useWarehouseComputed'
 
 export const PREP_PAGE_SIZE = 4
@@ -20,10 +21,14 @@ export const getAgeMinutes = (start, now) => {
 }
 
 export function usePreparationDashboardData() {
-  const {
-    tasks, nomenclatures, requests, inventory, receptionDocs,
-    machineOperations, workCards, orders
-  } = useMES()
+  const tasks = useStore(state => state.tasks)
+  const nomenclatures = useStore(state => state.nomenclatures)
+  const requests = useStore(state => state.requests)
+  const inventory = useStore(state => state.inventory)
+  const receptionDocs = useStore(state => state.receptionDocs)
+  const machineOperations = useStore(state => state.machineOperations)
+  const workCards = useStore(state => state.workCards)
+  const orders = useStore(state => state.orders)
 
   const [now, setNow] = useState(new Date())
   const [prepPage, setPrepPage] = useState(0)

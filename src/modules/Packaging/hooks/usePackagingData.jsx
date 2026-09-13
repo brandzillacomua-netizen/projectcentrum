@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { useLocation } from 'react-router-dom'
 import { Package } from 'lucide-react'
 import { useMES } from '../../../MESContext'
+import { useStore } from '../../../store/index.js'
 import {
   isFinishedComponent,
   isProductionOnlyMaterial,
@@ -11,11 +12,17 @@ import {
 export function usePackagingData() {
   const location = useLocation()
   const {
-    orders, tasks, nomenclatures, bomItems,
-    submitPickingRequest, requests, supabase,
-    fetchData, completePackaging, systemUsers,
-    inventory
+    submitPickingRequest, supabase,
+    fetchData, completePackaging
   } = useMES()
+
+  const orders = useStore(state => state.orders)
+  const tasks = useStore(state => state.tasks)
+  const nomenclatures = useStore(state => state.nomenclatures)
+  const bomItems = useStore(state => state.bomItems)
+  const requests = useStore(state => state.requests)
+  const systemUsers = useStore(state => state.systemUsers)
+  const inventory = useStore(state => state.inventory)
 
   // ─── Локальний стейт черги нарядів (незалежний від глобального tasks) ─────
   const [localTasks, setLocalTasks] = useState([])
@@ -162,16 +169,6 @@ export function usePackagingData() {
   }, [])
 
   useEffect(() => {
-    setSelectedNomIds(new Set())
-    setBoxNumbers({})
-    setSavedBoxes([])
-    setShowBoxSummary(false)
-    setCustomQty({})
-    setCustomItems([])
-    if (selectedBatch) loadSavedBoxes(selectedBatch)
-  }, [selectedBatch?.key])
-
-  useEffect(() => {
     const tid = location.state?.highlightTaskId || location.state?.taskId
     if (tid && tasks && tasks.length > 0) {
       const task = tasks.find(t => String(t.id) === String(tid))
@@ -208,6 +205,16 @@ export function usePackagingData() {
       }
     } catch (e) { console.error('[Packaging] loadSavedBoxes catch:', e) }
   }, [supabase])
+
+  useEffect(() => {
+    setSelectedNomIds(new Set())
+    setBoxNumbers({})
+    setSavedBoxes([])
+    setShowBoxSummary(false)
+    setCustomQty({})
+    setCustomItems([])
+    if (selectedBatch) loadSavedBoxes(selectedBatch)
+  }, [selectedBatch, loadSavedBoxes])
 
   const batchList = useMemo(() => {
     const relevantTasks = localTasks.filter(t => {

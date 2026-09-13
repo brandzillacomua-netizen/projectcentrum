@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useMES } from '../../../MESContext'
+import { useStore } from '../../../store/index.js'
 import { supabase, getCurrentTime } from '../../../supabase'
 import scannerDebounceGuard, { triggerHapticAudioFeedback } from '../../../services/scannerDebounceGuard'
 import { executeAtomicCardTransition } from '../../../services/atomicCardTransitionService'
@@ -23,7 +24,14 @@ const translateCyrillic = (str) => {
 }
 
 export function useTumblingTerminalData() {
-  const { workCards, nomenclatures, getFilteredOperators, fetchData, currentUser, bomItems, orders, tasks, workCardHistory } = useMES()
+  const { getFilteredOperators, fetchData, currentUser } = useMES()
+
+  const workCards = useStore(state => state.workCards)
+  const nomenclatures = useStore(state => state.nomenclatures)
+  const bomItems = useStore(state => state.bomItems)
+  const orders = useStore(state => state.orders)
+  const tasks = useStore(state => state.tasks)
+  const workCardHistory = useStore(state => state.workCardHistory)
 
   const [currentTime, setCurrentTime] = useState(getCurrentTime())
   const [selectedShift, setSelectedShift] = useState('')

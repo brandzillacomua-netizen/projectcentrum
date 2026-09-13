@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../../supabase'
 import { useMES } from '../../../MESContext'
+import { useStore } from '../../../store/index.js'
 
 export function useMasterData() {
-  const {
-    orders, tasks, nomenclatures, bomItems, inventory,
-    totalProduced, totalScrapCount, createNaryad, fetchModuleData,
-    machines, machineCalls, currentUser, machineOperations, requests
-  } = useMES()
+  const { fetchModuleData } = useMES()
+
+  const machineCalls = useStore(state => state.machineCalls)
+  const currentUser = useStore(state => state.currentUser)
 
   useEffect(() => {
     fetchModuleData('master')

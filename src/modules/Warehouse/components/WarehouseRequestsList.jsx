@@ -1,6 +1,7 @@
 import React from 'react'
-import { Bell, Trash2, Check, X } from 'lucide-react'
+import { Bell, Trash2, Check, X, AlertTriangle, FileSpreadsheet, Send, Search } from 'lucide-react'
 import { useMES } from '../../../MESContext'
+import { useStore } from '../../../store/index.js'
 
 export function WarehouseRequestsList({
   groupedRequests,
@@ -11,9 +12,15 @@ export function WarehouseRequestsList({
   handleDeleteEntireRequest,
   editingQty,
   setEditingQty,
-  savingQty
+  savingQty,
+  nomenclaturesFromHook
 }) {
-  const { nomenclatures, tasks, orders, workCards, currentUser } = useMES()
+  const { currentUser } = useMES()
+  const storeNomenclatures = useStore(state => state.nomenclatures)
+  const nomenclatures = nomenclaturesFromHook || storeNomenclatures || []
+  const tasks = useStore(state => state.tasks)
+  const orders = useStore(state => state.orders)
+  const workCards = useStore(state => state.workCards)
 
   const parseMaterialName = (details) => {
     if (!details) return ''
@@ -64,7 +71,7 @@ export function WarehouseRequestsList({
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '15px' }}>
               {reqList.map(r => {
                 const parsedName = parseMaterialName(r.details)
-                const isEditing = editingQty.hasOwnProperty(r.id)
+                const isEditing = Object.prototype.hasOwnProperty.call(editingQty, r.id)
                 return (
                   <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', borderBottom: '1px solid #1a1a1a', paddingBottom: '6px' }}>
                     <span style={{ flex: 1 }}>{parsedName || r.details}</span>

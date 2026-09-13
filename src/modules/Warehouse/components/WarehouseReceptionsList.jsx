@@ -1,13 +1,15 @@
 import React from 'react'
 import { Truck } from 'lucide-react'
 import { useMES } from '../../../MESContext'
+import { useStore } from '../../../store/index.js'
 
 export function WarehouseReceptionsList({
   pendingDocs,
   processingDocs,
   confirmReception
 }) {
-  const { nomenclatures, refreshTable, supabase } = useMES()
+  const { refreshTable, supabase } = useMES()
+  const nomenclatures = useStore(state => state.nomenclatures)
 
   if (pendingDocs.length === 0) {
     return (

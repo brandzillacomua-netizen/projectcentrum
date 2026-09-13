@@ -1,10 +1,17 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useMES } from '../../../MESContext'
+import { useStore } from '../../../store/index.js'
 import { supabase } from '../../../supabase'
 import { matchPlateToWorkingSheet } from '../../Nomenclature/utils/nomenclatureHelpers'
 
 export const usePreparationData = () => {
-  const { tasks, setTasks, nomenclatures, getFilteredOperators, requests, inventory, orders } = useMES()
+  const { getFilteredOperators, setTasks } = useMES()
+
+  const tasks = useStore(state => state.tasks)
+  const nomenclatures = useStore(state => state.nomenclatures)
+  const requests = useStore(state => state.requests)
+  const inventory = useStore(state => state.inventory)
+  const orders = useStore(state => state.orders)
 
   const [selectedSubTaskId, setSelectedSubTaskId] = useState(null)
   const [selectedShift, setSelectedShift] = useState('')

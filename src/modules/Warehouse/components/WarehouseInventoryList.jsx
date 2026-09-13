@@ -1,6 +1,6 @@
 import React from 'react'
 import { Pencil, Check, X } from 'lucide-react'
-import { useMES } from '../../../MESContext'
+import { useStore } from '../../../store/index.js'
 import { WarehouseNomenclatureLink } from './WarehouseNomenclatureLink'
 
 export function WarehouseInventoryList({
@@ -14,7 +14,7 @@ export function WarehouseInventoryList({
   handleSaveInventoryQty,
   savingInv
 }) {
-  const { currentUser } = useMES()
+  const currentUser = useStore(state => state.currentUser)
   const isSuperAdmin = currentUser?.login === 'admin@workshop.local' || currentUser?.position === 'Адмін'
 
   return (

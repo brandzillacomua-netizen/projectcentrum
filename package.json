@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:check": "node scripts/check-entry-bundle-size.mjs",
     "lint": "eslint .",
     "lint:ci": "eslint . --max-warnings=2000",
     "preview": "vite preview",
@@ -18,7 +19,7 @@
     "security:diagnostics": "node scripts/check-readonly-diagnostics.mjs",
     "security:audit": "npm audit --omit=dev --audit-level=high",
     "lint:security": "eslint api src/contexts/useAuth.js src/contexts/data/dataState.js src/services/alerting src/services/novaPoshtaService.js src/services/sentryLogger.js src/utils/telemetrySanitizer.js server",
-    "ci": "npm run security:secrets && npm run security:rls && npm run security:diagnostics && npm run security:access-contract && npm run security:audit && npm run validate:migrations && npm run validate:production-migrations && npm run lint:security && npm test && npm run build",
+    "ci": "npm run security:secrets && npm run security:rls && npm run security:diagnostics && npm run security:access-contract && npm run security:audit && npm run validate:migrations && npm run validate:production-migrations && npm run lint:security && npm test && npm run build && npm run build:check",
     "smoke:production": "node --env-file=.env scripts/production-smoke.mjs",
     "smoke:atomic-transition": "node --env-file=.env scripts/smoke-atomic-transition-readonly.mjs",
     "verify:deployment": "node scripts/verify-deployed-release.mjs",
@@ -43,7 +44,8 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-router-dom": "^7.18.2",
-    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
+    "zustand": "^5.0.15"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

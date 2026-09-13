@@ -14,11 +14,15 @@ import {
 import { getAvailableModules, CATEGORY_MAP, CATEGORIES } from '../../config/moduleRegistry';
 import { useMES } from '../../MESContext';
 import { useNetworkResilience } from '../../hooks/useNetworkResilience';
-import { processOfflineMutation } from '../../services/offlineProcessor';
 import { renderAvatar } from './GlobalUserNav/NavAvatar.jsx';
 import { useNavNotifications } from './GlobalUserNav/useNavNotifications.jsx';
 import { NavNotificationFeed } from './GlobalUserNav/NavNotificationFeed.jsx';
 import { NavSettingsPanel } from './GlobalUserNav/NavSettingsPanel.jsx';
+
+const processOfflineMutation = async (item) => {
+  const offlineProcessor = await import('../../services/offlineProcessor.js')
+  return offlineProcessor.processOfflineMutation(item)
+}
 
 function OfflineResilienceBadge() {
   const { isOnline, queueCount, isSyncing } = useNetworkResilience(processOfflineMutation);

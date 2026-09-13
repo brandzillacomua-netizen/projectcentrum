@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useLocation } from 'react-router-dom'
 import { supabase, isTestEnvironment } from '../../supabase.js'
+import { useStore } from '../../store/index.js'
 import { wsBatcher } from '../../services/wsBatcher.js'
 import { getIndexedCache, setIndexedCache, removeIndexedCache } from '../../services/indexedDbCache.js'
 import {
@@ -356,6 +357,39 @@ export function useDataState() {
       localStorage.removeItem('MES_SESSION_USER')
     }
   }, [currentUser])
+
+  // ── Zustand Sync (Strangler Fig Pattern) ──
+  useEffect(() => {
+    useStore.setState({
+      orders,
+      customers,
+      tasks,
+      managementTasks,
+      taskProjects,
+      requests,
+      nomenclatures,
+      bomItems,
+      machines,
+      systemUsers,
+      machineOperations,
+      machineCalls,
+      companyStructure,
+      companyPositions,
+      workCards,
+      inventory,
+      receptionDocs,
+      purchaseRequests,
+      workCardHistory,
+      workCardScrapTotals,
+      workCardFlowTotals,
+      currentUser
+    })
+  }, [
+    orders, customers, tasks, managementTasks, taskProjects, requests, nomenclatures,
+    bomItems, machines, systemUsers, machineOperations, machineCalls, companyStructure,
+    companyPositions, workCards, inventory, receptionDocs, purchaseRequests,
+    workCardHistory, workCardScrapTotals, workCardFlowTotals, currentUser
+  ])
 
   // ── Full cache persistence (debounced 2s) ──
   useEffect(() => {

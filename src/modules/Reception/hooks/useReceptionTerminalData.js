@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useMES } from '../../../MESContext'
+import { useStore } from '../../../store/index.js'
 import { supabase } from '../../../supabase'
 import scannerDebounceGuard, { triggerHapticAudioFeedback } from '../../../services/scannerDebounceGuard'
 import { executeAtomicCardTransition } from '../../../services/atomicCardTransitionService'
@@ -25,7 +26,10 @@ export const ACCENT = '#a78bfa'
 export const ACCENT_RGB = '167,139,250'
 
 export function useReceptionTerminalData() {
-  const { workCards, nomenclatures, getFilteredOperators, fetchData, currentUser, formatUserName } = useMES()
+  const { getFilteredOperators, fetchData, currentUser, formatUserName } = useMES()
+
+  const workCards = useStore(state => state.workCards)
+  const nomenclatures = useStore(state => state.nomenclatures)
 
   const [currentTime, setCurrentTime] = useState(new Date())
   const [selectedShift, setSelectedShift] = useState('')

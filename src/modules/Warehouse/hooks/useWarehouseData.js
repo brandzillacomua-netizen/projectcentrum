@@ -1,11 +1,17 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useMES } from '../../../MESContext'
+import { useStore } from '../../../store/index.js'
 import { supabase as supabaseClient } from '../../../supabase'
 
 export function useWarehouseData() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const { fetchData, machineCalls, currentUser, tasks, machines } = useMES()
+  const { fetchData } = useMES()
+
+  const machineCalls = useStore(state => state.machineCalls)
+  const currentUser = useStore(state => state.currentUser)
+  const tasks = useStore(state => state.tasks)
+  const machines = useStore(state => state.machines)
 
   // NOTE: No fetchData call on mount — the MES context loads all required tables
   // via fetchCritical on app start, and realtime subscriptions keep data live.

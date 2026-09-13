@@ -2,12 +2,14 @@ import React, { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ExternalLink } from 'lucide-react'
 import { useMES } from '../../../MESContext'
+import { useStore } from '../../../store/index.js'
 import { supabase } from '../../../supabase'
 import { NomenclatureCardModal } from '../../Nomenclature/components/NomenclatureCardModal'
 import { DEFAULT_ERP_GROUPS } from '../../Nomenclature/utils/nomenclatureHelpers'
 
 export function WarehouseNomenclatureLink({ item }) {
-  const { nomenclatures = [], refreshTable } = useMES()
+  const { refreshTable } = useMES()
+  const nomenclatures = useStore(state => state.nomenclatures) || []
   const [card, setCard] = useState(null)
   const [groups, setGroups] = useState(DEFAULT_ERP_GROUPS)
   const [loading, setLoading] = useState(false)

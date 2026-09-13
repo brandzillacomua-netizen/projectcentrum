@@ -12,6 +12,7 @@ import { MasterPrepModal } from './Master/components/modals/MasterPrepModal'
 import { MasterStockInfoModal } from './Master/components/modals/MasterStockInfoModal'
 import { MasterNaryadModal } from './Master/components/modals/MasterNaryadModal'
 import { useMES } from '../MESContext'
+import { useStore } from '../store/index.js'
 import { AlertTriangle, ListChecks, History, X, Clock } from 'lucide-react'
 
 export function MasterModule() {
@@ -114,17 +115,18 @@ export function MasterModule() {
   } = masterState
 
   const {
-    tasks,
-    orders,
-    nomenclatures,
-    inventory,
     totalProduced,
     totalScrapCount,
-    machines,
-    machineOperations,
-    currentUser,
     theme
   } = useMES()
+
+  const tasks = useStore(state => state.tasks)
+  const orders = useStore(state => state.orders)
+  const nomenclatures = useStore(state => state.nomenclatures)
+  const inventory = useStore(state => state.inventory)
+  const machines = useStore(state => state.machines)
+  const machineOperations = useStore(state => state.machineOperations)
+  const currentUser = useStore(state => state.currentUser)
 
   const isLight = theme === 'light'
   const [showCallsModal, setShowCallsModal] = useState(false)

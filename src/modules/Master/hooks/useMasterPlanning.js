@@ -1,9 +1,14 @@
 import { useState, useMemo } from 'react'
 import { supabase } from '../../../supabase'
 import { useMES } from '../../../MESContext'
+import { useStore } from '../../../store/index.js'
 
 export function useMasterPlanning() {
-  const { nomenclatures, bomItems, inventory, tasks, orders } = useMES()
+  const nomenclatures = useStore(state => state.nomenclatures)
+  const bomItems = useStore(state => state.bomItems)
+  const inventory = useStore(state => state.inventory)
+  const tasks = useStore(state => state.tasks)
+  const orders = useStore(state => state.orders)
 
   const [activeNaryadOrder, setActiveNaryadOrder] = useState(null)
   const [isSubmitting, setIsSubmitting] = useState(false)

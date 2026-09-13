@@ -1,9 +1,15 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useMES } from '../../../MESContext'
+import { useStore } from '../../../store/index.js'
 import { getCurrentTime } from '../../../supabase'
 
 export function useTumblingDashboardData() {
-  const { workCards, nomenclatures, bomItems, orders, tasks, workCardHistory } = useMES()
+  const workCards = useStore(state => state.workCards)
+  const nomenclatures = useStore(state => state.nomenclatures)
+  const bomItems = useStore(state => state.bomItems)
+  const orders = useStore(state => state.orders)
+  const tasks = useStore(state => state.tasks)
+  const workCardHistory = useStore(state => state.workCardHistory)
   const [currentTime, setCurrentTime] = useState(getCurrentTime())
 
   // Toggle for full-screen or simulated display properties

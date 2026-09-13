@@ -29,7 +29,8 @@ for (const file of tracked) {
 
 const browserFiles = tracked.filter(file => /^(src|public)\//.test(file) && textExtensions.test(file))
 for (const file of browserFiles) {
-  const content = readFileSync(file, 'utf8')
+  let content
+  try { content = readFileSync(file, 'utf8') } catch { continue }
   if (/api\.telegram\.org\/bot|api\.novaposhta\.ua\/v2\.0/.test(content)) {
     findings.push(`${file}: privileged third-party API called directly from browser code`)
   }

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import { useScrapReasons } from '../../../hooks/useScrapReasons'
 import { useMES } from '../../../MESContext'
+import { useStore } from '../../../store/index.js'
 import { apiService } from '../../../services/apiDispatcher'
 import { supabase } from '../../../supabase'
 import { createMachineCall } from '../../../services/machineCallService'
@@ -13,7 +14,16 @@ import { incrementInventoryStock } from '../../../services/inventoryStockService
 
 export function useShop2TerminalState() {
   const { names: scrapReasons } = useScrapReasons()
-  const { workCards, orders, nomenclatures, inventory, startWorkCard, confirmBuffer, fetchData, refreshTable, operators, getFilteredOperators, getFilteredManagers, managers, workCardHistory, handoverToSGP, currentUser, systemUsers, tasks } = useMES()
+  const { startWorkCard, confirmBuffer, fetchData, refreshTable, getFilteredOperators, getFilteredManagers, handoverToSGP, operators, managers } = useMES()
+
+  const workCards = useStore(state => state.workCards)
+  const orders = useStore(state => state.orders)
+  const nomenclatures = useStore(state => state.nomenclatures)
+  const inventory = useStore(state => state.inventory)
+  const workCardHistory = useStore(state => state.workCardHistory)
+  const currentUser = useStore(state => state.currentUser)
+  const systemUsers = useStore(state => state.systemUsers)
+  const tasks = useStore(state => state.tasks)
 
   const shop2TaskIdsSet = useMemo(() => {
     const set = new Set()

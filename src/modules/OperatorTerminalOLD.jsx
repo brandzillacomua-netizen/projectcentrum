@@ -21,10 +21,26 @@ import {
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
+import { useStore } from '../store/index.js'
 import { apiService } from '../services/apiDispatcher'
 
+const SpecCard = ({ icon: Icon, label, value, color = '#eab308' }) => (
+  <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid #1a1a1a', padding: '18px', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '8px', minWidth: '130px' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#555', fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase' }}>
+      <Icon size={14} /> {label}
+    </div>
+    <div style={{ fontSize: '1.2rem', fontWeight: 900, color }}>{value}</div>
+  </div>
+)
+
 const OperatorTerminal = () => {
-  const { workCards, orders, nomenclatures, startWorkCard, completeWorkCard, confirmBuffer, fetchData, operators, productionStages, machines, workCardHistory } = useMES()
+  const { startWorkCard, completeWorkCard, confirmBuffer, fetchData, productionStages, operators } = useMES()
+
+  const workCards = useStore(state => state.workCards)
+  const orders = useStore(state => state.orders)
+  const nomenclatures = useStore(state => state.nomenclatures)
+  const machines = useStore(state => state.machines)
+  const workCardHistory = useStore(state => state.workCardHistory)
   const [selectedCardId, setSelectedCardId] = useState(null)
   const [selectedStage, setSelectedStage] = useState('')
   const [selectedOperator, setSelectedOperator] = useState('')
@@ -177,15 +193,6 @@ const OperatorTerminal = () => {
       alert('Помилка при оприбуткуванні: ' + e.message)
     } finally { setIsProcessing(false) }
   }
-
-  const SpecCard = ({ icon: Icon, label, value, color = "#eab308" }) => (
-    <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid #1a1a1a', padding: '18px', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '8px', minWidth: '130px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#555', fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase' }}>
-        <Icon size={14} /> {label}
-      </div>
-      <div style={{ fontSize: '1.2rem', fontWeight: 900, color }}>{value}</div>
-    </div>
-  )
 
   const renderQueue = () => (
     <div className="tasks-scroll" style={{ flex: 1, overflowY: 'auto', padding: '0 15px 25px' }}>

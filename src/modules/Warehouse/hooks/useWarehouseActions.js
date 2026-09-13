@@ -2,9 +2,16 @@ import { useState } from 'react'
 import { supabase as supabaseClient } from '../../../supabase'
 import { apiService } from '../../../services/apiDispatcher'
 import { useMES } from '../../../MESContext'
+import { useStore } from '../../../store/index.js'
 
 export function useWarehouseActions(dataHook) {
-  const { nomenclatures, inventory, requests, purchaseRequests, receptionDocs, confirmReception, issueMaterialsBatch, createPurchaseRequest, refreshTable } = useMES()
+  const { confirmReception, issueMaterialsBatch, createPurchaseRequest, refreshTable } = useMES()
+
+  const nomenclatures = useStore(state => state.nomenclatures)
+  const inventory = useStore(state => state.inventory)
+  const requests = useStore(state => state.requests)
+  const purchaseRequests = useStore(state => state.purchaseRequests)
+  const receptionDocs = useStore(state => state.receptionDocs)
 
   const normalize = (s) => (s || '').toLowerCase().trim()
     .replace(/[тt]/g, 't').replace(/[аa]/g, 'a').replace(/[еe]/g, 'e')
@@ -116,7 +123,7 @@ export function useWarehouseActions(dataHook) {
         const invItem = (matchedInventory || []).find(i => i.warehouse === 'operational' || !i.warehouse) 
           || (matchedInventory || [])[0]
 
-        const qtyToDeduct = req.displayQty ?? Number(req.quantity) ?? 0
+        const qtyToDeduct = Number(req.displayQty ?? req.quantity) || 0
 
         if (invItem && req.isSheet) {
           const nextTotal = Math.max(0, (Number(invItem.total_qty) || 0) - qtyToDeduct)

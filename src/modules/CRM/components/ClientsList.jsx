@@ -174,11 +174,11 @@ export const ClientsList = ({ clients = [], onOpenClientDetail, onDeleteClient, 
                 </td>
               </tr>
             ) : (
-              filteredClients.map((client) => {
+              filteredClients.map((client, index) => {
                 const isVip = client.segment === 'VIP'
                 return (
                   <tr
-                    key={client.id}
+                    key={`${client.id}-${index}`}
                     onClick={() => onOpenClientDetail(client)}
                     style={{
                       borderBottom: '1px solid rgba(255,255,255,0.04)',

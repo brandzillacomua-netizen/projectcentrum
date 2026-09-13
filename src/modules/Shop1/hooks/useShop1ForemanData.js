@@ -1,25 +1,27 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useMES } from '../../../MESContext'
 import { getIndexedCache, setIndexedCache } from '../../../services/indexedDbCache'
+import { useStore } from '../../../store/index.js'
 
 export const useShop1ForemanData = () => {
   const {
-    systemUsers,
     upsertUser,
-    workCards,
-    workCardHistory,
     fetchData,
-    machines,
-    nomenclatures,
     formatUserName,
-    supabase,
-    companyPositions,
-    companyStructure,
-    tasks,
-    orders,
-    inventory,
-    machineOperations
+    supabase
   } = useMES()
+
+  const systemUsers = useStore(state => state.systemUsers)
+  const workCards = useStore(state => state.workCards)
+  const workCardHistory = useStore(state => state.workCardHistory)
+  const machines = useStore(state => state.machines)
+  const nomenclatures = useStore(state => state.nomenclatures)
+  const companyPositions = useStore(state => state.companyPositions)
+  const companyStructure = useStore(state => state.companyStructure)
+  const tasks = useStore(state => state.tasks)
+  const orders = useStore(state => state.orders)
+  const inventory = useStore(state => state.inventory)
+  const machineOperations = useStore(state => state.machineOperations)
 
   const [activeTab, setActiveTab] = useState('calendar')
   const [userSearch, setUserSearch] = useState('')

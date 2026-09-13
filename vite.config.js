@@ -22,16 +22,24 @@ export default defineConfig({
     chunkSizeWarningLimit: 600,
     rollupOptions: {
       output: {
-        manualChunks: {
-          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
-          'vendor-supabase': ['@supabase/supabase-js'],
-          'vendor-ui': ['lucide-react'],
-          'vendor-qrcode': ['qrcode.react'],
-          'vendor-scanner': ['html5-qrcode'],
-          'vendor-utils': ['date-fns'],
-          'vendor-virtual': ['@tanstack/react-virtual'],
-          'vendor-excel': ['xlsx'],
-          'vendor-emoji': ['emoji-picker-react']
+        manualChunks(id) {
+          const moduleId = id.replace(/\\/g, '/')
+
+          if (!moduleId.includes('/node_modules/')) return undefined
+
+          if (/\/node_modules\/(react|react-dom|react-router|react-router-dom|scheduler)\//.test(moduleId)) {
+            return 'vendor-react'
+          }
+          if (moduleId.includes('/node_modules/@supabase/')) return 'vendor-supabase'
+          if (moduleId.includes('/node_modules/@sentry/')) return 'vendor-observability'
+          if (moduleId.includes('/node_modules/lucide-react/')) return 'vendor-ui'
+          if (moduleId.includes('/node_modules/qrcode.react/')) return 'vendor-qrcode'
+          if (moduleId.includes('/node_modules/html5-qrcode/')) return 'vendor-scanner'
+          if (moduleId.includes('/node_modules/@tanstack/react-virtual/')) return 'vendor-virtual'
+          if (moduleId.includes('/node_modules/xlsx/')) return 'vendor-excel'
+          if (moduleId.includes('/node_modules/emoji-picker-react/')) return 'vendor-emoji'
+
+          return undefined
         }
       }
     }

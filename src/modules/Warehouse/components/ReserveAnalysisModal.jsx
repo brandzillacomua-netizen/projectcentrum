@@ -2,17 +2,17 @@ import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { Layers, X, RefreshCw } from 'lucide-react'
 import { useMES } from '../../../MESContext'
+import { useStore } from '../../../store/index.js'
 import { supabase } from '../../../supabase'
 
 export const ReserveAnalysisModal = ({
   item,
-  onClose,
-  requests = [],
-  orders = [],
-  tasks = [],
-  nomenclatures = []
+  onClose
 }) => {
-  if (!item) return null
+  const requests = useStore(state => state.requests) || []
+  const orders = useStore(state => state.orders) || []
+  const tasks = useStore(state => state.tasks) || []
+  const nomenclatures = useStore(state => state.nomenclatures) || []
 
   const { refreshTable, theme } = useMES()
   const isLight = theme === 'light' || (typeof document !== 'undefined' && document.body.classList.contains('light-theme'))
@@ -33,6 +33,8 @@ export const ReserveAnalysisModal = ({
         }
       })
   }, [item?.nomenclature_id])
+
+  if (!item) return null
 
   const safeRequests = Array.isArray(requests) ? requests : (requests && typeof requests === 'object' ? Object.values(requests) : [])
   const safeOrders = Array.isArray(orders) ? orders : (orders && typeof orders === 'object' ? Object.values(orders) : [])

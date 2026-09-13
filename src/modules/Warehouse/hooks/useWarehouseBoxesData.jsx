@@ -1,17 +1,29 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import { useMES } from '../../../MESContext'
+import { useStore } from '../../../store/index.js'
 import { useWarehouseComputed } from './useWarehouseComputed'
 import { useWarehouseHandlers } from './useWarehouseHandlers'
 import { useManualInventoryIssue } from '../ManualIssue/useManualInventoryIssue'
 
 export function useWarehouseBoxesData() {
   const {
-    inventory, requests, issueMaterials, issueMaterialsBatch,
-    nomenclatures, receptionDocs, confirmReception,
-    orders, tasks, approveWarehouse, createPurchaseRequest,
-    purchaseRequests, receiveInventory, currentUser, fetchData,
-    fetchModuleData, refreshTable, machineOperations, workCards
+    issueMaterials, issueMaterialsBatch,
+    confirmReception,
+    approveWarehouse, createPurchaseRequest,
+    receiveInventory, fetchData,
+    fetchModuleData, refreshTable
   } = useMES()
+
+  const inventory = useStore(state => state.inventory)
+  const requests = useStore(state => state.requests)
+  const nomenclatures = useStore(state => state.nomenclatures)
+  const receptionDocs = useStore(state => state.receptionDocs)
+  const orders = useStore(state => state.orders)
+  const tasks = useStore(state => state.tasks)
+  const purchaseRequests = useStore(state => state.purchaseRequests)
+  const currentUser = useStore(state => state.currentUser)
+  const machineOperations = useStore(state => state.machineOperations)
+  const workCards = useStore(state => state.workCards)
 
   const [checkedCutters, setCheckedCutters] = useState({})
   const [searchQuery, setSearchQuery] = useState('')

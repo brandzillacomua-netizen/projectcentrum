@@ -65,17 +65,18 @@ const fetchHistoryForTasksOrCards = async (taskIds, cardIds) => {
   return fetchHistoryForCards(cardIds)
 }
 
+import { useStore } from '../../../../store/index.js'
+
 export function useForeman2Data({ mes }) {
-  const {
-    tasks = [],
-    orders = [],
-    workCards = [],
-    workCardHistory = [],
-    nomenclatures = [],
-    workCardScrapTotals = [],
-    workCardFlowTotals = [],
-    fetchData
-  } = mes
+  const tasks = useStore(state => state.tasks)
+  const orders = useStore(state => state.orders)
+  const workCards = useStore(state => state.workCards)
+  const workCardHistory = useStore(state => state.workCardHistory)
+  const nomenclatures = useStore(state => state.nomenclatures)
+  const workCardScrapTotals = useStore(state => state.workCardScrapTotals)
+  const workCardFlowTotals = useStore(state => state.workCardFlowTotals)
+
+  const { fetchData } = mes
 
   const [dbCards, setDbCards] = useState([])
   const [dbHistory, setDbHistory] = useState([])

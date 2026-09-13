@@ -1,8 +1,8 @@
 import React from 'react'
-import { useMES } from '../../../MESContext'
+import { useStore } from '../../../store/index.js'
 
 export function WarehouseActiveCalls({ activeCalls, handleResolveCall }) {
-  const { machines } = useMES()
+  const machines = useStore(state => state.machines)
 
   if (!activeCalls || activeCalls.length === 0) return null
 

@@ -1,5 +1,6 @@
 import React from 'react'
 import { useMES } from '../MESContext'
+import { useStore } from '../store/index.js'
 import { apiService } from '../services/apiDispatcher'
 
 import { useOperatorTerminalData } from './Operator/hooks/useOperatorTerminalData'
@@ -17,27 +18,28 @@ import { OperatorMachineCallModal } from './Operator/components/modals/OperatorM
 const OperatorTerminal = () => {
   const mes = useMES()
   const {
-    workCards,
-    orders,
-    nomenclatures,
     startWorkCard,
     completeWorkCard,
     confirmBuffer,
     fetchData,
     operators,
     productionStages,
-    machines,
-    workCardHistory,
     getFilteredOperators,
     getFilteredManagers,
-    systemUsers,
-    currentUser,
-    machineOperations,
-    tasks,
-    inventory,
-    requests,
     maintenanceCheckEnabled
   } = mes
+
+  const workCards = useStore(state => state.workCards)
+  const orders = useStore(state => state.orders)
+  const nomenclatures = useStore(state => state.nomenclatures)
+  const machines = useStore(state => state.machines)
+  const workCardHistory = useStore(state => state.workCardHistory)
+  const systemUsers = useStore(state => state.systemUsers)
+  const currentUser = useStore(state => state.currentUser)
+  const machineOperations = useStore(state => state.machineOperations)
+  const tasks = useStore(state => state.tasks)
+  const inventory = useStore(state => state.inventory)
+  const requests = useStore(state => state.requests)
 
   const data = useOperatorTerminalData({
     workCards,
