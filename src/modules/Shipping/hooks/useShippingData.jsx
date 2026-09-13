@@ -12,8 +12,12 @@ export function useShippingData() {
   const {
     orders, tasks, nomenclatures, supabase,
     fetchData, currentUser, systemUsers, customers,
-    deductIssuedMaterialsForTask
+    deductIssuedMaterialsForTask, loading
   } = useMES()
+
+  const isLoading = useMemo(() => {
+    return Boolean(loading) || tasks === null || tasks === undefined
+  }, [loading, tasks])
 
   const [activeMobileSection, setActiveMobileSection] = useState('ready')
   const [isProcessing, setIsProcessing] = useState(false)
@@ -848,6 +852,7 @@ export function useShippingData() {
 
   return {
     currentUser,
+    isLoading,
     activeMobileSection,
     setActiveMobileSection,
     isProcessing,

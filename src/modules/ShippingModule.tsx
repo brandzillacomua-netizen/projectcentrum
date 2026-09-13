@@ -11,6 +11,7 @@ import PackingSlipModal from './Shipping/components/modals/PackingSlipModal.jsx'
 export const ShippingModule: React.FC = () => {
   const {
     currentUser,
+    isLoading,
     activeMobileSection,
     setActiveMobileSection,
     isProcessing,
@@ -94,10 +95,10 @@ export const ShippingModule: React.FC = () => {
       {/* MOBILE TABS */}
       <div className="shipping-mobile-tabs">
         <button onClick={() => setActiveMobileSection('ready')} className={`tab-btn ${activeMobileSection === 'ready' ? 'active' : ''}`}>
-          ГОТОВО ({readyBatches.length})
+          ГОТОВО ({isLoading ? '...' : readyBatches.length})
         </button>
         <button onClick={() => setActiveMobileSection('shipped')} className={`tab-btn ${activeMobileSection === 'shipped' ? 'active' : ''}`}>
-          ВІДПРАВЛЕНО ({shippedBatches.length})
+          ВІДПРАВЛЕНО ({isLoading ? '...' : shippedBatches.length})
         </button>
       </div>
 
@@ -112,63 +113,84 @@ export const ShippingModule: React.FC = () => {
                 <h3 style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text, #fff)', margin: 0 }}>ГОТОВО ДО ВІДВАНТАЖЕННЯ</h3>
               </div>
               <span style={{ background: '#10b98115', color: '#10b981', fontSize: '0.65rem', fontWeight: 900, padding: '6px 12px', borderRadius: '10px', border: '1px solid #10b98130' }}>
-                {readyBatches.length} ПАРТІЙ
+                {isLoading ? 'ЗВ’ЯЗОК...' : `${readyBatches.length} ПАРТІЙ`}
               </span>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {visibleReadyBatches.map((batch: any) => (
-                <ReadyBatchCard
-                  key={`${batch.orderId}_${batch.batchIndex}`}
-                  batch={batch}
-                  onTakeWork={openWorkModal}
-                  isProcessing={isProcessing}
-                />
-              ))}
+              {isLoading ? (
+                <>
+                  {[1, 2, 3].map((i) => (
+                    <div
+                      key={i}
+                      style={{
+                        background: 'rgba(15,25,35,0.4)',
+                        border: '1px solid rgba(255,255,255,0.06)',
+                        borderRadius: '24px',
+                        padding: '24px',
+                        height: '140px',
+                        opacity: 0.6,
+                        animation: 'pulse 1.5s infinite ease-in-out'
+                      }}
+                    />
+                  ))}
+                </>
+              ) : (
+                <>
+                  {visibleReadyBatches.map((batch: any) => (
+                    <ReadyBatchCard
+                      key={`${batch.orderId}_${batch.batchIndex}`}
+                      batch={batch}
+                      onTakeWork={openWorkModal}
+                      isProcessing={isProcessing}
+                    />
+                  ))}
 
-              {readyBatches.length > visibleReadyCount && (
-                <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', marginTop: '10px' }}>
-                  <button
-                    onClick={() => setVisibleReadyCount(prev => prev + 15)}
-                    style={{
-                      background: 'rgba(255, 144, 0, 0.12)',
-                      border: '1px solid rgba(255, 144, 0, 0.3)',
-                      color: '#ff9000',
-                      padding: '12px 20px',
-                      borderRadius: '14px',
-                      fontWeight: 800,
-                      fontSize: '0.8rem',
-                      cursor: 'pointer',
-                      transition: '0.2s'
-                    }}
-                  >
-                    Показати ще 15 партій (Залишилось {readyBatches.length - visibleReadyCount})
-                  </button>
-                  <button
-                    onClick={() => setVisibleReadyCount(readyBatches.length)}
-                    style={{
-                      background: 'transparent',
-                      border: '1px solid rgba(255, 255, 255, 0.1)',
-                      color: 'var(--text-secondary, #888)',
-                      padding: '12px 18px',
-                      borderRadius: '14px',
-                      fontWeight: 700,
-                      fontSize: '0.8rem',
-                      cursor: 'pointer',
-                      transition: '0.2s'
-                    }}
-                  >
-                    Показати всі ({readyBatches.length})
-                  </button>
-                </div>
-              )}
+                  {readyBatches.length > visibleReadyCount && (
+                    <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', marginTop: '10px' }}>
+                      <button
+                        onClick={() => setVisibleReadyCount(prev => prev + 15)}
+                        style={{
+                          background: 'rgba(255, 144, 0, 0.12)',
+                          border: '1px solid rgba(255, 144, 0, 0.3)',
+                          color: '#ff9000',
+                          padding: '12px 20px',
+                          borderRadius: '14px',
+                          fontWeight: 800,
+                          fontSize: '0.8rem',
+                          cursor: 'pointer',
+                          transition: '0.2s'
+                        }}
+                      >
+                        Показати ще 15 партій (Залишилось {readyBatches.length - visibleReadyCount})
+                      </button>
+                      <button
+                        onClick={() => setVisibleReadyCount(readyBatches.length)}
+                        style={{
+                          background: 'transparent',
+                          border: '1px solid rgba(255, 255, 255, 0.1)',
+                          color: 'var(--text-secondary, #888)',
+                          padding: '12px 18px',
+                          borderRadius: '14px',
+                          fontWeight: 700,
+                          fontSize: '0.8rem',
+                          cursor: 'pointer',
+                          transition: '0.2s'
+                        }}
+                      >
+                        Показати всі ({readyBatches.length})
+                      </button>
+                    </div>
+                  )}
 
-              {readyBatches.length === 0 && (
-                <div style={{ textAlign: 'center', padding: '80px 40px', color: '#222' }}>
-                  <PackageCheck size={48} color="#1a1a1a" />
-                  <p style={{ fontWeight: 900, color: 'var(--text, #333)', margin: '15px 0 5px' }}>Черга відвантаження порожня</p>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary, #555)' }}>Очікуємо завершення пакування в цеху</span>
-                </div>
+                  {readyBatches.length === 0 && (
+                    <div style={{ textAlign: 'center', padding: '80px 40px', color: '#222' }}>
+                      <PackageCheck size={48} color="#1a1a1a" />
+                      <p style={{ fontWeight: 900, color: 'var(--text, #333)', margin: '15px 0 5px' }}>Черга відвантаження порожня</p>
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary, #555)' }}>Очікуємо завершення пакування в цеху</span>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </section>
@@ -181,24 +203,45 @@ export const ShippingModule: React.FC = () => {
                 <h3 style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-secondary, #555)', margin: 0 }}>ВІДПРАВЛЕНО</h3>
               </div>
               <span style={{ background: 'var(--card-inner-bg, #111)', color: 'var(--text-secondary, #555)', fontSize: '0.65rem', fontWeight: 900, padding: '6px 12px', borderRadius: '10px', border: '1px solid var(--border, #222)' }}>
-                {shippedBatches.length} ПАРТІЙ
+                {isLoading ? 'ЗВ’ЯЗОК...' : `${shippedBatches.length} ПАРТІЙ`}
               </span>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {shippedBatches.map((batch: any) => (
-                <ShippedBatchCard
-                  key={`${batch.orderId}_${batch.batchIndex}`}
-                  batch={batch}
-                  onViewPackingSlip={handleViewPackingSlip}
-                />
-              ))}
+              {isLoading ? (
+                <>
+                  {[1, 2, 3].map((i) => (
+                    <div
+                      key={i}
+                      style={{
+                        background: 'rgba(15,25,35,0.4)',
+                        border: '1px solid rgba(255,255,255,0.06)',
+                        borderRadius: '24px',
+                        padding: '20px',
+                        height: '90px',
+                        opacity: 0.6,
+                        animation: 'pulse 1.5s infinite ease-in-out'
+                      }}
+                    />
+                  ))}
+                </>
+              ) : (
+                <>
+                  {shippedBatches.map((batch: any) => (
+                    <ShippedBatchCard
+                      key={`${batch.orderId}_${batch.batchIndex}`}
+                      batch={batch}
+                      onViewPackingSlip={handleViewPackingSlip}
+                    />
+                  ))}
 
-              {shippedBatches.length === 0 && (
-                <div style={{ textAlign: 'center', padding: '60px 40px', color: '#222' }}>
-                  <Clock size={40} color="#1a1a1a" />
-                  <p style={{ fontWeight: 800, color: '#333', margin: '12px 0 0' }}>Ще нічого не відвантажено</p>
-                </div>
+                  {shippedBatches.length === 0 && (
+                    <div style={{ textAlign: 'center', padding: '60px 40px', color: '#222' }}>
+                      <Clock size={40} color="#1a1a1a" />
+                      <p style={{ fontWeight: 800, color: '#333', margin: '12px 0 0' }}>Ще нічого не відвантажено</p>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </section>

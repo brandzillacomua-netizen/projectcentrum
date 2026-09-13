@@ -52,11 +52,11 @@ export const TARGET_REFRESH_TTL_BY_TABLE = Object.freeze({
   purchase_requests:  60 * 1000,  // 60 s
   work_card_history:  60 * 1000,  // 60 s
 })
-export const INITIAL_FETCH_JITTER_MS = 8000
+export const INITIAL_FETCH_JITTER_MS = 100
 export const INITIAL_FETCH_RETRY_BASE_MS = 30 * 1000
 export const INITIAL_FETCH_RETRY_JITTER_MS = 30 * 1000
 export const ROUTE_ENTRY_REFRESH_TTL_MS = 60 * 1000
-export const ROUTE_ENTRY_JITTER_MS = 1500
+export const ROUTE_ENTRY_JITTER_MS = 50
 export const VISIBILITY_REFRESH_COOLDOWN_MS = 2 * 60 * 1000
 export const VISIBILITY_REFRESH_JITTER_MS = 5000
 
