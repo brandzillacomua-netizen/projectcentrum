@@ -16,11 +16,22 @@ import { SpecBuilderTab } from './Engineer/components/SpecBuilderTab'
 import { ImportSpecTab } from './Engineer/components/ImportSpecTab'
 import { EngineerCuttersTab } from './Engineer/components/EngineerCuttersTab'
 
-const EngineerV2Module = () => {
+export interface MachineCallEntry {
+  id: string | number
+  machine_id: string | number
+  status: string
+  called_role: string
+  called_employee_id?: string | number
+  called_employee_name?: string
+  operator_name?: string
+  created_at: string
+}
+
+export const EngineerV2Module: React.FC = () => {
   const { tasks, orders, approveEngineer, machineCalls, machines, currentUser, supabase, theme } = useMES()
   const nomenclatures = useV2NomenclaturesData(supabase)
   const isSuperAdmin = currentUser?.login === 'admin@workshop.local' || currentUser?.position === 'Адмін' || currentUser?.access_rights?.director
-  const [activeTab, setActiveTab] = useState('tasks')
+  const [activeTab, setActiveTab] = useState<'tasks' | 'operations' | 'spec' | 'import' | 'cutters'>('tasks')
 
   const [isLight, setIsLight] = useState(() => {
     if (theme) return theme === 'light'
@@ -43,16 +54,16 @@ const EngineerV2Module = () => {
     return () => observer.disconnect()
   }, [theme])
   
-  const pendingTasks = (tasks || []).filter(t => t.status === 'waiting' && !t.engineer_conf && !t.step?.includes('Пресування'))
-  const approvedCount = (tasks || []).filter(t => t.status === 'waiting' && t.engineer_conf).length
+  const pendingTasks = (tasks || []).filter((t: any) => t.status === 'waiting' && !t.engineer_conf && !t.step?.includes('Пресування'))
+  const approvedCount = (tasks || []).filter((t: any) => t.status === 'waiting' && t.engineer_conf).length
 
-  const activeCalls = (machineCalls || []).filter(c => 
+  const activeCalls = (machineCalls || []).filter((c: MachineCallEntry) => 
     c.status === 'pending' && 
     c.called_role === 'engineer' && 
     (!c.called_employee_id || c.called_employee_id === currentUser?.id)
   )
 
-  const handleResolveCall = async (callId) => {
+  const handleResolveCall = async (callId: string | number) => {
     const resolverName = currentUser ? `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() : 'Інженер ЧПК'
     const { error } = await supabase
       .from('machine_calls')
@@ -86,8 +97,8 @@ const EngineerV2Module = () => {
               АКТИВНІ ВИКЛИКИ ДО ВЕРСТАТІВ ({activeCalls.length})
             </h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {activeCalls.map(c => {
-                const mach = (machines || []).find(m => m.id === c.machine_id)
+              {activeCalls.map((c: MachineCallEntry) => {
+                const mach = (machines || []).find((m: any) => m.id === c.machine_id)
                 return (
                   <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: isLight ? '#ffffff' : '#111', border: `1px solid ${isLight ? '#cbd5e1' : '#222'}`, borderRadius: '12px', padding: '12px 15px', flexWrap: 'wrap', gap: '10px' }}>
                     <div>

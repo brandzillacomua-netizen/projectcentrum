@@ -7,7 +7,23 @@ import OrderDetailView from './ForemanDashboard/components/OrderDetailView'
 import CellCardsModal from './ForemanDashboard/components/modals/CellCardsModal'
 import InspectCardModal from './ForemanDashboard/components/modals/InspectCardModal'
 
-const ForemanDashboardModule = () => {
+export interface ForemanTask {
+  id: string
+  order_id: string
+  batch_index?: string | number
+  status: string
+  created_at: string
+  planned_sets?: number
+}
+
+export interface ForemanDashboardStat {
+  label: string
+  value: number
+  color: string
+  icon: string
+}
+
+export const ForemanDashboardModule: React.FC = () => {
   const {
     currentUser,
     workCards,
@@ -45,8 +61,8 @@ const ForemanDashboardModule = () => {
     handleRefresh
   } = useForemanDashboardData()
 
-  const selectedTask = selectedTaskId ? relevantTasks.find(t => t.id === selectedTaskId) : null
-  const selectedOrder = selectedTask ? ordersMap[selectedTask.order_id] : null
+  const selectedTask: ForemanTask | null = selectedTaskId ? relevantTasks.find((t: ForemanTask) => t.id === selectedTaskId) || null : null
+  const selectedOrder = selectedTask ? (ordersMap as Record<string, any>)[selectedTask.order_id] : null
 
   return (
     <div className="foreman-dashboard-module" style={{ background: 'var(--bg, #09090b)', minHeight: '100vh', color: 'var(--text, #f4f4f5)', display: 'flex', flexDirection: 'column', fontFamily: 'Inter, system-ui, sans-serif' }}>
@@ -131,22 +147,22 @@ const ForemanDashboardModule = () => {
 
         {/* Per-task tabs */}
         {(() => {
-          const sortedTasks = [...relevantTasks].sort((a, b) => {
+          const sortedTasks = [...relevantTasks].sort((a: ForemanTask, b: ForemanTask) => {
             if (a.status === 'completed' && b.status !== 'completed') return 1
             if (a.status !== 'completed' && b.status === 'completed') return -1
 
-            const aShortage = taskStatusMap[a.id] === 'shortage'
-            const bShortage = taskStatusMap[b.id] === 'shortage'
+            const aShortage = (taskStatusMap as Record<string, any>)[a.id] === 'shortage'
+            const bShortage = (taskStatusMap as Record<string, any>)[b.id] === 'shortage'
             if (aShortage && !bShortage) return -1
             if (!aShortage && bShortage) return 1
 
-            return new Date(b.created_at) - new Date(a.created_at)
+            return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
           })
-          return sortedTasks.map(task => {
-            const order = ordersMap[task.order_id]
+          return sortedTasks.map((task: ForemanTask) => {
+            const order = (ordersMap as Record<string, any>)[task.order_id]
             const displayNum = order?.order_num || task.id.split('-')[0]
             const batchSuffix = task.batch_index ? `/${task.batch_index}` : ''
-            const status = taskStatusMap[task.id]
+            const status = (taskStatusMap as Record<string, any>)[task.id]
             const isActive = selectedTaskId === task.id
 
             const tabColor = status === 'ready' ? '#10b981'
@@ -164,7 +180,7 @@ const ForemanDashboardModule = () => {
             return (
               <button
                 key={task.id}
-                onClick={() => setSelectedTaskId(task.id)}
+                onClick={() => setSelectedTaskId(task.id as any)}
                 style={{
                   background: isActive ? `${tabColor}18` : 'var(--bg, #09090b)',
                   color: isActive ? tabColor : 'var(--text-muted, #71717a)',
@@ -192,11 +208,11 @@ const ForemanDashboardModule = () => {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '14px', marginBottom: '24px' }}>
               {[
                 { label: 'Всього нарядів', value: activeTasks.length, color: '#ff9000', icon: '📋' },
-                { label: 'Готові до закриття', value: activeTasks.filter(t => taskStatusMap[t.id] === 'ready').length, color: '#10b981', icon: '✅' },
-                { label: 'В роботі', value: activeTasks.filter(t => taskStatusMap[t.id] === 'in_progress').length, color: '#eab308', icon: '⚙️' },
-                { label: 'Потреба в довипуску', value: activeTasks.filter(t => taskStatusMap[t.id] === 'shortage').length, color: '#ef4444', icon: '⚠️' },
-                { label: 'Нові (без карток)', value: activeTasks.filter(t => taskStatusMap[t.id] === 'new').length, color: '#3b82f6', icon: '🆕' },
-              ].map(stat => (
+                { label: 'Готові до закриття', value: activeTasks.filter((t: ForemanTask) => (taskStatusMap as Record<string, any>)[t.id] === 'ready').length, color: '#10b981', icon: '✅' },
+                { label: 'В роботі', value: activeTasks.filter((t: ForemanTask) => (taskStatusMap as Record<string, any>)[t.id] === 'in_progress').length, color: '#eab308', icon: '⚙️' },
+                { label: 'Потреба в довипуску', value: activeTasks.filter((t: ForemanTask) => (taskStatusMap as Record<string, any>)[t.id] === 'shortage').length, color: '#ef4444', icon: '⚠️' },
+                { label: 'Нові (без карток)', value: activeTasks.filter((t: ForemanTask) => (taskStatusMap as Record<string, any>)[t.id] === 'new').length, color: '#3b82f6', icon: '🆕' },
+              ].map((stat: ForemanDashboardStat) => (
                 <div key={stat.label} style={{ background: 'var(--card-bg, #18181b)', border: '1px solid var(--glass-border, rgba(0,0,0,0.08))', borderRadius: '14px', padding: '16px 18px', display: 'flex', gap: '12px', alignItems: 'center' }}>
                   <div style={{ fontSize: '1.6rem', lineHeight: 1 }}>{stat.icon}</div>
                   <div>
@@ -217,8 +233,8 @@ const ForemanDashboardModule = () => {
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
                   style={{ width: '100%', padding: '10px 12px 10px 36px', background: 'var(--card-bg, #18181b)', border: '1px solid var(--glass-border, rgba(0,0,0,0.12))', borderRadius: '10px', color: 'var(--text, #f4f4f5)', fontSize: '0.82rem', outline: 'none', boxSizing: 'border-box' }}
-                  onFocus={e => e.target.style.borderColor = '#ef4444'}
-                  onBlur={e => e.target.style.borderColor = 'var(--glass-border, rgba(0,0,0,0.12))'}
+                  onFocus={e => (e.target as HTMLInputElement).style.borderColor = '#ef4444'}
+                  onBlur={e => (e.target as HTMLInputElement).style.borderColor = 'var(--glass-border, rgba(0,0,0,0.12))'}
                 />
               </div>
               <div style={{ fontSize: '0.72rem', color: 'var(--text-muted, #64748b)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
@@ -227,14 +243,13 @@ const ForemanDashboardModule = () => {
             </div>
 
             {/* Overview WIP table */}
-            <WipTable groupedData={overviewGroups} emptyText="Немає активних деталей. Запустіть наряди в Foreman." onCellClick={handleCellClick} />
+            <WipTable groupedData={overviewGroups} emptyText="Немає активних деталей. Запустіть наряди в Foreman." onCellClick={handleCellClick as any} />
           </div>
         ) : (
           /* ═══════════════════ ORDER DETAIL MODE ═══════════════════ */
           <OrderDetailView
             task={selectedTask}
             order={selectedOrder}
-            ordersMap={ordersMap}
             tasks={tasks}
             workCards={workCards}
             allTasksCards={dashboardCards}
@@ -248,14 +263,12 @@ const ForemanDashboardModule = () => {
             scrapCache={scrapCache}
             taskStatusMap={taskStatusMap}
             taskProgressMap={taskProgressMap}
-            orderAllCards={orderAllCards[selectedTaskId] || []}
-            isLoadingCards={loadingCards[selectedTaskId] || false}
+            orderAllCards={selectedTaskId ? (orderAllCards[selectedTaskId] || []) : []}
+            isLoadingCards={selectedTaskId ? (loadingCards[selectedTaskId] || false) : false}
             wipGroups={overviewGroups}
             searchQuery={searchQuery}
             setSearchQuery={setSearchQuery}
-            expandedBottlenecks={expandedBottlenecks}
-            setExpandedBottlenecks={setExpandedBottlenecks}
-            onCellClick={handleCellClick}
+            onCellClick={handleCellClick as any}
           />
         )}
       </div>
@@ -264,7 +277,7 @@ const ForemanDashboardModule = () => {
       <CellCardsModal
         selectedCellModal={selectedCellModal}
         onClose={() => setSelectedCellModal(null)}
-        onInspectCard={(c) => setInspectCardModal(c)}
+        onInspectCard={(c: any) => setInspectCardModal(c)}
         tasks={tasks}
         ordersMap={ordersMap}
         orders={orders}
