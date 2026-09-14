@@ -384,26 +384,36 @@ export const OPERATIONAL_TASK_FIELDS = 'id,order_id,step,status,planned_sets,est
 
 export const fetchOperationalTasks = async ({ daysCompleted = 7 } = {}) => {
   const recentCompletedCutoff = new Date(Date.now() - daysCompleted * 24 * 60 * 60 * 1000).toISOString()
-  const pageSize = 500
-  const rows = []
+  
+  // 1. Fetch active tasks using the idx_tasks_open partial index
+  // We use the existing fetchActiveTasksOnly logic to ensure we hit the index perfectly
+  const { data: activeData, error: activeError } = await fetchActiveTasksOnly()
+  if (activeError) return { data: null, error: activeError }
 
+  // 2. Fetch recently completed tasks separately
+  // By avoiding .or(), we prevent Postgres from discarding the partial index and doing a sequential scan
+  const pageSize = 500
+  const completedRows = []
+  
   for (let from = 0; ; from += pageSize) {
     const { data, error } = await supabase
       .from('tasks')
       .select(OPERATIONAL_TASK_FIELDS)
-      .or(`status.neq.completed,completed_at.gte.${recentCompletedCutoff}`)
-      .order('created_at', { ascending: false })
-      .order('id', { ascending: false })
+      .eq('status', 'completed')
+      .gte('completed_at', recentCompletedCutoff)
+      .order('completed_at', { ascending: false })
       .range(from, from + pageSize - 1)
 
     if (error) return { data: null, error }
     const page = data || []
-    rows.push(...page)
+    completedRows.push(...page)
     if (page.length < pageSize) break
   }
 
+  // 3. Merge and deduplicate
+  const allRows = [...(activeData || []), ...completedRows]
   return {
-    data: Array.from(new Map(rows.map(row => [String(row.id), row])).values()),
+    data: Array.from(new Map(allRows.map(row => [String(row.id), row])).values()),
     error: null
   }
 }
