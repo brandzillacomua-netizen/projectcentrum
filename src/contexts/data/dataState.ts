@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useLocation } from 'react-router-dom'
-import { supabase, isTestEnvironment } from '../../supabase.js'
+import { supabase, prodClient, isTestEnvironment } from '../../supabase.js'
+import { clearProductionSessionCache, restoreProductionSession } from '../../auth/productionSession.js'
 import { useStore } from '../../store/index.js'
 import { wsBatcher } from '../../services/wsBatcher.js'
 import { getIndexedCache, setIndexedCache, removeIndexedCache } from '../../services/indexedDbCache.js'
@@ -57,6 +58,11 @@ export function useDataState() {
   const [currentUser, setCurrentUser] = useState<any>(() => {
     try {
       const isTest = isTestEnvironment()
+
+      // Production authentication is restored asynchronously from the actual
+      // Supabase session below. A cached profile alone must never unlock data.
+      if (!isTest) return null
+
       const strictKey = isTest ? 'MES_SESSION_STRICT_STAGING' : 'MES_SESSION_STRICT'
       const tokenKey = isTest ? 'BACKEND_TOKEN_STAGING' : 'BACKEND_TOKEN'
       const userKey = isTest ? 'MES_SESSION_USER_STAGING' : 'MES_SESSION_USER'
@@ -96,10 +102,46 @@ export function useDataState() {
     return null
   })
   const [sessionLoading, setSessionLoading] = useState<boolean>(() => {
+    if (!isTestEnvironment()) return true
     const hasLogin = !!localStorage.getItem('MES_SESSION_LOGIN')
     const hasCache = !!localStorage.getItem('MES_SESSION_USER')
     return hasLogin && !hasCache
   })
+
+  useEffect(() => {
+    // TEST/STAGING keeps its existing lifecycle. This guard deliberately
+    // scopes the stricter bootstrap to the production client only.
+    if (isTestEnvironment()) return undefined
+
+    let active = true
+
+    const finishBootstrap = async () => {
+      try {
+        const user = await restoreProductionSession(prodClient)
+        if (active) setCurrentUser(user)
+      } catch (error) {
+        console.warn('[Auth] Не вдалося підтвердити PROD-сесію:', error?.message || error)
+        clearProductionSessionCache()
+        if (active) setCurrentUser(null)
+      } finally {
+        if (active) setSessionLoading(false)
+      }
+    }
+
+    finishBootstrap()
+
+    const { data: authListener } = prodClient.auth.onAuthStateChange((event) => {
+      if (event !== 'SIGNED_OUT' || !active) return
+      clearProductionSessionCache()
+      setCurrentUser(null)
+      setSessionLoading(false)
+    })
+
+    return () => {
+      active = false
+      authListener?.subscription?.unsubscribe()
+    }
+  }, [])
   const [maintenanceCheckEnabled, setMaintenanceCheckEnabled] = useState<boolean>(() => {
     return localStorage.getItem('maintenance_check_enabled') === 'true'
   })
