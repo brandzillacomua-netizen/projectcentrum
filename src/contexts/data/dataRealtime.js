@@ -272,6 +272,20 @@ export function useDataRealtime(state, fetchers) {
 
     window.addEventListener('online', handleOnlineNetworkCatchUp)
 
+    // ── EGRESS OPTIMIZATION: Instant Lightweight Ping Subscriptions ──
+    // Instead of polling or heavy WebSocket payloads, we listen to a tiny ping table
+    activeChannel = activeChannel.on('postgres_changes', { event: '*', schema: 'public', table: 'sys_sync_pings' }, (payload) => {
+      const changedTable = payload.new?.table_name
+      if (changedTable && routeHasTable(changedTable)) {
+        // Add random jitter to prevent thundering herd if many clients are connected
+        const jitterMs = Math.floor(Math.random() * 800)
+        setTimeout(() => {
+          catchUpWithFullRefreshFallback([changedTable])
+            .catch(error => console.warn(`[CatchUpSync] Ping refresh failed for ${changedTable}:`, error))
+        }, jitterMs)
+      }
+    })
+
     activeChannel.subscribe((status) => {
       if (status !== 'SUBSCRIBED') return
       const shouldCatchUp = hasSubscribed
@@ -289,20 +303,6 @@ export function useDataRealtime(state, fetchers) {
             .catch(error => console.warn('[CatchUpSync] Full refresh fallback failed:', error))
         }
       }, reconnectJitterMs)
-    })
-
-    // ── EGRESS OPTIMIZATION: Instant Lightweight Ping Subscriptions ──
-    // Instead of polling or heavy WebSocket payloads, we listen to a tiny ping table
-    activeChannel = activeChannel.on('postgres_changes', { event: '*', schema: 'public', table: 'sys_sync_pings' }, (payload) => {
-      const changedTable = payload.new?.table_name
-      if (changedTable && routeHasTable(changedTable)) {
-        // Add random jitter to prevent thundering herd if many clients are connected
-        const jitterMs = Math.floor(Math.random() * 800)
-        setTimeout(() => {
-          catchUpWithFullRefreshFallback([changedTable])
-            .catch(error => console.warn(`[CatchUpSync] Ping refresh failed for ${changedTable}:`, error))
-        }, jitterMs)
-      }
     })
 
     return () => {
