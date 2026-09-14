@@ -112,11 +112,20 @@ export function useDataLifecycle(state, fetchers) {
         const lastRun = targetRefreshLastRef.current.get(getTargetRefreshKey(tableName)) || 0
         return Date.now() - lastRun >= ROUTE_ENTRY_REFRESH_TTL_MS
       })
-      // Use incremental catch-up for route entry refreshes to save egress
-      const routeLoad = routeTargets.length > 0 ? performIncrementalCatchUp(routeTargets) : Promise.resolve()
-      routeLoad
-        .then(() => needsProductionSummary ? refreshProductionSummary() : null)
-        .catch(error => console.warn(`Route data load failed for ${normalizedPath}:`, error))
+      
+      if (routeTargets.length > 0) {
+        const catchupSupported = new Set(['tasks', 'work_cards', 'orders', 'inventory', 'material_requests'])
+        const catchupTargets = routeTargets.filter(t => catchupSupported.has(t))
+        const fetchTargets = routeTargets.filter(t => !catchupSupported.has(t))
+        
+        const promises = []
+        if (catchupTargets.length > 0) promises.push(performIncrementalCatchUp(catchupTargets))
+        if (fetchTargets.length > 0) promises.push(fetchData(fetchTargets))
+        
+        Promise.all(promises)
+          .then(() => needsProductionSummary ? refreshProductionSummary() : null)
+          .catch(error => console.warn(`Route data load failed for ${normalizedPath}:`, error))
+      }
     }, Math.floor(Math.random() * (ROUTE_ENTRY_JITTER_MS + 1)))
 
     return () => {
@@ -126,6 +135,7 @@ export function useDataLifecycle(state, fetchers) {
   }, [
     currentUser?.id,
     currentUserIdRef,
+    fetchData,
     performIncrementalCatchUp,
     getTargetRefreshKey,
     isPublicDataRoute,
@@ -171,12 +181,21 @@ export function useDataLifecycle(state, fetchers) {
         visibilityRefreshTimerRef.current = null
         if (document.visibilityState !== 'visible') return
         lastVisibilityRefreshRef.current = Date.now()
-        // Critical Fix: Use incremental catch-up instead of fetchData(force: true)
-        // This prevents downloading massive plan_snapshots for thousands of tasks 
-        // every time the user unlocks their device, dropping Egress from 40GB to <100MB.
-        performIncrementalCatchUp(getReactivationTargets())
-          .then(() => needsProductionSummary ? refreshProductionSummary() : null)
-          .catch(error => console.warn('Targeted reactivation refresh failed:', error))
+        
+        const targets = getReactivationTargets()
+        if (targets.length > 0) {
+          const catchupSupported = new Set(['tasks', 'work_cards', 'orders', 'inventory', 'material_requests'])
+          const catchupTargets = targets.filter(t => catchupSupported.has(t))
+          const fetchTargets = targets.filter(t => !catchupSupported.has(t))
+          
+          const promises = []
+          if (catchupTargets.length > 0) promises.push(performIncrementalCatchUp(catchupTargets))
+          if (fetchTargets.length > 0) promises.push(fetchData(fetchTargets, { force: true }))
+          
+          Promise.all(promises)
+            .then(() => needsProductionSummary ? refreshProductionSummary() : null)
+            .catch(error => console.warn('Targeted reactivation refresh failed:', error))
+        }
       }, delay)
     }
 
@@ -200,6 +219,7 @@ export function useDataLifecycle(state, fetchers) {
   }, [
     currentUser?.id,
     performIncrementalCatchUp,
+    fetchData,
     fullFetchInFlightRef,
     isPublicDataRoute,
     lastVisibilityRefreshRef,
