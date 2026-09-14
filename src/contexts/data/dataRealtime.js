@@ -143,48 +143,22 @@ export function useDataRealtime(state, fetchers) {
     const primaryTopic = `mes-primary:${realtimeProfile}:${currentUser?.id || 'anon'}:${routeDataTableKey}`
     let activeChannel = supabase.channel(primaryTopic)
 
-    if (routeHasTable('work_cards')) {
-      activeChannel = activeChannel.on('postgres_changes', { event: '*', schema: 'public', table: 'work_cards' }, (payload) => {
-        wsBatcher.enqueue('work_cards', payload)
-      })
-    }
+    // ── EGRESS OPTIMIZATION: Heavy tables are now polled instead of Realtime ──
+    // if (routeHasTable('work_cards')) {
+    //   activeChannel = activeChannel.on('postgres_changes', { event: '*', schema: 'public', table: 'work_cards' }, (payload) => {
+    //     wsBatcher.enqueue('work_cards', payload)
+    //   })
+    // }
 
-    if (routeHasTable('tasks')) {
-      activeChannel = activeChannel.on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, (payload) => {
-        wsBatcher.enqueue('tasks', payload)
-        if (payload.eventType === 'UPDATE') {
-          const wasPackaged = payload.old?.plan_snapshot?._metadata?.is_packaged
-          const isNowPackaged = payload.new?.plan_snapshot?._metadata?.is_packaged
-          if (!wasPackaged && isNowPackaged) {
-            if (isLocalWrite('tasks', payload.new)) {
-              const notifyIds = (systemUsersRef.current || []).filter(u => {
-                if (!u?.access_rights) return false
-                const s = u.notification_settings || {}
-                if (s.ready_to_ship === false) return false
-                return u.access_rights.shipping || u.access_rights.director
-              }).map(u => u.id)
-              if (notifyIds.length > 0) {
-                const packedBy = payload.new?.plan_snapshot?._metadata?.packaged_by || ''
-                const batchIdx = payload.new?.batch_index || '1'
-                sendPushToUsers(
-                  notifyIds,
-                  '🚚 Готово до відвантаження',
-                  `Партія №${batchIdx}${packedBy ? ` (${packedBy})` : ''} запакована і очікує відвантаження`,
-                  '/shipping',
-                  { tag: `task-ready-to-ship-${payload.new.id}` }
-                ).catch(() => { })
-              }
-            }
-          }
-        }
-      })
-    }
+    // if (routeHasTable('tasks')) {
+    //   activeChannel = activeChannel.on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, (payload) => { ... })
+    // }
 
-    if (routeHasTable('inventory')) {
-      activeChannel = activeChannel.on('postgres_changes', { event: '*', schema: 'public', table: 'inventory' }, (payload) => {
-        wsBatcher.enqueue('inventory', payload)
-      })
-    }
+    // if (routeHasTable('inventory')) {
+    //   activeChannel = activeChannel.on('postgres_changes', { event: '*', schema: 'public', table: 'inventory' }, (payload) => {
+    //     wsBatcher.enqueue('inventory', payload)
+    //   })
+    // }
 
     if (needsProductionHistory) {
       activeChannel = activeChannel
@@ -317,10 +291,21 @@ export function useDataRealtime(state, fetchers) {
       }, reconnectJitterMs)
     })
 
+    // ── EGRESS OPTIMIZATION: Poll heavy tables periodically to replace Realtime ──
+    const heavyTables = ['tasks', 'work_cards', 'inventory', 'material_requests', 'orders'].filter(t => routeHasTable(t))
+    let heavyPollingTimer = null
+    if (heavyTables.length > 0) {
+      heavyPollingTimer = setInterval(() => {
+        catchUpWithFullRefreshFallback(heavyTables)
+          .catch(error => console.warn('[CatchUpSync] Polling failed:', error))
+      }, 12000) // 12 seconds
+    }
+
     return () => {
       window.removeEventListener('online', handleOnlineNetworkCatchUp)
       if (onlineCatchUpTimer) clearTimeout(onlineCatchUpTimer)
       if (reconnectRefreshTimer) clearTimeout(reconnectRefreshTimer)
+      if (heavyPollingTimer) clearInterval(heavyPollingTimer)
       if (productionSummaryRefreshTimer) clearTimeout(productionSummaryRefreshTimer)
       supabase.removeChannel(activeChannel)
     }
@@ -413,41 +398,13 @@ export function useDataRealtime(state, fetchers) {
     const secondaryTopic = `mes-secondary:${realtimeProfile}:${currentUser?.id || 'anon'}:${routeDataTableKey}`
     let activeChannel2 = supabase.channel(secondaryTopic)
 
-    if (routeHasTable('orders')) {
-      activeChannel2 = activeChannel2
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, (payload) => {
-          mergeRealtimeOrder(payload.new)
-          scheduleOrderHydration(payload.new?.id)
-          if (isLocalWrite('orders', payload.new)) {
-            const notifyIds = (systemUsersRef.current || []).filter(u => {
-              if (!u?.access_rights) return false
-              const settings = u.notification_settings || {}
-              if (settings.new_order === false) return false
-              return u.access_rights.director || u.access_rights.master || u.access_rights.manager
-            }).map(u => u.id)
-            if (notifyIds.length > 0) {
-              const orderNum = payload.new?.order_num || ''
-              const customer = payload.new?.customer || ''
-              sendPushToUsers(
-                notifyIds,
-                '📦 Нове замовлення',
-                `№ ${orderNum}${customer ? ` — ${customer}` : ''} очікує на створення наряду`,
-                '/manager',
-                { tag: `order-new-${payload.new.id}` }
-              ).catch(() => { })
-            }
-          }
-        })
-        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, (payload) => {
-          mergeRealtimeOrder(payload.new)
-        })
-        .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'orders' }, (payload) => {
-          const deletedId = payload.old?.id
-          if (deletedId != null) {
-            setOrders(prev => prev.filter(order => String(order.id) !== String(deletedId)))
-          }
-        })
-    }
+    // ── EGRESS OPTIMIZATION: Orders are polled instead of Realtime ──
+    // if (routeHasTable('orders')) {
+    //   activeChannel2 = activeChannel2
+    //     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, (payload) => { ... })
+    //     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, (payload) => { ... })
+    //     .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'orders' }, (payload) => { ... })
+    // }
 
     if (routeHasTable('management_tasks')) {
       activeChannel2 = activeChannel2.on('postgres_changes', { event: '*', schema: 'public', table: 'management_tasks' }, (payload) => {
@@ -492,68 +449,12 @@ export function useDataRealtime(state, fetchers) {
         })
     }
 
-    if (routeHasTable('material_requests')) {
-      activeChannel2 = activeChannel2
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'material_requests' }, (payload) => {
-          wsBatcher.enqueue('material_requests', payload)
-
-          if (payload.eventType === 'INSERT' && isLocalWrite('material_requests', payload.new)) {
-            const isPackaging = payload.new?.details?.includes('КОМПЛЕКТУВАННЯ')
-            const orderId = payload.new?.order_id || payload.new?.task_id || 'unknown'
-            let orderNum = 'новий'
-            if (payload.new?.task_id) {
-              const t = tasksRef.current.find(item => item.id === payload.new.task_id)
-              if (t) {
-                if (t.step === 'Підготовка' && t.plan_snapshot?._prep_num) {
-                  orderNum = t.plan_snapshot._prep_num
-                } else {
-                  const suffix = t.batch_index ? `/${t.batch_index}` : ''
-                  if (t.order_id) {
-                    const o = ordersRef.current.find(item => item.id === t.order_id)
-                    if (o?.order_num) orderNum = `${o.order_num}${suffix}`
-                  } else if (t.plan_snapshot?._prep_num) {
-                    orderNum = t.plan_snapshot._prep_num
-                  }
-                }
-              }
-            } else if (payload.new?.order_id) {
-              const o = ordersRef.current.find(item => item.id === payload.new.order_id)
-              if (o?.order_num) orderNum = o.order_num
-            }
-            const notifyIds = (systemUsersRef.current || []).filter(u => {
-              if (!u?.access_rights) return false
-              const settings = u.notification_settings || {}
-              if (isPackaging) {
-                if (settings.packaging_request === false) return false
-                return u.access_rights.warehouse || u.access_rights.supply
-              } else {
-                if (settings.material_request === false) return false
-                return u.access_rights.warehouse
-              }
-            }).map(u => u.id)
-            if (notifyIds.length > 0) {
-              const buf = matReqPushBufferRef.current
-              if (!buf[orderId]) {
-                buf[orderId] = { items: [], isPackaging, notifyIds, orderNum }
-              }
-              buf[orderId].items.push(payload.new)
-              if (buf[orderId].timer) clearTimeout(buf[orderId].timer)
-              buf[orderId].timer = setTimeout(() => {
-                const entry = buf[orderId]
-                if (!entry) return
-                delete buf[orderId]
-                const itemCount = entry.items.length
-                const num = entry.orderNum
-                const title = entry.isPackaging ? '📦 Запит на комплектування' : '📋 Новий запит на СО'
-                const body = entry.isPackaging
-                  ? `Наряд №${num} — ${itemCount} позицій до комплектування`
-                  : `Наряд №${num} — ${itemCount} позицій (листи, фрези)`
-                sendPushToUsers(entry.notifyIds, title, body, '/warehouse', { tag: `req-group-${orderId}` }).catch(() => { })
-              }, 1500)
-            }
-          }
-        })
-    }
+    /* 
+      The push notifications for material_requests are currently disabled
+      because material_requests are polled rather than streaming through realtime 
+      to save Egress. If push notifications are needed, they should be fired
+      directly from the component performing the insert.
+    */
 
     if (routeHasTable('reception_docs')) {
       activeChannel2 = activeChannel2.on('postgres_changes', { event: '*', schema: 'public', table: 'reception_docs' }, (payload) => {
