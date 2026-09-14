@@ -211,7 +211,7 @@ export function useDataState() {
     }
   }
 
-  const getInitialFetchDelayMs = () => {
+  const getInitialFetchDelayMs = useCallback(() => {
     if (!currentUser?.id) return 0
     if (initialFetchScheduleRef.current.userId !== currentUser.id) {
       initialFetchScheduleRef.current = {
@@ -220,7 +220,7 @@ export function useDataState() {
       }
     }
     return Math.max(0, initialFetchScheduleRef.current.notBefore - Date.now())
-  }
+  }, [currentUser?.id])
 
   // ── Incremental Catch-up on reconnect ──
   const performIncrementalCatchUp = useCallback(async (targetTables: string[] = []) => {

@@ -45,8 +45,13 @@ describe('egress lifecycle regression guard', () => {
     expect(stateSource).toContain('const routeHasTable = useCallback(')
   })
 
+  it('completes the initial fetch instead of retrying it forever', () => {
+    expect(stateSource).toContain('const getInitialFetchDelayMs = useCallback(')
+    expect(fetcherSource).toContain('initialFetchCompletedUserIdRef.current = currentUserIdRef.current')
+  })
+
   it('rolls the emergency service worker across every open application route', () => {
-    expect(serviceWorkerSource).toContain("const CACHE_NAME = 'centrum-v4'")
+    expect(serviceWorkerSource).toContain("const CACHE_NAME = 'centrum-v5'")
     expect(serviceWorkerSource).toContain('clientUrl.origin === self.location.origin')
     expect(serviceWorkerSource).not.toContain("clientUrl.pathname === '/' || clientUrl.pathname === '/login'")
   })

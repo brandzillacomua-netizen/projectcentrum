@@ -433,6 +433,9 @@ export function useDataFetchers(state: any) {
   const fetchCritical = async () => {
     const criticalTables = routeDataTables && routeDataTables.length > 0 ? routeDataTables : ['orders', 'tasks']
     await fetchData(criticalTables)
+    if (currentUserIdRef.current) {
+      initialFetchCompletedUserIdRef.current = currentUserIdRef.current
+    }
   }
 
   const fetchModuleData = async (moduleNameOrRoute?: string) => {
