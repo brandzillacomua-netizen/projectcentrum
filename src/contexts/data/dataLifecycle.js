@@ -25,7 +25,8 @@ export function useDataLifecycle(state, fetchers) {
     currentUserIdRef,
     targetRefreshLastRef,
     fullFetchInFlightRef,
-    visibilityRefreshTimerRef
+    visibilityRefreshTimerRef,
+    performIncrementalCatchUp
   } = state
 
   const {
@@ -111,7 +112,8 @@ export function useDataLifecycle(state, fetchers) {
         const lastRun = targetRefreshLastRef.current.get(getTargetRefreshKey(tableName)) || 0
         return Date.now() - lastRun >= ROUTE_ENTRY_REFRESH_TTL_MS
       })
-      const routeLoad = routeTargets.length > 0 ? fetchData(routeTargets) : Promise.resolve()
+      // Use incremental catch-up for route entry refreshes to save egress
+      const routeLoad = routeTargets.length > 0 ? performIncrementalCatchUp(routeTargets) : Promise.resolve()
       routeLoad
         .then(() => needsProductionSummary ? refreshProductionSummary() : null)
         .catch(error => console.warn(`Route data load failed for ${normalizedPath}:`, error))
@@ -124,7 +126,7 @@ export function useDataLifecycle(state, fetchers) {
   }, [
     currentUser?.id,
     currentUserIdRef,
-    fetchData,
+    performIncrementalCatchUp,
     getTargetRefreshKey,
     isPublicDataRoute,
     needsProductionSummary,
@@ -169,7 +171,10 @@ export function useDataLifecycle(state, fetchers) {
         visibilityRefreshTimerRef.current = null
         if (document.visibilityState !== 'visible') return
         lastVisibilityRefreshRef.current = Date.now()
-        fetchData(getReactivationTargets())
+        // Critical Fix: Use incremental catch-up instead of fetchData(force: true)
+        // This prevents downloading massive plan_snapshots for thousands of tasks 
+        // every time the user unlocks their device, dropping Egress from 40GB to <100MB.
+        performIncrementalCatchUp(getReactivationTargets())
           .then(() => needsProductionSummary ? refreshProductionSummary() : null)
           .catch(error => console.warn('Targeted reactivation refresh failed:', error))
       }, delay)
@@ -194,7 +199,7 @@ export function useDataLifecycle(state, fetchers) {
     }
   }, [
     currentUser?.id,
-    fetchData,
+    performIncrementalCatchUp,
     fullFetchInFlightRef,
     isPublicDataRoute,
     lastVisibilityRefreshRef,
