@@ -44,6 +44,7 @@
     "load:test:staging": "node scripts/loadtest-readonly.mjs"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1132.0",
     "@sentry/react": "^10.73.0",
     "@supabase/supabase-js": "^2.49.1",
     "@tanstack/react-virtual": "^3.14.10",
