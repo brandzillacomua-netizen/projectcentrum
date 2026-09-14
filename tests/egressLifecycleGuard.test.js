@@ -51,7 +51,7 @@ describe('egress lifecycle regression guard', () => {
   })
 
   it('rolls the emergency service worker across every open application route', () => {
-    expect(serviceWorkerSource).toContain("const CACHE_NAME = 'centrum-v5'")
+    expect(serviceWorkerSource).toContain("const CACHE_NAME = 'centrum-v6'")
     expect(serviceWorkerSource).toContain('clientUrl.origin === self.location.origin')
     expect(serviceWorkerSource).not.toContain("clientUrl.pathname === '/' || clientUrl.pathname === '/login'")
   })

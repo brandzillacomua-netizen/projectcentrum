@@ -7,7 +7,11 @@ vi.mock('../src/supabase', () => ({
 }))
 
 import { supabase } from '../src/supabase'
-import { createMachineCall, fetchPublicMachineCallContext } from '../src/services/machineCallService'
+import {
+  createMachineCall,
+  fetchPublicMachineCallContext,
+  fetchPublicMachineCallStatus
+} from '../src/services/machineCallService'
 
 describe('machineCallService', () => {
   beforeEach(() => vi.clearAllMocks())
@@ -31,6 +35,14 @@ describe('machineCallService', () => {
     expect(supabase.rpc).toHaveBeenCalledWith('rpc_public_create_machine_call', {
       p_machine_id: 'machine-1', p_called_role: 'engineer',
       p_operator_name: 'Олена', p_called_employee_id: 42
+    })
+  })
+
+  it('polls only the compact public call status after initial load', async () => {
+    supabase.rpc.mockResolvedValue({ data: [{ id: 'call-1' }], error: null })
+    await expect(fetchPublicMachineCallStatus('machine-1')).resolves.toEqual([{ id: 'call-1' }])
+    expect(supabase.rpc).toHaveBeenCalledWith('rpc_public_machine_call_status', {
+      p_machine_id: 'machine-1'
     })
   })
 

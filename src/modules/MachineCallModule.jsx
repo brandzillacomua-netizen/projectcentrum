@@ -1,7 +1,11 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { Cpu, AlertTriangle, Check, PhoneCall, Hammer, ShieldAlert } from 'lucide-react'
-import { createMachineCall, fetchPublicMachineCallContext } from '../services/machineCallService'
+import {
+  createMachineCall,
+  fetchPublicMachineCallContext,
+  fetchPublicMachineCallStatus
+} from '../services/machineCallService'
 
 const MachineCallModule = () => {
   const { id } = useParams()
@@ -29,14 +33,23 @@ const MachineCallModule = () => {
     }
   }, [id])
 
+  const fetchCallStatus = useCallback(async () => {
+    try {
+      const calls = await fetchPublicMachineCallStatus(id)
+      setActiveCalls(previous => JSON.stringify(previous) === JSON.stringify(calls) ? previous : calls)
+    } catch (error) {
+      console.warn('[MachineCall] Status refresh failed:', error?.message || error)
+    }
+  }, [id])
+
   useEffect(() => {
     const initialFetchId = window.setTimeout(fetchMachineAndCalls, 0)
-    const pollId = window.setInterval(fetchMachineAndCalls, 10_000)
+    const pollId = window.setInterval(fetchCallStatus, 10_000)
     return () => {
       window.clearTimeout(initialFetchId)
       window.clearInterval(pollId)
     }
-  }, [fetchMachineAndCalls])
+  }, [fetchCallStatus, fetchMachineAndCalls])
   
   const masters = users.filter(u => u.call_roles?.includes('master'))
   const engineers = users.filter(u => u.call_roles?.includes('engineer'))
@@ -63,11 +76,18 @@ const MachineCallModule = () => {
     else if (role === 'quality') employeeId = selectedQualityId
 
     try {
-      await createMachineCall({ machineId: id, role, operatorName, employeeId })
+      const result = await createMachineCall({ machineId: id, role, operatorName, employeeId })
       let roleLabel = role === 'master' ? 'Майстра' : role === 'engineer' ? 'Інженера' : 'ВКЯ'
       setSuccessMsg(`Виклик ${roleLabel} успішно надіслано!`)
       setTimeout(() => setSuccessMsg(''), 4000)
-      await fetchMachineAndCalls()
+      if (result?.call) {
+        setActiveCalls(previous => [
+          ...previous.filter(call => call.id !== result.call.id && call.called_role !== result.call.called_role),
+          result.call
+        ].sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0)))
+      } else {
+        await fetchCallStatus()
+      }
     } catch (error) {
       alert('Помилка: ' + error.message)
     } finally {

@@ -1,7 +1,7 @@
 // ─── Centrum Service Worker ───────────────────────────────────────────────────
-const CACHE_NAME = 'centrum-v5';
+const CACHE_NAME = 'centrum-v6';
 const APP_SHELL = ['/', '/index.html'];
-const EMERGENCY_AUTO_ACTIVATE = CACHE_NAME === 'centrum-v5';
+const EMERGENCY_AUTO_ACTIVATE = CACHE_NAME === 'centrum-v6';
 
 self.addEventListener('install', function(event) {
   event.waitUntil(
@@ -13,7 +13,7 @@ self.addEventListener('install', function(event) {
         await caches.delete(CACHE_NAME);
         throw new Error('Centrum shell cache is empty; keeping the previous service worker active.');
       }
-      // v5 is a one-time recovery release: already-open clients must pick up
+      // v6 is a one-time recovery release: already-open clients must pick up
       // the egress-loop fix instead of continuing to run the stale bundle.
       if (EMERGENCY_AUTO_ACTIVATE) await self.skipWaiting();
     })

@@ -15,6 +15,15 @@ export async function fetchPublicMachineCallContext(machineId) {
   }
 }
 
+export async function fetchPublicMachineCallStatus(machineId) {
+  if (!machineId) throw new Error('Не вказано ідентифікатор верстата')
+  const { data, error } = await supabase.rpc('rpc_public_machine_call_status', {
+    p_machine_id: machineId
+  })
+  if (error) throw error
+  return ensureArray(data)
+}
+
 export async function createMachineCall({ machineId, role, operatorName, employeeId = null }) {
   if (!machineId) throw new Error('Не вказано ідентифікатор верстата')
   if (!['master', 'engineer', 'quality'].includes(role)) throw new Error('Некоректний тип виклику')
@@ -33,4 +42,3 @@ export async function createMachineCall({ machineId, role, operatorName, employe
   if (error) throw error
   return data
 }
-
