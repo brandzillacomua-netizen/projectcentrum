@@ -1,7 +1,7 @@
 // ─── Centrum Service Worker ───────────────────────────────────────────────────
-const CACHE_NAME = 'centrum-v3';
+const CACHE_NAME = 'centrum-v4';
 const APP_SHELL = ['/', '/index.html'];
-const EMERGENCY_AUTO_ACTIVATE = CACHE_NAME === 'centrum-v3';
+const EMERGENCY_AUTO_ACTIVATE = CACHE_NAME === 'centrum-v4';
 
 self.addEventListener('install', function(event) {
   event.waitUntil(
@@ -13,8 +13,8 @@ self.addEventListener('install', function(event) {
         await caches.delete(CACHE_NAME);
         throw new Error('Centrum shell cache is empty; keeping the previous service worker active.');
       }
-      // v3 is a one-time recovery release: old login clients are generating a
-      // database request storm and cannot render the normal update prompt.
+      // v4 is a one-time recovery release: already-open clients must pick up
+      // the egress-loop fix instead of continuing to run the stale bundle.
       if (EMERGENCY_AUTO_ACTIVATE) await self.skipWaiting();
     })
   );
@@ -43,7 +43,7 @@ self.addEventListener('activate', function(event) {
           return Promise.all(clientList.map(function(client) {
             try {
               const clientUrl = new URL(client.url);
-              if ((clientUrl.pathname === '/' || clientUrl.pathname === '/login') && 'navigate' in client) {
+              if (clientUrl.origin === self.location.origin && 'navigate' in client) {
                 return client.navigate(client.url).catch(function() { return undefined; });
               }
             } catch (error) {

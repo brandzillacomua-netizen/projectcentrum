@@ -5,6 +5,7 @@ import { createStableFetcherFacade } from '../src/contexts/data/stableFetchers.j
 const fetcherSource = readFileSync(new URL('../src/contexts/data/dataFetchers.ts', import.meta.url), 'utf8')
 const lifecycleSource = readFileSync(new URL('../src/contexts/data/dataLifecycle.js', import.meta.url), 'utf8')
 const stateSource = readFileSync(new URL('../src/contexts/data/dataState.ts', import.meta.url), 'utf8')
+const serviceWorkerSource = readFileSync(new URL('../public/sw.js', import.meta.url), 'utf8')
 
 describe('egress lifecycle regression guard', () => {
   it('keeps callback identities stable while dispatching to the latest implementation', () => {
@@ -42,5 +43,11 @@ describe('egress lifecycle regression guard', () => {
 
   it('memoizes the route table predicate used by realtime effects', () => {
     expect(stateSource).toContain('const routeHasTable = useCallback(')
+  })
+
+  it('rolls the emergency service worker across every open application route', () => {
+    expect(serviceWorkerSource).toContain("const CACHE_NAME = 'centrum-v4'")
+    expect(serviceWorkerSource).toContain('clientUrl.origin === self.location.origin')
+    expect(serviceWorkerSource).not.toContain("clientUrl.pathname === '/' || clientUrl.pathname === '/login'")
   })
 })
