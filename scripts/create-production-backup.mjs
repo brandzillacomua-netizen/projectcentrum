@@ -1,17 +1,30 @@
 import { createHash, createCipheriv, randomBytes } from 'node:crypto'
-import { mkdirSync, readFileSync, statSync, writeFileSync, rmSync } from 'node:fs'
+import { createReadStream, createWriteStream, statSync, writeFileSync, rmSync } from 'node:fs'
+import { mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, isAbsolute, relative, resolve, sep } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { pathToFileURL } from 'node:url'
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
+import { S3Client, PutObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3'
+import { pipeline } from 'node:stream/promises'
 import { validateProductionDatabaseUrl } from './configure-backup-credentials.mjs'
 import { redactConnectionStrings } from './check-production-db-connectivity.mjs'
 
 const PRODUCTION_PROJECT_REF = 'hurzutjytlcvtbvihnry'
 const POSTGRES_IMAGE = 'postgres:17.6-alpine'
 
-const sha256 = filePath => createHash('sha256').update(readFileSync(filePath)).digest('hex')
+// CTRM (4 bytes) | Version 1 (1 byte) | GCM (4 bytes) | IV_LENGTH 12 (1 byte)
+const MAGIC_HEADER = Buffer.from([0x43, 0x54, 0x52, 0x4D, 0x01, 0x47, 0x43, 0x4D, 0x20, 0x0C]);
+
+const sha256 = filePath => {
+  return new Promise((resolveHash, reject) => {
+    const hash = createHash('sha256')
+    const rs = createReadStream(filePath)
+    rs.on('error', reject)
+    rs.on('data', chunk => hash.update(chunk))
+    rs.on('end', () => resolveHash(hash.digest('hex')))
+  })
+}
 
 function safeOutput(value, password) {
   const redacted = redactConnectionStrings(value)
@@ -40,42 +53,71 @@ function runDockerDump({ directory, filename, command, password }) {
   return output
 }
 
-function encryptFile(sourcePath, destPath, encryptionKey) {
-  // Pad or truncate key to 32 bytes (256 bits) for AES-256
-  const keyBuffer = Buffer.alloc(32);
-  Buffer.from(encryptionKey).copy(keyBuffer);
+async function encryptFile(sourcePath, destPath, hexKey) {
+  // Key must be exactly 32 bytes from hex
+  const keyBuffer = Buffer.from(hexKey, 'hex');
+  if (keyBuffer.length !== 32) {
+    throw new Error('Encryption key must be exactly 32 bytes (64 hex characters) for AES-256');
+  }
   
-  const iv = randomBytes(16);
-  const cipher = createCipheriv('aes-256-cbc', keyBuffer, iv);
+  const iv = randomBytes(12); // Standard GCM IV length
+  const cipher = createCipheriv('aes-256-gcm', keyBuffer, iv);
   
-  const input = readFileSync(sourcePath);
-  const encrypted = Buffer.concat([iv, cipher.update(input), cipher.final()]);
+  const input = createReadStream(sourcePath);
+  const output = createWriteStream(destPath);
   
-  writeFileSync(destPath, encrypted);
+  // Write Header and IV
+  output.write(MAGIC_HEADER);
+  output.write(iv);
+  
+  await pipeline(input, cipher, output, { end: false });
+  
+  // Append Auth Tag at the very end
+  const authTag = cipher.getAuthTag();
+  output.end(authTag);
+  
+  // Wait for stream to fully close
+  await new Promise(resolve => output.on('finish', resolve));
 }
 
 async function uploadToS3(filePath, objectKey) {
-  if (!process.env.S3_BUCKET || !process.env.S3_ACCESS_KEY || !process.env.S3_SECRET_KEY) {
-    console.warn(`[WARNING] S3 credentials missing. Skipping upload for ${objectKey}`);
-    return;
+  if (!process.env.AWS_S3_BUCKET || !process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY) {
+    throw new Error(`[FATAL] S3 credentials missing. Scheduled backup MUST fail if offsite upload is impossible.`);
   }
 
   const s3 = new S3Client({
-    region: process.env.S3_REGION || 'eu-central-1',
+    region: process.env.AWS_REGION || 'eu-central-1',
     credentials: {
-      accessKeyId: process.env.S3_ACCESS_KEY,
-      secretAccessKey: process.env.S3_SECRET_KEY,
-    },
-    endpoint: process.env.S3_ENDPOINT, // e.g. for Cloudflare R2
+      accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    }
   });
 
-  const fileStream = readFileSync(filePath);
+  const fileStream = createReadStream(filePath);
+  const fileSize = statSync(filePath).size;
+  const hash = await sha256(filePath);
   
   await s3.send(new PutObjectCommand({
-    Bucket: process.env.S3_BUCKET,
+    Bucket: process.env.AWS_S3_BUCKET,
     Key: objectKey,
     Body: fileStream,
+    ContentLength: fileSize,
+    Metadata: {
+      'x-amz-meta-checksum-sha256': hash
+    }
   }));
+
+  // Verify parity via HeadObject
+  const head = await s3.send(new HeadObjectCommand({
+    Bucket: process.env.AWS_S3_BUCKET,
+    Key: objectKey
+  }));
+  
+  if (head.ContentLength !== fileSize) {
+    throw new Error(`S3 Parity mismatch for ${objectKey}: Expected ${fileSize} bytes, got ${head.ContentLength}`);
+  }
+  
+  return { hash, size: fileSize };
 }
 
 export function createBackupPlan(rootDirectory, timestamp = new Date()) {
@@ -104,14 +146,18 @@ async function main() {
   if (!validation.ok) throw new Error(validation.error)
 
   const encryptionKey = process.env.BACKUP_ENCRYPTION_KEY;
-  if (!encryptionKey) {
-    throw new Error('BACKUP_ENCRYPTION_KEY is required for offsite backup');
+  if (!encryptionKey || !/^[0-9a-fA-F]{64}$/.test(encryptionKey)) {
+    throw new Error('BACKUP_ENCRYPTION_KEY is required and must be exactly 64 hex characters (32 bytes) for AES-256');
+  }
+  
+  if (!process.env.AWS_S3_BUCKET) {
+    throw new Error('AWS_S3_BUCKET is required for enterprise offsite backup');
   }
 
   const backupRoot = process.env.BACKUP_OUTPUT_DIR || resolve(tmpdir(), 'centrum-mes-backups')
   assertBackupOutsideRepository(backupRoot)
   const plan = createBackupPlan(backupRoot)
-  mkdirSync(plan.directory, { recursive: true })
+  mkdirSync(plan.directory, { recursive: true, mode: 0o700 })
 
   const password = new URL(validation.url).password
   const steps = [
@@ -132,40 +178,51 @@ async function main() {
     }
   ]
 
+  const files = [];
+
   for (const step of steps) {
     console.log(`Creating ${step.label} backup...`)
-    runDockerDump({
-      directory: plan.directory,
-      filename: basename(step.file),
-      command: step.command,
-      password
-    })
-    if (!statSync(step.file).size) throw new Error(`${step.label} backup is empty`)
-    
-    // Encrypt the file
-    const encFile = `${step.file}.enc`;
-    console.log(`Encrypting ${step.label}...`)
-    encryptFile(step.file, encFile, encryptionKey)
-    
-    // Upload to S3
-    console.log(`Uploading ${step.label} to Offsite Storage...`)
-    await uploadToS3(encFile, `backups/${plan.stamp}/${basename(encFile)}`)
-    
-    // Remove plaintext file to prevent local leaks
-    rmSync(step.file, { force: true });
-    step.file = encFile; // Update step reference for manifest
+    try {
+      runDockerDump({
+        directory: plan.directory,
+        filename: basename(step.file),
+        command: step.command,
+        password
+      })
+      if (!statSync(step.file).size) throw new Error(`${step.label} backup is empty`)
+      
+      // Encrypt the file
+      const encFile = `${step.file}.enc`;
+      console.log(`Encrypting ${step.label} with AES-256-GCM...`)
+      await encryptFile(step.file, encFile, encryptionKey)
+      
+      // Upload to S3 and verify
+      console.log(`Uploading ${step.label} to S3 Offsite Storage...`)
+      const objectKey = `backups/${plan.stamp}/${basename(encFile)}`;
+      const { hash, size } = await uploadToS3(encFile, objectKey)
+      
+      files.push({
+        name: basename(encFile),
+        bytes: size,
+        sha256: hash,
+        algorithm: 'aes-256-gcm',
+        s3_key: objectKey
+      })
+      
+      step.file = encFile;
+    } finally {
+      // 0600 cleanup guarantee
+      rmSync(step.file.replace('.enc', ''), { force: true });
+    }
   }
 
-  const files = steps.map(step => ({
-    name: basename(step.file),
-    bytes: statSync(step.file).size,
-    sha256: sha256(step.file)
-  }))
   const manifest = {
     status: 'BACKUP_CREATED_NOT_YET_RESTORE_VERIFIED',
     createdAt: new Date().toISOString(),
     sourceProjectRef: PRODUCTION_PROJECT_REF,
     scope: ['roles artifact', 'public schema/data', 'mes_private schema/data'],
+    encryption: 'aes-256-gcm',
+    format: 'MAGIC|VERSION|ALGORITHM|IV_LENGTH|IV|CIPHERTEXT|AUTH_TAG',
     files
   }
   
@@ -174,7 +231,7 @@ async function main() {
   console.log(`Uploading manifest...`)
   await uploadToS3(manifestFile, `backups/${plan.stamp}/manifest.json`)
 
-  console.log(`PASS production offsite backup completed and encrypted. Local dir: ${plan.directory}`)
+  console.log(`PASS production offsite backup completed, GCM encrypted, and uploaded to S3. Local dir: ${plan.directory}`)
   for (const file of files) console.log(`PASS ${file.name}: ${file.bytes} bytes, SHA-256 ${file.sha256}`)
   console.log('Restore verification is still required before this backup is considered proven.')
 }

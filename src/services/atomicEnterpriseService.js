@@ -19,39 +19,19 @@ export async function deductInventoryAtomic({ inventoryId, deductTotal = 0, rele
       p_release_reserved: Number(releaseReserved) || 0
     })
 
-    if (!error && data?.success) {
-      return { success: true, data }
+    if (error) {
+      console.error('[AtomicEnterprise] RPC deduct_inventory_atomic failed (Fail-Closed):', error.message)
+      throw error
     }
+    
+    if (!data?.success) {
+      throw new Error(data?.error || 'Server rejected inventory deduction')
+    }
+
+    return { success: true, data }
   } catch (err) {
-    console.warn('[AtomicEnterprise] RPC error, falling back to safe local update:', err)
-  }
-
-  // Graceful client fallback
-  try {
-    const { data: row, error: fetchErr } = await supabase
-      .from('inventory')
-      .select('id, total_qty, reserved_qty')
-      .eq('id', inventoryId)
-      .maybeSingle()
-
-    if (fetchErr || !row) throw new Error('Inventory record not found')
-
-    const newTotal = Math.max(0, (Number(row.total_qty) || 0) - (Number(deductTotal) || 0))
-    const newReserved = Math.max(0, (Number(row.reserved_qty) || 0) - (Number(releaseReserved) || 0))
-
-    const { error: updateErr } = await supabase
-      .from('inventory')
-      .update({
-        total_qty: newTotal,
-        reserved_qty: newReserved,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', inventoryId)
-
-    if (updateErr) throw updateErr
-    return { success: true, fallback: true, newTotal, newReserved }
-  } catch (fallbackErr) {
-    return { success: false, error: fallbackErr.message }
+    console.error('[AtomicEnterprise] Unhandled Exception (Fail-Closed):', err.message)
+    throw err
   }
 }
 
@@ -79,12 +59,18 @@ export async function confirmBufferCuttingAtomic({
       p_cutter_deductions: cutterDeductions
     })
 
-    if (!error && data?.success) {
-      return { success: true, data }
+    if (error) {
+      console.error('[AtomicEnterprise] RPC confirm_buffer_cutting_atomic failed (Fail-Closed):', error.message)
+      throw error
     }
-  } catch (err) {
-    console.warn('[AtomicEnterprise] Cutting RPC error:', err)
-  }
 
-  return { success: false, error: 'RPC execution failed' }
+    if (!data?.success) {
+      throw new Error(data?.error || 'Server rejected buffer cutting confirmation')
+    }
+
+    return { success: true, data }
+  } catch (err) {
+    console.error('[AtomicEnterprise] Unhandled Exception (Fail-Closed):', err.message)
+    throw err
+  }
 }

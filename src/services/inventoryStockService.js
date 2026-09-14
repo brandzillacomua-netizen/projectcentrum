@@ -11,17 +11,6 @@
 import { supabase } from '../supabase.js'
 import { sentryLogger } from './sentryLogger.js'
 
-const isMissingInventoryRpcError = (error) => {
-  const code = String(error?.code || '')
-  const message = String(error?.message || '').toLowerCase()
-  return ['PGRST202', '42883'].includes(code) || (
-    message.includes('rpc_increment_inventory_stock') && (
-      message.includes('not find') ||
-      message.includes('does not exist') ||
-      message.includes('schema cache')
-    )
-  )
-}
 
 /**
  * Increment inventory stock atomically
@@ -70,20 +59,17 @@ export async function incrementInventoryStock({
     })
 
     if (error) {
-      sentryLogger.logWarning(
-        new Error(`[MES INVENTORY RPC DEGRADATION] rpc_increment_inventory_stock: ${error.message}`),
+      sentryLogger.logException(
+        new Error(`[MES INVENTORY RPC EXCEPTION] rpc_increment_inventory_stock: ${error.message}`),
         { nomenclatureId, qty: numQty, type, errorCode: error.code }
       )
-      if (isMissingInventoryRpcError(error)) {
-        console.warn('[InventoryStockService] RPC is not installed; activating compatibility fallback:', error.message)
-        return await executeFallbackIncrement({ nomenclatureId, qty: numQty, type, itemName: resolvedName, unit: resolvedUnit })
-      }
+      console.error('[InventoryStockService] RPC failed (Fail-Closed):', error.message)
       throw error
     }
 
     if (data?.success === false) {
       console.warn('[InventoryStockService] RPC rejected inventory increment:', data)
-      return { success: false, viaRpc: true, data }
+      throw new Error(data.error || 'Server rejected inventory increment')
     }
 
     return {
@@ -92,88 +78,14 @@ export async function incrementInventoryStock({
       data
     }
   } catch (err) {
-    console.warn('[InventoryStockService] RPC exception, running graceful fallback:', err)
-    sentryLogger.logWarning(
+    console.error('[InventoryStockService] Unhandled Exception (Fail-Closed):', err.message)
+    sentryLogger.logException(
       new Error(`[MES INVENTORY RPC EXCEPTION] ${err.message}`),
       { nomenclatureId, qty: numQty, type }
     )
-    if (isMissingInventoryRpcError(err)) {
-      return await executeFallbackIncrement({ nomenclatureId, qty: numQty, type, itemName: resolvedName, unit: resolvedUnit })
-    }
     throw err
   }
 }
 
-/**
- * Graceful fallback: Sequential client-side read + update/insert
- */
-async function executeFallbackIncrement({ nomenclatureId, qty, type, itemName, unit }) {
-  try {
-    let { data: existing, error: lookupError } = await supabase
-      .from('inventory')
-      .select('id, total_qty, nomenclature_id, name')
-      .eq('nomenclature_id', nomenclatureId)
-      .eq('type', type)
-      .eq('warehouse', 'operational')
-      .is('pocket_owner', null)
-      .limit(1)
-      .maybeSingle()
-
-    if (lookupError) throw lookupError
-
-    // Fallback: match by name if nomenclature_id was not yet attached to row
-    if (!existing && itemName) {
-      const { data: byName } = await supabase
-        .from('inventory')
-        .select('id, total_qty, nomenclature_id, name')
-        .eq('type', type)
-        .eq('warehouse', 'operational')
-        .is('pocket_owner', null)
-        .ilike('name', itemName.trim())
-        .limit(1)
-        .maybeSingle()
-      if (byName) existing = byName
-    }
-
-    if (existing) {
-      const newTotal = (Number(existing.total_qty) || 0) + Number(qty)
-      const { error: updateError } = await supabase
-        .from('inventory')
-        .update({
-          total_qty: newTotal,
-          nomenclature_id: nomenclatureId || existing.nomenclature_id,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', existing.id)
-
-      if (updateError) throw updateError
-      return { success: true, viaRpc: false, action: 'updated', newQty: newTotal }
-    } else {
-      const { data: inserted, error: insertError } = await supabase
-        .from('inventory')
-        .insert([{
-          nomenclature_id: nomenclatureId,
-          name: itemName || 'Деталь',
-          unit: unit || 'шт',
-          total_qty: Number(qty),
-          type: type,
-          warehouse: 'operational',
-          updated_at: new Date().toISOString()
-        }])
-        .select('id, total_qty')
-        .single()
-
-      if (insertError) throw insertError
-      return { success: true, viaRpc: false, action: 'inserted', newQty: Number(qty), id: inserted?.id }
-    }
-  } catch (fallbackErr) {
-    console.error('[InventoryStockService] Fallback inventory increment failed:', fallbackErr)
-    sentryLogger.logException(
-      new Error(`[MES INVENTORY WRITE FAILURE] ${fallbackErr.message}`),
-      { nomenclatureId, qty, type }
-    )
-    throw fallbackErr
-  }
-}
 
 export default incrementInventoryStock

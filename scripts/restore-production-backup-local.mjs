@@ -1,15 +1,19 @@
-import { createHash } from 'node:crypto'
-import { createReadStream, readFileSync, writeFileSync } from 'node:fs'
+import { createHash, createDecipheriv } from 'node:crypto'
+import { createReadStream, readFileSync, writeFileSync, openSync, readSync, closeSync, createWriteStream, rmSync, mkdirSync } from 'node:fs'
 import { readdir, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { basename, resolve } from 'node:path'
+import { basename, resolve, join } from 'node:path'
 import { spawn, spawnSync } from 'node:child_process'
 import { pathToFileURL } from 'node:url'
+import { pipeline } from 'node:stream/promises'
+import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3'
 
 export const RESTORE_CONTAINER = 'centrum-restore-drill'
 export const RESTORE_DATABASE = 'centrum_restore'
 export const RESTORE_PURPOSE = 'isolated-restore-drill'
 export const REQUIRED_POSTGRES_MAJOR = 17
+
+const MAGIC_HEADER = Buffer.from([0x43, 0x54, 0x52, 0x4D, 0x01, 0x47, 0x43, 0x4D, 0x20, 0x0C]);
 
 export async function sha256File(filePath) {
   const hash = createHash('sha256')
@@ -27,8 +31,13 @@ export async function verifyBackupManifest(directory) {
     throw new Error('Backup manifest must describe exactly three files')
   }
 
+  // We now expect .enc files if encrypted
+  const expectedNames = manifest.encryption === 'aes-256-gcm' 
+    ? ['roles.sql.enc', 'schema.sql.enc', 'data.sql.enc']
+    : ['roles.sql', 'schema.sql', 'data.sql']
+
   for (const expected of manifest.files) {
-    if (!['roles.sql', 'schema.sql', 'data.sql'].includes(expected.name)) {
+    if (!expectedNames.includes(expected.name)) {
       throw new Error(`Unexpected backup file in manifest: ${expected.name}`)
     }
     const filePath = resolve(directory, expected.name)
@@ -171,10 +180,116 @@ function collectMetrics() {
   return JSON.parse(raw)
 }
 
+async function decryptGcmFileToSafeTemp(sourceFile, destFile, hexKey) {
+  const keyBuffer = Buffer.from(hexKey, 'hex');
+  if (keyBuffer.length !== 32) throw new Error('Encryption key must be exactly 32 bytes (64 hex characters)');
+
+  const fd = openSync(sourceFile, 'r');
+  const size = statSync(sourceFile).size;
+  
+  // Read Auth Tag
+  const authTag = Buffer.alloc(16);
+  readSync(fd, authTag, 0, 16, size - 16);
+  
+  // Read Header and IV
+  const headerIv = Buffer.alloc(22);
+  readSync(fd, headerIv, 0, 22, 0);
+  closeSync(fd);
+
+  if (Buffer.compare(headerIv.subarray(0, 10), MAGIC_HEADER) !== 0) {
+    throw new Error(`[FATAL] Invalid Magic Header for ${basename(sourceFile)}. The file is either corrupted or tampered with.`);
+  }
+
+  const iv = headerIv.subarray(10, 22);
+  const decipher = createDecipheriv('aes-256-gcm', keyBuffer, iv);
+  decipher.setAuthTag(authTag); // Set Auth Tag BEFORE decryption
+
+  // Stream ciphertext only
+  const input = createReadStream(sourceFile, { start: 22, end: size - 17 });
+  const output = createWriteStream(destFile, { mode: 0o600 });
+  
+  try {
+    await pipeline(input, decipher, output);
+  } catch (err) {
+    // Pipeline throws if Auth Tag fails
+    rmSync(destFile, { force: true });
+    throw new Error(`[FATAL] Authenticated Decryption Failed for ${basename(sourceFile)}. Ciphertext or Auth Tag was tampered with! Details: ${err.message}`);
+  }
+}
+
+async function downloadFromS3(s3Key, destPath) {
+  if (!process.env.AWS_S3_BUCKET || !process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY) {
+    throw new Error(`[FATAL] S3 credentials missing. Cannot download ${s3Key}`);
+  }
+
+  const s3 = new S3Client({
+    region: process.env.AWS_REGION || 'eu-central-1',
+    credentials: {
+      accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    }
+  });
+
+  const response = await s3.send(new GetObjectCommand({
+    Bucket: process.env.AWS_S3_BUCKET,
+    Key: s3Key
+  }));
+  
+  const output = createWriteStream(destPath);
+  await pipeline(response.Body, output);
+}
+
+async function downloadFullBackupFromS3(stamp, tempDir) {
+  mkdirSync(tempDir, { recursive: true, mode: 0o700 });
+  console.log(`Downloading manifest from S3 for backup ${stamp}...`);
+  const manifestPath = join(tempDir, 'manifest.json');
+  await downloadFromS3(`backups/${stamp}/manifest.json`, manifestPath);
+  
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+  for (const file of manifest.files) {
+    console.log(`Downloading ${file.name} from S3...`);
+    await downloadFromS3(`backups/${stamp}/${file.name}`, join(tempDir, file.name));
+  }
+  return tempDir;
+}
+
+async function processAndImportEncrypted(directory, fileName, decryptionKey, importOptions) {
+  const encFile = resolve(directory, fileName);
+  const plainFile = resolve(directory, fileName.replace('.enc', ''));
+  
+  console.log(`Decrypting ${fileName} (verifying GCM Auth Tag)...`);
+  await decryptGcmFileToSafeTemp(encFile, plainFile, decryptionKey);
+  
+  try {
+    console.log(`Importing ${fileName.replace('.enc', '')}...`);
+    await importSqlFile(plainFile, importOptions);
+  } finally {
+    // 0600 cleanup guarantee
+    rmSync(plainFile, { force: true });
+  }
+}
+
 async function main() {
-  const backupRoot = process.env.BACKUP_OUTPUT_DIR || resolve(tmpdir(), 'centrum-mes-backups')
-  const directory = process.env.BACKUP_DIRECTORY || await latestBackupDirectory(backupRoot)
+  const encryptionKey = process.env.BACKUP_ENCRYPTION_KEY;
+  if (!encryptionKey || !/^[0-9a-fA-F]{64}$/.test(encryptionKey)) {
+    throw new Error('BACKUP_ENCRYPTION_KEY is required and must be exactly 64 hex characters (32 bytes) for AES-256');
+  }
+
+  const s3Stamp = process.env.RESTORE_S3_STAMP; // e.g. 2026-09-14T23-35-09-954Z
+  let directory;
+  
+  if (s3Stamp) {
+    const dlRoot = resolve(tmpdir(), 'centrum-s3-restore', s3Stamp);
+    directory = await downloadFullBackupFromS3(s3Stamp, dlRoot);
+  } else {
+    const backupRoot = process.env.BACKUP_OUTPUT_DIR || resolve(tmpdir(), 'centrum-mes-backups')
+    directory = process.env.BACKUP_DIRECTORY || await latestBackupDirectory(backupRoot)
+  }
+
   const { manifest, manifestPath } = await verifyBackupManifest(directory)
+  if (manifest.encryption !== 'aes-256-gcm') {
+    throw new Error(`[FATAL] Backup encryption is ${manifest.encryption || 'none'}, expected aes-256-gcm. Legacy CBC backups are UNRESTORABLE / DEPRECATED for security reasons.`);
+  }
   console.log(`PASS backup integrity verified: ${directory}`)
 
   const inspection = JSON.parse(dockerSync(['inspect', RESTORE_CONTAINER]))
@@ -184,15 +299,21 @@ async function main() {
 
   bootstrapLocalSupabaseDependencies()
   console.log('PASS local Supabase compatibility dependencies prepared')
-  await importSqlFile(resolve(directory, 'schema.sql'), { skipPublicSchemaCreation: true })
+  
+  // Roles is not executed via psql importSqlFile directly in the same way because roles often fail on existing roles
+  // We skip roles here or just run it. The original script didn't import roles, it just bootstrapped dependencies.
+  
+  await processAndImportEncrypted(directory, 'schema.sql.enc', encryptionKey, { skipPublicSchemaCreation: true });
   console.log('PASS public + mes_private schemas restored')
-  await importSqlFile(resolve(directory, 'data.sql'), { disableTriggers: true })
+  
+  await processAndImportEncrypted(directory, 'data.sql.enc', encryptionKey, { disableTriggers: true });
   console.log('PASS public data restored with local business triggers disabled during import')
 
   const metrics = collectMetrics()
   if (!metrics.tables || !metrics.functions || !metrics.private_tables || !metrics.work_cards) {
     throw new Error(`Restore postcondition failed: ${JSON.stringify(metrics)}`)
   }
+  
   const restoredManifest = {
     ...manifest,
     status: 'RESTORE_VERIFIED_MES_DATABASE_SCOPE',

@@ -71,64 +71,13 @@ export function createProductionOrdersActions({
 
   const deleteOrder = async (orderId) => {
     try {
-      const { data: tasks } = await supabase.from('tasks').select('id').eq('order_id', orderId)
-      const taskIds = tasks ? tasks.map(t => t.id) : []
-
-      let wcQuery = supabase.from('work_cards').select('id')
-      if (taskIds.length > 0) {
-        wcQuery = wcQuery.or(`order_id.eq.${orderId},task_id.in.(${taskIds.join(',')})`)
-      } else {
-        wcQuery = wcQuery.eq('order_id', orderId)
-      }
-      const { data: wcList } = await wcQuery
-      const cardIds = wcList ? wcList.map(c => c.id) : []
-
-      let crbQuery = supabase.from('cutter_restoration_batches').select('id')
-      if (cardIds.length > 0 && taskIds.length > 0) {
-        crbQuery = crbQuery.or(`order_id.eq.${orderId},source_card_id.in.(${cardIds.join(',')}),task_id.in.(${taskIds.join(',')})`)
-      } else if (cardIds.length > 0) {
-        crbQuery = crbQuery.or(`order_id.eq.${orderId},source_card_id.in.(${cardIds.join(',')})`)
-      } else if (taskIds.length > 0) {
-        crbQuery = crbQuery.or(`order_id.eq.${orderId},task_id.in.(${taskIds.join(',')})`)
-      } else {
-        crbQuery = crbQuery.eq('order_id', orderId)
-      }
-      const { data: crbList } = await crbQuery
-      const crbIds = crbList ? crbList.map(b => b.id) : []
-
-      let vrcQuery = supabase.from('vkya_restoration_cards').select('id')
-      if (cardIds.length > 0 && taskIds.length > 0) {
-        vrcQuery = vrcQuery.or(`source_order_id.eq.${orderId},source_card_id.in.(${cardIds.join(',')}),source_task_id.in.(${taskIds.join(',')}),route_card_id.in.(${cardIds.join(',')})`)
-      } else if (cardIds.length > 0) {
-        vrcQuery = vrcQuery.or(`source_order_id.eq.${orderId},source_card_id.in.(${cardIds.join(',')}),route_card_id.in.(${cardIds.join(',')})`)
-      } else if (taskIds.length > 0) {
-        vrcQuery = vrcQuery.or(`source_order_id.eq.${orderId},source_task_id.in.(${taskIds.join(',')})`)
-      } else {
-        vrcQuery = vrcQuery.eq('source_order_id', orderId)
-      }
-      const { data: vrcList } = await vrcQuery
-      const vrcIds = vrcList ? vrcList.map(c => c.id) : []
-
-      // Auto-release any allocated BZ reservations before deleting tasks
-      try {
-        const { data: bzRes } = await supabase.from('bz_inventory_reservations')
-          .select('operation_id')
-          .eq('status', 'allocated')
-          .or(`order_id.eq.${orderId}${taskIds.length ? `,task_id.in.(${taskIds.join(',')})` : ''}`)
-        if (bzRes && bzRes.length > 0) {
-          const opIds = [...new Set(bzRes.map(r => r.operation_id).filter(Boolean))]
-          for (const opId of opIds) {
-            await supabase.rpc('release_bz_reservation', { p_operation_id: opId, p_reason: 'Авто-звільнення при видаленні замовлення' }).catch(() => {})
-          }
-        }
-      } catch (e) {
-        console.warn('BZ auto-release warning on order delete:', e)
-      }
-
-      // Execute atomic cascade delete via RPC
-      const { error: rpcErr } = await supabase.rpc('rpc_super_delete_order', { p_order_id: orderId })
+      const idempotencyKey = `void_order_${orderId}_${Date.now()}`
+      const { error: rpcErr } = await supabase.rpc('rpc_void_order_atomic', { 
+        p_order_id: orderId,
+        p_reason: 'Regular delete action from UI',
+        p_idempotency_key: idempotencyKey
+      })
       if (rpcErr) throw rpcErr
-
     } catch (e) {
       console.error('deleteOrder error:', e)
       throw e
@@ -136,180 +85,18 @@ export function createProductionOrdersActions({
       refreshTable('orders')
       refreshTable('work_cards')
       refreshTable('tasks')
+      refreshTable('inventory')
     }
   }
 
   const superDeleteOrder = async (orderId) => {
     try {
-      // 1. Fetch related objects
-      const { data: orderTasks } = await supabase.from('tasks').select('id, step, status, planned_sets, plan_snapshot').eq('order_id', orderId)
-      const taskIds = orderTasks ? orderTasks.map(t => t.id) : []
-
-      // Fetch material requests related to order or tasks
-      let requestsQuery = supabase.from('material_requests').select('*')
-      if (taskIds.length > 0) {
-        requestsQuery = requestsQuery.or(`order_id.eq.${orderId},task_id.in.(${taskIds.join(',')})`)
-      } else {
-        requestsQuery = requestsQuery.eq('order_id', orderId)
-      }
-      const { data: matRequests } = await requestsQuery
-
-      // Fetch work cards related to order or tasks
-      let cardsQuery = supabase.from('work_cards').select('*')
-      if (taskIds.length > 0) {
-        cardsQuery = cardsQuery.or(`order_id.eq.${orderId},task_id.in.(${taskIds.join(',')})`)
-      } else {
-        cardsQuery = cardsQuery.eq('order_id', orderId)
-      }
-      const { data: workCardsData } = await cardsQuery
-
-      // Fetch reception docs related to order or tasks
-      let recDocsQuery = supabase.from('reception_docs').select('*')
-      if (taskIds.length > 0) {
-        recDocsQuery = recDocsQuery.or(`order_id.eq.${orderId},task_id.in.(${taskIds.join(',')})`)
-      } else {
-        recDocsQuery = recDocsQuery.eq('order_id', orderId)
-      }
-      const { data: recDocs } = await recDocsQuery
-
-      // 2. Fetch inventory items to optimize updates
-      const allInventoryIds = new Set()
-      const allNomenclatureIds = new Set()
-      
-      if (matRequests) {
-        matRequests.forEach(r => {
-          if (r.inventory_id) allInventoryIds.add(r.inventory_id)
-          if (r.nomenclature_id) allNomenclatureIds.add(r.nomenclature_id)
-        })
-      }
-      if (workCardsData) {
-        workCardsData.forEach(c => {
-          if (c.nomenclature_id) allNomenclatureIds.add(c.nomenclature_id)
-        })
-      }
-      if (recDocs) {
-        recDocs.forEach(d => {
-          if (Array.isArray(d.items)) {
-            d.items.forEach(it => {
-              if (it.inventory_id) allInventoryIds.add(it.inventory_id)
-              if (it.nomenclature_id) allNomenclatureIds.add(it.nomenclature_id)
-            })
-          }
-        })
-      }
-
-      const invIdsArr = Array.from(allInventoryIds)
-      const nomIdsArr = Array.from(allNomenclatureIds)
-
-      let invItems = []
-      if (invIdsArr.length > 0 || nomIdsArr.length > 0) {
-        let invQuery = supabase.from('inventory').select('*')
-        const filters = []
-        if (invIdsArr.length > 0) filters.push(`id.in.(${invIdsArr.join(',')})`)
-        if (nomIdsArr.length > 0) filters.push(`nomenclature_id.in.(${nomIdsArr.join(',')})`)
-        const { data: invData } = await invQuery.or(filters.join(','))
-        invItems = invData || []
-      }
-
-      const inventoryUpdatesMap = new Map()
-      const getOrCreateUpdatedItem = (item) => {
-        if (!inventoryUpdatesMap.has(item.id)) {
-          inventoryUpdatesMap.set(item.id, { ...item })
-        }
-        return inventoryUpdatesMap.get(item.id)
-      }
-
-      // A. Revert Material Request Reserves and Used Stocks
-      if (matRequests) {
-        for (const req of matRequests) {
-          const qty = getRequestQty(req)
-          if (qty <= 0) continue
-
-          if (req.status === 'issued') {
-            const item = invItems.find(i => i.id === req.inventory_id)
-            if (item) {
-              const upd = getOrCreateUpdatedItem(item)
-              upd.reserved_qty = Math.max(0, (Number(upd.reserved_qty) || 0) - qty)
-            }
-          } else if (req.status === 'completed') {
-            const item = invItems.find(i => i.id === req.inventory_id)
-            if (item) {
-              const upd = getOrCreateUpdatedItem(item)
-              upd.total_qty = (Number(upd.total_qty) || 0) + qty
-            }
-          }
-        }
-      }
-
-      // B. Revert BZ Stock reservations / SGP finished transfers
-      if (workCardsData) {
-        for (const card of workCardsData) {
-          const qty = Number(card.quantity) || 0
-          if (qty <= 0) continue
-
-          const isBZ = (card.card_info || '').includes('[ЗІ СКЛАДУ БЗ]')
-          const isRework = (card.card_info || '').includes('[REWORK]') || card.is_rework
-
-          if (isBZ) {
-            const bzItem = invItems.find(i => String(i.nomenclature_id) === String(card.nomenclature_id) && i.type === 'bz')
-            const sgpItem = invItems.find(i => String(i.nomenclature_id) === String(card.nomenclature_id) && i.type === 'finished')
-
-            if (bzItem) {
-              const upd = getOrCreateUpdatedItem(bzItem)
-              upd.total_qty = (Number(upd.total_qty) || 0) + qty
-            }
-            if (sgpItem) {
-              const upd = getOrCreateUpdatedItem(sgpItem)
-              upd.total_qty = Math.max(0, (Number(upd.total_qty) || 0) - qty)
-            }
-          } else if (!isRework && (card.status === 'completed' || card.status === 'at-buffer')) {
-            const isShop2 = (card.card_info || '').includes('[ЦЕХ №2]')
-            const targetType = isShop2 ? 'wip_bz' : 'semi'
-            
-            const prodItem = invItems.find(i => String(i.nomenclature_id) === String(card.nomenclature_id) && i.type === targetType)
-            if (prodItem) {
-              const upd = getOrCreateUpdatedItem(prodItem)
-              upd.total_qty = Math.max(0, (Number(upd.total_qty) || 0) - qty)
-            }
-          }
-        }
-      }
-
-      // C. Cancel transfer reservations in reception_docs
-      if (recDocs) {
-        for (const doc of recDocs) {
-          if ((doc.status === 'ordered' || doc.status === 'shipped') && doc.source_warehouse) {
-            const items = Array.isArray(doc.items) ? doc.items : []
-            for (const it of items) {
-              const qty = Number(it.qty ?? it.quantity ?? it.needed ?? 0)
-              if (qty <= 0) continue
-
-              const nomId = it.nomenclature_id
-              const item = invItems.find(i => 
-                i.warehouse === doc.source_warehouse && 
-                (
-                  (nomId && String(i.nomenclature_id) === String(nomId)) || 
-                  (it.inventory_id && String(i.id) === String(it.inventory_id))
-                )
-              )
-              if (item) {
-                const upd = getOrCreateUpdatedItem(item)
-                upd.reserved_qty = Math.max(0, (Number(upd.reserved_qty) || 0) - qty)
-              }
-            }
-          }
-        }
-      }
-
-      // Save inventory updates
-      const updates = Array.from(inventoryUpdatesMap.values())
-      if (updates.length > 0) {
-        const { error: invErr } = await supabase.from('inventory').upsert(updates)
-        if (invErr) throw invErr
-      }
-
-      // Execute atomic cascade delete via RPC (handles all cards, history, leaf tables, etc.)
-      const { error: rpcErr } = await supabase.rpc('rpc_super_delete_order', { p_order_id: orderId })
+      const idempotencyKey = `void_super_order_${orderId}_${Date.now()}`
+      const { error: rpcErr } = await supabase.rpc('rpc_void_order_atomic', { 
+        p_order_id: orderId,
+        p_reason: 'Super delete action from UI (reverts reserves)',
+        p_idempotency_key: idempotencyKey
+      })
       if (rpcErr) throw rpcErr
 
       refreshTable('orders')

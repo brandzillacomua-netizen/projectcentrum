@@ -18,11 +18,7 @@ export const processOfflineMutation = async (item) => {
         cardId,
         cardUpdate: updateData,
         idempotencyKey: item.key || null,
-        allowOfflineQueue: false,
-        fallbackFn: async () => {
-          const { error } = await supabase.from('work_cards').update(updateData).eq('id', cardId)
-          if (error) throw error
-        }
+        allowOfflineQueue: false
       })
 
       if (transitionResult?.conflict) {
@@ -43,11 +39,7 @@ export const processOfflineMutation = async (item) => {
         cardId,
         cardUpdate: updateData,
         idempotencyKey: item.key || null,
-        allowOfflineQueue: false,
-        fallbackFn: async () => {
-          const { error } = await supabase.from('work_cards').update(updateData).eq('id', cardId)
-          if (error) throw error
-        }
+        allowOfflineQueue: false
       })
 
       if (transitionResult?.conflict) {
@@ -69,17 +61,7 @@ export const processOfflineMutation = async (item) => {
         historyData,
         clientSession,
         idempotencyKey: item.key || null,
-        allowOfflineQueue: false,
-        fallbackFn: async () => {
-          if (historyData) {
-            const { error: histErr } = await supabase.from('work_card_history').insert([historyData])
-            if (histErr) console.warn('[OfflineProcessor] History insert warning:', histErr)
-          }
-          if (cardUpdate) {
-            const { error: cardErr } = await supabase.from('work_cards').update(cardUpdate).eq('id', cardId)
-            if (cardErr) throw cardErr
-          }
-        }
+        allowOfflineQueue: false
       })
 
       if (transitionResult?.conflict) {
@@ -113,44 +95,20 @@ export const processOfflineMutation = async (item) => {
     case 'CONFIRM_BUFFER': {
       const { cardId, cardUpdate, historyData, totalScrap, cardNomId, nomName, nomUnit } = payload
 
-      // ── Step 1: Try atomic PostgreSQL RPC with idempotency key ────────────
-      try {
-        const { data: rpcRes, error: rpcErr } = await supabase.rpc('rpc_confirm_buffer_atomic', {
-          p_card_id: cardId,
-          p_card_update: cardUpdate,
-          p_history_data: historyData,
-          p_total_scrap: totalScrap || 0,
-          p_nomenclature_id: cardNomId || null,
-          p_scrap_item_name: nomName || 'Деталь',
-          p_scrap_unit: nomUnit || 'шт',
-          p_idempotency_key: item.key || null
-        })
-        if (!rpcErr && rpcRes?.success !== false) {
-          return { success: true }
-        }
-      } catch (e) {
-        console.warn('[OfflineProcessor] RPC confirm buffer failed, falling back to legacy writes:', e)
-      }
-
-      // ── Step 2: Legacy fallback if RPC not active ─────────────────────────
-      if (historyData) {
-        const { error: histErr } = await supabase.from('work_card_history').insert([historyData])
-        if (histErr) console.warn('[OfflineProcessor] History insert warning:', histErr)
-      }
-      if (cardUpdate) {
-        const { error: cardErr } = await supabase.from('work_cards').update(cardUpdate).eq('id', cardId)
-        if (cardErr) throw cardErr
-      }
-      if (totalScrap > 0 && cardNomId) {
-        await incrementInventoryStock({
-          nomenclatureId: cardNomId,
-          qty: totalScrap,
-          type: 'scrap_ready',
-          itemName: nomName || 'Деталь',
-          unit: nomUnit || 'шт'
-        }).catch(err => {
-          console.warn('[OfflineProcessor] Scrap increment fallback warning:', err)
-        })
+      // ── Try atomic PostgreSQL RPC with idempotency key ────────────
+      const { data: rpcRes, error: rpcErr } = await supabase.rpc('rpc_confirm_buffer_atomic', {
+        p_card_id: cardId,
+        p_card_update: cardUpdate,
+        p_history_data: historyData,
+        p_total_scrap: totalScrap || 0,
+        p_nomenclature_id: cardNomId || null,
+        p_scrap_item_name: nomName || 'Деталь',
+        p_scrap_unit: nomUnit || 'шт',
+        p_idempotency_key: item.key || null
+      })
+      if (rpcErr) throw rpcErr
+      if (rpcRes?.success === false) {
+        throw new Error(rpcRes.error || 'Server rejected buffer confirmation')
       }
       return { success: true }
     }
@@ -170,7 +128,7 @@ export const processOfflineMutation = async (item) => {
     }
 
     default:
-      console.warn(`[OfflineProcessor] Unknown actionType: ${actionType}`)
-      return { success: true }
+      console.error(`[OfflineProcessor] Unknown actionType (Dead Letter): ${actionType}`)
+      return { success: false, deadLetter: true, reason: `Unknown actionType: ${actionType}` }
   }
 }

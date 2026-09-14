@@ -33,7 +33,6 @@ export interface QcScrapParams {
   scrapQty: number
   historyData: Record<string, any>
   idempotencyKey?: string | null
-  fallbackFn?: (() => Promise<any> | any) | null
   allowOfflineQueue?: boolean
 }
 
@@ -58,7 +57,6 @@ export async function executeAtomicQcScrap({
   scrapQty,
   historyData,
   idempotencyKey = null,
-  fallbackFn = null,
   allowOfflineQueue = true
 }: QcScrapParams): Promise<QcScrapResult> {
   if (!cardId || scrapQty <= 0) {
@@ -110,18 +108,14 @@ export async function executeAtomicQcScrap({
         }
       }
 
-      console.warn('[AtomicQcScrap] RPC call failed, attempting graceful fallback:', error.message)
-      if (fallbackFn) {
-        try {
-          sentryLogger.logException(
-            new Error(`[MES RPC DEGRADATION] rpc_qc_scrap_atomic failed: ${error.message}`),
-            { rpc: 'rpc_qc_scrap_atomic', cardId, scrapQty, errorCode: error.code, message: error.message }
-          )
-        } catch (alertErr) {
-          console.warn('[AtomicQcScrap] Alerting error:', alertErr)
-        }
-        await fallbackFn()
-        return { success: true, viaRpc: false }
+      console.error('[AtomicQcScrap] RPC call failed (Fail-Closed):', error.message)
+      try {
+        sentryLogger.logException(
+          new Error(`[MES RPC DEGRADATION] rpc_qc_scrap_atomic failed: ${error.message}`),
+          { rpc: 'rpc_qc_scrap_atomic', cardId, scrapQty, errorCode: error.code, message: error.message }
+        )
+      } catch (alertErr) {
+        console.warn('[AtomicQcScrap] Alerting error:', alertErr)
       }
       throw error
     }
@@ -172,37 +166,14 @@ export async function executeAtomicQcScrap({
       }
     }
 
-    // 2. Secondary path: Graceful Fallback
-    if (fallbackFn) {
-      console.info('[AtomicQcScrap] Executing graceful fallback sequence for card:', cardId)
-      try {
-        sentryLogger.logException(
-          new Error(`[MES RPC UNHANDLED EXCEPTION] rpc_qc_scrap_atomic threw: ${err.message}`),
-          { rpc: 'rpc_qc_scrap_atomic', cardId, scrapQty, error: err }
-        )
-      } catch (alertErr) {
-        console.warn('[AtomicQcScrap] Alerting error:', alertErr)
-      }
-      try {
-        await fallbackFn()
-        return { success: true, viaRpc: false }
-      } catch (fbErr: any) {
-        if (allowOfflineQueue && isNetworkError(fbErr)) {
-          enqueueOfflineMutation({
-            key: resolvedKey,
-            actionType: 'QC_SCRAP',
-            payload: { cardId, scrapQty, historyData }
-          })
-          return {
-            success: true,
-            viaRpc: false,
-            queued: true,
-            isOffline: true,
-            message: 'Збережено в чергу офлайн (збій зв’язку). Буде передано автоматично.'
-          }
-        }
-        throw fbErr
-      }
+    console.error('[AtomicQcScrap] Unhandled Exception (Fail-Closed):', err.message)
+    try {
+      sentryLogger.logException(
+        new Error(`[MES RPC UNHANDLED EXCEPTION] rpc_qc_scrap_atomic threw: ${err.message}`),
+        { rpc: 'rpc_qc_scrap_atomic', cardId, scrapQty, error: err }
+      )
+    } catch (alertErr) {
+      console.warn('[AtomicQcScrap] Alerting error:', alertErr)
     }
     throw err
   }
