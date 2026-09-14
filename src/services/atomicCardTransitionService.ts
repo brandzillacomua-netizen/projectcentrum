@@ -149,19 +149,15 @@ export async function executeAtomicCardTransition({
         }
       }
 
-      // If function does not exist or server error, trigger fallback and LOUD ALERT
-      console.warn('[AtomicCardTransition] RPC call failed, attempting graceful fallback:', error.message)
-      if (fallbackFn) {
-        try {
-          sentryLogger.logException(
-            new Error(`[MES RPC DEGRADATION] rpc_transition_work_card_atomic failed: ${error.message}`),
-            { rpc: 'rpc_transition_work_card_atomic', cardId, errorCode: error.code, message: error.message }
-          )
-        } catch (alertErr) {
-          console.warn('[AtomicCardTransition] Alerting error:', alertErr)
-        }
-        await fallbackFn()
-        return { success: true, viaRpc: false }
+      // If function does not exist or server error, trigger LOUD ALERT and throw
+      console.error('[AtomicCardTransition] RPC call failed (Fail-Closed):', error.message)
+      try {
+        sentryLogger.logException(
+          new Error(`[MES RPC DEGRADATION] rpc_transition_work_card_atomic failed: ${error.message}`),
+          { rpc: 'rpc_transition_work_card_atomic', cardId, errorCode: error.code, message: error.message }
+        )
+      } catch (alertErr) {
+        console.warn('[AtomicCardTransition] Alerting error:', alertErr)
       }
       throw error
     }
@@ -219,53 +215,15 @@ export async function executeAtomicCardTransition({
       }
     }
 
-    // 2. Secondary path: Graceful Fallback with Precondition Idempotency Check
-    if (fallbackFn) {
-      console.info('[AtomicCardTransition] Executing graceful fallback sequence for card:', cardId)
-      try {
-        sentryLogger.logException(
-          new Error(`[MES RPC UNHANDLED EXCEPTION] rpc_transition_work_card_atomic threw: ${err.message}`),
-          { rpc: 'rpc_transition_work_card_atomic', cardId, error: err }
-        )
-      } catch (alertErr) {
-        console.warn('[AtomicCardTransition] Alerting error:', alertErr)
-      }
-      try {
-        // Guard against duplicate execution in fallback mode
-        const { data: freshCard } = await supabase
-          .from('work_cards')
-          .select('status, operation')
-          .eq('id', cardId)
-          .maybeSingle()
-
-        if (freshCard && freshCard.status === cardUpdate?.status && freshCard.operation === cardUpdate?.operation) {
-          console.info('[AtomicCardTransition Fallback] Card already transitioned by concurrent session')
-          return { success: true, viaRpc: false, alreadyProcessed: true }
-        }
-      } catch (checkErr) {
-        console.warn('[AtomicCardTransition Fallback] Precondition check non-fatal error:', checkErr)
-      }
-
-      try {
-        await fallbackFn()
-        return { success: true, viaRpc: false }
-      } catch (fbErr: any) {
-        if (allowOfflineQueue && isNetworkError(fbErr)) {
-          enqueueOfflineMutation({
-            key: resolvedKey,
-            actionType: 'TRANSITION_WORK_CARD',
-            payload: { cardId, cardUpdate, historyData, clientSession: resolvedSession }
-          })
-          return {
-            success: true,
-            viaRpc: false,
-            queued: true,
-            isOffline: true,
-            message: 'Збережено в чергу офлайн (збій зв’язку). Буде синхронізовано автоматично.'
-          }
-        }
-        throw fbErr
-      }
+    // 2. Fallback removed to enforce Fail-Closed atomic transitions
+    console.error('[AtomicCardTransition] Unhandled Exception (Fail-Closed):', err.message)
+    try {
+      sentryLogger.logException(
+        new Error(`[MES RPC UNHANDLED EXCEPTION] rpc_transition_work_card_atomic threw: ${err.message}`),
+        { rpc: 'rpc_transition_work_card_atomic', cardId, error: err }
+      )
+    } catch (alertErr) {
+      console.warn('[AtomicCardTransition] Alerting error:', alertErr)
     }
     throw err
   }

@@ -32,54 +32,11 @@ export async function deductInventoryAtomic(supabase, {
     }
 
     if (error) {
-      console.warn('[atomicInventoryService] RPC error, using graceful client fallback:', error.message);
+      console.error('[atomicInventoryService] RPC error (Fail-Closed):', error.message);
+      return { success: false, error };
     }
   } catch (rpcErr) {
-    console.warn('[atomicInventoryService] RPC execution failed, falling back:', rpcErr);
-  }
-
-  // 2. Graceful Fallback (Client-side read-modify-write)
-  try {
-    const { data: invRow, error: fetchErr } = await supabase
-      .from('inventory')
-      .select('id, total_qty, reserved_qty')
-      .eq('id', inventoryId)
-      .maybeSingle();
-
-    if (fetchErr) throw fetchErr;
-    if (!invRow) throw new Error(`Inventory item ${inventoryId} not found`);
-
-    const nextTotal = Math.max(0, (Number(invRow.total_qty) || 0) - numDeduct);
-    const nextReserved = Math.max(0, (Number(invRow.reserved_qty) || 0) - numRelease);
-
-    const updatePayload = {
-      total_qty: nextTotal,
-      updated_at: new Date().toISOString()
-    };
-    if (numRelease > 0) {
-      updatePayload.reserved_qty = nextReserved;
-    }
-
-    const { error: updateErr } = await supabase
-      .from('inventory')
-      .update(updatePayload)
-      .eq('id', inventoryId);
-
-    if (updateErr) throw updateErr;
-
-    return {
-      success: true,
-      data: {
-        id: inventoryId,
-        prev_total: invRow.total_qty,
-        new_total: nextTotal,
-        prev_reserved: invRow.reserved_qty,
-        new_reserved: nextReserved,
-        is_fallback: true
-      }
-    };
-  } catch (fallbackErr) {
-    console.error('[atomicInventoryService] Fallback inventory update failed:', fallbackErr);
-    return { success: false, error: fallbackErr };
+    console.error('[atomicInventoryService] RPC execution failed (Fail-Closed):', rpcErr);
+    return { success: false, error: rpcErr };
   }
 }
