@@ -1,17 +1,29 @@
 import React from 'react'
-import { ScannerPanel } from './Warehouse/components/ScannerPanel.jsx'
-import { ReceptionAcceptanceModal } from './Warehouse/components/ReceptionAcceptanceModal.jsx'
-import { ReserveAnalysisModal } from './Warehouse/components/ReserveAnalysisModal.jsx'
+import { ScannerPanel as ScannerPanelRaw } from './Warehouse/components/ScannerPanel.jsx'
+import { ReceptionAcceptanceModal as ReceptionAcceptanceModalRaw } from './Warehouse/components/ReceptionAcceptanceModal.jsx'
+import { ReserveAnalysisModal as ReserveAnalysisModalRaw } from './Warehouse/components/ReserveAnalysisModal.jsx'
 
 import { getQR, setQR } from './Supply/utils/supplyHelpers.js'
-import { SupplyNav } from './Supply/components/SupplyNav.jsx'
-import { SupplyCreateShipmentModal } from './Supply/components/SupplyCreateShipmentModal.jsx'
-import { SupplyRequestsTab } from './Supply/components/SupplyRequestsTab.jsx'
-import { SupplyRegistryTab } from './Supply/components/SupplyRegistryTab.jsx'
-import { SupplyStockTab } from './Supply/components/SupplyStockTab.jsx'
-import { SupplyQrTab } from './Supply/components/SupplyQrTab.jsx'
-import { SupplyShortageModal } from './Supply/components/SupplyShortageModal.jsx'
-import { SupplyDeleteItemModal } from './Supply/components/SupplyDeleteItemModal.jsx'
+import { SupplyNav as SupplyNavRaw } from './Supply/components/SupplyNav.jsx'
+import { SupplyCreateShipmentModal as SupplyCreateShipmentModalRaw } from './Supply/components/SupplyCreateShipmentModal.jsx'
+import { SupplyRequestsTab as SupplyRequestsTabRaw } from './Supply/components/SupplyRequestsTab.jsx'
+import { SupplyRegistryTab as SupplyRegistryTabRaw } from './Supply/components/SupplyRegistryTab.jsx'
+import { SupplyStockTab as SupplyStockTabRaw } from './Supply/components/SupplyStockTab.jsx'
+import { SupplyQrTab as SupplyQrTabRaw } from './Supply/components/SupplyQrTab.jsx'
+import { SupplyShortageModal as SupplyShortageModalRaw } from './Supply/components/SupplyShortageModal.jsx'
+import { SupplyDeleteItemModal as SupplyDeleteItemModalRaw } from './Supply/components/SupplyDeleteItemModal.jsx'
+
+const ScannerPanel = ScannerPanelRaw as React.FC<any>
+const ReceptionAcceptanceModal = ReceptionAcceptanceModalRaw as React.FC<any>
+const ReserveAnalysisModal = ReserveAnalysisModalRaw as React.FC<any>
+const SupplyNav = SupplyNavRaw as React.FC<any>
+const SupplyCreateShipmentModal = SupplyCreateShipmentModalRaw as React.FC<any>
+const SupplyRequestsTab = SupplyRequestsTabRaw as React.FC<any>
+const SupplyRegistryTab = SupplyRegistryTabRaw as React.FC<any>
+const SupplyStockTab = SupplyStockTabRaw as React.FC<any>
+const SupplyQrTab = SupplyQrTabRaw as React.FC<any>
+const SupplyShortageModal = SupplyShortageModalRaw as React.FC<any>
+const SupplyDeleteItemModal = SupplyDeleteItemModalRaw as React.FC<any>
 import { useSupplyData } from './Supply/hooks/useSupplyData.jsx'
 
 export { getQR, setQR }

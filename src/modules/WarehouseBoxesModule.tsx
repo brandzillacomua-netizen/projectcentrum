@@ -1,10 +1,16 @@
 import React from 'react'
 import { Warehouse as WarehouseIcon, ArrowLeft, Search, Check, AlertCircle, Box, QrCode, ChevronDown, Layers3 } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { ScannerPanel } from './Warehouse/components/ScannerPanel.jsx'
-import { KittingModal } from './Warehouse/components/KittingModal.jsx'
-import { MaterialDetailModal } from './Warehouse/components/MaterialDetailModal.jsx'
-import { ManualInventoryIssueUI, ManualIssueJournalButton } from './Warehouse/ManualIssue/ManualInventoryIssueUI.jsx'
+import { ScannerPanel as ScannerPanelRaw } from './Warehouse/components/ScannerPanel.jsx'
+import { KittingModal as KittingModalRaw } from './Warehouse/components/KittingModal.jsx'
+import { MaterialDetailModal as MaterialDetailModalRaw } from './Warehouse/components/MaterialDetailModal.jsx'
+import { ManualInventoryIssueUI as ManualInventoryIssueUIRaw, ManualIssueJournalButton as ManualIssueJournalButtonRaw } from './Warehouse/ManualIssue/ManualInventoryIssueUI.jsx'
+
+const ScannerPanel = ScannerPanelRaw as React.FC<any>
+const KittingModal = KittingModalRaw as React.FC<any>
+const MaterialDetailModal = MaterialDetailModalRaw as React.FC<any>
+const ManualInventoryIssueUI = ManualInventoryIssueUIRaw as React.FC<any>
+const ManualIssueJournalButton = ManualIssueJournalButtonRaw as React.FC<any>
 import { useWarehouseBoxesData } from './Warehouse/hooks/useWarehouseBoxesData.jsx'
 
 export const WarehouseBoxesModule: React.FC = () => {

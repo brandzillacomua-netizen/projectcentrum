@@ -12,14 +12,18 @@ import { useMES } from '../MESContext'
 import { useStore } from '../store/index.js'
 import { supabase } from '../supabase'
 import { IconSGP } from '../components/WarehouseIcons'
-import { ReserveAnalysisModal } from './Warehouse/components/ReserveAnalysisModal.jsx'
+import { ReserveAnalysisModal as ReserveAnalysisModalRaw } from './Warehouse/components/ReserveAnalysisModal.jsx'
 import { useWarehouseTheme } from './WarehouseFGP/hooks/useWarehouseTheme.js'
 import { useWarehouseRealtime } from './WarehouseFGP/hooks/useWarehouseRealtime.js'
 import { useShop2Buffer } from './WarehouseFGP/hooks/useShop2Buffer.js'
 import { usePackagingQueue } from './WarehouseFGP/hooks/usePackagingQueue.js'
 import { useInventoryGrouping } from './WarehouseFGP/hooks/useInventoryGrouping.js'
-import { PackagingQueueTab } from './WarehouseFGP/components/PackagingQueueTab.jsx'
-import { InventoryView } from './WarehouseFGP/components/InventoryView.jsx'
+import { PackagingQueueTab as PackagingQueueTabRaw } from './WarehouseFGP/components/PackagingQueueTab.jsx'
+import { InventoryView as InventoryViewRaw } from './WarehouseFGP/components/InventoryView.jsx'
+
+const ReserveAnalysisModal = ReserveAnalysisModalRaw as React.FC<any>
+const PackagingQueueTab = PackagingQueueTabRaw as React.FC<any>
+const InventoryView = InventoryViewRaw as React.FC<any>
 
 export const WarehouseFGPModule: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams()

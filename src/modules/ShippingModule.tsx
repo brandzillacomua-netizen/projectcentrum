@@ -1,12 +1,19 @@
 import React from 'react'
 import { PackageCheck, CheckCircle2, Clock } from 'lucide-react'
 import { useShippingData } from './Shipping/hooks/useShippingData.jsx'
-import ShippingHeader from './Shipping/components/ShippingHeader.jsx'
-import ReadyBatchCard from './Shipping/components/ReadyBatchCard.jsx'
-import ShippedBatchCard from './Shipping/components/ShippedBatchCard.jsx'
-import ShippingWorkModal from './Shipping/components/modals/ShippingWorkModal.jsx'
-import NovaPoshtaTtnModal from './Shipping/components/modals/NovaPoshtaTtnModal.jsx'
-import PackingSlipModal from './Shipping/components/modals/PackingSlipModal.jsx'
+import ShippingHeaderRaw from './Shipping/components/ShippingHeader.jsx'
+import ReadyBatchCardRaw from './Shipping/components/ReadyBatchCard.jsx'
+import ShippedBatchCardRaw from './Shipping/components/ShippedBatchCard.jsx'
+import ShippingWorkModalRaw from './Shipping/components/modals/ShippingWorkModal.jsx'
+import NovaPoshtaTtnModalRaw from './Shipping/components/modals/NovaPoshtaTtnModal.jsx'
+import PackingSlipModalRaw from './Shipping/components/modals/PackingSlipModal.jsx'
+
+const ShippingHeader = ShippingHeaderRaw as React.FC<any>
+const ReadyBatchCard = ReadyBatchCardRaw as React.FC<any>
+const ShippedBatchCard = ShippedBatchCardRaw as React.FC<any>
+const ShippingWorkModal = ShippingWorkModalRaw as React.FC<any>
+const NovaPoshtaTtnModal = NovaPoshtaTtnModalRaw as React.FC<any>
+const PackingSlipModal = PackingSlipModalRaw as React.FC<any>
 
 export const ShippingModule: React.FC = () => {
   const {

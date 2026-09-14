@@ -291,21 +291,24 @@ export function useDataRealtime(state, fetchers) {
       }, reconnectJitterMs)
     })
 
-    // ── EGRESS OPTIMIZATION: Poll heavy tables periodically to replace Realtime ──
-    const heavyTables = ['tasks', 'work_cards', 'inventory', 'material_requests', 'orders'].filter(t => routeHasTable(t))
-    let heavyPollingTimer = null
-    if (heavyTables.length > 0) {
-      heavyPollingTimer = setInterval(() => {
-        catchUpWithFullRefreshFallback(heavyTables)
-          .catch(error => console.warn('[CatchUpSync] Polling failed:', error))
-      }, 12000) // 12 seconds
-    }
+    // ── EGRESS OPTIMIZATION: Instant Lightweight Ping Subscriptions ──
+    // Instead of polling or heavy WebSocket payloads, we listen to a tiny ping table
+    activeChannel = activeChannel.on('postgres_changes', { event: '*', schema: 'public', table: 'sys_sync_pings' }, (payload) => {
+      const changedTable = payload.new?.table_name
+      if (changedTable && routeHasTable(changedTable)) {
+        // Add random jitter to prevent thundering herd if many clients are connected
+        const jitterMs = Math.floor(Math.random() * 800)
+        setTimeout(() => {
+          catchUpWithFullRefreshFallback([changedTable])
+            .catch(error => console.warn(`[CatchUpSync] Ping refresh failed for ${changedTable}:`, error))
+        }, jitterMs)
+      }
+    })
 
     return () => {
       window.removeEventListener('online', handleOnlineNetworkCatchUp)
       if (onlineCatchUpTimer) clearTimeout(onlineCatchUpTimer)
       if (reconnectRefreshTimer) clearTimeout(reconnectRefreshTimer)
-      if (heavyPollingTimer) clearInterval(heavyPollingTimer)
       if (productionSummaryRefreshTimer) clearTimeout(productionSummaryRefreshTimer)
       supabase.removeChannel(activeChannel)
     }
