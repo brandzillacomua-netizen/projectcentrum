@@ -1,11 +1,24 @@
+import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useDataState } from './data/dataState'
 import { useDataFetchers } from './data/dataFetchers'
 import { useDataRealtime } from './data/dataRealtime.js'
 import { useDataLifecycle } from './data/dataLifecycle.js'
+import { createStableFetcherFacade } from './data/stableFetchers.js'
 
 export function useData() {
   const state = useDataState()
-  const fetchers = useDataFetchers(state)
+  const latestFetchers = useDataFetchers(state)
+  const latestFetchersRef = useRef(latestFetchers)
+  const [fetcherKeys] = useState(() => Object.keys(latestFetchers))
+  useLayoutEffect(() => {
+    latestFetchersRef.current = latestFetchers
+  }, [latestFetchers])
+  // The getter is invoked by event/effect callbacks, never during render.
+  const fetchers = useMemo(
+    // eslint-disable-next-line react-hooks/refs
+    () => createStableFetcherFacade(() => latestFetchersRef.current, fetcherKeys),
+    [fetcherKeys]
+  )
   useDataRealtime(state, fetchers)
   useDataLifecycle(state, fetchers)
 

@@ -19,7 +19,7 @@ describe('reconnect catch-up degradation contract', () => {
 
   it('forces a full refresh only for failed tables', () => {
     expect(realtimeSource).toContain('catchUpWithFullRefreshFallback')
-    expect(realtimeSource).toContain('delete targetRefreshLastRef.current[getTargetRefreshKey(tableName)]')
-    expect(realtimeSource).toContain('await fetchData(failedTables)')
+    expect(realtimeSource).toContain('targetRefreshLastRef.current.delete(getTargetRefreshKey(tableName))')
+    expect(realtimeSource).toContain("await fetchData(failedTables, { force: true })")
   })
 })

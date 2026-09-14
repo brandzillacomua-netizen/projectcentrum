@@ -100,7 +100,7 @@ export function useDataLifecycle(state, fetchers) {
     let cancelled = false
     const now = Date.now()
     const missingOrStale = routeDataTables.filter(tableName => {
-      const lastRun = targetRefreshLastRef.current[getTargetRefreshKey(tableName)] || 0
+      const lastRun = targetRefreshLastRef.current.get(getTargetRefreshKey(tableName)) || 0
       return now - lastRun >= ROUTE_ENTRY_REFRESH_TTL_MS
     })
     if (missingOrStale.length === 0) return undefined
@@ -108,7 +108,7 @@ export function useDataLifecycle(state, fetchers) {
     const timer = setTimeout(() => {
       if (cancelled || currentUserIdRef.current !== currentUser.id) return
       const routeTargets = missingOrStale.filter(tableName => {
-        const lastRun = targetRefreshLastRef.current[getTargetRefreshKey(tableName)] || 0
+        const lastRun = targetRefreshLastRef.current.get(getTargetRefreshKey(tableName)) || 0
         return Date.now() - lastRun >= ROUTE_ENTRY_REFRESH_TTL_MS
       })
       const routeLoad = routeTargets.length > 0 ? fetchData(routeTargets) : Promise.resolve()

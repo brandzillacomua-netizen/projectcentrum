@@ -9,7 +9,6 @@ import {
   getTaskDataProfileKey,
   getRouteDataTables,
   fetchOperationalTasks,
-  fetchActiveTasksOnly,
   fetchActiveWorkCards,
   fetchOperationalMaterialRequests,
   fetchPendingMachineCalls,
@@ -109,16 +108,11 @@ export function useDataFetchers(state: any) {
       return { ...result, profileKey }
     }
 
-    const [fulfillmentResult, operationalResult] = await Promise.all([
-      fetchFulfillmentTasks(supabase, normalizedPath),
-      fetchActiveTasksOnly()
-    ])
-
+    const fulfillmentResult = await fetchFulfillmentTasks(supabase, normalizedPath)
     if (fulfillmentResult.error) return fulfillmentResult
-    if (operationalResult.error) return operationalResult
 
     return {
-      data: mergeTaskRows(operationalResult.data || [], fulfillmentResult.data || []),
+      data: fulfillmentResult.data || [],
       error: null,
       source: fulfillmentResult.source,
       profileKey
@@ -429,9 +423,10 @@ export function useDataFetchers(state: any) {
     }
   }
 
-  const fetchData = async (tables: string[] = []) => {
+  const fetchData = async (tables: string[] = [], options: { force?: boolean } = {}) => {
     if (!tables || tables.length === 0) return
-    const promises = tables.map(table => triggerTargetedRefresh(table, true))
+    const force = options.force === true
+    const promises = tables.map(table => triggerTargetedRefresh(table, force))
     await Promise.allSettled(promises)
   }
 

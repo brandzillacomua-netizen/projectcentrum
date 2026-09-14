@@ -277,9 +277,9 @@ export function useDataRealtime(state, fetchers) {
       if (failedTables.length === 0) return
       console.warn(`[CatchUpSync] Falling back to full refresh for [${failedTables.join(', ')}]`)
       failedTables.forEach(tableName => {
-        delete targetRefreshLastRef.current[getTargetRefreshKey(tableName)]
+        targetRefreshLastRef.current.delete(getTargetRefreshKey(tableName))
       })
-      await fetchData(failedTables)
+      await fetchData(failedTables, { force: true })
     }
 
     const handleOnlineNetworkCatchUp = () => {
@@ -738,8 +738,8 @@ export function useDataRealtime(state, fetchers) {
         const targetList = secondaryTables.filter(tableName => routeHasTable(tableName))
         if (targetList.length === 0) return
 
-        targetList.forEach(tableName => { delete targetRefreshLastRef.current[tableName] })
-        fetchData(targetList).catch(error => console.warn('Secondary Realtime catch-up failed:', error))
+        targetList.forEach(tableName => { targetRefreshLastRef.current.delete(getTargetRefreshKey(tableName)) })
+        fetchData(targetList, { force: true }).catch(error => console.warn('Secondary Realtime catch-up failed:', error))
       }, Math.floor(Math.random() * 2001))
     })
 
@@ -752,6 +752,7 @@ export function useDataRealtime(state, fetchers) {
   }, [
     currentUser?.id,
     fetchData,
+    getTargetRefreshKey,
     machinesRef,
     matReqPushBufferRef,
     ordersRef,

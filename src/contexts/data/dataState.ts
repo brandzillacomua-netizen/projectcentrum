@@ -25,7 +25,7 @@ export function useDataState() {
   const realtimeProfile = useMemo(() => getRealtimeProfile(path), [path])
   const routeDataTables = useMemo(() => getRouteDataTables(path), [path])
   const routeDataTableKey = routeDataTables.join('|')
-  const routeHasTable = (tableName: string) => routeDataTables.includes(tableName)
+  const routeHasTable = useCallback((tableName: string) => routeDataTables.includes(tableName), [routeDataTables])
   const needsProductionSummary = PRODUCTION_SUMMARY_ROUTES.has(normalizedPath)
   const isPublicDataRoute = realtimeProfile === 'public'
 
