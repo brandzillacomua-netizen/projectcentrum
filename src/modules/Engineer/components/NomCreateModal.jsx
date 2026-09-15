@@ -133,7 +133,15 @@ export const NomCreateModal = ({ onClose, onCreated, supabase, refreshTable, pre
     try {
       const codeStr = await generateNextV2Code(supabase, items)
 
-      const inferredType = wizardGroup?.id?.includes('frame') || wizardGroup?.id === 'cat_fg' ? 'product' : (wizardGroup?.id === 'cat_parts' ? 'part' : 'consumable')
+      const inferredType = (wizardRuleType === 'frame_part' || wizardGroup?.id === 'cat_parts' || wizardGroup?.id === 'grp_frame_parts')
+        ? 'part'
+        : (wizardRuleType === 'full_frame' || wizardRuleType === 'element_kit' || wizardGroup?.id === 'grp_production_frames' || wizardGroup?.id === 'grp_test_samples' || wizardGroup?.id === 'cat_fg')
+          ? 'product'
+          : (wizardRuleType === 'assembly' || wizardGroup?.id === 'grp_assemblies')
+            ? 'assembly'
+            : (wizardRuleType === 'screw' || wizardRuleType === 'screw_black' || wizardRuleType === 'screw_silver' || wizardRuleType === 'nut' || wizardRuleType === 'press_nut' || wizardRuleType === 'standoff' || wizardGroup?.id?.startsWith('cat_hw'))
+              ? 'hardware'
+              : 'consumable'
       const v2Payload = {
         code: codeStr,
         barcode: codeStr,

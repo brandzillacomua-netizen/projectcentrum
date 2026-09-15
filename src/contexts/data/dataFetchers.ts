@@ -504,7 +504,7 @@ export function useDataFetchers(state: any) {
         .from('management_tasks')
         .select('*')
         .eq('status', 'done')
-        .order('completed_at', { ascending: false })
+        .order('created_at', { ascending: false })
         .limit(200)
       if (error) throw error
       return data || []
