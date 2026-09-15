@@ -12,7 +12,9 @@ import {
   Search, 
   ChevronRight, 
   ChevronDown, 
-  AlertCircle 
+  AlertCircle,
+  Cpu,
+  SlidersHorizontal
 } from 'lucide-react'
 import { useMES } from '../../../MESContext'
 import { 
@@ -134,6 +136,21 @@ export function SpecBuilderTab() {
   const [saveSuccess, setSaveSuccess] = useState(false)
 
   const renderCutterListEditor = (cutters, setCutters) => renderCutterListEditorShared(cutters, setCutters, nomenclatures, rawNoms)
+
+  const getMachineValueForOp = (op) => {
+    if (!op) return ''
+    if (op.machine_type && MACHINE_TYPES.includes(op.machine_type)) return op.machine_type
+    const mac = machines?.find(m => m.id === op.machine_id)
+    if (mac?.name && MACHINE_TYPES.includes(mac.name)) return mac.name
+    const raw = op.machine_type || mac?.name || ''
+    const norm = raw.toLowerCase()
+    if (norm.includes('1200') || norm.includes('малий')) return MACHINE_TYPES[0]
+    if (norm.includes('3050') || norm.includes('швидкісний')) return MACHINE_TYPES[1]
+    if (norm.includes('3060') || norm.includes('триголовий') || norm.includes('три головий')) return MACHINE_TYPES[2]
+    if (norm.includes('6000') || norm.includes('дракон')) return MACHINE_TYPES[3]
+    if (norm.includes('feya') || norm.includes('ke xin') || norm.includes('фея')) return MACHINE_TYPES[4]
+    return op.machine_type || op.machine_id || ''
+  }
 
   useEffect(() => {
     const isModalOpen = !!activeInlinePart || !!showNomCreate || !!showParentCreate
@@ -939,21 +956,54 @@ export function SpecBuilderTab() {
                   <button onClick={addRow} style={{ padding: '8px 16px', background: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.3)', color: '#10b981', borderRadius: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem' }}>+ Додати першу позицію</button>
                 </div>
               ) : (
-                rows.map((r, idx) => (
-                  <BomRow
-                    key={idx}
-                    row={r}
-                    idx={idx}
-                    nomenclatures={bomComponentNomenclatures}
-                    bomItems={bomItems}
-                    onUpdate={updateRow}
-                    onRemove={removeRow}
-                    supabase={supabase}
-                    refreshTable={refreshTable}
-                    onExpandAssembly={handleExpandAssembly}
-                    usedNomIds={usedNomIds}
-                  />
-                ))
+                <>
+                  {rows.map((r, idx) => (
+                    <BomRow
+                      key={idx}
+                      row={r}
+                      idx={idx}
+                      nomenclatures={bomComponentNomenclatures}
+                      bomItems={bomItems}
+                      onUpdate={updateRow}
+                      onRemove={removeRow}
+                      supabase={supabase}
+                      refreshTable={refreshTable}
+                      onExpandAssembly={handleExpandAssembly}
+                      usedNomIds={usedNomIds}
+                    />
+                  ))}
+                  <div style={{ padding: '10px 14px', borderTop: '1px solid var(--border-color, #e2e8f0)', background: 'var(--card-header-bg, rgba(0,0,0,0.01))', borderRadius: '0 0 12px 12px' }}>
+                    <button
+                      onClick={addRow}
+                      style={{
+                        width: '100%',
+                        padding: '11px',
+                        background: 'rgba(59, 130, 246, 0.07)',
+                        border: '1px dashed rgba(59, 130, 246, 0.4)',
+                        color: '#2563eb',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        fontWeight: 800,
+                        fontSize: '0.85rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px',
+                        transition: 'all 0.15s ease'
+                      }}
+                      onMouseEnter={e => {
+                        e.currentTarget.style.background = 'rgba(59, 130, 246, 0.14)'
+                        e.currentTarget.style.borderColor = '#2563eb'
+                      }}
+                      onMouseLeave={e => {
+                        e.currentTarget.style.background = 'rgba(59, 130, 246, 0.07)'
+                        e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.4)'
+                      }}
+                    >
+                      <Plus size={16} /> + Додати рядок до специфікації
+                    </button>
+                  </div>
+                </>
               )}
             </div>
 
@@ -1084,30 +1134,105 @@ export function SpecBuilderTab() {
                                               <span style={{ color: '#8b5cf6' }}>↳</span>
                                               <span>{sbNom ? sbNom.name : 'Деталь'}</span>
                                               <span style={{ fontWeight: 800, color: 'var(--text-main, #0f172a)' }}>x{sb.quantity_per_parent * b.quantity_per_parent}</span>
-                                              {sbOps.map(op => {
-                                                const mac = machines?.find(m => m.id === op.machine_id)
-                                                const rawLbl = op.machine_type || mac?.name || 'CNC'
-                                                let lbl = rawLbl
-                                                const norm = rawLbl.toLowerCase()
-                                                if (norm.includes('1200') || norm.includes('1200x800') || norm.includes('малий')) lbl = 'Малий (1200)'
-                                                else if (norm.includes('3050')) lbl = 'Швидкісний (3050)'
-                                                else if (norm.includes('3060') || norm.includes('триголовий') || norm.includes('три головий')) lbl = '3-Головий (3060)'
-                                                else if (norm.includes('6000') || norm.includes('дракон')) lbl = 'Дракон (6000)'
-                                                else if (norm.includes('feya') || norm.includes('ke xin') || norm.includes('фея')) lbl = 'Фея'
-                                                else lbl = rawLbl.replace('CNC ', '').substring(0, 12)
-                                                return (
-                                                  <span key={op.id} style={{ fontSize: '0.55rem', background: 'rgba(3,105,161,0.12)', color: '#0284c7', padding: '0px 4px', borderRadius: '4px', border: '1px solid rgba(2,132,199,0.3)' }}>
-                                                    {lbl}
-                                                  </span>
-                                                )
-                                              })}
-                                              <button
-                                                className="no-print"
-                                                onClick={() => setActiveInlinePart({ id: sb.child_id, name: sbNom?.name })}
-                                                style={{ padding: '0px 4px', background: 'transparent', border: 'none', color: '#6366f1', cursor: 'pointer', fontSize: '0.65rem', textDecoration: 'underline', fontWeight: 800 }}
-                                              >
-                                                Налаштувати ЧПК
-                                              </button>
+                                              {sbOps.length > 0 ? (
+                                                <div style={{ display: 'inline-flex', flexWrap: 'wrap', gap: '3px', alignItems: 'center' }}>
+                                                  {sbOps.map(op => {
+                                                    const mac = machines?.find(m => m.id === op.machine_id)
+                                                    const rawLbl = op.machine_type || mac?.name || 'CNC'
+                                                    let lbl = rawLbl
+                                                    const norm = rawLbl.toLowerCase()
+                                                    if (norm.includes('1200') || norm.includes('1200x800') || norm.includes('малий')) lbl = 'Малий'
+                                                    else if (norm.includes('3050')) lbl = '3050'
+                                                    else if (norm.includes('3060') || norm.includes('триголовий') || norm.includes('три головий')) lbl = '3-Головий'
+                                                    else if (norm.includes('6000') || norm.includes('дракон')) lbl = 'Дракон'
+                                                    else if (norm.includes('feya') || norm.includes('ke xin') || norm.includes('фея')) lbl = 'Фея'
+                                                    else lbl = rawLbl.replace('CNC ', '').substring(0, 8)
+
+                                                    return (
+                                                      <button
+                                                        key={op.id}
+                                                        onClick={() => {
+                                                          setActiveInlinePart({ id: sb.child_id, name: sbNom?.name })
+                                                          setSelectedMachine(getMachineValueForOp(op))
+                                                        }}
+                                                        title={`Редагувати ЧПК операцію (${lbl}) для ${sbNom?.name}`}
+                                                        style={{
+                                                          display: 'inline-flex',
+                                                          alignItems: 'center',
+                                                          gap: '3px',
+                                                          fontSize: '0.62rem',
+                                                          background: 'rgba(3,105,161,0.1)',
+                                                          color: '#0284c7',
+                                                          padding: '2px 6px',
+                                                          borderRadius: '5px',
+                                                          border: '1px solid rgba(2,132,199,0.3)',
+                                                          fontWeight: 700,
+                                                          cursor: 'pointer',
+                                                          transition: 'all 0.15s ease'
+                                                        }}
+                                                        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(3,105,161,0.22)'; e.currentTarget.style.borderColor = '#0284c7'; }}
+                                                        onMouseLeave={e => { e.currentTarget.style.background = 'rgba(3,105,161,0.1)'; e.currentTarget.style.borderColor = 'rgba(2,132,199,0.3)'; }}
+                                                      >
+                                                        <Cpu size={10} style={{ color: '#0284c7' }} />
+                                                        <span>{lbl}</span>
+                                                      </button>
+                                                    )
+                                                  })}
+                                                  <button
+                                                    className="no-print"
+                                                    onClick={() => {
+                                                      setActiveInlinePart({ id: sb.child_id, name: sbNom?.name })
+                                                      setSelectedMachine('')
+                                                    }}
+                                                    title="Додати новий верстат ЧПК"
+                                                    style={{
+                                                      display: 'inline-flex',
+                                                      alignItems: 'center',
+                                                      justifyContent: 'center',
+                                                      padding: '2px 5px',
+                                                      background: 'rgba(99,102,241,0.1)',
+                                                      border: '1px solid rgba(99,102,241,0.3)',
+                                                      color: '#6366f1',
+                                                      borderRadius: '5px',
+                                                      cursor: 'pointer',
+                                                      fontSize: '0.62rem',
+                                                      fontWeight: 800,
+                                                      transition: 'all 0.15s ease'
+                                                    }}
+                                                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(99,102,241,0.22)'; }}
+                                                    onMouseLeave={e => { e.currentTarget.style.background = 'rgba(99,102,241,0.1)'; }}
+                                                  >
+                                                    <Plus size={11} />
+                                                  </button>
+                                                </div>
+                                              ) : (
+                                                <button
+                                                  className="no-print"
+                                                  onClick={() => {
+                                                    setActiveInlinePart({ id: sb.child_id, name: sbNom?.name })
+                                                    setSelectedMachine('')
+                                                  }}
+                                                  style={{
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    gap: '3px',
+                                                    padding: '2px 6px',
+                                                    background: 'rgba(241,245,249,0.8)',
+                                                    border: '1px dashed rgba(148,163,184,0.6)',
+                                                    color: '#64748b',
+                                                    borderRadius: '6px',
+                                                    cursor: 'pointer',
+                                                    fontSize: '0.62rem',
+                                                    fontWeight: 700,
+                                                    transition: 'all 0.15s ease'
+                                                  }}
+                                                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(238,242,255,0.8)'; e.currentTarget.style.color = '#4f46e5'; e.currentTarget.style.borderColor = '#818cf8'; }}
+                                                  onMouseLeave={e => { e.currentTarget.style.background = 'rgba(241,245,249,0.8)'; e.currentTarget.style.color = '#64748b'; e.currentTarget.style.borderColor = 'rgba(148,163,184,0.6)'; }}
+                                                >
+                                                  <SlidersHorizontal size={10} />
+                                                  <span>+ ЧПК</span>
+                                                </button>
+                                              )}
                                             </div>
                                           )
                                         })}
@@ -1119,38 +1244,94 @@ export function SpecBuilderTab() {
                                   </td>
                                   <td style={{ padding: '8px 8px', textAlign: 'center', color: '#f59e0b', fontWeight: 800, fontSize: '0.85rem' }}>{b.quantity_per_parent}</td>
                                   <td style={{ padding: '8px 8px', textAlign: 'center', color: 'var(--text-muted, #64748b)', fontSize: '0.75rem' }}>{child?.unit || 'шт'}</td>
-                                  <td className="no-print" style={{ padding: '4px 8px', textAlign: 'center' }}>
+                                  <td className="no-print" style={{ padding: '6px 8px', textAlign: 'center' }}>
                                     {(child?.type === 'part' || child?.type === 'assembly') ? (
-                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', alignItems: 'center' }}>
-                                        {existingOps.length > 0 ? (
-                                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px', justifyContent: 'center' }}>
-                                            {existingOps.map(op => {
-                                              const mac = machines?.find(m => m.id === op.machine_id)
-                                              const rawLbl = op.machine_type || mac?.name || 'CNC'
-                                              let lbl = rawLbl
-                                              const norm = rawLbl.toLowerCase()
-                                              if (norm.includes('1200') || norm.includes('1200x800') || norm.includes('малий')) lbl = 'Малий (1200)'
-                                              else if (norm.includes('3050')) lbl = 'Швидкісний (3050)'
-                                              else if (norm.includes('3060') || norm.includes('триголовий') || norm.includes('три головий')) lbl = '3-Головий (3060)'
-                                              else if (norm.includes('6000') || norm.includes('дракон')) lbl = 'Дракон (6000)'
-                                              else if (norm.includes('feya') || norm.includes('ke xin') || norm.includes('фея')) lbl = 'Фея'
-                                              else lbl = rawLbl.replace('CNC ', '').substring(0, 12)
-                                              
-                                              return (
-                                                <span key={op.id} style={{ fontSize: '0.55rem', background: 'rgba(37,99,235,0.12)', color: '#2563eb', padding: '1px 5px', borderRadius: '4px', border: '1px solid rgba(37,99,235,0.3)' }}>
-                                                  {lbl}
-                                                </span>
-                                              )
-                                            })}
-                                          </div>
-                                        ) : (
-                                          <span style={{ fontSize: '0.6rem', color: 'var(--text-muted, #94a3b8)', fontStyle: 'italic' }}>немає</span>
-                                        )}
+                                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', justifyContent: 'center', alignItems: 'center' }}>
+                                        {existingOps.map(op => {
+                                          const mac = machines?.find(m => m.id === op.machine_id)
+                                          const rawLbl = op.machine_type || mac?.name || 'CNC'
+                                          let lbl = rawLbl
+                                          const norm = rawLbl.toLowerCase()
+                                          if (norm.includes('1200') || norm.includes('1200x800') || norm.includes('малий')) lbl = 'Малий (1200)'
+                                          else if (norm.includes('3050')) lbl = 'Швидкісний (3050)'
+                                          else if (norm.includes('3060') || norm.includes('триголовий') || norm.includes('три головий')) lbl = '3-Головий (3060)'
+                                          else if (norm.includes('6000') || norm.includes('дракон')) lbl = 'Дракон (6000)'
+                                          else if (norm.includes('feya') || norm.includes('ke xin') || norm.includes('фея')) lbl = 'Фея'
+                                          else lbl = rawLbl.replace('CNC ', '').substring(0, 12)
+
+                                          return (
+                                            <button
+                                              key={op.id}
+                                              onClick={() => {
+                                                setActiveInlinePart({ id: b.child_id, name: child?.name })
+                                                setSelectedMachine(getMachineValueForOp(op))
+                                              }}
+                                              title={`Редагувати ЧПК операцію для верстата: ${lbl}`}
+                                              style={{
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: '4px',
+                                                fontSize: '0.68rem',
+                                                padding: '3px 8px',
+                                                borderRadius: '6px',
+                                                background: 'rgba(37, 99, 235, 0.08)',
+                                                color: '#2563eb',
+                                                border: '1px solid rgba(37, 99, 235, 0.3)',
+                                                fontWeight: 700,
+                                                cursor: 'pointer',
+                                                whiteSpace: 'nowrap',
+                                                transition: 'all 0.15s ease'
+                                              }}
+                                              onMouseEnter={e => {
+                                                e.currentTarget.style.background = 'rgba(37, 99, 235, 0.2)'
+                                                e.currentTarget.style.borderColor = '#2563eb'
+                                                e.currentTarget.style.transform = 'translateY(-1px)'
+                                              }}
+                                              onMouseLeave={e => {
+                                                e.currentTarget.style.background = 'rgba(37, 99, 235, 0.08)'
+                                                e.currentTarget.style.borderColor = 'rgba(37, 99, 235, 0.3)'
+                                                e.currentTarget.style.transform = 'translateY(0)'
+                                              }}
+                                            >
+                                              <Cpu size={11} style={{ color: '#2563eb' }} />
+                                              <span>{lbl}</span>
+                                            </button>
+                                          )
+                                        })}
                                         <button
-                                          onClick={() => setActiveInlinePart({ id: b.child_id, name: child?.name })}
-                                          style={{ padding: '2px 6px', background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.3)', color: '#6366f1', borderRadius: '4px', cursor: 'pointer', fontSize: '0.6rem', fontWeight: 800, marginTop: '2px' }}
+                                          onClick={() => {
+                                            setActiveInlinePart({ id: b.child_id, name: child?.name })
+                                            setSelectedMachine('')
+                                          }}
+                                          title="Додати нові ЧПК операції"
+                                          style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            gap: '3px',
+                                            padding: existingOps.length > 0 ? '3px 6px' : '4px 8px',
+                                            borderRadius: '6px',
+                                            background: existingOps.length > 0 ? 'rgba(99, 102, 241, 0.1)' : 'rgba(241, 245, 249, 0.9)',
+                                            color: existingOps.length > 0 ? '#4f46e5' : '#64748b',
+                                            border: existingOps.length > 0 ? '1px solid rgba(99, 102, 241, 0.35)' : '1px dashed rgba(148, 163, 184, 0.6)',
+                                            fontWeight: 800,
+                                            fontSize: '0.68rem',
+                                            cursor: 'pointer',
+                                            transition: 'all 0.15s ease'
+                                          }}
+                                          onMouseEnter={e => {
+                                            e.currentTarget.style.background = 'rgba(99, 102, 241, 0.22)'
+                                            e.currentTarget.style.borderColor = '#6366f1'
+                                            e.currentTarget.style.color = '#4338ca'
+                                          }}
+                                          onMouseLeave={e => {
+                                            e.currentTarget.style.background = existingOps.length > 0 ? 'rgba(99, 102, 241, 0.1)' : 'rgba(241, 245, 249, 0.9)'
+                                            e.currentTarget.style.borderColor = existingOps.length > 0 ? '1px solid rgba(99, 102, 241, 0.35)' : '1px dashed rgba(148, 163, 184, 0.6)'
+                                            e.currentTarget.style.color = existingOps.length > 0 ? '#4f46e5' : '#64748b'
+                                          }}
                                         >
-                                          ЧПК
+                                          <Plus size={12} />
+                                          {existingOps.length === 0 && <span>ЧПК</span>}
                                         </button>
                                       </div>
                                     ) : (
