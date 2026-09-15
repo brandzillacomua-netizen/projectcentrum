@@ -8,6 +8,8 @@ import {
 } from '../../NomenclatureV2'
 import { generateNextV2Code } from '../../../utils/codeGenerator'
 
+import { mapV2ToStandardNom } from '../utils/engineerHelpers.jsx'
+
 export const NomCreateModal = ({ onClose, onCreated, supabase, refreshTable, prefilledName = '' }) => {
   const [groups, setGroups] = useState(DEFAULT_ERP_GROUPS)
   const [items, setItems] = useState([])
@@ -164,8 +166,10 @@ export const NomCreateModal = ({ onClose, onCreated, supabase, refreshTable, pre
 
       if (insertErr) throw insertErr
 
+      await refreshTable('nomenclatures_v2')
       await refreshTable('nomenclatures')
-      if (onCreated) onCreated(inserted)
+      const mappedInserted = mapV2ToStandardNom(inserted) || inserted
+      if (onCreated) onCreated(mappedInserted)
       onClose()
       alert(`✅ Позицію «${generatedName}» успішно збережено до V2 каталогу!`)
     } catch (err) {

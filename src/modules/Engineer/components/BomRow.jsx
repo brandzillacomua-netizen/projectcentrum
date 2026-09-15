@@ -1,9 +1,9 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react'
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus, Trash2, Lock } from 'lucide-react'
 import { NomCreateModal } from './NomCreateModal'
-import { autoClassify, TYPE_COLORS, TYPE_LABELS } from '../utils/engineerHelpers.jsx'
+import { autoClassify, TYPE_COLORS, TYPE_LABELS, mapV2ToStandardNom } from '../utils/engineerHelpers.jsx'
 
-export const BomRow = ({ row, idx, nomenclatures, bomItems, onUpdate, onRemove, supabase, refreshTable, onExpandAssembly }) => {
+export const BomRow = ({ row, idx, nomenclatures, bomItems, onUpdate, onRemove, supabase, refreshTable, onExpandAssembly, usedNomIds }) => {
   const [query, setQuery] = useState(row.nomName || '')
   const [showDrop, setShowDrop] = useState(false)
   const [showCreate, setShowCreate] = useState(false)
@@ -16,6 +16,13 @@ export const BomRow = ({ row, idx, nomenclatures, bomItems, onUpdate, onRemove, 
       setQuery(row.nomName || '')
     }
   }, [row.nomId, row.nomName])
+
+  const usedOtherIds = useMemo(() => {
+    if (!usedNomIds) return new Set()
+    const set = new Set(usedNomIds)
+    if (row.nomId) set.delete(String(row.nomId))
+    return set
+  }, [usedNomIds, row.nomId])
 
   const filtered = useMemo(() => {
     if (!query || query.length < 1) return []
@@ -47,9 +54,10 @@ export const BomRow = ({ row, idx, nomenclatures, bomItems, onUpdate, onRemove, 
           refreshTable={refreshTable}
           onClose={() => setShowCreate(false)}
           onCreated={nom => {
-            setQuery(nom.name)
+            const mapped = mapV2ToStandardNom(nom) || nom
+            setQuery(mapped.name)
             setShowDrop(false)
-            onUpdate(idx, { nomId: nom.id, nomName: nom.name, nomType: nom.type, nomUnit: nom.unit, group: autoClassify(nom) })
+            onUpdate(idx, { nomId: mapped.id, nomName: mapped.name, nomType: mapped.type, nomUnit: mapped.unit, group: autoClassify(mapped) })
           }}
         />
       )}
@@ -93,34 +101,51 @@ export const BomRow = ({ row, idx, nomenclatures, bomItems, onUpdate, onRemove, 
                   marginTop: '4px' 
                 }}
               >
-                {filtered.map(n => (
-                  <div
-                    key={n.id}
-                    onMouseDown={(e) => {
-                      e.preventDefault()
-                      setQuery(n.name)
-                      setShowDrop(false)
-                      onUpdate(idx, { nomId: n.id, nomName: n.name, nomType: n.type, nomUnit: n.unit, group: autoClassify(n) })
-                    }}
-                    style={{ 
-                      padding: '10px 14px', 
-                      cursor: 'pointer', 
-                      display: 'flex', 
-                      justifyContent: 'space-between', 
-                      alignItems: 'center', 
-                      borderBottom: '1px solid var(--border-color, #e2e8f0)', 
-                      transition: 'background 0.15s' 
-                    }}
-                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(59, 130, 246, 0.12)'}
-                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                  >
-                    <div>
-                      <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main, #0f172a)' }}>{n.name}</div>
-                      {n.material_type && <div style={{ fontSize: '0.7rem', color: 'var(--text-muted, #64748b)' }}>{n.material_type}</div>}
+                {filtered.map(n => {
+                  const isAlreadySelected = usedOtherIds.has(String(n.id))
+                  return (
+                    <div
+                      key={n.id}
+                      onMouseDown={(e) => {
+                        e.preventDefault()
+                        if (isAlreadySelected) return
+                        setQuery(n.name)
+                        setShowDrop(false)
+                        onUpdate(idx, { nomId: n.id, nomName: n.name, nomType: n.type, nomUnit: n.unit, group: autoClassify(n) })
+                      }}
+                      style={{ 
+                        padding: '10px 14px', 
+                        cursor: isAlreadySelected ? 'not-allowed' : 'pointer', 
+                        opacity: isAlreadySelected ? 0.55 : 1,
+                        background: isAlreadySelected ? 'var(--card-header-bg, rgba(0,0,0,0.03))' : 'transparent',
+                        display: 'flex', 
+                        justifyContent: 'space-between', 
+                        alignItems: 'center', 
+                        borderBottom: '1px solid var(--border-color, #e2e8f0)', 
+                        transition: 'background 0.15s' 
+                      }}
+                      onMouseEnter={e => {
+                        if (!isAlreadySelected) e.currentTarget.style.background = 'rgba(59, 130, 246, 0.12)'
+                      }}
+                      onMouseLeave={e => {
+                        if (!isAlreadySelected) e.currentTarget.style.background = 'transparent'
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main, #0f172a)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span>{n.name}</span>
+                          {isAlreadySelected && (
+                            <span style={{ fontSize: '0.65rem', color: '#ef4444', fontWeight: 800, background: 'rgba(239, 68, 68, 0.12)', padding: '1px 6px', borderRadius: '4px', border: '1px solid rgba(239, 68, 68, 0.3)', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                              <Lock size={10} /> Вже у специфікації
+                            </span>
+                          )}
+                        </div>
+                        {n.material_type && <div style={{ fontSize: '0.7rem', color: 'var(--text-muted, #64748b)' }}>{n.material_type}</div>}
+                      </div>
+                      <span style={{ fontSize: '0.65rem', fontWeight: 900, background: (TYPE_COLORS[n.type] || '#555') + '22', color: TYPE_COLORS[n.type] || '#888', padding: '2px 8px', borderRadius: '20px', whiteSpace: 'nowrap' }}>{TYPE_LABELS[n.type] || n.type}</span>
                     </div>
-                    <span style={{ fontSize: '0.65rem', fontWeight: 900, background: (TYPE_COLORS[n.type] || '#555') + '22', color: TYPE_COLORS[n.type] || '#888', padding: '2px 8px', borderRadius: '20px', whiteSpace: 'nowrap' }}>{TYPE_LABELS[n.type] || n.type}</span>
-                  </div>
-                ))}
+                  )
+                })}
                 {filtered.length === 0 && (
                   <div style={{ padding: '12px 14px' }}>
                     <div style={{ color: 'var(--text-muted, #64748b)', fontSize: '0.8rem', marginBottom: '10px' }}>Нічого не знайдено за запитом «{query}»</div>

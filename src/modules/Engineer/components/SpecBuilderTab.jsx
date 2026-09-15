@@ -241,33 +241,65 @@ export function SpecBuilderTab() {
       return
     }
     if (parentId === 'temp-new') {
-      setRows([])
-      lastLoadedParentId.current = 'temp-new'
+      if (lastLoadedParentId.current !== 'temp-new') {
+        setRows([])
+        lastLoadedParentId.current = 'temp-new'
+      }
       return
     }
     
-    const existing = bomItems.filter(b => String(b.parent_id) === String(parentId))
-    if (existing.length > 0) {
-      setRows(existing.map(b => {
-        const nom = nomenclatures.find(n => String(n.id) === String(b.child_id)) || (rawNoms || []).find(n => String(n.id) === String(b.child_id))
+    if (lastLoadedParentId.current !== parentId) {
+      const existing = bomItems.filter(b => String(b.parent_id) === String(parentId))
+      if (existing.length > 0) {
+        setRows(existing.map(b => {
+          const nom = nomenclatures.find(n => String(n.id) === String(b.child_id)) || (rawNoms || []).find(n => String(n.id) === String(b.child_id))
+          return {
+            nomId: b.child_id,
+            nomName: nom?.name || '(невідомо)',
+            nomType: nom?.type || 'part',
+            nomUnit: nom?.unit || 'шт',
+            group: b.group_label || autoClassify(nom),
+            qty: b.quantity_per_parent ?? 1
+          }
+        }))
+      } else {
+        setRows([])
+      }
+      lastLoadedParentId.current = parentId
+    } else {
+      // Enrich existing rows with freshly fetched nomenclature data without wiping rows array
+      setRows(prevRows => prevRows.map(r => {
+        if (!r.nomId) return r
+        const nom = nomenclatures.find(n => String(n.id) === String(r.nomId)) || (rawNoms || []).find(n => String(n.id) === String(r.nomId))
+        if (!nom) return r
         return {
-          nomId: b.child_id,
-          nomName: nom?.name || '(невідомо)',
-          nomType: nom?.type || 'part',
-          nomUnit: nom?.unit || 'шт',
-          group: b.group_label || autoClassify(nom),
-          qty: b.quantity_per_parent ?? 1
+          ...r,
+          nomName: nom.name || r.nomName,
+          nomType: nom.type || r.nomType,
+          nomUnit: nom.unit || r.nomUnit,
+          group: r.group || autoClassify(nom)
         }
       }))
-    } else {
-      setRows([])
     }
-    lastLoadedParentId.current = parentId
   }, [parentId, bomItems, nomenclatures, rawNoms])
+
+  const usedNomIds = useMemo(() => {
+    return new Set(rows.map(r => r.nomId ? String(r.nomId) : null).filter(Boolean))
+  }, [rows])
 
   const addRow = () => setRows(prev => [...prev, { nomId: null, nomName: '', nomType: 'part', nomUnit: 'шт', group: 'Деталі', qty: 1 }])
 
-  const updateRow = (idx, patch) => setRows(prev => prev.map((r, i) => i === idx ? { ...r, ...patch } : r))
+  const updateRow = (idx, patch) => {
+    if (patch.nomId) {
+      const isDuplicate = rows.some((r, i) => i !== idx && r.nomId && String(r.nomId) === String(patch.nomId))
+      if (isDuplicate) {
+        alert('Цю номенклатуру вже додано до даної специфікації!')
+        return
+      }
+    }
+    setRows(prev => prev.map((r, i) => i === idx ? { ...r, ...patch } : r))
+  }
+
   const removeRow = (idx) => setRows(prev => prev.filter((_, i) => i !== idx))
 
   const handleExpandAssembly = (assemblyNomId, multiplier = 1) => {
@@ -485,7 +517,30 @@ export function SpecBuilderTab() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       {showNomCreate && (
-        <NomCreateModal supabase={supabase} refreshTable={refreshTable} onClose={() => setShowNomCreate(false)} onCreated={() => {}} />
+        <NomCreateModal 
+          supabase={supabase} 
+          refreshTable={refreshTable} 
+          onClose={() => setShowNomCreate(false)} 
+          onCreated={(newNom) => {
+            if (newNom) {
+              if ((newNom.type === 'product' || newNom.type === 'assembly') && !parentId) {
+                setParentId(newNom.id)
+              } else if (viewMode === 'editor') {
+                const isDuplicate = rows.some(r => r.nomId && String(r.nomId) === String(newNom.id))
+                if (!isDuplicate) {
+                  setRows(prev => [...prev, {
+                    nomId: newNom.id,
+                    nomName: newNom.name,
+                    nomType: newNom.type,
+                    nomUnit: newNom.unit || 'шт',
+                    group: autoClassify(newNom),
+                    qty: 1
+                  }])
+                }
+              }
+            }
+          }} 
+        />
       )}
 
       {/* Header */}
@@ -896,6 +951,7 @@ export function SpecBuilderTab() {
                     supabase={supabase}
                     refreshTable={refreshTable}
                     onExpandAssembly={handleExpandAssembly}
+                    usedNomIds={usedNomIds}
                   />
                 ))
               )}
