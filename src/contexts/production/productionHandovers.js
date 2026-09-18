@@ -59,7 +59,19 @@ export function createProductionHandoversActions({
       const task = tasks.find(t => String(t.id) === String(taskId))
       if (!task) return
 
-      // ── Крок 1: паралельно завершуємо завдання і завантажуємо дані ──
+      // ── Primary Atomic Path: Try PostgreSQL ACID RPC ──
+      try {
+        const { data: rpcRes, error: rpcErr } = await supabase.rpc('rpc_handover_task_to_shop2_atomic', { p_task_id: taskId })
+        if (!rpcErr && rpcRes?.success) {
+          await deductIssuedMaterialsForTask(taskId).catch(() => {})
+          refreshTable('inventory'); refreshTable('tasks'); refreshTable('reception_docs'); refreshTable('material_requests')
+          return
+        }
+      } catch (rpcEx) {
+        console.warn('RPC handoverTaskToShop2 fallback engaged:', rpcEx?.message || rpcEx)
+      }
+
+      // ── Fallback Path: Sequential HTTP writes ──
       await supabase.from('tasks').update({ status: 'completed', completed_at: new Date().toISOString() }).eq('id', taskId)
       await deductIssuedMaterialsForTask(taskId)
 
@@ -394,6 +406,22 @@ export function createProductionHandoversActions({
       const { data: freshCard } = await supabase.from('work_cards').select('id, status, nomenclature_id, quantity, card_info, order_id, task_id, operation').eq('id', cardId).single()
       if (!freshCard) return
       if (freshCard.status === 'completed') { alert('Ця картка вже передана на СГП і завершена. Повторна передача неможлива.'); return }
+
+      // ── Primary Atomic Path: Try PostgreSQL ACID RPC ──
+      try {
+        const { data: rpcRes, error: rpcErr } = await supabase.rpc('rpc_handover_to_sgp_atomic', { p_card_id: cardId })
+        if (!rpcErr && rpcRes?.success) {
+          setWorkCards(prev => prev.filter(c => String(c.id) !== String(cardId)))
+          refreshTable('work_cards')
+          refreshTable('inventory')
+          alert("Деталі успішно передані на Склад Готової Продукції!")
+          return
+        }
+      } catch (rpcEx) {
+        console.warn('RPC handoverToSGP fallback engaged:', rpcEx?.message || rpcEx)
+      }
+
+      // ── Fallback Path: Sequential HTTP writes ──
       const card = freshCard
       const rawNomId = card.nomenclature_id
       const nomId = resolveCanonicalNomId(rawNomId, nomenclatures) || String(rawNomId || '')

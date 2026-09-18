@@ -249,6 +249,33 @@ export function useSortingTerminalData() {
       const op = selectedOperator || activeCompletingCard.operator_name || 'Сортування'
       const activeShift = selectedShift || activeCompletingCard.shift_name || 'Без зміни'
 
+      // ── Primary Atomic Path: Try PostgreSQL ACID RPC ──
+      try {
+        const { data: rpcRes, error: rpcErr } = await supabase.rpc('rpc_submit_sorting_complete_atomic', {
+          p_card_id: activeCompletingCard.id,
+          p_good_qty: goodQty,
+          p_scrap_qty: scrapCount,
+          p_rework_qty: reworkCount,
+          p_operator_name: op,
+          p_shift_name: activeShift
+        })
+
+        if (!rpcErr && rpcRes?.success) {
+          setShowCompleteModal(false)
+          setActiveCompletingCard(null)
+          setManualId('')
+          setScanError(null)
+          setScrapCount(0)
+          setReworkCount(0)
+          fetchData(['work_cards', 'work_card_history', 'inventory']).catch(() => {})
+          alert(`✅ ${goodQty} шт відправлено в буфер Цеху №2!`)
+          return
+        }
+      } catch (rpcEx) {
+        console.warn('RPC submitSortingComplete fallback engaged:', rpcEx?.message || rpcEx)
+      }
+
+      // ── Fallback Path: Sequential HTTP writes ──
       const generateUUID = () => {
         if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID()
         return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
