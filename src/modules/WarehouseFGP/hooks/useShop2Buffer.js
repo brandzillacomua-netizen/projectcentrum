@@ -22,7 +22,7 @@ export function useShop2Buffer({ tasks, workCards, orders, nomenclatures, search
     const info = String(card.card_info || '')
     if (info.includes('[SHOP:2]') || info.includes('[ЦЕХ №2]') || info.includes('[ЦЕХ 2]')) return true
     const op = String(card.operation || '')
-    if (['Пресування', 'Фарбування', 'Малярка', 'Доопрацювання', 'Пакування'].includes(op)) return true
+    if (['Пресування', 'Фарбування', 'Малярка', 'Доопрацювання'].includes(op)) return true
     return false
   }, [shop2TaskIdsSet])
 

@@ -10,6 +10,7 @@ import scannerDebounceGuard, { triggerHapticAudioFeedback } from '../../../servi
 import { executeAtomicQcScrap } from '../../../services/atomicQcScrapService'
 import { executeAtomicCardTransition } from '../../../services/atomicCardTransitionService'
 import { incrementInventoryStock } from '../../../services/inventoryStockService'
+import { isPackagingOperation } from '../../Shop2CardGen/constants/shop2Stages'
 
 
 export function useShop2TerminalState() {
@@ -40,11 +41,12 @@ export function useShop2TerminalState() {
 
   const isShop2Card = useCallback((card) => {
     if (!card) return false
+    const op = String(card.operation || '')
+    if (isPackagingOperation(op)) return false
     if (shop2TaskIdsSet.has(String(card.task_id))) return true
     const info = String(card.card_info || '')
     if (info.includes('[SHOP:2]') || info.includes('[ЦЕХ №2]') || info.includes('[ЦЕХ 2]')) return true
-    const op = String(card.operation || '')
-    if (['Пресування', 'Фарбування', 'Малярка', 'Доопрацювання', 'Пакування'].includes(op)) return true
+    if (['Пресування', 'Фарбування', 'Малярка', 'Доопрацювання'].includes(op)) return true
     return false
   }, [shop2TaskIdsSet])
 
