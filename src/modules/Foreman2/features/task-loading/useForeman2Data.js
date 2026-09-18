@@ -6,6 +6,8 @@ import { calculateTaskParts, summarizeTaskState } from '../shortage/shortageCalc
 import { getOrderForTask, getTaskDisplayName, isRelevantForemanTask } from './taskSelectors.js'
 import { useQualityLossTotals } from '../../../VKYA/quality-hold/useQualityLossTotals.js'
 
+const HISTORY_SELECT = 'id,card_id,task_id,nomenclature_id,scrap_qty,stage_name,operator_name,qty_at_start,qty_completed,created_at,completed_at,is_archived_scrap,card_info'
+
 const fetchHistoryForCards = async (cardIds) => {
   if (!cardIds?.length) return []
   const chunkSize = 60
@@ -22,7 +24,7 @@ const fetchHistoryForCards = async (cardIds) => {
         const to = from + pageSize - 1
         const { data, error } = await supabase
           .from('work_card_history')
-          .select('id,card_id,nomenclature_id,scrap_qty,stage_name,operator_name,qty_at_start,qty_completed,created_at,completed_at')
+          .select(HISTORY_SELECT)
           .in('card_id', chunk)
           .order('created_at', { ascending: true })
           .range(from, to)
@@ -39,6 +41,7 @@ const fetchHistoryForCards = async (cardIds) => {
 }
 
 const fetchHistoryForTasksOrCards = async (taskIds, cardIds) => {
+  let taskRows = []
   if (taskIds?.length) {
     const chunkSize = 50
     const chunks = []
@@ -49,20 +52,19 @@ const fetchHistoryForTasksOrCards = async (taskIds, cardIds) => {
       chunks.map(chunk =>
         supabase
           .from('work_card_history')
-          .select('id,card_id,nomenclature_id,scrap_qty,stage_name,operator_name,qty_at_start,qty_completed,created_at,completed_at')
+          .select(HISTORY_SELECT)
           .in('task_id', chunk)
           .order('created_at', { ascending: true })
           .limit(10000)
           .then(res => res.data || [])
       )
     )
-    const directRows = results.flat()
-    if (directRows.length > 0) {
-      return Array.from(new Map(directRows.filter(Boolean).map(row => [String(row.id), row])).values())
-    }
+    taskRows = results.flat()
   }
 
-  return fetchHistoryForCards(cardIds)
+  const cardRows = await fetchHistoryForCards(cardIds)
+  const combined = [...taskRows, ...cardRows].filter(Boolean)
+  return Array.from(new Map(combined.map(row => [String(row.id), row])).values())
 }
 
 import { useStore } from '../../../../store/index.js'

@@ -42,8 +42,8 @@ export const buildScrapModel = (cards = [], historyRows = []) => {
     scrapByTask[taskId][nomId] = (scrapByTask[taskId][nomId] || 0) + scrapQty
 
     // Track rows that are explicitly NOT yet archived by VKYA (still in quarantine/review)
-    // is_archived_scrap === false means the VKYA inspector has NOT yet closed this case
-    if (row.is_archived_scrap === false) {
+    // is_archived_scrap !== true means the VKYA inspector has NOT yet closed this case
+    if (row.is_archived_scrap !== true) {
       if (!pendingVkyaByTask[taskId]) pendingVkyaByTask[taskId] = {}
       pendingVkyaByTask[taskId][nomId] = (pendingVkyaByTask[taskId][nomId] || 0) + scrapQty
     }
