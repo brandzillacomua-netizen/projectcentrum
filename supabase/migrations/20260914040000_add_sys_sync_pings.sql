@@ -1,3 +1,16 @@
+-- Migration: Add Sys Sync Pings Realtime Table
+-- rollout-contract: v1
+-- risk: low
+-- transaction: transactional
+-- preflight: supabase/diagnostics/20260914040000_add_sys_sync_pings_preflight.sql
+-- postcondition: supabase/diagnostics/20260914040000_add_sys_sync_pings_postcondition.sql
+-- rollback: supabase/rollbacks/20260914040000_add_sys_sync_pings_rollback.sql
+
+SET lock_timeout = '5s';
+SET statement_timeout = '15s';
+
+BEGIN;
+
 create table if not exists public.sys_sync_pings (
   table_name text primary key,
   updated_at timestamp with time zone default now()
@@ -5,17 +18,17 @@ create table if not exists public.sys_sync_pings (
 
 alter table public.sys_sync_pings enable row level security;
 
-create policy "Allow read access to all users" on public.sys_sync_pings
-  for select using (true);
+drop policy if exists "Allow read access to all users" on public.sys_sync_pings;
+drop policy if exists "Allow all to update" on public.sys_sync_pings;
 
--- Allow triggers to update the table (bypasses RLS anyway if security definer, but just in case)
-create policy "Allow all to update" on public.sys_sync_pings
-  for all using (true) with check (true);
+create policy "Allow read access to authenticated" on public.sys_sync_pings
+  for select to authenticated using (true);
 
 create or replace function public.fn_sys_sync_ping()
 returns trigger
 language plpgsql
 security definer
+set search_path = pg_catalog, public
 as $body$
 begin
   insert into public.sys_sync_pings (table_name, updated_at)
@@ -25,6 +38,8 @@ begin
   return null;
 end;
 $body$;
+
+revoke execute on function public.fn_sys_sync_ping() from public, anon, authenticated;
 
 -- Create triggers for heavy tables
 drop trigger if exists trg_sync_ping_tasks on public.tasks;
@@ -66,3 +81,5 @@ begin
   end if;
 end;
 $publication$;
+
+COMMIT;

@@ -2,6 +2,9 @@
 -- rollout-contract: v1
 -- risk: low
 -- transaction: transactional
+-- preflight: supabase/diagnostics/20260914040001_optimize_fulfillment_indexes_preflight.sql
+-- postcondition: supabase/diagnostics/20260914040001_optimize_fulfillment_indexes_postcondition.sql
+-- rollback: supabase/rollbacks/20260914040001_optimize_fulfillment_indexes_rollback.sql
 
 SET lock_timeout = '5s';
 SET statement_timeout = '10s';

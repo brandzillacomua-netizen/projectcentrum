@@ -1,3 +1,16 @@
+-- Migration: Fix VKYA RPC 500
+-- rollout-contract: v1
+-- risk: low
+-- transaction: transactional
+-- preflight: supabase/diagnostics/20260914030001_fix_vkya_rpc_500_preflight.sql
+-- postcondition: supabase/diagnostics/20260914030001_fix_vkya_rpc_500_postcondition.sql
+-- rollback: supabase/rollbacks/20260914030001_fix_vkya_rpc_500_rollback.sql
+
+SET lock_timeout = '5s';
+SET statement_timeout = '15s';
+
+BEGIN;
+
 create or replace function public.vkya_classification_queue_changes(p_after_seq bigint default null)
 returns jsonb
 language sql
@@ -21,5 +34,7 @@ as $body$
   );
 $body$;
 
-revoke all on function public.vkya_classification_queue_changes(bigint) from public;
-grant execute on function public.vkya_classification_queue_changes(bigint) to anon, authenticated;
+revoke all on function public.vkya_classification_queue_changes(bigint) from public, anon;
+grant execute on function public.vkya_classification_queue_changes(bigint) to authenticated;
+
+COMMIT;

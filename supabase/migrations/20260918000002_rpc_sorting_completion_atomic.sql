@@ -1,9 +1,15 @@
--- migration 20260918000002_rpc_sorting_completion_atomic.sql
-
-BEGIN;
+-- Migration: RPC Sorting Completion Atomic
+-- rollout-contract: v1
+-- risk: low
+-- transaction: transactional
+-- preflight: supabase/diagnostics/20260918000002_rpc_sorting_completion_atomic_preflight.sql
+-- postcondition: supabase/diagnostics/20260918000002_rpc_sorting_completion_atomic_postcondition.sql
+-- rollback: supabase/rollbacks/20260918000002_rpc_sorting_completion_atomic_rollback.sql
 
 SET lock_timeout = '3s';
 SET statement_timeout = '10s';
+
+BEGIN;
 
 -- Atomic Sorting Completion Function
 CREATE OR REPLACE FUNCTION public.rpc_submit_sorting_complete_atomic(

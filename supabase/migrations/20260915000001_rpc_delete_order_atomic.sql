@@ -1,3 +1,16 @@
+-- Migration: RPC Super Delete Order Atomic
+-- rollout-contract: v1
+-- risk: low
+-- transaction: transactional
+-- preflight: supabase/diagnostics/20260915000001_rpc_delete_order_atomic_preflight.sql
+-- postcondition: supabase/diagnostics/20260915000001_rpc_delete_order_atomic_postcondition.sql
+-- rollback: supabase/rollbacks/20260915000001_rpc_delete_order_atomic_rollback.sql
+
+SET lock_timeout = '5s';
+SET statement_timeout = '15s';
+
+BEGIN;
+
 create or replace function public.rpc_super_delete_order(p_order_id bigint)
 returns void
 language plpgsql
@@ -131,3 +144,5 @@ $body$;
 
 grant execute on function public.rpc_super_delete_order(bigint) to authenticated;
 revoke execute on function public.rpc_super_delete_order(bigint) from anon;
+
+COMMIT;

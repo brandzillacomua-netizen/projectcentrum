@@ -1,9 +1,15 @@
--- migration 20260915000002_rpc_void_order_atomic.sql
+-- Migration: RPC Void Order Atomic
+-- rollout-contract: v1
+-- risk: low
+-- transaction: transactional
+-- preflight: supabase/diagnostics/20260915000002_rpc_void_order_atomic_preflight.sql
+-- postcondition: supabase/diagnostics/20260915000002_rpc_void_order_atomic_postcondition.sql
+-- rollback: supabase/rollbacks/20260915000002_rpc_void_order_atomic_rollback.sql
+
+SET lock_timeout = '5s';
+SET statement_timeout = '15s';
 
 BEGIN;
-
-SET lock_timeout = '3s';
-SET statement_timeout = '5s';
 
 -- 1. Drop the incorrect bigint implementation from 20260915000001
 DROP FUNCTION IF EXISTS public.rpc_super_delete_order(bigint);

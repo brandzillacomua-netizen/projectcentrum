@@ -44,9 +44,12 @@ export function useMachineAssignment(setCustomAlert) {
             .maybeSingle()
 
           if (invItem) {
-            const newReserved = Math.max(0, (Number(invItem.reserved_qty) || 0) - Number(req.quantity))
             inventoryUpdates.push(
-              supabase.from('inventory').update({ reserved_qty: newReserved }).eq('id', invItem.id)
+              supabase.rpc('rpc_reserve_material_atomic', {
+                p_inventory_id: invItem.id,
+                p_qty: Number(req.quantity),
+                p_action: 'release'
+              })
             )
           }
         }
@@ -149,9 +152,12 @@ export function useMachineAssignment(setCustomAlert) {
         newConsumablesSnapshot.push({ name: item.name, total: item.qty })
 
         if (shouldAutoReserve && invItem) {
-          const currentReserved = Number(invItem.reserved_qty) || 0
           newInventoryReservations.push(
-            supabase.from('inventory').update({ reserved_qty: currentReserved + item.qty }).eq('id', invItem.id)
+            supabase.rpc('rpc_reserve_material_atomic', {
+              p_inventory_id: invItem.id,
+              p_qty: Number(item.qty),
+              p_action: 'reserve'
+            })
           )
         }
       }
@@ -256,9 +262,12 @@ export function useMachineAssignment(setCustomAlert) {
             .maybeSingle()
 
           if (invItem) {
-            const newReserved = Math.max(0, (Number(invItem.reserved_qty) || 0) - Number(req.quantity))
             inventoryUpdates.push(
-              supabase.from('inventory').update({ reserved_qty: newReserved }).eq('id', invItem.id)
+              supabase.rpc('rpc_reserve_material_atomic', {
+                p_inventory_id: invItem.id,
+                p_qty: Number(req.quantity),
+                p_action: 'release'
+              })
             )
           }
         }
@@ -371,9 +380,12 @@ export function useMachineAssignment(setCustomAlert) {
         newConsumablesSnapshot.push({ name: item.name, total: item.qty })
 
         if (shouldAutoReserve && invItem) {
-          const currentReserved = Number(invItem.reserved_qty) || 0
           newInventoryReservations.push(
-            supabase.from('inventory').update({ reserved_qty: currentReserved + item.qty }).eq('id', invItem.id)
+            supabase.rpc('rpc_reserve_material_atomic', {
+              p_inventory_id: invItem.id,
+              p_qty: Number(item.qty),
+              p_action: 'reserve'
+            })
           )
         }
       }

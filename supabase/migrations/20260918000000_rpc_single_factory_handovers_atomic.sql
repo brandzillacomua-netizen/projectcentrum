@@ -1,9 +1,15 @@
--- migration 20260918000000_rpc_single_factory_handovers_atomic.sql
-
-BEGIN;
+-- Migration: RPC Single Factory Handovers Atomic
+-- rollout-contract: v1
+-- risk: low
+-- transaction: transactional
+-- preflight: supabase/diagnostics/20260918000000_rpc_single_factory_handovers_atomic_preflight.sql
+-- postcondition: supabase/diagnostics/20260918000000_rpc_single_factory_handovers_atomic_postcondition.sql
+-- rollback: supabase/rollbacks/20260918000000_rpc_single_factory_handovers_atomic_rollback.sql
 
 SET lock_timeout = '3s';
 SET statement_timeout = '10s';
+
+BEGIN;
 
 -- 1. Atomic Handover from Shop 1 Task to Shop 2 Task
 CREATE OR REPLACE FUNCTION public.rpc_handover_task_to_shop2_atomic(

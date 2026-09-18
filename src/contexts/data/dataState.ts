@@ -120,7 +120,7 @@ export function useDataState() {
         const user = await restoreProductionSession(prodClient)
         if (active) setCurrentUser(user)
       } catch (error) {
-        console.warn('[Auth] Не вдалося підтвердити PROD-сесію:', error?.message || error)
+        console.warn('[Auth] Не вдалося підтвердити PROD-сесію:', (error as any)?.message || error)
         clearProductionSessionCache()
         if (active) setCurrentUser(null)
       } finally {

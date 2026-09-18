@@ -27,8 +27,8 @@ export const processOfflineMutation = async (item) => {
           new Error(`[OFFLINE REPLAY CONFLICT] START_WORK_CARD rejected: ${transitionResult.message}`),
           { cardId, transitionResult, item }
         )
-        // Card was modified while offline; resolve item to avoid jamming the offline queue
-        return { success: true, conflict: true, warning: transitionResult.message }
+        // Throw error to route item to Dead-Letter Queue / Reconciliation Inbox
+        throw new Error(`[OFFLINE_CONFLICT] ${transitionResult.message || 'Сортування/перехід відхилено через новий стан на сервері'}`)
       }
       return { success: true }
     }
@@ -48,7 +48,7 @@ export const processOfflineMutation = async (item) => {
           new Error(`[OFFLINE REPLAY CONFLICT] COMPLETE_WORK_CARD rejected: ${transitionResult.message}`),
           { cardId, transitionResult, item }
         )
-        return { success: true, conflict: true, warning: transitionResult.message }
+        throw new Error(`[OFFLINE_CONFLICT] ${transitionResult.message || 'Сортування/завершення відхилено через новий стан на сервері'}`)
       }
       return { success: true }
     }
@@ -70,7 +70,7 @@ export const processOfflineMutation = async (item) => {
           new Error(`[OFFLINE REPLAY CONFLICT] TRANSITION_WORK_CARD rejected: ${transitionResult.message}`),
           { cardId, transitionResult, item }
         )
-        return { success: true, conflict: true, warning: transitionResult.message }
+        throw new Error(`[OFFLINE_CONFLICT] ${transitionResult.message || 'Перехід картки відхилено через новий стан на сервері'}`)
       }
       return { success: true }
     }
@@ -129,6 +129,6 @@ export const processOfflineMutation = async (item) => {
 
     default:
       console.error(`[OfflineProcessor] Unknown actionType (Dead Letter): ${actionType}`)
-      return { success: false, deadLetter: true, reason: `Unknown actionType: ${actionType}` }
+      throw new Error(`[UNKNOWN_ACTION] Unknown offline actionType: ${actionType}`)
   }
 }

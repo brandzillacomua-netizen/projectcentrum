@@ -9,7 +9,8 @@ const files = readdirSync(migrationDir)
 const findings = []
 const allowedAnonymousFunctions = new Set([
   'public.rpc_public_machine_call_context',
-  'public.rpc_public_create_machine_call'
+  'public.rpc_public_create_machine_call',
+  'public.rpc_public_machine_call_status'
 ])
 
 for (const file of files) {

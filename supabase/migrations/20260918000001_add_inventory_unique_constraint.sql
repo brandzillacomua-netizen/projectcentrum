@@ -1,9 +1,15 @@
--- migration 20260918000001_add_inventory_unique_constraint.sql
-
-BEGIN;
+-- Migration: Add Inventory Unique Constraint
+-- rollout-contract: v1
+-- risk: low
+-- transaction: transactional
+-- preflight: supabase/diagnostics/20260918000001_add_inventory_unique_constraint_preflight.sql
+-- postcondition: supabase/diagnostics/20260918000001_add_inventory_unique_constraint_postcondition.sql
+-- rollback: supabase/rollbacks/20260918000001_add_inventory_unique_constraint_rollback.sql
 
 SET lock_timeout = '5s';
 SET statement_timeout = '15s';
+
+BEGIN;
 
 -- 1. Deduplicate existing rows sharing the same (nomenclature_id, type, warehouse)
 DO $$
