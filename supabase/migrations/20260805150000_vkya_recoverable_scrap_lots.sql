@@ -224,6 +224,18 @@ begin
     nullif(substring(coalesce(v_classification.notes, '') from '\[VKYA_ORIGIN_HISTORY:([0-9a-fA-F-]{36})\]'), '')::uuid
   );
 
+  if v_classification.card_id is not null then
+    if not exists (select 1 from public.work_cards where id = v_classification.card_id) then
+      v_classification.card_id := null;
+    end if;
+  end if;
+
+  if v_source_history_id is not null then
+    if not exists (select 1 from public.work_card_history where id = v_source_history_id) then
+      v_source_history_id := null;
+    end if;
+  end if;
+
   insert into public.vkya_restoration_cards (
     source_inventory_id, nomenclature_id, nomenclature_name, unit,
     restoration_stage_id, restoration_stage, quantity,
