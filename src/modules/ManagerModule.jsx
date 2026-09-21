@@ -250,7 +250,7 @@ const ManagerModule = () => {
     }
   }
 
-  const generateNextOrderNum = () => {
+  const generateNextOrderNum = async () => {
     const today = new Date()
     const yy = String(today.getFullYear()).slice(-2)
     const mm = String(today.getMonth() + 1).padStart(2, '0')
@@ -261,18 +261,21 @@ const ManagerModule = () => {
     const legacyPrefixFull = `${dd}${mm}${yyyy}`
     const legacyPrefixShort = `${dd}${mm}${yy}`
 
-    const todayOrders = (orders || []).filter(o => {
-      const num = o.order_num || ''
-      const cleanNum = num.replace(/^№/, '')
-      return (
-        cleanNum.startsWith(datePrefix) ||
-        cleanNum.startsWith(legacyPrefixFull) ||
-        cleanNum.startsWith(legacyPrefixShort)
-      )
-    })
+    let dbOrders = []
+    try {
+      const { data } = await supabase
+        .from('orders')
+        .select('order_num')
+        .or(`order_num.ilike.${datePrefix}-%,order_num.ilike.${legacyPrefixFull}-%,order_num.ilike.${legacyPrefixShort}-%`)
+      if (data) dbOrders = data
+    } catch (e) {
+      console.warn('Could not fetch latest orders from DB for order num gen:', e)
+    }
+
+    const allMatching = [...(orders || []), ...dbOrders]
 
     let maxSeq = 0
-    todayOrders.forEach(o => {
+    allMatching.forEach(o => {
       const num = o.order_num || ''
       const cleanNum = num.replace(/^№/, '')
       const parts = cleanNum.split('-')
@@ -303,12 +306,17 @@ const ManagerModule = () => {
   })
 
   useEffect(() => {
-    setOrderHeader(prev => {
-      if (!prev.orderNum) {
-        return { ...prev, orderNum: generateNextOrderNum() }
+    let isMounted = true
+    const initOrderNum = async () => {
+      if (!orderHeader.orderNum) {
+        const num = await generateNextOrderNum()
+        if (isMounted) {
+          setOrderHeader(prev => prev.orderNum ? prev : { ...prev, orderNum: num })
+        }
       }
-      return prev
-    })
+    }
+    initOrderNum()
+    return () => { isMounted = false }
   }, [orders])
 
   const clientOrders = (orders || []).filter(o => {

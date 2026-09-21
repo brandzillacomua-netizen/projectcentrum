@@ -155,10 +155,63 @@ export function createProductionOrdersActions({
       orderPayload.customer_id = customerId;
     }
 
-    const { data, error } = await supabase.from('orders').insert([orderPayload]).select()
-    if (error) throw error
+    let insertedData = null;
+    let insertError = null;
+    let attempts = 0;
+    let currentOrderNum = orderPayload.order_num;
 
-    const newOrderId = data[0].id;
+    if (!currentOrderNum) {
+      const today = new Date();
+      const yy = String(today.getFullYear()).slice(-2);
+      const mm = String(today.getMonth() + 1).padStart(2, '0');
+      const dd = String(today.getDate()).padStart(2, '0');
+      currentOrderNum = `${yy}${mm}${dd}-1`;
+    }
+
+    while (attempts < 10) {
+      orderPayload.order_num = currentOrderNum;
+      const { data, error } = await supabase.from('orders').insert([orderPayload]).select();
+      if (!error && data && data.length > 0) {
+        insertedData = data;
+        break;
+      }
+      insertError = error;
+      const isDuplicateKey = error?.code === '23505' ||
+        (error?.message && (
+          error.message.includes('orders_order_num_key') ||
+          error.message.includes('duplicate key')
+        ));
+
+      if (isDuplicateKey) {
+        attempts++;
+        const parts = currentOrderNum.split('-');
+        const prefix = parts.slice(0, parts.length - 1).join('-') || currentOrderNum;
+        const currSeq = parseInt(parts[parts.length - 1], 10) || 1;
+
+        const { data: existingOrders } = await supabase
+          .from('orders')
+          .select('order_num')
+          .ilike('order_num', `${prefix}-%`);
+
+        let maxSeq = currSeq;
+        if (existingOrders) {
+          existingOrders.forEach(o => {
+            const p = (o.order_num || '').split('-');
+            const s = parseInt(p[p.length - 1], 10);
+            if (!isNaN(s) && s > maxSeq) maxSeq = s;
+          });
+        }
+        currentOrderNum = `${prefix}-${maxSeq + 1}`;
+      } else {
+        throw error;
+      }
+    }
+
+    if (!insertedData && insertError) {
+      throw insertError;
+    }
+
+    const newOrderId = insertedData[0].id;
     if (supaNomenclatureId && items?.length > 0) {
       await supabase.from('order_items').insert(
         items.map(it => ({ order_id: newOrderId, nomenclature_id: supaNomenclatureId, quantity: Number(orderedQty) }))
