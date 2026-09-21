@@ -1,8 +1,14 @@
 -- Migration: Fix create_vkya_rework_from_lot column "nomenclature_code" error
 -- risk: low
 -- transaction: transactional
+-- rollout-contract: v1
+-- preflight: supabase/diagnostics/20260921121600_fix_vkya_rework_nomenclature_code_preflight.sql
+-- postcondition: supabase/diagnostics/20260921121600_fix_vkya_rework_nomenclature_code_postcondition.sql
+-- rollback: supabase/rollbacks/20260921121600_fix_vkya_rework_nomenclature_code_rollback.sql
 
 BEGIN;
+  SET lock_timeout = '5s';
+  SET statement_timeout = '15s';
 
 CREATE OR REPLACE FUNCTION public.create_vkya_rework_from_lot(
   p_classification_category_id bigint,
