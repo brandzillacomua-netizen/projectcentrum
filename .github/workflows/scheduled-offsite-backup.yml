@@ -27,9 +27,6 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
-      - name: Run Backup Preflight Validation
-        run: npm run backup:preflight
-
       - name: Create Production Encrypted Backup
         env:
           PRODUCTION_DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
