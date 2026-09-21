@@ -8553,8 +8553,10 @@ begin
   v_storage_type := case when v_category.category = 2 then 'scrap_cat_2' else 'scrap_cat_1' end;
   perform public.vkya_take_recoverable_scrap(v_classification.nomenclature_id, v_storage_type, p_quantity);
 
-  select name, nomenclature_code into v_name, v_code
-  from public.nomenclatures where id = v_classification.nomenclature_id;
+  select n.name, coalesce(v2.code, '') into v_name, v_code
+  from public.nomenclatures n
+  left join public.nomenclatures_v2 v2 on v2.id = n.id
+  where n.id = v_classification.nomenclature_id;
 
   perform pg_advisory_xact_lock(hashtextextended('vkya-rework-order-number', 0));
   select 'ВБ' || lpad((coalesce(max(substring(order_num from '^ВБ([0-9]+)$')::integer), 0) + 1)::text, 4, '0')

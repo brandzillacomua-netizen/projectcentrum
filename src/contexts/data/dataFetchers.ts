@@ -423,10 +423,11 @@ export function useDataFetchers(state: any) {
     }
   }
 
-  const fetchData = async (tables: string[] = [], options: { force?: boolean } = {}) => {
-    if (!tables || tables.length === 0) return
+  const fetchData = async (tables: string | string[] = [], options: { force?: boolean } = {}) => {
+    const tableList = typeof tables === 'string' ? [tables] : (Array.isArray(tables) ? tables : [])
+    if (tableList.length === 0) return
     const force = options.force === true
-    const promises = tables.map(table => triggerTargetedRefresh(table, force))
+    const promises = tableList.map(table => triggerTargetedRefresh(table, force))
     await Promise.allSettled(promises)
   }
 

@@ -1439,7 +1439,7 @@ export function useBrakData() {
         if (error) throw error
       }
       await Promise.all([
-        fetchData('inventory'),
+        fetchData(['inventory']),
         loadRecoverableScrapLots()
       ])
       setRestorationDraft(null)
