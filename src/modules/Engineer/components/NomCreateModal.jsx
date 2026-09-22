@@ -71,10 +71,25 @@ export const NomCreateModal = ({ onClose, onCreated, supabase, refreshTable, pre
 
   const preparedSheets = useMemo(() => {
     return (items || []).filter(it => {
+      if (it.status === 'archived') return false;
       const isSheetGroup = it.group_id === 'grp_prepared_sheets' || it.group_id === 'cat_sheets' || String(it.code || '').startsWith('RAW.PREP');
       const isSheetName = String(it.name || '').toLowerCase().includes('лист') && (it.name?.includes('Т300') || it.name?.includes('Т700') || it.name?.includes('Т800'));
       return isSheetGroup || isSheetName;
-    }).sort((a, b) => (a.name || '').localeCompare(b.name || '', 'uk-UA'));
+    }).map(it => {
+      const name = it.name || '';
+      let grade = 'Інші';
+      let gradeOrder = 99;
+      if (name.includes('Т300')) { grade = 'Т300'; gradeOrder = 1; }
+      else if (name.includes('Т700')) { grade = 'Т700'; gradeOrder = 2; }
+      else if (name.includes('Т800')) { grade = 'Т800'; gradeOrder = 3; }
+      const thickMatch = name.match(/\((\d+(?:[.,]\d+)?)мм\)/);
+      const thickness = thickMatch ? parseFloat(thickMatch[1].replace(',', '.')) : 0;
+      return { ...it, _grade: grade, _gradeOrder: gradeOrder, _thickness: thickness };
+    }).sort((a, b) => {
+      if (a._gradeOrder !== b._gradeOrder) return a._gradeOrder - b._gradeOrder;
+      if (a._thickness !== b._thickness) return a._thickness - b._thickness;
+      return (a.name || '').localeCompare(b.name || '', 'uk-UA');
+    });
   }, [items])
 
   useEffect(() => {
@@ -580,11 +595,19 @@ export const NomCreateModal = ({ onClose, onCreated, supabase, refreshTable, pre
                     style={{ ...inputStyle, fontWeight: 800, borderColor: wizardParams.default_material_id ? '#10b981' : '#f59e0b', marginBottom: '12px' }}
                   >
                     <option value="">-- Оберіть робочий лист із каталогу V2 (Обов'язково) --</option>
-                    {preparedSheets.map(s => (
-                      <option key={s.id} value={s.id}>
-                        {s.name} [{s.code}]
-                      </option>
-                    ))}
+                    {['Т300', 'Т700', 'Т800', 'Інші'].map(grade => {
+                      const sheets = preparedSheets.filter(s => s._grade === grade);
+                      if (sheets.length === 0) return null;
+                      return (
+                        <optgroup key={grade} label={grade === 'Інші' ? 'Інші листи' : `Карбон ${grade}`}>
+                          {sheets.map(s => (
+                            <option key={s.id} value={s.id}>
+                              {s.name} [{s.code}]
+                            </option>
+                          ))}
+                        </optgroup>
+                      );
+                    })}
                   </select>
 
                   <div>
