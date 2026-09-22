@@ -1,4 +1,7 @@
--- 1. Update rpc_increment_inventory_stock to accept p_warehouse
+-- 1. Drop old 5-parameter signature if it exists to avoid overload ambiguity
+drop function if exists public.rpc_increment_inventory_stock(uuid, numeric, text, text, text);
+
+-- Update rpc_increment_inventory_stock to accept p_warehouse
 create or replace function public.rpc_increment_inventory_stock(
   p_nomenclature_id uuid,
   p_qty numeric,
