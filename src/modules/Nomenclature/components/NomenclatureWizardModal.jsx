@@ -19,17 +19,18 @@ export const NomenclatureWizardModal = ({
   flattenedGroups,
   generatedName,
   isDuplicate,
-  refDicts,
-  isDirector,
-  showPrefixManage,
-  setShowPrefixManage,
-  prefixList,
-  removePrefixItem,
-  showSeriesManage,
-  setShowSeriesManage,
-  seriesList,
-  removeSeriesItem,
-  DEFAULT_LOAD_TIMINGS
+  refDicts = {},
+  isDirector = false,
+  showPrefixManage = false,
+  setShowPrefixManage = () => {},
+  prefixList = [],
+  removePrefixItem = () => {},
+  showSeriesManage = false,
+  setShowSeriesManage = () => {},
+  seriesList = [],
+  removeSeriesItem = () => {},
+  DEFAULT_LOAD_TIMINGS,
+  saving = false
 }) => {
   const preparedSheets = React.useMemo(() => {
     return (items || []).filter(it => {
@@ -948,21 +949,21 @@ export const NomenclatureWizardModal = ({
 
           <button 
             type="submit" 
-            disabled={isDuplicate || !generatedName || (wizardRuleType === 'frame_part' && !wizardParams.default_material_id)}
+            disabled={isDuplicate || !generatedName || saving || (wizardRuleType === 'frame_part' && !wizardParams.default_material_id)}
             style={{ 
-              background: isDuplicate || !generatedName || (wizardRuleType === 'frame_part' && !wizardParams.default_material_id) ? 'var(--border-color, #cbd5e1)' : '#ff9000', 
-              color: isDuplicate || !generatedName || (wizardRuleType === 'frame_part' && !wizardParams.default_material_id) ? 'var(--text-muted, #64748b)' : '#ffffff', 
+              background: isDuplicate || !generatedName || saving || (wizardRuleType === 'frame_part' && !wizardParams.default_material_id) ? 'var(--border-color, #cbd5e1)' : '#ff9000', 
+              color: isDuplicate || !generatedName || saving || (wizardRuleType === 'frame_part' && !wizardParams.default_material_id) ? 'var(--text-muted, #64748b)' : '#ffffff', 
               border: 'none', 
               borderRadius: '14px', 
               padding: '16px', 
               fontWeight: 900, 
               fontSize: '0.95rem', 
-              cursor: isDuplicate || !generatedName || (wizardRuleType === 'frame_part' && !wizardParams.default_material_id) ? 'not-allowed' : 'pointer',
-              boxShadow: isDuplicate || !generatedName || (wizardRuleType === 'frame_part' && !wizardParams.default_material_id) ? 'none' : '0 5px 20px rgba(255,144,0,0.3)',
+              cursor: isDuplicate || !generatedName || saving || (wizardRuleType === 'frame_part' && !wizardParams.default_material_id) ? 'not-allowed' : 'pointer',
+              boxShadow: isDuplicate || !generatedName || saving || (wizardRuleType === 'frame_part' && !wizardParams.default_material_id) ? 'none' : '0 5px 20px rgba(255,144,0,0.3)',
               transition: 'all 0.2s'
             }}
           >
-            {editingItem ? 'ЗБЕРЕГТИ ЗМІНИ ПОЗИЦІЇ' : 'ЗБЕРЕГТИ ДО V2 КАТАЛОГУ'}
+            {saving ? 'ЗБЕРЕЖЕННЯ ДО V2 КАТАЛОГУ...' : (editingItem ? 'ЗБЕРЕГТИ ЗМІНИ ПОЗИЦІЇ' : 'ЗБЕРЕГТИ ДО V2 КАТАЛОГУ')}
           </button>
         </form>
       </div>
