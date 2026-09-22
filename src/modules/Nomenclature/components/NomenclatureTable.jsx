@@ -1,5 +1,5 @@
 import React from 'react'
-import { Search, ChevronRight, Package, Plus, Clock, Edit2, Trash2, Barcode } from 'lucide-react'
+import { Search, ChevronRight, ChevronLeft, Package, Plus, Clock, Edit2, Trash2, Barcode } from 'lucide-react'
 
 const NomenclatureTableRow = React.memo(({
   item,
@@ -130,6 +130,16 @@ export const NomenclatureTable = ({
     return new Map((items || []).map(it => [it.id, it]))
   }, [items])
 
+  const [currentPage, setCurrentPage] = React.useState(1)
+  const itemsPerPage = 50
+
+  React.useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery, selectedGroup])
+
+  const totalPages = Math.ceil((visibleItems?.length || 0) / itemsPerPage)
+  const paginatedItems = (visibleItems || []).slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+
   return (
     <main className="nom-v2-main" style={{ flex: 1, padding: '25px', overflowY: 'auto', background: 'var(--bg, #f0f2f7)', display: 'flex', flexDirection: 'column', gap: '20px' }}>
       
@@ -193,7 +203,7 @@ export const NomenclatureTable = ({
                   </div>
                 </td>
               </tr>
-            ) : visibleItems.map(item => (
+            ) : paginatedItems.map(item => (
               <NomenclatureTableRow
                 key={item.id}
                 item={item}
@@ -206,6 +216,34 @@ export const NomenclatureTable = ({
             ))}
           </tbody>
         </table>
+
+        {/* Pagination Controls */}
+        {totalPages > 1 && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderTop: '1px solid var(--border-color, #e2e8f0)', background: 'var(--card-header-bg, #f8fafc)' }}>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted, #64748b)' }}>
+              Показано {(currentPage - 1) * itemsPerPage + 1}-{Math.min(currentPage * itemsPerPage, visibleItems?.length || 0)} із {visibleItems?.length || 0}
+            </span>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '6px 12px', background: currentPage === 1 ? 'transparent' : '#ffffff', border: `1px solid ${currentPage === 1 ? 'transparent' : 'var(--border-color, #cbd5e1)'}`, borderRadius: '8px', color: currentPage === 1 ? 'var(--text-muted, #94a3b8)' : 'var(--text, #0f172a)', cursor: currentPage === 1 ? 'not-allowed' : 'pointer', fontSize: '0.8rem', fontWeight: 600 }}
+              >
+                <ChevronLeft size={14} /> Попередня
+              </button>
+              <span style={{ display: 'inline-flex', alignItems: 'center', padding: '0 8px', fontSize: '0.85rem', fontWeight: 800, color: '#d97706' }}>
+                {currentPage} / {totalPages}
+              </span>
+              <button
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '6px 12px', background: currentPage === totalPages ? 'transparent' : '#ffffff', border: `1px solid ${currentPage === totalPages ? 'transparent' : 'var(--border-color, #cbd5e1)'}`, borderRadius: '8px', color: currentPage === totalPages ? 'var(--text-muted, #94a3b8)' : 'var(--text, #0f172a)', cursor: currentPage === totalPages ? 'not-allowed' : 'pointer', fontSize: '0.8rem', fontWeight: 600 }}
+              >
+                Наступна <ChevronRight size={14} />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </main>
   )

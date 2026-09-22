@@ -1,4 +1,4 @@
-import React from 'react'
+﻿import React from 'react'
 import { Package, Clock, CheckCircle2, Search, ChevronsUpDown, ChevronDown, ChevronUp, User, AlertTriangle, Check, History, RefreshCw, Archive } from 'lucide-react'
 
 export function PackagingQueueTab({
@@ -32,6 +32,8 @@ export function PackagingQueueTab({
   inventory,
   setViewMode
 }) {
+  const getUniqueGroupsCount = (reqs) => new Set(reqs.map(r => r.task_id ? `task-${r.task_id}` : `order-${r.order_id}`)).size;
+
   return (
     <div style={{ padding: '25px', flex: 1, overflowY: 'auto' }}>
       {/* KPI Summary Cards */}
@@ -145,7 +147,7 @@ export function PackagingQueueTab({
               fontSize: '0.72rem',
               fontWeight: 950
             }}>
-              {activePackagingRequests.length}
+              {getUniqueGroupsCount(activePackagingRequests)}
             </span>
           </button>
 
@@ -176,7 +178,7 @@ export function PackagingQueueTab({
               fontSize: '0.72rem',
               fontWeight: 950
             }}>
-              {allPackagingRequests.length}
+              {getUniqueGroupsCount(allPackagingRequests)}
             </span>
           </button>
 
@@ -207,7 +209,7 @@ export function PackagingQueueTab({
               fontSize: '0.72rem',
               fontWeight: 950
             }}>
-              {completedPackagingRequests.length}
+              {getUniqueGroupsCount(completedPackagingRequests)}
             </span>
           </button>
         </div>
@@ -406,7 +408,7 @@ export function PackagingQueueTab({
             {requestQueueTab === 'history'
               ? 'У журналі видачі СГП поки немає завершених запитів на пакування.'
               : completedPackagingRequests.length > 0
-                ? `Всі активні запити видано! У журналі є ${completedPackagingRequests.length} раніше виданих позицій.`
+                ? `Всі активні запити видано! У журналі є ${getUniqueGroupsCount(completedPackagingRequests)} раніше виданих позицій.`
                 : 'Всі запити комплектуючих та готової продукції з відділу пакування наразі видано.'}
           </p>
           <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center' }}>
@@ -431,7 +433,7 @@ export function PackagingQueueTab({
                 onMouseEnter={e => { e.currentTarget.style.borderColor = '#10b981'; e.currentTarget.style.color = isDark ? '#34d399' : '#047857' }}
                 onMouseLeave={e => { e.currentTarget.style.borderColor = t.buttonSecondaryBorder; e.currentTarget.style.color = t.textPrimary }}
               >
-                <History size={16} /> Переглянути видані ({completedPackagingRequests.length})
+                <History size={16} /> Переглянути видані ({getUniqueGroupsCount(completedPackagingRequests)})
               </button>
             )}
             <button
@@ -642,7 +644,7 @@ export function PackagingQueueTab({
                       onMouseEnter={e => { if (!isIssuingReq) e.currentTarget.style.background = '#059669' }}
                       onMouseLeave={e => { if (!isIssuingReq) e.currentTarget.style.background = '#10b981' }}
                     >
-                      <Check size={16} /> ВИДАТИ ВСІ ПОЗИЦІЇ НА НАРЯД
+                      <Check size={16} /> ВИДАТИ Всі запити НА НАРЯД
                     </button>
                   ) : (
                     <div style={{
@@ -657,7 +659,7 @@ export function PackagingQueueTab({
                       alignItems: 'center',
                       gap: '6px'
                     }}>
-                      <CheckCircle2 size={15} /> ВСІ ПОЗИЦІЇ ВИДАНО
+                      <CheckCircle2 size={15} /> Всі запити ВИДАНО
                     </div>
                   )}
                 </div>
@@ -883,3 +885,7 @@ export function PackagingQueueTab({
     </div>
   )
 }
+
+
+
+

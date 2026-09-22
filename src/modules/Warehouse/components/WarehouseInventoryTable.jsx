@@ -1,7 +1,7 @@
 import React from 'react'
 import { Pencil, Trash2, Check, X } from 'lucide-react'
 import { WarehouseNomenclatureLink } from './WarehouseNomenclatureLink'
-
+import { useStore } from '../../../store/index.js'
 const WarehouseInventoryTableRow = React.memo(({
   item,
   activeTab,
@@ -23,6 +23,13 @@ const WarehouseInventoryTableRow = React.memo(({
   const availableQty = isEditing
     ? (Number(editingInvTotal) || 0) - (Number(editingInvReserved) || 0)
     : Math.max(0, (item.total_qty || 0) - reservedQty)
+
+  const nomenclatures = useStore(state => state.nomenclatures) || []
+  const linkedNom = item.nomenclature_id && nomenclatures.find(n =>
+    String(n.id) === String(item.nomenclature_id) ||
+    (n.legacy_ids || []).some(id => String(id) === String(item.nomenclature_id))
+  )
+  const itemCode = linkedNom?.code || '—'
 
   return (
     <tr style={{ borderBottom: '1px solid #151515' }}>
@@ -70,6 +77,9 @@ const WarehouseInventoryTableRow = React.memo(({
             </div>
           )}
         </div>
+      </td>
+      <td style={{ padding: '15px', color: '#777', fontWeight: 600, fontSize: '0.85rem' }}>
+        {itemCode}
       </td>
       <td style={{ padding: '15px', textAlign: 'center', color: activeTab === 'scrap' ? '#ef4444' : '#ff9000', fontWeight: 900 }}>
         {isEditing ? (
@@ -144,11 +154,19 @@ const WarehouseInventoryMobileCard = React.memo(({
 }) => {
   const isEditing = editingInvId === item.id
 
+  const nomenclatures = useStore(state => state.nomenclatures) || []
+  const linkedNom = item.nomenclature_id && nomenclatures.find(n =>
+    String(n.id) === String(item.nomenclature_id) ||
+    (n.legacy_ids || []).some(id => String(id) === String(item.nomenclature_id))
+  )
+  const itemCode = linkedNom?.code || '—'
+
   return (
     <div style={{ background: '#111', padding: '15px', borderRadius: '16px', border: '1px solid #222', marginBottom: '10px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', alignItems: 'center' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
           <strong><WarehouseNomenclatureLink item={item} /></strong>
+          {itemCode !== '—' && <span style={{ fontSize: '0.75rem', color: '#777', fontWeight: 600 }}>{itemCode}</span>}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={{ fontSize: '0.7rem', color: '#444' }}>{item.unit}</span>
@@ -262,6 +280,7 @@ export const WarehouseInventoryTable = ({
           <thead>
             <tr style={{ borderBottom: '1px solid #222', textAlign: 'left' }}>
               <th className="sticky-col" style={{ padding: '15px', fontSize: '0.7rem', color: '#555' }}>НАЙМЕНУВАННЯ</th>
+              <th style={{ padding: '15px', fontSize: '0.7rem', color: '#555' }}>АРТИКУЛ</th>
               <th style={{ padding: '15px', fontSize: '0.7rem', color: '#555', textAlign: 'center' }}>НАЯВНІСТЬ</th>
               <th style={{ padding: '15px', fontSize: '0.7rem', color: '#555', textAlign: 'center' }}>ВІЛЬНО</th>
               <th style={{ padding: '15px', fontSize: '0.7rem', color: '#555', textAlign: 'center' }}>РЕЗЕРВ</th>

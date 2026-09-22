@@ -28,6 +28,7 @@ export async function incrementInventoryStock({
   nomenclatureId,
   qty,
   type = 'scrap_ready',
+  warehouse = 'operational',
   itemName = 'Деталь',
   unit = 'шт',
   nomenclatures = []
@@ -54,6 +55,7 @@ export async function incrementInventoryStock({
       p_nomenclature_id: nomenclatureId,
       p_qty: numQty,
       p_type: type,
+      p_warehouse: warehouse,
       p_item_name: resolvedName,
       p_unit: resolvedUnit
     })

@@ -4,7 +4,7 @@ import { ExternalLink } from 'lucide-react'
 import { useMES } from '../../../MESContext'
 import { useStore } from '../../../store/index.js'
 import { supabase } from '../../../supabase'
-import { NomenclatureCardModal } from '../../Nomenclature/components/NomenclatureCardModal'
+import { NomenclatureCardModal } from '../../Nomenclature/components/NomenclatureCardModal/index.jsx'
 import { DEFAULT_ERP_GROUPS } from '../../Nomenclature/utils/nomenclatureHelpers'
 
 export function WarehouseNomenclatureLink({ item }) {

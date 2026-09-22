@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react'
+﻿import React, { useState, useMemo, useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   Zap,
@@ -75,7 +75,8 @@ export const PortalDashboard = ({ chatUnreadCount }) => {
     return acc + val;
   }, 0);
 
-  const pendingRequestsCount = requests.filter(r => r.status === 'pending' || r.status === 'new' || r.status === 'created' || r.status === 'in_progress').length;
+  const pendingRequestsList = requests.filter(r => r.status === 'pending' || r.status === 'new' || r.status === 'created' || r.status === 'in_progress');
+  const pendingRequestsCount = new Set(pendingRequestsList.map(r => r.task_id ? `task-${r.task_id}` : `order-${r.order_id}`)).size;
   
   const activeWorkCardsCount = workCards.filter(w => w.status === 'in-progress' || w.status === 'at-buffer' || w.status === 'new' || w.status === 'in_progress' || w.status === 'active').length
     || tasks.filter(t => t.status !== 'completed' && t.status !== 'done' && t.status !== 'cancelled').length;
@@ -765,3 +766,5 @@ export const PortalDashboard = ({ chatUnreadCount }) => {
     </div>
   )
 }
+
+

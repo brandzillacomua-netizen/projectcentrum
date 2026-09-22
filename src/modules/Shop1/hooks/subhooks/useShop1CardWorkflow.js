@@ -1309,27 +1309,17 @@ export function useShop1CardWorkflow({
 
       // Atomic stock increments for Shop 2 buffer and scrap
       const stockIncrements = [];
-      if (actualNeed > 0) {
-        stockIncrements.push(
-          incrementInventoryStock({
-            nomenclatureId: currentCard.nomenclature_id,
-            qty: actualNeed,
-            type: 'semi_shop2',
-            nomenclatures
-          })
-        );
-      }
-
-      if (actualBz > 0) {
-        stockIncrements.push(
-          incrementInventoryStock({
-            nomenclatureId: currentCard.nomenclature_id,
-            qty: actualBz,
-            type: 'bz_shop2',
-            nomenclatures
-          })
-        );
-      }
+        if (goodQty > 0) {
+          stockIncrements.push(
+            incrementInventoryStock({
+              nomenclatureId: currentCard.nomenclature_id,
+              qty: goodQty,
+              type: 'part',
+              warehouse: 'sgp',
+              nomenclatures
+            })
+          );
+        }
 
       if (scrapCount > 0) {
         stockIncrements.push(
@@ -1660,3 +1650,4 @@ export function useShop1CardWorkflow({
     verifyCardBeforeMasterScrap
   };
 }
+

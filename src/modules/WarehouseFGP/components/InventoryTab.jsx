@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { Pencil, Eye } from 'lucide-react'
 import { supabase } from '../../../supabase'
-
+import { useStore } from '../../../store/index.js'
 export function InventoryTab({
   t,
   isDark,
@@ -14,6 +14,7 @@ export function InventoryTab({
   fetchData,
   refreshTable
 }) {
+  const nomenclatures = useStore(state => state.nomenclatures) || []
   const [editingInvKey, setEditingInvKey] = useState(null)
   const [editingInvTotal, setEditingInvTotal] = useState('')
   const [editingInvReserved, setEditingInvReserved] = useState('')
@@ -90,6 +91,7 @@ export function InventoryTab({
       <thead>
         <tr style={{ background: t.tableHeadBg, borderBottom: `1.5px solid ${t.tableBorder}`, textAlign: 'left', color: t.textSecondary, fontSize: '0.74rem' }}>
           <th style={{ padding: '14px 16px' }}>НАЙМЕНУВАННЯ ВИРОБУ</th>
+          <th style={{ padding: '14px 16px', width: '120px' }}>АРТИКУЛ</th>
           <th style={{ padding: '14px 16px', textAlign: 'center', width: '150px' }}>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: isDark ? '#34d399' : '#047857', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
               <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: isDark ? '#34d399' : '#10b981' }} /> НАЯВНІСТЬ
@@ -109,7 +111,14 @@ export function InventoryTab({
         </tr>
       </thead>
       <tbody>
-        {filteredItems.map(item => (
+        {filteredItems.map(item => {
+          const linkedNom = item.nomenclature_id && nomenclatures.find(n =>
+            String(n.id) === String(item.nomenclature_id) ||
+            (n.legacy_ids || []).some(id => String(id) === String(item.nomenclature_id))
+          )
+          const itemCode = linkedNom?.code || '—'
+
+          return (
           <tr key={item.key} style={{ borderBottom: `1px solid ${t.tableRowBorder}`, fontSize: '0.85rem' }}>
             <td style={{ padding: '14px 16px', fontWeight: 800, color: t.textPrimary }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -129,6 +138,9 @@ export function InventoryTab({
                   </button>
                 )}
               </div>
+            </td>
+            <td style={{ padding: '14px 16px', color: t.textSecondary, fontWeight: 600, fontSize: '0.85rem' }}>
+              {itemCode}
             </td>
             <td style={{ padding: '12px 16px', textAlign: 'center' }}>
               {editingInvKey === item.key ? (
@@ -253,13 +265,14 @@ export function InventoryTab({
               ) : (
                 <span style={{ color: t.textMuted, fontSize: '0.75rem' }}>—</span>
               )}
-            </td>
-          </tr>
-        ))}
+              </td>
+            </tr>
+          );
+        })}
 
         {filteredItems.length === 0 && (
           <tr>
-            <td colSpan={5} style={{ padding: '50px', textAlign: 'center', color: t.textMuted, fontSize: '0.88rem' }}>
+            <td colSpan={6} style={{ padding: '50px', textAlign: 'center', color: t.textMuted, fontSize: '0.88rem' }}>
               На складі готової продукції немає записів за даним фільтром
             </td>
           </tr>

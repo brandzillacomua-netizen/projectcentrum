@@ -17,7 +17,7 @@ import { NomenclatureWizardModal } from './Nomenclature/components/NomenclatureW
 import { NomenclatureGroupModal } from './Nomenclature/components/NomenclatureGroupModal'
 import { NomenclatureEditModal } from './Nomenclature/components/NomenclatureEditModal'
 import { NomenclatureExportModal } from './Nomenclature/components/NomenclatureExportModal'
-import { NomenclatureCardModal } from './Nomenclature/components/NomenclatureCardModal'
+import { NomenclatureCardModal } from './Nomenclature/components/NomenclatureCardModal/index.jsx'
 import { NomenclatureImportModal } from './Nomenclature/components/NomenclatureImportModal'
 import { generateNextV2Code } from '../utils/codeGenerator'
 

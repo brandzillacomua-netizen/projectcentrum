@@ -77,6 +77,7 @@ export const SupplyStockTab = ({
           <thead>
             <tr style={{ borderBottom: '1px solid var(--border-color, #222)', textAlign: 'left' }}>
               <th style={{ padding: '15px', fontSize: '0.7rem', color: 'var(--text-muted, #555)' }}>НАЙМЕНУВАННЯ</th>
+              <th style={{ padding: '15px', fontSize: '0.7rem', color: 'var(--text-muted, #555)' }}>АРТИКУЛ</th>
               <th style={{ padding: '15px', fontSize: '0.7rem', color: 'var(--text-muted, #555)' }}>ТИП / КАТЕГОРІЯ</th>
               <th style={{ padding: '15px', fontSize: '0.7rem', color: 'var(--text-muted, #555)', textAlign: 'center' }}>ЗАГАЛЬНИЙ ЗАЛИШОК</th>
               <th style={{ padding: '15px', fontSize: '0.7rem', color: 'var(--text-muted, #555)', textAlign: 'center' }}>В ЗАРЕЗЕРВІ / В РОБОТІ</th>
@@ -130,6 +131,9 @@ export const SupplyStockTab = ({
                           </div>
                         )}
                       </div>
+                    </td>
+                    <td style={{ padding: '15px', fontSize: '0.8rem', color: 'var(--text-muted, #777)', fontWeight: 600 }}>
+                      {nom?.code || '—'}
                     </td>
                     <td style={{ padding: '15px', fontSize: '0.75rem', color: 'var(--text-muted, #888)' }}>
                       {nom?.type === 'raw' ? 'Сировина' : nom?.type === 'hardware' ? 'Метизи' : nom?.type === 'consumable' ? 'Розхідник' : (nom?.type || item.material_type || '—')}
