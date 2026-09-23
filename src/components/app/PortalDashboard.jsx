@@ -1,4 +1,4 @@
-﻿import React, { useState, useMemo, useEffect } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   Zap,
@@ -78,8 +78,21 @@ export const PortalDashboard = ({ chatUnreadCount }) => {
   const pendingRequestsList = requests.filter(r => r.status === 'pending' || r.status === 'new' || r.status === 'created' || r.status === 'in_progress');
   const pendingRequestsCount = new Set(pendingRequestsList.map(r => r.task_id ? `task-${r.task_id}` : `order-${r.order_id}`)).size;
   
-  const activeWorkCardsCount = workCards.filter(w => w.status === 'in-progress' || w.status === 'at-buffer' || w.status === 'new' || w.status === 'in_progress' || w.status === 'active').length
-    || tasks.filter(t => t.status !== 'completed' && t.status !== 'done' && t.status !== 'cancelled').length;
+  const activeTaskIds = useMemo(() => {
+    return new Set(
+      tasks
+        .filter(t => t.status !== 'completed' && t.status !== 'done' && t.status !== 'cancelled')
+        .map(t => String(t.id))
+    );
+  }, [tasks]);
+
+  const activeWorkCardsCount = useMemo(() => {
+    const activeCards = workCards.filter(w => 
+      activeTaskIds.has(String(w.task_id)) && 
+      ['in-progress', 'at-buffer', 'at-shop2-buffer', 'new', 'in_progress', 'active', 'waiting-buffer'].includes(w.status)
+    );
+    return activeCards.length;
+  }, [workCards, activeTaskIds]);
 
   const activeCallsCount = machineCalls.filter(c => c.status === 'pending' || c.status === 'active' || c.status === 'new').length;
   const workingMachinesCount = machines.filter(m => m.status === 'working' || m.status === 'active' || m.status === 'online').length;
