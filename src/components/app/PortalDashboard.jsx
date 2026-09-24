@@ -18,7 +18,7 @@ import { useMES } from '../../MESContext'
 import { getAvailableModules } from '../../config/moduleRegistry'
 
 export const PortalDashboard = ({ chatUnreadCount }) => {
-  const { currentUser, orders = [], workCards = [], requests = [], machines = [], machineCalls = [], tasks = [], companyPositions = [] } = useMES()
+  const { currentUser, orders = [], workCards = [], requests = [], machines = [], machineCalls = [], tasks = [], companyPositions = [], nomenclatures = [] } = useMES()
   const location = useLocation()
   const navigate = useNavigate()
   const [selectedPillar, setSelectedPillar] = useState('all') // 'all', 'crm', 'erp', 'mes'
@@ -78,21 +78,48 @@ export const PortalDashboard = ({ chatUnreadCount }) => {
   const pendingRequestsList = requests.filter(r => r.status === 'pending' || r.status === 'new' || r.status === 'created' || r.status === 'in_progress');
   const pendingRequestsCount = new Set(pendingRequestsList.map(r => r.task_id ? `task-${r.task_id}` : `order-${r.order_id}`)).size;
   
-  const activeTaskIds = useMemo(() => {
+  const activeOrderIds = useMemo(() => {
     return new Set(
-      tasks
-        .filter(t => t.status !== 'completed' && t.status !== 'done' && t.status !== 'cancelled')
-        .map(t => String(t.id))
+      orders
+        .filter(o => o.status !== 'completed' && o.status !== 'shipped' && o.status !== 'cancelled')
+        .map(o => String(o.id))
     );
+  }, [orders]);
+
+  const taskToOrderMap = useMemo(() => {
+    const map = {};
+    (tasks || []).forEach(t => {
+      if (t.id && t.order_id) map[String(t.id)] = String(t.order_id);
+    });
+    return map;
   }, [tasks]);
 
   const activeWorkCardsCount = useMemo(() => {
-    const activeCards = workCards.filter(w => 
-      activeTaskIds.has(String(w.task_id)) && 
-      ['in-progress', 'at-buffer', 'at-shop2-buffer', 'new', 'in_progress', 'active', 'waiting-buffer'].includes(w.status)
-    );
-    return activeCards.length;
-  }, [workCards, activeTaskIds]);
+    if (!workCards || workCards.length === 0) return 0;
+    
+    return workCards.filter(w => {
+      // 1. Order must be active
+      const orderId = String(w.order_id || taskToOrderMap[String(w.task_id)] || '');
+      if (!activeOrderIds.has(orderId)) return false;
+
+      // 2. Status must be active (new, at-buffer, in-progress) and NOT waiting for warehouse materials
+      if (['completed', 'paused', 'at-shop2-buffer', 'scrap', 'archived', 'waiting-materials', 'waiting-cutters', 'waiting_material', 'waiting_kitting'].includes(w.status)) return false;
+
+      // 3. Exclude Shop 2 specific cards
+      const info = String(w.card_info || '');
+      if (info.includes('[ЦЕХ №2]') || info.includes('[ЦЕХ 2]')) return false;
+
+      // 4. Exclude raw materials & consumables
+      const nom = (nomenclatures || []).find(n => String(n.id) === String(w.nomenclature_id));
+      if (nom && nom.type && ['raw', 'material', 'hardware', 'fastener', 'consumable'].includes(nom.type)) return false;
+
+      // 5. Exclude completed tasks
+      const parentTask = (tasks || []).find(t => String(t.id) === String(w.task_id));
+      if (parentTask && (parentTask.status === 'completed' || String(parentTask.step || '').includes('[ЦЕХ №2]'))) return false;
+
+      return true;
+    }).length;
+  }, [workCards, activeOrderIds, taskToOrderMap, nomenclatures, tasks]);
 
   const activeCallsCount = machineCalls.filter(c => c.status === 'pending' || c.status === 'active' || c.status === 'new').length;
   const workingMachinesCount = machines.filter(m => m.status === 'working' || m.status === 'active' || m.status === 'online').length;

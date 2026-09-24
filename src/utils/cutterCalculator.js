@@ -224,7 +224,10 @@ export const calculateCuttersForBatch = ({
       if (cutterNomId && qtyPerSheet > 0) {
         const totalQty = Math.ceil(sheets * qtyPerSheet)
         const cutterNom = resolveCutterOrVirtualType(cutterNomId, nomenclatures)
-        if (cutterNom && cutterNom.name.trim().toLowerCase() !== 'фреза') {
+          || (nomenclatures || []).find(n => String(n.id) === String(cutterNomId))
+          || { id: cutterNomId, name: cutterNomId }
+
+        if (cutterNom && String(cutterNom.name || '').trim().toLowerCase() !== 'фреза') {
           const typeName = resolveCutterTypeName(cutterNom, nomenclatures)
           const key = typeName.toLowerCase().trim()
           if (!machineSpecificCutters[key]) {
@@ -250,23 +253,28 @@ export const calculateCuttersForBatch = ({
         if (invId) {
           const inv = (inventory || []).find(i => String(i.id) === String(invId))
           if (inv) {
-            const nom = nomenclatures.find(n => 
+            const nom = (nomenclatures || []).find(n => 
               String(n.id) === String(inv.nomenclature_id) ||
               (Array.isArray(n.legacy_ids) && n.legacy_ids.map(String).includes(String(inv.nomenclature_id)))
             )
-            const isCutter = nom?.group_id === 'grp_mills' || nom?.type === 'consumable' || (name && name.toLowerCase().includes('фреза') && name.toLowerCase() !== 'фреза')
+            const targetNom = nom || inv
+            const isCutter = nom?.group_id === 'grp_mills' || nom?.type === 'consumable' || (targetNom.name && targetNom.name.toLowerCase().includes('фреза') && targetNom.name.toLowerCase() !== 'фреза')
             if (isCutter) {
-              const cleanName = (nom?.name || inv.name || name).trim()
-              const key = String(nom?.id || inv.nomenclature_id || cleanName.toLowerCase())
+              const typeName = resolveCutterTypeName(targetNom, nomenclatures)
+              const key = typeName.toLowerCase().trim()
               const qtyPerSheet = 1
               const totalQty = Math.ceil(sheets * qtyPerSheet)
               if (!machineSpecificCutters[key]) {
                 machineSpecificCutters[key] = {
-                  name: cleanName,
-                  qty: totalQty,
-                  nomenclature_id: nom ? nom.id : inv.nomenclature_id
+                  name: typeName,
+                  typeName: typeName,
+                  qty: 0,
+                  nomenclature_id: targetNom.characteristic || targetNom.id || inv.nomenclature_id,
+                  cutter_type_id: targetNom.characteristic || targetNom.id || inv.nomenclature_id,
+                  isCutterType: true
                 }
               }
+              machineSpecificCutters[key].qty += totalQty
             }
           }
         }
@@ -277,21 +285,27 @@ export const calculateCuttersForBatch = ({
       task.plan_snapshot.consumables.forEach(c => {
         if (c.name && c.name.toLowerCase().includes('фреза') && c.name.toLowerCase() !== 'фреза') {
           const cleanName = c.name.trim()
-          const key = cleanName.toLowerCase()
+          const consNom = (nomenclatures || []).find(n => 
+            n.name.trim().toLowerCase() === cleanName.toLowerCase() ||
+            (Array.isArray(n.legacy_ids) && c.nomenclature_id && n.legacy_ids.map(String).includes(String(c.nomenclature_id))) ||
+            (n.type === 'consumable' && (n.name.toLowerCase().includes(cleanName.toLowerCase()) || cleanName.toLowerCase().includes(n.name.toLowerCase())))
+          )
+          const targetNom = consNom || resolveCutterOrVirtualType(c.nomenclature_id, nomenclatures) || { name: cleanName }
+          const typeName = resolveCutterTypeName(targetNom, nomenclatures)
+          const key = typeName.toLowerCase().trim()
+          const qtyPerSheet = Number(consNom?.consumption_per_sheet) || 1
+          const totalQty = Math.ceil(sheets * qtyPerSheet)
           if (!machineSpecificCutters[key]) {
-            const consNom = nomenclatures.find(n => 
-              n.name.trim().toLowerCase() === key ||
-              (Array.isArray(n.legacy_ids) && c.nomenclature_id && n.legacy_ids.map(String).includes(String(c.nomenclature_id))) ||
-              (n.type === 'consumable' && (n.name.toLowerCase().includes(key) || key.includes(n.name.toLowerCase())))
-            )
-            const resolvedId = consNom?.id || c.nomenclature_id || null
-            const qtyPerSheet = Number(consNom?.consumption_per_sheet) || 1
             machineSpecificCutters[key] = {
-              name: consNom ? consNom.name : cleanName,
-              qty: Math.ceil(sheets * qtyPerSheet),
-              nomenclature_id: resolvedId
+              name: typeName,
+              typeName: typeName,
+              qty: 0,
+              nomenclature_id: targetNom.characteristic || targetNom.id || c.nomenclature_id || null,
+              cutter_type_id: targetNom.characteristic || targetNom.id || c.nomenclature_id || null,
+              isCutterType: true
             }
           }
+          machineSpecificCutters[key].qty += totalQty
         }
       })
     }
@@ -305,13 +319,16 @@ export const calculateCuttersForBatch = ({
       n.name.trim().toLowerCase() !== 'фреза'
     )
     if (generalCutter) {
-      const cleanName = generalCutter.name.trim()
-      const key = cleanName.toLowerCase()
+      const typeName = resolveCutterTypeName(generalCutter, nomenclatures)
+      const key = typeName.toLowerCase().trim()
       const qtyPerSheet = Number(generalCutter.consumption_per_sheet) || 1
       machineSpecificCutters[key] = {
-        name: cleanName,
+        name: typeName,
+        typeName: typeName,
         qty: Math.ceil(sheets * qtyPerSheet),
-        nomenclature_id: generalCutter.id
+        nomenclature_id: generalCutter.characteristic || generalCutter.id,
+        cutter_type_id: generalCutter.characteristic || generalCutter.id,
+        isCutterType: true
       }
     }
   }

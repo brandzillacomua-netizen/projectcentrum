@@ -77,6 +77,7 @@ export const parseCuttersBreakdown = (cardInfo = '') => {
 // Ланцюжок Цеху №1
 export const CHAIN = [
   'Розкрій',
+  'Галтовка',
   'Галтовка (Вібростіл)',
   'Галтовка (Мийка)',
   'Галтовка (Галтовка)',

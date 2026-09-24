@@ -70,10 +70,6 @@ export function useShop1Queue({
       if (nom && nom.type && nom.type !== 'part') return;
 
       const parentTask = (tasks || []).find(t => String(t.id) === String(c.task_id));
-      if (parentTask) {
-        if (parentTask.status === 'completed') return;
-        if (String(parentTask.step || '').includes('[ЦЕХ №2]')) return;
-      }
 
       const isNewForShop1 = c.status === 'new' && (CHAIN.includes(c.operation) || !c.operation || c.operation === 'Нова' || c.operation === 'Розкрій');
       const isInBufferForShop1 = c.status === 'at-buffer' && CHAIN.includes(c.operation);
@@ -107,10 +103,6 @@ export function useShop1Queue({
       if (nom && nom.type && ['raw', 'material', 'hardware', 'fastener', 'consumable'].includes(nom.type)) return;
 
       const parentTask = (tasks || []).find(t => String(t.id) === String(c.task_id));
-      if (parentTask) {
-        if (parentTask.status === 'completed') return;
-        if (String(parentTask.step || '').includes('[ЦЕХ №2]')) return;
-      }
 
       if (selectedTaskFilter !== 'all') {
         if (selectedTaskFilter.startsWith('order-')) {
@@ -149,10 +141,6 @@ export function useShop1Queue({
     const hasPendingKitting = pendingReqsForCard.length > 0;
     if (hasPendingKitting && (c.status === 'new' || c.status === 'waiting-cutters' || c.status === 'waiting-materials' || c.status === 'waiting_material')) return false;
 
-    if (parentTask) {
-      if (parentTask.status === 'completed') return false;
-      if (String(parentTask.step || '').includes('[ЦЕХ №2]')) return false;
-    }
 
     const isNewForShop1 = (c.status === 'new' || c.status === 'waiting-cutters' || c.status === 'waiting-materials' || c.status === 'waiting_material') && (CHAIN.includes(c.operation) || !c.operation || c.operation === 'Нова' || c.operation === 'Розкрій');
     const isInBufferForShop1 = c.status === 'at-buffer' && CHAIN.includes(c.operation);

@@ -70,5 +70,9 @@ export function isRequestForCard(req, card, task = null, nomenclatures = []) {
  */
 export function getPendingRequestsForCard(card, requests = [], task = null, nomenclatures = []) {
   if (!card || !requests || requests.length === 0) return []
+  const cardInfo = String(card.card_info || '')
+  if (cardInfo.includes('[SHEETS_DEDUCTED:true]') || cardInfo.includes('[MATERIALS_ISSUED:true]')) {
+    return []
+  }
   return requests.filter(r => r && r.status === 'pending' && isRequestForCard(r, card, task, nomenclatures))
 }

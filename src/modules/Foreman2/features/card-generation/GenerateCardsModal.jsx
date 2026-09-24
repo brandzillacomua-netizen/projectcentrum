@@ -155,11 +155,7 @@ export default function GenerateCardsModal({
     if (config) {
       const defaultMachine = config.part?.machine || config.task?.machine_name || ''
       setMachineName(defaultMachine)
-      const nomKey = String(config.part?.nomId || config.part?.id || '')
-      const existingCutters = config.task?.plan_snapshot?.[nomKey]?.selected_cutters
-        || config.task?.plan_snapshot?.selectedCutters
-        || {}
-      setSelectedCutters(existingCutters)
+      setSelectedCutters({})
       const cap = config.capacityOverride || (defaultMachine ? (findMachine(defaultMachine)?.sheet_capacity || 1) : 1)
       setCapacity(cap)
       const rec = Math.max(1, Math.ceil((targetSheets || 1) / (Number(cap) || 1)))

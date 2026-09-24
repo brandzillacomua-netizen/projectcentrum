@@ -74,13 +74,8 @@ export function Shop1ActiveCardsTable({
                 const info = String(c.card_info || '')
                 if (info.includes('[ЦЕХ №2]') || info.includes('[ЦЕХ 2]')) return false
 
-                const parentTask = (tasks || []).find(t => String(t.id) === String(c.task_id))
-                if (parentTask) {
-                  if (parentTask.status === 'completed') return false
-                  if (String(parentTask.step || '').includes('[ЦЕХ №2]')) return false
-                }
-
-                if (!CHAIN.includes(c.operation)) return false
+                const isInChain = CHAIN.includes(c.operation) || (c.operation && c.operation.startsWith('Галтовка'))
+                if (!isInChain) return false
                 if (c.status !== 'in-progress' && c.status !== 'at-buffer') return false
                 if (activeTableFilter === 'in-progress' && c.status !== 'in-progress') return false
                 if (activeTableFilter === 'at-buffer' && c.status !== 'at-buffer') return false
