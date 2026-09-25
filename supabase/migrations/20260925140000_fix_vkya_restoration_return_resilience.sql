@@ -296,13 +296,13 @@ begin
   if v_restoration.source_history_id is not null and exists (select 1 from public.work_card_history where id = v_restoration.source_history_id) then
     insert into public.vkya_quality_resolutions (
       source_history_id, source_card_id, task_id, order_id, nomenclature_id,
-      quantity, disposition, restoration_card_id, resolved_by_name
+      quantity, disposition, route_card_id, restoration_card_id, resolved_by_name
     ) values (
       v_restoration.source_history_id,
       case when exists (select 1 from public.work_cards where id = v_restoration.source_card_id) then v_restoration.source_card_id else null end,
       v_task_id, v_order_id,
       v_restoration.nomenclature_id, v_restoration.completed_quantity, 'returned_to_route',
-      v_restoration.id, nullif(btrim(p_returned_by), '')
+      v_route_card_id, null, nullif(btrim(p_returned_by), '')
     )
     on conflict do nothing;
   end if;
