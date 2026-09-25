@@ -76,23 +76,13 @@ export const VKYARestorationCardModal = ({
 
         {selectedCard.status === 'completed' && (
           <div style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 15 }}>
-            {(selectedCard.source_task_id || selectedCard.source_history_id || selectedCard.source_card_id) ? (
-              <div style={{ background: '#10b98112', border: '1px solid #10b98144', borderRadius: 14, padding: 15 }}>
-                <div style={{ color: '#10b981', fontSize: '.72rem', fontWeight: 1000 }}>ПОВЕРНЕННЯ У БУФЕР ЦЕХУ №2</div>
-                <div style={{ color: 'var(--text-muted, #94a3b8)', fontSize: '.7rem', marginTop: 7 }}>Відновлені деталі надійдуть у Буфер Цеху №2 початкового наряду. Начальник Цеху №2 зможе направити їх на потрібний етап (Пресування, Фарбування тощо).</div>
-                <button onClick={returnToSourceRoute} disabled={saving || Number(selectedCard.completed_quantity) <= 0} style={{ width: '100%', marginTop: 14, background: '#10b981', border: 0, borderRadius: 12, padding: 14, color: '#00150e', fontWeight: 1000, cursor: 'pointer' }}>
-                  <CornerUpLeft size={17} style={{ verticalAlign: 'middle', marginRight: 7 }}/>ПОВЕРНУТИ В НАРЯД (В БУФЕР ЦЕХУ №2) · {selectedCard.completed_quantity} {selectedCard.unit}
-                </button>
-              </div>
-            ) : (
-              <div style={{ background: '#f59e0b12', border: '1px solid #f59e0b44', borderRadius: 14, padding: 15 }}>
-                <div style={{ color: '#f59e0b', fontSize: '.72rem', fontWeight: 1000 }}>ПОВЕРНЕННЯ НА СКЛАД (В БАЗОВИЙ ЗАЛИШОК)</div>
-                <div style={{ color: 'var(--text-muted, #94a3b8)', fontSize: '.7rem', marginTop: 7 }}>Ця карта створена зі старого обліку і не має зв'язку з активним нарядом. Відновлені деталі будуть зараховані безпосередньо в Базовий залишок (БЗ) на склад.</div>
-                <button onClick={returnLegacyToBZ} disabled={saving || Number(selectedCard.completed_quantity) <= 0} style={{ width: '100%', marginTop: 14, background: '#f59e0b', border: 0, borderRadius: 12, padding: 14, color: '#170d00', fontWeight: 1000, cursor: 'pointer' }}>
-                  <CornerUpLeft size={17} style={{ verticalAlign: 'middle', marginRight: 7 }}/>ПОВЕРНУТИ НА СКЛАД (БЗ) · {selectedCard.completed_quantity} {selectedCard.unit}
-                </button>
-              </div>
-            )}
+            <div style={{ background: '#10b98112', border: '1px solid #10b98144', borderRadius: 14, padding: 15 }}>
+              <div style={{ color: '#10b981', fontSize: '.72rem', fontWeight: 1000 }}>ПОВЕРНЕННЯ У БУФЕР ЦЕХУ №2</div>
+              <div style={{ color: 'var(--text-muted, #94a3b8)', fontSize: '.7rem', marginTop: 7 }}>Відновлені деталі надійдуть у Буфер Цеху №2. Начальник Цеху №2 зможе направити їх на потрібний етап (Пресування, Фарбування тощо).</div>
+              <button onClick={returnToSourceRoute} disabled={saving || Number(selectedCard.completed_quantity) <= 0} style={{ width: '100%', marginTop: 14, background: '#10b981', border: 0, borderRadius: 12, padding: 14, color: '#00150e', fontWeight: 1000, cursor: 'pointer' }}>
+                <CornerUpLeft size={17} style={{ verticalAlign: 'middle', marginRight: 7 }}/>ПОВЕРНУТИ В БУФЕР ЦЕХУ №2 · {selectedCard.completed_quantity} {selectedCard.unit}
+              </button>
+            </div>
 
             <div style={{ background: '#06b6d412', border: '1px solid #06b6d444', borderRadius: 14, padding: 15 }}>
               <div style={{ color: '#06b6d4', fontSize: '.72rem', fontWeight: 1000 }}>ПЕРЕДАЧА В ЦЕХ №2</div>

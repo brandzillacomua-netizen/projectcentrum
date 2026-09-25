@@ -35,7 +35,24 @@ export const useVKYARestorationData = () => {
     ])
     const loadError = cardsResult.error || legacyResult.error
     if (loadError) setError(loadError.message)
-    else { setCards(cardsResult.data || []); setLegacyItems(legacyResult.data || []); setError('') }
+    else {
+      const rawCards = cardsResult.data || []
+      const taskIds = [...new Set(rawCards.map(c => c.source_task_id).filter(Boolean))]
+      let validTaskIds = new Set()
+      if (taskIds.length > 0) {
+        const { data: tasksData } = await supabase.from('tasks').select('id').in('id', taskIds)
+        if (tasksData) {
+          validTaskIds = new Set(tasksData.map(t => String(t.id)))
+        }
+      }
+      const processedCards = rawCards.map(card => ({
+        ...card,
+        has_valid_source_task: Boolean(card.source_task_id && validTaskIds.has(String(card.source_task_id)))
+      }))
+      setCards(processedCards)
+      setLegacyItems(legacyResult.data || [])
+      setError('')
+    }
     setLoading(false)
   }, [])
 
@@ -105,12 +122,7 @@ export const useVKYARestorationData = () => {
 
   const returnToSourceRoute = async () => {
     if (!selectedCard || selectedCard.status !== 'completed' || selectedCard.route_card_id) return
-    const hasSource = Boolean(selectedCard.source_task_id || selectedCard.source_history_id || selectedCard.source_card_id)
-    if (!hasSource) {
-      alert('Помилка: Карта відновлення не має зв’язку з нарядом.')
-      return
-    }
-    if (!window.confirm(`Повернути ${selectedCard.completed_quantity} ${selectedCard.unit || 'шт'} у початковий наряд (в Буфер Цеху №2)?`)) return
+    if (!window.confirm(`Повернути ${selectedCard.completed_quantity} ${selectedCard.unit || 'шт'} у Буфер Цеху №2?`)) return
     setSaving(true)
     try {
       await returnRestorationToRoute(supabase, {
@@ -119,10 +131,10 @@ export const useVKYARestorationData = () => {
       })
       setSelectedCard(null)
       await loadCards()
-      alert(`✅ ${selectedCard.completed_quantity} шт. повернено у Буфер Цеху №2 початкового наряду.`)
+      alert(`✅ ${selectedCard.completed_quantity} шт. повернено у Буфер Цеху №2.`)
     } catch (returnError) {
       setError(returnError.message)
-      alert(`❌ Помилка повернення у наряд: ${returnError.message}`)
+      alert(`❌ Помилка повернення у Буфер Цеху №2: ${returnError.message}`)
     } finally {
       setSaving(false)
     }

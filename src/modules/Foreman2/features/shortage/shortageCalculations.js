@@ -76,10 +76,9 @@ export const calculatePartShortage = ({
     : observedScrapRaw
   const shortage = scrap > 0 ? Math.max(0, scrap - Math.max(0, spareFromSheets)) : 0
 
-  const returnedFromResolutionIndex = asNumber(vkyaReturnedByTask?.[asId(task.id)]?.[nomId])
   const returnedFromCardInfo = nomCards.reduce((sum, card) => {
     const info = String(card.card_info || '')
-    const match = info.match(/\[VKYA_RETURN:[^:]+:(\d+)\]/)
+    const match = info.match(/\[VKYA_(?:RESTORED_)?RETURN:[^:]+:(\d+)\]/)
     if (match) return sum + (Number(match[1]) || 0)
     return sum
   }, 0)

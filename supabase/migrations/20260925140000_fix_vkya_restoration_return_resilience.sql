@@ -2,10 +2,12 @@ begin;
 
 -- Resilient return_vkya_restoration_to_route function.
 -- 1. Does not fail if source_history_id is null or missing from work_card_history,
---    as long as source_task_id or source_card_id resolves to a valid task_id.
--- 2. Logs/updates vkya_quality_resolutions so returnedVkya is immediately
---    visible in Foreman/Shop 1 task details.
--- 3. Fixes unique constraint violation "uq_inventory_sgp_nom_finished" in
+--    resolving task_id resiliently from source_task_id, source_card_id, source_history_id, or source_order_id.
+-- 2. Formats card_info with [VKYA_RETURN:id:qty] so both shortage calculations and card breakdown
+--    recognize the returned parts immediately.
+-- 3. Inserts an audit record into work_card_history so returned parts appear in the
+--    Shop 1 Card Archive (Архів карток Цеху 1) under the corresponding outfit/task.
+-- 4. Fixes unique constraint violation "uq_inventory_sgp_nom_finished" in
 --    vkya_add_route_inventory and return_legacy_restoration_to_bz when updating SGP stock.
 
 create or replace function public.vkya_add_route_inventory(
@@ -166,19 +168,64 @@ begin
     where id = coalesce(v_restoration.source_card_id, v_history.card_id);
   end if;
 
-  -- 3. Resolve task_id and order_id resiliently
+  -- 3. Resolve task_id resiliently and validate against public.tasks
   v_task_id := coalesce(v_restoration.source_task_id, v_source.task_id, v_history.task_id);
-  if v_task_id is null then
-    raise exception 'Карта відновлення не має прив''язки до наряду (task_id) і не може бути повернена в наряд';
+  
+  if v_task_id is not null then
+    select id into v_task_id
+    from public.tasks
+    where id = v_task_id;
   end if;
 
-  select order_id into v_order_id
-  from public.tasks
-  where id = v_task_id;
+  if v_task_id is null and v_restoration.source_order_id is not null then
+    select id into v_task_id
+    from public.tasks
+    where order_id = v_restoration.source_order_id
+    order by created_at desc
+    limit 1;
+  end if;
 
-  v_order_id := coalesce(v_restoration.source_order_id, v_source.order_id, v_history.order_id, v_order_id);
-  v_manager_name := v_source.manager_name;
-  v_shift_name := v_source.shift_name;
+  if v_task_id is null and coalesce(v_source.order_id, v_history.task_id) is not null then
+    select id into v_task_id
+    from public.tasks
+    where order_id = coalesce(v_source.order_id, v_history.task_id)
+    order by created_at desc
+    limit 1;
+  end if;
+
+  if v_task_id is null then
+    select wc.task_id into v_task_id
+    from public.work_cards wc
+    join public.tasks t on t.id = wc.task_id
+    where wc.nomenclature_id = v_restoration.nomenclature_id
+    order by wc.created_at desc
+    limit 1;
+  end if;
+
+  -- Final validation of v_task_id against public.tasks table
+  if v_task_id is not null then
+    perform 1 from public.tasks where id = v_task_id;
+    if not found then
+      v_task_id := null;
+    end if;
+  end if;
+
+  if v_task_id is not null then
+    select order_id into v_order_id
+    from public.tasks
+    where id = v_task_id;
+  end if;
+
+  v_order_id := coalesce(v_order_id, v_restoration.source_order_id, v_source.order_id);
+  if v_order_id is not null then
+    perform 1 from public.orders where id = v_order_id;
+    if not found then
+      v_order_id := null;
+    end if;
+  end if;
+
+  v_manager_name := coalesce(v_source.manager_name, v_history.manager_name, '—');
+  v_shift_name := coalesce(v_source.shift_name, v_history.shift_name, '—');
 
   -- All restored parts from VKYA return directly to Shop 2 Buffer (at-shop2-buffer)
   v_target_status := 'at-shop2-buffer';
@@ -192,7 +239,8 @@ begin
   else
     select id into v_route_card_id
     from public.work_cards
-    where task_id = v_task_id
+    where (task_id = v_task_id or (task_id is null and v_task_id is null))
+      and nomenclature_id = v_restoration.nomenclature_id
       and status = v_target_status
       and lower(btrim(coalesce(operation, ''))) = lower(btrim(coalesce(v_target_operation, '')))
     order by created_at desc
@@ -204,7 +252,9 @@ begin
     update public.work_cards
     set quantity = coalesce(quantity, 0) + v_restoration.completed_quantity,
         card_info = concat_ws(' ', nullif(btrim(coalesce(card_info, '')), ''),
-          format('[VKYA_RESTORED_RETURN:%s:%s]', v_restoration.id, v_restoration.completed_quantity))
+          format('[VKYA_RETURN:%s:%s] [VKYA_RESTORED_RETURN:%s:%s]',
+            v_restoration.id, v_restoration.completed_quantity,
+            v_restoration.id, v_restoration.completed_quantity))
     where id = v_route_card_id;
   else
     insert into public.work_cards (
@@ -214,7 +264,8 @@ begin
       v_task_id, v_order_id,
       v_restoration.nomenclature_id, v_restoration.completed_quantity,
       v_target_operation, v_target_status, '—', v_manager_name, v_shift_name,
-      format('[VKYA_RESTORED_RETURN:%s:%s] [SOURCE_CARD:%s] [SOURCE_HISTORY:%s] Повернено в Буфер Цеху №2 після відновлення ВКЯ',
+      format('[VKYA_RETURN:%s:%s] [VKYA_RESTORED_RETURN:%s:%s] [SOURCE_CARD:%s] [SOURCE_HISTORY:%s] Повернено в Буфер Цеху №2 після відновлення ВКЯ',
+        v_restoration.id, v_restoration.completed_quantity,
         v_restoration.id, v_restoration.completed_quantity,
         coalesce(v_source.id::text, '—'), coalesce(v_history.id::text, '—'))
     ) returning id into v_route_card_id;
@@ -224,16 +275,37 @@ begin
     perform public.vkya_add_route_inventory(v_restoration.nomenclature_id, v_target_inventory, v_restoration.completed_quantity);
   end if;
 
-  -- Record resolution so Shop 1 / Foreman report queries see the returned count
-  insert into public.vkya_quality_resolutions (
-    source_history_id, source_card_id, task_id, order_id, nomenclature_id,
-    quantity, disposition, restoration_card_id, resolved_by_name
+  -- Create history entry in work_card_history so returned card appears in Shop 1 Card Archive (Архів карток Цеху 1)
+  insert into public.work_card_history (
+    card_id, nomenclature_id, task_id, stage_name, operator_name,
+    qty_at_start, qty_completed, scrap_qty, started_at, completed_at, created_at,
+    is_archived_scrap, machine, manager_name, shift_name, card_info
   ) values (
-    v_restoration.source_history_id, v_restoration.source_card_id, v_task_id, v_order_id,
-    v_restoration.nomenclature_id, v_restoration.completed_quantity, 'returned_to_route',
-    v_restoration.id, nullif(btrim(p_returned_by), '')
-  )
-  on conflict do nothing;
+    v_route_card_id, v_restoration.nomenclature_id, v_task_id,
+    v_restoration.restoration_stage || ' (Відновлено ВКЯ)',
+    coalesce(v_restoration.operator_name, nullif(btrim(p_returned_by), ''), 'Термінал відновлення ВКЯ'),
+    v_restoration.completed_quantity, v_restoration.completed_quantity, 0,
+    coalesce(v_restoration.started_at, v_restoration.created_at, now()),
+    now(), now(), false, '—', v_manager_name, v_shift_name,
+    format('[VKYA_RETURN:%s:%s] [VKYA_RESTORED_RETURN:%s:%s] Відновлено та повернуто в наряд із ВКЯ',
+      v_restoration.id, v_restoration.completed_quantity,
+      v_restoration.id, v_restoration.completed_quantity)
+  );
+
+  -- Record resolution so Shop 1 / Foreman report queries see the returned count (if source history exists)
+  if v_restoration.source_history_id is not null and exists (select 1 from public.work_card_history where id = v_restoration.source_history_id) then
+    insert into public.vkya_quality_resolutions (
+      source_history_id, source_card_id, task_id, order_id, nomenclature_id,
+      quantity, disposition, restoration_card_id, resolved_by_name
+    ) values (
+      v_restoration.source_history_id,
+      case when exists (select 1 from public.work_cards where id = v_restoration.source_card_id) then v_restoration.source_card_id else null end,
+      v_task_id, v_order_id,
+      v_restoration.nomenclature_id, v_restoration.completed_quantity, 'returned_to_route',
+      v_restoration.id, nullif(btrim(p_returned_by), '')
+    )
+    on conflict do nothing;
+  end if;
 
   update public.vkya_restoration_cards
   set route_card_id = v_route_card_id,
