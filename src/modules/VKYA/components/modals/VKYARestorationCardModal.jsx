@@ -76,7 +76,7 @@ export const VKYARestorationCardModal = ({
 
         {selectedCard.status === 'completed' && (
           <div style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 15 }}>
-            {selectedCard.source_history_id && selectedCard.source_task_id ? (
+            {(selectedCard.source_task_id || selectedCard.source_history_id || selectedCard.source_card_id) ? (
               <div style={{ background: '#10b98112', border: '1px solid #10b98144', borderRadius: 14, padding: 15 }}>
                 <div style={{ color: '#10b981', fontSize: '.72rem', fontWeight: 1000 }}>ПОВЕРНЕННЯ У БУФЕР ЦЕХУ №2</div>
                 <div style={{ color: 'var(--text-muted, #94a3b8)', fontSize: '.7rem', marginTop: 7 }}>Відновлені деталі надійдуть у Буфер Цеху №2 початкового наряду. Начальник Цеху №2 зможе направити їх на потрібний етап (Пресування, Фарбування тощо).</div>

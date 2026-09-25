@@ -105,6 +105,11 @@ export const useVKYARestorationData = () => {
 
   const returnToSourceRoute = async () => {
     if (!selectedCard || selectedCard.status !== 'completed' || selectedCard.route_card_id) return
+    const hasSource = Boolean(selectedCard.source_task_id || selectedCard.source_history_id || selectedCard.source_card_id)
+    if (!hasSource) {
+      alert('Помилка: Карта відновлення не має зв’язку з нарядом.')
+      return
+    }
     if (!window.confirm(`Повернути ${selectedCard.completed_quantity} ${selectedCard.unit || 'шт'} у початковий наряд (в Буфер Цеху №2)?`)) return
     setSaving(true)
     try {
@@ -117,6 +122,7 @@ export const useVKYARestorationData = () => {
       alert(`✅ ${selectedCard.completed_quantity} шт. повернено у Буфер Цеху №2 початкового наряду.`)
     } catch (returnError) {
       setError(returnError.message)
+      alert(`❌ Помилка повернення у наряд: ${returnError.message}`)
     } finally {
       setSaving(false)
     }
@@ -137,6 +143,7 @@ export const useVKYARestorationData = () => {
       alert(`✅ ${selectedCard.completed_quantity} шт. успішно зараховано у Базовий залишок на склад.`)
     } catch (retError) {
       setError(retError.message)
+      alert(`❌ Помилка повернення на склад: ${retError.message}`)
     } finally {
       setSaving(false)
     }
