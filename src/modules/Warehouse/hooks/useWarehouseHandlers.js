@@ -62,9 +62,7 @@ export const useWarehouseHandlers = ({
       : null
     const sourceName = String(nom?.name || inv?.name || item?.name || item?.reqDetails || item?.details || '')
     const nameLower = sourceName.toLowerCase()
-    return nameLower.includes('лист') &&
-      nameLower.includes('підготовлений') &&
-      !nameLower.includes('непідготовлений')
+    return nameLower.includes('лист') || nameLower.includes('sheet') || item?.category === 'sheet'
   }
 
   const handleToggleCutterCheck = (cardId, nomId) => {
@@ -864,7 +862,7 @@ export const useWarehouseHandlers = ({
       if (nonPreparedMissing.length > 0) {
         setShortages({ orderId, orderNum, taskId, items: nonPreparedMissing, reqList })
       } else if (missingItems.length > 0) {
-        // Only prepared sheets missing, wait
+        alert('Частково видано наявні листи зі складу. Залишок дефіциту залишається в заявці і очікує нового надходження листів.')
       } else if (result?.fullyIssued) {
         alert('Наряд повністю зарезервовано та погоджено!')
       } else {
