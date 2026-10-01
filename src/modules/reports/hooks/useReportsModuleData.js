@@ -7,6 +7,7 @@ import { useEmployeeReport } from './useEmployeeReport'
 import { useScrapReport } from './useScrapReport'
 import { useSuppliesReport } from './useSuppliesReport'
 import { useCuttersReport } from './useCuttersReport'
+import { exportReportToExcel } from '../utils/reportsExportService'
 
 export const HISTORY_REPORT_TABS = new Set(['employees', 'scrap', 'supplies', 'sheets', 'cutters', 'analytics'])
 export const REPORT_CACHE_TTL_MS = 30 * 1000
@@ -93,6 +94,7 @@ export function useReportsModuleData() {
   const [startDate, setStartDate] = useState(todayStr)
   const [endDate, setEndDate] = useState(todayStr)
   const [workCardHistory, setWorkCardHistory] = useState(initialHistory)
+  const [cutterUsageEvents, setCutterUsageEvents] = useState([])
   const [scrapReasonsDb, setScrapReasonsDb] = useState([])
   const [classifiedHistoryIds, setClassifiedHistoryIds] = useState(new Set())
   const [isSyncing, setIsSyncing] = useState(false)
@@ -101,6 +103,21 @@ export function useReportsModuleData() {
   const [selectedEmployeeFilter, setSelectedEmployeeFilter] = useState('all')
   const historyRangeCacheRef = useRef(new Map())
   const historyRequestSeqRef = useRef(0)
+
+  const handleSetStartDate = useCallback((val) => {
+    if (HISTORY_REPORT_TABS.has(activeTab)) setIsSyncing(true)
+    setStartDate(val)
+  }, [activeTab])
+
+  const handleSetEndDate = useCallback((val) => {
+    if (HISTORY_REPORT_TABS.has(activeTab)) setIsSyncing(true)
+    setEndDate(val)
+  }, [activeTab])
+
+  const handleSetActiveTab = useCallback((tab) => {
+    if (HISTORY_REPORT_TABS.has(tab)) setIsSyncing(true)
+    setActiveTab(tab)
+  }, [])
 
   const uniqueOperators = useMemo(() => {
     const ops = new Set()
@@ -114,8 +131,8 @@ export function useReportsModuleData() {
     return Array.from(ops).filter(Boolean).sort()
   }, [systemUsers, workCardHistory])
 
-  const fetchReportHistoryRange = async (startIso, endExclusiveIso, scrapOnly = false) => {
-    const cacheKey = `${scrapOnly ? 'scrap' : 'all'}|${startIso || ''}|${endExclusiveIso || ''}`
+  const fetchReportHistoryRange = async (startIso, endExclusiveIso) => {
+    const cacheKey = `all|${startIso || ''}|${endExclusiveIso || ''}`
     const cached = historyRangeCacheRef.current.get(cacheKey)
     if (cached && Date.now() - cached.savedAt < REPORT_CACHE_TTL_MS) return cached.rows
 
@@ -126,7 +143,6 @@ export function useReportsModuleData() {
     for (let from = 0; ; from += pageSize) {
       let query = supabase.from('work_card_history').select(columns)
 
-      if (scrapOnly) query = query.gt('scrap_qty', 0)
       if (startIso) query = query.gte('created_at', startIso)
       if (endExclusiveIso) query = query.lt('created_at', endExclusiveIso)
 
@@ -159,39 +175,51 @@ export function useReportsModuleData() {
     }
 
     try {
-      const scrapOnly = activeTab === 'scrap'
-      const completeHistory = await fetchReportHistoryRange(startIso, endExclusiveIso, scrapOnly)
+      const completeHistoryPromise = fetchReportHistoryRange(startIso, endExclusiveIso)
+
+      let classQuery = supabase.from('scrap_classifications').select('*')
+      if (startIso) classQuery = classQuery.gte('created_at', startIso)
+      if (endExclusiveIso) classQuery = classQuery.lt('created_at', endExclusiveIso)
+
+      let dbReasonsQuery = supabase.from('scrap_report_by_reason').select('*')
+      if (startIso) dbReasonsQuery = dbReasonsQuery.gte('report_day', startIso)
+      if (endExclusiveIso) dbReasonsQuery = dbReasonsQuery.lt('report_day', endExclusiveIso)
+
+      let classificationsQuery = supabase.from('scrap_classifications').select('source_history_id')
+      if (startIso) classificationsQuery = classificationsQuery.gte('classified_at', startIso)
+      if (endExclusiveIso) classificationsQuery = classificationsQuery.lt('classified_at', endExclusiveIso)
+
+      let usageQuery = supabase.from('cutter_usage_events').select('*')
+      if (startIso) usageQuery = usageQuery.gte('created_at', startIso)
+      if (endExclusiveIso) usageQuery = usageQuery.lt('created_at', endExclusiveIso)
+
+      const [
+        completeHistory,
+        classResult,
+        dbReasonsResult,
+        classificationsResult,
+        usageResult
+      ] = await Promise.all([
+        completeHistoryPromise,
+        classQuery,
+        dbReasonsQuery,
+        classificationsQuery,
+        usageQuery
+      ])
 
       if (requestSeq === historyRequestSeqRef.current) {
-        setWorkCardHistory(completeHistory)
-      }
-
-      if (scrapOnly) {
-        let classQuery = supabase.from('scrap_classifications').select('*')
-        if (startIso) classQuery = classQuery.gte('created_at', startIso)
-        if (endExclusiveIso) classQuery = classQuery.lt('created_at', endExclusiveIso)
-        const classResult = await classQuery
-        if (!classResult.error && classResult.data && requestSeq === historyRequestSeqRef.current) {
+        setWorkCardHistory(completeHistory || [])
+        if (classResult && !classResult.error && classResult.data) {
           setScrapClassificationsList(classResult.data)
         }
-      }
-
-      if (scrapOnly && scrapReportSubTab === 'reasons') {
-        let dbReasonsQuery = supabase.from('scrap_report_by_reason').select('*')
-        if (startIso) dbReasonsQuery = dbReasonsQuery.gte('report_day', startIso)
-        if (endExclusiveIso) dbReasonsQuery = dbReasonsQuery.lt('report_day', endExclusiveIso)
-
-        let classificationsQuery = supabase.from('scrap_classifications').select('source_history_id')
-        if (startIso) classificationsQuery = classificationsQuery.gte('classified_at', startIso)
-        if (endExclusiveIso) classificationsQuery = classificationsQuery.lt('classified_at', endExclusiveIso)
-
-        const dbReasonsResult = await dbReasonsQuery
-        const classificationsResult = await classificationsQuery
-        if (dbReasonsResult.error) throw dbReasonsResult.error
-        if (classificationsResult.error) throw classificationsResult.error
-        if (requestSeq === historyRequestSeqRef.current) {
+        if (dbReasonsResult && !dbReasonsResult.error && dbReasonsResult.data) {
           setScrapReasonsDb(dbReasonsResult.data || [])
+        }
+        if (classificationsResult && !classificationsResult.error && classificationsResult.data) {
           setClassifiedHistoryIds(new Set((classificationsResult.data || []).map(r => r.source_history_id)))
+        }
+        if (usageResult && !usageResult.error && usageResult.data) {
+          setCutterUsageEvents(usageResult.data)
         }
       }
     } catch (err) {
@@ -200,13 +228,21 @@ export function useReportsModuleData() {
         setHistoryLoadError(err?.message || 'Не вдалося завантажити дані за обраний період')
       }
     } finally {
-      if (requestSeq === historyRequestSeqRef.current) setIsSyncing(false)
+      if (requestSeq === historyRequestSeqRef.current) {
+        setIsSyncing(false)
+      }
     }
   }
 
   useEffect(() => {
+    if (HISTORY_REPORT_TABS.has(activeTab)) {
+      setIsSyncing(true)
+    }
     const timer = setTimeout(() => {
-      if (!HISTORY_REPORT_TABS.has(activeTab)) return
+      if (!HISTORY_REPORT_TABS.has(activeTab)) {
+        setIsSyncing(false)
+        return
+      }
       if (startDate || endDate) syncHistory(startDate, endDate)
       else setWorkCardHistory(initialHistory)
     }, 250)
@@ -216,6 +252,9 @@ export function useReportsModuleData() {
   const handleQuickDateSelect = (e) => {
     const val = e.target.value
     if (!val) return
+    if (HISTORY_REPORT_TABS.has(activeTab)) {
+      setIsSyncing(true)
+    }
     
     const today = new Date()
     const toISO = (d) => {
@@ -244,10 +283,14 @@ export function useReportsModuleData() {
       const d = new Date()
       d.setDate(d.getDate() - 6)
       startStr = toISO(d)
-    } else if (val === 'month') {
-      const d = new Date()
-      d.setMonth(d.getMonth() - 1)
+    } else if (val === 'month' || val === 'this_month') {
+      const d = new Date(today.getFullYear(), today.getMonth(), 1)
       startStr = toISO(d)
+    } else if (val === 'previous_month') {
+      const from = new Date(today.getFullYear(), today.getMonth() - 1, 1)
+      const to = new Date(today.getFullYear(), today.getMonth(), 0)
+      startStr = toISO(from)
+      endStr = toISO(to)
     } else if (val === 'quarter') {
       const d = new Date()
       d.setMonth(d.getMonth() - 3)
@@ -274,13 +317,13 @@ export function useReportsModuleData() {
     const d = new Date(targetDate)
     
     if (startDate) {
-      const s = new Date(startDate)
-      s.setHours(0,0,0,0)
+      const parts = startDate.split('-').map(Number)
+      const s = new Date(parts[0], parts[1] - 1, parts[2], 0, 0, 0, 0)
       if (d < s) return false
     }
     if (endDate) {
-      const e = new Date(endDate)
-      e.setHours(23,59,59,999)
+      const parts = endDate.split('-').map(Number)
+      const e = new Date(parts[0], parts[1] - 1, parts[2], 23, 59, 59, 999)
       if (d > e) return false
     }
     
@@ -321,10 +364,11 @@ export function useReportsModuleData() {
     normalize
   })
 
-  const { cuttersStats } = useCuttersReport({
+  const { cuttersStats, cutterEventsList, totalCuttersUsed, totalCuttersSupplied } = useCuttersReport({
     receptionDocs,
     requests,
     workCardHistory,
+    cutterUsageEvents,
     inventory,
     nomenclatures,
     filterByDate,
@@ -355,6 +399,27 @@ export function useReportsModuleData() {
     }
   }, [tasks, orders, workCardHistory, filterByDate])
 
+  const handleExport = useCallback(async () => {
+    try {
+      await exportReportToExcel({
+        activeTab,
+        startDate,
+        endDate,
+        scrapStats,
+        scrapReasonsStats,
+        employeeStats,
+        warehouseReport,
+        supplyStats,
+        cuttersStats,
+        cutterEventsList,
+        generalStats
+      })
+    } catch (e) {
+      console.error('Failed to export report:', e)
+      alert('Помилка при експорті звіту: ' + (e?.message || e))
+    }
+  }, [activeTab, startDate, endDate, scrapStats, scrapReasonsStats, employeeStats, warehouseReport, supplyStats, cuttersStats, cutterEventsList, generalStats])
+
   return {
     inventory,
     tasks,
@@ -363,7 +428,7 @@ export function useReportsModuleData() {
     receptionDocs,
     requests,
     activeTab,
-    setActiveTab,
+    setActiveTab: handleSetActiveTab,
     scrapReportSubTab,
     setScrapReportSubTab,
     searchQuery,
@@ -380,9 +445,9 @@ export function useReportsModuleData() {
     loadArchive,
     filteredArchiveTasks,
     startDate,
-    setStartDate,
+    setStartDate: handleSetStartDate,
     endDate,
-    setEndDate,
+    setEndDate: handleSetEndDate,
     workCardHistory,
     isSyncing,
     historyLoadError,
@@ -392,6 +457,7 @@ export function useReportsModuleData() {
     setSelectedEmployeeFilter,
     uniqueOperators,
     handleQuickDateSelect,
+    handleExport,
     filterByDate,
     ...warehouseReport,
     employeeStats,
@@ -400,6 +466,9 @@ export function useReportsModuleData() {
     generalStats,
     supplyStats,
     cuttersStats,
+    cutterEventsList,
+    totalCuttersUsed,
+    totalCuttersSupplied,
     archiveTotalCount,
     archiveTotalPages,
     archivePage,

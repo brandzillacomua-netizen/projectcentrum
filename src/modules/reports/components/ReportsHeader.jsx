@@ -33,7 +33,8 @@ export const ReportsHeader = ({
   setEndDate,
   quickPeriod,
   setQuickPeriod,
-  handleQuickDateSelect
+  handleQuickDateSelect,
+  handleExport
 }) => {
   const startInputRef = useRef(null)
   const endInputRef = useRef(null)
@@ -71,7 +72,7 @@ export const ReportsHeader = ({
           </div>
         </div>
         <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
-          <button className="reports-nav-export-btn">
+          <button onClick={handleExport} className="reports-nav-export-btn">
             <Download size={14} /> ЕКСПОРТ
           </button>
         </div>
@@ -204,7 +205,8 @@ export const ReportsHeader = ({
                     <option value="yesterday">Вчора</option>
                     <option value="3days">Останні 3 дні</option>
                     <option value="week">Останній тиждень</option>
-                    <option value="month">Останній місяць</option>
+                    <option value="this_month">Цей місяць</option>
+                    <option value="previous_month">Минулий місяць</option>
                     <option value="quarter">Останній квартал</option>
                     <option value="halfyear">Останні пів року</option>
                     <option value="year">Останній рік</option>

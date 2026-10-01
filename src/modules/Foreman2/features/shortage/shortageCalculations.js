@@ -82,6 +82,7 @@ export const calculatePartShortage = ({
     if (match) return sum + (Number(match[1]) || 0)
     return sum
   }, 0)
+  const returnedFromResolutionIndex = asNumber(vkyaReturnedByTask?.[asId(task.id)]?.[nomId])
   const returnedVkya = Math.max(returnedFromResolutionIndex, returnedFromCardInfo)
 
   // Quality Hold (НА ВКЯ): parts sent to VKYA that have neither been written off as Cat4 Util (scrap) nor returned to order (returnedVkya)

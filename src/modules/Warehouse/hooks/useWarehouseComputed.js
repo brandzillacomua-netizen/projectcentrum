@@ -455,18 +455,6 @@ export const useWarehouseComputed = ({
       }
       if (isPrepRequest(r, tasks)) return false
 
-      // If this order already has active SGP kitting requests — hide its regular
-      // raw-material / sheet requests from the operational warehouse (СО) tabs.
-      // Фрези та витратні матеріали не приховуємо — вони все одно беруться з СО.
-      if (activeTab !== 'finished' && r.order_id && kittingOrderIds.has(r.order_id)) {
-        const isCutterOrConsumableReq =
-          r.category === 'cutter' ||
-          r.category === 'consumable' ||
-          (r.details || '').toLowerCase().includes('фреза') ||
-          (r.details || '').includes('ВИТРАТНІ МАТЕРІАЛИ')
-        if (!isCutterOrConsumableReq) return false
-      }
-
       return getMaterialType(r, nomenclatures, inventory) === activeTab
     })
   }, [requests, tasks, nomenclatures, inventory, workCards, activeTab])

@@ -17,37 +17,37 @@ export const ScrapReportView = ({
     return <div className="glass-panel" style={{ background: '#111', padding: '25px', borderRadius: '16px', border: '1px solid #7f1d1d', color: '#fca5a5' }}>Не вдалося завантажити звіт: {historyLoadError}</div>
   }
 
-  const invScrapCat123 = (inventory || []).filter(i => ['scrap_cat_1', 'scrap_cat_2', 'scrap_cat_3'].includes(i?.type)).reduce((s, i) => s + (Number(i?.total_qty) || 0), 0)
-  const invScrapCat4 = (inventory || []).filter(i => i?.type === 'scrap_cat_4').reduce((s, i) => s + (Number(i?.total_qty) || 0), 0)
+  const totalCat4Utilit = scrapStats.totalCat4
+  const totalCat123Rework = scrapStats.totalCat123
   const totalQuarantinePending = scrapStats.totalUnclassified + scrapStats.totalQuarantine
-  const totalOverallScrap = Math.max(scrapStats.totalScrap, invScrapCat4 + invScrapCat123 + totalQuarantinePending)
+  const totalOverallScrap = scrapStats.totalScrap
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
       {/* TOP KPI DASHBOARD */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
         <div className="glass-panel" style={{ background: '#111', padding: '20px', borderRadius: '16px', border: '1px solid #222', borderLeft: '4px solid #ef4444' }}>
-          <div style={{ fontSize: '0.7rem', color: '#888', textTransform: 'uppercase', fontWeight: 800, marginBottom: '8px' }}>Зафіксовано браку всього</div>
-          <div style={{ fontSize: '2.2rem', fontWeight: 950, color: '#ef4444', lineHeight: 1 }}>{totalOverallScrap} <span style={{ fontSize: '0.9rem', color: '#888', fontWeight: 600 }}>од.</span></div>
-          <div style={{ fontSize: '0.75rem', color: '#666', marginTop: '8px' }}>Сума (Утиль + Доопрацювання + Карантин)</div>
+          <div style={{ fontSize: '0.7rem', color: '#888', textTransform: 'uppercase', fontWeight: 800, marginBottom: '8px' }}>Реальний Утиль (Кат. 4)</div>
+          <div style={{ fontSize: '2.2rem', fontWeight: 950, color: '#ef4444', lineHeight: 1 }}>{totalCat4Utilit} <span style={{ fontSize: '0.9rem', color: '#888', fontWeight: 600 }}>од.</span></div>
+          <div style={{ fontSize: '0.75rem', color: '#666', marginTop: '8px' }}>Остаточно списано в утиль за період</div>
         </div>
 
         <div className="glass-panel" style={{ background: '#111', padding: '20px', borderRadius: '16px', border: '1px solid #222', borderLeft: '4px solid #eab308' }}>
-          <div style={{ fontSize: '0.7rem', color: '#888', textTransform: 'uppercase', fontWeight: 800, marginBottom: '8px' }}>Брак на доопрацювання</div>
-          <div style={{ fontSize: '2.2rem', fontWeight: 950, color: '#eab308', lineHeight: 1 }}>{invScrapCat123 || scrapStats.totalCat123} <span style={{ fontSize: '0.9rem', color: '#888', fontWeight: 600 }}>од.</span></div>
-          <div style={{ fontSize: '0.75rem', color: '#666', marginTop: '8px' }}>Складський залишок доопрацювання</div>
-        </div>
-
-        <div className="glass-panel" style={{ background: '#111', padding: '20px', borderRadius: '16px', border: '1px solid #222', borderLeft: '4px solid #dc2626' }}>
-          <div style={{ fontSize: '0.7rem', color: '#888', textTransform: 'uppercase', fontWeight: 800, marginBottom: '8px' }}>Повний утиль</div>
-          <div style={{ fontSize: '2.2rem', fontWeight: 950, color: '#dc2626', lineHeight: 1 }}>{invScrapCat4 || scrapStats.totalCat4} <span style={{ fontSize: '0.9rem', color: '#888', fontWeight: 600 }}>од.</span></div>
-          <div style={{ fontSize: '0.75rem', color: '#666', marginTop: '8px' }}>Загальний утиль у базі даних</div>
+          <div style={{ fontSize: '0.7rem', color: '#888', textTransform: 'uppercase', fontWeight: 800, marginBottom: '8px' }}>Брак на доопрацювання (Кат. 1–2)</div>
+          <div style={{ fontSize: '2.2rem', fontWeight: 950, color: '#eab308', lineHeight: 1 }}>{totalCat123Rework} <span style={{ fontSize: '0.9rem', color: '#888', fontWeight: 600 }}>од.</span></div>
+          <div style={{ fontSize: '0.75rem', color: '#666', marginTop: '8px' }}>Відновлювані деталі за період</div>
         </div>
 
         <div className="glass-panel" style={{ background: '#111', padding: '20px', borderRadius: '16px', border: '1px solid #222', borderLeft: '4px solid #f97316' }}>
           <div style={{ fontSize: '0.7rem', color: '#888', textTransform: 'uppercase', fontWeight: 800, marginBottom: '8px' }}>Не класифіковано / Карантин</div>
-          <div style={{ fontSize: '2.2rem', fontWeight: 950, color: '#f97316', lineHeight: 1 }}>{scrapStats.totalUnclassified + scrapStats.totalQuarantine} <span style={{ fontSize: '0.9rem', color: '#888', fontWeight: 600 }}>од.</span></div>
-          <div style={{ fontSize: '0.75rem', color: '#666', marginTop: '8px' }}>Очікують рішення інспектора ВКЯ</div>
+          <div style={{ fontSize: '2.2rem', fontWeight: 950, color: '#f97316', lineHeight: 1 }}>{totalQuarantinePending} <span style={{ fontSize: '0.9rem', color: '#888', fontWeight: 600 }}>од.</span></div>
+          <div style={{ fontSize: '0.75rem', color: '#666', marginTop: '8px' }}>Очікують рішення інспектора ВКЯ за період</div>
+        </div>
+
+        <div className="glass-panel" style={{ background: '#111', padding: '20px', borderRadius: '16px', border: '1px solid #222', borderLeft: '4px solid #a855f7' }}>
+          <div style={{ fontSize: '0.7rem', color: '#888', textTransform: 'uppercase', fontWeight: 800, marginBottom: '8px' }}>Зафіксовано брак-подій всього</div>
+          <div style={{ fontSize: '2.2rem', fontWeight: 950, color: '#fff', lineHeight: 1 }}>{totalOverallScrap} <span style={{ fontSize: '0.9rem', color: '#888', fontWeight: 600 }}>од.</span></div>
+          <div style={{ fontSize: '0.75rem', color: '#666', marginTop: '8px' }}>Сума (Утиль + Доопрацювання + Карантин)</div>
         </div>
       </div>
 

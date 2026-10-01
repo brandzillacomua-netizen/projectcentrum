@@ -1,8 +1,9 @@
 import React from 'react'
+import { RefreshCw, AlertTriangle } from 'lucide-react'
 import MonthlyReport from './reports/MonthlyReport'
 import SheetsReport from './reports/SheetsReport'
 
-import { useReportsModuleData } from './reports/hooks/useReportsModuleData'
+import { useReportsModuleData, HISTORY_REPORT_TABS } from './reports/hooks/useReportsModuleData'
 import { ReportsHeader } from './reports/components/ReportsHeader'
 import { WarehouseReportView } from './reports/components/WarehouseReportView'
 import { EmployeeReportView } from './reports/components/EmployeeReportView'
@@ -54,6 +55,7 @@ const ReportsModule = () => {
     setSelectedEmployeeFilter,
     uniqueOperators,
     handleQuickDateSelect,
+    handleExport,
     filterByDate,
     whFilter,
     setWhFilter,
@@ -76,11 +78,65 @@ const ReportsModule = () => {
     generalStats,
     supplyStats,
     cuttersStats,
+    cutterEventsList,
+    totalCuttersUsed,
+    totalCuttersSupplied,
     setArchiveLoaded,
     setAllArchiveTasks
   } = useReportsModuleData()
 
   const renderTabContent = () => {
+    if (isSyncing && HISTORY_REPORT_TABS.has(activeTab)) {
+      return (
+        <div className="glass-panel" style={{
+          background: '#09090b',
+          padding: '70px 30px',
+          borderRadius: '24px',
+          border: '1px solid #27272a',
+          color: '#aaa',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '16px',
+          minHeight: '380px',
+          margin: '10px 0',
+          boxShadow: '0 20px 40px rgba(0,0,0,0.5)'
+        }}>
+          <RefreshCw size={38} className="spin" color="#ff9000" />
+          <div style={{ fontSize: '1.25rem', fontWeight: 950, color: '#fff', letterSpacing: '0.3px' }}>
+            Завантажуємо дані за обраний період...
+          </div>
+          <div style={{ fontSize: '0.85rem', color: '#71717a' }}>
+            Оновлюємо інформацію та розраховуємо показники
+          </div>
+        </div>
+      )
+    }
+
+    if (historyLoadError && HISTORY_REPORT_TABS.has(activeTab)) {
+      return (
+        <div className="glass-panel" style={{
+          background: '#09090b',
+          padding: '40px 30px',
+          borderRadius: '24px',
+          border: '1px solid #7f1d1d',
+          color: '#fca5a5',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '12px',
+          minHeight: '300px',
+          margin: '10px 0'
+        }}>
+          <AlertTriangle size={32} color="#ef4444" />
+          <div style={{ fontSize: '1.1rem', fontWeight: 900, color: '#fff' }}>Не вдалося завантажити дані за обраний період</div>
+          <div style={{ fontSize: '0.85rem', color: '#f87171' }}>{historyLoadError}</div>
+        </div>
+      )
+    }
+
     switch (activeTab) {
       case 'monthly':
         return <MonthlyReport />
@@ -142,7 +198,15 @@ const ReportsModule = () => {
         )
 
       case 'cutters':
-        return <CuttersReportView cuttersStats={cuttersStats} />
+        return (
+          <CuttersReportView
+            isSyncing={isSyncing}
+            cuttersStats={cuttersStats}
+            cutterEventsList={cutterEventsList}
+            totalCuttersUsed={totalCuttersUsed}
+            totalCuttersSupplied={totalCuttersSupplied}
+          />
+        )
 
       case 'analytics':
         return <AnalyticsReportView generalStats={generalStats} />
@@ -190,6 +254,7 @@ const ReportsModule = () => {
         quickPeriod={quickPeriod}
         setQuickPeriod={setQuickPeriod}
         handleQuickDateSelect={handleQuickDateSelect}
+        handleExport={handleExport}
       />
 
       <div style={{ padding: '0 25px 25px 25px', display: 'flex', flexDirection: 'column', flex: 1, overflowY: 'auto' }}>

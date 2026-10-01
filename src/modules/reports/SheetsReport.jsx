@@ -5,42 +5,45 @@ export const parseSheetInfo = (rawName) => {
   const name = (rawName || '').replace(/\[(Непідготовлений|Підготовлений)\]/gi, '').trim();
 
   // Extract grade / mark (e.g. T300, T700, КР)
-  let grade = 'ІНШЕ';
+  let grade = null;
   const gradeMatch = name.match(/(Т300|Т700|T300|T700|КР|KR)/i);
   if (gradeMatch) {
     grade = gradeMatch[0].toUpperCase().replace('Т', 'T');
   }
 
-  // Extract thickness in mm
+  // Extract thickness in mm (sheet thickness is realistically between 0.2mm and 30mm)
   let thickness = 9999;
-  let thickMatch = name.match(/(\d+(?:[\.,]\d+)?)\s*(?:мм|mm)/i);
+  
+  // 1. Explicit thickness marker: e.g. "(2.5мм)", "(2мм)", "2.5 мм", "3mm"
+  let thickMatch = name.match(/(\d+(?:[\.,]\d+)?)\s*(?:мм|mm)\b/i);
+  
+  // 2. Thickness in parentheses or right after grade, e.g. "T300 (2.5)", "T700 (3)", "T300 2.5"
   if (!thickMatch) {
-    thickMatch = name.match(/(?:Т300|Т700|T300|T700|КР|KR|\()[\s\-]*(\d+(?:[\.,]\d+)?)/i);
-  }
-  if (!thickMatch) {
-    thickMatch = name.match(/(\d+(?:[\.,]\d+)?)\s*[хx\*]/i);
-  }
-  if (!thickMatch) {
-    thickMatch = name.match(/(\d+(?:[\.,]\d+)?)/);
+    thickMatch = name.match(/(?:Т300|Т700|T300|T700|КР|KR)[\s\-\(]*(\d+(?:[\.,]\d+)?)/i);
   }
 
   if (thickMatch && thickMatch[1]) {
     const val = parseFloat(thickMatch[1].replace(',', '.'));
-    if (!isNaN(val)) {
+    // Sheet thickness must be in realistic range (0.2mm to 30mm)
+    if (!isNaN(val) && val > 0.1 && val <= 30) {
       thickness = val;
     }
   }
 
-  return { name, grade, thickness };
+  return { name, grade: grade || 'ІНШЕ', thickness };
 };
 
 export const getBaseName = (name) => {
   if (!name) return '';
   const parsed = parseSheetInfo(name);
-  if (parsed && parsed.grade && parsed.thickness && parsed.thickness !== 9999) {
-    const brand = parsed.grade.replace('T', 'Т');
-    return `Лист ${brand} (${parsed.thickness}мм)`;
+  
+  // Only generate "Лист T300 (Xмм)" if grade is known OR thickness is valid (<= 30mm)
+  if (parsed && parsed.thickness !== 9999) {
+    const brand = parsed.grade !== 'ІНШЕ' ? parsed.grade.replace('T', 'Т') : '';
+    return brand ? `Лист ${brand} (${parsed.thickness}мм)` : `Лист (${parsed.thickness}мм)`;
   }
+
+  // Fallback to original clean nomenclature name without [Непідготовлений]/[Підготовлений]
   return (name || '').replace(/\[(Непідготовлений|Підготовлений)\]/gi, '').trim();
 };
 
@@ -357,15 +360,10 @@ const SheetsReport = ({
       
       {/* LEFT PANEL: 30% WIDTH - РЕЗЕРВИ ЛИСТІВ */}
       <div 
-        className="glass-panel" 
+        className="glass-panel sheets-card" 
         style={{ 
           flex: '0 0 32%', 
-          minWidth: '320px', 
-          background: '#09090b', 
-          padding: '24px', 
-          borderRadius: '24px', 
-          border: '1px solid #27272a', 
-          boxShadow: '0 20px 40px rgba(0,0,0,0.4)' 
+          minWidth: '320px'
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
@@ -378,17 +376,17 @@ const SheetsReport = ({
         </div>
 
         {/* Reserves Summary Card */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '20px', background: '#121215', padding: '12px', borderRadius: '16px', border: '1px solid #1e1e22' }}>
+        <div className="sheets-summary-card">
           <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '0.62rem', color: '#71717a', textTransform: 'uppercase', fontWeight: 900 }}>Резерв СВ</div>
+            <div className="sheets-text-muted" style={{ fontSize: '0.62rem', textTransform: 'uppercase', fontWeight: 900 }}>Резерв СВ</div>
             <div style={{ fontSize: '1.2rem', fontWeight: 950, color: '#3b82f6', marginTop: '2px' }}>{totalReservedSV}</div>
           </div>
-          <div style={{ textAlign: 'center', borderLeft: '1px solid #222', borderRight: '1px solid #222' }}>
-            <div style={{ fontSize: '0.62rem', color: '#71717a', textTransform: 'uppercase', fontWeight: 900 }}>Резерв СО</div>
+          <div style={{ textAlign: 'center', borderLeft: '1px solid rgba(120, 120, 120, 0.2)', borderRight: '1px solid rgba(120, 120, 120, 0.2)' }}>
+            <div className="sheets-text-muted" style={{ fontSize: '0.62rem', textTransform: 'uppercase', fontWeight: 900 }}>Резерв СО</div>
             <div style={{ fontSize: '1.2rem', fontWeight: 950, color: '#10b981', marginTop: '2px' }}>{totalReservedSO}</div>
           </div>
           <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '0.62rem', color: '#71717a', textTransform: 'uppercase', fontWeight: 900 }}>Всього</div>
+            <div className="sheets-text-muted" style={{ fontSize: '0.62rem', textTransform: 'uppercase', fontWeight: 900 }}>Всього</div>
             <div style={{ fontSize: '1.2rem', fontWeight: 950, color: '#ff9000', marginTop: '2px' }}>{totalReservedSV + totalReservedSO}</div>
           </div>
         </div>
@@ -397,11 +395,11 @@ const SheetsReport = ({
         <div style={{ maxHeight: '680px', overflowY: 'auto', paddingRight: '4px' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
             <thead>
-              <tr style={{ color: '#71717a', borderBottom: '1px solid #222', textAlign: 'left' }}>
-                <th style={{ padding: '8px 4px', fontWeight: 900 }}>Матеріал</th>
-                <th style={{ padding: '8px 4px', textAlign: 'center', fontWeight: 900, color: '#3b82f6' }}>СВ</th>
-                <th style={{ padding: '8px 4px', textAlign: 'center', fontWeight: 900, color: '#10b981' }}>СО</th>
-                <th style={{ padding: '8px 4px', textAlign: 'center', fontWeight: 900, color: '#ff9000' }}>Разом</th>
+              <tr className="sheets-table-header" style={{ textAlign: 'left' }}>
+                <th style={{ padding: '8px 6px', fontWeight: 900 }}>Матеріал</th>
+                <th style={{ padding: '8px 6px', textAlign: 'center', fontWeight: 900, color: '#3b82f6' }}>СВ</th>
+                <th style={{ padding: '8px 6px', textAlign: 'center', fontWeight: 900, color: '#10b981' }}>СО</th>
+                <th style={{ padding: '8px 6px', textAlign: 'center', fontWeight: 900, color: '#ff9000' }}>Разом</th>
               </tr>
             </thead>
             <tbody>
@@ -413,47 +411,46 @@ const SheetsReport = ({
                 return (
                   <tr 
                     key={idx} 
+                    className="sheets-table-row"
                     style={{ 
-                      borderBottom: '1px solid #1a1a1a', 
-                      background: hasReserve ? 'rgba(59, 130, 246, 0.03)' : 'transparent',
-                      transition: '0.2s'
+                      background: hasReserve ? 'rgba(59, 130, 246, 0.04)' : 'transparent'
                     }}
                   >
-                    <td style={{ padding: '10px 4px', fontWeight: 800, color: '#f4f4f5' }}>
+                    <td style={{ padding: '10px 6px', fontWeight: 800 }}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                        <span style={{ fontSize: '0.82rem' }}>{stat.name}</span>
+                        <span className="sheets-text-primary" style={{ fontSize: '0.82rem' }}>{stat.name}</span>
                         <div style={{ display: 'flex', gap: '4px' }}>
                           {parsed.thickness !== 9999 && (
-                            <span style={{ fontSize: '0.62rem', background: '#27272a', color: '#10b981', padding: '1px 4px', borderRadius: '4px', fontWeight: 900 }}>
+                            <span style={{ fontSize: '0.62rem', background: 'rgba(16, 185, 129, 0.12)', color: '#10b981', padding: '1px 5px', borderRadius: '4px', fontWeight: 900 }}>
                               {parsed.thickness} мм
                             </span>
                           )}
                           {parsed.grade !== 'ІНШЕ' && (
-                            <span style={{ fontSize: '0.62rem', background: '#27272a', color: '#3b82f6', padding: '1px 4px', borderRadius: '4px', fontWeight: 900 }}>
+                            <span style={{ fontSize: '0.62rem', background: 'rgba(59, 130, 246, 0.12)', color: '#3b82f6', padding: '1px 5px', borderRadius: '4px', fontWeight: 900 }}>
                               {parsed.grade}
                             </span>
                           )}
                         </div>
                       </div>
                     </td>
-                    <td style={{ padding: '10px 4px', textAlign: 'center' }}>
-                      <span style={{ color: stat.reserved_sv > 0 ? '#3b82f6' : '#3f3f46', fontWeight: 900 }}>
+                    <td style={{ padding: '10px 6px', textAlign: 'center' }}>
+                      <span style={{ color: stat.reserved_sv > 0 ? '#3b82f6' : '#888', fontWeight: 900 }}>
                         {stat.reserved_sv}
                       </span>
                     </td>
-                    <td style={{ padding: '10px 4px', textAlign: 'center' }}>
-                      <span style={{ color: stat.reserved_so > 0 ? '#10b981' : '#3f3f46', fontWeight: 900 }}>
+                    <td style={{ padding: '10px 6px', textAlign: 'center' }}>
+                      <span style={{ color: stat.reserved_so > 0 ? '#10b981' : '#888', fontWeight: 900 }}>
                         {stat.reserved_so}
                       </span>
                     </td>
-                    <td style={{ padding: '10px 4px', textAlign: 'center' }}>
+                    <td style={{ padding: '10px 6px', textAlign: 'center' }}>
                       <button
                         type="button"
                         onClick={() => setSelectedSheetForReserve(stat)}
                         style={{
-                          background: hasReserve ? 'rgba(255, 144, 0, 0.15)' : '#18181b',
-                          border: `1px solid ${hasReserve ? 'rgba(255, 144, 0, 0.4)' : '#27272a'}`,
-                          color: hasReserve ? '#ff9000' : '#555',
+                          background: hasReserve ? 'rgba(255, 144, 0, 0.15)' : 'rgba(120, 120, 120, 0.1)',
+                          border: `1px solid ${hasReserve ? 'rgba(255, 144, 0, 0.4)' : 'rgba(120, 120, 120, 0.2)'}`,
+                          color: hasReserve ? '#ff9000' : '#888',
                           padding: '4px 10px',
                           borderRadius: '8px',
                           fontWeight: 950,
@@ -480,38 +477,33 @@ const SheetsReport = ({
 
       {/* RIGHT PANEL: 70% WIDTH - ДАШБОРД РУХУ ЛИСТІВ */}
       <div 
-        className="glass-panel" 
+        className="glass-panel sheets-card" 
         style={{ 
           flex: '1 1 65%', 
-          minWidth: '600px', 
-          background: '#09090b', 
-          padding: '24px', 
-          borderRadius: '24px', 
-          border: '1px solid #27272a', 
-          boxShadow: '0 20px 40px rgba(0,0,0,0.4)' 
+          minWidth: '600px'
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '15px' }}>
           <h3 style={{ margin: 0, color: '#10b981', fontSize: '1.3rem', display: 'flex', alignItems: 'center', gap: '10px', textTransform: 'uppercase', fontWeight: 950, letterSpacing: '0.5px' }}>
             <PackageCheck size={24} color="#10b981" /> ДАШБОРД РУХУ ЛИСТІВ (МАТЕРІАЛІВ)
           </h3>
-          <div style={{ fontSize: '0.78rem', color: '#71717a', background: '#18181b', padding: '6px 14px', borderRadius: '10px', border: '1px solid #27272a', fontWeight: 800 }}>
+          <div className="sheets-badge-pill">
             Посортовано: товщина (від найменшої до найбільшої) → марка
           </div>
         </div>
 
-        <div style={{ overflowX: 'auto', borderRadius: '16px', border: '1px solid #27272a', background: '#09090b' }}>
+        <div className="sheets-table-box">
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
             <thead>
-              <tr style={{ background: '#18181b', color: '#a1a1aa', textAlign: 'left', borderBottom: '2px solid #27272a' }}>
+              <tr className="sheets-table-header" style={{ textAlign: 'left' }}>
                 <th style={{ padding: '14px 16px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Матеріал (Номенклатура)</th>
                 <th style={{ padding: '14px 16px', textAlign: 'center', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#3b82f6' }}>Отримано на СВ</th>
                 <th style={{ padding: '14px 16px', textAlign: 'center', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#8b5cf6' }}>На підготуванні</th>
                 <th style={{ padding: '14px 16px', textAlign: 'center', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#10b981' }}>Підготовлено (На СО)</th>
                 <th style={{ padding: '14px 16px', textAlign: 'center', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#f59e0b' }}>Витрачено</th>
                 <th style={{ padding: '14px 16px', textAlign: 'center', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#ef4444' }}>Брак</th>
-                <th style={{ padding: '14px 16px', textAlign: 'center', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', background: 'rgba(59, 130, 246, 0.08)', color: '#3b82f6' }}>Залишок СВ (Непідгот.)</th>
-                <th style={{ padding: '14px 16px', textAlign: 'center', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', background: 'rgba(16, 185, 129, 0.08)', color: '#10b981' }}>Залишок СО (Підгот.)</th>
+                <th style={{ padding: '14px 16px', textAlign: 'center', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', background: 'rgba(59, 130, 246, 0.06)', color: '#3b82f6' }}>Залишок СВ (Непідгот.)</th>
+                <th style={{ padding: '14px 16px', textAlign: 'center', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', background: 'rgba(16, 185, 129, 0.06)', color: '#10b981' }}>Залишок СО (Підгот.)</th>
               </tr>
             </thead>
             <tbody>
@@ -521,36 +513,36 @@ const SheetsReport = ({
                 const availSO = Math.max(0, stat.actual_so - stat.reserved_so);
 
                 return (
-                  <tr key={idx} style={{ borderBottom: '1px solid #1a1a1a', background: 'transparent', transition: '0.2s' }} onMouseEnter={e => e.currentTarget.style.background = '#18181b'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                    <td style={{ padding: '14px 16px', fontWeight: 900, color: '#f4f4f5', fontSize: '0.92rem' }}>
+                  <tr key={idx} className="sheets-table-row" style={{ background: 'transparent' }}>
+                    <td style={{ padding: '14px 16px', fontWeight: 900, fontSize: '0.92rem' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span>{stat.name}</span>
+                        <span className="sheets-text-primary">{stat.name}</span>
                         {parsed.thickness !== 9999 && (
-                          <span style={{ fontSize: '0.7rem', background: '#27272a', color: '#10b981', padding: '2px 6px', borderRadius: '6px', fontWeight: 900 }}>
+                          <span style={{ fontSize: '0.7rem', background: 'rgba(16, 185, 129, 0.12)', color: '#10b981', padding: '2px 6px', borderRadius: '6px', fontWeight: 900 }}>
                             {parsed.thickness} мм
                           </span>
                         )}
                         {parsed.grade !== 'ІНШЕ' && (
-                          <span style={{ fontSize: '0.7rem', background: '#27272a', color: '#3b82f6', padding: '2px 6px', borderRadius: '6px', fontWeight: 900 }}>
+                          <span style={{ fontSize: '0.7rem', background: 'rgba(59, 130, 246, 0.12)', color: '#3b82f6', padding: '2px 6px', borderRadius: '6px', fontWeight: 900 }}>
                             {parsed.grade}
                           </span>
                         )}
                       </div>
                     </td>
                     <td style={{ padding: '14px 16px', textAlign: 'center' }}>
-                      {stat.supplied > 0 ? <span style={{ background: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6', padding: '4px 10px', borderRadius: '8px', fontWeight: 900 }}>{stat.supplied}</span> : <span style={{ color: '#3f3f46' }}>0</span>}
+                      {stat.supplied > 0 ? <span style={{ background: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6', padding: '4px 10px', borderRadius: '8px', fontWeight: 900 }}>{stat.supplied}</span> : <span style={{ color: '#888' }}>0</span>}
                     </td>
                     <td style={{ padding: '14px 16px', textAlign: 'center' }}>
-                      {stat.in_prep > 0 ? <span style={{ background: 'rgba(139, 92, 246, 0.15)', color: '#8b5cf6', padding: '4px 10px', borderRadius: '8px', fontWeight: 900 }}>{stat.in_prep}</span> : <span style={{ color: '#3f3f46' }}>0</span>}
+                      {stat.in_prep > 0 ? <span style={{ background: 'rgba(139, 92, 246, 0.15)', color: '#8b5cf6', padding: '4px 10px', borderRadius: '8px', fontWeight: 900 }}>{stat.in_prep}</span> : <span style={{ color: '#888' }}>0</span>}
                     </td>
                     <td style={{ padding: '14px 16px', textAlign: 'center' }}>
-                      {stat.prepared > 0 ? <span style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', padding: '4px 10px', borderRadius: '8px', fontWeight: 900 }}>{stat.prepared}</span> : <span style={{ color: '#3f3f46' }}>0</span>}
+                      {stat.prepared > 0 ? <span style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', padding: '4px 10px', borderRadius: '8px', fontWeight: 900 }}>{stat.prepared}</span> : <span style={{ color: '#888' }}>0</span>}
                     </td>
                     <td style={{ padding: '14px 16px', textAlign: 'center' }}>
-                      {stat.used > 0 ? <span style={{ background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', padding: '4px 10px', borderRadius: '8px', fontWeight: 900 }}>{stat.used}</span> : <span style={{ color: '#3f3f46' }}>0</span>}
+                      {stat.used > 0 ? <span style={{ background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', padding: '4px 10px', borderRadius: '8px', fontWeight: 900 }}>{stat.used}</span> : <span style={{ color: '#888' }}>0</span>}
                     </td>
                     <td style={{ padding: '14px 16px', textAlign: 'center' }}>
-                      {stat.scrap > 0 ? <span style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', padding: '4px 10px', borderRadius: '8px', fontWeight: 900 }}>{stat.scrap}</span> : <span style={{ color: '#3f3f46' }}>0</span>}
+                      {stat.scrap > 0 ? <span style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', padding: '4px 10px', borderRadius: '8px', fontWeight: 900 }}>{stat.scrap}</span> : <span style={{ color: '#888' }}>0</span>}
                     </td>
                     <td style={{ padding: '14px 16px', textAlign: 'center', background: 'rgba(59, 130, 246, 0.02)' }}>
                       <button
@@ -558,7 +550,7 @@ const SheetsReport = ({
                         onClick={() => setSelectedSheetForReserve(stat)}
                         style={{
                           background: 'rgba(59, 130, 246, 0.1)',
-                          border: '1px solid rgba(59, 130, 246, 0.2)',
+                          border: '1px solid rgba(59, 130, 246, 0.25)',
                           color: '#3b82f6',
                           padding: '5px 12px',
                           borderRadius: '10px',
@@ -582,7 +574,7 @@ const SheetsReport = ({
                         type="button"
                         onClick={() => setSelectedSheetForReserve(stat)}
                         style={{
-                          background: 'rgba(16, 185, 129, 0.2)',
+                          background: 'rgba(16, 185, 129, 0.18)',
                           border: '1px solid rgba(16, 185, 129, 0.3)',
                           color: '#10b981',
                           padding: '5px 12px',
@@ -607,7 +599,7 @@ const SheetsReport = ({
               })}
               {sheetsStats.length === 0 && (
                 <tr>
-                  <td colSpan={8} style={{ padding: '40px', textAlign: 'center', color: '#71717a', fontSize: '0.9rem' }}>
+                  <td colSpan={8} className="sheets-text-muted" style={{ padding: '40px', textAlign: 'center', fontSize: '0.9rem' }}>
                     Немає даних за обраний період або пошуковий запит
                   </td>
                 </tr>
@@ -620,67 +612,43 @@ const SheetsReport = ({
       {/* RESERVES DETAILS MODAL */}
       {selectedSheetForReserve && (
         <div 
-          style={{ 
-            position: 'fixed', 
-            inset: 0, 
-            background: 'rgba(0,0,0,0.85)', 
-            zIndex: 9999, 
-            display: 'flex', 
-            alignItems: 'center', 
-            justify: 'center', 
-            padding: '20px', 
-            backdropFilter: 'blur(6px)' 
-          }}
+          className="sheets-modal-overlay"
           onClick={() => setSelectedSheetForReserve(null)}
         >
           <div 
-            style={{ 
-              background: '#09090b', 
-              border: '1px solid #27272a', 
-              borderRadius: '24px', 
-              padding: '30px', 
-              width: '100%', 
-              maxWidth: '750px', 
-              maxHeight: '85vh', 
-              display: 'flex', 
-              flexDirection: 'column', 
-              boxShadow: '0 25px 50px rgba(0,0,0,0.7)',
-              animation: 'fadeIn 0.2s ease-out'
-            }}
+            className="sheets-modal-panel"
             onClick={e => e.stopPropagation()}
           >
             {/* Modal Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px', borderBottom: '1px solid #27272a', paddingBottom: '15px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px', borderBottom: '1px solid rgba(120, 120, 120, 0.2)', paddingBottom: '15px' }}>
               <div>
                 <div style={{ fontSize: '0.7rem', color: '#ff9000', textTransform: 'uppercase', fontWeight: 900, letterSpacing: '0.5px' }}>
                   ДЕТАЛІЗАЦІЯ ЗАРЕЗЕРВОВАНИХ МАТЕРІАЛІВ
                 </div>
-                <h3 style={{ color: '#fff', margin: '4px 0 0', fontSize: '1.4rem', fontWeight: 950 }}>
+                <h3 className="sheets-text-primary" style={{ margin: '4px 0 0', fontSize: '1.4rem', fontWeight: 950 }}>
                   {selectedSheetForReserve.name}
                 </h3>
               </div>
               <button 
                 onClick={() => setSelectedSheetForReserve(null)}
-                style={{ background: '#18181b', border: '1px solid #27272a', color: '#aaa', borderRadius: '50%', width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: '0.2s' }}
-                onMouseEnter={e => { e.currentTarget.style.background = '#27272a'; e.currentTarget.style.color = '#fff' }}
-                onMouseLeave={e => { e.currentTarget.style.background = '#18181b'; e.currentTarget.style.color = '#aaa' }}
+                style={{ background: 'rgba(120,120,120,0.1)', border: '1px solid rgba(120,120,120,0.2)', color: '#888', borderRadius: '50%', width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: '0.2s' }}
               >
                 <X size={18} />
               </button>
             </div>
 
             {/* Reserve Summary Info Badges */}
-            <div style={{ display: 'flex', gap: '15px', marginBottom: '20px', background: '#121215', padding: '14px 18px', borderRadius: '16px', border: '1px solid #1e1e22' }}>
+            <div className="sheets-modal-summary">
               <div>
-                <span style={{ fontSize: '0.65rem', color: '#71717a', textTransform: 'uppercase', fontWeight: 900 }}>Резерв СВ: </span>
+                <span className="sheets-text-muted" style={{ fontSize: '0.65rem', textTransform: 'uppercase', fontWeight: 900 }}>Резерв СВ: </span>
                 <strong style={{ color: '#3b82f6', fontSize: '1.1rem' }}>{selectedSheetForReserve.reserved_sv} л.</strong>
               </div>
-              <div style={{ paddingLeft: '15px', borderLeft: '1px solid #222' }}>
-                <span style={{ fontSize: '0.65rem', color: '#71717a', textTransform: 'uppercase', fontWeight: 900 }}>Резерв СО: </span>
+              <div style={{ paddingLeft: '15px', borderLeft: '1px solid rgba(120, 120, 120, 0.2)' }}>
+                <span className="sheets-text-muted" style={{ fontSize: '0.65rem', textTransform: 'uppercase', fontWeight: 900 }}>Резерв СО: </span>
                 <strong style={{ color: '#10b981', fontSize: '1.1rem' }}>{selectedSheetForReserve.reserved_so} л.</strong>
               </div>
-              <div style={{ paddingLeft: '15px', borderLeft: '1px solid #222' }}>
-                <span style={{ fontSize: '0.65rem', color: '#71717a', textTransform: 'uppercase', fontWeight: 900 }}>Разом в резерві: </span>
+              <div style={{ paddingLeft: '15px', borderLeft: '1px solid rgba(120, 120, 120, 0.2)' }}>
+                <span className="sheets-text-muted" style={{ fontSize: '0.65rem', textTransform: 'uppercase', fontWeight: 900 }}>Разом в резерві: </span>
                 <strong style={{ color: '#ff9000', fontSize: '1.1rem' }}>{selectedSheetForReserve.reserved_sv + selectedSheetForReserve.reserved_so} л.</strong>
               </div>
             </div>
@@ -688,17 +656,17 @@ const SheetsReport = ({
             {/* Modal Content Table */}
             <div style={{ flex: 1, overflowY: 'auto', marginBottom: '20px', paddingRight: '5px' }}>
               {modalReserveDetails.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '40px 20px', color: '#71717a', background: '#121215', border: '1px dashed #27272a', borderRadius: '16px' }}>
+                <div style={{ textAlign: 'center', padding: '40px 20px', color: '#888', background: 'rgba(120,120,120,0.05)', border: '1px dashed rgba(120,120,120,0.2)', borderRadius: '16px' }}>
                   <FileText size={32} style={{ opacity: 0.4, marginBottom: '10px' }} />
-                  <div style={{ fontWeight: 800, color: '#f4f4f5', fontSize: '0.95rem' }}>Деталізовані записи замовлень відсутні.</div>
-                  <div style={{ fontSize: '0.8rem', color: '#71717a', marginTop: '4px' }}>
+                  <div className="sheets-text-primary" style={{ fontWeight: 800, fontSize: '0.95rem' }}>Деталізовані записи замовлень відсутні.</div>
+                  <div className="sheets-text-muted" style={{ fontSize: '0.8rem', marginTop: '4px' }}>
                     Резерв зафіксований в системі загальним обсягом ({selectedSheetForReserve.reserved_sv + selectedSheetForReserve.reserved_so} л).
                   </div>
                 </div>
               ) : (
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', textAlign: 'left' }}>
                   <thead>
-                    <tr style={{ borderBottom: '2px solid #27272a', color: '#71717a', fontWeight: 900 }}>
+                    <tr className="sheets-table-header">
                       <th style={{ padding: '12px' }}>ДЖЕРЕЛО / НАРЯД</th>
                       <th style={{ padding: '12px' }}>ВИРІБ (ПРОДУКЦІЯ)</th>
                       <th style={{ padding: '12px' }}>СКЛАД</th>
@@ -708,20 +676,20 @@ const SheetsReport = ({
                   </thead>
                   <tbody>
                     {modalReserveDetails.map((detail, idx) => (
-                      <tr key={detail.id || idx} style={{ borderBottom: '1px solid #1a1a1a', background: idx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)' }}>
+                      <tr key={detail.id || idx} className="sheets-table-row">
                         <td style={{ padding: '12px', fontWeight: 900 }}>
                           <div style={{ color: '#ff9000', fontSize: '0.9rem' }}>{detail.orderNum}</div>
-                          <div style={{ fontSize: '0.7rem', color: '#71717a', marginTop: '2px' }}>{detail.source}</div>
+                          <div className="sheets-text-muted" style={{ fontSize: '0.7rem', marginTop: '2px' }}>{detail.source}</div>
                         </td>
-                        <td style={{ padding: '12px', color: '#f4f4f5', fontWeight: 800 }}>
+                        <td className="sheets-text-primary" style={{ padding: '12px', fontWeight: 800 }}>
                           <div>{detail.productName}</div>
-                          {detail.customer !== '—' && <div style={{ fontSize: '0.72rem', color: '#71717a' }}>Клієнт: {detail.customer}</div>}
+                          {detail.customer !== '—' && <div className="sheets-text-muted" style={{ fontSize: '0.72rem' }}>Клієнт: {detail.customer}</div>}
                         </td>
                         <td style={{ padding: '12px', color: detail.warehouse.includes('СВ') ? '#3b82f6' : '#10b981', fontWeight: 800, fontSize: '0.8rem' }}>
                           {detail.warehouse}
                         </td>
                         <td style={{ padding: '12px', textAlign: 'center', fontWeight: 950, color: '#ff9000', fontSize: '1rem' }}>
-                          {detail.quantity} <span style={{ fontSize: '0.75rem', color: '#71717a', fontWeight: 600 }}>л.</span>
+                          {detail.quantity} <span className="sheets-text-muted" style={{ fontSize: '0.75rem', fontWeight: 600 }}>л.</span>
                         </td>
                         <td style={{ padding: '12px', textAlign: 'right' }}>
                           <span style={{ background: 'rgba(255,144,0,0.12)', color: '#ff9000', border: '1px solid rgba(255,144,0,0.3)', padding: '3px 8px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 900 }}>
@@ -736,12 +704,10 @@ const SheetsReport = ({
             </div>
 
             {/* Modal Footer */}
-            <div style={{ borderTop: '1px solid #27272a', paddingTop: '15px', display: 'flex', justifyContent: 'flex-end' }}>
+            <div style={{ borderTop: '1px solid rgba(120,120,120,0.2)', paddingTop: '15px', display: 'flex', justifyContent: 'flex-end' }}>
               <button
                 onClick={() => setSelectedSheetForReserve(null)}
                 style={{ background: '#10b981', color: '#000', border: 'none', padding: '10px 24px', borderRadius: '12px', fontWeight: 950, fontSize: '0.85rem', cursor: 'pointer', transition: '0.2s' }}
-                onMouseEnter={e => e.currentTarget.style.background = '#059669'}
-                onMouseLeave={e => e.currentTarget.style.background = '#10b981'}
               >
                 ЗАКРИТИ
               </button>
