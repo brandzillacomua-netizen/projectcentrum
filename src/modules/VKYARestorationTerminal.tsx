@@ -171,9 +171,21 @@ export const VKYARestorationTerminal: React.FC = () => {
             }}
           >
             <div>
-              <div style={{ color: '#06b6d4', fontSize: '.72rem', fontWeight: 950, letterSpacing: '0.02em' }}>КАРТА ВІДНОВЛЕННЯ №{card.card_number}</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <div style={{ color: '#06b6d4', fontSize: '.72rem', fontWeight: 950, letterSpacing: '0.02em' }}>КАРТА ВІДНОВЛЕННЯ №{card.card_number}</div>
+                {(card.source_naryad_number || card.source_card_sequence || card.source_card_number) && (
+                  <div style={{ fontSize: '.68rem', fontWeight: 900, display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(245, 158, 11, 0.12)', border: '1px solid rgba(245, 158, 11, 0.3)', padding: '2px 8px', borderRadius: 6 }}>
+                    <span style={{ color: '#f59e0b' }}>Наряд №{card.source_naryad_number || '—'}</span>
+                    <span style={{ color: 'rgba(255,255,255,0.3)' }}>•</span>
+                    <span style={{ color: '#38bdf8' }}>Картка №{card.source_card_sequence ? card.source_card_sequence : (card.source_card_number || '—')}</span>
+                  </div>
+                )}
+              </div>
               <div style={{ fontSize: '1.1rem', fontWeight: 950, marginTop: 6, overflowWrap: 'anywhere', color: 'var(--text, #fff)' }}>{card.nomenclature_name}</div>
-              <div style={{ color: 'var(--text-muted, #64748b)', fontSize: '.72rem', marginTop: 5 }}>Створено {new Date(card.created_at).toLocaleString('uk-UA')}</div>
+              <div style={{ color: 'var(--text-muted, #64748b)', fontSize: '.72rem', marginTop: 5, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <span>Створено {new Date(card.created_at).toLocaleString('uk-UA')}</span>
+                {card.source_stage_name && <span>• Початковий етап: <strong style={{ color: '#aaa' }}>{card.source_stage_name}</strong></span>}
+              </div>
             </div>
             <div>
               <div style={{ color: 'var(--text-dim, #777)', fontSize: '.68rem', fontWeight: 900, textTransform: 'uppercase' }}>ЕТАП ВІДНОВЛЕННЯ</div>
@@ -250,7 +262,7 @@ export const VKYARestorationTerminal: React.FC = () => {
     )}
 
     {selectedCard && <div onClick={() => !saving && setSelectedCard(null)} style={{ position: 'fixed', inset: 0, zIndex: 10050, background: 'rgba(0,0,0,.86)', display: 'grid', placeItems: 'center', padding: 20 }}><div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 510, background: 'var(--card-bg, #0d0d0d)', border: '1px solid var(--glass-border, #292929)', borderRadius: 24, padding: 26, color: 'var(--text, #fff)', boxShadow: 'var(--shadow, 0 25px 50px rgba(0,0,0,0.5))' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 15 }}><div><div style={{ color: '#06b6d4', fontSize: '.7rem', fontWeight: 950 }}>КАРТА №{selectedCard.card_number}</div><h2 style={{ margin: '8px 0 4px', color: 'var(--text, #fff)' }}>{selectedCard.nomenclature_name}</h2><div style={{ color: 'var(--text-muted, #888)' }}>{selectedCard.restoration_stage} · {selectedCard.quantity} {selectedCard.unit}</div></div><button onClick={() => setSelectedCard(null)} style={{ background: 'transparent', border: 0, color: 'var(--text-muted, #777)', cursor: 'pointer' }}><X/></button></div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 15 }}><div><div style={{ color: '#06b6d4', fontSize: '.7rem', fontWeight: 950, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}><span>КАРТА №{selectedCard.card_number}</span>{(selectedCard.source_naryad_number || selectedCard.source_card_sequence || selectedCard.source_card_number) && (<span style={{ color: '#f59e0b', background: '#f59e0b15', border: '1px solid #f59e0b35', padding: '1px 7px', borderRadius: 5, fontSize: '.68rem' }}>Наряд №{selectedCard.source_naryad_number || '—'} · Картка №{selectedCard.source_card_sequence || selectedCard.source_card_number || '—'}</span>)}</div><h2 style={{ margin: '8px 0 4px', color: 'var(--text, #fff)' }}>{selectedCard.nomenclature_name}</h2><div style={{ color: 'var(--text-muted, #888)' }}>{selectedCard.restoration_stage} · {selectedCard.quantity} {selectedCard.unit}</div></div><button onClick={() => setSelectedCard(null)} style={{ background: 'transparent', border: 0, color: 'var(--text-muted, #777)', cursor: 'pointer' }}><X/></button></div>
       {selectedCard.status === 'new' && <>
         <label style={{ display: 'block', color: 'var(--text-muted, #888)', fontSize: '.72rem', fontWeight: 900, margin: '25px 0 8px' }}>ПРАЦІВНИК ВКЯ</label>
         <input autoFocus value={operator} onChange={event => setOperator(event.target.value)} placeholder="Вкажіть працівника" style={{ boxSizing: 'border-box', width: '100%', background: 'var(--bg, #050505)', border: '1px solid var(--glass-border, #333)', borderRadius: 12, color: 'var(--text, #fff)', padding: 14 }}/>

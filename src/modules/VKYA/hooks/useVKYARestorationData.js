@@ -37,18 +37,93 @@ export const useVKYARestorationData = () => {
     if (loadError) setError(loadError.message)
     else {
       const rawCards = cardsResult.data || []
+      const cardIds = [...new Set(rawCards.map(c => c.source_card_id).filter(Boolean))]
       const taskIds = [...new Set(rawCards.map(c => c.source_task_id).filter(Boolean))]
-      let validTaskIds = new Set()
-      if (taskIds.length > 0) {
-        const { data: tasksData } = await supabase.from('tasks').select('id').in('id', taskIds)
-        if (tasksData) {
-          validTaskIds = new Set(tasksData.map(t => String(t.id)))
+      const orderIds = [...new Set(rawCards.map(c => c.source_order_id).filter(Boolean))]
+      const historyIds = [...new Set(rawCards.map(c => c.source_history_id).filter(Boolean))]
+
+      const [cardsRes, tasksRes, ordersRes, classificationsRes] = await Promise.all([
+        cardIds.length ? supabase.from('work_cards').select('id, task_id, order_id, card_info, created_at').in('id', cardIds) : { data: [] },
+        taskIds.length ? supabase.from('tasks').select('id, order_id, batch_index, step, plan_snapshot').in('id', taskIds) : { data: [] },
+        orderIds.length ? supabase.from('orders').select('id, order_num').in('id', orderIds) : { data: [] },
+        historyIds.length ? supabase.from('scrap_classifications').select('id, source_history_id, card_id, task_id, order_number, card_sequence').in('source_history_id', historyIds) : { data: [] }
+      ])
+
+      const sourceCardsMap = new Map((cardsRes.data || []).map(c => [String(c.id), c]))
+      const sourceTasksMap = new Map((tasksRes.data || []).map(t => [String(t.id), t]))
+      const sourceOrdersMap = new Map((ordersRes.data || []).map(o => [String(o.id), o]))
+      const classificationsMap = new Map()
+      ;(classificationsRes.data || []).forEach(sc => {
+        if (sc.source_history_id) classificationsMap.set(`history:${sc.source_history_id}`, sc)
+        if (sc.card_id) classificationsMap.set(`card:${sc.card_id}`, sc)
+      })
+
+      const allTaskIds = [...new Set([
+        ...taskIds,
+        ...(cardsRes.data || []).map(c => c.task_id).filter(Boolean)
+      ])]
+
+      const taskCardsMap = new Map()
+      if (allTaskIds.length > 0) {
+        const { data: allTaskCards } = await supabase
+          .from('work_cards')
+          .select('id, task_id, nomenclature_id, created_at')
+          .in('task_id', allTaskIds)
+          .order('created_at', { ascending: true })
+          .order('id', { ascending: true })
+
+        if (allTaskCards) {
+          const cardsByTask = {}
+          allTaskCards.forEach(c => {
+            const tid = String(c.task_id)
+            if (!cardsByTask[tid]) cardsByTask[tid] = []
+            cardsByTask[tid].push(c)
+          })
+          Object.entries(cardsByTask).forEach(([, tCards]) => {
+            tCards.forEach((c, idx) => {
+              taskCardsMap.set(String(c.id), idx + 1)
+            })
+          })
         }
       }
-      const processedCards = rawCards.map(card => ({
-        ...card,
-        has_valid_source_task: Boolean(card.source_task_id && validTaskIds.has(String(card.source_task_id)))
-      }))
+
+      const validTaskIds = new Set((tasksRes.data || []).map(t => String(t.id)))
+
+      const processedCards = rawCards.map(card => {
+        const sCard = card.source_card_id ? sourceCardsMap.get(String(card.source_card_id)) : null
+        const effectiveTaskId = card.source_task_id || sCard?.task_id
+        const sTask = effectiveTaskId ? sourceTasksMap.get(String(effectiveTaskId)) : null
+        const effectiveOrderId = card.source_order_id || sTask?.order_id || sCard?.order_id
+        const sOrder = effectiveOrderId ? sourceOrdersMap.get(String(effectiveOrderId)) : null
+        const sClassification = (card.source_history_id && classificationsMap.get(`history:${card.source_history_id}`))
+          || (card.source_card_id && classificationsMap.get(`card:${card.source_card_id}`))
+
+        let source_naryad_number = sClassification?.order_number || null
+        if (!source_naryad_number) {
+          if (sTask?.step === 'Підготовка' && sTask?.plan_snapshot?._prep_num) {
+            source_naryad_number = sTask.plan_snapshot._prep_num
+          } else if (sOrder?.order_num) {
+            source_naryad_number = `${sOrder.order_num}${sTask?.batch_index ? `/${sTask.batch_index}` : ''}`
+          } else if (sTask?.plan_snapshot?._prep_num) {
+            source_naryad_number = sTask.plan_snapshot._prep_num
+          }
+        }
+
+        let source_card_sequence = sClassification?.card_sequence || null
+        if (!source_card_sequence && card.source_card_id) {
+          source_card_sequence = taskCardsMap.get(String(card.source_card_id)) || null
+        }
+        const source_card_number = card.source_card_id ? String(card.source_card_id).slice(-8).toUpperCase() : null
+
+        return {
+          ...card,
+          has_valid_source_task: Boolean(effectiveTaskId && validTaskIds.has(String(effectiveTaskId))),
+          source_naryad_number: source_naryad_number || null,
+          source_card_sequence: source_card_sequence || null,
+          source_card_number: source_card_number || null
+        }
+      })
+
       setCards(processedCards)
       setLegacyItems(legacyResult.data || [])
       setError('')
@@ -71,7 +146,7 @@ export const useVKYARestorationData = () => {
       : tab === 'completed'
         ? card.status === 'completed' && (Boolean(card.shop2_card_id) || Boolean(card.route_card_id) || Number(card.completed_quantity) === 0)
         : card.status !== 'completed'
-    const haystack = `${card.card_number} ${card.nomenclature_name} ${card.restoration_stage} ${card.operator_name || ''}`.toLowerCase()
+    const haystack = `${card.card_number} ${card.nomenclature_name} ${card.restoration_stage} ${card.operator_name || ''} ${card.source_naryad_number || ''} ${card.source_card_sequence || ''} ${card.source_card_number || ''} ${card.source_stage_name || ''}`.toLowerCase()
     return matchesTab && haystack.includes(query.trim().toLowerCase())
   }), [cards, query, tab])
 
