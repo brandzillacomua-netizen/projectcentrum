@@ -272,7 +272,12 @@ const ManagerModule = () => {
       console.warn('Could not fetch latest orders from DB for order num gen:', e)
     }
 
-    const allMatching = [...(orders || []), ...dbOrders]
+    const allMatching = [...(orders || []), ...dbOrders].filter(o => {
+      const num = (o?.order_num || '').replace(/^№/, '')
+      return num.startsWith(`${datePrefix}-`) ||
+             num.startsWith(`${legacyPrefixFull}-`) ||
+             num.startsWith(`${legacyPrefixShort}-`)
+    })
 
     let maxSeq = 0
     allMatching.forEach(o => {
