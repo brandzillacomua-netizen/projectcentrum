@@ -14,15 +14,9 @@ export const isCuttingTask = (task) => {
 }
 
 export const isRelevantForemanTask = (task) => {
-  if (!task) return false
-  if (task.status !== 'completed') {
-    const warehouseReady = task.warehouse_conf === 'true' || task.warehouse_conf === 'partial'
-    return warehouseReady && task.engineer_conf === true && task.director_conf === true && isCuttingTask(task)
-  }
-
-  const threeDaysAgo = Date.now() - 3 * 24 * 60 * 60 * 1000
-  const changedAt = new Date(task.completed_at || task.updated_at || task.created_at || 0).getTime()
-  return isCuttingTask(task) && changedAt > threeDaysAgo
+  if (!task || task.status === 'completed' || task.status === 'cancelled') return false
+  const warehouseReady = task.warehouse_conf === 'true' || task.warehouse_conf === 'partial'
+  return warehouseReady && task.engineer_conf === true && task.director_conf === true && isCuttingTask(task)
 }
 
 export const getOrderForTask = (task, orders = [], allOrdersMap = {}) => {

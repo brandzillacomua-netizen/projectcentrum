@@ -13,13 +13,14 @@ async function releaseAll() {
     password: 'vvv'
   })
 
-  // 1. Fetch all allocated reservations
+  // 1. Fetch all allocated reservations created before 2026-10-01
   const { data: allocated } = await supabase
     .from('bz_inventory_reservations')
     .select('*')
+    .lt('created_at', '2026-10-01T00:00:00+00:00')
     .eq('status', 'allocated')
 
-  console.log(`Found ${allocated?.length || 0} allocated reservations to release.`)
+  console.log(`Found ${allocated?.length || 0} old allocated reservations to release.`)
   if (!allocated || allocated.length === 0) return
 
   // 2. Sum required wip_bz by nomenclature_id
@@ -32,41 +33,33 @@ async function releaseAll() {
 
   console.log(`Across ${neededByNom.size} unique nomenclatures.`)
 
-  // 3. For each nomenclature, ensure wip_bz exists with sufficient balance
-  for (const [nomId, totalNeeded] of neededByNom.entries()) {
-    const { data: wipRows } = await supabase
-      .from('inventory')
-      .select('id, total_qty')
-      .eq('nomenclature_id', nomId)
-      .eq('type', 'wip_bz')
+  // 3. For each nomenclature in allocated, create or top up wip_bz so release_bz_reservation won't throw
+  for (const r of allocated) {
+    if (r.allocated_qty > 0) {
+      const { data: wipRows } = await supabase
+        .from('inventory')
+        .select('id, total_qty')
+        .eq('nomenclature_id', r.nomenclature_id)
+        .eq('type', 'wip_bz');
 
-    const currentWipQty = (wipRows || []).reduce((s, w) => s + Number(w.total_qty || 0), 0)
-    const shortage = totalNeeded - currentWipQty
-
-    if (shortage > 0) {
-      if (wipRows && wipRows.length > 0) {
-        // Update first row
-        const first = wipRows[0]
-        await supabase
-          .from('inventory')
-          .update({
-            total_qty: Number(first.total_qty || 0) + shortage,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', first.id)
+      if (!wipRows || wipRows.length === 0) {
+        await supabase.from('inventory').insert([{
+          nomenclature_id: r.nomenclature_id,
+          name: 'WIP BZ Temp',
+          unit: 'шт',
+          total_qty: Number(r.allocated_qty) + 10,
+          reserved_qty: 0,
+          type: 'wip_bz',
+          warehouse: 'operational'
+        }]);
       } else {
-        // Insert new wip_bz row
-        await supabase
-          .from('inventory')
-          .insert([{
-            nomenclature_id: nomId,
-            name: 'WIP BZ Temp',
-            unit: 'шт',
-            total_qty: shortage + 10,
-            reserved_qty: 0,
-            type: 'wip_bz',
-            warehouse: 'operational'
-          }])
+        const first = wipRows[0];
+        if (Number(first.total_qty || 0) < Number(r.allocated_qty)) {
+          await supabase.from('inventory').update({
+            total_qty: Number(first.total_qty || 0) + Number(r.allocated_qty),
+            updated_at: new Date().toISOString()
+          }).eq('id', first.id);
+        }
       }
     }
   }
@@ -79,7 +72,7 @@ async function releaseAll() {
   for (const op of uniqueOps) {
     const { error } = await supabase.rpc('release_bz_reservation', {
       p_operation_id: op,
-      p_reason: 'Очищення завислих тестових броней'
+      p_reason: 'Очищення завислих тестових броней до 01.10.2026'
     })
     if (error) {
       console.error(`Op ${op} error: ${error.message}`)
