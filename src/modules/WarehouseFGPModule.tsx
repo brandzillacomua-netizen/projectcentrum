@@ -62,7 +62,8 @@ export const WarehouseFGPModule: React.FC = () => {
   const [orderStatusFilter, setOrderStatusFilter] = useState<'all' | 'ready' | 'shortage'>('all')
   const [reserveAnalysisItem, setReserveAnalysisItem] = useState<any>(null)
 
-  const isAdmin = currentUser?.login === 'admin@workshop.local' || currentUser?.role === 'admin' || currentUser?.role === 'director' || (currentUser?.position || '').toLowerCase().includes('адмін')
+  // Тимчасово надано доступ усім користувачам для заповнення складських залишків СГП
+  const isAdmin = true
 
   const tabs = [
     { id: 'finished', label: 'Готова продукція', icon: <Archive size={18} /> },

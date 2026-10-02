@@ -66,7 +66,8 @@ export function useSupplyData({ isProcurementOnly = false } = {}) {
   const [isDeleting, setIsDeleting] = useState(false)
 
   const isSuperAdmin = currentUser?.login === 'admin@workshop.local' || currentUser?.position === 'Адмін' || currentUser?.role === 'admin' || currentUser?.access_rights?.director
-  const isAdmin = isSuperAdmin || (currentUser?.position || '').toLowerCase().includes('директор')
+  // Тимчасово надано доступ усім користувачам для заповнення складських залишків СВ
+  const isAdmin = true
 
   const handleDeleteInventoryItem = (item) => {
     if (!item || !item.id) return

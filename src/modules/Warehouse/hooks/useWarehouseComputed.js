@@ -379,6 +379,10 @@ export const useWarehouseComputed = ({
       const nameLower = itemName.toLowerCase()
       const isSheet = /(?:^|\s)лист(?:\s|$)/i.test(itemName)
       const itemType = i.type || 'raw'
+      const isGenericCutterType = /^фреза\s+ф\d+/i.test(itemName.trim())
+      if (isGenericCutterType) return false
+
+      const isCutter = nameLower.includes('фреза') || itemType === 'consumable' || itemType === 'cutter' || nomenclature?.type === 'consumable'
       const isPart = itemType === 'part' || nomenclature?.type === 'part'
       
       // Hardware and packaging components are strictly managed on SGP
@@ -391,7 +395,7 @@ export const useWarehouseComputed = ({
       )
       if (isHardware) return false
 
-      if ((Number(i.total_qty) || 0) <= 0 && !isSheet && !isPart) return false
+      if ((Number(i.total_qty) || 0) <= 0 && !isSheet && !isCutter && !isPart) return false
 
       if (activeTab === 'bz') return itemType === 'bz' && matchesSearch
       if (activeTab === 'scrap') return itemType.startsWith('scrap') && matchesSearch

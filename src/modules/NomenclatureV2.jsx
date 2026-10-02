@@ -569,7 +569,7 @@ const NomenclatureV2 = () => {
   }
 
   const visibleItems = useMemo(() => {
-    let list = items
+    let list = items.filter(it => !/^фреза\s+ф\d+/i.test((it.name || '').trim()))
     if (selectedGroup) {
       const getChildIds = (pId) => {
         const subs = groups.filter(g => g.parent_id === pId)

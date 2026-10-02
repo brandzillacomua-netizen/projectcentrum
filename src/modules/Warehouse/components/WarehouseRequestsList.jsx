@@ -41,7 +41,9 @@ export function WarehouseRequestsList({
 
         const task = (tasks || []).find(t => t.id === taskId)
         const order = (orders || []).find(o => String(o.id) === String(orderId))
-        const orderNum = order?.order_num || '???'
+        const detailsMatch = (firstReq?.details || '').match(/(\d{6}-\d+|\d{6})/)
+        const rawOrderNum = order?.order_num || task?.plan_snapshot?._prep_num || detailsMatch?.[1] || null
+        const orderNum = rawOrderNum || '???'
         const displayNum = task?.batch_index ? `${orderNum}/${task.batch_index}` : orderNum
 
         // card-specific reissue group?

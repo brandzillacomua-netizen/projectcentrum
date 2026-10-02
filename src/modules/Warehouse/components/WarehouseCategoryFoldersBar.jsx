@@ -15,9 +15,15 @@ export const WarehouseCategoryFoldersBar = ({
     (i.name || '').toLowerCase().includes('тримач') || (i.name || '').toLowerCase().includes('метиз') ||
     (i.name || '').toLowerCase().includes('кріплення'))
 
-  const rawCount = (inventory || []).filter(i => (i.warehouse === 'operational' || !i.warehouse) && i.warehouse !== 'sgp' && i.warehouse !== 'fgp' && !isHw(i) && Number(i.total_qty) > 0).length
-  const sheetsCount = (inventory || []).filter(i => (i.warehouse === 'operational' || !i.warehouse) && i.warehouse !== 'sgp' && i.warehouse !== 'fgp' && !isHw(i) && Number(i.total_qty) > 0 && (i.name || '').toLowerCase().includes('лист') && !(i.name || '').toLowerCase().includes('гума') && !(i.name || '').toLowerCase().includes('накладка')).length
-  const cuttersCount = (inventory || []).filter(i => (i.warehouse === 'operational' || !i.warehouse) && i.warehouse !== 'sgp' && i.warehouse !== 'fgp' && !isHw(i) && Number(i.total_qty) > 0 && (i.name || '').toLowerCase().includes('фреза')).length
+  const isGenericCutterType = i => /^фреза\s+ф\d+/i.test((i.name || '').trim())
+  const isCutter = i => !isGenericCutterType(i) && ((i.name || '').toLowerCase().includes('фреза') || i.type === 'consumable' || i.type === 'cutter')
+  const isSheet = i => (i.name || '').toLowerCase().includes('лист') && !(i.name || '').toLowerCase().includes('гума') && !(i.name || '').toLowerCase().includes('накладка')
+
+  const baseOpInv = (inventory || []).filter(i => (i.warehouse === 'operational' || !i.warehouse) && i.warehouse !== 'sgp' && i.warehouse !== 'fgp' && !isHw(i) && !isGenericCutterType(i))
+
+  const rawCount = baseOpInv.filter(i => Number(i.total_qty) > 0 || isSheet(i) || isCutter(i)).length
+  const sheetsCount = baseOpInv.filter(i => isSheet(i)).length
+  const cuttersCount = baseOpInv.filter(i => isCutter(i)).length
 
   const folders = [
     { id: 'raw', label: '📁 Всі позиції СО', count: rawCount, color: '#ff9000' },

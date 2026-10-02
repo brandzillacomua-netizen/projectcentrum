@@ -20,9 +20,10 @@ const WarehouseInventoryTableRow = React.memo(({
 }) => {
   const isEditing = editingInvId === item.id
   const reservedQty = getItemReservedQty(item)
+  const displayTotalQty = isEditing ? (Number(editingInvTotal) || 0) : Math.max(Number(item.total_qty) || 0, reservedQty)
   const availableQty = isEditing
     ? (Number(editingInvTotal) || 0) - (Number(editingInvReserved) || 0)
-    : Math.max(0, (item.total_qty || 0) - reservedQty)
+    : Math.max(0, displayTotalQty - reservedQty)
 
   const nomenclatures = useStore(state => state.nomenclatures) || []
   const linkedNom = item.nomenclature_id && nomenclatures.find(n =>
@@ -91,7 +92,7 @@ const WarehouseInventoryTableRow = React.memo(({
             style={{ width: '80px', background: '#000', border: '1px solid #ff9000', color: '#fff', textAlign: 'center', borderRadius: '6px', padding: '4px' }}
           />
         ) : (
-          <>{item.total_qty || 0} <small style={{ color: '#444', fontWeight: 400 }}>{item.unit}</small></>
+          <>{displayTotalQty} <small style={{ color: '#444', fontWeight: 400 }}>{item.unit}</small></>
         )}
       </td>
       <td style={{ padding: '15px', textAlign: 'center', color: '#10b981', fontWeight: 900 }}>
@@ -170,7 +171,7 @@ const WarehouseInventoryMobileCard = React.memo(({
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={{ fontSize: '0.7rem', color: '#444' }}>{item.unit}</span>
-          {currentUser?.login === 'admin@workshop.local' && !isEditing && (
+          {!isEditing && (
             <button
               type="button"
               onClick={() => {

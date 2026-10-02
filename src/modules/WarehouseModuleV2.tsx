@@ -198,7 +198,8 @@ export const WarehouseModuleV2: React.FC = () => {
   const [itemToDelete, setItemToDelete] = useState<any>(null)
   const [isDeleting, setIsDeleting] = useState<boolean>(false)
 
-  const isAdmin = currentUser?.login === 'admin@workshop.local' || currentUser?.role === 'admin' || currentUser?.role === 'director' || (currentUser?.position || '').toLowerCase().includes('адмін') || (currentUser?.position || '').toLowerCase().includes('директор')
+  // Тимчасово надано доступ усім користувачам для заповнення складських залишків СО
+  const isAdmin = true
 
   const handleDeleteInventoryItem = (item: any) => {
     if (!item || !item.id) return
