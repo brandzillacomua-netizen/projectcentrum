@@ -144,6 +144,23 @@ export const resolveCutterTypeName = (cutterNom, nomenclatures = []) => {
   return name
 }
 
+export const resolveMachineType = (machineName) => {
+  if (!machineName) return null
+  const normMac = String(machineName).toLowerCase()
+  if (normMac.includes('3050(16)x1600') || normMac.includes('3050(16)х1600') || normMac.includes('3050(16)') || normMac.includes('16x16') || normMac.includes('16х16') || normMac.includes('3050x1600') || normMac.includes('3050х1600') || normMac.includes('3050')) {
+    return 'CNC 3050(16)х16 - 3-12 листів (швидкісний)'
+  } else if (normMac.includes('дракон') || normMac.includes('60x20') || normMac.includes('6000x2000') || normMac.includes('6000х2000')) {
+    return 'CNC 6000x2000 - 4 - 96 листів (Дракон)'
+  } else if (normMac.includes('малий') || normMac.includes('12x8') || normMac.includes('1200x800') || normMac.includes('12х8') || normMac.includes('1200х800')) {
+    return 'CNC 1200x800 - 4 листи (Малий)'
+  } else if (normMac.includes('три головий') || normMac.includes('триголовий') || normMac.includes('3060') || normMac.includes('30x16') || normMac.includes('30х16')) {
+    return 'CNC 3060х1600 - 3-36 листів (Три Головий)'
+  } else if (normMac.includes('фея') || normMac.includes('фею') || normMac.includes('феі') || normMac.includes('ke xin') || normMac.includes('kexin') || normMac.includes('кексін') || normMac.includes('кексин') || normMac.includes('fea') || normMac.includes('feia') || normMac.includes('feu')) {
+    return 'CNC KE XIN - 4 - 16 листів (ФЕЯ)'
+  }
+  return machineName
+}
+
 export const isMachineMatch = (opMachine, targetMachine) => {
   if (!opMachine || !targetMachine) return false
   const opStr = String(opMachine).toLowerCase().trim()
@@ -152,13 +169,19 @@ export const isMachineMatch = (opMachine, targetMachine) => {
   if (opStr === targetStr) return true
   if (opStr.includes(targetStr) || targetStr.includes(opStr)) return true
 
+  const opResolved = resolveMachineType(opMachine)
+  const targetResolved = resolveMachineType(targetMachine)
+  if (opResolved && targetResolved && opResolved.toLowerCase() === targetResolved.toLowerCase()) {
+    return true
+  }
+
   // Group equivalent keywords/nicknames for each machine category
   const machineGroups = [
     ['1200', '12x8', '12х8', 'мал'],
     ['3050', '16x16', '16х16'],
-    ['3060', '30x16', '30х16', 'три головий'],
+    ['3060', '30x16', '30х16', 'три головий', 'триголовий'],
     ['6000', '60x20', '60х20', 'дракон'],
-    ['ke xin', 'kexin', 'фея']
+    ['ke xin', 'kexin', 'фея', 'фею', 'феі', 'кексін', 'кексин', 'fea', 'feia', 'feu']
   ]
 
   for (const group of machineGroups) {

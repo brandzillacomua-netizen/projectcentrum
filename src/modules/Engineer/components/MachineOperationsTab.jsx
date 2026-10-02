@@ -125,7 +125,7 @@ export function MachineOperationsTab() {
       return 'CNC 1200x800 - 4 листи (Малий)'
     } else if (normMac.includes('три головий') || normMac.includes('триголовий') || normMac.includes('3060') || normMac.includes('30x16') || normMac.includes('30х16')) {
       return 'CNC 3060х1600 - 3-36 листів (Три Головий)'
-    } else if (normMac.includes('фея') || normMac.includes('ke xin')) {
+    } else if (normMac.includes('фея') || normMac.includes('фею') || normMac.includes('феі') || normMac.includes('ke xin') || normMac.includes('kexin') || normMac.includes('кексін') || normMac.includes('кексин') || normMac.includes('fea') || normMac.includes('feia') || normMac.includes('feu')) {
       return 'CNC KE XIN - 4 - 16 листів (ФЕЯ)'
     }
     const exactType = MACHINE_TYPES.find(t => t.toLowerCase() === machineName.toLowerCase() || t.toLowerCase().includes(machineName.toLowerCase()))

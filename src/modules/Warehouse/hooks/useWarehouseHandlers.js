@@ -3,6 +3,7 @@ import { apiService } from '../../../services/apiDispatcher'
 import { normalize, parseMaterialName } from './useWarehouseComputed'
 import { availableInventoryForRequest, inventoryMatchesRequest } from '../utils/materialInventoryMatching.js'
 import { deductInventoryAtomic } from '../../../services/atomicInventoryService.js'
+import { isMachineMatch, resolveMachineType } from '../../../utils/cutterCalculator.js'
 
 export const useWarehouseHandlers = ({
   nomenclatures,
@@ -242,28 +243,18 @@ export const useWarehouseHandlers = ({
 
       const normStr = str => str ? str.toLowerCase().replace(/[^a-z0-9а-яєіїґ]/g, '') : ''
 
-      const resolveMachineType = (machineName) => {
-        if (!machineName) return null
-        const normMac = machineName.toLowerCase()
-        if (normMac.includes('3050(16)x1600') || normMac.includes('3050(16)х1600') || normMac.includes('3050(16)') || normMac.includes('16x16') || normMac.includes('16х16') || normMac.includes('3050x1600') || normMac.includes('3050х1600') || normMac.includes('3050')) {
-          return 'CNC 3050(16)х16 - 3-12 листів (швидкісний)'
-        } else if (normMac.includes('дракон') || normMac.includes('60x20') || normMac.includes('6000x2000') || normMac.includes('6000х2000')) {
-          return 'CNC 6000x2000 - 4 - 96 листів (Дракон)'
-        } else if (normMac.includes('малий') || normMac.includes('12x8') || normMac.includes('1200x800') || normMac.includes('12х8') || normMac.includes('1200х800')) {
-          return 'CNC 1200x800 - 4 листи (Малий)'
-        } else if (normMac.includes('три головий') || normMac.includes('триголовий') || normMac.includes('3060') || normMac.includes('30x16') || normMac.includes('30х16')) {
-          return 'CNC 3060х1600 - 3-36 листів (Три Головий)'
-        } else if (normMac.includes('фея') || normMac.includes('ke xin')) {
-          return 'CNC KE XIN - 4 - 16 листів (ФЕЯ)'
-        }
-        return machineName
-      }
-
       const cardMac = card.machine || card.machine_name
       const opType = resolveMachineType(cardMac)
       const ops = (machineOperations || []).find(o => 
         String(o.nomenclature_id) === String(card.nomenclature_id) && 
-        (normStr(o.machine_type) === normStr(opType) || String(o.machine_id) === String(cardMac))
+        (
+          normStr(o.machine_type) === normStr(opType) || 
+          String(o.machine_id) === String(cardMac) ||
+          isMachineMatch(o.machine_type || o.machine_id, cardMac) ||
+          isMachineMatch(o.machine_type || o.machine_id, opType)
+        )
+      ) || (machineOperations || []).find(o => 
+        String(o.nomenclature_id) === String(card.nomenclature_id)
       )
 
       const cuttersRates = {}
