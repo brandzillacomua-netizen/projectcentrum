@@ -25,6 +25,12 @@ export function useCardGeneration({ mes }) {
     }
     generatingLockRef.current = true
 
+    if (!selectedMachineName || !String(selectedMachineName).trim() || String(selectedMachineName).includes('--')) {
+      generatingLockRef.current = false
+      alert('⚠️ ГЕНЕРАЦІЯ ЗАБЛОКОВАНА: Будь ласка, спочатку оберіть верстат зі списку!')
+      return
+    }
+
     const isWarehouseReady = task?.warehouse_conf === 'true' || task?.warehouse_conf === 'partial'
     const isEngineerReady = task?.engineer_conf === true
     const isDirectorReady = task?.director_conf === true

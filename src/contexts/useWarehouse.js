@@ -513,31 +513,7 @@ export function createWarehouseActions({
     try {
       const taskIdToCheck = req.task_id
       if (taskIdToCheck) {
-        const [
-          { data: pendingReqs },
-          { data: candidateCards },
-          { data: taskData },
-          { data: nomData }
-        ] = await Promise.all([
-          supabase.from('material_requests').select('*').eq('task_id', taskIdToCheck).eq('status', 'pending'),
-          supabase.from('work_cards').select('*').eq('task_id', taskIdToCheck).in('status', ['waiting-materials', 'waiting-cutters']),
-          supabase.from('tasks').select('*').eq('id', taskIdToCheck).maybeSingle(),
-          supabase.from('nomenclatures_v2').select('id, name')
-        ])
-
-        if (candidateCards && candidateCards.length > 0) {
-          const cardsToActivate = candidateCards.filter(card => {
-            const cardPending = (pendingReqs || []).filter(r => isRequestForCard(r, card, taskData, nomData || []))
-            return cardPending.length === 0
-          }).map(c => c.id)
-
-          if (cardsToActivate.length > 0) {
-            await supabase
-              .from('work_cards')
-              .update({ status: 'new' })
-              .in('id', cardsToActivate)
-          }
-        }
+        await syncStuckWorkCards([taskIdToCheck])
       }
     } catch (err) {
       console.error('Error updating work cards after material issuance:', err)
@@ -780,66 +756,7 @@ export function createWarehouseActions({
       const uniqueTaskIds = [...new Set(relevantRequests.map(r => r.task_id).filter(Boolean))]
       if (uniqueTaskIds.length > 0) {
         try {
-          const { data: allPending } = await supabase
-            .from('material_requests')
-            .select('*')
-            .in('task_id', uniqueTaskIds)
-            .eq('status', 'pending')
-
-          const pendingTaskIds = new Set((allPending || []).map(r => r.task_id))
-          const pendingCardIds = new Set((allPending || []).map(r => r.card_id).filter(Boolean))
-
-          const tasksToUpdate = uniqueTaskIds.filter(tId => !pendingTaskIds.has(tId))
-
-          if (tasksToUpdate.length > 0) {
-            await Promise.all(tasksToUpdate.map(tId =>
-              supabase
-                .from('work_cards')
-                .update({ status: 'new' })
-                .eq('task_id', tId)
-                .in('status', ['waiting-materials', 'waiting-cutters'])
-            ))
-          }
-
-          const uniqueCardIds = [...new Set(relevantRequests.map(r => r.card_id).filter(Boolean))]
-          const cardsToUpdate = uniqueCardIds.filter(cId => !pendingCardIds.has(cId))
-          if (cardsToUpdate.length > 0) {
-            await supabase
-              .from('work_cards')
-              .update({ status: 'new' })
-              .in('id', cardsToUpdate)
-              .in('status', ['waiting-materials', 'waiting-cutters'])
-          }
-
-          // Per-part card activation for tasks with partial pending requests
-          const partialTasks = uniqueTaskIds.filter(tId => pendingTaskIds.has(tId))
-          if (partialTasks.length > 0) {
-            const [
-              { data: candidateCards },
-              { data: partialTasksData },
-              { data: nomData }
-            ] = await Promise.all([
-              supabase.from('work_cards').select('*').in('task_id', partialTasks).in('status', ['waiting-materials', 'waiting-cutters']),
-              supabase.from('tasks').select('*').in('id', partialTasks),
-              supabase.from('nomenclatures_v2').select('id, name')
-            ])
-
-            if (candidateCards && candidateCards.length > 0) {
-              const taskMap = new Map((partialTasksData || []).map(t => [String(t.id), t]))
-              const cardsToActivate = candidateCards.filter(card => {
-                const pTask = taskMap.get(String(card.task_id))
-                const cardPending = (allPending || []).filter(r => isRequestForCard(r, card, pTask, nomData || []))
-                return cardPending.length === 0
-              }).map(c => c.id)
-
-              if (cardsToActivate.length > 0) {
-                await supabase
-                  .from('work_cards')
-                  .update({ status: 'new' })
-                  .in('id', cardsToActivate)
-              }
-            }
-          }
+          await syncStuckWorkCards(uniqueTaskIds)
         } catch (err) {
           console.error('Error updating work cards for tasks in batch:', err)
         }
@@ -1016,11 +933,79 @@ export function createWarehouseActions({
     }
   }
 
+  const syncStuckWorkCards = async (taskIds = null) => {
+    try {
+      let query = supabase.from('work_cards').select('*').in('status', ['waiting-materials', 'waiting-cutters'])
+      if (taskIds && taskIds.length > 0) {
+        query = query.in('task_id', taskIds)
+      }
+      const { data: stuckCards } = await query
+      if (!stuckCards || stuckCards.length === 0) return
+
+      const targetTaskIds = [...new Set(stuckCards.map(c => c.task_id).filter(Boolean))]
+      const [
+        { data: pendingReqs },
+        { data: tasksData },
+        { data: nomData }
+      ] = await Promise.all([
+        supabase.from('material_requests').select('*').in('task_id', targetTaskIds).eq('status', 'pending'),
+        supabase.from('tasks').select('*').in('id', targetTaskIds),
+        supabase.from('nomenclatures_v2').select('id, name')
+      ])
+
+      const taskMap = new Map((tasksData || []).map(t => [String(t.id), t]))
+      const toNew = []
+      const toWaitingMaterials = []
+
+      stuckCards.forEach(card => {
+        const pTask = taskMap.get(String(card.task_id))
+        const isWhConf = pTask?.warehouse_conf === 'true' || pTask?.warehouse_conf === 'partial' || pTask?.warehouse_conf === true
+
+        const cardPending = (pendingReqs || []).filter(r => {
+          if (!isRequestForCard(r, card, pTask, nomData || [])) return false
+          if (r.details && (r.details.includes('ПІДГОТОВ') || r.details.includes('ЗАПИТ НА ПІДГОТОВКУ'))) return false
+          return true
+        })
+
+        const pendingCutterReqs = cardPending.filter(r => 
+          r.category === 'cutter' || 
+          (r.details || '').toLowerCase().includes('фрез') || 
+          (r.details || '').toLowerCase().includes('витратн')
+        )
+
+        let pendingMaterialReqs = []
+        if (!isWhConf) {
+          pendingMaterialReqs = cardPending.filter(r => !pendingCutterReqs.includes(r))
+        }
+
+        if (pendingCutterReqs.length === 0 && pendingMaterialReqs.length === 0) {
+          toNew.push(card.id)
+        } else if (pendingCutterReqs.length === 0 && pendingMaterialReqs.length > 0) {
+          if (card.status !== 'waiting-materials') {
+            toWaitingMaterials.push(card.id)
+          }
+        }
+      })
+
+      if (toNew.length > 0) {
+        await supabase.from('work_cards').update({ status: 'new' }).in('id', toNew)
+      }
+      if (toWaitingMaterials.length > 0) {
+        await supabase.from('work_cards').update({ status: 'waiting-materials' }).in('id', toWaitingMaterials)
+      }
+      if (toNew.length > 0 || toWaitingMaterials.length > 0) {
+        refreshTable('work_cards')
+      }
+    } catch (err) {
+      console.error('Error in syncStuckWorkCards:', err)
+    }
+  }
+
   return {
     deductIssuedMaterialsForTask, submitPickingRequest,
     createPurchaseRequest, updatePurchaseRequestStatus, convertRequestToOrder,
     createReceptionDoc, sendDocToWarehouse, confirmReception,
     issueMaterials, issueMaterialsBatch, receiveInventory, fixInventoryTypes,
-    
+    syncStuckWorkCards
   }
 }

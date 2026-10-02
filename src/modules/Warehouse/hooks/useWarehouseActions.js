@@ -89,6 +89,14 @@ export function useWarehouseActions(dataHook) {
       if (card.card_info && card.card_info.includes('[BOX_PREPARED:true]')) {
         updatePayload.card_info = card.card_info.replace(/\[BOX_PREPARED:true\]/g, '').trim()
       }
+      if (card.status === 'waiting-cutters') {
+        const { data: remPending } = await supabaseClient
+          .from('material_requests')
+          .select('id')
+          .eq('task_id', card.task_id)
+          .eq('status', 'pending')
+        updatePayload.status = (remPending && remPending.length > 0) ? 'waiting-materials' : 'new'
+      }
       const { error: cardUpdateErr } = await supabaseClient
         .from('work_cards')
         .update(updatePayload)

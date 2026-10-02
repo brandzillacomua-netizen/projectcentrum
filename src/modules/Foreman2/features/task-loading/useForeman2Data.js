@@ -122,6 +122,13 @@ export function useForeman2Data({ mes }) {
       setError(null)
       try {
         const taskIds = relevantTasks.map(task => task.id)
+        if (typeof mes?.syncStuckWorkCards === 'function') {
+          try {
+            await mes.syncStuckWorkCards(taskIds)
+          } catch (e) {
+            console.error('syncStuckWorkCards error:', e)
+          }
+        }
         const { data: cards, error: cardsError } = await supabase
           .from('work_cards')
           .select('*')

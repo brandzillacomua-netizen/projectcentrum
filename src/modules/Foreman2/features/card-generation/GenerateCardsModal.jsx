@@ -20,11 +20,6 @@ export default function GenerateCardsModal({
   const mes = useMES?.() || {}
   const isLight = mes.theme === 'light' || (typeof document !== 'undefined' && (document.body.classList.contains('light-theme') || document.documentElement.classList.contains('light-theme')))
 
-  const findMachine = (mName) => {
-    const baseName = (mName || '').split(' №')[0].trim()
-    return machines.find(m => m.name === baseName) || machines.find(m => m.name === mName)
-  }
-
   const getRequestQty = (req) => {
     return Number(req.qty) || Number(req.quantity) || 0
   }
@@ -146,14 +141,31 @@ export default function GenerateCardsModal({
   const [capacity, setCapacity] = useState(config?.capacityOverride || config?.capacity || 1)
   const [total, setTotal] = useState(config?.count || 1)
   const [machineName, setMachineName] = useState('')
-  
-  const [customLoadingCapacities, setCustomLoadingCapacities] = useState({})
-  const [partialCounts, setPartialCounts] = useState({})
   const [selectedCutters, setSelectedCutters] = useState({})
+  
+  const MACHINE_TYPES = useMemo(() => [...new Set((machines || []).map(m => m.name))], [machines])
+
+  const findMachine = (mName) => {
+    if (!mName) return null
+    const baseName = String(mName).split(' №')[0].trim()
+    return (machines || []).find(m => m.name === baseName) || (machines || []).find(m => m.name === mName)
+  }
+
+  const isMachineSelected = useMemo(() => {
+    if (!machineName || !String(machineName).trim()) return false
+    const str = String(machineName).trim()
+    if (str.includes('--')) return false
+    const lower = str.toLowerCase()
+    if (lower === 'не призначено' || lower === 'не вказано' || lower === 'без верстата' || lower === 'всі верстати') return false
+    const found = findMachine(str) || MACHINE_TYPES.find(t => t === str || t.toLowerCase() === lower)
+    return Boolean(found)
+  }, [machineName, machines, MACHINE_TYPES])
 
   useEffect(() => {
     if (config) {
-      const defaultMachine = config.part?.machine || config.task?.machine_name || ''
+      const rawDefault = config.part?.machine || config.task?.machine_name || ''
+      const validMac = findMachine(rawDefault) || MACHINE_TYPES.find(t => t === rawDefault)
+      const defaultMachine = validMac ? (typeof validMac === 'object' ? validMac.name : validMac) : ''
       setMachineName(defaultMachine)
       setSelectedCutters({})
       const cap = config.capacityOverride || (defaultMachine ? (findMachine(defaultMachine)?.sheet_capacity || 1) : 1)
@@ -161,7 +173,7 @@ export default function GenerateCardsModal({
       const rec = Math.max(1, Math.ceil((targetSheets || 1) / (Number(cap) || 1)))
       setTotal(config.count > 1 ? config.count : rec)
     }
-  }, [config])
+  }, [config, machines, MACHINE_TYPES])
 
   // Recalculate total cards when targetSheets changes
   useEffect(() => {
@@ -190,7 +202,7 @@ export default function GenerateCardsModal({
 
   // Live cutter calculation for this batch
   const cutterRows = useMemo(() => {
-    if (!config || !config.part?.nom) return []
+    if (!config || !config.part?.nom || !isMachineSelected) return []
     return calculateCuttersForBatch({
       partNom: config.part.nom,
       machineName,
@@ -200,7 +212,7 @@ export default function GenerateCardsModal({
       nomenclatures,
       inventory
     })
-  }, [config, actualTotalSheets, machineName, machineOperations, nomenclatures, inventory])
+  }, [config, actualTotalSheets, machineName, isMachineSelected, machineOperations, nomenclatures, inventory])
 
   const extractCutterDiameter = (nameStr) => {
     if (!nameStr) return null
@@ -287,8 +299,6 @@ export default function GenerateCardsModal({
   const hasUnselectedCutters = (cutterRows || []).length > 0 && unselectedCuttersCount > 0
 
   const isSingleKittingBlocked = false
-
-  const MACHINE_TYPES = [...new Set((machines || []).map(m => m.name))]
 
   if (!config || !part) return null
 
@@ -452,43 +462,54 @@ export default function GenerateCardsModal({
                             style={{ width: '45px', background: isLight ? '#fff' : '#000', border: isLight ? '1px solid #cbd5e1' : '1px solid #333', color: isLight ? '#0f172a' : '#fff', textAlign: 'center', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 900, padding: '4px 0' }}
                           />
                         </div>
-                        <button
-                          disabled={isGenerating || isKittingBlocked}
-                          onClick={() => {
-                            const finalToGen = Math.min(toGen, remainingCount)
-                            if (finalToGen <= 0) return
+                        {(() => {
+                          const isSplitMachineSelected = Boolean(split.machine && String(split.machine).trim() && !String(split.machine).includes('--'))
+                          const isSplitDisabled = isGenerating || isKittingBlocked || !isSplitMachineSelected
+                          return (
+                            <button
+                              disabled={isSplitDisabled}
+                              onClick={() => {
+                                if (!isSplitMachineSelected) {
+                                  alert('Будь ласка, оберіть верстат для цієї партії!')
+                                  return
+                                }
+                                const finalToGen = Math.min(toGen, remainingCount)
+                                if (finalToGen <= 0) return
 
-                            onGenerate(
-                              task,
-                              part,
-                              splitSheets,
-                              split.machine,
-                              finalToGen,
-                              generatedCount,
-                              splitQty,
-                              isRepair,
-                              globalTotalLoadings,
-                              splitGlobalOffsetForThisMachine,
-                              currentCapacity
-                            )
-                          }}
-                          style={{ 
-                            background: isGenerating ? '#333' : (isKittingBlocked ? '#1e1b18' : '#10b981'), 
-                            color: isKittingBlocked ? '#7f1d1d' : '#fff', 
-                            border: isKittingBlocked ? '1px solid rgba(239,68,68,0.2)' : 'none',
-                            padding: '10px 15px', 
-                            borderRadius: '10px', 
-                            fontSize: '0.7rem', 
-                            fontWeight: 950, 
-                            cursor: (isGenerating || isKittingBlocked) ? 'not-allowed' : 'pointer', 
-                            display: 'flex', 
-                            alignItems: 'center', 
-                            gap: '5px', 
-                            pointerEvents: (isGenerating || isKittingBlocked) ? 'none' : 'auto' 
-                          }}
-                        >
-                          {isGenerating ? <Loader2 size={12} className="animate-spin" /> : <Printer size={12} />}
-                          {isGenerating ? 'ОБРОБКА...' : (isKittingBlocked ? 'НЕМАЄ ЛИСТІВ' : 'ГЕНЕРУВАТИ')}</button>
+                                onGenerate(
+                                  task,
+                                  part,
+                                  splitSheets,
+                                  split.machine,
+                                  finalToGen,
+                                  generatedCount,
+                                  splitQty,
+                                  isRepair,
+                                  globalTotalLoadings,
+                                  splitGlobalOffsetForThisMachine,
+                                  currentCapacity
+                                )
+                              }}
+                              style={{ 
+                                background: isGenerating ? '#333' : (!isSplitMachineSelected ? '#222' : (isKittingBlocked ? '#1e1b18' : '#10b981')), 
+                                color: !isSplitMachineSelected ? '#eab308' : (isKittingBlocked ? '#7f1d1d' : '#fff'), 
+                                border: !isSplitMachineSelected ? '1px solid rgba(234,179,8,0.4)' : (isKittingBlocked ? '1px solid rgba(239,68,68,0.2)' : 'none'),
+                                padding: '10px 15px', 
+                                borderRadius: '10px', 
+                                fontSize: '0.7rem', 
+                                fontWeight: 950, 
+                                cursor: isSplitDisabled ? 'not-allowed' : 'pointer', 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                gap: '5px', 
+                                pointerEvents: isSplitDisabled ? 'none' : 'auto' 
+                              }}
+                            >
+                              {isGenerating ? <Loader2 size={12} className="animate-spin" /> : <Printer size={12} />}
+                              {isGenerating ? 'ОБРОБКА...' : (!isSplitMachineSelected ? 'ОБЕРІТЬ ВЕРСТАТ' : (isKittingBlocked ? 'НЕМАЄ ЛИСТІВ' : 'ГЕНЕРУВАТИ'))}
+                            </button>
+                          )
+                        })()}
                       </div>
                     )}
                     {isGenerated && (
@@ -534,8 +555,8 @@ export default function GenerateCardsModal({
               </div>
 
               <div>
-                <label style={{ display: 'block', color: machineName ? (isLight ? '#64748b' : '#888') : '#eab308', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>
-                  {machineName ? 'Оберіть верстат для цієї партії:' : '⚠️ Оберіть верстат зі списку:'}
+                <label style={{ display: 'block', color: isMachineSelected ? (isLight ? '#64748b' : '#888') : '#eab308', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>
+                  {isMachineSelected ? 'Оберіть верстат для цієї партії:' : '⚠️ ОБОВ\'ЯЗКОВО ОБЕРІТЬ ВЕРСТАТ ДЛЯ ЦІЄЇ ПАРТІЇ:'}
                 </label>
                 <select
                   value={machineName}
@@ -547,7 +568,18 @@ export default function GenerateCardsModal({
                     setCapacity(newCapacity)
                     setTotal(Math.max(1, Math.ceil(targetSheets / newCapacity)))
                   }}
-                  style={{ width: '100%', background: isLight ? '#ffffff' : '#000', border: machineName ? '1px solid #10b981' : '1px solid #eab308', color: machineName ? (isLight ? '#0f172a' : '#fff') : '#eab308', padding: '15px', borderRadius: '15px', fontSize: '0.95rem', outline: 'none', fontWeight: 800 }}
+                  style={{
+                    width: '100%',
+                    background: isLight ? '#ffffff' : '#000',
+                    border: isMachineSelected ? '1px solid #10b981' : '2px solid #eab308',
+                    color: isMachineSelected ? (isLight ? '#0f172a' : '#fff') : '#eab308',
+                    padding: '15px',
+                    borderRadius: '15px',
+                    fontSize: '0.95rem',
+                    outline: 'none',
+                    fontWeight: 800,
+                    boxShadow: !isMachineSelected ? '0 0 12px rgba(234, 179, 8, 0.3)' : 'none'
+                  }}
                 >
                   <option value="">-- Оберіть верстат --</option>
                   {MACHINE_TYPES.map(t => {
@@ -581,6 +613,7 @@ export default function GenerateCardsModal({
                   <input
                     type="number"
                     value={capacity}
+                    disabled={!isMachineSelected}
                     onChange={(e) => {
                       const newCap = parseInt(e.target.value);
                       const m = findMachine(machineName);
@@ -605,7 +638,7 @@ export default function GenerateCardsModal({
                       }
                     }}
                     min="1"
-                    style={{ width: '100%', background: isLight ? '#fff' : '#000', border: '1px solid rgba(255,144,0,0.5)', color: '#ff9000', fontSize: '1.5rem', fontWeight: 950, textAlign: 'center', padding: '10px', borderRadius: '15px', outline: 'none' }}
+                    style={{ width: '100%', background: isLight ? '#fff' : '#000', border: '1px solid rgba(255,144,0,0.5)', color: '#ff9000', fontSize: '1.5rem', fontWeight: 950, textAlign: 'center', padding: '10px', borderRadius: '15px', outline: 'none', opacity: isMachineSelected ? 1 : 0.5 }}
                   />
                 </div>
 
@@ -616,12 +649,13 @@ export default function GenerateCardsModal({
                   <input
                     type="number"
                     value={total}
+                    disabled={!isMachineSelected}
                     onChange={(e) => {
                       const val = Math.max(1, parseInt(e.target.value) || 1)
                       setTotal(val)
                     }}
                     min="1"
-                    style={{ width: '100%', background: isLight ? '#fff' : '#000', border: '1px solid #10b98150', color: isLight ? '#0f172a' : '#fff', fontSize: '1.5rem', fontWeight: 950, textAlign: 'center', padding: '10px', borderRadius: '15px', outline: 'none' }}
+                    style={{ width: '100%', background: isLight ? '#fff' : '#000', border: '1px solid #10b98150', color: isLight ? '#0f172a' : '#fff', fontSize: '1.5rem', fontWeight: 950, textAlign: 'center', padding: '10px', borderRadius: '15px', outline: 'none', opacity: isMachineSelected ? 1 : 0.5 }}
                   />
                 </div>
               </div>
@@ -632,9 +666,12 @@ export default function GenerateCardsModal({
                   📦 РОЗРАХУНОК ДЛЯ СКЛАДУ ОПЕРАТИВНОГО (КИТТИНГ):
                 </div>
 
-                {!machineName ? (
-                  <div style={{ fontSize: '0.78rem', color: '#eab308', padding: '12px 14px', background: 'rgba(234, 179, 8, 0.08)', borderRadius: '10px', border: '1px solid rgba(234, 179, 8, 0.2)', textAlign: 'center', fontWeight: 800 }}>
-                    ⚠️ Оберіть верстат зі списку вище, щоб розрахувати листи та необхідні фрези
+                {!isMachineSelected ? (
+                  <div style={{ fontSize: '0.8rem', color: '#eab308', padding: '16px', background: 'rgba(234, 179, 8, 0.08)', borderRadius: '14px', border: '1px solid rgba(234, 179, 8, 0.3)', textAlign: 'center', fontWeight: 800, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <div style={{ fontSize: '0.9rem' }}>⚠️ ВЕРСТАТ НЕ ОБРАНО</div>
+                    <div style={{ fontSize: '0.72rem', color: isLight ? '#64748b' : '#aaa', fontWeight: 600 }}>
+                      Спочатку оберіть верстат зі списку вище. Без обраного верстата розрахунок листів та вибір типів фрез не здійснюється.
+                    </div>
                   </div>
                 ) : (
                   <>
@@ -694,21 +731,23 @@ export default function GenerateCardsModal({
                   </>
                 )}
 
-                <div style={{ fontSize: '0.78rem', color: '#10b981', background: 'rgba(16, 185, 129, 0.08)', padding: '10px 14px', borderRadius: '12px', border: '1px solid rgba(16, 185, 129, 0.25)', marginTop: '8px', fontWeight: 800 }}>
-                  ✓ Буде сформовано {batchCards.length} карт(и) на {actualTotalSheets} листів (максимум для деталі: {remainingPlannedSheets} л.).
-                  {singleKitting.hasKittingReqs && singleKitting.issuedSheets < remainingPlannedSheets && (
-                    <div style={{ fontSize: '0.7rem', color: '#eab308', marginTop: '4px', fontWeight: 600 }}>
-                      ⚠️ Фактично погоджено складом: {singleKitting.issuedSheets} з {effectivePartSheets} л.
-                    </div>
-                  )}
-                </div>
+                {isMachineSelected && (
+                  <div style={{ fontSize: '0.78rem', color: '#10b981', background: 'rgba(16, 185, 129, 0.08)', padding: '10px 14px', borderRadius: '12px', border: '1px solid rgba(16, 185, 129, 0.25)', marginTop: '8px', fontWeight: 800 }}>
+                    ✓ Буде сформовано {batchCards.length} карт(и) на {actualTotalSheets} листів (максимум для деталі: {remainingPlannedSheets} л.).
+                    {singleKitting.hasKittingReqs && singleKitting.issuedSheets < remainingPlannedSheets && (
+                      <div style={{ fontSize: '0.7rem', color: '#eab308', marginTop: '4px', fontWeight: 600 }}>
+                        ⚠️ Фактично погоджено складом: {singleKitting.issuedSheets} з {effectivePartSheets} л.
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
             <button
-              disabled={isGenerating || !machineName || hasUnselectedCutters}
+              disabled={isGenerating || !isMachineSelected || hasUnselectedCutters}
               onClick={() => {
-                if (!machineName) {
+                if (!isMachineSelected) {
                   alert('Будь ласка, спочатку оберіть верстат!')
                   return
                 }
@@ -743,23 +782,23 @@ export default function GenerateCardsModal({
               }}
               style={{
                 width: '100%',
-                background: (machineName && !isSingleKittingBlocked && !hasUnselectedCutters) ? '#10b981' : (isLight ? '#f1f5f9' : '#222'),
-                color: (machineName && !isSingleKittingBlocked && !hasUnselectedCutters) ? '#fff' : (hasUnselectedCutters ? '#eab308' : (isSingleKittingBlocked ? '#ef4444' : (isLight ? '#64748b' : '#666'))),
+                background: (isMachineSelected && !isSingleKittingBlocked && !hasUnselectedCutters) ? '#10b981' : (isLight ? '#f1f5f9' : '#222'),
+                color: (isMachineSelected && !isSingleKittingBlocked && !hasUnselectedCutters) ? '#fff' : (hasUnselectedCutters ? '#eab308' : (!isMachineSelected ? '#eab308' : (isSingleKittingBlocked ? '#ef4444' : (isLight ? '#64748b' : '#666')))),
                 padding: '20px',
                 borderRadius: '20px',
                 fontSize: '1rem',
                 fontWeight: 950,
-                cursor: (isGenerating || !machineName || isSingleKittingBlocked || hasUnselectedCutters) ? 'not-allowed' : 'pointer',
-                border: (machineName && !isSingleKittingBlocked && !hasUnselectedCutters) ? 'none' : (hasUnselectedCutters ? '1px solid rgba(234, 179, 8, 0.4)' : (isLight ? '1px solid #cbd5e1' : '1px solid #333')),
+                cursor: (isGenerating || !isMachineSelected || isSingleKittingBlocked || hasUnselectedCutters) ? 'not-allowed' : 'pointer',
+                border: (isMachineSelected && !isSingleKittingBlocked && !hasUnselectedCutters) ? 'none' : (hasUnselectedCutters || !isMachineSelected ? '1px solid rgba(234, 179, 8, 0.4)' : (isLight ? '1px solid #cbd5e1' : '1px solid #333')),
                 textTransform: 'uppercase',
                 letterSpacing: '1px',
-                boxShadow: (machineName && !isSingleKittingBlocked && !hasUnselectedCutters) ? '0 10px 20px -5px rgba(16, 185, 129, 0.4)' : 'none',
-                opacity: (isGenerating || !machineName || isSingleKittingBlocked || hasUnselectedCutters) ? 0.6 : 1
+                boxShadow: (isMachineSelected && !isSingleKittingBlocked && !hasUnselectedCutters) ? '0 10px 20px -5px rgba(16, 185, 129, 0.4)' : 'none',
+                opacity: (isGenerating || !isMachineSelected || isSingleKittingBlocked || hasUnselectedCutters) ? 0.6 : 1
               }}
             >
               {isGenerating ? 'ОБРОБКА ТА СТВОРЕННЯ ЗАПИТУ...' : (
                 isSingleKittingBlocked ? `ОЧІКУЄМО ВИДАЧУ ${singleKitting.pendingSheets} ЛИСТІВ ЗІ СКЛАДУ` : (
-                  !machineName ? 'ОБЕРІТЬ ВЕРСТАТ ДЛЯ ПРОДОВЖЕННЯ' : (
+                  !isMachineSelected ? '⚠️ СПОЧАТКУ ОБЕРІТЬ ВЕРСТАТ' : (
                     hasUnselectedCutters ? `ОБЕРІТЬ МОДЕЛЬ ФРЕЗИ (${unselectedCuttersCount})` : (
                       `ПІДТВЕРДИТИ ТА ЗГЕНЕРУВАТИ (${batchCards.length} КАРТ, ${actualTotalSheets} Л.)`
                     )

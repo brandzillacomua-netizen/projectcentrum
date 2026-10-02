@@ -208,10 +208,12 @@ export const calculateCuttersForBatch = ({
   nomenclatures = [],
   inventory = []
 }) => {
-  if (!partNom || !sheets || sheets <= 0) return []
+  if (!partNom || !sheets || sheets <= 0 || !machineName || !String(machineName).trim() || String(machineName).includes('--')) {
+    return []
+  }
 
   const machineSpecificCutters = {}
-  const targetMachine = machineName || task?.machine_name || ''
+  const targetMachine = String(machineName).trim()
 
   // 1. Find machineOperations for partNom & targetMachine (with legacy_ids support)
   const partId = String(partNom?.id || '')
