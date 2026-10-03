@@ -1494,7 +1494,7 @@ export function createProductionCardsActions({
             order_id: validOrderId,
             task_id: tData.id,
             quantity: Number(alloc.quantity),
-            status: 'pending',
+            status: 'issued',
             inventory_id: sgpInv?.id || null,
             nomenclature_id: alloc.nomenclature_id,
             category: 'hardware',

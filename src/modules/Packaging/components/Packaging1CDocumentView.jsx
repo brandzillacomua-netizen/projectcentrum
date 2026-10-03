@@ -62,7 +62,7 @@ export const Packaging1CDocumentView = ({
   }).length
 
   const hasAnyBoxNumber = Object.values(boxNumbers).some(v => v?.trim())
-  const canSendRequest = selectedItemsCount > 0 && !isProcessing && !hasAnyRequests && !activeBatchData.isPackaged && !isWarehouseConfirmed
+  const canSendRequest = selectedItemsCount > 0 && !isProcessing && !activeBatchData.isPackaged
   const canComplete = allBoxesFilled && !isProcessing && !activeBatchData.isPackaged
 
   return (
@@ -112,15 +112,13 @@ export const Packaging1CDocumentView = ({
           <span style={{ width: '1px', height: '22px', background: '#cbd5e1', margin: '0 4px' }}></span>
 
           {/* ЗАПИТ ТМЦ */}
-          {!isWarehouseConfirmed && (
+          {!activeBatchData.isPackaged && (
             <button
               type="button"
               onClick={handleCreateRequest}
               disabled={!canSendRequest}
               title={
-                hasAnyRequests
-                  ? 'Запит ТМЦ вже надіслано на склад'
-                  : selectedItemsCount === 0
+                selectedItemsCount === 0
                   ? 'Оберіть галочками хоча б одну позицію, щоб сформувати запит ТМЦ'
                   : `Сформувати запит ТМЦ на ${selectedItemsCount} поз.`
               }
@@ -147,11 +145,7 @@ export const Packaging1CDocumentView = ({
                 if (canSendRequest) e.currentTarget.style.background = '#0284c7'
               }}
             >
-              {hasAnyRequests ? (
-                <><CheckCircle2 size={13} color="#059669" /> Запит на складі</>
-              ) : (
-                <><Send size={13} /> {selectedItemsCount > 0 ? `Сформувати запит ТМЦ (${selectedItemsCount})` : 'Сформувати запит ТМЦ'}</>
-              )}
+              <Send size={13} /> {selectedItemsCount > 0 ? `Сформувати запит ТМЦ (${selectedItemsCount})` : 'Сформувати запит ТМЦ'}
             </button>
           )}
 

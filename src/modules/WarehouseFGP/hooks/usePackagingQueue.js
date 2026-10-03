@@ -46,7 +46,11 @@ export function usePackagingQueue({
   }, [effectiveRequests])
 
   const activePackagingRequests = useMemo(() => {
-    return allPackagingRequests.filter(r => r.status !== 'completed' && r.status !== 'issued' && r.status !== 'cancelled')
+    return allPackagingRequests.filter(r => {
+      if (r.status === 'completed' || r.status === 'issued' || r.status === 'cancelled') return false
+      if (r.details?.includes('[PACKAGING_SOURCE:SGP]') || r.details?.includes('[PACKAGING_SOURCE:BZ]')) return false
+      return true
+    })
   }, [allPackagingRequests])
 
   const completedPackagingRequests = useMemo(() => {

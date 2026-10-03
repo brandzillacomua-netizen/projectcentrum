@@ -911,13 +911,14 @@ export function createWarehouseActions({
       const sourceCode = item.packagingSource === 'bz' ? 'BZ' : item.packagingSource === 'operational' ? 'SO' : 'SGP'
       const sourceMarker = `[PACKAGING_SOURCE:${sourceCode}]`
       const customMarker = item.isCustomPackaging ? ' [PACKAGING_CUSTOM]' : ''
+      const isAutoIssued = sourceCode === 'SGP' || sourceCode === 'BZ'
 
       requestsToInsert.push({
         order_id: orderId,
         task_id: taskId,
         nomenclature_id: nomId,
         quantity: neededQty,
-        status: 'pending',
+        status: isAutoIssued ? 'issued' : 'pending',
         inventory_id: null,
         details: `ЗАПИТ НА КОМПЛЕКТУВАННЯ (${order?.order_num || ''}${batchSuffix}) ${sourceMarker}${customMarker}: ${item.name} — ${neededQty} шт.`
       })
@@ -935,6 +936,18 @@ export function createWarehouseActions({
 
   const syncStuckWorkCards = async (taskIds = null) => {
     try {
+      // Auto-issue any pending SGP packaging requests (since SGP stock is reserved during order creation)
+      const { data: sgpFixData } = await supabase
+        .from('material_requests')
+        .update({ status: 'issued' })
+        .or('details.ilike.%[PACKAGING_SOURCE:SGP]%,details.ilike.%[PACKAGING_SOURCE:BZ]%')
+        .eq('status', 'pending')
+        .select('id')
+
+      if (sgpFixData && sgpFixData.length > 0) {
+        refreshTable('material_requests')
+      }
+
       let query = supabase.from('work_cards').select('*').in('status', ['waiting-materials', 'waiting-cutters'])
       if (taskIds && taskIds.length > 0) {
         query = query.in('task_id', taskIds)

@@ -228,6 +228,7 @@ export function usePackagingData() {
       const order = localOrders[task.order_id] || orders.find(o => o.id === task.order_id)
       if (!order || order.status === 'deleted' || order.status === 'cancelled' || order.status === 'shipped') return
       if (order.order_num && (order.order_num.startsWith('ВБ') || order.order_num.startsWith('VB'))) return
+      if (order.order_num && (order.order_num.startsWith('2608') || order.order_num.startsWith('2609') || order.order_num.startsWith('TEST'))) return
       
       let schedule = []
       try {
@@ -576,12 +577,18 @@ export function usePackagingData() {
       !isProductionOnlyMaterial(nomenclatures.find(n => String(n.id) === String(r.nomenclature_id))) &&
       ((activeBatchData.batchIndex && r.details?.includes(`/${activeBatchData.batchIndex}`)) || activeBatchData.tasks.some(t => String(t.id) === String(r.task_id)))
     )
-    const confirmedNoms = new Set(relevant.filter(r => r.status === 'completed' || r.status === 'issued').map(r => String(r.nomenclature_id)))
     const activeRequests = relevant.filter(r => r.status === 'pending' || r.status === 'processing')
     const completedRequests = relevant.filter(r => r.status === 'completed' || r.status === 'issued')
-    const isReadyToFinalize = relevant.length > 0 && activeRequests.length === 0 && completedRequests.length > 0
+
+    // Order is ready only when all BOM items have been picked/issued
+    const allPicked = allBOMItems.length > 0 && allBOMItems.every(item => {
+      const reqRequest = getBestRequestForNomenclature(relevant, item.nom.id)
+      return reqRequest?.status === 'completed' || reqRequest?.status === 'issued'
+    })
+
+    const isReadyToFinalize = allPicked
     return { orderRequests: relevant, completedRequestsCount: completedRequests.length, isReadyToFinalize, hasAnyRequests: activeRequests.length > 0 }
-  }, [activeBatchData, requests, nomenclatures])
+  }, [activeBatchData, requests, nomenclatures, allBOMItems])
 
   const isWarehouseConfirmed = isReadyToFinalize
 

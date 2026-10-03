@@ -37,22 +37,35 @@ export const PackagingBomList = ({
 
   const allCategoriesEmpty = Object.values(categorizedBOM).every(c => c.items.length === 0)
 
-  // ─── Всі елементи, які можна відзначати/знімати (ще не видані і не в обробці) ───
+  // ─── Всі елементи, які можна відзначати/знімати (ще не видані повністю і не в обробці) ───
+  const getCategoryToggleableItems = (catItems) => {
+    return catItems.filter(item => {
+      const reqRequest = getBestRequestForNomenclature(orderRequests, item.nom.id)
+      const sgpIssuedQty = (reqRequest && (reqRequest.status === 'completed' || reqRequest.status === 'issued')) ? (reqRequest.quantity || 0) : 0
+      const totalPlanQty = customQty[String(item.nom.id)] !== undefined ? customQty[String(item.nom.id)] : item.qty
+      const isFullyIssued = totalPlanQty > 0 && sgpIssuedQty >= totalPlanQty
+      const isPending = reqRequest?.status === 'pending' || reqRequest?.status === 'processing'
+      return !activeBatchData.isPackaged && !isFullyIssued && !isPending
+    })
+  }
+
   const allToggleableItems = useMemo(() => {
     const list = []
     Object.values(categorizedBOM).forEach(cat => {
       cat.items.forEach(item => {
         const reqRequest = getBestRequestForNomenclature(orderRequests, item.nom.id)
-        const isPicked = reqRequest?.status === 'completed' || reqRequest?.status === 'issued'
-        const isPending = reqRequest?.status === 'pending'
-        const canToggle = !hasAnyRequests && !activeBatchData.isPackaged && !isPicked && !isPending
+        const sgpIssuedQty = (reqRequest && (reqRequest.status === 'completed' || reqRequest.status === 'issued')) ? (reqRequest.quantity || 0) : 0
+        const totalPlanQty = customQty[String(item.nom.id)] !== undefined ? customQty[String(item.nom.id)] : item.qty
+        const isFullyIssued = totalPlanQty > 0 && sgpIssuedQty >= totalPlanQty
+        const isPending = reqRequest?.status === 'pending' || reqRequest?.status === 'processing'
+        const canToggle = !activeBatchData.isPackaged && !isFullyIssued && !isPending
         if (canToggle) {
           list.push(item)
         }
       })
     })
     return list
-  }, [categorizedBOM, orderRequests, hasAnyRequests, activeBatchData])
+  }, [categorizedBOM, orderRequests, customQty, activeBatchData])
 
   const allSelected = allToggleableItems.length > 0 && allToggleableItems.every(it => activeSelectedSet.has(it.nom.id))
   const someSelected = allToggleableItems.some(it => activeSelectedSet.has(it.nom.id))
@@ -69,16 +82,6 @@ export const PackagingBomList = ({
     }
     if (setSelectedNomIds) setSelectedNomIds(ns)
     else if (setExcludedNomIds) setExcludedNomIds(ns)
-  }
-
-  // Елементи певної категорії, які можна перемикати
-  const getCategoryToggleableItems = (catItems) => {
-    return catItems.filter(item => {
-      const reqRequest = getBestRequestForNomenclature(orderRequests, item.nom.id)
-      const isPicked = reqRequest?.status === 'completed' || reqRequest?.status === 'issued'
-      const isPending = reqRequest?.status === 'pending'
-      return !hasAnyRequests && !activeBatchData.isPackaged && !isPicked && !isPending
-    })
   }
 
   // Перемикач для конкретної категорії
@@ -149,10 +152,11 @@ export const PackagingBomList = ({
               </th>
 
               <th style={{ padding: '10px 14px', fontWeight: 900 }}>Номенклатура матеріалу / комплектуючого</th>
-              <th style={{ padding: '10px 14px', width: '130px', textAlign: 'right', fontWeight: 900 }}>Кількість</th>
-              <th style={{ padding: '10px 12px', width: '160px', textAlign: 'center', fontWeight: 900 }}>Статус на складі</th>
-              <th style={{ padding: '10px 12px', width: '170px', textAlign: 'center', fontWeight: 900 }}>№ Коробки</th>
-              <th style={{ padding: '10px 8px', width: '50px', textAlign: 'center', fontWeight: 900 }}></th>
+              <th style={{ padding: '10px 10px', width: '120px', textAlign: 'right', fontWeight: 900 }}>Потрібно (План)</th>
+              <th style={{ padding: '10px 10px', width: '135px', textAlign: 'center', fontWeight: 900 }}>Залишки СГП</th>
+              <th style={{ padding: '10px 12px', width: '150px', textAlign: 'center', fontWeight: 900 }}>Статус на складі</th>
+              <th style={{ padding: '10px 12px', width: '150px', textAlign: 'center', fontWeight: 900 }}>№ Коробки</th>
+              <th style={{ padding: '10px 8px', width: '40px', textAlign: 'center', fontWeight: 900 }}></th>
             </tr>
           </thead>
           <tbody>
@@ -168,7 +172,7 @@ export const PackagingBomList = ({
                 <React.Fragment key={key}>
                   {/* CATEGORY SECTION HEADER ROW WITH QUICK CATEGORY CHECKBOX */}
                   <tr style={{ background: '#f1f5f9', borderTop: '2px solid #cbd5e1', borderBottom: '1.5px solid #cbd5e1' }}>
-                    <td colSpan={7} style={{ padding: '7px 14px' }}>
+                    <td colSpan={8} style={{ padding: '7px 14px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                           {/* CATEGORY-LEVEL CHECKBOX */}
@@ -275,10 +279,16 @@ export const PackagingBomList = ({
                     cat.items.map((item) => {
                       globalIndex += 1
                       const reqRequest = getBestRequestForNomenclature(orderRequests, item.nom.id)
-                      const isPicked = reqRequest?.status === 'completed' || reqRequest?.status === 'issued'
-                      const isPending = reqRequest?.status === 'pending'
+                      const sgpIssuedQty = (reqRequest && (reqRequest.status === 'completed' || reqRequest.status === 'issued')) ? (reqRequest.quantity || 0) : 0
+                      const totalPlanQty = item.qty
+                      const remainingQty = Math.max(0, totalPlanQty - sgpIssuedQty)
+                      const isFullyIssued = totalPlanQty > 0 && sgpIssuedQty >= totalPlanQty
+                      const isPartiallyIssued = sgpIssuedQty > 0 && sgpIssuedQty < totalPlanQty
+                      const isPending = reqRequest?.status === 'pending' || reqRequest?.status === 'processing'
                       const isChecked = activeSelectedSet.has(item.nom.id)
-                      const canToggle = !hasAnyRequests && !activeBatchData.isPackaged && !isPicked && !isPending
+                      const canToggle = !activeBatchData.isPackaged && !isFullyIssued && !isPending
+                      const effectiveQty = customQty[String(item.nom.id)] !== undefined ? Number(customQty[String(item.nom.id)]) : remainingQty
+
                       const boxNum = boxNumbers[String(item.nom.id)] || ''
                       const boxColor = getBoxColor(boxNum)
                       const hasBox = boxNum.trim() !== ''
@@ -305,7 +315,7 @@ export const PackagingBomList = ({
 
                           {/* 2. ЧЕКБОКС ВКЛЮЧЕННЯ / ГАЛОЧКА */}
                           <td style={{ padding: '9px 8px', textAlign: 'center' }}>
-                            {!isPicked ? (
+                            {!isFullyIssued ? (
                               <div
                                 onClick={() => {
                                   if (!canToggle) return
@@ -318,7 +328,7 @@ export const PackagingBomList = ({
                                   if (setSelectedNomIds) setSelectedNomIds(ns)
                                   else if (setExcludedNomIds) setExcludedNomIds(ns)
                                 }}
-                                title={canToggle ? (isChecked ? 'Зняти вибір' : 'Обрати для запиту ТМЦ') : ''}
+                                title={canToggle ? (isChecked ? 'Зняти вибір' : `Обрати для запиту решти ТМЦ (${remainingQty} шт)`) : ''}
                                 style={{
                                   width: '20px',
                                   height: '20px',
@@ -397,18 +407,14 @@ export const PackagingBomList = ({
                             </div>
                           </td>
 
-                          {/* 4. КІЛЬКІСТЬ (РЕДАГОВАНА ЧИ ФІКСОВАНА) */}
+                          {/* 4. ЗАПИТ КІЛЬКОСТІ (ЗАЛИШОК) */}
                           <td style={{ padding: '9px 14px', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                            {!hasAnyRequests && !isPicked && !activeBatchData.isPackaged ? (
+                            {!isFullyIssued && !activeBatchData.isPackaged ? (
                               <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
                                 <input
                                   type="number"
-                                  min="0"
-                                  value={
-                                    item.isCustom
-                                      ? (customQty[String(item.nom.id)] !== undefined ? customQty[String(item.nom.id)] : item.qty)
-                                      : (customQty[String(item.nom.id)] !== undefined ? customQty[String(item.nom.id)] : item.qty)
-                                  }
+                                  min="1"
+                                  value={effectiveQty}
                                   onChange={e => {
                                     const val = e.target.value === '' ? '' : Number(e.target.value)
                                     setCustomQty(prev => ({ ...prev, [String(item.nom.id)]: val }))
@@ -419,12 +425,13 @@ export const PackagingBomList = ({
                                     }
                                   }}
                                   onClick={e => e.stopPropagation()}
+                                  title={isPartiallyIssued ? `Залишок до комплектування: ${remainingQty} шт (План: ${totalPlanQty} шт)` : `Кількість до запиту`}
                                   style={{
                                     width: '84px',
-                                    background: customQty[String(item.nom.id)] !== undefined && customQty[String(item.nom.id)] !== item.qty ? '#fffbeb' : '#ffffff',
-                                    border: `1.5px solid ${customQty[String(item.nom.id)] !== undefined && customQty[String(item.nom.id)] !== item.qty ? '#d97706' : '#cbd5e1'}`,
+                                    background: customQty[String(item.nom.id)] !== undefined && customQty[String(item.nom.id)] !== remainingQty ? '#fffbeb' : '#ffffff',
+                                    border: `1.5px solid ${customQty[String(item.nom.id)] !== undefined && customQty[String(item.nom.id)] !== remainingQty ? '#d97706' : '#cbd5e1'}`,
                                     borderRadius: '6px',
-                                    color: customQty[String(item.nom.id)] !== undefined && customQty[String(item.nom.id)] !== item.qty ? '#b45309' : '#0f172a',
+                                    color: customQty[String(item.nom.id)] !== undefined && customQty[String(item.nom.id)] !== remainingQty ? '#b45309' : '#0f172a',
                                     fontSize: '0.9rem',
                                     fontWeight: 900,
                                     padding: '3px 6px',
@@ -441,11 +448,9 @@ export const PackagingBomList = ({
                                 <span style={{
                                   fontSize: '0.95rem',
                                   fontWeight: 900,
-                                  color: isPicked ? '#059669' : (isPending ? '#d97706' : '#0f172a')
+                                  color: '#059669'
                                 }}>
-                                  {isPicked && reqRequest?.quantity
-                                    ? reqRequest.quantity
-                                    : (customQty[String(item.nom.id)] !== undefined ? customQty[String(item.nom.id)] : item.qty)}
+                                  {totalPlanQty}
                                 </span>
                                 <span style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 700 }}>
                                   {item.nom.unit || 'шт'}
@@ -454,9 +459,31 @@ export const PackagingBomList = ({
                             )}
                           </td>
 
+                          {/* 4.5. ЗАЛИШКИ СГП (ВИДАНО) */}
+                          <td style={{ padding: '9px 10px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                            {sgpIssuedQty > 0 ? (
+                              <span style={{
+                                background: '#f0fdf4',
+                                color: '#15803d',
+                                border: '1px solid #bbf7d0',
+                                borderRadius: '5px',
+                                padding: '3px 8px',
+                                fontSize: '0.72rem',
+                                fontWeight: 900,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}>
+                                ✓ {sgpIssuedQty} {item.nom.unit || 'шт'}
+                              </span>
+                            ) : (
+                              <span style={{ color: '#94a3b8', fontSize: '0.75rem' }}>—</span>
+                            )}
+                          </td>
+
                           {/* 5. СТАТУС СКЛАДСЬКОГО ЗАБЕЗПЕЧЕННЯ */}
                           <td style={{ padding: '9px 12px', textAlign: 'center', whiteSpace: 'nowrap' }}>
-                            {isPicked ? (
+                            {isFullyIssued ? (
                               <span style={{
                                 background: '#f0fdf4',
                                 color: '#15803d',
@@ -466,7 +493,7 @@ export const PackagingBomList = ({
                                 fontSize: '0.68rem',
                                 fontWeight: 900
                               }}>
-                                ВИДАНО СКЛАДОМ
+                                ВИДАНО ПОВНІСТЮ
                               </span>
                             ) : isPending ? (
                               <span style={{
@@ -483,14 +510,26 @@ export const PackagingBomList = ({
                             ) : isChecked ? (
                               <span style={{
                                 background: '#f0fdf4',
-                                color: '#15803d',
-                                border: '1px solid #86efac',
+                                color: '#0284c7',
+                                border: '1px solid #7dd3fc',
                                 borderRadius: '5px',
                                 padding: '3px 8px',
                                 fontSize: '0.68rem',
                                 fontWeight: 900
                               }}>
-                                ОБРАНО ДО ЗАПИТУ
+                                ОБРАНО ДО ЗАПИТУ ({effectiveQty} шт)
+                              </span>
+                            ) : isPartiallyIssued ? (
+                              <span style={{
+                                background: '#fffbeb',
+                                color: '#b45309',
+                                border: '1px solid #fde68a',
+                                borderRadius: '5px',
+                                padding: '3px 8px',
+                                fontSize: '0.68rem',
+                                fontWeight: 900
+                              }}>
+                                ВИДАНО {sgpIssuedQty}/{totalPlanQty}
                               </span>
                             ) : (
                               <span style={{
@@ -509,7 +548,7 @@ export const PackagingBomList = ({
 
                           {/* 6. НОМЕР КОРОБКИ ДЛЯ ПАКУВАННЯ */}
                           <td style={{ padding: '9px 12px', textAlign: 'center' }}>
-                            {isPicked && !activeBatchData.isPackaged ? (
+                            {(sgpIssuedQty > 0 || isFullyIssued) && !activeBatchData.isPackaged ? (
                               <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', maxWidth: '140px' }}>
                                 <input
                                   type="text"
@@ -535,7 +574,7 @@ export const PackagingBomList = ({
                                   <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: boxColor, flexShrink: 0 }} />
                                 )}
                               </div>
-                            ) : isPicked && activeBatchData.isPackaged && hasBox ? (
+                            ) : (sgpIssuedQty > 0 || isFullyIssued) && activeBatchData.isPackaged && hasBox ? (
                               <span style={{
                                 background: `${boxColor}15`,
                                 border: `1.5px solid ${boxColor}`,
