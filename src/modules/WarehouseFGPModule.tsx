@@ -5,7 +5,8 @@ import {
   Layers,
   AlertTriangle,
   History,
-  Wrench
+  Wrench,
+  FileSpreadsheet
 } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { useMES } from '../MESContext'
@@ -18,6 +19,7 @@ import { useWarehouseRealtime } from './WarehouseFGP/hooks/useWarehouseRealtime.
 import { useShop2Buffer } from './WarehouseFGP/hooks/useShop2Buffer.js'
 import { usePackagingQueue } from './WarehouseFGP/hooks/usePackagingQueue.js'
 import { useInventoryGrouping } from './WarehouseFGP/hooks/useInventoryGrouping.js'
+import { exportSgpStockToExcel } from './WarehouseFGP/utils/exportSgpExcel.js'
 import { PackagingQueueTab as PackagingQueueTabRaw } from './WarehouseFGP/components/PackagingQueueTab.jsx'
 import { InventoryView as InventoryViewRaw } from './WarehouseFGP/components/InventoryView.jsx'
 
@@ -228,6 +230,49 @@ export const WarehouseFGPModule: React.FC = () => {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          {/* EXPORT TO EXCEL BUTTON */}
+          <button
+            type="button"
+            onClick={() => {
+              exportSgpStockToExcel({
+                inventory,
+                nomenclatures,
+                shop2BufferCards,
+                shop2BufferConsolidatedItems,
+                activeTab,
+                searchQuery
+              })
+            }}
+            style={{
+              height: '42px',
+              padding: '0 18px',
+              borderRadius: '12px',
+              border: `1.5px solid ${isDark ? '#059669' : '#a7f3d0'}`,
+              background: isDark ? 'rgba(5, 150, 105, 0.2)' : '#ecfdf5',
+              color: isDark ? '#34d399' : '#047857',
+              fontSize: '0.84rem',
+              fontWeight: 900,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              boxShadow: isDark ? '0 2px 10px rgba(0,0,0,0.3)' : '0 2px 8px rgba(16, 185, 129, 0.15)',
+              transition: 'all 0.15s ease'
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.background = isDark ? '#059669' : '#10b981'
+              e.currentTarget.style.color = '#ffffff'
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.background = isDark ? 'rgba(5, 150, 105, 0.2)' : '#ecfdf5'
+              e.currentTarget.style.color = isDark ? '#34d399' : '#047857'
+            }}
+            title="Вивантажити всі залишки СГП в Excel (.xlsx)"
+          >
+            <FileSpreadsheet size={18} />
+            <span>ЕКСПОРТ (EXCEL)</span>
+          </button>
+
           {/* TOGGLE TO INVENTORY / REQUESTS */}
           {viewMode === 'requests' ? (
             <button
@@ -371,6 +416,8 @@ export const WarehouseFGPModule: React.FC = () => {
         filteredItems={filteredItems}
         isAdmin={isAdmin}
         setReserveAnalysisItem={setReserveAnalysisItem}
+        inventory={inventory}
+        nomenclatures={nomenclatures}
         fetchData={fetchData}
         refreshTable={refreshTable}
       />

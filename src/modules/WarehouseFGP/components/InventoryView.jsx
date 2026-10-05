@@ -1,7 +1,8 @@
 import React from 'react'
-import { Archive, Search, Plus } from 'lucide-react'
+import { Archive, Search, Plus, FileSpreadsheet } from 'lucide-react'
 import { Shop2BufferTab } from './Shop2BufferTab'
 import { InventoryTab } from './InventoryTab'
+import { exportSgpStockToExcel } from '../utils/exportSgpExcel.js'
 
 export function InventoryView({
   t,
@@ -30,6 +31,8 @@ export function InventoryView({
   filteredItems,
   isAdmin,
   setReserveAnalysisItem,
+  inventory = [],
+  nomenclatures = [],
   fetchData,
   refreshTable
 }) {
@@ -160,6 +163,46 @@ export function InventoryView({
           </h2>
           
           <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+            <button
+              type="button"
+              onClick={() => {
+                exportSgpStockToExcel({
+                  inventory,
+                  nomenclatures,
+                  shop2BufferCards,
+                  shop2BufferConsolidatedItems,
+                  activeTab,
+                  searchQuery
+                })
+              }}
+              style={{
+                background: isDark ? 'rgba(5, 150, 105, 0.2)' : '#ecfdf5',
+                color: isDark ? '#34d399' : '#047857',
+                border: `1.5px solid ${isDark ? '#059669' : '#a7f3d0'}`,
+                padding: '10px 18px',
+                borderRadius: '12px',
+                fontWeight: 900,
+                fontSize: '0.85rem',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                boxShadow: isDark ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(16, 185, 129, 0.15)',
+                transition: 'all 0.15s ease'
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.background = isDark ? '#059669' : '#10b981'
+                e.currentTarget.style.color = '#ffffff'
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.background = isDark ? 'rgba(5, 150, 105, 0.2)' : '#ecfdf5'
+                e.currentTarget.style.color = isDark ? '#34d399' : '#047857'
+              }}
+              title="Вивантажити всі залишки СГП в Excel (.xlsx)"
+            >
+              <FileSpreadsheet size={18} /> ЕКСПОРТ (EXCEL)
+            </button>
+
             <div style={{ position: 'relative' }}>
               <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: t.textSecondary }} />
               <input
