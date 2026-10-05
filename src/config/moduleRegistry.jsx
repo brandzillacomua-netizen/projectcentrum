@@ -66,6 +66,7 @@ export const getAllModules = (badgeCount = 0, chatBadgeCount = 0) => [
   { id: 'tumbling_dashboard', title: 'Дашборд Галтовки (TV)', icon: <LayoutDashboard />, path: '/tumbling-dashboard', desc: 'TV монітор галтовки', color: '#ff9000', pillar: 'mes' },
   { id: 'reception_terminal', title: 'Термінал Прийомки', icon: <Tablet />, path: '/reception-terminal', desc: 'Дільниця прийомки', color: '#ff9000', pillar: 'mes' },
   { id: 'sorting_terminal', title: 'Термінал Сортування', icon: <Tablet />, path: '/sorting-terminal', desc: 'Дільниця сортування', color: '#ff9000', pillar: 'mes' },
+  { id: 'rework_terminal', title: 'Термінал Доопрацювання', icon: <Wrench />, path: '/rework', desc: 'Дільниця доопрацювання', color: '#ff9000', pillar: 'mes' },
   { id: 'operator', title: 'Термінал Оператора', icon: <Tablet />, path: '/operator', desc: 'Спрощене робоче місце', color: '#ff9000', pillar: 'mes' },
   { id: 'warehouse_boxes', title: 'Бокси Фрез (СО)', icon: <Package />, path: '/warehouse-boxes', desc: 'Підготовка боксів інструменту', color: '#ff9000', pillar: 'mes' },
   { id: 'shop2_card_gen', title: 'Цех №2 – Створення РК (Буфер)', icon: <Monitor />, path: '/shop2-card-gen', desc: 'Формування РК Цеху №2 з буфера заготовок', color: '#ff9000', pillar: 'mes' },
@@ -97,6 +98,9 @@ export const getAvailableModules = (currentUser, badgeCount, chatBadgeCount = 0)
     }
     if (m.id === 'foreman') {
       return checkRight('foreman') || checkRight('foreman2');
+    }
+    if (m.id === 'rework_terminal') {
+      return checkRight('foreman') || checkRight('foreman2') || isAdmin;
     }
     return checkRight(m.id);
   });

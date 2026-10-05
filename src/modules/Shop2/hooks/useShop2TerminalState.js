@@ -42,11 +42,13 @@ export function useShop2TerminalState() {
   const isShop2Card = useCallback((card) => {
     if (!card) return false
     const op = String(card.operation || '')
+    const info = String(card.card_info || '')
+    // Exclude Rework cards entirely from Shop 2 Terminal (they have their own ReworkTerminal)
+    if (op === 'Доопрацювання' || info.includes('Автоматично з Сортування')) return false
     if (isPackagingOperation(op)) return false
     if (shop2TaskIdsSet.has(String(card.task_id))) return true
-    const info = String(card.card_info || '')
     if (info.includes('[SHOP:2]') || info.includes('[ЦЕХ №2]') || info.includes('[ЦЕХ 2]')) return true
-    if (['Пресування', 'Фарбування', 'Малярка', 'Доопрацювання'].includes(op)) return true
+    if (['Пресування', 'Фарбування', 'Малярка'].includes(op)) return true
     return false
   }, [shop2TaskIdsSet])
 

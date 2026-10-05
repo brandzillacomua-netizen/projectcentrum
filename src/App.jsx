@@ -38,6 +38,7 @@ const SupplyModule = lazy(() => import('./modules/SupplyModuleV2'))
 const PreparationTerminal = lazy(() => import('./modules/PreparationTerminal'))
 const Foreman2Module = lazy(() => import('./modules/Foreman2/Foreman2Module'))
 const PackagingModule = lazy(() => import('./modules/PackagingModule'))
+const ReworkTerminalModule = lazy(() => import('./modules/ReworkTerminal/ReworkTerminalModule'))
 const MachinesModule = lazy(() => import('./modules/MachinesModule'))
 const SettingsModule = lazy(() => import('./modules/SettingsModule'))
 const UserSettingsPage = lazy(() => import('./modules/UserSettingsPage'))
@@ -874,6 +875,7 @@ const AppContent = () => {
           <Route path="/master" element={<PermissionGuard id="master"><MasterModule /></PermissionGuard>} />
           <Route path="/foreman" element={<PermissionGuard id="foreman"><Foreman2Module /></PermissionGuard>} />
           <Route path="/foreman2" element={<PermissionGuard id="foreman"><Foreman2Module /></PermissionGuard>} />
+          <Route path="/rework" element={<PermissionGuard id="rework_terminal"><ReworkTerminalModule /></PermissionGuard>} />
           <Route path="/operator" element={<PermissionGuard id="operator"><OperatorTerminal /></PermissionGuard>} />
           <Route path="/prep-terminal" element={<PermissionGuard id="prep_terminal"><PreparationTerminal /></PermissionGuard>} />
           <Route path="/preparation-dashboard" element={<PermissionGuard id="preparation_dashboard"><PreparationDashboard /></PermissionGuard>} />

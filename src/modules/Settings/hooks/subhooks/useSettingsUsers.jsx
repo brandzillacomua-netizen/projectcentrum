@@ -26,6 +26,7 @@ export const moduleList = [
   { id: 'tumbling_dashboard', label: 'Дашборд Галтовки (TV)' },
   { id: 'reception_terminal', label: 'Екран Прийомки' },
   { id: 'sorting_terminal', label: 'Екран Сортування' },
+  { id: 'rework_terminal', label: 'Термінал Доопрацювання' },
   { id: 'pressing_terminal', label: 'Екран Пресування' },
   { id: 'painting_terminal', label: 'Екран Фарбування' },
   { id: 'shop1_foreman', label: 'Кабінет Нач. Цеху №1' },
