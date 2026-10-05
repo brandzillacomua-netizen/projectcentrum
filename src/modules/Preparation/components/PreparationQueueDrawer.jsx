@@ -24,7 +24,7 @@ export const PreparationQueueDrawer = ({
           left: 0
         }}
       >
-        <div style={{ padding: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #222' }}>
+        <div style={{ padding: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-subtle)' }}>
           <span style={{ fontSize: '0.8rem', fontWeight: 900 }}>ОБЕРІТЬ ЗАВДАННЯ</span>
           <X size={20} onClick={onClose} style={{ cursor: 'pointer' }} />
         </div>

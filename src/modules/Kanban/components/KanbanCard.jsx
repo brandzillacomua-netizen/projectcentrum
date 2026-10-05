@@ -63,7 +63,7 @@ export const KanbanCard = ({
       <div className="card-footer">
         <div className="card-meta">
           {task.deadline && (
-            <span className="card-deadline" style={{ color: overdue ? '#ef4444' : '#555' }}>
+            <span className="card-deadline" style={{ color: overdue ? '#ef4444' : 'var(--text-dim)' }}>
               <Calendar size={11} />
               {(() => {
                 const d = new Date(task.deadline)
@@ -77,7 +77,7 @@ export const KanbanCard = ({
             </span>
           )}
           {clp && (
-            <span className="card-cl-count" style={{ color: clp.done === clp.total ? '#10b981' : '#555' }}>
+            <span className="card-cl-count" style={{ color: clp.done === clp.total ? '#10b981' : 'var(--text-dim)' }}>
               <CheckSquare size={11} /> {clp.done}/{clp.total}
             </span>
           )}
@@ -91,7 +91,7 @@ export const KanbanCard = ({
                 </div>
               ))}
               {taskAssignees.length > 3 && (
-                <div style={{ width: 26, height: 26, borderRadius: '50%', background: '#1a1a1a', border: '1px solid #333', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', color: '#888', marginLeft: '-8px', fontWeight: 800 }}>
+                <div style={{ width: 26, height: 26, borderRadius: '50%', background: 'var(--surface-2)', border: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', color: '#888', marginLeft: '-8px', fontWeight: 800 }}>
                   +{taskAssignees.length - 3}
                 </div>
               )}

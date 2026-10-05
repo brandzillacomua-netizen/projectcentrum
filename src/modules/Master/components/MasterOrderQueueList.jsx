@@ -42,7 +42,7 @@ const MasterOrderCard = React.memo(({
     <div 
       className="order-p-card glass-panel" 
       style={{ 
-        background: isLight ? '#ffffff' : '#0a0a0a', 
+        background: isLight ? '#ffffff' : 'var(--surface-inset)', 
         padding: '16px', 
         borderRadius: '16px', 
         border: isLight ? '1px solid #e2e8f0' : '1px solid #222222', 
@@ -57,7 +57,7 @@ const MasterOrderCard = React.memo(({
           <strong
             onClick={handleOpenPlan}
             className="interactive-naryad-title"
-            style={{ fontSize: '1.15rem', fontWeight: 900, color: isLight ? '#0f172a' : '#ffffff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+            style={{ fontSize: '1.15rem', fontWeight: 900, color: isLight ? '#0f172a' : 'var(--text-strong)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
           >
             №{order.order_num}
           </strong>
@@ -112,17 +112,17 @@ const MasterOrderCard = React.memo(({
 
       <div style={{ 
         marginBottom: '12px', 
-        background: isLight ? '#f8fafc' : 'rgba(255,255,255,0.02)', 
+        background: isLight ? '#f8fafc' : 'var(--fill-subtle)', 
         padding: '10px', 
         borderRadius: '10px', 
-        border: isLight ? '1px solid #e2e8f0' : '1px solid #1a1a1a' 
+        border: isLight ? '1px solid #e2e8f0' : '1px solid var(--border-subtle)' 
       }}>
         {order.order_items?.map(it => {
           const planned = getPlannedQty(it.id)
           const total = Number(it.quantity)
           const nom = (nomenclatures || []).find(n => n.id === it.nomenclature_id)
           return (
-            <div key={it.id} style={{ fontSize: '0.72rem', color: planned >= total ? '#16a34a' : (isLight ? '#0f172a' : '#ffffff'), display: 'flex', justifyContent: 'space-between', marginBottom: '4px', alignItems: 'center' }}>
+            <div key={it.id} style={{ fontSize: '0.72rem', color: planned >= total ? '#16a34a' : (isLight ? '#0f172a' : 'var(--text-strong)'), display: 'flex', justifyContent: 'space-between', marginBottom: '4px', alignItems: 'center' }}>
               <span style={{ maxWidth: '70%', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{nom?.name}:</span>
               <span style={{ fontWeight: 800 }}>{planned} / {total} шт</span>
             </div>
@@ -134,9 +134,9 @@ const MasterOrderCard = React.memo(({
         <div style={{ 
           marginBottom: '12px', 
           padding: '8px', 
-          background: isLight ? '#f8fafc' : 'rgba(255,255,255,0.02)', 
+          background: isLight ? '#f8fafc' : 'var(--fill-subtle)', 
           borderRadius: '10px', 
-          border: isLight ? '1px solid #e2e8f0' : '1px solid #1a1a1a' 
+          border: isLight ? '1px solid #e2e8f0' : '1px solid var(--border-subtle)' 
         }}>
           <div style={{ fontSize: '0.6rem', color: isLight ? '#64748b' : '#666666', fontWeight: 900, textTransform: 'uppercase', marginBottom: '6px' }}>Вже в роботі:</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
@@ -144,7 +144,7 @@ const MasterOrderCard = React.memo(({
               <span key={b.index} style={{
                 fontSize: '0.65rem',
                 padding: '3px 6px',
-                background: b.isAllCompleted ? (isLight ? '#dcfce7' : 'rgba(16, 185, 129, 0.1)') : (isLight ? '#f1f5f9' : 'rgba(255, 255, 255, 0.05)'),
+                background: b.isAllCompleted ? (isLight ? '#dcfce7' : 'rgba(16, 185, 129, 0.1)') : (isLight ? '#f1f5f9' : 'var(--fill-subtle)'),
                 color: b.isAllCompleted ? (isLight ? '#15803d' : '#10b981') : (isLight ? '#475569' : '#aaaaaa'),
                 borderRadius: '6px',
                 border: b.isAllCompleted ? (isLight ? '1px solid #bbf7d0' : '1px solid rgba(16, 185, 129, 0.2)') : (isLight ? '1px solid #cbd5e1' : '1px solid #222222'),
@@ -199,7 +199,7 @@ export function MasterOrderQueueList({
   return (
     <section className="grid-col">
       {/* HEADER TITLE */}
-      <h3 style={{ fontSize: '0.85rem', color: isLight ? '#0f172a' : '#ffffff', margin: '0 0 12px 0', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 900, textTransform: 'uppercase' }}>
+      <h3 style={{ fontSize: '0.85rem', color: isLight ? '#0f172a' : 'var(--text-strong)', margin: '0 0 12px 0', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 900, textTransform: 'uppercase' }}>
         <ListChecks size={16} /> ЧЕРГА ЗАМОВЛЕНЬ {filteredPending.length > 0 && `(${filteredPending.length})`}
       </h3>
 
@@ -247,11 +247,11 @@ export function MasterOrderQueueList({
         <input 
           style={{ 
             width: '100%', 
-            background: isLight ? '#ffffff' : '#000000', 
+            background: isLight ? '#ffffff' : 'var(--surface-black)', 
             border: isLight ? '1px solid #cbd5e1' : '1px solid #222222', 
             borderRadius: '20px', 
             padding: '6px 12px 6px 30px', 
-            color: isLight ? '#0f172a' : '#ffffff', 
+            color: isLight ? '#0f172a' : 'var(--text-strong)', 
             fontSize: '0.75rem',
             outline: 'none',
             boxSizing: 'border-box'
@@ -267,8 +267,8 @@ export function MasterOrderQueueList({
         {filteredPending.length === 0 ? (
           <div style={{ 
             padding: '25px', 
-            background: isLight ? '#ffffff' : '#0a0a0a', 
-            border: isLight ? '1px solid #e2e8f0' : '1px solid #1a1a1a', 
+            background: isLight ? '#ffffff' : 'var(--surface-inset)', 
+            border: isLight ? '1px solid #e2e8f0' : '1px solid var(--border-subtle)', 
             borderRadius: '16px', 
             color: isLight ? '#64748b' : '#555555', 
             textAlign: 'center', 

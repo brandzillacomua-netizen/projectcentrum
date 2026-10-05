@@ -31,7 +31,7 @@ export const SupplyRegistryTab = ({
             }
           })
           .map(doc => (
-          <div key={doc.id} className="doc-card" style={{ background: 'var(--card-bg, #111)', borderRadius: '20px', border: '1px solid var(--border-color, #222)', overflow: 'hidden' }}>
+          <div key={doc.id} className="doc-card" style={{ background: 'var(--card-bg, #111)', borderRadius: '20px', border: '1px solid var(--border-color, var(--border-subtle))', overflow: 'hidden' }}>
             <div
               onClick={() => setExpandedDoc(expandedDoc === doc.id ? null : doc.id)}
               style={{ padding: '20px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
@@ -51,7 +51,7 @@ export const SupplyRegistryTab = ({
             </div>
 
             {expandedDoc === doc.id && (
-              <div style={{ padding: '20px', background: 'var(--card-inner-bg, #0a0a0a)', borderTop: '1px solid var(--border-color, #222)' }}>
+              <div style={{ padding: '20px', background: 'var(--card-inner-bg, #0a0a0a)', borderTop: '1px solid var(--border-color, var(--border-subtle))' }}>
                 <div style={{ marginBottom: '15px' }}>
                   {(doc.items || []).map((it, idx) => {
                     const itemName = resolveItemName(it, idx)
@@ -81,7 +81,7 @@ export const SupplyRegistryTab = ({
                 </div>
 
                 {doc.status !== 'completed' && (
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '15px', borderTop: '1px dashed var(--border-color, #222)', paddingTop: '15px', marginBottom: '15px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '15px', borderTop: '1px dashed var(--border-color, var(--border-subtle))', paddingTop: '15px', marginBottom: '15px' }}>
                     <span style={{ fontSize: '0.75rem', color: 'var(--text-muted, #555)', fontWeight: 800 }}>СКЛАД ПРИЗНАЧЕННЯ:</span>
                     <div style={{ display: 'flex', gap: '6px' }}>
                       {[
@@ -112,7 +112,7 @@ export const SupplyRegistryTab = ({
                             }}
                             style={{
                               background: active ? 'rgba(255, 144, 0, 0.12)' : 'transparent',
-                              border: active ? '1px solid #ff9000' : '1px solid var(--border-color, rgba(255,255,255,0.07))',
+                              border: active ? '1px solid #ff9000' : '1px solid var(--border-color, var(--border-subtle))',
                               color: active ? '#ff9000' : 'var(--text-muted, #888)',
                               padding: '4px 10px',
                               borderRadius: '6px',
@@ -136,7 +136,7 @@ export const SupplyRegistryTab = ({
                       e.stopPropagation()
                       setReceptionDocToAccept(doc)
                     }}
-                    style={{ width: '100%', padding: '12px', background: '#10b981', color: '#000', border: 'none', borderRadius: '10px', fontWeight: 900, fontSize: '0.75rem', cursor: processingDocs.has(doc.id) ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', opacity: processingDocs.has(doc.id) ? 0.5 : 1 }}
+                    style={{ width: '100%', padding: '12px', background: '#10b981', color: 'var(--surface-black)', border: 'none', borderRadius: '10px', fontWeight: 900, fontSize: '0.75rem', cursor: processingDocs.has(doc.id) ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', opacity: processingDocs.has(doc.id) ? 0.5 : 1 }}
                   >
                     <CheckCircle size={16} /> {processingDocs.has(doc.id) ? 'ПРИЙНЯТТЯ...' : 'ПРИЙНЯТИ НА СКЛАД'}
                   </button>

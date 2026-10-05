@@ -16,7 +16,7 @@ export const Shop2Terminal: React.FC = () => {
   const state: any = useShop2TerminalState()
 
   return (
-    <div className="operator-terminal-shop2" style={{ background: '#0a0a0a', height: '100vh', display: 'flex', flexDirection: 'column', color: '#fff', overflow: 'hidden' }}>
+    <div className="operator-terminal-shop2" style={{ background: 'var(--surface-inset)', height: '100vh', display: 'flex', flexDirection: 'column', color: 'var(--text-strong)', overflow: 'hidden' }}>
       <Shop2Header
         currentTime={state.currentTime}
         onOpenDrawer={() => state.setIsDrawerOpen(true)}
@@ -57,7 +57,7 @@ export const Shop2Terminal: React.FC = () => {
         )}
 
         {/* Main Content Area */}
-        <div className="content-panel" style={{ flex: 1, padding: '20px 15px', background: '#0a0a0a', overflowY: 'auto', position: 'relative' }}>
+        <div className="content-panel" style={{ flex: 1, padding: '20px 15px', background: 'var(--surface-inset)', overflowY: 'auto', position: 'relative' }}>
           {state.scanError && (
             <div style={{ background: '#ef444422', border: '1px solid #ef444455', color: '#ef4444', padding: '15px', borderRadius: '15px', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontWeight: 800, fontSize: '0.8rem' }}>{state.scanError}</span>
@@ -119,7 +119,7 @@ export const Shop2Terminal: React.FC = () => {
             alignItems: 'center',
             gap: '8px',
             background: 'rgba(10, 10, 10, 0.95)',
-            border: '1px solid #222',
+            border: '1px solid var(--border-subtle)',
             padding: '10px 14px',
             borderRadius: '24px',
             boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
@@ -133,7 +133,7 @@ export const Shop2Terminal: React.FC = () => {
             value={state.manualId}
             onChange={e => state.setManualId(e.target.value)}
             disabled={state.isProcessing}
-            style={{ background: 'transparent', border: 'none', color: '#fff', fontSize: '0.85rem', fontWeight: 700, outline: 'none', width: '100%' }}
+            style={{ background: 'transparent', border: 'none', color: 'var(--text-strong)', fontSize: '0.85rem', fontWeight: 700, outline: 'none', width: '100%' }}
           />
           <button
             type="submit"
@@ -293,14 +293,14 @@ export const Shop2Terminal: React.FC = () => {
             flex: 1;
             box-shadow: none !important;
             background: #000 !important;
-            border: 1px solid #222 !important;
+            border: 1px solid var(--border-subtle) !important;
           }
         }
         .animate-spin { animation: spin 1s linear infinite; }
         @keyframes spin { 100% { transform: rotate(360deg); } }
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #222; borderRadius: 3px; }
+        ::-webkit-scrollbar-thumb { background: var(--border-subtle); borderRadius: 3px; }
       `}} />
     </div>
   )

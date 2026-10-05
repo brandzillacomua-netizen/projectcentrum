@@ -9,7 +9,7 @@ export default function PressingTerminalHeader({
   setSelectedShift
 }) {
   return (
-    <header className="terminal-header" style={{ flexShrink: 0, background: 'var(--card-bg, rgba(12,12,15,0.85))', backdropFilter: 'blur(12px)', borderBottom: '1px solid var(--glass-border, rgba(255,255,255,0.04))', padding: '0 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', zIndex: 10 }}>
+    <header className="terminal-header" style={{ flexShrink: 0, background: 'var(--card-bg, rgba(12,12,15,0.85))', backdropFilter: 'blur(12px)', borderBottom: '1px solid var(--glass-border, var(--border-subtle))', padding: '0 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', zIndex: 10 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: 0 }}>
         <Link to="/" style={{ color: 'var(--text-muted, #888)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: 700, flexShrink: 0 }}>
           <ArrowLeft size={15} /> <span className="back-text">На головну</span>
@@ -32,7 +32,7 @@ export default function PressingTerminalHeader({
           <select
             value={selectedShift}
             onChange={e => setSelectedShift(e.target.value)}
-            style={{ background: 'var(--input-bg, #121216)', border: '1px solid var(--glass-border, rgba(255,255,255,0.05))', color: 'var(--text, #fff)', padding: '6px 10px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 800, cursor: 'pointer', outline: 'none' }}
+            style={{ background: 'var(--input-bg, #121216)', border: '1px solid var(--glass-border, var(--border-subtle))', color: 'var(--text, #fff)', padding: '6px 10px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 800, cursor: 'pointer', outline: 'none' }}
           >
             <option value="">— Оберіть —</option>
             <option value="Зміна 1">Зміна 1</option>

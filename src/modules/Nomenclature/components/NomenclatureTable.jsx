@@ -227,7 +227,7 @@ export const NomenclatureTable = ({
               <button
                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                 disabled={currentPage === 1}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '6px 12px', background: currentPage === 1 ? 'transparent' : '#ffffff', border: `1px solid ${currentPage === 1 ? 'transparent' : 'var(--border-color, #cbd5e1)'}`, borderRadius: '8px', color: currentPage === 1 ? 'var(--text-muted, #94a3b8)' : 'var(--text, #0f172a)', cursor: currentPage === 1 ? 'not-allowed' : 'pointer', fontSize: '0.8rem', fontWeight: 600 }}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '6px 12px', background: currentPage === 1 ? 'transparent' : 'var(--text-strong)', border: `1px solid ${currentPage === 1 ? 'transparent' : 'var(--border-color, #cbd5e1)'}`, borderRadius: '8px', color: currentPage === 1 ? 'var(--text-muted, #94a3b8)' : 'var(--text, #0f172a)', cursor: currentPage === 1 ? 'not-allowed' : 'pointer', fontSize: '0.8rem', fontWeight: 600 }}
               >
                 <ChevronLeft size={14} /> Попередня
               </button>
@@ -237,7 +237,7 @@ export const NomenclatureTable = ({
               <button
                 onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                 disabled={currentPage === totalPages}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '6px 12px', background: currentPage === totalPages ? 'transparent' : '#ffffff', border: `1px solid ${currentPage === totalPages ? 'transparent' : 'var(--border-color, #cbd5e1)'}`, borderRadius: '8px', color: currentPage === totalPages ? 'var(--text-muted, #94a3b8)' : 'var(--text, #0f172a)', cursor: currentPage === totalPages ? 'not-allowed' : 'pointer', fontSize: '0.8rem', fontWeight: 600 }}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '6px 12px', background: currentPage === totalPages ? 'transparent' : 'var(--text-strong)', border: `1px solid ${currentPage === totalPages ? 'transparent' : 'var(--border-color, #cbd5e1)'}`, borderRadius: '8px', color: currentPage === totalPages ? 'var(--text-muted, #94a3b8)' : 'var(--text, #0f172a)', cursor: currentPage === totalPages ? 'not-allowed' : 'pointer', fontSize: '0.8rem', fontWeight: 600 }}
               >
                 Наступна <ChevronRight size={14} />
               </button>

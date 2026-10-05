@@ -26,8 +26,8 @@ export function Shop1ActiveCardsTable({
   getCardTimeMetrics
 }) {
   return (
-    <div style={{ background: '#111', borderRadius: '24px', border: '1px solid #1a1a1a', overflow: 'hidden' }}>
-      <div style={{ padding: '20px 25px', borderBottom: '1px solid #1a1a1a', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+    <div style={{ background: 'var(--surface-1)', borderRadius: '24px', border: '1px solid var(--border-subtle)', overflow: 'hidden' }}>
+      <div style={{ padding: '20px 25px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
         <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 900 }}>В РОБОТІ ТА БУФЕРІ</h3>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           {isSyncing && <div style={{ fontSize: '0.7rem', color: '#eab308', display: 'flex', alignItems: 'center', gap: '6px', marginRight: '8px' }}><RefreshCw className="spin-s1" size={12} /> Оновлення...</div>}
@@ -51,7 +51,7 @@ export function Shop1ActiveCardsTable({
       <div style={{ overflowX: 'auto', maxWidth: '100%', border: 'none', borderRadius: 0, width: '100%', WebkitOverflowScrolling: 'touch' }}>
         <table style={{ width: '100%', minWidth: '1200px', borderCollapse: 'collapse', textAlign: 'left' }}>
           <thead>
-            <tr style={{ background: '#0a0a0a', fontSize: '0.65rem', fontWeight: 900, color: '#555', textTransform: 'uppercase' }}>
+            <tr style={{ background: 'var(--surface-inset)', fontSize: '0.65rem', fontWeight: 900, color: '#555', textTransform: 'uppercase' }}>
               <th style={{ padding: '12px 14px' }}>ДАТА І ЧАС</th>
               <th style={{ padding: '12px 14px' }}>ДЕТАЛЬ</th>
               <th style={{ padding: '12px 14px' }}>ЕТАП</th>
@@ -138,13 +138,13 @@ export function Shop1ActiveCardsTable({
                 return (
                   <tr key={card.id} 
                     onClick={() => { setSelectedCardId && setSelectedCardId(card.id); setSelectedOperator && setSelectedOperator('') }}
-                    style={{ borderBottom: '1px solid #1a1a1a', fontSize: '0.85rem', cursor: 'pointer' }}>
-                    <td style={{ padding: '10px 14px', color: '#888', whiteSpace: 'nowrap' }}>
+                    style={{ borderBottom: '1px solid var(--border-subtle)', fontSize: '0.85rem', cursor: 'pointer' }}>
+                    <td style={{ padding: '10px 14px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
                       {(() => {
                         const parts = formatDateTimeParts(startDate);
                         return (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#aaa' }}>{parts.date}</span>
+                            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>{parts.date}</span>
                             {parts.time && <span style={{ fontSize: '0.65rem', color: '#777' }}>{parts.time}</span>}
                           </div>
                         );
@@ -199,8 +199,8 @@ export function Shop1ActiveCardsTable({
                       </div>
                     </td>
                     <td style={{ padding: '10px 14px', fontWeight: 900 }}>{card.quantity} шт</td>
-                    <td style={{ padding: '10px 14px', color: '#888' }}>{card.shift_name || '—'}</td>
-                    <td style={{ padding: '10px 14px', color: '#aaa' }}>{card.operator_name || '—'}</td>
+                    <td style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>{card.shift_name || '—'}</td>
+                    <td style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>{card.operator_name || '—'}</td>
                     <td style={{ padding: '10px 14px', color: '#eab308', fontWeight: 800 }}>{formatMachine(card.machine)}</td>
                     <td style={{ padding: '10px 14px', color: '#10b981', fontFamily: 'monospace', fontWeight: 700 }}>
                       {formatSec(timeMetrics.totalSec)}
@@ -210,7 +210,7 @@ export function Shop1ActiveCardsTable({
                     </td>
                     <td style={{ padding: '10px 14px', textAlign: 'right' }}>
                       <button onClick={(e) => { e.stopPropagation(); setSelectedCardId && setSelectedCardId(card.id); setSelectedOperator && setSelectedOperator('') }}
-                        style={{ background: '#eab308', border: 'none', color: '#000', padding: '10px', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        style={{ background: '#eab308', border: 'none', color: 'var(--surface-black)', padding: '10px', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                         title="Відкрити">
                         <Eye size={18} />
                       </button>
@@ -226,11 +226,11 @@ export function Shop1ActiveCardsTable({
                   rows.push(
                     <tr key={`header-${op}`} 
                         onClick={() => setCollapsedGroups && setCollapsedGroups(prev => ({ ...prev, [op]: !prev[op] }))}
-                        style={{ background: '#0a0a0a', cursor: 'pointer', userSelect: 'none' }}>
-                      <td colSpan={11} style={{ padding: '12px 14px', fontSize: '0.7rem', fontWeight: 950, color: '#eab308', textTransform: 'uppercase', letterSpacing: '0.15em', borderBottom: '1px solid #1a1a1a', borderTop: '1px solid #1a1a1a' }}>
+                        style={{ background: 'var(--surface-inset)', cursor: 'pointer', userSelect: 'none' }}>
+                      <td colSpan={11} style={{ padding: '12px 14px', fontSize: '0.7rem', fontWeight: 950, color: '#eab308', textTransform: 'uppercase', letterSpacing: '0.15em', borderBottom: '1px solid var(--border-subtle)', borderTop: '1px solid var(--border-subtle)' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <div style={{ width: '0', height: '0', borderLeft: '5px solid transparent', borderRight: '5px solid transparent', borderTop: isCollapsed ? 'none' : '5px solid #eab308', borderBottom: isCollapsed ? '5px solid #eab308' : 'none', transform: isCollapsed ? 'rotate(-90deg)' : 'none', transition: 'transform 0.2s' }} />
-                          {op} <span style={{ color: '#555' }}>({grouped[op].length})</span>
+                          {op} <span style={{ color: 'var(--text-dim)' }}>({grouped[op].length})</span>
                         </div>
                       </td>
                     </tr>

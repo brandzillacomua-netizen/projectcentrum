@@ -27,7 +27,7 @@ const LoginPage = () => {
 
   return (
     <div className="login-page-v2" style={{
-      background: '#050505',
+      background: 'var(--surface-inset)',
       minHeight: '100vh',
       display: 'flex',
       alignItems: 'center',
@@ -44,7 +44,7 @@ const LoginPage = () => {
         maxWidth: '420px',
         background: 'rgba(15,15,15,0.8)',
         backdropFilter: 'blur(20px)',
-        border: '1px solid rgba(255,255,255,0.05)',
+        border: '1px solid var(--border-subtle)',
         borderRadius: '32px',
         padding: '50px 40px',
         boxShadow: '0 40px 100px rgba(0,0,0,0.8)',
@@ -60,10 +60,10 @@ const LoginPage = () => {
               style={{ width: '80px', height: '80px', position: 'relative', zIndex: 2, display: 'block', margin: '10px auto' }} 
             />
           </div>
-          <h1 style={{ color: '#fff', fontSize: '2.4rem', fontWeight: 950, margin: 0, letterSpacing: '-1.5px', textTransform: 'uppercase' }}>
+          <h1 style={{ color: 'var(--text-strong)', fontSize: '2.4rem', fontWeight: 950, margin: 0, letterSpacing: '-1.5px', textTransform: 'uppercase' }}>
             CRM <span style={{ color: '#ff9000' }}>КУЛИЦЯ</span>
           </h1>
-          <p style={{ color: '#555', fontSize: '0.8rem', fontWeight: 1000, textTransform: 'uppercase', letterSpacing: '0.45em', marginTop: '12px' }}>
+          <p style={{ color: 'var(--text-dim)', fontSize: '0.8rem', fontWeight: 1000, textTransform: 'uppercase', letterSpacing: '0.45em', marginTop: '12px' }}>
             INDUSTRIAL CONTROL V2.0
           </p>
         </div>
@@ -126,7 +126,7 @@ const LoginPage = () => {
           </button>
         </form>
 
-        <div style={{ marginTop: '40px', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.68rem', color: '#666', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+        <div style={{ marginTop: '40px', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.68rem', color: 'var(--text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
           <div>
             &copy; 2026{' '}
             <a
@@ -157,11 +157,11 @@ const LoginPage = () => {
 
 const inputStyle = {
   width: '100%',
-  background: '#0a0a0a',
-  border: '1px solid #1a1a1a',
+  background: 'var(--surface-inset)',
+  border: '1px solid var(--border-subtle)',
   borderRadius: '16px',
   padding: '16px 16px 16px 48px',
-  color: '#fff',
+  color: 'var(--text-strong)',
   fontSize: '0.9rem',
   fontWeight: 700,
   transition: '0.3s',

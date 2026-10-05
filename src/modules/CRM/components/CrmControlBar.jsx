@@ -98,7 +98,7 @@ export const CrmControlBar = ({
             style={{
               padding: '9px 12px',
               borderRadius: '10px',
-              background: 'rgba(255,255,255,0.06)',
+              background: 'var(--fill-subtle)',
               border: '1px solid var(--glass-border)',
               color: 'var(--text)',
               fontWeight: 800,

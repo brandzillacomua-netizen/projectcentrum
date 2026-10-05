@@ -69,7 +69,7 @@ export function MachinesGrid({
                     {' | '}
                     {m.inventory_no || 'БЕЗ ІНВЕНТАРНОГО'}
                   </span>
-                  <span style={{ color: (m.completed_cards_count_since_maintenance || 0) >= 5 ? '#ef4444' : '#666', fontWeight: 900 }}>
+                  <span style={{ color: (m.completed_cards_count_since_maintenance || 0) >= 5 ? '#ef4444' : 'var(--text-dim)', fontWeight: 900 }}>
                     Картки: {m.completed_cards_count_since_maintenance || 0}/5
                   </span>
                 </div>
@@ -102,7 +102,7 @@ export function MachinesGrid({
                         <span className="timer" style={{ fontSize: '1.4rem', marginTop: '5px' }}><Clock size={16} /> {formatElapsed(activeTask.started_at)}</span>
                       </div>
                       <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontSize: '0.65rem', color: '#555', fontWeight: 1000, textTransform: 'uppercase' }}>Плановий час</div>
+                        <div style={{ fontSize: '0.65rem', color: 'var(--text-dim)', fontWeight: 1000, textTransform: 'uppercase' }}>Плановий час</div>
                         <div style={{ fontSize: '1rem', color: '#ff9000', fontWeight: 900 }}>{formatPlanned(estimatedMin)}</div>
                       </div>
                     </div>

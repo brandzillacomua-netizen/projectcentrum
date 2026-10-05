@@ -71,10 +71,10 @@ const SupplyModule = () => {
   }
 
   return (
-    <div className="supply-module-v2" style={{ background: '#0a0a0a', minHeight: '100vh', color: '#fff', display: 'flex', flexDirection: 'column' }}>
-      <nav className="module-nav" style={{ flexShrink: 0, padding: '15px 25px', background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #222' }}>
+    <div className="supply-module-v2" style={{ background: 'var(--surface-inset)', minHeight: '100vh', color: 'var(--text-strong)', display: 'flex', flexDirection: 'column' }}>
+      <nav className="module-nav" style={{ flexShrink: 0, padding: '15px 25px', background: 'var(--surface-1)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-subtle)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-          <Link to="/" className="back-link" style={{ color: '#555', transition: '0.3s' }}><ArrowLeft size={18} /></Link>
+          <Link to="/" className="back-link" style={{ color: 'var(--text-dim)', transition: '0.3s' }}><ArrowLeft size={18} /></Link>
           <div className="module-title-group" style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
             <Truck className="text-secondary" size={24} style={{ color: '#ff9000' }} />
             <h1 className="hide-mobile" style={{ margin: 0, fontSize: '1.2rem', fontWeight: 950, letterSpacing: '-0.02em' }}>Менеджер із постачання</h1>
@@ -86,7 +86,7 @@ const SupplyModule = () => {
            <button 
              onClick={() => setShowCreate(true)} 
              className="hide-mobile"
-             style={{ background: '#ff9000', color: '#000', border: 'none', padding: '10px 22px', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.85rem' }}
+             style={{ background: '#ff9000', color: 'var(--surface-black)', border: 'none', padding: '10px 22px', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.85rem' }}
            >
               <Plus size={20} /> НОВА ПРИЙОМКА
            </button>
@@ -96,7 +96,7 @@ const SupplyModule = () => {
       <div className="module-content" style={{ padding: '25px', overflowY: 'auto', flex: 1 }}>
         
         {/* Section Tabs (Mobile Only) */}
-        <div className="mobile-only supply-tabs" style={{ display: 'flex', background: '#111', padding: '5px', borderRadius: '14px', marginBottom: '25px' }}>
+        <div className="mobile-only supply-tabs" style={{ display: 'flex', background: 'var(--surface-1)', padding: '5px', borderRadius: '14px', marginBottom: '25px' }}>
            <button onClick={() => {setActiveMobileSection('requests'); setShowCreate(false)}} className={`tab-btn-m ${activeMobileSection === 'requests' && !showCreate ? 'active' : ''}`}>ДЕФІЦИТ ({pendingRequests.length})</button>
            <button onClick={() => {setActiveMobileSection('registry'); setShowCreate(false)}} className={`tab-btn-m ${activeMobileSection === 'registry' && !showCreate ? 'active' : ''}`}>РЕЄСТР</button>
            <button onClick={() => {setShowCreate(true); setActiveMobileSection('create')}} className={`tab-btn-m ${showCreate ? 'active' : ''}`}>+ НОВИЙ</button>
@@ -106,34 +106,34 @@ const SupplyModule = () => {
            
            {/* CREATE PANEL */}
            {(showCreate || activeMobileSection === 'create') && (
-             <section className="create-panel glass-panel" style={{ background: '#111', borderRadius: '24px', border: '1px solid #222', padding: '35px', maxWidth: '800px', margin: '0 auto', width: '100%' }}>
+             <section className="create-panel glass-panel" style={{ background: 'var(--surface-1)', borderRadius: '24px', border: '1px solid var(--border-subtle)', padding: '35px', maxWidth: '800px', margin: '0 auto', width: '100%' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '35px', alignItems: 'center' }}>
                    <div>
                       <h2 style={{ fontSize: '1.5rem', fontWeight: 950, color: '#ff9000', margin: 0, letterSpacing: '-0.02em' }}>СФОРМУВАТИ ПРИЙОМКУ</h2>
-                      <p style={{ color: '#555', fontSize: '0.9rem', margin: '8px 0 0' }}>Оберіть товар та вкажіть кількість для передачі на склад</p>
+                      <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem', margin: '8px 0 0' }}>Оберіть товар та вкажіть кількість для передачі на склад</p>
                    </div>
-                   <button onClick={() => {setShowCreate(false); setActiveMobileSection('registry')}} style={{ background: '#222', border: 'none', color: '#888', cursor: 'pointer', width: '45px', height: '45px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={24} /></button>
+                   <button onClick={() => {setShowCreate(false); setActiveMobileSection('registry')}} style={{ background: 'var(--surface-3)', border: 'none', color: '#888', cursor: 'pointer', width: '45px', height: '45px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={24} /></button>
                 </div>
 
                 <div className="creation-flow" style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 140px 65px', gap: '15px' }} className="mobile-stack">
                       <div style={{ position: 'relative' }}>
                          <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 900, color: '#444', marginBottom: '10px', textTransform: 'uppercase' }}>Номенклатура</label>
-                         <input list="noms-list" style={{ width: '100%', background: '#000', border: '1px solid #333', color: '#fff', padding: '18px', borderRadius: '15px', fontSize: '1.1rem' }} placeholder="Пошук товару..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+                         <input list="noms-list" style={{ width: '100%', background: 'var(--surface-black)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', padding: '18px', borderRadius: '15px', fontSize: '1.1rem' }} placeholder="Пошук товару..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
                          <datalist id="noms-list">
                             {availableNoms.map(n => <option key={n.id} value={getNomLabel(n)} />)}
                          </datalist>
                       </div>
                       <div>
                          <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 900, color: '#444', marginBottom: '10px', textTransform: 'uppercase' }}>Кількість</label>
-                         <input type="number" style={{ width: '100%', background: '#000', border: '1px solid #333', color: '#fff', padding: '18px', borderRadius: '15px', textAlign: 'center', fontSize: '1.1rem', fontWeight: 700 }} placeholder="0" value={selectedQty} onChange={e => setSelectedQty(e.target.value)} />
+                         <input type="number" style={{ width: '100%', background: 'var(--surface-black)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', padding: '18px', borderRadius: '15px', textAlign: 'center', fontSize: '1.1rem', fontWeight: 700 }} placeholder="0" value={selectedQty} onChange={e => setSelectedQty(e.target.value)} />
                       </div>
                       <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-                         <button onClick={addToDraft} style={{ height: '62px', width: '100%', background: '#ff9000', color: '#000', border: 'none', borderRadius: '15px', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Plus size={28} /></button>
+                         <button onClick={addToDraft} style={{ height: '62px', width: '100%', background: '#ff9000', color: 'var(--surface-black)', border: 'none', borderRadius: '15px', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Plus size={28} /></button>
                       </div>
                    </div>
 
-                   <div className="draft-preview" style={{ background: 'rgba(0,0,0,0.3)', padding: '25px', borderRadius: '24px', minHeight: '150px', border: '1px solid #1a1a1a' }}>
+                   <div className="draft-preview" style={{ background: 'var(--fill-inset)', padding: '25px', borderRadius: '24px', minHeight: '150px', border: '1px solid var(--border-subtle)' }}>
                       <div style={{ fontSize: '0.75rem', fontWeight: 900, color: '#444', marginBottom: '20px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>СПИСОК ДО ПРИЙОМКИ ({draftItems.length})</div>
                       {draftItems.length === 0 ? (
                         <div style={{ textAlign: 'center', padding: '40px 0', color: '#333' }}>
@@ -143,7 +143,7 @@ const SupplyModule = () => {
                       ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                           {draftItems.map((it, idx) => (
-                             <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '15px 20px', background: '#0a0a0a', borderRadius: '15px', border: '1px solid #222' }}>
+                             <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '15px 20px', background: 'var(--surface-inset)', borderRadius: '15px', border: '1px solid var(--border-subtle)' }}>
                                 <span style={{ fontSize: '1rem', fontWeight: 700 }}>{it.name}</span>
                                 <div style={{ display: 'flex', gap: '25px', alignItems: 'center' }}>
                                    <strong style={{ color: '#ff9000', fontSize: '1.25rem', fontWeight: 950 }}>{it.qty}</strong>
@@ -167,10 +167,10 @@ const SupplyModule = () => {
            {/* REQUESTS COLUMN */}
            {!showCreate && (activeMobileSection === 'requests' || !window.matchMedia("(max-width: 768px)").matches) && (
              <section className="requests-col">
-                <h3 style={{ fontSize: '0.85rem', color: '#555', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}><AlertTriangle size={18} className="text-secondary" /> ДЕФІЦИТ ТА ЗАПИТИ</h3>
+                <h3 style={{ fontSize: '0.85rem', color: 'var(--text-dim)', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}><AlertTriangle size={18} className="text-secondary" /> ДЕФІЦИТ ТА ЗАПИТИ</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                    {pendingRequests.map(pr => (
-                     <div key={pr.id} className="request-card" style={{ background: '#111', padding: '25px', borderRadius: '24px', border: '1px solid #222', borderLeft: pr.status === 'accepted' ? '4px solid #3b82f6' : '4px solid #ef4444' }}>
+                     <div key={pr.id} className="request-card" style={{ background: 'var(--surface-1)', padding: '25px', borderRadius: '24px', border: '1px solid var(--border-subtle)', borderLeft: pr.status === 'accepted' ? '4px solid #3b82f6' : '4px solid #ef4444' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
                            <strong style={ pr.status === 'accepted' ? { color: '#3b82f6', fontSize: '1rem' } : { color: '#ef4444', fontSize: '1rem' }}>НАРЯД #{pr.order_num}</strong>
                            <div style={{ display: 'flex', gap: '8px' }}>
@@ -180,7 +180,7 @@ const SupplyModule = () => {
                               <button onClick={() => apiService.submitConvertRequestToOrder(pr.id, convertRequestToOrder)} style={{ background: '#3b82f622', color: '#3b82f6', border: '1px solid #3b82f644', padding: '8px 15px', borderRadius: '10px', fontSize: '0.7rem', fontWeight: 900 }}>СФОРМУВАТИ ПОСТАВКУ</button>
                            </div>
                         </div>
-                        <div style={{ fontSize: '0.9rem', color: '#888' }}>
+                        <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>
                            {(pr.items || []).map((it, idx) => (
                              <div key={idx} style={{ padding: '8px 0', borderBottom: '1px solid #111', display: 'flex', justifyContent: 'space-between' }}>
                                 <span>{it.reqDetails}</span>
@@ -198,13 +198,13 @@ const SupplyModule = () => {
            {/* REGISTRY COLUMN */}
            {!showCreate && (activeMobileSection === 'registry' || !window.matchMedia("(max-width: 768px)").matches) && (
              <section className="registry-col">
-                <h3 style={{ fontSize: '0.85rem', color: '#555', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}><History size={18} className="text-secondary" /> РЕЄСТР ПОСТАВОК</h3>
+                <h3 style={{ fontSize: '0.85rem', color: 'var(--text-dim)', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}><History size={18} className="text-secondary" /> РЕЄСТР ПОСТАВОК</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                    {(receptionDocs || []).map(doc => (
-                     <div key={doc.id} className="doc-card" style={{ background: '#111', borderRadius: '20px', border: '1px solid #222', overflow: 'hidden' }}>
+                     <div key={doc.id} className="doc-card" style={{ background: 'var(--surface-1)', borderRadius: '20px', border: '1px solid var(--border-subtle)', overflow: 'hidden' }}>
                         <div onClick={() => setExpandedDoc(expandedDoc === doc.id ? null : doc.id)} style={{ padding: '20px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                            <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
-                              <div style={{ background: '#0a0a0a', padding: '12px', borderRadius: '12px', color: doc.status === 'pending' ? '#ff9000' : '#10b981' }}><Package size={20} /></div>
+                              <div style={{ background: 'var(--surface-inset)', padding: '12px', borderRadius: '12px', color: doc.status === 'pending' ? '#ff9000' : '#10b981' }}><Package size={20} /></div>
                               <div>
                                  <div style={{ fontWeight: 800, fontSize: '0.9rem' }}>#{doc.id.substring(0,6)}</div>
                                  <div style={{ fontSize: '0.65rem', color: '#444' }}>{new Date(doc.created_at).toLocaleDateString()}</div>
@@ -215,13 +215,13 @@ const SupplyModule = () => {
                            </div>
                         </div>
                         {expandedDoc === doc.id && (
-                           <div style={{ padding: '20px', background: '#0a0a0a', borderTop: '1px solid #222' }}>
+                           <div style={{ padding: '20px', background: 'var(--surface-inset)', borderTop: '1px solid var(--border-subtle)' }}>
                               <div style={{ marginBottom: '15px' }}>
                                  {doc.items.map((it, idx) => {
                                     const nom = nomenclatures.find(n => n.id === it.nomenclature_id)
                                     return (
                                        <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #111' }}>
-                                          <span style={{ fontSize: '0.8rem', color: '#888' }}>{nom ? getNomLabel(nom) : 'Невідома номенклатура'}</span>
+                                          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{nom ? getNomLabel(nom) : 'Невідома номенклатура'}</span>
                                           <strong style={{ fontSize: '0.8rem' }}>{it.qty}</strong>
                                        </div>
                                     )

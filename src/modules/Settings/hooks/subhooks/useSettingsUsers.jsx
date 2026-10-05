@@ -282,13 +282,13 @@ export function useSettingsUsers({
           height: '46px', 
           borderRadius: '14px', 
           background: grad, 
-          border: user.position === 'Адмін' ? '1px solid rgba(255,144,0,0.3)' : '1px solid rgba(255,255,255,0.08)',
+          border: user.position === 'Адмін' ? '1px solid rgba(255,144,0,0.3)' : '1px solid var(--border-subtle)',
           display: 'flex', 
           alignItems: 'center', 
           justifyContent: 'center',
           fontWeight: 900,
           fontSize: '0.9rem',
-          color: '#ffffff',
+          color: 'var(--text-strong)',
           boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
           flexShrink: 0
         }}
@@ -308,7 +308,7 @@ export function useSettingsUsers({
       case 'Майстер дільниці': return { background: 'rgba(59,130,246,0.15)', border: '1px solid #3b82f6', color: '#60a5fa' }
       case 'Працівник складу': return { background: 'rgba(16,185,129,0.15)', border: '1px solid #10b981', color: '#34d399' }
       case 'Контроль браку': return { background: 'rgba(239,68,68,0.15)', border: '1px solid #ef4444', color: '#f87171' }
-      default: return { background: 'rgba(255,255,255,0.05)', border: '1px solid #222', color: '#aaa' }
+      default: return { background: 'var(--fill-subtle)', border: '1px solid var(--border-subtle)', color: '#aaa' }
     }
   }
 

@@ -166,6 +166,32 @@ const PreparationDashboard = () => {
         .light-theme .box-order__items span, [data-theme="light"] .box-order__items span { color: #1e293b; }
         .light-theme .boxes-summary, [data-theme="light"] .boxes-summary { background: #fffbeb; border-color: #fde68a; }
         .light-theme .prep-tv__empty strong, [data-theme="light"] .prep-tv__empty strong { color: #0f172a; }
+        .light-theme .prep-tv__header-status button { background: #f1f5f9; border-color: #cbd5e1; color: #475569; }
+        .light-theme .prep-tv__logo { background: #dcfce7; }
+        .light-theme .prep-tv__brand span, .light-theme .prep-tv__clock span, .light-theme .prep-tv__back { color: #64748b; }
+        .light-theme .prep-tv__kpis span, .light-theme .prep-tv__panel-head>span { color: #64748b; }
+        .light-theme .prep-tv__kpis .is-warning { border-color: #fde68a; }
+        .light-theme .prep-task__status { background: #e2e8f0; }
+        .light-theme .is-active .prep-task__status { background: #dbeafe; }
+        .light-theme .has-alert .prep-task__status { background: #fee2e2; }
+        .light-theme .prep-task__main>div span, .light-theme .prep-task small, .light-theme .prep-task__metric span, .light-theme .prep-task__time span { color: #64748b; }
+        .light-theme .boxes-summary__bar, .light-theme .box-order__progress { background: #e2e8f0; }
+        .light-theme .boxes-summary span, .light-theme .box-order__head span { color: #92400e; }
+        .light-theme .box-order__head { border-bottom-color: #e2e8f0; }
+        .light-theme .box-order.is-complete { background: #f0fdf4; border-color: #86efac; }
+        .light-theme .box-order__items>div.is-ready { background: #ecfdf5; }
+        .light-theme .box-order__result strong i, .light-theme .box-order__items b i { color: #64748b; }
+        .light-theme .box-order__items small { color: #64748b; }
+        .light-theme .box-order__slider { border-top-color: #e2e8f0; }
+        .light-theme .box-order__slider i { background: #cbd5e1; }
+        .light-theme .box-order__slider i.is-active { background: #f59e0b; }
+        .light-theme .box-order__slider span { color: #64748b; }
+        .light-theme .prep-tv__empty span { color: #64748b; }
+        .light-theme .prep-tv__alerts { background: #fffbeb; border-top-color: #fde68a; }
+        .light-theme .prep-tv__alerts.has-danger { background: #fef2f2; border-top-color: #fca5a5; }
+        .light-theme .prep-tv__alerts-list span { color: #92400e; }
+        .light-theme .prep-tv__alerts-list .is-clear { color: #15803d; }
+        .light-theme .prep-tv__panel--box .box-order, .light-theme .prep-tv__panel--box.is-complete .box-order { background: #ffffff; }
       `}</style>
     </div>
   )

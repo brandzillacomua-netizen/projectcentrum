@@ -10,7 +10,7 @@ export const DashboardOrderTabs = ({
       <button
         onClick={() => setSelectedOrderId(null)}
         style={{
-          background: selectedOrderId === null ? '#ff9000' : '#18181b',
+          background: selectedOrderId === null ? '#ff9000' : 'var(--surface-2)',
           color: selectedOrderId === null ? '#000' : '#a1a1aa',
           border: `1px solid ${selectedOrderId === null ? '#ff9000' : '#27272a'}`,
           padding: '8px 16px',
@@ -31,7 +31,7 @@ export const DashboardOrderTabs = ({
             key={order.id}
             onClick={() => setSelectedOrderId(order.id)}
             style={{
-              background: selectedOrderId === order.id ? '#3b82f6' : '#18181b',
+              background: selectedOrderId === order.id ? '#3b82f6' : 'var(--surface-2)',
               color: selectedOrderId === order.id ? '#fff' : '#a1a1aa',
               border: `1px solid ${selectedOrderId === order.id ? '#3b82f6' : '#27272a'}`,
               padding: '8px 16px',

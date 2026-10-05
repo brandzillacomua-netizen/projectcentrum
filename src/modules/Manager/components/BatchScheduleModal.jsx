@@ -30,11 +30,11 @@ export const BatchScheduleModal = ({
         <div className="modal-body-modern" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <div style={{ background: 'rgba(255,144,0,0.05)', border: '1px solid rgba(255,144,0,0.2)', padding: '16px 20px', borderRadius: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
-              <div style={{ fontSize: '0.7rem', color: '#888', fontWeight: '800', letterSpacing: '1px' }}>ЗАГАЛЬНИЙ ТИРАЖ ЗАМОВЛЕННЯ</div>
+              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '800', letterSpacing: '1px' }}>ЗАГАЛЬНИЙ ТИРАЖ ЗАМОВЛЕННЯ</div>
               <div style={{ fontSize: '1.4rem', fontWeight: '900', color: '#ff9000' }}>{totalQuantity} шт</div>
             </div>
             <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: '0.7rem', color: '#888', fontWeight: '800', letterSpacing: '1px' }}>РОЗПОДІЛЕНО / ЗАЛИШОК</div>
+              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '800', letterSpacing: '1px' }}>РОЗПОДІЛЕНО / ЗАЛИШОК</div>
               <div style={{ fontSize: '1.2rem', fontWeight: '900', color: isComplete ? '#22c55e' : '#ef4444' }}>
                 {totalAllocated} / {remaining} шт
               </div>
@@ -43,28 +43,28 @@ export const BatchScheduleModal = ({
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '350px', overflowY: 'auto' }}>
             {batchScheduleList.map((batch, idx) => (
-              <div key={idx} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', padding: '14px 18px', borderRadius: '16px', display: 'flex', alignItems: 'center', gap: '15px' }}>
+              <div key={idx} style={{ background: 'var(--fill-subtle)', border: '1px solid var(--border-subtle)', padding: '14px 18px', borderRadius: '16px', display: 'flex', alignItems: 'center', gap: '15px' }}>
                 <div style={{ fontWeight: '900', color: '#ff9000', minWidth: '85px', fontSize: '0.9rem' }}>
                   Партія №{idx + 1}
                 </div>
                 <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: '0.65rem', color: '#666', fontWeight: '800', marginBottom: '4px' }}>КІЛЬКІСТЬ (ШТ)</label>
+                  <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-dim)', fontWeight: '800', marginBottom: '4px' }}>КІЛЬКІСТЬ (ШТ)</label>
                   <input
                     type="number"
                     value={batch.quantity}
                     onChange={e => onUpdateBatchItem(idx, 'quantity', e.target.value)}
-                    style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', padding: '8px 12px', borderRadius: '10px', width: '100%', outline: 'none', fontWeight: '700' }}
+                    style={{ background: 'var(--fill-inset)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', padding: '8px 12px', borderRadius: '10px', width: '100%', outline: 'none', fontWeight: '700' }}
                     placeholder="Кількість..."
                   />
                 </div>
                 <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: '0.65rem', color: '#666', fontWeight: '800', marginBottom: '4px' }}>ДЕДЛАЙН</label>
+                  <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-dim)', fontWeight: '800', marginBottom: '4px' }}>ДЕДЛАЙН</label>
                   <input
                     type="date"
                     value={batch.deadline}
                     onChange={e => onUpdateBatchItem(idx, 'deadline', e.target.value)}
                     onClick={e => e.target.showPicker()}
-                    style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', padding: '8px 12px', borderRadius: '10px', width: '100%', outline: 'none', fontWeight: '700' }}
+                    style={{ background: 'var(--fill-inset)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', padding: '8px 12px', borderRadius: '10px', width: '100%', outline: 'none', fontWeight: '700' }}
                   />
                 </div>
                 {batchScheduleList.length > 1 && (

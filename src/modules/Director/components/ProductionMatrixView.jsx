@@ -64,8 +64,8 @@ export const ProductionMatrixView = ({
                       >
                         {totalQty > 0 && (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', padding: '12px' }}>
-                            <div style={{ display: 'flex', justifyContent: 'flex-start', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '8px' }}>
-                              <span style={{ fontSize: '0.65rem', fontWeight: 900, color: '#ff9000', letterSpacing: '1px' }}>РАЗОМ: <span style={{ fontSize: '1rem', color: '#fff' }}>{totalQty}</span></span>
+                            <div style={{ display: 'flex', justifyContent: 'flex-start', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '8px' }}>
+                              <span style={{ fontSize: '0.65rem', fontWeight: 900, color: '#ff9000', letterSpacing: '1px' }}>РАЗОМ: <span style={{ fontSize: '1rem', color: 'var(--text-strong)' }}>{totalQty}</span></span>
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                               {cellOrders.map((o, idx) => (
@@ -92,9 +92,9 @@ export const ProductionMatrixView = ({
                                 >
                                   <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', marginBottom: '4px' }}>
                                     <span style={{ fontSize: '0.7rem', color: '#ff9000', fontWeight: 900 }}>#{o.orderNum}</span>
-                                    <span style={{ fontSize: '0.8rem', color: '#fff', fontWeight: 900 }}>{o.qty} шт</span>
+                                    <span style={{ fontSize: '0.8rem', color: 'var(--text-strong)', fontWeight: 900 }}>{o.qty} шт</span>
                                   </div>
-                                  <span style={{ fontSize: '0.75rem', color: '#aaa', fontWeight: 600, textAlign: 'left', lineHeight: 1.2 }}>{o.customer}</span>
+                                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, textAlign: 'left', lineHeight: 1.2 }}>{o.customer}</span>
                                 </div>
                               ))}
                             </div>

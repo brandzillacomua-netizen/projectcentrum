@@ -708,7 +708,7 @@ export const channelStyles = `
     min-width: 30px;
     height: 24px;
     border-radius: 999px;
-    border: 1px solid rgba(255,255,255,0.08);
+    border: 1px solid var(--border-subtle);
     background: rgba(255,255,255,0.05);
     color: #fff;
     display: inline-flex;
@@ -751,7 +751,7 @@ export const channelStyles = `
     left: 50%;
     transform: translateX(-50%);
     background: rgba(20,20,22,0.95);
-    border: 1px solid rgba(255,255,255,0.1);
+    border: 1px solid var(--border-subtle);
     border-radius: 12px;
     padding: 6px;
     box-shadow: 0 4px 15px rgba(0,0,0,0.5);
@@ -811,7 +811,7 @@ export const channelStyles = `
     width: 100%;
     min-height: 40px;
     border-radius: 8px;
-    border: 1px solid rgba(255,255,255,0.08);
+    border: 1px solid var(--border-subtle);
     background: rgba(255,255,255,0.05);
     color: #fff;
     padding: 0 12px;
@@ -828,7 +828,7 @@ export const channelStyles = `
   }
   .channel-poll-option-row button,
   .channel-poll-add {
-    border: 1px solid rgba(255,255,255,0.08);
+    border: 1px solid var(--border-subtle);
     background: rgba(255,255,255,0.05);
     color: #fff;
     border-radius: 8px;
@@ -890,7 +890,7 @@ export const channelStyles = `
     overflow: hidden;
     min-height: 38px;
     border-radius: 8px;
-    border: 1px solid rgba(255,255,255,0.08);
+    border: 1px solid var(--border-subtle);
     background: rgba(255,255,255,0.04);
     color: #fff;
     display: flex;

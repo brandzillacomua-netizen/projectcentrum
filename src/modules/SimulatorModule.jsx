@@ -811,12 +811,12 @@ const SimulatorModule = () => {
   }
 
   return (
-    <div className="simulator-module" style={{ background: '#050505', minHeight: '100vh', color: '#fff', display: 'flex', flexDirection: 'column' }}>
+    <div className="simulator-module" style={{ background: 'var(--surface-inset)', minHeight: '100vh', color: 'var(--text-strong)', display: 'flex', flexDirection: 'column' }}>
       
       {/* NAVBAR */}
-      <nav className="module-nav" style={{ flexShrink: 0, padding: '0 25px', height: '80px', background: '#0a0a0a', borderBottom: '1px solid #1a1a1a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <nav className="module-nav" style={{ flexShrink: 0, padding: '0 25px', height: '80px', background: 'var(--surface-inset)', borderBottom: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-          <Link to="/" style={{ color: '#555', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', fontWeight: 800 }}>
+          <Link to="/" style={{ color: 'var(--text-dim)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', fontWeight: 800 }}>
             <ArrowLeft size={18} /> НА ГОЛОВНУ
           </Link>
         </div>
@@ -838,20 +838,20 @@ const SimulatorModule = () => {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '25px', maxWidth: '1600px', margin: '0 auto', width: '100%' }}>
           
           {/* CONTROLS & PARAMS */}
-          <div className="glass-panel" style={{ background: '#0a0a0a', border: '1px solid #1a1a1a', borderRadius: '28px', padding: '25px', display: 'flex', flexDirection: 'column', gap: '20px', height: 'fit-content' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', borderBottom: '1px solid #222', paddingBottom: '15px' }}>
+          <div className="glass-panel" style={{ background: 'var(--surface-inset)', border: '1px solid var(--border-subtle)', borderRadius: '28px', padding: '25px', display: 'flex', flexDirection: 'column', gap: '20px', height: 'fit-content' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '15px' }}>
               <Settings size={20} color="#ff9000" />
               <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 900, textTransform: 'uppercase' }}>Налаштування симулятора</h3>
             </div>
 
             {/* Product selection selector */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <label style={{ fontSize: '0.75rem', fontWeight: 800, color: '#aaa' }}>ВИБІР ВИРОБУ ДЛЯ ТЕСТУ</label>
+              <label style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-muted)' }}>ВИБІР ВИРОБУ ДЛЯ ТЕСТУ</label>
               <select 
                 value={selectedProductOption}
                 disabled={isRunning}
                 onChange={e => setSelectedProductOption(e.target.value)}
-                style={{ width: '100%', background: '#111', border: '1px solid #222', borderRadius: '12px', padding: '12px', color: '#fff', fontWeight: 700 }}
+                style={{ width: '100%', background: 'var(--surface-1)', border: '1px solid var(--border-subtle)', borderRadius: '12px', padding: '12px', color: 'var(--text-strong)', fontWeight: 700 }}
               >
                 <option value="random">Всі вироби (рандомно)</option>
                 {parentProductsList.map(p => (
@@ -863,7 +863,7 @@ const SimulatorModule = () => {
             {/* Order Count Input */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', fontWeight: 800 }}>
-                <span style={{ color: '#aaa' }}>КІЛЬКІСТЬ ЗАМОВЛЕНЬ</span>
+                <span style={{ color: 'var(--text-muted)' }}>КІЛЬКІСТЬ ЗАМОВЛЕНЬ</span>
                 <span style={{ color: '#ff9000' }}>{orderCount} шт.</span>
               </div>
               <input 
@@ -879,14 +879,14 @@ const SimulatorModule = () => {
                   if (val > 50) val = 50
                   setOrderCount(val)
                 }}
-                style={{ width: '100%', background: '#111', border: '1px solid #222', borderRadius: '12px', padding: '12px', color: '#fff', fontWeight: 700 }}
+                style={{ width: '100%', background: 'var(--surface-1)', border: '1px solid var(--border-subtle)', borderRadius: '12px', padding: '12px', color: 'var(--text-strong)', fontWeight: 700 }}
               />
             </div>
 
             {/* Delay slider */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', fontWeight: 800 }}>
-                <span style={{ color: '#aaa' }}>ЗАТРИМКА МІЖ КРОКАМИ</span>
+                <span style={{ color: 'var(--text-muted)' }}>ЗАТРИМКА МІЖ КРОКАМИ</span>
                 <span style={{ color: '#06b6d4' }}>{delay} мс</span>
               </div>
               <input 
@@ -904,7 +904,7 @@ const SimulatorModule = () => {
             {/* Min Quantity input */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', fontWeight: 800 }}>
-                <span style={{ color: '#aaa' }}>МІНІМАЛЬНА КІЛЬКІСТЬ</span>
+                <span style={{ color: 'var(--text-muted)' }}>МІНІМАЛЬНА КІЛЬКІСТЬ</span>
                 <span style={{ color: '#ff9000' }}>{minQty} шт.</span>
               </div>
               <input 
@@ -923,14 +923,14 @@ const SimulatorModule = () => {
                     setMaxQty(val)
                   }
                 }}
-                style={{ width: '100%', background: '#111', border: '1px solid #222', borderRadius: '12px', padding: '12px', color: '#fff', fontWeight: 700 }}
+                style={{ width: '100%', background: 'var(--surface-1)', border: '1px solid var(--border-subtle)', borderRadius: '12px', padding: '12px', color: 'var(--text-strong)', fontWeight: 700 }}
               />
             </div>
 
             {/* Max Quantity input */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', fontWeight: 800 }}>
-                <span style={{ color: '#aaa' }}>МАКСИМАЛЬНА КІЛЬКІСТЬ</span>
+                <span style={{ color: 'var(--text-muted)' }}>МАКСИМАЛЬНА КІЛЬКІСТЬ</span>
                 <span style={{ color: '#ff9000' }}>{maxQty} шт.</span>
               </div>
               <input 
@@ -947,14 +947,14 @@ const SimulatorModule = () => {
                   if (val > 10000) val = 10000
                   setMaxQty(val)
                 }}
-                style={{ width: '100%', background: '#111', border: '1px solid #222', borderRadius: '12px', padding: '12px', color: '#fff', fontWeight: 700 }}
+                style={{ width: '100%', background: 'var(--surface-1)', border: '1px solid var(--border-subtle)', borderRadius: '12px', padding: '12px', color: 'var(--text-strong)', fontWeight: 700 }}
               />
             </div>
 
             {/* Slider 2: Scrap rate */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', fontWeight: 800 }}>
-                <span style={{ color: '#aaa' }}>ЙМОВІРНІСТЬ БРАКУ / ВКЯ</span>
+                <span style={{ color: 'var(--text-muted)' }}>ЙМОВІРНІСТЬ БРАКУ / ВКЯ</span>
                 <span style={{ color: '#ef4444' }}>{scrapRate}%</span>
               </div>
               <input 
@@ -973,7 +973,7 @@ const SimulatorModule = () => {
               {!isRunning ? (
                 <button 
                   onClick={startSimulation}
-                  style={{ width: '100%', padding: '16px', background: 'linear-gradient(135deg, #ff9000, #ff5500)', border: 'none', borderRadius: '14px', color: '#000', fontWeight: 1000, fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: '0.2s' }}
+                  style={{ width: '100%', padding: '16px', background: 'linear-gradient(135deg, #ff9000, #ff5500)', border: 'none', borderRadius: '14px', color: 'var(--surface-black)', fontWeight: 1000, fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: '0.2s' }}
                 >
                   <Play size={16} fill="#000" /> ЗАПУСТИТИ ЖИВИЙ ТЕСТ
                 </button>
@@ -989,15 +989,15 @@ const SimulatorModule = () => {
               <button 
                 onClick={handleCleanup}
                 disabled={isRunning}
-                style={{ width: '100%', padding: '14px', background: '#111', border: '1px solid #222', borderRadius: '14px', color: '#aaa', fontWeight: 800, fontSize: '0.75rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', opacity: isRunning ? 0.3 : 1 }}
+                style={{ width: '100%', padding: '14px', background: 'var(--surface-1)', border: '1px solid var(--border-subtle)', borderRadius: '14px', color: '#aaa', fontWeight: 800, fontSize: '0.75rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', opacity: isRunning ? 0.3 : 1 }}
               >
                 <RefreshCw size={14} /> ОЧИСТИТИ ТЕСТОВІ ДАНІ (SIM-*)
               </button>
             </div>
 
             {/* PROGRESS & STATUS */}
-            <div style={{ marginTop: '10px', background: '#050505', borderRadius: '16px', padding: '15px', border: '1px solid #151515' }}>
-              <div style={{ fontSize: '0.65rem', color: '#555', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>СТАТУС РУШІЯ</div>
+            <div style={{ marginTop: '10px', background: 'var(--surface-inset)', borderRadius: '16px', padding: '15px', border: '1px solid #151515' }}>
+              <div style={{ fontSize: '0.65rem', color: 'var(--text-dim)', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>СТАТУС РУШІЯ</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
                 {isRunning ? <Loader2 size={16} className="anim-spin" color="#ff9000" /> : <CheckCircle2 size={16} color="#10b981" />}
                 <span style={{ fontSize: '0.8rem', fontWeight: 800, color: isRunning ? '#ff9000' : '#10b981' }}>{statusText}</span>
@@ -1014,20 +1014,20 @@ const SimulatorModule = () => {
             
             {/* GRID STATE VIEW */}
             {simulatedOrders.length > 0 && (
-              <div className="glass-panel" style={{ background: '#0a0a0a', border: '1px solid #1a1a1a', borderRadius: '28px', padding: '25px' }}>
-                <h3 style={{ margin: '0 0 15px 0', fontSize: '0.9rem', fontWeight: 900, textTransform: 'uppercase', borderBottom: '1px solid #222', paddingBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div className="glass-panel" style={{ background: 'var(--surface-inset)', border: '1px solid var(--border-subtle)', borderRadius: '28px', padding: '25px' }}>
+                <h3 style={{ margin: '0 0 15px 0', fontSize: '0.9rem', fontWeight: 900, textTransform: 'uppercase', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <Clipboard size={18} color="#3b82f6" /> Тестові замовлення ({simulatedOrders.length})
                 </h3>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '12px', maxHeight: '250px', overflowY: 'auto', paddingRight: '5px' }}>
                   {simulatedOrders.map(sim => (
-                    <div key={sim.id} style={{ background: '#111', border: '1px solid #1d1d1d', borderRadius: '16px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '6px', opacity: sim.status === 'completed' ? 0.6 : 1 }}>
+                    <div key={sim.id} style={{ background: 'var(--surface-1)', border: '1px solid #1d1d1d', borderRadius: '16px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '6px', opacity: sim.status === 'completed' ? 0.6 : 1 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <span style={{ fontWeight: 900, fontSize: '0.85rem' }}>{sim.orderNum}</span>
                         <span style={{ fontSize: '0.6rem', padding: '3px 8px', borderRadius: '6px', background: sim.status === 'completed' ? '#10b98122' : (sim.status === 'stuck' ? '#ef444422' : '#ff900022'), color: sim.status === 'completed' ? '#10b981' : (sim.status === 'stuck' ? '#ef4444' : '#ff9000'), fontWeight: 900 }}>
                           {sim.status === 'completed' ? 'ГОТОВО' : (sim.status === 'stuck' ? 'ЗАВИС' : sim.step.toUpperCase())}
                         </span>
                       </div>
-                      <div style={{ fontSize: '0.7rem', color: '#888', fontWeight: 600 }}>{sim.nomenclatureName} ({sim.quantity} шт)</div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600 }}>{sim.nomenclatureName} ({sim.quantity} шт)</div>
                       <div style={{ display: 'flex', gap: '6px', marginTop: '2px' }}>
                         {sim.scrapOccurred && <span style={{ fontSize: '0.55rem', background: '#ef444415', color: '#ef4444', padding: '2px 6px', borderRadius: '4px', fontWeight: 800 }}>⚠️ БРАК 1</span>}
                         {sim.hasRework && <span style={{ fontSize: '0.55rem', background: '#f59e0b15', color: '#f59e0b', padding: '2px 6px', borderRadius: '4px', fontWeight: 800 }}>🔄 ДОВИПУСК</span>}
@@ -1048,25 +1048,25 @@ const SimulatorModule = () => {
                 
                 {/* Stats row */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '15px' }}>
-                  <div style={{ background: '#111', border: '1px solid #1d1d1d', padding: '15px', borderRadius: '16px' }}>
-                    <div style={{ fontSize: '0.65rem', color: '#555', fontWeight: 900 }}>УСПІШНІСТЬ</div>
+                  <div style={{ background: 'var(--surface-1)', border: '1px solid #1d1d1d', padding: '15px', borderRadius: '16px' }}>
+                    <div style={{ fontSize: '0.65rem', color: 'var(--text-dim)', fontWeight: 900 }}>УСПІШНІСТЬ</div>
                     <div style={{ fontSize: '1.6rem', fontWeight: 1000, color: '#10b981', marginTop: '5px' }}>{report.successRate}%</div>
                   </div>
-                  <div style={{ background: '#111', border: '1px solid #1d1d1d', padding: '15px', borderRadius: '16px' }}>
-                    <div style={{ fontSize: '0.65rem', color: '#555', fontWeight: 900 }}>ВИКОНАНО</div>
-                    <div style={{ fontSize: '1.6rem', fontWeight: 1000, color: '#fff', marginTop: '5px' }}>{report.totalShipped} / {report.totalCreated}</div>
+                  <div style={{ background: 'var(--surface-1)', border: '1px solid #1d1d1d', padding: '15px', borderRadius: '16px' }}>
+                    <div style={{ fontSize: '0.65rem', color: 'var(--text-dim)', fontWeight: 900 }}>ВИКОНАНО</div>
+                    <div style={{ fontSize: '1.6rem', fontWeight: 1000, color: 'var(--text-strong)', marginTop: '5px' }}>{report.totalShipped} / {report.totalCreated}</div>
                   </div>
-                  <div style={{ background: '#111', border: '1px solid #1d1d1d', padding: '15px', borderRadius: '16px' }}>
-                    <div style={{ fontSize: '0.65rem', color: '#555', fontWeight: 900 }}>БРАК РОЗКРОЮ</div>
+                  <div style={{ background: 'var(--surface-1)', border: '1px solid #1d1d1d', padding: '15px', borderRadius: '16px' }}>
+                    <div style={{ fontSize: '0.65rem', color: 'var(--text-dim)', fontWeight: 900 }}>БРАК РОЗКРОЮ</div>
                     <div style={{ fontSize: '1.6rem', fontWeight: 1000, color: '#ef4444', marginTop: '5px' }}>{report.totalScrap} шт</div>
                   </div>
-                  <div style={{ background: '#111', border: '1px solid #1d1d1d', padding: '15px', borderRadius: '16px' }}>
-                    <div style={{ fontSize: '0.65rem', color: '#555', fontWeight: 900 }}>ВИЯВЛЕНО ВКЯ</div>
+                  <div style={{ background: 'var(--surface-1)', border: '1px solid #1d1d1d', padding: '15px', borderRadius: '16px' }}>
+                    <div style={{ fontSize: '0.65rem', color: 'var(--text-dim)', fontWeight: 900 }}>ВИЯВЛЕНО ВКЯ</div>
                     <div style={{ fontSize: '1.6rem', fontWeight: 1000, color: '#f59e0b', marginTop: '5px' }}>{report.totalRework} шт</div>
                   </div>
                 </div>
 
-                <div style={{ background: '#111', border: '1px solid #1d1d1d', borderRadius: '16px', padding: '20px', fontSize: '0.85rem', lineHeight: 1.5, color: '#ccc' }}>
+                <div style={{ background: 'var(--surface-1)', border: '1px solid #1d1d1d', borderRadius: '16px', padding: '20px', fontSize: '0.85rem', lineHeight: 1.5, color: '#ccc' }}>
                   <strong>Аналітика рушія:</strong>
                   <p style={{ margin: '8px 0 0 0' }}>{report.analysis}</p>
                 </div>
@@ -1074,8 +1074,8 @@ const SimulatorModule = () => {
             )}
 
             {/* LIVE LOGS FEED */}
-            <div className="glass-panel" style={{ background: '#0a0a0a', border: '1px solid #1a1a1a', borderRadius: '28px', padding: '25px', display: 'flex', flexDirection: 'column', height: '400px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', borderBottom: '1px solid #222', paddingBottom: '15px', marginBottom: '15px', flexShrink: 0 }}>
+            <div className="glass-panel" style={{ background: 'var(--surface-inset)', border: '1px solid var(--border-subtle)', borderRadius: '28px', padding: '25px', display: 'flex', flexDirection: 'column', height: '400px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '15px', marginBottom: '15px', flexShrink: 0 }}>
                 <BarChart2 size={20} color="#06b6d4" />
                 <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 900, textTransform: 'uppercase' }}>Журнал роботи робота-симулятора</h3>
               </div>

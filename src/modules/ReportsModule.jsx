@@ -89,11 +89,11 @@ const ReportsModule = () => {
     if (isSyncing && HISTORY_REPORT_TABS.has(activeTab)) {
       return (
         <div className="glass-panel" style={{
-          background: '#09090b',
+          background: 'var(--surface-inset)',
           padding: '70px 30px',
           borderRadius: '24px',
           border: '1px solid #27272a',
-          color: '#aaa',
+          color: 'var(--text-muted)',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
@@ -104,7 +104,7 @@ const ReportsModule = () => {
           boxShadow: '0 20px 40px rgba(0,0,0,0.5)'
         }}>
           <RefreshCw size={38} className="spin" color="#ff9000" />
-          <div style={{ fontSize: '1.25rem', fontWeight: 950, color: '#fff', letterSpacing: '0.3px' }}>
+          <div style={{ fontSize: '1.25rem', fontWeight: 950, color: 'var(--text-strong)', letterSpacing: '0.3px' }}>
             Завантажуємо дані за обраний період...
           </div>
           <div style={{ fontSize: '0.85rem', color: '#71717a' }}>
@@ -117,7 +117,7 @@ const ReportsModule = () => {
     if (historyLoadError && HISTORY_REPORT_TABS.has(activeTab)) {
       return (
         <div className="glass-panel" style={{
-          background: '#09090b',
+          background: 'var(--surface-inset)',
           padding: '40px 30px',
           borderRadius: '24px',
           border: '1px solid #7f1d1d',
@@ -131,7 +131,7 @@ const ReportsModule = () => {
           margin: '10px 0'
         }}>
           <AlertTriangle size={32} color="#ef4444" />
-          <div style={{ fontSize: '1.1rem', fontWeight: 900, color: '#fff' }}>Не вдалося завантажити дані за обраний період</div>
+          <div style={{ fontSize: '1.1rem', fontWeight: 900, color: 'var(--text-strong)' }}>Не вдалося завантажити дані за обраний період</div>
           <div style={{ fontSize: '0.85rem', color: '#f87171' }}>{historyLoadError}</div>
         </div>
       )

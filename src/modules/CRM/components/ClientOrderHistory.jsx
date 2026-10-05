@@ -147,11 +147,11 @@ export const ClientOrderHistory = ({ orders = [] }) => {
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      background: 'rgba(255,255,255,0.03)',
+                      background: 'var(--fill-subtle)',
                       padding: '8px 12px',
                       borderRadius: '10px',
                       fontSize: '0.84rem',
-                      border: '1px solid rgba(255,255,255,0.05)'
+                      border: '1px solid var(--border-subtle)'
                     }}
                   >
                     <div style={{ fontWeight: 850, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '8px' }}>

@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom'
 
 export const OperatorHeader = ({ currentTime, setIsDrawerOpen }) => {
   return (
-    <header className="terminal-nav" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 20px', height: '70px', background: '#000', borderBottom: '2px solid #eab308', flexShrink: 0 }}>
+    <header className="terminal-nav" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 20px', height: '70px', background: 'var(--surface-black)', borderBottom: '2px solid #eab308', flexShrink: 0 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
         <Link to="/" style={{ color: '#94a3b8', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, fontSize: '0.85rem' }}>
           <ArrowLeft size={18} /> <span className="hide-mobile">Вихід</span>

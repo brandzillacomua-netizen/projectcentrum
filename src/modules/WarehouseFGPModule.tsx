@@ -345,7 +345,7 @@ export const WarehouseFGPModule: React.FC = () => {
               onMouseLeave={e => { e.currentTarget.style.background = '#10b981' }}
             >
               <Package size={17} color="#ffffff" />
-              <span style={{ color: '#ffffff', fontWeight: 900 }}>
+              <span style={{ color: 'var(--text-strong)', fontWeight: 900 }}>
                 ← ДО ЧЕРГИ ЗАПИТІВ {activePackagingRequests.length > 0 ? `(${activePackagingRequests.length})` : ''}
               </span>
             </button>

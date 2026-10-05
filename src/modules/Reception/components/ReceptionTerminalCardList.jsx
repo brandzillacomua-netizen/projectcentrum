@@ -26,7 +26,7 @@ export default function ReceptionTerminalCardList({
             : formatDuration(card.started_at)
 
           return (
-            <div key={card.id} style={{ background: 'var(--card-bg, #111116)', border: '1px solid var(--glass-border, rgba(255,255,255,0.03))', borderRadius: '18px', padding: '16px 18px', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '16px', position: 'relative' }} className="hover-lift">
+            <div key={card.id} style={{ background: 'var(--card-bg, #111116)', border: '1px solid var(--glass-border, var(--border-subtle))', borderRadius: '18px', padding: '16px 18px', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '16px', position: 'relative' }} className="hover-lift">
               <div style={{ position: 'absolute', left: 0, top: '15px', bottom: '15px', width: '3px', background: isWaiting ? '#f59e0b' : '#10b981', borderRadius: '0 3px 3px 0' }} />
               <div style={{ flex: '1 1 300px', paddingLeft: '6px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>

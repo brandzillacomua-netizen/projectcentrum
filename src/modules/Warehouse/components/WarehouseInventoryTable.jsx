@@ -39,7 +39,7 @@ const WarehouseInventoryTableRow = React.memo(({
           <WarehouseNomenclatureLink item={item} />
           {item.type?.startsWith('scrap') && (() => {
             const types = {
-              'scrap': { label: 'Прийомка', color: '#555' },
+              'scrap': { label: 'Прийомка', color: 'var(--text-dim)' },
               'scrap_ready': { label: 'До обробки', color: '#ef4444' },
               'scrap_cat_1': { label: 'Кат. 1', color: '#10b981' },
               'scrap_cat_2': { label: 'Кат. 2', color: '#eab308' },
@@ -89,7 +89,7 @@ const WarehouseInventoryTableRow = React.memo(({
             value={editingInvTotal}
             onChange={e => setEditingInvTotal(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') handleSaveInventoryQty(item.id) }}
-            style={{ width: '80px', background: '#000', border: '1px solid #ff9000', color: '#fff', textAlign: 'center', borderRadius: '6px', padding: '4px' }}
+            style={{ width: '80px', background: 'var(--surface-black)', border: '1px solid #ff9000', color: 'var(--text-strong)', textAlign: 'center', borderRadius: '6px', padding: '4px' }}
           />
         ) : (
           <>{displayTotalQty} <small style={{ color: '#444', fontWeight: 400 }}>{item.unit}</small></>
@@ -106,17 +106,17 @@ const WarehouseInventoryTableRow = React.memo(({
               value={editingInvReserved}
               onChange={e => setEditingInvReserved(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') handleSaveInventoryQty(item.id) }}
-              style={{ width: '80px', background: '#000', border: '1px solid #3b82f6', color: '#fff', textAlign: 'center', borderRadius: '6px', padding: '4px' }}
+              style={{ width: '80px', background: 'var(--surface-black)', border: '1px solid #3b82f6', color: 'var(--text-strong)', textAlign: 'center', borderRadius: '6px', padding: '4px' }}
             />
             <button
               type="button"
               onClick={() => handleSaveInventoryQty(item.id)}
               disabled={savingInv}
-              style={{ background: '#10b981', border: 'none', borderRadius: '6px', padding: '5px 10px', color: '#000', fontWeight: 900, cursor: 'pointer' }}
+              style={{ background: '#10b981', border: 'none', borderRadius: '6px', padding: '5px 10px', color: 'var(--surface-black)', fontWeight: 900, cursor: 'pointer' }}
             >
               {savingInv ? '...' : <Check size={14} />}
             </button>
-            <button type="button" onClick={() => setEditingInvId(null)} style={{ background: '#222', border: 'none', borderRadius: '6px', padding: '5px 10px', color: '#fff', cursor: 'pointer' }}><X size={14} /></button>
+            <button type="button" onClick={() => setEditingInvId(null)} style={{ background: 'var(--surface-3)', border: 'none', borderRadius: '6px', padding: '5px 10px', color: 'var(--text-strong)', cursor: 'pointer' }}><X size={14} /></button>
           </div>
         ) : (
           reservedQty > 0 ? (
@@ -163,7 +163,7 @@ const WarehouseInventoryMobileCard = React.memo(({
   const itemCode = linkedNom?.code || '—'
 
   return (
-    <div style={{ background: '#111', padding: '15px', borderRadius: '16px', border: '1px solid #222', marginBottom: '10px' }}>
+    <div style={{ background: 'var(--surface-1)', padding: '15px', borderRadius: '16px', border: '1px solid var(--border-subtle)', marginBottom: '10px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', alignItems: 'center' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
           <strong><WarehouseNomenclatureLink item={item} /></strong>
@@ -190,21 +190,21 @@ const WarehouseInventoryMobileCard = React.memo(({
         {isEditing ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }}>
             <div>
-              <label style={{ fontSize: '0.65rem', color: '#555', display: 'block', marginBottom: '4px' }}>НАЯВНІСТЬ</label>
+              <label style={{ fontSize: '0.65rem', color: 'var(--text-dim)', display: 'block', marginBottom: '4px' }}>НАЯВНІСТЬ</label>
               <input
                 type="number"
                 value={editingInvTotal}
                 onChange={e => setEditingInvTotal(e.target.value)}
-                style={{ width: '100%', background: '#000', border: '1px solid #ff9000', color: '#fff', borderRadius: '6px', padding: '8px', boxSizing: 'border-box' }}
+                style={{ width: '100%', background: 'var(--surface-black)', border: '1px solid #ff9000', color: 'var(--text-strong)', borderRadius: '6px', padding: '8px', boxSizing: 'border-box' }}
               />
             </div>
             <div>
-              <label style={{ fontSize: '0.65rem', color: '#555', display: 'block', marginBottom: '4px' }}>РЕЗЕРВ</label>
+              <label style={{ fontSize: '0.65rem', color: 'var(--text-dim)', display: 'block', marginBottom: '4px' }}>РЕЗЕРВ</label>
               <input
                 type="number"
                 value={editingInvReserved}
                 onChange={e => setEditingInvReserved(e.target.value)}
-                style={{ width: '100%', background: '#000', border: '1px solid #3b82f6', color: '#fff', borderRadius: '6px', padding: '8px', boxSizing: 'border-box' }}
+                style={{ width: '100%', background: 'var(--surface-black)', border: '1px solid #3b82f6', color: 'var(--text-strong)', borderRadius: '6px', padding: '8px', boxSizing: 'border-box' }}
               />
             </div>
             <div style={{ display: 'flex', gap: '10px', marginTop: '5px' }}>
@@ -212,28 +212,28 @@ const WarehouseInventoryMobileCard = React.memo(({
                 type="button"
                 onClick={() => handleSaveInventoryQty(item.id)}
                 disabled={savingInv}
-                style={{ flex: 1, background: '#10b981', color: '#000', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 900, cursor: 'pointer' }}
+                style={{ flex: 1, background: '#10b981', color: 'var(--surface-black)', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 900, cursor: 'pointer' }}
               >
                 {savingInv ? '...' : 'ЗБЕРЕГТИ'}
               </button>
-              <button type="button" onClick={() => setEditingInvId(null)} style={{ flex: 1, background: '#222', color: '#fff', border: 'none', padding: '10px', borderRadius: '8px', cursor: 'pointer' }}>СКАСУВАТИ</button>
+              <button type="button" onClick={() => setEditingInvId(null)} style={{ flex: 1, background: 'var(--surface-3)', color: 'var(--text-strong)', border: 'none', padding: '10px', borderRadius: '8px', cursor: 'pointer' }}>СКАСУВАТИ</button>
             </div>
           </div>
         ) : (
           <>
             <div>
-              <div style={{ fontSize: '0.6rem', color: '#555' }}>НАЯВНІСТЬ</div>
+              <div style={{ fontSize: '0.6rem', color: 'var(--text-dim)' }}>НАЯВНІСТЬ</div>
               <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#ff9000' }}>{item.total_qty || 0}</div>
             </div>
             {activeTab !== 'bz' && (
               <div>
-                <div style={{ fontSize: '0.6rem', color: '#555' }}>ВІЛЬНО</div>
+                <div style={{ fontSize: '0.6rem', color: 'var(--text-dim)' }}>ВІЛЬНО</div>
                 <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#10b981' }}>{(item.total_qty || 0) - (item.reserved_qty || 0)}</div>
               </div>
             )}
             {activeTab !== 'bz' && (
               <div>
-                <div style={{ fontSize: '0.6rem', color: '#555' }}>РЕЗЕРВ</div>
+                <div style={{ fontSize: '0.6rem', color: 'var(--text-dim)' }}>РЕЗЕРВ</div>
                 <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#3b82f6' }}>
                   {Number(item.reserved_qty) > 0 ? (
                     <span 
@@ -279,13 +279,13 @@ export const WarehouseInventoryTable = ({
       <div className="table-responsive-container hide-mobile">
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
-            <tr style={{ borderBottom: '1px solid #222', textAlign: 'left' }}>
-              <th className="sticky-col" style={{ padding: '15px', fontSize: '0.7rem', color: '#555' }}>НАЙМЕНУВАННЯ</th>
-              <th style={{ padding: '15px', fontSize: '0.7rem', color: '#555' }}>АРТИКУЛ</th>
-              <th style={{ padding: '15px', fontSize: '0.7rem', color: '#555', textAlign: 'center' }}>НАЯВНІСТЬ</th>
-              <th style={{ padding: '15px', fontSize: '0.7rem', color: '#555', textAlign: 'center' }}>ВІЛЬНО</th>
-              <th style={{ padding: '15px', fontSize: '0.7rem', color: '#555', textAlign: 'center' }}>РЕЗЕРВ</th>
-              <th style={{ padding: '15px', fontSize: '0.7rem', color: '#555', textAlign: 'right' }}>ОСТАННЄ ОНОВЛЕННЯ</th>
+            <tr style={{ borderBottom: '1px solid var(--border-subtle)', textAlign: 'left' }}>
+              <th className="sticky-col" style={{ padding: '15px', fontSize: '0.7rem', color: 'var(--text-dim)' }}>НАЙМЕНУВАННЯ</th>
+              <th style={{ padding: '15px', fontSize: '0.7rem', color: 'var(--text-dim)' }}>АРТИКУЛ</th>
+              <th style={{ padding: '15px', fontSize: '0.7rem', color: 'var(--text-dim)', textAlign: 'center' }}>НАЯВНІСТЬ</th>
+              <th style={{ padding: '15px', fontSize: '0.7rem', color: 'var(--text-dim)', textAlign: 'center' }}>ВІЛЬНО</th>
+              <th style={{ padding: '15px', fontSize: '0.7rem', color: 'var(--text-dim)', textAlign: 'center' }}>РЕЗЕРВ</th>
+              <th style={{ padding: '15px', fontSize: '0.7rem', color: 'var(--text-dim)', textAlign: 'right' }}>ОСТАННЄ ОНОВЛЕННЯ</th>
             </tr>
           </thead>
           <tbody>

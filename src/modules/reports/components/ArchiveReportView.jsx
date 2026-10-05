@@ -33,7 +33,7 @@ export const ArchiveReportView = ({
       {/* Header + Controls */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '15px', flexWrap: 'wrap' }}>
         <div>
-          <h2 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 900, color: '#fff' }}>Архів нарядів</h2>
+          <h2 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 900, color: 'var(--text-strong)' }}>Архів нарядів</h2>
           <div style={{ fontSize: '0.8rem', color: '#71717a', marginTop: '4px' }}>
             Серверний архів: знайдено {archiveTotalCount} {archiveTotalCount === 1 ? 'партію' : archiveTotalCount < 5 ? 'партії' : 'партій'}
             {archiveTotalPages > 1 && ` • Сторінка ${archivePage + 1} з ${archiveTotalPages}`}
@@ -42,20 +42,20 @@ export const ArchiveReportView = ({
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
           {/* Search */}
           <div style={{ position: 'relative' }}>
-            <Search size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#555' }} />
+            <Search size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-dim)' }} />
             <input
               value={archiveSearch}
               onChange={e => setArchiveSearch(e.target.value)}
               placeholder="Пошук за номером, клієнтом, кроком..."
-              style={{ background: '#0a0a0a', border: '1px solid #222', color: '#fff', padding: '10px 15px 10px 35px', borderRadius: '10px', fontSize: '0.85rem', width: '280px', outline: 'none' }}
+              style={{ background: 'var(--surface-inset)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', padding: '10px 15px 10px 35px', borderRadius: '10px', fontSize: '0.85rem', width: '280px', outline: 'none' }}
             />
-            {archiveSearch && <X size={14} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: '#555', cursor: 'pointer' }} onClick={() => setArchiveSearch('')} />}
+            {archiveSearch && <X size={14} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-dim)', cursor: 'pointer' }} onClick={() => setArchiveSearch('')} />}
           </div>
           {/* Status Filter */}
           <select
             value={archiveStatusFilter}
             onChange={e => setArchiveStatusFilter(e.target.value)}
-            style={{ background: '#0a0a0a', border: '1px solid #222', color: '#fff', padding: '10px 15px', borderRadius: '10px', fontSize: '0.85rem', outline: 'none', cursor: 'pointer' }}
+            style={{ background: 'var(--surface-inset)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', padding: '10px 15px', borderRadius: '10px', fontSize: '0.85rem', outline: 'none', cursor: 'pointer' }}
           >
             <option value="all">-- Всі статуси --</option>
             <option value="completed">Завершено</option>
@@ -82,10 +82,10 @@ export const ArchiveReportView = ({
           Завантаження архіву з сервера...
         </div>
       ) : (
-        <div style={{ overflowX: 'auto', borderRadius: '16px', border: '1px solid #1e1e1e', background: '#09090b' }}>
+        <div style={{ overflowX: 'auto', borderRadius: '16px', border: '1px solid #1e1e1e', background: 'var(--surface-inset)' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
             <thead>
-              <tr style={{ background: '#111', color: '#71717a', textAlign: 'left', borderBottom: '2px solid #1e1e1e' }}>
+              <tr style={{ background: 'var(--surface-1)', color: '#71717a', textAlign: 'left', borderBottom: '2px solid #1e1e1e' }}>
                 <th style={{ padding: '16px 20px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', fontSize: '0.7rem' }}>#</th>
                 <th style={{ padding: '16px 20px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', fontSize: '0.7rem' }}>Замовлення</th>
                 <th style={{ padding: '16px 20px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', fontSize: '0.7rem' }}>Клієнт</th>
@@ -126,7 +126,7 @@ export const ArchiveReportView = ({
                       {task.step || <span style={{ color: '#3f3f46' }}>—</span>}
                     </td>
                     <td style={{ padding: '14px 20px', textAlign: 'center' }}>
-                      <span style={{ background: '#18181b', color: '#a1a1aa', padding: '3px 10px', borderRadius: '6px', fontWeight: 700, fontSize: '0.8rem' }}>#{task.batch_index || '1'}</span>
+                      <span style={{ background: 'var(--surface-2)', color: '#a1a1aa', padding: '3px 10px', borderRadius: '6px', fontWeight: 700, fontSize: '0.8rem' }}>#{task.batch_index || '1'}</span>
                     </td>
                     <td style={{ padding: '14px 20px', textAlign: 'center' }}>
                       <span style={{ fontWeight: 900, color: '#ff9000' }}>{task.planned_sets || '—'}</span>
@@ -157,9 +157,9 @@ export const ArchiveReportView = ({
 
       {/* Modern Server Pagination Bar */}
       {archiveTotalPages > 1 && !archiveLoading && (
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 20px', background: '#09090b', borderRadius: '12px', border: '1px solid #1e1e1e', flexWrap: 'wrap', gap: '12px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 20px', background: 'var(--surface-inset)', borderRadius: '12px', border: '1px solid #1e1e1e', flexWrap: 'wrap', gap: '12px' }}>
           <div style={{ fontSize: '0.8rem', color: '#71717a' }}>
-            Показано <strong style={{ color: '#fff' }}>{startRecord}–{endRecord}</strong> із <strong style={{ color: '#fff' }}>{archiveTotalCount}</strong> нарядів
+            Показано <strong style={{ color: 'var(--text-strong)' }}>{startRecord}–{endRecord}</strong> із <strong style={{ color: 'var(--text-strong)' }}>{archiveTotalCount}</strong> нарядів
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

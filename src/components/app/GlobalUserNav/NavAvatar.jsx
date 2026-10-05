@@ -22,7 +22,7 @@ export const renderAvatar = (avatar, initials, size = '38px', fontSize = '0.85re
           height: size,
           borderRadius: '10px',
           objectFit: 'cover',
-          border: '1px solid rgba(255,255,255,0.1)'
+          border: '1px solid var(--border-subtle)'
         }}
       />
     );
@@ -38,10 +38,10 @@ export const renderAvatar = (avatar, initials, size = '38px', fontSize = '0.85re
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      color: '#fff',
+      color: 'var(--text-strong)',
       fontWeight: 1000,
       fontSize: fontSize,
-      border: '1px solid rgba(255,255,255,0.1)',
+      border: '1px solid var(--border-subtle)',
       textShadow: '0 1px 2px rgba(0,0,0,0.2)'
     }}>
       {initials}

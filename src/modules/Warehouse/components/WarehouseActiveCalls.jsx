@@ -15,10 +15,10 @@ export function WarehouseActiveCalls({ activeCalls, handleResolveCall }) {
         {activeCalls.map(c => {
           const mach = machines?.find(m => m.id === c.machine_id)
           return (
-            <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#111', border: '1px solid #222', borderRadius: '12px', padding: '12px 15px' }}>
+            <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--surface-1)', border: '1px solid var(--border-subtle)', borderRadius: '12px', padding: '12px 15px' }}>
               <div>
                 <div style={{ fontSize: '0.9rem', fontWeight: 800 }}>{mach ? mach.name : 'Верстат'} (№{mach?.sequence_number || '—'})</div>
-                <div style={{ fontSize: '0.75rem', color: '#888' }}>Викликав: {c.operator_name || 'Оператор'}</div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Викликав: {c.operator_name || 'Оператор'}</div>
               </div>
               <button onClick={() => handleResolveCall(c.id)} style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: 800 }}>ВИРІШИТИ</button>
             </div>

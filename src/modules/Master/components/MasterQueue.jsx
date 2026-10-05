@@ -19,7 +19,7 @@ export function MasterQueue({
   return (
     <section className="grid-col">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '10px' }}>
-        <h3 style={{ fontSize: '0.85rem', color: '#555', margin: 0, flex: 1, display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <h3 style={{ fontSize: '0.85rem', color: 'var(--text-dim)', margin: 0, flex: 1, display: 'flex', alignItems: 'center', gap: '8px' }}>
           <ListChecks size={16} /> ЧЕРГА ЗАМОВЛЕНЬ
         </h3>
         <div style={{ display: 'flex', gap: '8px' }}>
@@ -31,7 +31,7 @@ export function MasterQueue({
           </button>
           <button
             onClick={handleOpenCustomVirtualNaryad}
-            style={{ background: '#ff9000', color: '#000', border: 'none', padding: '6px 12px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer' }}
+            style={{ background: '#ff9000', color: 'var(--surface-black)', border: 'none', padding: '6px 12px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer' }}
           >
             ВЛАСНА РОБОЧА КАРТКА
           </button>
@@ -39,7 +39,7 @@ export function MasterQueue({
         <div style={{ position: 'relative' }}>
           <Search size={12} style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', color: '#444' }} />
           <input 
-            style={{ background: '#000', border: '1px solid #222', borderRadius: '8px', padding: '4px 8px 4px 25px', color: '#fff', fontSize: '0.75rem', width: '110px' }} 
+            style={{ background: 'var(--surface-black)', border: '1px solid var(--border-subtle)', borderRadius: '8px', padding: '4px 8px 4px 25px', color: 'var(--text-strong)', fontSize: '0.75rem', width: '110px' }} 
             placeholder="Пошук..." 
             value={searchQuery} 
             onChange={e => setSearchQuery(e.target.value)} 
@@ -49,7 +49,7 @@ export function MasterQueue({
 
       <div className="v-stack" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
         {filteredPending.map(order => (
-          <div key={order.id} className="order-p-card glass-panel" style={{ background: '#0a0a0a', padding: '18px', borderRadius: '20px', border: '1px solid #222', position: 'relative', overflow: 'hidden' }}>
+          <div key={order.id} className="order-p-card glass-panel" style={{ background: 'var(--surface-inset)', padding: '18px', borderRadius: '20px', border: '1px solid var(--border-subtle)', position: 'relative', overflow: 'hidden' }}>
             <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: '#ff9000' }}></div>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', alignItems: 'flex-start' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
@@ -61,11 +61,11 @@ export function MasterQueue({
                     setTempDeadline(order.deadline || '');
                   }}
                   className="interactive-naryad-title"
-                  style={{ fontSize: '1.2rem', fontWeight: 900, color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+                  style={{ fontSize: '1.2rem', fontWeight: 900, color: 'var(--text-strong)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
                 >
                   №{order.order_num}
                 </strong>
-                <span style={{ fontSize: '0.65rem', color: '#666', fontWeight: 700 }}>
+                <span style={{ fontSize: '0.65rem', color: 'var(--text-dim)', fontWeight: 700 }}>
                   {order.order_date ? new Date(order.order_date).toLocaleDateString('uk-UA') : ''}
                 </span>
               </div>
@@ -96,15 +96,15 @@ export function MasterQueue({
                 )}
               </div>
             </div>
-            <div style={{ fontSize: '0.85rem', color: '#ccc', fontWeight: 700, marginBottom: '15px' }}>{order.customer}</div>
+            <div style={{ fontSize: '0.85rem', color: 'var(--text-soft)', fontWeight: 700, marginBottom: '15px' }}>{order.customer}</div>
             
-            <div style={{ marginBottom: '15px', background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '12px', border: '1px solid #1a1a1a' }}>
+            <div style={{ marginBottom: '15px', background: 'var(--fill-subtle)', padding: '12px', borderRadius: '12px', border: '1px solid var(--border-subtle)' }}>
               {order.order_items?.map(it => {
                 const planned = getPlannedQty(it.id)
                 const total = Number(it.quantity)
                 const nom = nomenclatures.find(n => n.id === it.nomenclature_id)
                 return (
-                  <div key={it.id} style={{ fontSize: '0.75rem', color: planned >= total ? '#22c55e' : '#fff', display: 'flex', justifyContent: 'space-between', marginBottom: '4px', alignItems: 'center' }}>
+                  <div key={it.id} style={{ fontSize: '0.75rem', color: planned >= total ? '#22c55e' : 'var(--text-strong)', display: 'flex', justifyContent: 'space-between', marginBottom: '4px', alignItems: 'center' }}>
                     <span style={{ maxWidth: '75%', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{nom?.name}:</span>
                     <span style={{ fontWeight: 800 }}>{planned} / {total} шт</span>
                   </div>
@@ -132,17 +132,17 @@ export function MasterQueue({
               });
 
               return (
-                <div style={{ marginBottom: '15px', padding: '10px', background: 'rgba(255,255,255,0.02)', borderRadius: '12px', border: '1px solid #1a1a1a' }}>
-                  <div style={{ fontSize: '0.6rem', color: '#666', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>Вже в роботі:</div>
+                <div style={{ marginBottom: '15px', padding: '10px', background: 'var(--fill-subtle)', borderRadius: '12px', border: '1px solid var(--border-subtle)' }}>
+                  <div style={{ fontSize: '0.6rem', color: 'var(--text-dim)', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>Вже в роботі:</div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                     {Object.values(uniqueBatches).sort((a, b) => a.index - b.index).map(b => (
                       <span key={b.index} style={{
                         fontSize: '0.7rem',
                         padding: '4px 8px',
-                        background: b.isAllCompleted ? 'rgba(16, 185, 129, 0.1)' : 'rgba(255, 255, 255, 0.05)',
-                        color: b.isAllCompleted ? '#10b981' : '#aaa',
+                        background: b.isAllCompleted ? 'rgba(16, 185, 129, 0.1)' : 'var(--fill-subtle)',
+                        color: b.isAllCompleted ? '#10b981' : 'var(--text-muted)',
                         borderRadius: '6px',
-                        border: b.isAllCompleted ? '1px solid rgba(16, 185, 129, 0.2)' : '1px solid #222',
+                        border: b.isAllCompleted ? '1px solid rgba(16, 185, 129, 0.2)' : '1px solid var(--border-subtle)',
                         fontWeight: 800
                       }}>
                         ПАРТІЯ /{b.index}
@@ -160,7 +160,7 @@ export function MasterQueue({
                 setTempSets(maxRem);
                 setTempDeadline(order.deadline || '');
               }}
-              style={{ width: '100%', padding: '12px', background: '#ff9000', color: '#000', border: 'none', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}
+              style={{ width: '100%', padding: '12px', background: '#ff9000', color: 'var(--surface-black)', border: 'none', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}
             >
               Сформувати наряд
             </button>

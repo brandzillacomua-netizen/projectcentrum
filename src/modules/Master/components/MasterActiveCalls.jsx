@@ -26,8 +26,8 @@ export function MasterActiveCalls({
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <Info size={20} color="#ef4444" />
               <div>
-                <strong style={{ fontSize: '0.85rem', color: '#fff' }}>УВАГА: Терміновий виклик майстра!</strong>
-                <div style={{ fontSize: '0.72rem', color: '#aaa', marginTop: '2px' }}>
+                <strong style={{ fontSize: '0.85rem', color: 'var(--text-strong)' }}>УВАГА: Терміновий виклик майстра!</strong>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
                   Верстат: <strong>{m?.name || 'Невідомий'}</strong> {m?.sequence_number ? `№${m.sequence_number}` : ''} | Оператор: {c.operator_name || 'Не вказано'}
                 </div>
               </div>

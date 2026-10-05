@@ -184,7 +184,7 @@ export const StaffManagementView = ({
                 onClick={() => setUserForm({
                   id: null, login: '', password: '', first_name: '', last_name: '', position: 'Оператор розкрою', department: 'Цех №1', shift: 'Зміна 1', access_rights: { operator: true, shop1: true, tumbling_terminal: true, reception_terminal: true, sorting_terminal: true }
                 })}
-                style={{ background: '#222', color: '#aaa', border: 'none', padding: '14px 20px', borderRadius: '12px', fontSize: '0.85rem', fontWeight: 800, cursor: 'pointer' }}
+                style={{ background: 'var(--surface-3)', color: '#aaa', border: 'none', padding: '14px 20px', borderRadius: '12px', fontSize: '0.85rem', fontWeight: 800, cursor: 'pointer' }}
               >
                 Скасувати
               </button>
@@ -269,7 +269,7 @@ export const StaffManagementView = ({
           })}
 
           {filteredUsers.length === 0 && (
-            <div style={{ color: '#555', fontSize: '0.85rem', fontStyle: 'italic', padding: '20px', textAlign: 'center' }}>
+            <div style={{ color: 'var(--text-dim)', fontSize: '0.85rem', fontStyle: 'italic', padding: '20px', textAlign: 'center' }}>
               Співробітників не знайдено
             </div>
           )}

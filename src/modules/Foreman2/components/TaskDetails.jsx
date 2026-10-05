@@ -5,17 +5,17 @@ import { formatQty } from '../utils/normalize.js'
 import { getCardSheets } from '../features/shortage/shortageCalculations.js'
 
 const panelStyle = {
-  background: '#111',
-  border: '1px solid #222',
+  background: 'var(--surface-1)',
+  border: '1px solid var(--border-subtle)',
   borderRadius: '8px',
   padding: '12px 14px'
 }
 
 const getTaskBadge = (summary, task) => {
-  if (task.status === 'completed') return { label: 'Виконано', color: '#64748b', text: '#fff', icon: <CheckCircle2 size={13} /> }
-  if (summary.hasShortage || summary.totalShortage > 0) return { label: 'Потрібен довипуск', color: '#ef4444', text: '#fff', icon: <AlertTriangle size={13} /> }
-  if (summary.isReady) return { label: 'Готово до закриття', color: '#10b981', text: '#fff', icon: <PackageCheck size={13} /> }
-  if (summary.totalCards === 0) return { label: 'Новий', color: '#3b82f6', text: '#fff', icon: <Clipboard size={13} /> }
+  if (task.status === 'completed') return { label: 'Виконано', color: '#64748b', text: 'var(--text-strong)', icon: <CheckCircle2 size={13} /> }
+  if (summary.hasShortage || summary.totalShortage > 0) return { label: 'Потрібен довипуск', color: '#ef4444', text: 'var(--text-strong)', icon: <AlertTriangle size={13} /> }
+  if (summary.isReady) return { label: 'Готово до закриття', color: '#10b981', text: 'var(--text-strong)', icon: <PackageCheck size={13} /> }
+  if (summary.totalCards === 0) return { label: 'Новий', color: '#3b82f6', text: 'var(--text-strong)', icon: <Clipboard size={13} /> }
   return { label: 'В роботі', color: '#eab308', text: '#000', icon: <Layers size={13} /> }
 }
 
@@ -97,7 +97,7 @@ const getLoadProgress = (part, rowCapacityOverride) => {
 
 const SummaryCell = ({ label, value, color = '#fff' }) => (
   <div style={panelStyle}>
-    <div style={{ color: '#555', fontSize: '0.64rem', fontWeight: 950, textTransform: 'uppercase', marginBottom: '5px' }}>{label}</div>
+    <div style={{ color: 'var(--text-dim)', fontSize: '0.64rem', fontWeight: 950, textTransform: 'uppercase', marginBottom: '5px' }}>{label}</div>
     <div style={{ fontSize: '1.28rem', lineHeight: 1, fontWeight: 950, color }}>{value}</div>
   </div>
 )
@@ -107,12 +107,12 @@ const ScrapMap = ({ title, map, accent }) => {
 
   return (
     <div style={panelStyle}>
-      <div style={{ color: '#555', fontSize: '0.64rem', fontWeight: 950, textTransform: 'uppercase', marginBottom: '8px' }}>{title}</div>
+      <div style={{ color: 'var(--text-dim)', fontSize: '0.64rem', fontWeight: 950, textTransform: 'uppercase', marginBottom: '8px' }}>{title}</div>
       {entries.length === 0 ? (
         <div style={{ color: '#444', fontSize: '0.78rem', fontWeight: 850 }}>Немає даних</div>
       ) : entries.map(([name, qty]) => (
         <div key={name} style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', borderTop: '1px solid #1b1b1b', padding: '7px 0 0', marginTop: '7px', fontSize: '0.76rem' }}>
-          <span style={{ color: '#aaa', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
+          <span style={{ color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
           <strong style={{ color: accent, flexShrink: 0 }}>{formatQty(qty)}</strong>
         </div>
       ))}
@@ -142,7 +142,7 @@ const WorkCardTile = ({ card, onClick }) => {
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginTop: '11px' }}>
-        <span style={{ color: '#fff', background: status.color, borderRadius: '6px', padding: '4px 8px', fontSize: '0.6rem', fontWeight: 950, textTransform: 'uppercase' }}>
+        <span style={{ color: 'var(--text-strong)', background: status.color, borderRadius: '6px', padding: '4px 8px', fontSize: '0.6rem', fontWeight: 950, textTransform: 'uppercase' }}>
           {status.label}
         </span>
         {isRedo && (
@@ -251,7 +251,7 @@ const WorkCardsArchive = ({ parts, task, expandedId, onToggle, onOpenReissue, on
                   justifyContent: 'space-between',
                   alignItems: 'center',
                   background: 'var(--card-bg, #111)',
-                  border: '1px solid var(--glass-border, #222)',
+                  border: '1px solid var(--glass-border, var(--border-subtle))',
                   borderRadius: '12px',
                   padding: '12px 14px',
                   cursor: 'pointer',
@@ -349,7 +349,7 @@ const WorkCardsArchive = ({ parts, task, expandedId, onToggle, onOpenReissue, on
               </div>
 
               {expanded && (
-                <div style={{ margin: '8px 0 2px 12px', borderLeft: '2px solid var(--glass-border, #222)', paddingLeft: '12px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div style={{ margin: '8px 0 2px 12px', borderLeft: '2px solid var(--glass-border, var(--border-subtle))', paddingLeft: '12px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   {sortedCards.length > 0 ? (
                     Array.from(machineGroups.entries()).map(([machineType, machineCards]) => {
                       const machineKey = `${part.nomId}:${machineType}`
@@ -360,7 +360,7 @@ const WorkCardsArchive = ({ parts, task, expandedId, onToggle, onOpenReissue, on
                       const mProduced = machineCards.reduce((sum, c) => sum + (['completed', 'at-buffer', 'waiting-buffer', 'at-shop2-buffer'].includes(c.status) ? (Number(c.quantity) || 0) : 0), 0)
 
                       return (
-                        <div key={machineKey} style={{ background: 'var(--card-bg, #0b0b0b)', border: '1px solid var(--glass-border, #1f1f1f)', borderRadius: '12px', overflow: 'hidden', boxShadow: 'var(--shadow, none)' }}>
+                        <div key={machineKey} style={{ background: 'var(--card-bg, #0b0b0b)', border: '1px solid var(--glass-border, var(--border-subtle))', borderRadius: '12px', overflow: 'hidden', boxShadow: 'var(--shadow, none)' }}>
                           <div
                             onClick={() => toggleMachine(machineKey)}
                             style={{
@@ -370,7 +370,7 @@ const WorkCardsArchive = ({ parts, task, expandedId, onToggle, onOpenReissue, on
                               gap: '12px',
                               padding: '10px 14px',
                               background: 'var(--bg-card-hover, var(--card-bg, #121212))',
-                              borderBottom: isMachineExpanded ? '1px solid var(--glass-border, #1f1f1f)' : 'none',
+                              borderBottom: isMachineExpanded ? '1px solid var(--glass-border, var(--border-subtle))' : 'none',
                               cursor: 'pointer',
                               userSelect: 'none',
                               flexWrap: 'wrap'
@@ -424,7 +424,7 @@ const WorkCardsArchive = ({ parts, task, expandedId, onToggle, onOpenReissue, on
                       )
                     })
                   ) : (
-                    <div style={{ background: 'var(--card-bg, #0d0d0d)', border: '1px dashed var(--glass-border, #2a2a2a)', borderRadius: '10px', padding: '14px', color: 'var(--text-dim, #555)', fontSize: '0.78rem', fontWeight: 850 }}>
+                    <div style={{ background: 'var(--card-bg, #0d0d0d)', border: '1px dashed var(--glass-border, var(--border-subtle))', borderRadius: '10px', padding: '14px', color: 'var(--text-dim, #555)', fontSize: '0.78rem', fontWeight: 850 }}>
                       По цій деталі ще немає робочих карток
                     </div>
                   )}
@@ -435,7 +435,7 @@ const WorkCardsArchive = ({ parts, task, expandedId, onToggle, onOpenReissue, on
         })}
 
         {parts.length === 0 && (
-          <div style={{ background: 'var(--card-bg, #111)', border: '1px solid var(--glass-border, #222)', borderRadius: '10px', padding: '18px', color: 'var(--text-dim, #555)', fontWeight: 850 }}>
+          <div style={{ background: 'var(--card-bg, #111)', border: '1px solid var(--glass-border, var(--border-subtle))', borderRadius: '10px', padding: '18px', color: 'var(--text-dim, #555)', fontWeight: 850 }}>
             Немає робочих карток для архіву
           </div>
         )}
@@ -452,7 +452,7 @@ export default function TaskDetails({ model, nomenclatures = [], allCards, onOpe
 
   if (!model) {
     return (
-      <main style={{ padding: '25px 15px', color: '#555', fontWeight: 850 }}>
+      <main style={{ padding: '25px 15px', color: 'var(--text-dim)', fontWeight: 850 }}>
         Оберіть наряд зліва
       </main>
     )
@@ -553,16 +553,16 @@ export default function TaskDetails({ model, nomenclatures = [], allCards, onOpe
               <Printer size={14} /> ЗВІТ ПО НАРЯДУ
             </button>
           </div>
-          <div style={{ color: '#555', marginTop: '5px', fontSize: '1.1rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '15px', flexWrap: 'wrap' }}>
+          <div style={{ color: 'var(--text-dim)', marginTop: '5px', fontSize: '1.1rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '15px', flexWrap: 'wrap' }}>
             <div>ВИРІБ: <strong style={{ color: '#ef4444' }}>{productNames || '—'}</strong> | {order?.customer || order?.product_name || 'Цех №1'}</div>
             {task.batch_index && (
-              <span style={{ background: '#eab308', color: '#000', padding: '2px 8px', borderRadius: '6px', fontSize: '0.9rem', fontWeight: 900 }}>
+              <span style={{ background: '#eab308', color: 'var(--surface-black)', padding: '2px 8px', borderRadius: '6px', fontSize: '0.9rem', fontWeight: 900 }}>
                 ПАРТІЯ №{task.batch_index}
               </span>
             )}
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ color: '#555' }}>ВЕРСТАТ:</span>
-              <span style={{ background: '#222', borderRadius: '6px', padding: '4px 8px', color: '#fff', fontWeight: 950, fontSize: '0.8rem' }}>{task.machine_name || 'Не вказано'}</span>
+              <span style={{ color: 'var(--text-dim)' }}>ВЕРСТАТ:</span>
+              <span style={{ background: 'var(--surface-3)', borderRadius: '6px', padding: '4px 8px', color: 'var(--text-strong)', fontWeight: 950, fontSize: '0.8rem' }}>{task.machine_name || 'Не вказано'}</span>
             </div>
           </div>
         </div>
@@ -581,7 +581,7 @@ export default function TaskDetails({ model, nomenclatures = [], allCards, onOpe
                 }}
                 disabled={isCompletingTask}
                 style={{
-                  background: isCompletingTask ? '#222' : '#10b981',
+                  background: isCompletingTask ? 'var(--surface-3)' : '#10b981',
                   color: isCompletingTask ? '#555' : '#fff',
                   border: 'none',
                   padding: '12px 28px',
@@ -608,7 +608,7 @@ export default function TaskDetails({ model, nomenclatures = [], allCards, onOpe
       </section>
 
 
-      <section style={{ marginBottom: '40px', background: 'var(--card-bg, #111)', borderRadius: '20px', overflow: 'hidden', border: '1px solid var(--glass-border, #222)', boxShadow: 'var(--shadow, none)' }}>
+      <section style={{ marginBottom: '40px', background: 'var(--card-bg, #111)', borderRadius: '20px', overflow: 'hidden', border: '1px solid var(--glass-border, var(--border-subtle))', boxShadow: 'var(--shadow, none)' }}>
         <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
           <table className="foreman2-work-table" style={{ width: '100%', minWidth: '1040px', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
             <thead>
@@ -642,7 +642,7 @@ export default function TaskDetails({ model, nomenclatures = [], allCards, onOpe
 
                 return (
                   <React.Fragment key={part.nomId}>
-                    <tr onClick={() => setExpandedPartId(expanded ? null : part.nomId)} style={{ borderBottom: expanded ? 'none' : '1px solid var(--glass-border, #1a1a1a)', cursor: 'pointer' }}>
+                    <tr onClick={() => setExpandedPartId(expanded ? null : part.nomId)} style={{ borderBottom: expanded ? 'none' : '1px solid var(--glass-border, var(--border-subtle))', cursor: 'pointer' }}>
                       <td style={{ padding: '10px 8px', minWidth: '170px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '7px', fontWeight: 900, color: 'var(--text, #fff)', wordBreak: 'break-word', whiteSpace: 'normal' }}>
                           {expanded ? <ChevronDown size={15} color="var(--text-muted, #666)" /> : <ChevronRight size={15} color="var(--text-muted, #666)" />}
@@ -673,7 +673,7 @@ export default function TaskDetails({ model, nomenclatures = [], allCards, onOpe
                           </button>
                         )}
                       </td>
-                      <td style={{ padding: '10px 4px', textAlign: 'center', color: '#ddd', fontWeight: 900 }}>{formatQty(part.unitsPerSheet)}</td>
+                      <td style={{ padding: '10px 4px', textAlign: 'center', color: 'var(--text-soft)', fontWeight: 900 }}>{formatQty(part.unitsPerSheet)}</td>
                       <td style={{ padding: '10px 4px', textAlign: 'center', color: '#ff9000', fontWeight: 950, fontSize: '0.95rem' }}>{part.productionCards?.length || 0}</td>
                       <td style={{ padding: '10px 4px', textAlign: 'center', color: '#10b981', fontWeight: 1000, fontSize: '1.05rem' }}>{part.actualSheets || 0}/{formatQty(part.plannedSheets)}</td>
                       {!isReworkOrder && (
@@ -748,7 +748,7 @@ export default function TaskDetails({ model, nomenclatures = [], allCards, onOpe
                     </tr>
                     {expanded && (
                       <tr>
-                        <td colSpan={11} style={{ padding: '0 10px 14px', borderBottom: '1px solid var(--glass-border, #1a1a1a)' }}>
+                        <td colSpan={11} style={{ padding: '0 10px 14px', borderBottom: '1px solid var(--glass-border, var(--border-subtle))' }}>
                           {part.shortage > 0 && (
                             <div style={{ margin: '0 0 10px 24px', display: 'inline-flex', alignItems: 'center', gap: '10px', color: '#ef4444', background: 'rgba(239,68,68,.1)', border: '1px solid rgba(239,68,68,.35)', borderRadius: '8px', padding: '7px 11px', fontSize: '0.72rem', fontWeight: 950, textTransform: 'uppercase' }}>
                               <AlertTriangle size={14} /> Нестача: {formatQty(part.shortage)}
@@ -777,7 +777,7 @@ export default function TaskDetails({ model, nomenclatures = [], allCards, onOpe
                               ))}
                             </div>
                           ) : (
-                            <div style={{ marginLeft: '24px', background: 'var(--card-bg, #0d0d0d)', border: '1px dashed var(--glass-border, #2a2a2a)', borderRadius: '10px', padding: '14px', color: 'var(--text-dim, #555)', fontSize: '0.78rem', fontWeight: 850 }}>
+                            <div style={{ marginLeft: '24px', background: 'var(--card-bg, #0d0d0d)', border: '1px dashed var(--glass-border, var(--border-subtle))', borderRadius: '10px', padding: '14px', color: 'var(--text-dim, #555)', fontSize: '0.78rem', fontWeight: 850 }}>
                               По цій деталі ще немає робочих карток
                             </div>
                           )}
@@ -789,7 +789,7 @@ export default function TaskDetails({ model, nomenclatures = [], allCards, onOpe
               })}
               {parts.length === 0 && (
                 <tr>
-                  <td colSpan={11} style={{ padding: '18px', color: '#555', fontWeight: 850, textAlign: 'center' }}>
+                  <td colSpan={11} style={{ padding: '18px', color: 'var(--text-dim)', fontWeight: 850, textAlign: 'center' }}>
                     У snapshot наряду немає деталей для розкрою
                   </td>
                 </tr>

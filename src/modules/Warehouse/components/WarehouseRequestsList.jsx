@@ -62,9 +62,9 @@ export function WarehouseRequestsList({
           : `НАРЯД #${displayNum}`
 
         return (
-          <div key={key} style={{ minWidth: '320px', background: '#111', padding: '18px', borderRadius: '16px', border: isCardGroup ? '1px solid #78350f' : '1px solid #222', display: 'flex', flexDirection: 'column' }}>
+          <div key={key} style={{ minWidth: '320px', background: 'var(--surface-1)', padding: '18px', borderRadius: '16px', border: isCardGroup ? '1px solid #78350f' : '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-              <span style={{ fontSize: '0.85rem', fontWeight: 800, color: isCardGroup ? '#f59e0b' : '#fff' }}>{cardLabel}</span>
+              <span style={{ fontSize: '0.85rem', fontWeight: 800, color: isCardGroup ? '#f59e0b' : 'var(--text-strong)' }}>{cardLabel}</span>
               {currentUser?.login === 'admin@workshop.local' && (
                 <button onClick={() => handleDeleteEntireRequest(reqList, displayNum)} style={{ background: 'transparent', border: 'none', color: '#888', cursor: 'pointer' }}><Trash2 size={13} /></button>
               )}
@@ -75,7 +75,7 @@ export function WarehouseRequestsList({
                 const parsedName = parseMaterialName(r.details)
                 const isEditing = Object.prototype.hasOwnProperty.call(editingQty, r.id)
                 return (
-                  <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', borderBottom: '1px solid #1a1a1a', paddingBottom: '6px' }}>
+                  <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '6px' }}>
                     <span style={{ flex: 1 }}>{parsedName || r.details}</span>
                     {isEditing ? (
                       <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -83,13 +83,13 @@ export function WarehouseRequestsList({
                           type="number"
                           value={editingQty[r.id]}
                           onChange={e => setEditingQty(prev => ({ ...prev, [r.id]: e.target.value }))}
-                          style={{ width: '50px', background: '#000', border: '1px solid #333', color: '#fff', textAlign: 'center', padding: '2px' }}
+                          style={{ width: '50px', background: 'var(--surface-black)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', textAlign: 'center', padding: '2px' }}
                         />
-                        <button onClick={() => handleSaveConsumableQty(r.id)} style={{ background: '#10b981', border: 'none', color: '#000', cursor: 'pointer' }}><Check size={12} /></button>
-                        <button onClick={() => setEditingQty(prev => { const n = { ...prev }; delete n[r.id]; return n })} style={{ background: '#333', border: 'none', color: '#fff', cursor: 'pointer' }}><X size={12} /></button>
+                        <button onClick={() => handleSaveConsumableQty(r.id)} style={{ background: '#10b981', border: 'none', color: 'var(--surface-black)', cursor: 'pointer' }}><Check size={12} /></button>
+                        <button onClick={() => setEditingQty(prev => { const n = { ...prev }; delete n[r.id]; return n })} style={{ background: 'var(--border-subtle)', border: 'none', color: 'var(--text-strong)', cursor: 'pointer' }}><X size={12} /></button>
                       </div>
                     ) : (
-                      <span onClick={() => setEditingQty(prev => ({ ...prev, [r.id]: String(r.quantity) }))} style={{ cursor: 'pointer', borderBottom: '1px dotted #555', color: '#fff', fontWeight: 800 }}>
+                      <span onClick={() => setEditingQty(prev => ({ ...prev, [r.id]: String(r.quantity) }))} style={{ cursor: 'pointer', borderBottom: '1px dotted #555', color: 'var(--text-strong)', fontWeight: 800 }}>
                         {r.quantity} шт
                       </span>
                     )}
@@ -101,7 +101,7 @@ export function WarehouseRequestsList({
             <button
               onClick={() => handleReserveOrder(taskId, orderId, orderNum, reqList)}
               disabled={processingTasks.has(taskId)}
-              style={{ width: '100%', padding: '10px', background: '#ff9000', color: '#000', border: 'none', borderRadius: '8px', fontWeight: 800, cursor: 'pointer' }}
+              style={{ width: '100%', padding: '10px', background: '#ff9000', color: 'var(--surface-black)', border: 'none', borderRadius: '8px', fontWeight: 800, cursor: 'pointer' }}
             >
               {processingTasks.has(taskId) ? 'ОБРОБКА...' : 'ВИДАТИ'}
             </button>

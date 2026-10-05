@@ -207,16 +207,16 @@ export function ImportSpecTab() {
 
   return (
     <div style={{ maxWidth: '800px', margin: '0 auto' }}>
-      <div style={{ background: '#0d0d0d', border: '2px dashed #1e3a1e', borderRadius: '24px', padding: '40px', textAlign: 'center', marginBottom: '24px' }}>
+      <div style={{ background: 'var(--surface-inset)', border: '2px dashed #1e3a1e', borderRadius: '24px', padding: '40px', textAlign: 'center', marginBottom: '24px' }}>
         <FileUp size={48} color="#10b981" style={{ marginBottom: '16px', opacity: 0.6 }} />
-        <h2 style={{ margin: '0 0 8px', fontSize: '1.4rem', fontWeight: 900, color: '#fff' }}>Імпорт специфікацій CSV</h2>
-        <p style={{ color: '#555', marginBottom: '28px', fontSize: '0.9rem', lineHeight: 1.5 }}>
+        <h2 style={{ margin: '0 0 8px', fontSize: '1.4rem', fontWeight: 900, color: 'var(--text-strong)' }}>Імпорт специфікацій CSV</h2>
+        <p style={{ color: 'var(--text-dim)', marginBottom: '28px', fontSize: '0.9rem', lineHeight: 1.5 }}>
           Завантажте CSV-файл специфікації.<br/>
           Система автоматично створить виріб, всі компоненти та зв'язки BOM.
         </p>
         <label style={{
           display: 'inline-flex', alignItems: 'center', gap: '10px',
-          background: isProcessing ? '#111' : 'linear-gradient(135deg, #059669, #10b981)',
+          background: isProcessing ? 'var(--surface-1)' : 'linear-gradient(135deg, #059669, #10b981)',
           color: isProcessing ? '#555' : '#fff',
           padding: '14px 32px', borderRadius: '14px',
           fontWeight: 900, cursor: isProcessing ? 'not-allowed' : 'pointer',
@@ -237,14 +237,14 @@ export function ImportSpecTab() {
               <Clock size={14} /> Лог імпорту
             </h4>
             {!isProcessing && (
-              <button onClick={() => setImportLogs([])} style={{ background: 'transparent', border: 'none', color: '#333', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 800 }}>ОЧИСТИТИ</button>
+              <button onClick={() => setImportLogs([])} style={{ background: 'transparent', border: 'none', color: 'var(--border-subtle)', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 800 }}>ОЧИСТИТИ</button>
             )}
           </div>
           {importLogs.map((log, i) => (
             <div key={i} style={{
               fontSize: '0.8rem', padding: '7px 0',
               borderBottom: '1px solid #0d0d0d',
-              color: log.includes('✅') || log.includes('🎉') ? '#10b981' : log.includes('❌') ? '#ef4444' : log.includes('📦') || log.includes('✨') ? '#f59e0b' : '#555',
+              color: log.includes('✅') || log.includes('🎉') ? '#10b981' : log.includes('❌') ? '#ef4444' : log.includes('📦') || log.includes('✨') ? '#f59e0b' : 'var(--text-dim)',
               fontWeight: log.includes('✅') || log.includes('❌') || log.includes('📦') || log.includes('✨') ? 800 : 400,
               fontFamily: 'monospace'
             }}>

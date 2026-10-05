@@ -25,13 +25,13 @@ export function AvatarImage({ src, initials, position }) {
           height: '46px', 
           borderRadius: '14px', 
           background: grad, 
-          border: position === 'Адмін' ? '1px solid rgba(255,144,0,0.3)' : '1px solid rgba(255,255,255,0.08)',
+          border: position === 'Адмін' ? '1px solid rgba(255,144,0,0.3)' : '1px solid var(--border-subtle)',
           display: 'flex', 
           alignItems: 'center', 
           justifyContent: 'center',
           fontWeight: 900,
           fontSize: '0.9rem',
-          color: '#ffffff',
+          color: 'var(--text-strong)',
           boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
           flexShrink: 0
         }}
@@ -51,7 +51,7 @@ export function AvatarImage({ src, initials, position }) {
         height: '46px', 
         borderRadius: '14px', 
         objectFit: 'cover', 
-        border: position === 'Адмін' ? '1px solid rgba(255,144,0,0.3)' : '1px solid rgba(255,255,255,0.08)',
+        border: position === 'Адмін' ? '1px solid rgba(255,144,0,0.3)' : '1px solid var(--border-subtle)',
         flexShrink: 0
       }} 
     />

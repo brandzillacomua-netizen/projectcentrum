@@ -205,7 +205,7 @@ export const AppSidebar = ({ isCollapsed, setIsCollapsed, chatUnreadCount, isMob
             alignItems: 'center',
             gap: '8px',
             padding: '6px 14px 12px 14px',
-            borderBottom: '1px solid var(--glass-border, rgba(255, 255, 255, 0.05))',
+            borderBottom: '1px solid var(--glass-border, var(--border-subtle))',
             flexShrink: 0
           }}>
             {(currentUser?.access_rights?.chat === true || currentUser?.access_rights?.chat === 'true' || currentUser?.access_rights?.chat === 1) && (
@@ -215,8 +215,8 @@ export const AppSidebar = ({ isCollapsed, setIsCollapsed, chatUnreadCount, isMob
                   flex: 1,
                   padding: '8px 10px',
                   borderRadius: '12px',
-                  background: chatUnreadCount > 0 ? 'rgba(99, 102, 241, 0.12)' : 'rgba(255, 255, 255, 0.04)',
-                  border: chatUnreadCount > 0 ? '1px solid rgba(99, 102, 241, 0.3)' : '1px solid var(--glass-border, rgba(255, 255, 255, 0.08))',
+                  background: chatUnreadCount > 0 ? 'rgba(99, 102, 241, 0.12)' : 'var(--fill-subtle)',
+                  border: chatUnreadCount > 0 ? '1px solid rgba(99, 102, 241, 0.3)' : '1px solid var(--glass-border, var(--border-subtle))',
                   color: chatUnreadCount > 0 ? '#6366f1' : 'var(--text)',
                   fontSize: '0.82rem',
                   fontWeight: 800,
@@ -257,8 +257,8 @@ export const AppSidebar = ({ isCollapsed, setIsCollapsed, chatUnreadCount, isMob
                 flex: 1,
                 padding: '8px 10px',
                 borderRadius: '12px',
-                background: unreadNotifCount > 0 ? 'rgba(239, 68, 68, 0.12)' : 'rgba(255, 255, 255, 0.04)',
-                border: unreadNotifCount > 0 ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid var(--glass-border, rgba(255, 255, 255, 0.08))',
+                background: unreadNotifCount > 0 ? 'rgba(239, 68, 68, 0.12)' : 'var(--fill-subtle)',
+                border: unreadNotifCount > 0 ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid var(--glass-border, var(--border-subtle))',
                 color: unreadNotifCount > 0 ? '#ef4444' : 'var(--text)',
                 fontSize: '0.82rem',
                 fontWeight: 800,
@@ -468,7 +468,7 @@ export const AppSidebar = ({ isCollapsed, setIsCollapsed, chatUnreadCount, isMob
                 <div style={{
                   width: '34px', height: '34px', borderRadius: '10px',
                   background: avatarBg,
-                  color: '#fff', fontWeight: 950, fontSize: '0.85rem',
+                  color: 'var(--text-strong)', fontWeight: 950, fontSize: '0.85rem',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                   overflow: 'hidden',
                   border: userAvatar.startsWith('#') ? `1px solid ${userAvatar}` : 'none'

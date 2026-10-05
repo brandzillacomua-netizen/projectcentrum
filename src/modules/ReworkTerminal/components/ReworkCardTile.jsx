@@ -20,7 +20,7 @@ export function ReworkCardTile({ card, onTakeInWork, onComplete, isProcessing })
       <div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
           <span style={{ color: 'var(--text)', fontSize: '18px', fontWeight: 'bold' }}>{nom?.name || 'Невідома деталь'}</span>
-          <span style={{ background: 'var(--info)', color: '#fff', padding: '2px 8px', borderRadius: '5px', fontSize: '12px' }}>
+          <span style={{ background: 'var(--info)', color: 'var(--text-strong)', padding: '2px 8px', borderRadius: '5px', fontSize: '12px' }}>
             #{card.id.slice(-6)}
           </span>
         </div>
@@ -41,7 +41,7 @@ export function ReworkCardTile({ card, onTakeInWork, onComplete, isProcessing })
             disabled={isProcessing}
             style={{
               background: 'var(--info)',
-              color: '#fff',
+              color: 'var(--text-strong)',
               border: 'none',
               padding: '12px 24px',
               borderRadius: 'var(--radius-sm)',
@@ -63,7 +63,7 @@ export function ReworkCardTile({ card, onTakeInWork, onComplete, isProcessing })
             disabled={isProcessing}
             style={{
               background: 'var(--success)',
-              color: '#fff',
+              color: 'var(--text-strong)',
               border: 'none',
               padding: '12px 24px',
               borderRadius: 'var(--radius-sm)',

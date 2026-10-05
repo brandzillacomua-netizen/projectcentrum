@@ -46,7 +46,7 @@ export const TaskProjectsHeader = ({
           <div className="tp-logo"><BriefcaseBusiness size={20} /></div>
           <div>
             <h1 style={{ margin: 0, fontSize: '1rem', letterSpacing: '1.5px', textAlign: 'left' }}>ПРОЄКТИ</h1>
-            <p style={{ margin: 0, color: '#666', fontSize: '.72rem', textAlign: 'left', lineHeight: '1.2', whiteSpace: 'normal' }}>
+            <p style={{ margin: 0, color: 'var(--text-dim)', fontSize: '.72rem', textAlign: 'left', lineHeight: '1.2', whiteSpace: 'normal' }}>
               Окремі команди<br />та канбан-дошки
             </p>
           </div>

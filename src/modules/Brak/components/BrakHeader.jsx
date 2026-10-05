@@ -10,7 +10,7 @@ export const BrakHeader = React.memo(({
   return (
     <nav style={{ 
       display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
-      padding: '0 25px', height: '75px', background: 'var(--header-bg, #000)', borderBottom: '1px solid var(--border-color, #1a1a1a)', flexShrink: 0 
+      padding: '0 25px', height: '75px', background: 'var(--header-bg, #000)', borderBottom: '1px solid var(--border-color, var(--border-subtle))', flexShrink: 0 
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
         {showReportPage ? (

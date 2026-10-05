@@ -59,10 +59,10 @@ export function MasterArchiveDrawer({
         <div 
           key={gIdx} 
           style={{ 
-            background: isLight ? '#ffffff' : '#0a0a0a', 
+            background: isLight ? '#ffffff' : 'var(--surface-inset)', 
             padding: '14px 16px', 
             borderRadius: '14px', 
-            border: isLight ? '1px solid #e2e8f0' : '1px solid #1a1a1a', 
+            border: isLight ? '1px solid #e2e8f0' : '1px solid var(--border-subtle)', 
             marginBottom: '4px',
             boxShadow: isLight ? '0 1px 3px rgba(0,0,0,0.03)' : 'none'
           }}
@@ -76,7 +76,7 @@ export function MasterArchiveDrawer({
                 }
               }}
               className="interactive-naryad-title"
-              style={{ fontSize: '0.95rem', color: isLight ? '#0f172a' : '#ffffff', cursor: 'pointer', fontWeight: 900 }}
+              style={{ fontSize: '0.95rem', color: isLight ? '#0f172a' : 'var(--text-strong)', cursor: 'pointer', fontWeight: 900 }}
             >
               №{group.orderNum}/{group.batchIndex}
             </strong>

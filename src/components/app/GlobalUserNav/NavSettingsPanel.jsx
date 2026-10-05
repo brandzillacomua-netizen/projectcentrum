@@ -131,7 +131,7 @@ export function NavSettingsPanel({
       {/* Header section with Back */}
       <div style={{
         padding: '24px 20px 20px 20px',
-        borderBottom: '1px solid rgba(255,255,255,0.04)',
+        borderBottom: '1px solid var(--border-subtle)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between'
@@ -153,13 +153,13 @@ export function NavSettingsPanel({
         >
           <ArrowLeft size={16} /> Назад
         </button>
-        <span style={{ fontSize: '0.95rem', fontWeight: 900, color: '#fff' }}>
+        <span style={{ fontSize: '0.95rem', fontWeight: 900, color: 'var(--text-strong)' }}>
           Налаштування
         </span>
       </div>
 
       {/* Tab Selector */}
-      <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.04)', padding: '0 20px' }}>
+      <div style={{ display: 'flex', borderBottom: '1px solid var(--border-subtle)', padding: '0 20px' }}>
         <button
           onClick={() => setSettingsTab('notif')}
           style={{
@@ -168,7 +168,7 @@ export function NavSettingsPanel({
             background: 'transparent',
             border: 'none',
             borderBottom: settingsTab === 'notif' ? '2.5px solid #ff9000' : '2.5px solid transparent',
-            color: settingsTab === 'notif' ? '#fff' : '#555',
+            color: settingsTab === 'notif' ? 'var(--text-strong)' : 'var(--text-dim)',
             fontWeight: 850,
             fontSize: '0.82rem',
             cursor: 'pointer',
@@ -186,7 +186,7 @@ export function NavSettingsPanel({
             background: 'transparent',
             border: 'none',
             borderBottom: settingsTab === 'profile' ? '2.5px solid #ff9000' : '2.5px solid transparent',
-            color: settingsTab === 'profile' ? '#fff' : '#555',
+            color: settingsTab === 'profile' ? 'var(--text-strong)' : 'var(--text-dim)',
             fontWeight: 850,
             fontSize: '0.82rem',
             cursor: 'pointer',
@@ -202,7 +202,7 @@ export function NavSettingsPanel({
       <div className="sidebar-links-container" style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
         {settingsTab === 'notif' ? (
           <>
-            <div style={{ fontSize: '0.65rem', color: '#555', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '15px' }}>
+            <div style={{ fontSize: '0.65rem', color: 'var(--text-dim)', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '15px' }}>
               Керування типами сповіщень
             </div>
 
@@ -215,13 +215,13 @@ export function NavSettingsPanel({
                   justifyContent: 'space-between',
                   padding: '14px 16px',
                   borderRadius: '12px',
-                  background: 'rgba(255, 255, 255, 0.01)',
-                  border: '1px solid rgba(255, 255, 255, 0.03)',
+                  background: 'var(--fill-subtle)',
+                  border: '1px solid var(--border-subtle)',
                   marginBottom: '12px'
                 }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1, paddingRight: '12px' }}>
-                    <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#fff' }}>{cfg.title}</span>
-                    <span style={{ fontSize: '0.68rem', color: '#555', lineHeight: '1.2' }}>
+                    <span style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-strong)' }}>{cfg.title}</span>
+                    <span style={{ fontSize: '0.68rem', color: 'var(--text-dim)', lineHeight: '1.2' }}>
                       {cfg.desc}
                     </span>
                   </div>
@@ -231,7 +231,7 @@ export function NavSettingsPanel({
                       width: '40px',
                       height: '22px',
                       borderRadius: '11px',
-                      background: isEnabled ? '#ff9000' : '#222',
+                      background: isEnabled ? '#ff9000' : 'var(--surface-3)',
                       position: 'relative',
                       cursor: 'pointer',
                       transition: 'background 0.2s ease',
@@ -299,7 +299,7 @@ export function NavSettingsPanel({
                   style={{ display: 'none' }}
                 />
               </div>
-              <span style={{ fontSize: '0.72rem', color: '#666' }}>Натисніть на іконку для завантаження фото</span>
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)' }}>Натисніть на іконку для завантаження фото</span>
 
               {/* Preset Gradients Selection */}
               <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
@@ -331,17 +331,17 @@ export function NavSettingsPanel({
             {/* Form fields */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '10px' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{ fontSize: '0.72rem', color: '#666', fontWeight: 800, textTransform: 'uppercase' }}>Ім'я</label>
+                <label style={{ fontSize: '0.72rem', color: 'var(--text-dim)', fontWeight: 800, textTransform: 'uppercase' }}>Ім'я</label>
                 <input
                   type="text"
                   value={profileFirstName}
                   onChange={e => setProfileFirstName(e.target.value)}
                   style={{
-                    background: 'rgba(255,255,255,0.02)',
-                    border: '1px solid rgba(255,255,255,0.06)',
+                    background: 'var(--fill-subtle)',
+                    border: '1px solid var(--border-subtle)',
                     borderRadius: '10px',
                     padding: '10px 14px',
-                    color: '#fff',
+                    color: 'var(--text-strong)',
                     fontSize: '0.85rem',
                     outline: 'none',
                     transition: 'border-color 0.2s',
@@ -353,17 +353,17 @@ export function NavSettingsPanel({
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{ fontSize: '0.72rem', color: '#666', fontWeight: 800, textTransform: 'uppercase' }}>Прізвище</label>
+                <label style={{ fontSize: '0.72rem', color: 'var(--text-dim)', fontWeight: 800, textTransform: 'uppercase' }}>Прізвище</label>
                 <input
                   type="text"
                   value={profileLastName}
                   onChange={e => setProfileLastName(e.target.value)}
                   style={{
-                    background: 'rgba(255,255,255,0.02)',
-                    border: '1px solid rgba(255,255,255,0.06)',
+                    background: 'var(--fill-subtle)',
+                    border: '1px solid var(--border-subtle)',
                     borderRadius: '10px',
                     padding: '10px 14px',
-                    color: '#fff',
+                    color: 'var(--text-strong)',
                     fontSize: '0.85rem',
                     outline: 'none',
                     transition: 'border-color 0.2s',
@@ -375,18 +375,18 @@ export function NavSettingsPanel({
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{ fontSize: '0.72rem', color: '#666', fontWeight: 800, textTransform: 'uppercase' }}>Новий пароль</label>
+                <label style={{ fontSize: '0.72rem', color: 'var(--text-dim)', fontWeight: 800, textTransform: 'uppercase' }}>Новий пароль</label>
                 <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
                   <input
                     type={showPassword ? 'text' : 'password'}
                     value={profilePassword}
                     onChange={e => setProfilePassword(e.target.value)}
                     style={{
-                      background: 'rgba(255,255,255,0.02)',
-                      border: '1px solid rgba(255,255,255,0.06)',
+                      background: 'var(--fill-subtle)',
+                      border: '1px solid var(--border-subtle)',
                       borderRadius: '10px',
                       padding: '10px 40px 10px 14px',
-                      color: '#fff',
+                      color: 'var(--text-strong)',
                       fontSize: '0.85rem',
                       outline: 'none',
                       width: '100%',
@@ -403,7 +403,7 @@ export function NavSettingsPanel({
                       right: '12px',
                       background: 'transparent',
                       border: 'none',
-                      color: '#555',
+                      color: 'var(--text-dim)',
                       cursor: 'pointer',
                       padding: 0,
                       display: 'flex',

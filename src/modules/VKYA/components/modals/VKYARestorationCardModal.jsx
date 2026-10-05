@@ -39,7 +39,7 @@ export const VKYARestorationCardModal = ({
               value={operator}
               onChange={e => setOperator(e.target.value)}
               placeholder="Вкажіть працівника"
-              style={{ boxSizing: 'border-box', width: '100%', background: 'var(--bg, #050505)', border: '1px solid var(--glass-border, #333)', borderRadius: 12, color: 'var(--text, #fff)', padding: 14 }}
+              style={{ boxSizing: 'border-box', width: '100%', background: 'var(--bg, #050505)', border: '1px solid var(--glass-border, var(--border-subtle))', borderRadius: 12, color: 'var(--text, #fff)', padding: 14 }}
             />
             <button onClick={startCard} disabled={saving || !operator.trim()} style={{ width: '100%', marginTop: 20, background: '#06b6d4', border: 0, borderRadius: 13, padding: 14, color: '#001014', fontWeight: 1000, cursor: 'pointer' }}>
               <Play size={17} style={{ verticalAlign: 'middle', marginRight: 7 }}/>ВЗЯТИ В РОБОТУ

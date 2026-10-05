@@ -49,27 +49,27 @@ export function Shop1CompleteModal({
       {/* ── Модалка сортування ────────────────────────────────────────────── */}
       {showSortingModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.95)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 10020, padding: '40px 20px', overflowY: 'auto' }}>
-          <div style={{ background: '#111', width: '100%', maxWidth: '460px', borderRadius: '26px', border: '1px solid #8b5cf640', display: 'flex', flexDirection: 'column', margin: 'auto 0' }}>
-            <div style={{ padding: '20px 22px', background: '#161616', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+          <div style={{ background: 'var(--surface-1)', width: '100%', maxWidth: '460px', borderRadius: '26px', border: '1px solid #8b5cf640', display: 'flex', flexDirection: 'column', margin: 'auto 0' }}>
+            <div style={{ padding: '20px 22px', background: 'var(--surface-2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
               <div>
                 <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 900, color: '#8b5cf6' }}>🚀 ЗАВЕРШИТИ СОРТУВАННЯ</h3>
-                <div style={{ fontSize: '0.6rem', color: '#555', marginTop: '2px' }}>→ ВІДПРАВИТИ В БУФЕР ЦЕХУ №2</div>
+                <div style={{ fontSize: '0.6rem', color: 'var(--text-dim)', marginTop: '2px' }}>→ ВІДПРАВИТИ В БУФЕР ЦЕХУ №2</div>
               </div>
               <button onClick={onCloseSorting} style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer' }}><X size={22} /></button>
             </div>
             <div style={{ padding: '24px 22px', display: 'flex', flexDirection: 'column', gap: '18px', overflowY: 'auto', flex: 1 }}>
               <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 900 }}>{nomenclatureName || 'Деталь'}</h3>
-              <div style={{ background: '#0d0d0d', borderRadius: '12px', padding: '14px 18px', border: '1px solid #8b5cf620', textAlign: 'center' }}>
+              <div style={{ background: 'var(--surface-inset)', borderRadius: '12px', padding: '14px 18px', border: '1px solid #8b5cf620', textAlign: 'center' }}>
                 <div style={{ fontSize: '0.62rem', color: '#8b5cf6', fontWeight: 900, textTransform: 'uppercase', marginBottom: '4px' }}>Кількість по картці</div>
-                <div style={{ fontSize: '2.5rem', fontWeight: 1000, color: '#fff', lineHeight: 1 }}>{currentCard.quantity} <small style={{ fontSize: '1rem', opacity: 0.4 }}>шт</small></div>
+                <div style={{ fontSize: '2.5rem', fontWeight: 1000, color: 'var(--text-strong)', lineHeight: 1 }}>{currentCard.quantity} <small style={{ fontSize: '1rem', opacity: 0.4 }}>шт</small></div>
               </div>
 
               {/* Лічильник браку */}
-              <div style={{ background: '#0d0d0d', borderRadius: '14px', padding: '18px', textAlign: 'center', border: '1px solid #ef444422' }}>
+              <div style={{ background: 'var(--surface-inset)', borderRadius: '14px', padding: '18px', textAlign: 'center', border: '1px solid #ef444422' }}>
                 <label style={{ color: '#ef4444', fontWeight: 900, fontSize: '0.7rem', textTransform: 'uppercase', display: 'block', marginBottom: '12px' }}>КІЛЬКІСТЬ БРАКУ ПРИ СОРТУВАННІ</label>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '14px' }}>
                   <button onClick={() => setScrapCount(v => Math.max(0, v - 1))}
-                    style={{ width: '46px', height: '46px', background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#fff', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}>−</button>
+                    style={{ width: '46px', height: '46px', background: 'var(--surface-2)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}>−</button>
                   <input type="number" min={0} max={currentCard.quantity - reworkCount} value={scrapCount === 0 ? '' : scrapCount} placeholder="0"
                     onChange={e => {
                       const val = e.target.value;
@@ -77,16 +77,16 @@ export function Shop1CompleteModal({
                     }}
                     style={{ background: 'transparent', border: 'none', color: '#ef4444', fontSize: '3.2rem', width: '90px', textAlign: 'center', fontWeight: 900 }} />
                   <button onClick={() => setScrapCount(v => Math.min(currentCard.quantity - reworkCount, v + 1))}
-                    style={{ width: '46px', height: '46px', background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#fff', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}>+</button>
+                    style={{ width: '46px', height: '46px', background: 'var(--surface-2)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}>+</button>
                 </div>
               </div>
 
               {/* Лічильник доопрацювання */}
-              <div style={{ background: '#0d0d0d', borderRadius: '14px', padding: '18px', textAlign: 'center', border: '1px solid #f59e0b22' }}>
+              <div style={{ background: 'var(--surface-inset)', borderRadius: '14px', padding: '18px', textAlign: 'center', border: '1px solid #f59e0b22' }}>
                 <label style={{ color: '#f59e0b', fontWeight: 900, fontSize: '0.7rem', textTransform: 'uppercase', display: 'block', marginBottom: '12px' }}>КІЛЬКІСТЬ НА ДООПРАЦЮВАННЯ (Цех №2)</label>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '14px' }}>
                   <button onClick={() => setReworkCount(v => Math.max(0, v - 1))}
-                    style={{ width: '46px', height: '46px', background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#fff', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}>−</button>
+                    style={{ width: '46px', height: '46px', background: 'var(--surface-2)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}>−</button>
                   <input type="number" min={0} max={currentCard.quantity - scrapCount} value={reworkCount === 0 ? '' : reworkCount} placeholder="0"
                     onChange={e => {
                       const val = e.target.value;
@@ -94,13 +94,13 @@ export function Shop1CompleteModal({
                     }}
                     style={{ background: 'transparent', border: 'none', color: '#f59e0b', fontSize: '3.2rem', width: '90px', textAlign: 'center', fontWeight: 900 }} />
                   <button onClick={() => setReworkCount(v => Math.min(currentCard.quantity - scrapCount, v + 1))}
-                    style={{ width: '46px', height: '46px', background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#fff', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}>+</button>
+                    style={{ width: '46px', height: '46px', background: 'var(--surface-2)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}>+</button>
                 </div>
               </div>
 
               {/* Підсумок */}
-              <div style={{ background: '#0d0d0d', borderRadius: '14px', padding: '14px 18px', border: '1px solid #10b98122', textAlign: 'center' }}>
-                <div style={{ fontSize: '0.72rem', color: '#555' }}>
+              <div style={{ background: 'var(--surface-inset)', borderRadius: '14px', padding: '14px 18px', border: '1px solid #10b98122', textAlign: 'center' }}>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-dim)' }}>
                   В Цех №2: <strong style={{ color: '#10b981' }}>{Math.max(0, (currentCard.quantity || 0) - scrapCount - reworkCount)} шт</strong>
                   {' · '}Доопрацювання: <strong style={{ color: '#f59e0b' }}>{reworkCount} шт</strong>
                   {' · '}Брак: <strong style={{ color: '#ef4444' }}>{scrapCount} шт</strong>
@@ -162,13 +162,13 @@ export function Shop1CompleteModal({
       {/* ── Модалка завершення етапу ──────────────────────────────────────── */}
       {showCompleteModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.95)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 10020, padding: '40px 20px', overflowY: 'auto' }}>
-          <div style={{ background: '#111', width: '100%', maxWidth: '460px', borderRadius: '26px', border: '1px solid #252525', display: 'flex', flexDirection: 'column', margin: 'auto 0' }}>
-            <div style={{ padding: '20px 22px', background: '#161616', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+          <div style={{ background: 'var(--surface-1)', width: '100%', maxWidth: '460px', borderRadius: '26px', border: '1px solid #252525', display: 'flex', flexDirection: 'column', margin: 'auto 0' }}>
+            <div style={{ padding: '20px 22px', background: 'var(--surface-2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
               <div>
                 <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 900 }}>
                   ЗАВЕРШИТИ · {currentCard.operation?.toUpperCase()}
                 </h3>
-                <div style={{ fontSize: '0.6rem', color: '#555', marginTop: '2px' }}>
+                <div style={{ fontSize: '0.6rem', color: 'var(--text-dim)', marginTop: '2px' }}>
                   {currentCard.operation === CHAIN[CHAIN.length - 1]
                     ? '→ ГОТОВО (деталь прийнята)'
                     : `→ БУФЕР ${currentCard.operation?.toUpperCase()}`}
@@ -182,7 +182,7 @@ export function Shop1CompleteModal({
               {qcScrapTotal > 0 && (
                 <div style={{ background: '#ef444418', border: '1px solid #ef444455', borderRadius: '14px', padding: '14px 16px' }}>
                   <div style={{ color: '#ef4444', fontSize: '0.76rem', fontWeight: 1000 }}>ВКЯ ВЖЕ СПИСАЛО: {qcScrapTotal} ШТ</div>
-                  <div style={{ color: '#aaa', fontSize: '0.66rem', marginTop: '6px' }}>Ця кількість уже віднята від картки й не повинна вноситися майстром повторно.</div>
+                  <div style={{ color: 'var(--text-muted)', fontSize: '0.66rem', marginTop: '6px' }}>Ця кількість уже віднята від картки й не повинна вноситися майстром повторно.</div>
                 </div>
               )}
 
@@ -218,7 +218,7 @@ export function Shop1CompleteModal({
                   return getDiam(a) - getDiam(b)
                 })
                 return (
-                  <div style={{ background: '#0d0d0d', borderRadius: '14px', padding: '18px', border: '1px solid #eab30822', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                  <div style={{ background: 'var(--surface-inset)', borderRadius: '14px', padding: '18px', border: '1px solid #eab30822', display: 'flex', flexDirection: 'column', gap: '15px' }}>
                     <label style={{ color: '#eab308', fontWeight: 900, fontSize: '0.7rem', textTransform: 'uppercase', display: 'block', textAlign: 'center' }}>
                       ФАКТИЧНА КІЛЬКІСТЬ ФРЕЗ
                     </label>
@@ -226,15 +226,15 @@ export function Shop1CompleteModal({
                       const rawVal = cuttersBreakdown[cutterName]
                       const currentVal = rawVal !== undefined ? rawVal : ''
                       return (
-                        <div key={cutterName} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#121212', padding: '10px 15px', borderRadius: '10px', border: '1px solid #222' }}>
-                          <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#aaa', maxWidth: '60%', textAlign: 'left' }}>{cutterName}</span>
+                        <div key={cutterName} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--surface-1)', padding: '10px 15px', borderRadius: '10px', border: '1px solid var(--border-subtle)' }}>
+                          <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)', maxWidth: '60%', textAlign: 'left' }}>{cutterName}</span>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <button onClick={() => {
                                 setCuttersTouched && setCuttersTouched(p => ({ ...p, [cutterName]: true }))
                                 setCuttersBreakdown && setCuttersBreakdown(p => ({ ...p, [cutterName]: Math.max(0, (Number(currentVal) || 0) - 1) }))
                               }}
                               type="button"
-                              style={{ width: '32px', height: '32px', background: '#1c1c1c', border: '1px solid #333', color: '#fff', borderRadius: '6px', cursor: 'pointer', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
+                              style={{ width: '32px', height: '32px', background: '#1c1c1c', border: '1px solid var(--border-subtle)', color: '#fff', borderRadius: '6px', cursor: 'pointer', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
                             <input type="number" min={0} value={currentVal} placeholder="0"
                               onChange={e => {
                                 const val = e.target.value
@@ -247,12 +247,12 @@ export function Shop1CompleteModal({
                                 setCuttersBreakdown && setCuttersBreakdown(p => ({ ...p, [cutterName]: (Number(currentVal) || 0) + 1 }))
                               }}
                               type="button"
-                              style={{ width: '32px', height: '32px', background: '#1c1c1c', border: '1px solid #333', color: '#fff', borderRadius: '6px', cursor: 'pointer', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+                              style={{ width: '32px', height: '32px', background: '#1c1c1c', border: '1px solid var(--border-subtle)', color: '#fff', borderRadius: '6px', cursor: 'pointer', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
                           </div>
                         </div>
                       )
                     })}
-                    <div style={{ borderTop: '1px solid #222', paddingTop: '10px', textAlign: 'center', fontSize: '0.72rem', color: '#555' }}>
+                    <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '10px', textAlign: 'center', fontSize: '0.72rem', color: 'var(--text-dim)' }}>
                       Всього використано: <strong style={{ color: '#eab308' }}>{Object.values(cuttersBreakdown).reduce((sum, v) => sum + (Number(v) || 0), 0)} шт</strong>
                     </div>
                     {!hasCuttersFact && (
@@ -265,13 +265,13 @@ export function Shop1CompleteModal({
               })()}
 
               {/* Лічильник браку */}
-              <div style={{ background: '#0d0d0d', borderRadius: '14px', padding: '18px', textAlign: 'center' }}>
+              <div style={{ background: 'var(--surface-inset)', borderRadius: '14px', padding: '18px', textAlign: 'center' }}>
                 <label style={{ color: '#ef4444', fontWeight: 900, fontSize: '0.7rem', textTransform: 'uppercase', display: 'block', marginBottom: '12px' }}>
                   КІЛЬКІСТЬ БРАКУ
                 </label>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '14px' }}>
                   <button onClick={() => setScrapCount(v => Math.max(0, v - 1))}
-                    style={{ width: '46px', height: '46px', background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#fff', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}>−</button>
+                    style={{ width: '46px', height: '46px', background: 'var(--surface-2)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}>−</button>
                   <input type="number" min={0} max={currentCard.quantity} value={scrapCount === 0 ? '' : scrapCount} placeholder="0"
                     onChange={e => {
                       const val = e.target.value;
@@ -279,9 +279,9 @@ export function Shop1CompleteModal({
                     }}
                     style={{ background: 'transparent', border: 'none', color: '#ef4444', fontSize: '3.2rem', width: '90px', textAlign: 'center', fontWeight: 900 }} />
                   <button onClick={() => setScrapCount(v => Math.min(currentCard.quantity, v + 1))}
-                    style={{ width: '46px', height: '46px', background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#fff', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}>+</button>
+                    style={{ width: '46px', height: '46px', background: 'var(--surface-2)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}>+</button>
                 </div>
-                <div style={{ marginTop: '10px', fontSize: '0.72rem', color: '#555' }}>
+                <div style={{ marginTop: '10px', fontSize: '0.72rem', color: 'var(--text-dim)' }}>
                   Добре: <strong style={{ color: '#10b981' }}>{Math.max(0, (currentCard.quantity || 0) - scrapCount)} шт</strong>
                   {' · '}Брак: <strong style={{ color: '#ef4444' }}>{scrapCount} шт</strong>
                 </div>
@@ -295,7 +295,7 @@ export function Shop1CompleteModal({
                   <select
                     value={scrapOperator}
                     onChange={e => setScrapOperator(e.target.value)}
-                    style={{ ...selectStyle, background: '#000', borderColor: '#ef444430', color: '#fca5a5' }}
+                    style={{ ...selectStyle, background: 'var(--surface-black)', borderColor: '#ef444430', color: '#fca5a5' }}
                   >
                     <option value="">— Оберіть оператора —</option>
                     {cardOperators.map(o => (

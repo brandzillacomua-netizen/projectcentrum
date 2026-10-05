@@ -32,15 +32,15 @@ export const KittingModal = ({
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.95)', zIndex: 10050, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-      <div style={{ background: '#111', width: '100%', maxWidth: '460px', borderRadius: '28px', border: '1px solid #333', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ background: 'var(--surface-1)', width: '100%', maxWidth: '460px', borderRadius: '28px', border: '1px solid var(--border-subtle)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         
         {/* Modal Header */}
-        <div style={{ padding: '20px 25px', background: '#1a1a1a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ padding: '20px 25px', background: 'var(--surface-2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#ff9000', fontWeight: 900, fontSize: '0.95rem' }}>
               📦 КОМПЛЕКТУВАННЯ НОВОГО БОКСУ
             </div>
-            <div style={{ fontSize: '0.72rem', color: '#888', marginTop: '2px', fontWeight: 700 }}>
+            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px', fontWeight: 700 }}>
               Для Картки {cardNum}
             </div>
           </div>
@@ -56,25 +56,25 @@ export const KittingModal = ({
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', background: '#090909', padding: '12px 15px', borderRadius: '14px', border: '1px solid #151515' }}>
             <div style={{ gridColumn: '1 / -1', paddingBottom: '10px', borderBottom: '1px solid #181818' }}>
               <div style={{ fontSize: '0.6rem', color: '#ff9000', fontWeight: 900, textTransform: 'uppercase' }}>ВИКОНУЄТЬСЯ В КАРТЦІ</div>
-              <div style={{ fontSize: '0.9rem', color: '#fff', fontWeight: 900, marginTop: '4px', lineHeight: 1.25, wordBreak: 'break-word' }}>
+              <div style={{ fontSize: '0.9rem', color: 'var(--text-strong)', fontWeight: 900, marginTop: '4px', lineHeight: 1.25, wordBreak: 'break-word' }}>
                 {cardNomName}
               </div>
-              <div style={{ fontSize: '0.66rem', color: '#666', fontWeight: 800, marginTop: '6px', textTransform: 'uppercase' }}>
+              <div style={{ fontSize: '0.66rem', color: 'var(--text-dim)', fontWeight: 800, marginTop: '6px', textTransform: 'uppercase' }}>
                 Матеріали: Склад оперативний
               </div>
             </div>
             <div>
               <div style={{ fontSize: '0.6rem', color: '#444', fontWeight: 800 }}>ВЕРСТАТ</div>
-              <div style={{ fontSize: '0.78rem', color: '#aaa', fontWeight: 700 }}>{card.machine || '—'}</div>
+              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 700 }}>{card.machine || '—'}</div>
             </div>
             <div>
               <div style={{ fontSize: '0.6rem', color: '#444', fontWeight: 800 }}>К-СТЬ ДЕТАЛЕЙ</div>
-              <div style={{ fontSize: '0.78rem', color: '#aaa', fontWeight: 700 }}>{card.quantity} шт</div>
+              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 700 }}>{card.quantity} шт</div>
             </div>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <label style={{ fontSize: '0.68rem', color: '#888', fontWeight: 800 }}>
+            <label style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 800 }}>
               СПИСОК НАПОВНЕННЯ БОКСУ (ПОЗНАЧТЕ ВСЕ)
             </label>
             
@@ -90,7 +90,7 @@ export const KittingModal = ({
                       display: 'flex', 
                       alignItems: 'center', 
                       justifyContent: 'space-between', 
-                      background: isChecked ? 'rgba(16, 185, 129, 0.04)' : '#0d0d0d', 
+                      background: isChecked ? 'rgba(16, 185, 129, 0.04)' : 'var(--surface-inset)', 
                       padding: '10px 14px', 
                       borderRadius: '10px', 
                       border: isChecked ? '1px solid rgba(16, 185, 129, 0.15)' : '1px solid #1e1e1e',
@@ -105,11 +105,11 @@ export const KittingModal = ({
                         onChange={() => {}} 
                         style={{ accentColor: '#10b981', cursor: 'pointer' }}
                       />
-                      <span style={{ fontSize: '0.78rem', color: isChecked ? '#aaa' : '#888', fontWeight: isChecked ? 700 : 500 }}>
+                      <span style={{ fontSize: '0.78rem', color: isChecked ? 'var(--text-muted)' : 'var(--text-muted)', fontWeight: isChecked ? 700 : 500 }}>
                         {cutter.name}
                       </span>
                     </div>
-                    <strong style={{ fontSize: '0.8rem', color: isChecked ? '#10b981' : '#fff' }}>
+                    <strong style={{ fontSize: '0.8rem', color: isChecked ? '#10b981' : 'var(--text-strong)' }}>
                       {cutter.qty} шт
                     </strong>
                   </div>
@@ -120,10 +120,10 @@ export const KittingModal = ({
         </div>
 
         {/* Modal Actions */}
-        <div style={{ padding: '20px 25px', background: '#1a1a1a', display: 'flex', gap: '15px' }}>
+        <div style={{ padding: '20px 25px', background: 'var(--surface-2)', display: 'flex', gap: '15px' }}>
           <button
             onClick={handleCloseModal}
-            style={{ flex: 1, padding: '12px', borderRadius: '10px', background: '#222', color: '#fff', border: 'none', fontWeight: 900, cursor: 'pointer' }}
+            style={{ flex: 1, padding: '12px', borderRadius: '10px', background: 'var(--surface-3)', color: 'var(--text-strong)', border: 'none', fontWeight: 900, cursor: 'pointer' }}
           >
             Скасувати
           </button>
@@ -134,7 +134,7 @@ export const KittingModal = ({
               flex: 2, 
               padding: '12px', 
               borderRadius: '10px', 
-              background: canSubmit ? '#10b981' : '#1a1a1a', 
+              background: canSubmit ? '#10b981' : 'var(--surface-2)', 
               color: canSubmit ? '#000' : '#444', 
               border: 'none', 
               fontWeight: 900, 

@@ -1519,7 +1519,7 @@ export function SpecBuilderTab() {
                       >
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                           <span style={{ fontSize: '1.05rem', fontWeight: 950, color: folder.color }}>{folder.label}</span>
-                          <span style={{ fontSize: '0.7rem', fontWeight: 900, background: folder.color, color: '#ffffff', padding: '2px 9px', borderRadius: '12px' }}>
+                          <span style={{ fontSize: '0.7rem', fontWeight: 900, background: folder.color, color: 'var(--text-strong)', padding: '2px 9px', borderRadius: '12px' }}>
                             {folderItems.length} позицій
                           </span>
                         </div>

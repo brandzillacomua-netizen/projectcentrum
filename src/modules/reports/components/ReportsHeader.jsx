@@ -113,7 +113,7 @@ export const ReportsHeader = ({
           <div style={{ display: 'flex', gap: '15px', alignItems: 'center', flexWrap: 'wrap' }}>
             {activeTab !== 'monthly' && (
               <div style={{ position: 'relative' }}>
-                <Filter size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#555' }} />
+                <Filter size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-dim)' }} />
                 <input
                   className="reports-search-input"
                   value={searchQuery}
@@ -171,7 +171,7 @@ export const ReportsHeader = ({
                     />
                   </div>
 
-                  <span style={{ color: '#555', cursor: 'pointer' }} onClick={openStartPicker}>—</span>
+                  <span style={{ color: 'var(--text-dim)', cursor: 'pointer' }} onClick={openStartPicker}>—</span>
 
                   <div onClick={openEndPicker} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
                     <input

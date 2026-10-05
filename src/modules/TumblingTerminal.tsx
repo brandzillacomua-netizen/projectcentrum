@@ -76,7 +76,7 @@ export const TumblingTerminal: React.FC = () => {
       {/* DASHBOARD GRID */}
       <main style={{ flex: 1, padding: '24px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
-        <section style={{ flex: 1, background: 'var(--card-bg, #0c0c10)', borderRadius: '24px', border: '1px solid var(--glass-border, rgba(255,255,255,0.03))', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 10px 40px rgba(0,0,0,0.2)' }}>
+        <section style={{ flex: 1, background: 'var(--card-bg, #0c0c10)', borderRadius: '24px', border: '1px solid var(--glass-border, var(--border-subtle))', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 10px 40px rgba(0,0,0,0.2)' }}>
 
           {/* Filter tabs */}
           <TumblingTerminalFilters
@@ -205,7 +205,7 @@ export const TumblingTerminal: React.FC = () => {
             flex: 1;
             box-shadow: none !important;
             background: #000 !important;
-            border: 1px solid #222 !important;
+            border: 1px solid var(--border-subtle) !important;
           }
           .tumbling-card .card-code {
             font-size: 0.85rem !important;

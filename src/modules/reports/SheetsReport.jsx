@@ -434,12 +434,12 @@ const SheetsReport = ({
                       </div>
                     </td>
                     <td style={{ padding: '10px 6px', textAlign: 'center' }}>
-                      <span style={{ color: stat.reserved_sv > 0 ? '#3b82f6' : '#888', fontWeight: 900 }}>
+                      <span style={{ color: stat.reserved_sv > 0 ? '#3b82f6' : 'var(--text-muted)', fontWeight: 900 }}>
                         {stat.reserved_sv}
                       </span>
                     </td>
                     <td style={{ padding: '10px 6px', textAlign: 'center' }}>
-                      <span style={{ color: stat.reserved_so > 0 ? '#10b981' : '#888', fontWeight: 900 }}>
+                      <span style={{ color: stat.reserved_so > 0 ? '#10b981' : 'var(--text-muted)', fontWeight: 900 }}>
                         {stat.reserved_so}
                       </span>
                     </td>
@@ -450,7 +450,7 @@ const SheetsReport = ({
                         style={{
                           background: hasReserve ? 'rgba(255, 144, 0, 0.15)' : 'rgba(120, 120, 120, 0.1)',
                           border: `1px solid ${hasReserve ? 'rgba(255, 144, 0, 0.4)' : 'rgba(120, 120, 120, 0.2)'}`,
-                          color: hasReserve ? '#ff9000' : '#888',
+                          color: hasReserve ? '#ff9000' : 'var(--text-muted)',
                           padding: '4px 10px',
                           borderRadius: '8px',
                           fontWeight: 950,
@@ -656,7 +656,7 @@ const SheetsReport = ({
             {/* Modal Content Table */}
             <div style={{ flex: 1, overflowY: 'auto', marginBottom: '20px', paddingRight: '5px' }}>
               {modalReserveDetails.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '40px 20px', color: '#888', background: 'rgba(120,120,120,0.05)', border: '1px dashed rgba(120,120,120,0.2)', borderRadius: '16px' }}>
+                <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)', background: 'rgba(120,120,120,0.05)', border: '1px dashed rgba(120,120,120,0.2)', borderRadius: '16px' }}>
                   <FileText size={32} style={{ opacity: 0.4, marginBottom: '10px' }} />
                   <div className="sheets-text-primary" style={{ fontWeight: 800, fontSize: '0.95rem' }}>Деталізовані записи замовлень відсутні.</div>
                   <div className="sheets-text-muted" style={{ fontSize: '0.8rem', marginTop: '4px' }}>
@@ -707,7 +707,7 @@ const SheetsReport = ({
             <div style={{ borderTop: '1px solid rgba(120,120,120,0.2)', paddingTop: '15px', display: 'flex', justifyContent: 'flex-end' }}>
               <button
                 onClick={() => setSelectedSheetForReserve(null)}
-                style={{ background: '#10b981', color: '#000', border: 'none', padding: '10px 24px', borderRadius: '12px', fontWeight: 950, fontSize: '0.85rem', cursor: 'pointer', transition: '0.2s' }}
+                style={{ background: '#10b981', color: 'var(--surface-black)', border: 'none', padding: '10px 24px', borderRadius: '12px', fontWeight: 950, fontSize: '0.85rem', cursor: 'pointer', transition: '0.2s' }}
               >
                 ЗАКРИТИ
               </button>

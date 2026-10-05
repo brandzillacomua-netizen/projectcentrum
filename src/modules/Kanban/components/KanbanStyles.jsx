@@ -45,12 +45,12 @@ export const KanbanStyles = () => (
 
         .kb-nav-right { display: flex; align-items: center; gap: 12px; }
         .kb-search-wrap { display: flex; align-items: center; gap: 8px; }
-        .kb-search-wrap.open { background: #0d0d0d; border: 1px solid #222; border-radius: 10px; padding: 4px 10px; }
+        .kb-search-wrap.open { background: #0d0d0d; border: 1px solid var(--border-subtle); border-radius: 10px; padding: 4px 10px; }
         .kb-search-input { background: transparent; border: none; color: #fff; outline: none; font-family: inherit; font-size: 0.85rem; width: 180px; }
-        .icon-btn { background: transparent; border: 1px solid #1a1a1a; color: #555; width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; }
+        .icon-btn { background: transparent; border: 1px solid var(--border-subtle); color: #555; width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; }
         .icon-btn:hover { background: #111; color: #fff; border-color: #333; }
         .icon-btn.danger:hover { background: rgba(239,68,68,0.1); color: #ef4444; border-color: rgba(239,68,68,0.3); }
-        .kb-filters { display: flex; background: #0a0a0a; border: 1px solid #1a1a1a; border-radius: 10px; padding: 3px; gap: 2px; }
+        .kb-filters { display: flex; background: #0a0a0a; border: 1px solid var(--border-subtle); border-radius: 10px; padding: 3px; gap: 2px; }
         .kf-btn { background: transparent; border: none; color: #444; padding: 5px 14px; border-radius: 7px; font-weight: 800; font-size: 0.68rem; cursor: pointer; transition: all 0.2s; white-space: nowrap; letter-spacing: 0.5px; }
         .kf-btn.active { background: #1a1a1a; color: #fff; }
         .kf-btn:hover:not(.active) { color: #888; }
@@ -314,7 +314,7 @@ export const KanbanStyles = () => (
         /* ── CARD ── */
         .kb-card {
           flex-shrink: 0;
-          background: #0d0d0d; border: 1px solid #1a1a1a; border-radius: 14px;
+          background: #0d0d0d; border: 1px solid var(--border-subtle); border-radius: 14px;
           padding: 14px; cursor: pointer; position: relative;
           transition: all 0.22s ease; overflow: hidden;
         }
@@ -370,12 +370,12 @@ export const KanbanStyles = () => (
         .user-avatar-wrap { display: flex; align-items: center; gap: 7px; }
         .user-avatar { border-radius: 50%; background: linear-gradient(135deg, #ff9000, #ffb347); color: #000; display: flex; align-items: center; justify-content: center; font-weight: 900; text-transform: uppercase; flex-shrink: 0; border: 2px solid #0d0d0d; }
         .avatar-name { font-size: 0.82rem; font-weight: 700; color: #ccc; }
-        .ua-unassigned { width: 26px; height: 26px; border-radius: 50%; background: #111; color: #333; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 900; border: 2px dashed #222; }
+        .ua-unassigned { width: 26px; height: 26px; border-radius: 50%; background: #111; color: var(--border-subtle); display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 900; border: 2px dashed var(--border-subtle); }
 
         /* ── MODAL ── */
         .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 1000; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(12px); animation: fade-in 0.2s ease; }
         @keyframes fade-in { from{opacity:0} to{opacity:1} }
-        .modal-box { background: #080808; border: 1px solid #1a1a1a; border-radius: 22px; overflow: hidden; box-shadow: 0 40px 80px rgba(0,0,0,0.9); animation: modal-in 0.25s ease; }
+        .modal-box { background: #080808; border: 1px solid var(--border-subtle); border-radius: 22px; overflow: hidden; box-shadow: 0 40px 80px rgba(0,0,0,0.9); animation: modal-in 0.25s ease; }
         @keyframes modal-in { from{transform:scale(0.95) translateY(10px);opacity:0} to{transform:scale(1) translateY(0);opacity:1} }
         .modal-head { padding: 22px 28px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #111; }
         .modal-head h2 { margin: 0; font-size: 1.05rem; font-weight: 900; display: flex; align-items: center; gap: 10px; }
@@ -392,7 +392,7 @@ export const KanbanStyles = () => (
         .side-block label { font-size: 0.6rem; font-weight: 900; color: #333; text-transform: uppercase; letter-spacing: 1px; }
         .side-val { display: flex; align-items: center; gap: 7px; font-size: 0.82rem; font-weight: 600; color: #999; }
         .status-chip { font-weight: 900; font-size: 0.82rem; }
-        .status-select { background: #0f0f0f; border: 1px solid #222; color: #fff; padding: 8px 10px; border-radius: 8px; font-family: inherit; font-weight: 800; font-size: 0.8rem; width: 100%; cursor: pointer; }
+        .status-select { background: #0f0f0f; border: 1px solid var(--border-subtle); color: #fff; padding: 8px 10px; border-radius: 8px; font-family: inherit; font-weight: 800; font-size: 0.8rem; width: 100%; cursor: pointer; }
         .side-actions { display: flex; flex-direction: column; gap: 8px; }
         .sa-btn { padding: 9px 12px; border-radius: 9px; border: 1px solid; font-size: 0.7rem; font-weight: 900; cursor: pointer; transition: all 0.2s; text-align: center; }
         .sa-start { background: rgba(59,130,246,0.1); color: #3b82f6; border-color: rgba(59,130,246,0.25); }
@@ -425,7 +425,7 @@ export const KanbanStyles = () => (
         .check-click-area:active { opacity: 0.7; }
         .checklist-item.parent-item {
           background: #0d0d10 !important;
-          border: 1px solid rgba(255, 255, 255, 0.04) !important;
+          border: 1px solid var(--border-subtle) !important;
           border-left: 3px solid #ff9000 !important;
           border-radius: 12px !important;
           padding: 12px 16px !important;
@@ -458,12 +458,12 @@ export const KanbanStyles = () => (
         .checklist-item:hover { border-color: #1e1e1e; }
         .check-toggle { background: none; border: none; cursor: pointer; padding: 0; display: flex; align-items: center; flex-shrink: 0; }
         .check-text { flex: 1; font-size: 0.85rem; color: #ccc; line-height: 1.4; }
-        .check-remove { background: none; border: none; color: #333; cursor: pointer; padding: 2px; display: flex; align-items: center; opacity: 0; transition: opacity 0.2s; }
+        .check-remove { background: none; border: none; color: var(--border-subtle); cursor: pointer; padding: 2px; display: flex; align-items: center; opacity: 0; transition: opacity 0.2s; }
         .checklist-item:hover .check-remove { opacity: 1; }
         .check-remove:hover { color: #ef4444; }
         .checklist-empty { text-align: center; padding: 20px; color: #282828; font-size: 0.8rem; font-weight: 700; }
         .add-check-row { display: flex; gap: 8px; }
-        .add-check-row input { flex: 1; background: #0d0d0d; border: 1px solid #1a1a1a; color: #fff; padding: 9px 14px; border-radius: 9px; font-family: inherit; font-size: 0.83rem; outline: none; transition: border-color 0.2s; }
+        .add-check-row input { flex: 1; background: #0d0d0d; border: 1px solid var(--border-subtle); color: #fff; padding: 9px 14px; border-radius: 9px; font-family: inherit; font-size: 0.83rem; outline: none; transition: border-color 0.2s; }
         .add-check-row input:focus { border-color: #ff9000; }
         .add-check-btn { width: 36px; height: 36px; border-radius: 9px; background: rgba(255,144,0,0.1); border: 1px solid rgba(255,144,0,0.2); color: #ff9000; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; }
         .add-check-btn:hover { background: #ff9000; color: #000; }
@@ -486,7 +486,7 @@ export const KanbanStyles = () => (
         .modal-form { padding: 24px 28px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 18px; }
         .form-group { display: flex; flex-direction: column; gap: 6px; }
         .form-group label { font-size: 0.65rem; font-weight: 900; color: #444; text-transform: uppercase; letter-spacing: 0.8px; display: flex; align-items: center; gap: 5px; }
-        .form-group input, .form-group textarea, .form-group select { background: #0d0d0d; border: 1px solid #1a1a1a; color: #fff; padding: 11px 14px; border-radius: 10px; font-family: inherit; font-size: 0.88rem; outline: none; transition: border-color 0.2s; width: 100%; }
+        .form-group input, .form-group textarea, .form-group select { background: #0d0d0d; border: 1px solid var(--border-subtle); color: #fff; padding: 11px 14px; border-radius: 10px; font-family: inherit; font-size: 0.88rem; outline: none; transition: border-color 0.2s; width: 100%; }
         .form-group input:focus, .form-group textarea:focus, .form-group select:focus { border-color: #ff9000; }
         input[type="date"]::-webkit-calendar-picker-indicator,
         input[type="time"]::-webkit-calendar-picker-indicator { filter: invert(1); cursor: pointer; }
@@ -507,7 +507,7 @@ export const KanbanStyles = () => (
         .selected-assignee { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: #0d0d0d; border: 1px solid #ff900030; border-radius: 10px; }
         .clear-btn { background: none; border: none; color: #555; cursor: pointer; margin-left: auto; }
         .clear-btn:hover { color: #ef4444; }
-        .assignee-search-wrap { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: #0d0d0d; border: 1px solid #1a1a1a; border-radius: 10px; }
+        .assignee-search-wrap { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: #0d0d0d; border: 1px solid var(--border-subtle); border-radius: 10px; }
         .assignee-search-wrap input { flex: 1; background: transparent; border: none; color: #fff; outline: none; font-family: inherit; font-size: 0.88rem; }
         .assignee-search-wrap svg { color: #444; flex-shrink: 0; }
         .assignee-dropdown { position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: #0d0d0d; border: 1px solid #1e1e1e; border-radius: 12px; z-index: 100; overflow: hidden; box-shadow: 0 12px 32px rgba(0,0,0,0.6); }
@@ -524,7 +524,7 @@ export const KanbanStyles = () => (
         .cl-builder { display: flex; flex-direction: column; gap: 6px; }
         .cl-build-item { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #0a0a0a; border: 1px solid #141414; border-radius: 8px; font-size: 0.82rem; color: #bbb; }
         .cl-build-item.done span { text-decoration: line-through; color: #444; }
-        .cl-build-item button { background: none; border: none; color: #333; cursor: pointer; padding: 2px; display: flex; align-items: center; margin-left: auto; }
+        .cl-build-item button { background: none; border: none; color: var(--border-subtle); cursor: pointer; padding: 2px; display: flex; align-items: center; margin-left: auto; }
         .cl-build-item button:hover { color: #ef4444; }
         .cl-build-item > button:first-child { margin-left: 0; flex-shrink: 0; }
 

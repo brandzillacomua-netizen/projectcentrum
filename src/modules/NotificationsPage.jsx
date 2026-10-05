@@ -239,7 +239,7 @@ const NotificationsPage = () => {
       {/* Top Header */}
       <header className="notif-page-header" style={{
         padding: '14px 18px',
-        borderBottom: '1px solid var(--glass-border, rgba(255, 255, 255, 0.08))',
+        borderBottom: '1px solid var(--glass-border, var(--border-subtle))',
         background: 'var(--card-bg, #0b0d14)',
         position: 'sticky',
         top: 0,
@@ -322,7 +322,7 @@ const NotificationsPage = () => {
         gap: '8px',
         padding: '12px 18px',
         overflowX: 'auto',
-        borderBottom: '1px solid var(--glass-border, rgba(255, 255, 255, 0.08))',
+        borderBottom: '1px solid var(--glass-border, var(--border-subtle))',
         background: 'var(--card-bg, #0b0d14)'
       }}>
         {[
@@ -338,8 +338,8 @@ const NotificationsPage = () => {
             style={{
               padding: '8px 14px',
               borderRadius: '12px',
-              border: activeFilter === cat.id ? '1px solid #ff9000' : '1px solid var(--glass-border, rgba(255,255,255,0.08))',
-              background: activeFilter === cat.id ? 'rgba(255,144,0,0.12)' : 'rgba(255,255,255,0.03)',
+              border: activeFilter === cat.id ? '1px solid #ff9000' : '1px solid var(--glass-border, var(--border-subtle))',
+              background: activeFilter === cat.id ? 'rgba(255,144,0,0.12)' : 'var(--fill-subtle)',
               color: activeFilter === cat.id ? '#ff9000' : 'var(--text-muted, #94a3b8)',
               fontWeight: 800,
               fontSize: '0.8rem',
@@ -358,7 +358,7 @@ const NotificationsPage = () => {
       <div style={{ flex: 1, maxWidth: '720px', width: '100%', margin: '0 auto', padding: '20px 18px 60px' }}>
         {filteredNotifications.length === 0 ? (
           <div style={{ padding: '80px 20px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
-            <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'rgba(255,255,255,0.04)', border: '1px solid var(--glass-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>
+            <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'var(--fill-subtle)', border: '1px solid var(--glass-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>
               <BellOff size={30} />
             </div>
             <div>
@@ -380,7 +380,7 @@ const NotificationsPage = () => {
                     padding: '16px 18px',
                     borderRadius: '18px',
                     background: isUnread ? 'rgba(255,144,0,0.06)' : 'rgba(22, 24, 34, 0.6)',
-                    border: `1px solid ${isUnread ? 'rgba(255,144,0,0.35)' : 'var(--glass-border, rgba(255,255,255,0.08))'}`,
+                    border: `1px solid ${isUnread ? 'rgba(255,144,0,0.35)' : 'var(--glass-border, var(--border-subtle))'}`,
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'flex-start',

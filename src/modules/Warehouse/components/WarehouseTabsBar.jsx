@@ -27,9 +27,9 @@ export const WarehouseTabsBar = ({
             display: 'flex',
             alignItems: 'center',
             gap: '10px',
-            background: activeTab === tab.id ? '#ff9000' : '#111',
+            background: activeTab === tab.id ? '#ff9000' : 'var(--surface-1)',
             color: activeTab === tab.id ? '#000' : '#555',
-            border: '1px solid #222',
+            border: '1px solid var(--border-subtle)',
             padding: '12px 20px',
             borderRadius: '14px',
             fontSize: '0.85rem',
@@ -44,7 +44,7 @@ export const WarehouseTabsBar = ({
           {tab.count > 0 && (
             <span className="tab-count-badge" style={{
               marginLeft: '5px',
-              background: activeTab === tab.id ? '#000' : '#ff9000',
+              background: activeTab === tab.id ? 'var(--surface-black)' : '#ff9000',
               color: activeTab === tab.id ? '#ff9000' : '#000',
               fontSize: '0.7rem',
               padding: '2px 8px',

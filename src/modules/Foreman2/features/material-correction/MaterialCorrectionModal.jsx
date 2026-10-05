@@ -13,7 +13,7 @@ export default function MaterialCorrectionModal({ part, options, isSaving, error
       onMouseDown={event => event.target === event.currentTarget && onClose()}
       style={{ position: 'fixed', inset: 0, zIndex: 60000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '18px', background: 'rgba(0,0,0,.88)', backdropFilter: 'blur(8px)' }}
     >
-      <div role="dialog" aria-modal="true" aria-label="Виправити матеріал" style={{ width: 'min(560px, 94vw)', maxHeight: '90vh', overflowY: 'auto', background: '#111', border: '1px solid #333', borderRadius: '18px', padding: '22px', color: '#fff', boxShadow: '0 24px 70px rgba(0,0,0,.7)' }}>
+      <div role="dialog" aria-modal="true" aria-label="Виправити матеріал" style={{ width: 'min(560px, 94vw)', maxHeight: '90vh', overflowY: 'auto', background: 'var(--surface-1)', border: '1px solid var(--border-subtle)', borderRadius: '18px', padding: '22px', color: 'var(--text-strong)', boxShadow: '0 24px 70px rgba(0,0,0,.7)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: '15px' }}>
           <div>
             <h3 style={{ margin: 0, fontSize: '1.25rem' }}>Виправити матеріал</h3>
@@ -22,13 +22,13 @@ export default function MaterialCorrectionModal({ part, options, isSaving, error
           <button type="button" onClick={onClose} disabled={isSaving} style={{ background: 'none', border: 0, color: '#777', cursor: 'pointer' }}><X /></button>
         </div>
 
-        <div style={{ marginTop: '18px', padding: '12px', background: '#0a0a0a', borderRadius: '10px', fontSize: '.82rem' }}>
+        <div style={{ marginTop: '18px', padding: '12px', background: 'var(--surface-inset)', borderRadius: '10px', fontSize: '.82rem' }}>
           Зараз: <strong style={{ color: '#ef4444' }}>{part.material || 'не вказано'}</strong>
-          <span style={{ color: '#555' }}> · {part.plannedSheets} листів</span>
+          <span style={{ color: 'var(--text-dim)' }}> · {part.plannedSheets} листів</span>
         </div>
 
-        <label style={{ display: 'block', marginTop: '16px', color: '#888', fontSize: '.72rem', fontWeight: 900, textTransform: 'uppercase' }}>Правильний матеріал</label>
-        <select value={selectedId} onChange={event => setSelectedId(event.target.value)} disabled={isSaving} style={{ width: '100%', marginTop: '7px', background: '#050505', color: '#fff', border: '1px solid #444', borderRadius: '9px', padding: '11px' }}>
+        <label style={{ display: 'block', marginTop: '16px', color: 'var(--text-muted)', fontSize: '.72rem', fontWeight: 900, textTransform: 'uppercase' }}>Правильний матеріал</label>
+        <select value={selectedId} onChange={event => setSelectedId(event.target.value)} disabled={isSaving} style={{ width: '100%', marginTop: '7px', background: 'var(--surface-inset)', color: 'var(--text-strong)', border: '1px solid #444', borderRadius: '9px', padding: '11px' }}>
           <option value="">Оберіть матеріал…</option>
           {options.map(option => <option key={option.id} value={String(option.id)}>{option.name} · на складі {option.available}</option>)}
         </select>
@@ -40,8 +40,8 @@ export default function MaterialCorrectionModal({ part, options, isSaving, error
         {error && <div style={{ marginTop: '12px', color: '#ef4444', fontSize: '.78rem' }}>{error}</div>}
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
-          <button type="button" onClick={onClose} disabled={isSaving} style={{ padding: '9px 15px', background: '#222', color: '#aaa', border: 0, borderRadius: '9px' }}>Скасувати</button>
-          <button type="button" onClick={() => onSave(selected)} disabled={!selected || isSaving} style={{ padding: '9px 17px', background: selected && !isSaving ? '#3b82f6' : '#222', color: selected && !isSaving ? '#fff' : '#555', border: 0, borderRadius: '9px', fontWeight: 900 }}>
+          <button type="button" onClick={onClose} disabled={isSaving} style={{ padding: '9px 15px', background: 'var(--surface-3)', color: '#aaa', border: 0, borderRadius: '9px' }}>Скасувати</button>
+          <button type="button" onClick={() => onSave(selected)} disabled={!selected || isSaving} style={{ padding: '9px 17px', background: selected && !isSaving ? '#3b82f6' : 'var(--surface-3)', color: selected && !isSaving ? '#fff' : '#555', border: 0, borderRadius: '9px', fontWeight: 900 }}>
             {isSaving ? 'Зберігаю…' : 'Підтвердити виправлення'}
           </button>
         </div>

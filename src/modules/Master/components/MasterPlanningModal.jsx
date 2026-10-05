@@ -31,23 +31,23 @@ export function MasterPlanningModal({
 }) {
   if (!activeNaryadOrder) return null
 
-  const inputStyle = { width: '100%', background: '#000', border: '1px solid rgba(255,255,255,0.06)', color: '#fff', padding: '12px', borderRadius: '12px', fontSize: '0.85rem', fontWeight: 600, outline: 'none' }
+  const inputStyle = { width: '100%', background: 'var(--surface-black)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', padding: '12px', borderRadius: '12px', fontSize: '0.85rem', fontWeight: 600, outline: 'none' }
 
   return (
     <div className="worksheet-modal-overlay no-print" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', backdropFilter: 'blur(5px)' }}>
-      <div className="worksheet-panel" style={{ background: '#0d0d0d', border: '1px solid #222', width: '100%', maxWidth: '1000px', borderRadius: '24px', padding: '30px', boxShadow: '0 20px 50px rgba(0,0,0,0.5)', overflowY: 'auto', maxHeight: '95vh' }}>
+      <div className="worksheet-panel" style={{ background: 'var(--surface-inset)', border: '1px solid var(--border-subtle)', width: '100%', maxWidth: '1000px', borderRadius: '24px', padding: '30px', boxShadow: '0 20px 50px rgba(0,0,0,0.5)', overflowY: 'auto', maxHeight: '95vh' }}>
         
         {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid #1a1a1a', paddingBottom: '15px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '15px' }}>
           <div>
-            <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 950, color: '#fff', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 950, color: 'var(--text-strong)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
               {isReprintMode ? 'ДРУК ТЕХНОЛОГІЧНОЇ КАРТИ (КОПІЯ)' : 'ПЛАНУВАННЯ ТА СТВОРЕННЯ НАРЯДУ'}
             </h2>
-            <div style={{ fontSize: '0.72rem', color: '#666', marginTop: '4px' }}>
+            <div style={{ fontSize: '0.72rem', color: 'var(--text-dim)', marginTop: '4px' }}>
               Замовлення: <strong>№{activeNaryadOrder.order_num}</strong> | Клієнт: {activeNaryadOrder.customer}
             </div>
           </div>
-          <button onClick={() => setActiveNaryadOrder(null)} style={{ background: '#1a1a1a', border: '1px solid #333', color: '#aaa', width: '32px', height: '32px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><X size={16} /></button>
+          <button onClick={() => setActiveNaryadOrder(null)} style={{ background: 'var(--surface-2)', border: '1px solid var(--border-subtle)', color: '#aaa', width: '32px', height: '32px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><X size={16} /></button>
         </div>
 
         {/* Quantities editor */}
@@ -61,11 +61,11 @@ export function MasterPlanningModal({
               const nom = nomenclatures.find(n => n.id === it.nomenclature_id)
 
               return (
-                <div key={it.id} style={{ background: '#111', padding: '16px', borderRadius: '16px', border: '1px solid #222' }}>
+                <div key={it.id} style={{ background: 'var(--surface-1)', padding: '16px', borderRadius: '16px', border: '1px solid var(--border-subtle)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '10px' }}>
                     <strong style={{ fontSize: '0.85rem' }}>{nom?.name}</strong>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <span style={{ fontSize: '0.72rem', color: '#666' }}>Заплановано: {planned} / {total} шт</span>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)' }}>Заплановано: {planned} / {total} шт</span>
                       {!isReprintMode && (
                         <input
                           type="number"
@@ -76,7 +76,7 @@ export function MasterPlanningModal({
                             const val = e.target.value
                             setNaryadQtys(prev => ({ ...prev, [it.id]: val === '' ? '' : Math.max(0, Math.min(total - planned, parseInt(val) || 0)) }))
                           }}
-                          style={{ width: '80px', background: '#000', border: '1px solid #333', color: '#fff', padding: '6px', borderRadius: '8px', textAlign: 'center', fontWeight: 900 }}
+                          style={{ width: '80px', background: 'var(--surface-black)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', padding: '6px', borderRadius: '8px', textAlign: 'center', fontWeight: 900 }}
                         />
                       )}
                     </div>
@@ -88,13 +88,13 @@ export function MasterPlanningModal({
                     const mName = rowMachines[part.nom.id] || ''
 
                     return (
-                      <div key={pIdx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#0a0a0a', padding: '10px 14px', borderRadius: '10px', marginTop: '6px', border: '1px solid #1a1a1a' }}>
-                        <span style={{ fontSize: '0.78rem', color: '#aaa' }}>{part.nom.name}</span>
+                      <div key={pIdx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--surface-inset)', padding: '10px 14px', borderRadius: '10px', marginTop: '6px', border: '1px solid var(--border-subtle)' }}>
+                        <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{part.nom.name}</span>
                         {!isReprintMode ? (
                           <select
                             value={mName}
                             onChange={e => setRowMachines(prev => ({ ...prev, [part.nom.id]: e.target.value }))}
-                            style={{ background: '#000', border: '1px solid #333', color: '#fff', padding: '6px 12px', borderRadius: '8px', fontSize: '0.75rem', outline: 'none' }}
+                            style={{ background: 'var(--surface-black)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', padding: '6px 12px', borderRadius: '8px', fontSize: '0.75rem', outline: 'none' }}
                           >
                             <option value="">-- Оберіть верстат --</option>
                             {MACHINE_TYPES.map(m => (
@@ -114,13 +114,13 @@ export function MasterPlanningModal({
         </div>
 
         {/* Action Button & Print */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', borderTop: '1px solid #1a1a1a', paddingTop: '20px' }}>
-          <button onClick={() => setActiveNaryadOrder(null)} style={{ background: '#1a1a1a', border: 'none', color: '#aaa', padding: '12px 24px', borderRadius: '12px', fontWeight: 800, cursor: 'pointer' }}>СКАСУВАТИ</button>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', borderTop: '1px solid var(--border-subtle)', paddingTop: '20px' }}>
+          <button onClick={() => setActiveNaryadOrder(null)} style={{ background: 'var(--surface-2)', border: 'none', color: '#aaa', padding: '12px 24px', borderRadius: '12px', fontWeight: 800, cursor: 'pointer' }}>СКАСУВАТИ</button>
           <button
             onClick={handlePrint}
             disabled={isPrintDisabled}
             style={{
-              background: isPrintDisabled ? '#222' : 'linear-gradient(135deg, #ff9000, #ff6a00)',
+              background: isPrintDisabled ? 'var(--surface-3)' : 'linear-gradient(135deg, #ff9000, #ff6a00)',
               color: isPrintDisabled ? '#555' : '#000',
               border: 'none', padding: '12px 30px', borderRadius: '12px', fontWeight: 950,
               cursor: isPrintDisabled ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '8px'

@@ -79,7 +79,7 @@ export class AppErrorBoundary extends React.Component {
             <button
               type="button"
               onClick={this.toggleDetails}
-              style={{ border: 0, borderRadius: 10, padding: '12px 16px', color: '#94a3b8', background: 'rgba(255,255,255,0.05)', cursor: 'pointer', fontWeight: 600, fontSize: 13, marginLeft: 'auto' }}
+              style={{ border: 0, borderRadius: 10, padding: '12px 16px', color: '#94a3b8', background: 'var(--fill-subtle)', cursor: 'pointer', fontWeight: 600, fontSize: 13, marginLeft: 'auto' }}
             >
               {this.state.showDetails ? 'Сховати деталі' : 'Технічні деталі'}
             </button>
@@ -293,7 +293,7 @@ export function ConnectionStatus() {
         maxWidth: 360,
         padding: '9px 12px',
         borderRadius: 999,
-        color: '#fff',
+        color: 'var(--text-strong)',
         background: meta.background,
         boxShadow: '0 8px 24px rgba(15, 23, 42, 0.24)',
         fontSize: 12,
@@ -409,12 +409,12 @@ export function ServiceWorkerUpdateManager() {
     }}>
       <div>
         <strong style={{ display: 'block', fontSize: 13 }}>Доступна стабільніша версія</strong>
-        <span style={{ color: '#aaa', fontSize: 11 }}>Оновлення доступне також на екрані входу.</span>
+        <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>Оновлення доступне також на екрані входу.</span>
       </div>
       <button
         type="button"
         onClick={activateUpdate}
-        style={{ border: 0, borderRadius: 9, padding: '8px 14px', background: '#ff9000', color: '#000', cursor: 'pointer', fontWeight: 900 }}
+        style={{ border: 0, borderRadius: 9, padding: '8px 14px', background: '#ff9000', color: 'var(--surface-black)', cursor: 'pointer', fontWeight: 900 }}
       >
         ОНОВИТИ
       </button>

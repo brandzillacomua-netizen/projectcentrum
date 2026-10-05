@@ -60,7 +60,7 @@ export const CutterSelectorRow = ({
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
           <span style={{ fontSize: '1rem' }}>✂️</span>
-          <span style={{ color: isLight ? '#0f172a' : '#fff', fontWeight: 950, fontSize: '0.95rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <span style={{ color: isLight ? '#0f172a' : 'var(--text-strong)', fontWeight: 950, fontSize: '0.95rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {cutter.name}
           </span>
           <span style={{ 

@@ -12,12 +12,12 @@ export function EngineerQueueTab({
   return (
     <>
       <div className="eng-stats-bar" style={{ display: 'flex', gap: '15px', marginBottom: '25px', overflowX: 'auto', paddingBottom: '10px' }}>
-        <div style={{ flex: 1, minWidth: '150px', background: '#111', padding: '15px', borderRadius: '16px', border: '1px solid #222' }}>
-          <div style={{ fontSize: '0.65rem', color: '#555', fontWeight: 800, textTransform: 'uppercase' }}>В ЧЕРЗІ ЧПК</div>
+        <div style={{ flex: 1, minWidth: '150px', background: 'var(--surface-1)', padding: '15px', borderRadius: '16px', border: '1px solid var(--border-subtle)' }}>
+          <div style={{ fontSize: '0.65rem', color: 'var(--text-dim)', fontWeight: 800, textTransform: 'uppercase' }}>В ЧЕРЗІ ЧПК</div>
           <div style={{ fontSize: '1.4rem', fontWeight: 900, color: '#3b82f6' }}>{pendingTasks.length}</div>
         </div>
-        <div style={{ flex: 1, minWidth: '150px', background: '#111', padding: '15px', borderRadius: '16px', border: '1px solid #222' }}>
-          <div style={{ fontSize: '0.65rem', color: '#555', fontWeight: 800, textTransform: 'uppercase' }}>ПІДТВЕРДЖЕНО</div>
+        <div style={{ flex: 1, minWidth: '150px', background: 'var(--surface-1)', padding: '15px', borderRadius: '16px', border: '1px solid var(--border-subtle)' }}>
+          <div style={{ fontSize: '0.65rem', color: 'var(--text-dim)', fontWeight: 800, textTransform: 'uppercase' }}>ПІДТВЕРДЖЕНО</div>
           <div style={{ fontSize: '1.4rem', fontWeight: 900, color: '#10b981' }}>{approvedCount}</div>
         </div>
         <div className="hide-mobile" style={{ flex: 2, background: 'rgba(59, 130, 246, 0.05)', padding: '15px', borderRadius: '16px', border: '1px solid rgba(59, 130, 246, 0.2)', display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -30,18 +30,18 @@ export function EngineerQueueTab({
         {pendingTasks.map(task => {
           const order = (orders || []).find(o => o.id === task.order_id)
           return (
-            <div key={task.id} className="eng-task-card glass-panel" style={{ background: '#111', padding: '25px', borderRadius: '24px', border: '1px solid #222', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div key={task.id} className="eng-task-card glass-panel" style={{ background: 'var(--surface-1)', padding: '25px', borderRadius: '24px', border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '20px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <div className="order-branding">
                   <strong style={{ fontSize: '1.2rem', display: 'block' }}>№{order?.order_num}</strong>
-                  <span style={{ fontSize: '0.8rem', color: '#555', fontWeight: 600 }}>{order?.customer}</span>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-dim)', fontWeight: 600 }}>{order?.customer}</span>
                 </div>
                 <div style={{ color: '#444', fontSize: '0.75rem', fontWeight: 800 }}>
                   <Clock size={12} /> {new Date(task.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </div>
               </div>
 
-              <div className="spec-review" style={{ background: '#0a0a0a', padding: '15px', borderRadius: '14px', border: '1px solid #1a1a1a' }}>
+              <div className="spec-review" style={{ background: 'var(--surface-inset)', padding: '15px', borderRadius: '14px', border: '1px solid var(--border-subtle)' }}>
                 <label style={{ fontSize: '0.6rem', color: '#444', textTransform: 'uppercase', marginBottom: '10px', display: 'block', fontWeight: 900 }}>Програми обробки (ЧПК):</label>
                 {order?.order_items?.map((item, idx) => {
                   const nom = (nomenclatures || []).find(n => n.id === item.nomenclature_id)

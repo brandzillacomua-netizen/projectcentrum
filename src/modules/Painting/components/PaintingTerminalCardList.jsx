@@ -26,7 +26,7 @@ export default function PaintingTerminalCardList({
             : formatDuration(card.started_at)
 
           return (
-            <div key={card.id} style={{ background: 'var(--card-bg, #111116)', border: '1px solid var(--glass-border, rgba(255,255,255,0.03))', borderRadius: '16px', padding: '14px 16px', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '12px', position: 'relative' }} className="hover-lift painting-card">
+            <div key={card.id} style={{ background: 'var(--card-bg, #111116)', border: '1px solid var(--glass-border, var(--border-subtle))', borderRadius: '16px', padding: '14px 16px', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '12px', position: 'relative' }} className="hover-lift painting-card">
               <div style={{ position: 'absolute', left: 0, top: '12px', bottom: '12px', width: '3px', background: isWaiting ? '#f59e0b' : ACCENT, borderRadius: '0 3px 3px 0' }} />
               <div style={{ flex: '1 1 200px', paddingLeft: '6px', minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px', flexWrap: 'wrap' }}>
@@ -64,7 +64,7 @@ export default function PaintingTerminalCardList({
                   </span>
                 </div>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: '10px', width: '100%', borderTop: '1px solid var(--glass-border, rgba(255,255,255,0.02))', paddingTop: '8px', marginTop: '4px' }} className="card-mobile-footer">
+              <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: '10px', width: '100%', borderTop: '1px solid var(--glass-border, var(--border-subtle))', paddingTop: '8px', marginTop: '4px' }} className="card-mobile-footer">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: isWaiting ? 'var(--text-muted, #6b7280)' : ACCENT, fontSize: '0.68rem', fontWeight: 900, fontFamily: 'monospace' }} className="card-timer">
                   <Clock size={12} /> {timeStr}
                 </div>

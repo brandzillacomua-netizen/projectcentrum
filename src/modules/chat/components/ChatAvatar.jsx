@@ -59,7 +59,7 @@ export const ChatAvatar = ({ src, label, size = 'small' }) => {
     : getLabelGradient(label)
 
   return (
-    <span className={`chat-initials-avatar ${size}`} style={{ background: bgStyle, color: '#ffffff' }}>
+    <span className={`chat-initials-avatar ${size}`} style={{ background: bgStyle, color: 'var(--text-strong)' }}>
       {getInitials(label)}
     </span>
   )

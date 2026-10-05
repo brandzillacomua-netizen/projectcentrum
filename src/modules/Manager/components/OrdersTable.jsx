@@ -73,7 +73,7 @@ export const OrdersTable = ({
                 return (
                   <tr key={order.id} onClick={() => setSelectedOrder(order)}>
                     <td className="order-num-cell">#{order.order_num}</td>
-                    <td className="invoice-num-cell" style={{ color: order.invoice_num ? '#3b82f6' : '#555', fontWeight: 600, fontSize: '0.88rem' }}>
+                    <td className="invoice-num-cell" style={{ color: order.invoice_num ? '#3b82f6' : 'var(--text-dim)', fontWeight: 600, fontSize: '0.88rem' }}>
                       {order.invoice_num ? `№ ${order.invoice_num}` : '—'}
                     </td>
                     <td className="customer-cell">{order.customer}</td>

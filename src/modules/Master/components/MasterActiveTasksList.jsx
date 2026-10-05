@@ -24,7 +24,7 @@ const MasterActiveTaskCard = React.memo(({ task, order, nomenclatures, handleRep
     <div 
       style={{ 
         position: 'relative', 
-        background: isLight ? '#ffffff' : '#0a0a0a', 
+        background: isLight ? '#ffffff' : 'var(--surface-inset)', 
         padding: '18px 20px', 
         borderRadius: '16px', 
         border: isLight ? '1px solid #e2e8f0' : '1px solid #222222', 
@@ -34,7 +34,7 @@ const MasterActiveTaskCard = React.memo(({ task, order, nomenclatures, handleRep
       {/* TOP ROW */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-          <strong style={{ fontSize: '1.15rem', fontWeight: 900, color: isLight ? '#0f172a' : '#ffffff', letterSpacing: '-0.01em' }}>
+          <strong style={{ fontSize: '1.15rem', fontWeight: 900, color: isLight ? '#0f172a' : 'var(--text-strong)', letterSpacing: '-0.01em' }}>
             {order?.order_num ? `№ ${order.order_num}` : (task.plan_snapshot?._prep_num ? `№ ${task.plan_snapshot._prep_num}` : '№ Наряд')}
           </strong>
           <span style={{ fontSize: '0.78rem', color: isLight ? '#64748b' : '#a1a1aa', fontWeight: 700 }}>
@@ -54,7 +54,7 @@ const MasterActiveTaskCard = React.memo(({ task, order, nomenclatures, handleRep
               style={{ 
                 background: 'transparent', 
                 border: 'none', 
-                color: isLight ? '#0f172a' : '#ffffff', 
+                color: isLight ? '#0f172a' : 'var(--text-strong)', 
                 cursor: 'pointer', 
                 padding: '4px', 
                 display: 'flex', 
@@ -82,7 +82,7 @@ const MasterActiveTaskCard = React.memo(({ task, order, nomenclatures, handleRep
       
       {/* MIDDLE INSET BOX */}
       <div style={{ 
-        background: isLight ? '#ffffff' : '#111111', 
+        background: isLight ? '#ffffff' : 'var(--surface-1)', 
         border: isLight ? '1px solid #e2e8f0' : '1px solid #1f1f23', 
         borderRadius: '10px', 
         padding: '10px 14px', 
@@ -92,7 +92,7 @@ const MasterActiveTaskCard = React.memo(({ task, order, nomenclatures, handleRep
           {taskProductNames}
         </div>
         <div style={{ fontSize: '0.72rem', color: isLight ? '#64748b' : '#a1a1aa', fontWeight: 800, display: 'flex', gap: '12px', alignItems: 'center' }}>
-          <span style={{ color: isLight ? '#0f172a' : '#ffffff', fontWeight: 900 }}>{task.step || 'Розкрій'}</span>
+          <span style={{ color: isLight ? '#0f172a' : 'var(--text-strong)', fontWeight: 900 }}>{task.step || 'Розкрій'}</span>
           <span>ВЕРСТАТ: <strong style={{ color: '#ff9000' }}>{task.machine_name || 'Не призначено'}</strong></span>
         </div>
       </div>
@@ -173,7 +173,7 @@ export function MasterActiveTasksList({
   return (
     <section className="grid-col">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-        <h3 style={{ fontSize: '0.85rem', color: isLight ? '#0f172a' : '#ffffff', margin: 0, display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 900, textTransform: 'uppercase' }}>
+        <h3 style={{ fontSize: '0.85rem', color: isLight ? '#0f172a' : 'var(--text-strong)', margin: 0, display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 900, textTransform: 'uppercase' }}>
           <Play size={14} fill="currentColor" color="#ea580c" /> АКТИВНІ В ЦЕХУ ({activeTasks.length})
         </h3>
         {setShowAuxiliary && (
@@ -193,8 +193,8 @@ export function MasterActiveTasksList({
         {activeTasks.length === 0 ? (
           <div style={{ 
             padding: '25px', 
-            background: isLight ? '#ffffff' : '#0a0a0a', 
-            border: isLight ? '1px solid #e2e8f0' : '1px solid #1a1a1a', 
+            background: isLight ? '#ffffff' : 'var(--surface-inset)', 
+            border: isLight ? '1px solid #e2e8f0' : '1px solid var(--border-subtle)', 
             borderRadius: '16px', 
             color: isLight ? '#64748b' : '#555555', 
             textAlign: 'center', 

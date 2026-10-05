@@ -65,8 +65,8 @@ export function WarehouseScannerModal({
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.95)', display: 'flex', alignItems: 'center', justifycontent: 'center', zIndex: 10050, padding: '20px' }}>
-      <div style={{ background: '#111', width: '100%', maxWidth: '440px', borderRadius: '28px', border: '1px solid #333', overflow: 'hidden', display: 'flex', flexDirection: 'column', margin: 'auto' }}>
-        <div style={{ padding: '20px', background: '#1a1a1a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div style={{ background: 'var(--surface-1)', width: '100%', maxWidth: '440px', borderRadius: '28px', border: '1px solid var(--border-subtle)', overflow: 'hidden', display: 'flex', flexDirection: 'column', margin: 'auto' }}>
+        <div style={{ padding: '20px', background: 'var(--surface-2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#ff9000', fontWeight: 900, fontSize: '0.9rem' }}>
             <QrCode size={18} /> СКАНУВАННЯ РОБОЧОЇ КАРТКИ
           </div>
@@ -76,7 +76,7 @@ export function WarehouseScannerModal({
           <div style={{ padding: '30px 24px', display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'center', textAlign: 'center' }}>
             <div style={{ fontSize: '2rem' }}>📷</div>
             <div style={{ color: '#ef4444', fontWeight: 800, fontSize: '0.85rem' }}>Камера недоступна</div>
-            <div style={{ color: '#555', fontSize: '0.75rem', maxWidth: '320px', lineHeight: 1.5 }}>
+            <div style={{ color: 'var(--text-dim)', fontSize: '0.75rem', maxWidth: '320px', lineHeight: 1.5 }}>
               Браузер заблокував доступ до камери. Введіть ID картки вручну:
             </div>
             <div style={{ display: 'flex', gap: '8px', width: '100%', maxWidth: '340px' }}>
@@ -92,7 +92,7 @@ export function WarehouseScannerModal({
                   }
                 }}
                 placeholder="Введіть UUID картки..."
-                style={{ flex: 1, padding: '10px 14px', background: '#000', border: '1px solid #333', color: '#fff', borderRadius: '10px', fontSize: '0.8rem', outline: 'none' }}
+                style={{ flex: 1, padding: '10px 14px', background: 'var(--surface-black)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', borderRadius: '10px', fontSize: '0.8rem', outline: 'none' }}
                 autoFocus
               />
               <button
@@ -103,7 +103,7 @@ export function WarehouseScannerModal({
                     handleCardScan(manualCardInput.trim()) 
                   } 
                 }}
-                style={{ padding: '10px 16px', background: '#ff9000', color: '#000', border: 'none', borderRadius: '10px', fontWeight: 900, cursor: 'pointer', fontSize: '0.85rem' }}
+                style={{ padding: '10px 16px', background: '#ff9000', color: 'var(--surface-black)', border: 'none', borderRadius: '10px', fontWeight: 900, cursor: 'pointer', fontSize: '0.85rem' }}
               >
                 OK
               </button>
@@ -111,10 +111,10 @@ export function WarehouseScannerModal({
           </div>
         ) : (
           <>
-            <div style={{ padding: 0, position: 'relative', background: '#000', minHeight: '280px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ padding: 0, position: 'relative', background: 'var(--surface-black)', minHeight: '280px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <div id="warehouse-reader" style={{ width: '100%', border: 'none' }} />
             </div>
-            <div style={{ padding: '18px', textAlign: 'center', fontSize: '0.75rem', color: '#555' }}>
+            <div style={{ padding: '18px', textAlign: 'center', fontSize: '0.75rem', color: 'var(--text-dim)' }}>
               Наведіть камеру на QR-код виробничої картки
             </div>
           </>

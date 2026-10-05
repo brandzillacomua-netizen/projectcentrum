@@ -98,7 +98,7 @@ export const DashboardWipMatrixTable = ({
               return (
                 <React.Fragment key={group.id}>
                   {/* Group Header Row */}
-                  <tr className="wip-group-header-row" style={{ background: 'var(--bg, #1c1917)', color: '#fff', borderBottom: '2px solid #27272a' }}>
+                  <tr className="wip-group-header-row" style={{ background: 'var(--bg, #1c1917)', color: 'var(--text-strong)', borderBottom: '2px solid #27272a' }}>
                     <td colSpan={20} style={{ padding: '14px 18px', textAlign: 'left', fontWeight: 'bold', borderBottom: '1px solid var(--glass-border, #27272a)', position: 'sticky', left: 0, background: 'var(--bg, #1c1917)', zIndex: 2 }}>
                       <div style={{ position: 'sticky', left: '16px', display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px 12px', maxWidth: 'calc(100vw - 40px)' }}>
                         <span style={{ color: '#ff9000' }}>📦</span>
@@ -122,21 +122,21 @@ export const DashboardWipMatrixTable = ({
                       <td className="wip-sticky-sum" style={{ padding: '12px 18px', textAlign: 'center', background: '#1c130d', borderRight: '1px solid #27272a', fontWeight: 'bold', position: 'sticky', zIndex: 2 }}>
                         {renderValue(row.sum, 'sum', row.demand)}
                       </td>
-                      <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)' }}>{renderValue(row.qCutWait, 'normal')}</td>
+                      <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'var(--fill-subtle)' }}>{renderValue(row.qCutWait, 'normal')}</td>
                       <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a' }}>{renderValue(row.qCut, 'normal')}</td>
-                      <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)' }}>{renderValue(row.qCutBuf, 'normal')}</td>
+                      <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'var(--fill-subtle)' }}>{renderValue(row.qCutBuf, 'normal')}</td>
                       <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a' }}>{renderValue(row.qGalt, 'normal')}</td>
-                      <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)' }}>{renderValue(row.qGaltBuf, 'normal')}</td>
+                      <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'var(--fill-subtle)' }}>{renderValue(row.qGaltBuf, 'normal')}</td>
                       <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a' }}>{renderValue(row.qPriy, 'normal')}</td>
-                      <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)' }}>{renderValue(row.qSortAct, 'normal')}</td>
-                      <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)' }}>{renderValue(row.qSort, 'normal')}</td>
-                      <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)' }}>{renderValue(row.qMalWait, 'normal')}</td>
+                      <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'var(--fill-subtle)' }}>{renderValue(row.qSortAct, 'normal')}</td>
+                      <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'var(--fill-subtle)' }}>{renderValue(row.qSort, 'normal')}</td>
+                      <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'var(--fill-subtle)' }}>{renderValue(row.qMalWait, 'normal')}</td>
                       <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a' }}>{renderValue(row.qMal, 'normal')}</td>
-                      <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)' }}>{renderValue(row.qMalBuf, 'normal')}</td>
+                      <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'var(--fill-subtle)' }}>{renderValue(row.qMalBuf, 'normal')}</td>
                       <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a' }}>{renderValue(row.qPres, 'normal')}</td>
-                      <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)' }}>{renderValue(row.qPresBuf, 'normal')}</td>
+                      <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'var(--fill-subtle)' }}>{renderValue(row.qPresBuf, 'normal')}</td>
                       <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a' }}>{renderValue(row.qDoop, 'normal')}</td>
-                      <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)' }}>{renderValue(row.qDoopBuf, 'normal')}</td>
+                      <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'var(--fill-subtle)' }}>{renderValue(row.qDoopBuf, 'normal')}</td>
                       <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(16, 185, 129, 0.02)' }}>{renderValue(row.qSgp, 'sgp')}</td>
                       <td style={{ padding: '12px 18px', textAlign: 'center', background: 'rgba(16, 185, 129, 0.02)' }}>{renderValue(row.qBz, 'bz')}</td>
                       <td style={{ padding: '12px 18px', textAlign: 'center', background: 'rgba(239, 68, 68, 0.02)' }}>{renderValue(row.qScrap, 'scrap')}</td>
@@ -151,21 +151,21 @@ export const DashboardWipMatrixTable = ({
                     <td className="wip-sticky-sum" style={{ padding: '12px 18px', textAlign: 'center', background: '#251a12', borderRight: '1px solid #27272a', color: '#ff9000', position: 'sticky', zIndex: 2 }}>
                       {renderValue(groupTotals.sum, 'sum')}
                     </td>
-                    <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)' }}>{renderValue(groupTotals.qCutWait, 'normal')}</td>
+                    <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'var(--fill-subtle)' }}>{renderValue(groupTotals.qCutWait, 'normal')}</td>
                     <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a' }}>{renderValue(groupTotals.qCut, 'normal')}</td>
-                    <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)' }}>{renderValue(groupTotals.qCutBuf, 'normal')}</td>
+                    <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'var(--fill-subtle)' }}>{renderValue(groupTotals.qCutBuf, 'normal')}</td>
                     <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a' }}>{renderValue(groupTotals.qGalt, 'normal')}</td>
-                    <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)' }}>{renderValue(groupTotals.qGaltBuf, 'normal')}</td>
+                    <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'var(--fill-subtle)' }}>{renderValue(groupTotals.qGaltBuf, 'normal')}</td>
                     <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a' }}>{renderValue(groupTotals.qPriy, 'normal')}</td>
-                    <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)' }}>{renderValue(groupTotals.qSortAct, 'normal')}</td>
-                    <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)' }}>{renderValue(groupTotals.qSort, 'normal')}</td>
-                    <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)' }}>{renderValue(groupTotals.qMalWait, 'normal')}</td>
+                    <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'var(--fill-subtle)' }}>{renderValue(groupTotals.qSortAct, 'normal')}</td>
+                    <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'var(--fill-subtle)' }}>{renderValue(groupTotals.qSort, 'normal')}</td>
+                    <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'var(--fill-subtle)' }}>{renderValue(groupTotals.qMalWait, 'normal')}</td>
                     <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a' }}>{renderValue(groupTotals.qMal, 'normal')}</td>
-                    <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)' }}>{renderValue(groupTotals.qMalBuf, 'normal')}</td>
+                    <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'var(--fill-subtle)' }}>{renderValue(groupTotals.qMalBuf, 'normal')}</td>
                     <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a' }}>{renderValue(groupTotals.qPres, 'normal')}</td>
-                    <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)' }}>{renderValue(groupTotals.qPresBuf, 'normal')}</td>
+                    <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'var(--fill-subtle)' }}>{renderValue(groupTotals.qPresBuf, 'normal')}</td>
                     <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a' }}>{renderValue(groupTotals.qDoop, 'normal')}</td>
-                    <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)' }}>{renderValue(groupTotals.qDoopBuf, 'normal')}</td>
+                    <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'var(--fill-subtle)' }}>{renderValue(groupTotals.qDoopBuf, 'normal')}</td>
                     <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(16, 185, 129, 0.08)', color: '#10b981' }}>{renderValue(groupTotals.qSgp, 'sgp')}</td>
                     <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(16, 185, 129, 0.08)', color: '#10b981' }}>{renderValue(groupTotals.qBz, 'bz')}</td>
                     <td style={{ padding: '12px 18px', textAlign: 'center', background: 'rgba(239, 68, 68, 0.08)', color: '#ef4444' }}>{renderValue(groupTotals.qScrap, 'scrap')}</td>
@@ -177,26 +177,26 @@ export const DashboardWipMatrixTable = ({
 
           {/* Grand Total Row */}
           {groupedDashboardData.length > 0 && (
-            <tr className="wip-grandtotal-row" style={{ background: 'var(--card-bg, #18181b)', fontWeight: 'bold', borderTop: '2px solid #ff9000', color: '#fff', fontSize: '0.8rem' }}>
+            <tr className="wip-grandtotal-row" style={{ background: 'var(--card-bg, #18181b)', fontWeight: 'bold', borderTop: '2px solid #ff9000', color: 'var(--text-strong)', fontSize: '0.8rem' }}>
               <td className="wip-sticky-col" style={{ padding: '14px 18px', borderRight: '1px solid #27272a', textTransform: 'uppercase', letterSpacing: '0.5px', position: 'sticky', left: 0, background: 'var(--card-bg, #18181b)', zIndex: 2 }}>ЗАГАЛЬНИЙ WIP РАЗОМ:</td>
               <td className="wip-sticky-sum" style={{ padding: '14px 18px', textAlign: 'center', background: '#2e2014', borderRight: '1px solid #27272a', color: '#ff9000', position: 'sticky', zIndex: 2 }}>
                 {renderValue(totals.sum, 'sum')}
               </td>
-              <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.02)' }}>{renderValue(totals.qCutWait, 'normal')}</td>
+              <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'var(--fill-subtle)' }}>{renderValue(totals.qCutWait, 'normal')}</td>
               <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #27272a' }}>{renderValue(totals.qCut, 'normal')}</td>
-              <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.02)' }}>{renderValue(totals.qCutBuf, 'normal')}</td>
+              <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'var(--fill-subtle)' }}>{renderValue(totals.qCutBuf, 'normal')}</td>
               <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #27272a' }}>{renderValue(totals.qGalt, 'normal')}</td>
-              <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.02)' }}>{renderValue(totals.qGaltBuf, 'normal')}</td>
+              <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'var(--fill-subtle)' }}>{renderValue(totals.qGaltBuf, 'normal')}</td>
               <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #27272a' }}>{renderValue(totals.qPriy, 'normal')}</td>
-              <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.02)' }}>{renderValue(totals.qSortAct, 'normal')}</td>
-              <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.02)' }}>{renderValue(totals.qSort, 'normal')}</td>
-              <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.02)' }}>{renderValue(totals.qMalWait, 'normal')}</td>
+              <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'var(--fill-subtle)' }}>{renderValue(totals.qSortAct, 'normal')}</td>
+              <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'var(--fill-subtle)' }}>{renderValue(totals.qSort, 'normal')}</td>
+              <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'var(--fill-subtle)' }}>{renderValue(totals.qMalWait, 'normal')}</td>
               <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #27272a' }}>{renderValue(totals.qMal, 'normal')}</td>
-              <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.02)' }}>{renderValue(totals.qMalBuf, 'normal')}</td>
+              <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'var(--fill-subtle)' }}>{renderValue(totals.qMalBuf, 'normal')}</td>
               <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #27272a' }}>{renderValue(totals.qPres, 'normal')}</td>
-              <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.02)' }}>{renderValue(totals.qPresBuf, 'normal')}</td>
+              <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'var(--fill-subtle)' }}>{renderValue(totals.qPresBuf, 'normal')}</td>
               <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #27272a' }}>{renderValue(totals.qDoop, 'normal')}</td>
-              <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.02)' }}>{renderValue(totals.qDoopBuf, 'normal')}</td>
+              <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'var(--fill-subtle)' }}>{renderValue(totals.qDoopBuf, 'normal')}</td>
               <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(16, 185, 129, 0.08)', color: '#10b981' }}>{renderValue(totals.qSgp, 'sgp')}</td>
               <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(16, 185, 129, 0.08)', color: '#10b981' }}>{renderValue(totals.qBz, 'bz')}</td>
               <td style={{ padding: '14px 18px', textAlign: 'center', background: 'rgba(239, 68, 68, 0.08)', color: '#ef4444' }}>{renderValue(totals.qScrap, 'scrap')}</td>

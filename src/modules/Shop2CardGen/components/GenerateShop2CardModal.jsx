@@ -49,7 +49,7 @@ export function GenerateShop2CardModal({
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }} onClick={onClose}>
-      <div style={{ background: 'var(--card-bg, #0e0e0e)', width: '100%', maxWidth: '560px', borderRadius: '24px', padding: '36px', position: 'relative', border: '1px solid var(--border, #222)', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }} onClick={e => e.stopPropagation()}>
+      <div style={{ background: 'var(--card-bg, #0e0e0e)', width: '100%', maxWidth: '560px', borderRadius: '24px', padding: '36px', position: 'relative', border: '1px solid var(--border, var(--border-subtle))', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }} onClick={e => e.stopPropagation()}>
         <button
           onClick={onClose}
           style={{ position: 'absolute', top: '22px', right: '22px', background: 'var(--border, #1c1c1c)', border: 'none', color: 'var(--text-muted, #888)', cursor: 'pointer', width: '36px', height: '36px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
@@ -105,7 +105,7 @@ export function GenerateShop2CardModal({
             <select
               value={stage}
               onChange={(e) => setStage(e.target.value)}
-              style={{ width: '100%', background: 'var(--input-bg, #000)', border: '1px solid var(--border, #2a2a2a)', color: 'var(--text, #fff)', padding: '14px', borderRadius: '14px', fontSize: '0.9rem', outline: 'none', fontWeight: 800 }}
+              style={{ width: '100%', background: 'var(--input-bg, #000)', border: '1px solid var(--border, var(--border-subtle))', color: 'var(--text, #fff)', padding: '14px', borderRadius: '14px', fontSize: '0.9rem', outline: 'none', fontWeight: 800 }}
             >
               {stages.map(st => (
                 <option key={st} value={st}>{st}</option>
@@ -144,7 +144,7 @@ export function GenerateShop2CardModal({
           </div>
 
           {/* Summary Box */}
-          <div style={{ background: isOverBuffer ? 'rgba(239, 68, 68, 0.08)' : 'var(--input-bg, #050505)', border: isOverBuffer ? '1px solid rgba(239,68,68,0.3)' : '1px solid var(--border, #1a1a1a)', borderRadius: '16px', padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ background: isOverBuffer ? 'rgba(239, 68, 68, 0.08)' : 'var(--input-bg, #050505)', border: isOverBuffer ? '1px solid rgba(239,68,68,0.3)' : '1px solid var(--border, var(--border-subtle))', borderRadius: '16px', padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: '0.8rem', color: isOverBuffer ? '#ef4444' : 'var(--text-muted, #888)', fontWeight: 800 }}>
               {isOverBuffer ? '⚠️ Перевищено доступний буфер!' : 'Разом у випуск:'}
             </span>
@@ -163,7 +163,7 @@ export function GenerateShop2CardModal({
               background: isValid 
                 ? (isDirectSGP ? 'linear-gradient(135deg, #10b981, #059669)' : 'linear-gradient(135deg, #ff9000, #ff5500)')
                 : 'var(--border, #1f1f1f)',
-              color: isValid ? '#fff' : 'var(--text-muted, #444)',
+              color: isValid ? 'var(--text-strong)' : 'var(--text-muted, #444)',
               padding: '18px',
               borderRadius: '16px',
               fontSize: '0.95rem',

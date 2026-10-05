@@ -40,13 +40,13 @@ export const ShippingWorkModal = React.memo(({
       <div className="shipping-modal-card" style={{ background: 'linear-gradient(160deg, #0f1923 0%, #0a0f18 100%)', border: '1px solid rgba(255,144,0,0.2)', borderRadius: '32px', width: '100%', maxWidth: '720px', marginTop: '20px', marginBottom: '20px', overflow: 'hidden', boxShadow: '0 40px 100px rgba(0,0,0,0.8), 0 0 80px rgba(255,144,0,0.05)' }}>
 
         {/* Modal Header */}
-        <div style={{ padding: '28px 32px', borderBottom: '1px solid #1a1a1a', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,144,0,0.04)' }}>
+        <div style={{ padding: '28px 32px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,144,0,0.04)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
             <div style={{ width: '52px', height: '52px', borderRadius: '16px', background: 'linear-gradient(135deg, #ff9000, #ff5e00)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 24px rgba(255,144,0,0.4)' }}>
               <Truck size={24} color="#fff" />
             </div>
             <div>
-              <div style={{ fontSize: '1.1rem', fontWeight: 950, color: '#fff', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              <div style={{ fontSize: '1.1rem', fontWeight: 950, color: 'var(--text-strong)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                 Взяти в роботу
               </div>
               <div style={{ fontSize: '0.75rem', color: '#ff9000', fontWeight: 700, marginTop: '2px' }}>
@@ -54,7 +54,7 @@ export const ShippingWorkModal = React.memo(({
               </div>
             </div>
           </div>
-          <button onClick={onClose || closeWorkModal} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px', color: '#888', cursor: 'pointer', padding: '10px', display: 'flex', transition: '0.2s' }}
+          <button onClick={onClose || closeWorkModal} style={{ background: 'var(--border-subtle)', border: '1px solid var(--border-subtle)', borderRadius: '12px', color: '#888', cursor: 'pointer', padding: '10px', display: 'flex', transition: '0.2s' }}
             onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; e.currentTarget.style.color = '#fff' }}
             onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = '#888' }}
           >
@@ -95,7 +95,7 @@ export const ShippingWorkModal = React.memo(({
                       style={{
                         padding: '10px 16px',
                         borderRadius: '12px',
-                        border: isSel ? '2px solid #ff9000' : '1px solid var(--border, rgba(255,255,255,0.08))',
+                        border: isSel ? '2px solid #ff9000' : '1px solid var(--border, var(--border-subtle))',
                         background: isSel ? 'rgba(255,144,0,0.18)' : 'var(--card-inner-bg, #111)',
                         color: isSel ? 'var(--text, #fff)' : 'var(--text-secondary, #aaa)',
                         fontSize: '0.82rem',
@@ -110,12 +110,12 @@ export const ShippingWorkModal = React.memo(({
                       }}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span style={{ color: isSel ? '#ff9000' : '#888' }}>
+                        <span style={{ color: isSel ? '#ff9000' : 'var(--text-muted)' }}>
                           {addr.deliveryMethod === 'pickup' ? '🚗' : addr.deliveryMethod === 'np_postomat' ? '📮' : '📦'}
                         </span>
                         <span className="address-title">{addr.title || addr.city}</span>
                         {addr.isDefault && (
-                          <span style={{ background: '#ff9000', color: '#000', padding: '1px 5px', borderRadius: '4px', fontSize: '0.58rem', fontWeight: 950 }}>
+                          <span style={{ background: '#ff9000', color: 'var(--surface-black)', padding: '1px 5px', borderRadius: '4px', fontSize: '0.58rem', fontWeight: 950 }}>
                             ★ Основна
                           </span>
                         )}
@@ -133,7 +133,7 @@ export const ShippingWorkModal = React.memo(({
                 const sel = customerDeliveryAddresses.find(a => a.id === selectedClientAddressId) || customerDeliveryAddresses[0]
                 if (!sel) return null
                 return (
-                  <div className="shipping-address-summary" style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '14px', padding: '14px', border: '1px solid rgba(255,144,0,0.15)', fontSize: '0.78rem', color: 'var(--text, #ccc)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <div className="shipping-address-summary" style={{ background: 'var(--fill-inset)', borderRadius: '14px', padding: '14px', border: '1px solid rgba(255,144,0,0.15)', fontSize: '0.78rem', color: 'var(--text, #ccc)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                     <div><strong style={{ color: 'var(--text-secondary, #888)' }}>Місто:</strong> {sel.city || '—'}</div>
                     <div><strong style={{ color: 'var(--text-secondary, #888)' }}>Спосіб:</strong> {sel.deliveryMethod === 'pickup' ? 'Самовивіз' : sel.deliveryMethod === 'np_postomat' ? 'Поштомат НП' : sel.deliveryMethod === 'np_courier' ? 'Адресна НП' : 'Відділення НП'}</div>
                     <div style={{ gridColumn: '1 / -1' }}><strong style={{ color: 'var(--text-secondary, #888)' }}>Адреса / Відділення:</strong> <span style={{ color: '#ff9000', fontWeight: 800 }}>{sel.warehouse || sel.address || '—'}</span></div>
@@ -154,7 +154,7 @@ export const ShippingWorkModal = React.memo(({
 
               {/* Тип відвантаження */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{ fontSize: '0.7rem', fontWeight: 700, color: '#666', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Тип відвантаження</label>
+                <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Тип відвантаження</label>
                 <CustomSelect
                   value={shippingType}
                   onChange={setShippingType}
@@ -168,7 +168,7 @@ export const ShippingWorkModal = React.memo(({
 
               {/* Дата відвантаження */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{ fontSize: '0.7rem', fontWeight: 700, color: '#666', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Дата відвантаження</label>
+                <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Дата відвантаження</label>
                 <input
                   type="date"
                   value={shippingDate}
@@ -180,14 +180,14 @@ export const ShippingWorkModal = React.memo(({
                       console.error(err);
                     }
                   }}
-                  style={{ padding: '12px 14px', background: 'rgba(255,144,0,0.06)', border: `1.5px solid ${shippingDate ? 'rgba(255,144,0,0.4)' : 'rgba(255,255,255,0.08)'}`, borderRadius: '12px', color: shippingDate ? '#fff' : '#555', fontSize: '0.85rem', fontWeight: 700, outline: 'none', colorScheme: 'dark', cursor: 'pointer', width: '100%' }}
+                  style={{ padding: '12px 14px', background: 'rgba(255,144,0,0.06)', border: `1.5px solid ${shippingDate ? 'rgba(255,144,0,0.4)' : 'var(--border-subtle)'}`, borderRadius: '12px', color: shippingDate ? '#fff' : '#555', fontSize: '0.85rem', fontWeight: 700, outline: 'none', colorScheme: 'dark', cursor: 'pointer', width: '100%' }}
                 />
               </div>
 
               {/* Номер ТТН */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <label style={{ fontSize: '0.7rem', fontWeight: 700, color: '#666', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Номер ТТН</label>
+                  <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Номер ТТН</label>
                   <button
                     type="button"
                     onClick={handleOpenNpModal}
@@ -201,13 +201,13 @@ export const ShippingWorkModal = React.memo(({
                   placeholder="20450000000000"
                   value={ttnNumber}
                   onChange={e => setTtnNumber(e.target.value)}
-                  style={{ padding: '12px 14px', background: 'rgba(255,144,0,0.06)', border: `1.5px solid ${ttnNumber.trim() ? 'rgba(255,144,0,0.4)' : 'rgba(255,255,255,0.08)'}`, borderRadius: '12px', color: '#fff', fontSize: '0.85rem', fontWeight: 700, outline: 'none' }}
+                  style={{ padding: '12px 14px', background: 'rgba(255,144,0,0.06)', border: `1.5px solid ${ttnNumber.trim() ? 'rgba(255,144,0,0.4)' : 'var(--border-subtle)'}`, borderRadius: '12px', color: 'var(--text-strong)', fontSize: '0.85rem', fontWeight: 700, outline: 'none' }}
                 />
               </div>
 
               {/* Відповідальний */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{ fontSize: '0.7rem', fontWeight: 700, color: '#666', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Відповідальний</label>
+                <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Відповідальний</label>
                 <CustomSelect
                   value={selectedWorkerId}
                   onChange={setSelectedWorkerId}
@@ -254,7 +254,7 @@ export const ShippingWorkModal = React.memo(({
               ))}
             </div>
             {batchColor && (
-              <div style={{ marginTop: '8px', fontSize: '0.75rem', color: '#888', fontWeight: 700 }}>
+              <div style={{ marginTop: '8px', fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700 }}>
                 Обрано: <span style={{ color: PALLET_COLORS.find(c => c.id === batchColor)?.hex }}>{PALLET_COLORS.find(c => c.id === batchColor)?.label}</span>
               </div>
             )}
@@ -268,7 +268,7 @@ export const ShippingWorkModal = React.memo(({
                 Перевірка коробок
               </div>
               {totalBoxes > 0 && (
-                <div style={{ fontSize: '0.75rem', fontWeight: 800, color: checkedCount === totalBoxes ? '#10b981' : '#888' }}>
+                <div style={{ fontSize: '0.75rem', fontWeight: 800, color: checkedCount === totalBoxes ? '#10b981' : 'var(--text-muted)' }}>
                   {checkedCount} / {totalBoxes} перевірено
                 </div>
               )}
@@ -279,7 +279,7 @@ export const ShippingWorkModal = React.memo(({
                 Завантаження коробок…
               </div>
             ) : boxes.length === 0 ? (
-              <div style={{ padding: '20px', background: 'rgba(255,255,255,0.02)', borderRadius: '14px', border: '1px solid #1a1a1a', textAlign: 'center', color: '#444', fontSize: '0.8rem' }}>
+              <div style={{ padding: '20px', background: 'var(--fill-subtle)', borderRadius: '14px', border: '1px solid var(--border-subtle)', textAlign: 'center', color: '#444', fontSize: '0.8rem' }}>
                 ⚠️ Коробки не знайдені в базі. Переконайтесь що пакування було збережено.
               </div>
             ) : (
@@ -292,8 +292,8 @@ export const ShippingWorkModal = React.memo(({
                       onClick={() => setCheckedBoxes(prev => ({ ...prev, [box.box_number]: !prev[box.box_number] }))}
                       style={{
                         padding: '12px 14px',
-                        background: isChecked ? 'rgba(16,185,129,0.08)' : 'rgba(255,255,255,0.02)',
-                        border: `1px solid ${isChecked ? 'rgba(16,185,129,0.25)' : '#1a1a1a'}`,
+                        background: isChecked ? 'rgba(16,185,129,0.08)' : 'var(--fill-subtle)',
+                        border: `1px solid ${isChecked ? 'rgba(16,185,129,0.25)' : 'var(--border-subtle)'}`,
                         borderRadius: '12px',
                         cursor: 'pointer',
                         transition: 'all 0.2s',
@@ -319,7 +319,7 @@ export const ShippingWorkModal = React.memo(({
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                           {box.items.map((item, i) => (
-                            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: isChecked ? '#888' : '#555' }}>
+                            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: isChecked ? 'var(--text-muted)' : 'var(--text-dim)' }}>
                               <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.nom_name}</span>
                               <span style={{ fontWeight: 800, marginLeft: '10px', flexShrink: 0 }}>{item.qty} {item.unit}</span>
                             </div>
@@ -341,7 +341,7 @@ export const ShippingWorkModal = React.memo(({
                   boxes.forEach(b => { newState[b.box_number] = !allChecked })
                   setCheckedBoxes(newState)
                 }}
-                style={{ marginTop: '10px', background: 'transparent', border: '1px solid #222', borderRadius: '10px', color: '#555', fontSize: '0.75rem', fontWeight: 700, padding: '8px 16px', cursor: 'pointer', transition: '0.2s' }}
+                style={{ marginTop: '10px', background: 'transparent', border: '1px solid var(--border-subtle)', borderRadius: '10px', color: '#555', fontSize: '0.75rem', fontWeight: 700, padding: '8px 16px', cursor: 'pointer', transition: '0.2s' }}
               >
                 {boxes.every(b => checkedBoxes[b.box_number]) ? '✕ Зняти всі' : '✓ Відмітити всі'}
               </button>
@@ -359,7 +359,7 @@ export const ShippingWorkModal = React.memo(({
                 : 'rgba(255,255,255,0.04)',
               border: 'none',
               borderRadius: '16px',
-              color: canFinish ? '#fff' : '#333',
+              color: canFinish ? 'var(--text-strong)' : '#333',
               fontSize: '0.9rem',
               fontWeight: 900,
               cursor: canFinish ? 'pointer' : 'not-allowed',
@@ -386,7 +386,7 @@ export const ShippingWorkModal = React.memo(({
           </button>
 
           {!canFinish && (
-            <div style={{ fontSize: '0.72rem', color: '#555', textAlign: 'center', marginTop: '-16px' }}>
+            <div style={{ fontSize: '0.72rem', color: 'var(--text-dim)', textAlign: 'center', marginTop: '-16px' }}>
               {!shippingType && '• Оберіть тип відвантаження  '}
               {!shippingDate && '• Вкажіть дату  '}
               {!ttnNumber.trim() && '• Введіть номер ТТН  '}

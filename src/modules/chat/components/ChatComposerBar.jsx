@@ -44,7 +44,7 @@ export const ChatComposerBar = ({
   return (
     <footer className="composer">
       {pendingImage && (
-        <div className="pending-img-preview" style={{ padding: '8px 12px', background: '#111', borderBottom: '1px solid #222', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderRadius: '12px 12px 0 0', marginBottom: '8px' }}>
+        <div className="pending-img-preview" style={{ padding: '8px 12px', background: 'var(--surface-1)', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderRadius: '12px 12px 0 0', marginBottom: '8px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.75rem' }}>
             <img src={pendingImage.previewUrl} alt="Preview" style={{ width: '36px', height: '36px', objectFit: 'cover', borderRadius: '6px' }} />
             <span>
@@ -58,7 +58,7 @@ export const ChatComposerBar = ({
       )}
       {showEmojiPicker && (
         <div className="emoji-picker-container">
-          <Suspense fallback={<div style={{ padding: '20px', color: '#666', fontSize: '0.75rem', textAlign: 'center' }}>Завантаження смайлів...</div>}>
+          <Suspense fallback={<div style={{ padding: '20px', color: 'var(--text-dim)', fontSize: '0.75rem', textAlign: 'center' }}>Завантаження смайлів...</div>}>
             <EmojiPicker
               theme="dark"
               width="100%"
@@ -96,15 +96,15 @@ export const ChatComposerBar = ({
           {showAttachMenu && (
             <>
               <div className="chat-menu-backdrop" onClick={() => setShowAttachMenu(false)} style={{ zIndex: 10, position: 'fixed', inset: 0 }} />
-              <div className="attach-options-menu" style={{ position: 'absolute', bottom: '100%', left: 0, marginBottom: '8px', zIndex: 11, background: '#111', border: '1px solid #222', borderRadius: '12px', padding: '6px', minWidth: '180px', boxShadow: '0 4px 20px rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                <button onClick={() => cameraInputRef.current?.click()} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: 'transparent', border: 'none', color: '#fff', textAlign: 'left', cursor: 'pointer', borderRadius: '6px', fontSize: '0.85rem' }} onMouseEnter={e => e.currentTarget.style.background='#222'} onMouseLeave={e => e.currentTarget.style.background='transparent'}>
+              <div className="attach-options-menu" style={{ position: 'absolute', bottom: '100%', left: 0, marginBottom: '8px', zIndex: 11, background: 'var(--surface-1)', border: '1px solid var(--border-subtle)', borderRadius: '12px', padding: '6px', minWidth: '180px', boxShadow: '0 4px 20px rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                <button onClick={() => cameraInputRef.current?.click()} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: 'transparent', border: 'none', color: 'var(--text-strong)', textAlign: 'left', cursor: 'pointer', borderRadius: '6px', fontSize: '0.85rem' }} onMouseEnter={e => e.currentTarget.style.background='var(--surface-3)'} onMouseLeave={e => e.currentTarget.style.background='transparent'}>
                   <Camera size={16} color="#3b82f6" /> Зробити фото
                 </button>
-                <button onClick={() => fileInputRef.current?.click()} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: 'transparent', border: 'none', color: '#fff', textAlign: 'left', cursor: 'pointer', borderRadius: '6px', fontSize: '0.85rem' }} onMouseEnter={e => e.currentTarget.style.background='#222'} onMouseLeave={e => e.currentTarget.style.background='transparent'}>
+                <button onClick={() => fileInputRef.current?.click()} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: 'transparent', border: 'none', color: 'var(--text-strong)', textAlign: 'left', cursor: 'pointer', borderRadius: '6px', fontSize: '0.85rem' }} onMouseEnter={e => e.currentTarget.style.background='var(--surface-3)'} onMouseLeave={e => e.currentTarget.style.background='transparent'}>
                   <ImageIcon size={16} color="#10b981" /> Завантажити фото
                 </button>
                 {activeIsChannel && (
-                  <button onClick={() => { setShowPollModal(true); setShowAttachMenu(false) }} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: 'transparent', border: 'none', color: '#fff', textAlign: 'left', cursor: 'pointer', borderRadius: '6px', fontSize: '0.85rem' }} onMouseEnter={e => e.currentTarget.style.background='#222'} onMouseLeave={e => e.currentTarget.style.background='transparent'}>
+                  <button onClick={() => { setShowPollModal(true); setShowAttachMenu(false) }} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: 'transparent', border: 'none', color: 'var(--text-strong)', textAlign: 'left', cursor: 'pointer', borderRadius: '6px', fontSize: '0.85rem' }} onMouseEnter={e => e.currentTarget.style.background='var(--surface-3)'} onMouseLeave={e => e.currentTarget.style.background='transparent'}>
                     <CheckSquare size={16} color="#93c5fd" /> Опитування
                   </button>
                 )}
@@ -116,7 +116,7 @@ export const ChatComposerBar = ({
                       setShowTaskModal(true)
                       setShowAttachMenu(false)
                     }
-                  }} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: 'transparent', border: 'none', color: '#fff', textAlign: 'left', cursor: 'pointer', borderRadius: '6px', fontSize: '0.85rem', borderTop: '1px solid #222', marginTop: '4px', paddingTop: '8px' }} onMouseEnter={e => e.currentTarget.style.background='#222'} onMouseLeave={e => e.currentTarget.style.background='transparent'}>
+                  }} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: 'transparent', border: 'none', color: 'var(--text-strong)', textAlign: 'left', cursor: 'pointer', borderRadius: '6px', fontSize: '0.85rem', borderTop: '1px solid var(--border-subtle)', marginTop: '4px', paddingTop: '8px' }} onMouseEnter={e => e.currentTarget.style.background='var(--surface-3)'} onMouseLeave={e => e.currentTarget.style.background='transparent'}>
                     <CheckSquare size={16} color="#ff9000" /> Створити завдання
                   </button>
                 )}

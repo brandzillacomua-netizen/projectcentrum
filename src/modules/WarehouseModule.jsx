@@ -144,7 +144,7 @@ const WarehouseModule = () => {
                                 orderedReception ? 'ОЧІКУЄ ПРИЙОМКИ' : 
                                 pendingReception ? 'ПРИЙОМКА' : 
                                 (missingItems.length === 0 ? 'ВИДАТИ' : 'ЗІБРАТИ ТА ЗАБРОНЮАТИ')
-�НЯТО' : 
+�НЯТО' : 
                                 hasActiveReception ? 'ПРИЙОМКА' : 
                                 (missingItems.length === 0 ? 'ВИДАТИ' : 'ЗІБРАТИ ТА ЗАБРОНЮВАТИ')
                 
@@ -152,9 +152,9 @@ const WarehouseModule = () => {
                 const textColor = isAwaiting ? '#444' : '#000'
 
                 return (
-                  <div key={orderId} style={{ minWidth: '300px', background: '#111', padding: '15px', borderRadius: '15px', border: '1px solid #222' }}>
+                  <div key={orderId} style={{ minWidth: '300px', background: 'var(--surface-1)', padding: '15px', borderRadius: '15px', border: '1px solid var(--border-subtle)' }}>
                     <strong style={{ display: 'block', fontSize: '0.75rem', marginBottom: '10px' }}>НАРЯД #{orderNum}</strong>
-                    <ul style={{ fontSize: '0.8rem', color: '#888', paddingLeft: '15px', marginBottom: '15px' }}>
+                    <ul style={{ fontSize: '0.8rem', color: 'var(--text-muted)', paddingLeft: '15px', marginBottom: '15px' }}>
                       {reqList.map(r => {
                           const displayDetails = r.details?.split(': ')[1]?.split(' (Для:')[0] || r.details
                           return <li key={r.id}>{displayDetails}</li>
@@ -168,7 +168,7 @@ const WarehouseModule = () => {
                         padding: '12px', 
                         background: btnColor, 
                         color: textColor, 
-                        border: isAwaiting ? '1px solid #222' : 'none', 
+                        border: isAwaiting ? '1px solid var(--border-subtle)' : 'none', 
                         borderRadius: '10px', 
                         fontWeight: 900, 
                         cursor: isAwaiting ? 'not-allowed' : 'pointer',
@@ -187,47 +187,47 @@ const WarehouseModule = () => {
 
         <div style={{ display: 'flex', gap: '10px', marginBottom: '25px', overflowX: 'auto' }}>
           {tabs.map(tab => (
-            <button key={tab.id} onClick={() => { setActiveTab(tab.id); setNewItem({...newItem, type: tab.id}); }} style={{ background: activeTab === tab.id ? '#ff9000' : '#111', color: activeTab === tab.id ? '#000' : '#555', border: '1px solid #222', padding: '12px 20px', borderRadius: '14px', fontSize: '0.85rem', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', whiteSpace: 'nowrap' }}>
+            <button key={tab.id} onClick={() => { setActiveTab(tab.id); setNewItem({...newItem, type: tab.id}); }} style={{ background: activeTab === tab.id ? '#ff9000' : 'var(--surface-1)', color: activeTab === tab.id ? 'var(--surface-black)' : '#555', border: '1px solid var(--border-subtle)', padding: '12px 20px', borderRadius: '14px', fontSize: '0.85rem', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', whiteSpace: 'nowrap' }}>
               {tab.icon} {tab.label}
             </button>
           ))}
         </div>
 
-        <div className="content-card glass-panel" style={{ padding: '25px', borderRadius: '24px', background: 'rgba(20,20,20,0.6)', border: '1px solid #222' }}>
+        <div className="content-card glass-panel" style={{ padding: '25px', borderRadius: '24px', background: 'rgba(20,20,20,0.6)', border: '1px solid var(--border-subtle)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px', marginBottom: '25px' }}>
              <h2 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 900 }}>{tabs.find(t => t.id === activeTab).label.toUpperCase()}</h2>
              <div style={{ display: 'flex', gap: '10px' }}>
                 <div style={{ position: 'relative' }}>
                    <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#444' }} />
-                   <input style={{ background: '#000', border: '1px solid #222', padding: '8px 12px 8px 35px', borderRadius: '10px', color: '#fff', width: '180px' }} placeholder="Пошук..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+                   <input style={{ background: 'var(--surface-black)', border: '1px solid var(--border-subtle)', padding: '8px 12px 8px 35px', borderRadius: '10px', color: 'var(--text-strong)', width: '180px' }} placeholder="Пошук..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
                 </div>
                 <button onClick={() => setShowReception(!showReception)} style={{ background: '#0ea5e9', color: '#fff', border: 'none', padding: '8px 15px', borderRadius: '10px', fontWeight: 800, cursor: 'pointer', position: 'relative', display: 'flex', alignItems: 'center', gap: '8px' }}>
                    <Truck size={18} /> <span className="hide-mobile">ПРИЙОМКА</span> {pendingDocs.length > 0 && <span style={{ background: '#ef4444', height: '18px', width: '18px', borderRadius: '50%', fontSize: '0.6rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{pendingDocs.length}</span>}
                 </button>
-                <button onClick={() => setShowAdd(!showAdd)} style={{ background: '#222', color: '#fff', border: 'none', padding: '8px 12px', borderRadius: '10px', cursor: 'pointer' }}><Plus size={20} /></button>
+                <button onClick={() => setShowAdd(!showAdd)} style={{ background: 'var(--surface-3)', color: 'var(--text-strong)', border: 'none', padding: '8px 12px', borderRadius: '10px', cursor: 'pointer' }}><Plus size={20} /></button>
              </div>
           </div>
 
           {showReception && (
-            <div style={{ background: '#111', padding: '20px', borderRadius: '15px', marginBottom: '20px', border: '1px solid #333' }}>
+            <div style={{ background: 'var(--surface-1)', padding: '20px', borderRadius: '15px', marginBottom: '20px', border: '1px solid var(--border-subtle)' }}>
                <h4 style={{ color: '#0ea5e9', fontSize: '0.8rem', marginBottom: '15px' }}>ОЧІКУЮТЬ ПРИЙОМКИ</h4>
                {pendingDocs.map(doc => (
-                 <div key={doc.id} style={{ padding: '15px 20px', background: '#000', borderRadius: '18px', marginBottom: '12px', border: '1px solid #1a1a1a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                 <div key={doc.id} style={{ padding: '15px 20px', background: 'var(--surface-black)', borderRadius: '18px', marginBottom: '12px', border: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ flex: 1 }}>
                        <div style={{ fontSize: '0.65rem', color: '#0ea5e9', fontWeight: 900, textTransform: 'uppercase', marginBottom: '10px', letterSpacing: '0.05em' }}>ДОКУМЕНТ #{doc.id.substring(0,8)}</div>
                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                           {doc.items?.map((it, idx) => {
                             const nom = nomenclatures.find(n => n.id === it.nomenclature_id)
                             return (
-                              <div key={idx} style={{ background: '#0a0a0a', padding: '5px 10px', borderRadius: '8px', border: '1px solid #222', display: 'flex', gap: '8px', alignItems: 'center' }}>
-                                <span style={{ fontSize: '0.72rem', color: '#888', fontWeight: 700 }}>{nom ? (nom.name + (nom.material_type ? ` (${nom.material_type})` : '')) : 'Товар'}</span>
-                                <strong style={{ fontSize: '0.85rem', color: '#fff' }}>{it.qty}</strong>
+                              <div key={idx} style={{ background: 'var(--surface-inset)', padding: '5px 10px', borderRadius: '8px', border: '1px solid var(--border-subtle)', display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700 }}>{nom ? (nom.name + (nom.material_type ? ` (${nom.material_type})` : '')) : 'Товар'}</span>
+                                <strong style={{ fontSize: '0.85rem', color: 'var(--text-strong)' }}>{it.qty}</strong>
                               </div>
                             )
                           })}
                        </div>
                     </div>
-                    <button onClick={() => apiService.submitConfirmReception(doc.id, confirmReceptionDoc)} style={{ marginLeft: '15px', background: '#10b981', color: '#000', border: 'none', padding: '10px 20px', borderRadius: '10px', fontWeight: 1000, cursor: 'pointer', fontSize: '0.8rem' }}>ПРИЙНЯТИ</button>
+                    <button onClick={() => apiService.submitConfirmReception(doc.id, confirmReceptionDoc)} style={{ marginLeft: '15px', background: '#10b981', color: 'var(--surface-black)', border: 'none', padding: '10px 20px', borderRadius: '10px', fontWeight: 1000, cursor: 'pointer', fontSize: '0.8rem' }}>ПРИЙНЯТИ</button>
                  </div>
                ))}
                {pendingDocs.length === 0 && <p style={{ color: '#333', fontSize: '0.8rem', textAlign: 'center' }}>Немає активних документів на прийомку</p>}
@@ -235,21 +235,21 @@ const WarehouseModule = () => {
           )}
 
           {showAdd && (
-            <form onSubmit={(e) => { e.preventDefault(); apiService.submitInventory(newItem, addInventory); setShowAdd(false); }} className="stack-mobile" style={{ display: 'flex', gap: '10px', padding: '15px', background: '#111', borderRadius: '15px', marginBottom: '20px' }}>
-              <input style={{ flex: 2, background: '#000', border: '1px solid #333', color: '#fff', padding: '10px', borderRadius: '8px' }} placeholder="Назва товару..." value={newItem.name} onChange={e => setNewItem({...newItem, name: e.target.value})} required />
-              <input style={{ flex: 1, background: '#000', border: '1px solid #333', color: '#fff', padding: '10px', borderRadius: '8px' }} type="number" placeholder="Кількість" value={newItem.total_qty} onChange={e => setNewItem({...newItem, total_qty: e.target.value})} required />
-              <button type="submit" style={{ background: '#ff9000', color: '#000', border: 'none', padding: '10px 30px', borderRadius: '8px', fontWeight: 900, cursor: 'pointer' }}>ДОДАТИ</button>
+            <form onSubmit={(e) => { e.preventDefault(); apiService.submitInventory(newItem, addInventory); setShowAdd(false); }} className="stack-mobile" style={{ display: 'flex', gap: '10px', padding: '15px', background: 'var(--surface-1)', borderRadius: '15px', marginBottom: '20px' }}>
+              <input style={{ flex: 2, background: 'var(--surface-black)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', padding: '10px', borderRadius: '8px' }} placeholder="Назва товару..." value={newItem.name} onChange={e => setNewItem({...newItem, name: e.target.value})} required />
+              <input style={{ flex: 1, background: 'var(--surface-black)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', padding: '10px', borderRadius: '8px' }} type="number" placeholder="Кількість" value={newItem.total_qty} onChange={e => setNewItem({...newItem, total_qty: e.target.value})} required />
+              <button type="submit" style={{ background: '#ff9000', color: 'var(--surface-black)', border: 'none', padding: '10px 30px', borderRadius: '8px', fontWeight: 900, cursor: 'pointer' }}>ДОДАТИ</button>
             </form>
           )}
 
           <div className="table-responsive-container hide-mobile">
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
-                <tr style={{ borderBottom: '1px solid #222', textAlign: 'left' }}>
-                  <th className="sticky-col" style={{ padding: '15px', fontSize: '0.7rem', color: '#555' }}>НАЙМЕНУВАННЯ</th>
-                  <th style={{ padding: '15px', fontSize: '0.7rem', color: '#555', textAlign: 'center' }}>НАЯВНІСТЬ</th>
-                  <th style={{ padding: '15px', fontSize: '0.7rem', color: '#555', textAlign: 'center' }}>РЕЗЕРВ</th>
-                  <th style={{ padding: '15px', fontSize: '0.7rem', color: '#555', textAlign: 'right' }}>ОСТАННЄ ОНОВЛЕННЯ</th>
+                <tr style={{ borderBottom: '1px solid var(--border-subtle)', textAlign: 'left' }}>
+                  <th className="sticky-col" style={{ padding: '15px', fontSize: '0.7rem', color: 'var(--text-dim)' }}>НАЙМЕНУВАННЯ</th>
+                  <th style={{ padding: '15px', fontSize: '0.7rem', color: 'var(--text-dim)', textAlign: 'center' }}>НАЯВНІСТЬ</th>
+                  <th style={{ padding: '15px', fontSize: '0.7rem', color: 'var(--text-dim)', textAlign: 'center' }}>РЕЗЕРВ</th>
+                  <th style={{ padding: '15px', fontSize: '0.7rem', color: 'var(--text-dim)', textAlign: 'right' }}>ОСТАННЄ ОНОВЛЕННЯ</th>
                 </tr>
               </thead>
               <tbody>
@@ -267,14 +267,14 @@ const WarehouseModule = () => {
 
           <div className="mobile-only">
              {filteredInventory.map(item => (
-               <div key={item.id} style={{ background: '#111', padding: '15px', borderRadius: '16px', border: '1px solid #222', marginBottom: '10px' }}>
+               <div key={item.id} style={{ background: 'var(--surface-1)', padding: '15px', borderRadius: '16px', border: '1px solid var(--border-subtle)', marginBottom: '10px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
                      <strong>{item.name}</strong>
                      <span style={{ fontSize: '0.7rem', color: '#444' }}>{item.unit}</span>
                   </div>
                   <div style={{ display: 'flex', gap: '20px' }}>
-                     <div><div style={{ fontSize: '0.6rem', color: '#555' }}>НАЯВНІСТЬ</div><div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#ff9000' }}>{item.total_qty}</div></div>
-                     <div><div style={{ fontSize: '0.6rem', color: '#555' }}>РЕЗЕРВ</div><div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#3b82f6' }}>{item.reserved_qty || 0}</div></div>
+                     <div><div style={{ fontSize: '0.6rem', color: 'var(--text-dim)' }}>НАЯВНІСТЬ</div><div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#ff9000' }}>{item.total_qty}</div></div>
+                     <div><div style={{ fontSize: '0.6rem', color: 'var(--text-dim)' }}>РЕЗЕРВ</div><div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#3b82f6' }}>{item.reserved_qty || 0}</div></div>
                   </div>
                </div>
              ))}
@@ -284,15 +284,15 @@ const WarehouseModule = () => {
 
       {shortages && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-          <div style={{ background: '#111', border: '1px solid #333', borderRadius: '24px', padding: '30px', width: '100%', maxWidth: '400px' }}>
+          <div style={{ background: 'var(--surface-1)', border: '1px solid var(--border-subtle)', borderRadius: '24px', padding: '30px', width: '100%', maxWidth: '400px' }}>
              <h3 style={{ color: '#ef4444', margin: '0 0 15px', display: 'flex', alignItems: 'center', gap: '10px' }}><AlertTriangle size={24} /> ДЕФІЦИТ МАТЕРІАЛІВ</h3>
-             <p style={{ fontSize: '0.85rem', color: '#888', marginBottom: '20px' }}>Для замовлення #{shortages.orderNum} не вистачає наступних позицій:</p>
-             <div style={{ background: '#000', padding: '15px', borderRadius: '12px', marginBottom: '25px', maxHeight: '200px', overflowY: 'auto' }}>
+             <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '20px' }}>Для замовлення #{shortages.orderNum} не вистачає наступних позицій:</p>
+             <div style={{ background: 'var(--surface-black)', padding: '15px', borderRadius: '12px', marginBottom: '25px', maxHeight: '200px', overflowY: 'auto' }}>
                 {shortages.items.map((i, idx) => <div key={idx} style={{ fontSize: '0.85rem', marginBottom: '8px', borderBottom: '1px solid #111', paddingBottom: '5px' }}>{i.reqDetails}: <strong style={{ color: '#ef4444' }}>{i.missingAmount}шт</strong></div>)}
              </div>
              <div style={{ display: 'flex', gap: '10px' }}>
-                <button onClick={() => setShortages(null)} style={{ flex: 1, padding: '12px', borderRadius: '10px', background: '#222', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 800 }}>НАЗАД</button>
-                <button onClick={sendPurchaseRequest} style={{ flex: 2, padding: '12px', borderRadius: '10px', background: '#ef4444', color: '#000', border: 'none', fontWeight: 900, cursor: 'pointer' }}>ЗАМОВИТИ У ПОСТАЧАЛЬНИКА</button>
+                <button onClick={() => setShortages(null)} style={{ flex: 1, padding: '12px', borderRadius: '10px', background: 'var(--surface-3)', color: 'var(--text-strong)', border: 'none', cursor: 'pointer', fontWeight: 800 }}>НАЗАД</button>
+                <button onClick={sendPurchaseRequest} style={{ flex: 2, padding: '12px', borderRadius: '10px', background: '#ef4444', color: 'var(--surface-black)', border: 'none', fontWeight: 900, cursor: 'pointer' }}>ЗАМОВИТИ У ПОСТАЧАЛЬНИКА</button>
              </div>
           </div>
         </div>

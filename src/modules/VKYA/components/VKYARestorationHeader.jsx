@@ -35,7 +35,7 @@ export const VKYARestorationHeader = ({
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', background: 'var(--card-bg, #121212)', border: '1px solid var(--glass-border, #222)', borderRadius: 12, padding: 4 }}>
+        <div style={{ display: 'flex', background: 'var(--card-bg, #121212)', border: '1px solid var(--glass-border, var(--border-subtle))', borderRadius: 12, padding: 4 }}>
           <button onClick={() => setTab('active')} className={`vkya-tab-btn ${tab === 'active' ? 'active' : ''}`}>
             <Clock3 size={15}/> В роботі ({activeCount})
           </button>
@@ -56,11 +56,11 @@ export const VKYARestorationHeader = ({
             value={query}
             onChange={e => setQuery(e.target.value)}
             placeholder="Пошук карти..."
-            style={{ width: '100%', boxSizing: 'border-box', background: 'var(--card-bg, #121212)', border: '1px solid var(--glass-border, #222)', borderRadius: 10, color: 'var(--text, #fff)', padding: '8px 12px 8px 34px', fontSize: '.82rem' }}
+            style={{ width: '100%', boxSizing: 'border-box', background: 'var(--card-bg, #121212)', border: '1px solid var(--glass-border, var(--border-subtle))', borderRadius: 10, color: 'var(--text, #fff)', padding: '8px 12px 8px 34px', fontSize: '.82rem' }}
           />
         </div>
 
-        <button onClick={loadCards} disabled={loading} style={{ background: 'var(--card-bg, #121212)', border: '1px solid var(--glass-border, #222)', color: 'var(--text, #fff)', width: 38, height: 38, borderRadius: 10, display: 'grid', placeItems: 'center', cursor: 'pointer' }}>
+        <button onClick={loadCards} disabled={loading} style={{ background: 'var(--card-bg, #121212)', border: '1px solid var(--glass-border, var(--border-subtle))', color: 'var(--text, #fff)', width: 38, height: 38, borderRadius: 10, display: 'grid', placeItems: 'center', cursor: 'pointer' }}>
           <RefreshCw size={16} className={loading ? 'spin' : ''}/>
         </button>
       </div>

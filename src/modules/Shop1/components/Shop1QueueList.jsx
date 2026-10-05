@@ -31,10 +31,10 @@ const Shop1QueueCard = React.memo(({
         if (setManualId) setManualId('')
       }}
       style={{
-        background: active ? '#eab308' : '#111',
+        background: active ? '#eab308' : 'var(--surface-1)',
         color: active ? '#000' : '#fff',
         borderRadius: '16px', padding: '16px', marginBottom: '10px', cursor: 'pointer',
-        border: `1px solid ${active ? '#eab308' : '#1a1a1a'}`,
+        border: `1px solid ${active ? '#eab308' : 'var(--border-subtle)'}`,
         boxShadow: active ? '0 10px 20px rgba(234,179,8,0.15)' : 'none',
         transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
         transform: active ? 'scale(1.02)' : 'scale(1)'
@@ -67,7 +67,7 @@ const Shop1QueueCard = React.memo(({
       {/* Нижня частина: Кількість та Статус */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: '10px' }}>
         <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <div style={{ fontSize: '1.25rem', fontWeight: 1000, color: active ? '#000' : '#fff', lineHeight: 1 }}>
+          <div style={{ fontSize: '1.25rem', fontWeight: 1000, color: active ? '#000' : 'var(--text-strong)', lineHeight: 1 }}>
             {card.quantity}
             <span style={{ fontSize: '0.65rem', fontWeight: 800, marginLeft: '3px', opacity: 0.7 }}>шт</span>
           </div>
@@ -172,7 +172,7 @@ export function Shop1QueueList({
     >
       <style>{`div::-webkit-scrollbar { display: none; }`}</style>
       {uniqueFilteredQueueCards.length === 0 && (
-        <div style={{ textAlign: 'center', padding: '40px 20px', color: '#555', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+        <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-dim)', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
           <Layers size={24} style={{ marginBottom: '10px', opacity: 0.2 }} /><br />
           {queueFilter === 'new' ? 'Немає нових карт' : queueFilter === 'at-buffer' ? 'Немає карт в буфері' : 'Черга порожня'}
         </div>
@@ -294,7 +294,7 @@ export function Shop1QueueList({
   if (isMobile) {
     return (
       <>
-        <div className="drawer-header" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '8px', padding: '15px 20px', borderBottom: '1px solid #1a1a1a' }}>
+        <div className="drawer-header" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '8px', padding: '15px 20px', borderBottom: '1px solid var(--border-subtle)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: '0.8rem', fontWeight: 900, color: '#eab308' }}>ЧЕРГА (ОБЕРІТЬ КАРТУ)</span>
             <button onClick={() => setIsDrawerOpen(false)} className="burger-btn"><X size={20} /></button>
@@ -308,14 +308,14 @@ export function Shop1QueueList({
 
   return (
     <>
-      <div style={{ padding: '20px 15px 15px', borderBottom: '1px solid #1a1a1a', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-        <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 900, color: '#555', display: 'flex', alignItems: 'center', gap: '10px' }}>
+      <div style={{ padding: '20px 15px 15px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 900, color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: '10px' }}>
           <ClipboardList size={16} /> ЧЕРГА КАРТ ({queueCards.length})
         </div>
         {filterControls}
       </div>
       {renderQueueItems()}
-      <div style={{ padding: '15px', borderTop: '1px solid #1a1a1a' }}>
+      <div style={{ padding: '15px', borderTop: '1px solid var(--border-subtle)' }}>
         <button onClick={() => setIsScanning(true)}
           style={{ width: '100%', background: '#eab30815', border: '1px solid #eab30830', color: '#eab308', padding: '14px', borderRadius: '12px', fontWeight: 900, fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
           <Camera size={18} /> СКАНУВАТИ

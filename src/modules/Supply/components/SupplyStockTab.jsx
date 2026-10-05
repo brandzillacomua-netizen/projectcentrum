@@ -23,12 +23,12 @@ export const SupplyStockTab = ({
   setReserveAnalysisItem
 }) => {
   return (
-    <section className="stock-col glass-panel" style={{ background: 'var(--card-bg, #111)', padding: '25px', borderRadius: '24px', border: '1px solid var(--border-color, #222)', width: '100%' }}>
+    <section className="stock-col glass-panel" style={{ background: 'var(--card-bg, #111)', padding: '25px', borderRadius: '24px', border: '1px solid var(--border-color, var(--border-subtle))', width: '100%' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '15px' }}>
         <h3 style={{ fontSize: '1rem', fontWeight: 900, margin: 0, color: 'var(--text-color, #fff)' }}>СКЛАДСЬКІ ЗАЛИШКИ</h3>
         <div style={{ position: 'relative' }}>
           <input
-            style={{ background: 'var(--card-inner-bg, #000)', border: '1px solid var(--border-color, #222)', padding: '8px 15px', borderRadius: '10px', color: 'var(--text-color, #fff)', width: '200px', outline: 'none' }}
+            style={{ background: 'var(--card-inner-bg, #000)', border: '1px solid var(--border-color, var(--border-subtle))', padding: '8px 15px', borderRadius: '10px', color: 'var(--text-color, #fff)', width: '200px', outline: 'none' }}
             placeholder="Пошук..."
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
@@ -37,7 +37,7 @@ export const SupplyStockTab = ({
       </div>
 
       {/* Папки склада СВ */}
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '22px', flexWrap: 'wrap', alignItems: 'center', background: 'var(--card-inner-bg, #0a0a0a)', padding: '10px 14px', borderRadius: '16px', border: '1px solid var(--border-color, #1f1f1f)' }}>
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '22px', flexWrap: 'wrap', alignItems: 'center', background: 'var(--card-inner-bg, #0a0a0a)', padding: '10px 14px', borderRadius: '16px', border: '1px solid var(--border-color, var(--border-subtle))' }}>
         <span style={{ fontSize: '.72rem', color: 'var(--text-muted, #666)', fontWeight: 850, marginRight: '4px' }}>Папки склада:</span>
         {[
           { id: 'all', label: '📁 Всі' },
@@ -57,7 +57,7 @@ export const SupplyStockTab = ({
               style={{
                 background: active ? '#ff9000' : 'transparent',
                 color: active ? '#000' : 'var(--text-muted, #888)',
-                border: active ? 'none' : '1px solid var(--border-color, rgba(255,255,255,0.08))',
+                border: active ? 'none' : '1px solid var(--border-color, var(--border-subtle))',
                 padding: '5px 12px',
                 borderRadius: '8px',
                 fontSize: '0.72rem',
@@ -75,7 +75,7 @@ export const SupplyStockTab = ({
       <div className="table-responsive-container">
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
-            <tr style={{ borderBottom: '1px solid var(--border-color, #222)', textAlign: 'left' }}>
+            <tr style={{ borderBottom: '1px solid var(--border-color, var(--border-subtle))', textAlign: 'left' }}>
               <th style={{ padding: '15px', fontSize: '0.7rem', color: 'var(--text-muted, #555)' }}>НАЙМЕНУВАННЯ</th>
               <th style={{ padding: '15px', fontSize: '0.7rem', color: 'var(--text-muted, #555)' }}>АРТИКУЛ</th>
               <th style={{ padding: '15px', fontSize: '0.7rem', color: 'var(--text-muted, #555)' }}>ТИП / КАТЕГОРІЯ</th>
@@ -145,7 +145,7 @@ export const SupplyStockTab = ({
                             type="number"
                             value={editingInvTotal}
                             onChange={e => setEditingInvTotal(e.target.value)}
-                            style={{ width: '60px', background: '#000', border: '1px solid #ff9000', color: '#fff', textAlign: 'center', borderRadius: '6px', padding: '4px', fontSize: '0.8rem' }}
+                            style={{ width: '60px', background: 'var(--surface-black)', border: '1px solid #ff9000', color: 'var(--text-strong)', textAlign: 'center', borderRadius: '6px', padding: '4px', fontSize: '0.8rem' }}
                           />
                         </div>
                       ) : (
@@ -161,13 +161,13 @@ export const SupplyStockTab = ({
                             type="number"
                             value={editingInvReserved}
                             onChange={e => setEditingInvReserved(e.target.value)}
-                            style={{ width: '60px', background: '#000', border: '1px solid #ff9000', color: '#fff', textAlign: 'center', borderRadius: '6px', padding: '4px', fontSize: '0.8rem' }}
+                            style={{ width: '60px', background: 'var(--surface-black)', border: '1px solid #ff9000', color: 'var(--text-strong)', textAlign: 'center', borderRadius: '6px', padding: '4px', fontSize: '0.8rem' }}
                           />
                           <button
                             type="button"
                             disabled={savingInv}
                             onClick={() => handleSaveInventoryQty(item.id)}
-                            style={{ background: '#10b981', color: '#000', border: 'none', borderRadius: '6px', padding: '4px 6px', cursor: 'pointer' }}
+                            style={{ background: '#10b981', color: 'var(--surface-black)', border: 'none', borderRadius: '6px', padding: '4px 6px', cursor: 'pointer' }}
                           >
                             <Check size={14} />
                           </button>

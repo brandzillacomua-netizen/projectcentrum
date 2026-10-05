@@ -119,7 +119,7 @@ export function TumblingKitsColumn({
                             </span>
                             <span style={{
                               background: comp.statusColor,
-                              color: '#ffffff',
+                              color: 'var(--text-strong)',
                               fontSize: isCompact ? '0.62rem' : '0.68rem',
                               padding: '2px 6px',
                               borderRadius: '4px',

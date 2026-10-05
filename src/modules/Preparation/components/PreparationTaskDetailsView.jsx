@@ -37,38 +37,38 @@ export const PreparationTaskDetailsView = ({
           <div style={{ fontSize: '1.1rem', color: '#10b981', fontWeight: 800, marginTop: '5px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
             ПІДГОТОВКА СИРОВИНИ
           </div>
-          <div style={{ fontSize: 'clamp(1rem, 3vw, 1.35rem)', color: '#eee', marginTop: '15px', fontWeight: 900 }}>
+          <div style={{ fontSize: 'clamp(1rem, 3vw, 1.35rem)', color: 'var(--text-soft)', marginTop: '15px', fontWeight: 900 }}>
             Деталь: <span style={{ color: '#ff9000' }}>{currentSubTask.name}</span>
           </div>
         </div>
         <button
           onClick={onDeselect}
-          style={{ background: '#111', border: 'none', color: '#555', padding: '10px', borderRadius: '12px', cursor: 'pointer', flexShrink: 0 }}
+          style={{ background: 'var(--surface-1)', border: 'none', color: '#555', padding: '10px', borderRadius: '12px', cursor: 'pointer', flexShrink: 0 }}
         >
           <X size={24} />
         </button>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '15px', marginBottom: '30px' }}>
-        <div style={{ background: '#111', border: '1px solid #222', borderRadius: '16px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
-          <div style={{ fontSize: '0.7rem', color: '#555', fontWeight: 900 }}>ПЛАНОВА КІЛЬКІСТЬ</div>
+        <div style={{ background: 'var(--surface-1)', border: '1px solid var(--border-subtle)', borderRadius: '16px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+          <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', fontWeight: 900 }}>ПЛАНОВА КІЛЬКІСТЬ</div>
           <div style={{ fontSize: '1.8rem', fontWeight: 950, color: '#3b82f6' }}>{currentSubTask.plan} шт</div>
         </div>
-        <div style={{ background: '#111', border: '1px solid #222', borderRadius: '16px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
-          <div style={{ fontSize: '0.7rem', color: '#555', fontWeight: 900 }}>ОБЛАДНАННЯ</div>
-          <div style={{ fontSize: '1.3rem', fontWeight: 900, color: '#fff' }}>{currentSubTask.task.machine_name || '—'}</div>
+        <div style={{ background: 'var(--surface-1)', border: '1px solid var(--border-subtle)', borderRadius: '16px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+          <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', fontWeight: 900 }}>ОБЛАДНАННЯ</div>
+          <div style={{ fontSize: '1.3rem', fontWeight: 900, color: 'var(--text-strong)' }}>{currentSubTask.task.machine_name || '—'}</div>
         </div>
       </div>
 
-      <div style={{ background: 'rgba(255,255,255,0.02)', padding: 'clamp(15px, 4vw, 30px)', borderRadius: '24px', border: '1px solid #222' }}>
+      <div style={{ background: 'var(--fill-subtle)', padding: 'clamp(15px, 4vw, 30px)', borderRadius: '24px', border: '1px solid var(--border-subtle)' }}>
         {currentSubTask.status === 'new' ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
             <div>
-              <label style={{ color: '#555', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', display: 'block', marginBottom: '10px' }}>Зміна</label>
+              <label style={{ color: 'var(--text-dim)', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', display: 'block', marginBottom: '10px' }}>Зміна</label>
               <select
                 value={selectedShift}
                 onChange={e => { setSelectedShift(e.target.value); setSelectedOperator('') }}
-                style={{ width: '100%', background: '#0a0a0a', border: '1px solid #333', color: '#10b981', padding: '15px', borderRadius: '15px', fontSize: '1.1rem', fontWeight: 800 }}
+                style={{ width: '100%', background: 'var(--surface-inset)', border: '1px solid var(--border-subtle)', color: '#10b981', padding: '15px', borderRadius: '15px', fontSize: '1.1rem', fontWeight: 800 }}
               >
                 <option value="">— Оберіть зміну —</option>
                 <option value="Зміна 1">Зміна 1</option>
@@ -80,12 +80,12 @@ export const PreparationTaskDetailsView = ({
             </div>
 
             <div>
-              <label style={{ color: '#555', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', display: 'block', marginBottom: '10px' }}>ПРАЦІВНИК ВП (АВТОРИЗАЦІЯ)</label>
+              <label style={{ color: 'var(--text-dim)', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', display: 'block', marginBottom: '10px' }}>ПРАЦІВНИК ВП (АВТОРИЗАЦІЯ)</label>
               <select
                 value={selectedOperator}
                 onChange={e => setSelectedOperator(e.target.value)}
                 disabled={!selectedShift}
-                style={{ width: '100%', background: '#0a0a0a', border: '1px solid #333', color: '#10b981', padding: '15px', borderRadius: '15px', fontSize: '1.1rem', fontWeight: 800, opacity: selectedShift ? 1 : 0.5, cursor: selectedShift ? 'pointer' : 'not-allowed' }}
+                style={{ width: '100%', background: 'var(--surface-inset)', border: '1px solid var(--border-subtle)', color: '#10b981', padding: '15px', borderRadius: '15px', fontSize: '1.1rem', fontWeight: 800, opacity: selectedShift ? 1 : 0.5, cursor: selectedShift ? 'pointer' : 'not-allowed' }}
               >
                 <option value="">{selectedShift ? '— Оберіть працівника —' : '— Спочатку оберіть зміну —'}</option>
                 {prepOperators.map(o => <option key={o} value={o}>{o}</option>)}
@@ -120,11 +120,11 @@ export const PreparationTaskDetailsView = ({
             <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: 'rgba(16, 185, 129, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981' }}>
               <CheckCircle size={40} />
             </div>
-            <h3 style={{ margin: 0, fontSize: '1.5rem', color: '#fff' }}>ПРОЦЕС ВИКОНУЄТЬСЯ...</h3>
-            <div style={{ fontSize: '1rem', color: '#888', marginTop: '-10px' }}>
-              Працівник: <strong style={{ color: '#fff' }}>{currentSubTask.operator}</strong>
+            <h3 style={{ margin: 0, fontSize: '1.5rem', color: 'var(--text-strong)' }}>ПРОЦЕС ВИКОНУЄТЬСЯ...</h3>
+            <div style={{ fontSize: '1rem', color: 'var(--text-muted)', marginTop: '-10px' }}>
+              Працівник: <strong style={{ color: 'var(--text-strong)' }}>{currentSubTask.operator}</strong>
             </div>
-            <div style={{ fontSize: 'clamp(3rem, 10vw, 4.5rem)', fontWeight: 1000, color: '#fff', fontFamily: 'monospace', letterSpacing: '-2px', margin: '15px 0' }}>
+            <div style={{ fontSize: 'clamp(3rem, 10vw, 4.5rem)', fontWeight: 1000, color: 'var(--text-strong)', fontFamily: 'monospace', letterSpacing: '-2px', margin: '15px 0' }}>
               {formatElapsedTime(currentSubTask.task?.plan_snapshot?.[currentSubTask.nomenclatureId]?.started_at)}
             </div>
             <button

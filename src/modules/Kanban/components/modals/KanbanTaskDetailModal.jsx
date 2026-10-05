@@ -97,7 +97,7 @@ export const KanbanTaskDetailModal = ({
             {selectedTask.deadline && (
               <div className="side-block">
                 <label>ДЕДЛАЙН</label>
-                <div className="side-val" style={{ color: isOverdueTask(selectedTask) ? '#ef4444' : '#888' }}>
+                <div className="side-val" style={{ color: isOverdueTask(selectedTask) ? '#ef4444' : 'var(--text-muted)' }}>
                   <Calendar size={13} />
                   {new Date(selectedTask.deadline).toLocaleDateString('uk-UA', { day: 'numeric', month: 'long', year: 'numeric' })}
                 </div>
@@ -137,7 +137,7 @@ export const KanbanTaskDetailModal = ({
                           <button className="sa-btn sa-reject" onClick={() => handleStatusChange('in_progress')}>✕ Відхилити</button>
                         </>
                       ) : (
-                        <button className="sa-btn sa-reject" style={{ background: 'rgba(255,255,255,0.05)', color: '#ccc', border: '1px solid rgba(255,255,255,0.1)' }} onClick={() => handleStatusChange('in_progress')}>↩ Скасувати перевірку</button>
+                        <button className="sa-btn sa-reject" style={{ background: 'var(--fill-subtle)', color: '#ccc', border: '1px solid var(--border-subtle)' }} onClick={() => handleStatusChange('in_progress')}>↩ Скасувати перевірку</button>
                       )}
                     </>
                   )}

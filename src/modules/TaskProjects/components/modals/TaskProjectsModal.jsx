@@ -76,7 +76,7 @@ export const TaskProjectsModal = ({
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '200px', overflowY: 'auto', paddingRight: '4px' }}>
             {cols.map((col, index) => (
-              <div key={col.id || index} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--bg, #111)', padding: '6px 10px', borderRadius: '10px', border: '1px solid var(--glass-border, #222)' }}>
+              <div key={col.id || index} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--bg, #111)', padding: '6px 10px', borderRadius: '10px', border: '1px solid var(--glass-border, var(--border-subtle))' }}>
                 <input
                   type="color"
                   value={col.color || '#3b82f6'}
@@ -101,7 +101,7 @@ export const TaskProjectsModal = ({
                       columns: (prev.columns || DEFAULT_COLUMNS).map((c, i) => i === index ? { ...c, title: val } : c)
                     }))
                   }}
-                  style={{ flex: 1, background: 'transparent', border: '1px solid #252525', padding: '5px 8px', borderRadius: '7px', fontSize: '0.78rem', color: '#fff', outline: 'none' }}
+                  style={{ flex: 1, background: 'transparent', border: '1px solid #252525', padding: '5px 8px', borderRadius: '7px', fontSize: '0.78rem', color: 'var(--text-strong)', outline: 'none' }}
                 />
                 {index > 0 && (
                   <button

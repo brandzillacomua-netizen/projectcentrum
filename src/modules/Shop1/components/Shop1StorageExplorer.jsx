@@ -133,7 +133,7 @@ export function Shop1StorageExplorer({
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: '#0a0a0a', display: 'flex', flexDirection: 'column', height: '100%', paddingTop: '75px' }}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'var(--surface-inset)', display: 'flex', flexDirection: 'column', height: '100%', paddingTop: '75px' }}>
       <div style={{ padding: '20px', borderBottom: '1px solid #111', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div style={{ background: '#3b82f620', padding: '8px', borderRadius: '10px' }}><Package size={20} color="#3b82f6" /></div>
@@ -142,16 +142,16 @@ export function Shop1StorageExplorer({
             <div style={{ fontSize: '0.6rem', color: '#444', fontWeight: 800, textTransform: 'uppercase' }}>Моніторинг деталей на прийомці, сортуванні та складі</div>
           </div>
         </div>
-        <button onClick={() => setShowStorageExplorer(false)} style={{ background: '#1a1a1a', border: 'none', color: '#fff', width: '40px', height: '40px', borderRadius: '12px', cursor: 'pointer' }}>
+        <button onClick={() => setShowStorageExplorer(false)} style={{ background: 'var(--surface-2)', border: 'none', color: 'var(--text-strong)', width: '40px', height: '40px', borderRadius: '12px', cursor: 'pointer' }}>
           <X size={20} />
         </button>
       </div>
 
-      <div style={{ display: 'flex', gap: '8px', padding: '15px 20px', background: '#0d0d0d', overflowX: 'auto' }}>
+      <div style={{ display: 'flex', gap: '8px', padding: '15px 20px', background: 'var(--surface-inset)', overflowX: 'auto' }}>
         {explorerTabs.map(t => (
           <button key={t.id} onClick={() => setActiveExplorerTab(t.id)}
             style={{
-              flex: 1, minWidth: '110px', background: activeExplorerTab === t.id ? t.color : '#0a0a0a',
+              flex: 1, minWidth: '110px', background: activeExplorerTab === t.id ? t.color : 'var(--surface-inset)',
               color: activeExplorerTab === t.id ? '#000' : '#444', border: 'none',
               padding: '12px', borderRadius: '12px', fontWeight: 900, fontSize: '0.65rem',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
@@ -168,7 +168,7 @@ export function Shop1StorageExplorer({
             onClick={handleBulkMoveToScrap}
             disabled={isBulkMoving}
             style={{
-              width: '100%', background: '#ef4444', color: '#000', border: 'none',
+              width: '100%', background: '#ef4444', color: 'var(--surface-black)', border: 'none',
               padding: '16px', borderRadius: '14px', fontSize: '0.85rem', fontWeight: 1000,
               cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
               gap: '10px', boxShadow: '0 10px 25px rgba(239, 68, 68, 0.2)'
@@ -194,14 +194,14 @@ export function Shop1StorageExplorer({
             const nom = nomenclatures.find(n => n.id === item.nomenclature_id)
             const activeTabDetails = explorerTabs.find(t => t.id === activeExplorerTab)
             return (
-              <div key={item.id} style={{ background: '#111', borderRadius: '18px', padding: '18px', border: '1px solid #1a1a1a' }}>
+              <div key={item.id} style={{ background: 'var(--surface-1)', borderRadius: '18px', padding: '18px', border: '1px solid var(--border-subtle)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                   <div>
                     <div style={{ fontSize: '0.85rem', fontWeight: 800, marginBottom: '2px' }}>{nom?.name || item.name}</div>
                     <div style={{ fontSize: '0.6rem', color: '#444', fontWeight: 900 }}>{item.unit || 'од'} | {new Date(item.updated_at).toLocaleDateString()}</div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: '1.5rem', fontWeight: 1000, color: activeTabDetails ? activeTabDetails.color : '#fff' }}>{item.total_qty}</div>
+                    <div style={{ fontSize: '1.5rem', fontWeight: 1000, color: activeTabDetails ? activeTabDetails.color : 'var(--text-strong)' }}>{item.total_qty}</div>
                     <div style={{ fontSize: '0.5rem', color: '#333', fontWeight: 900 }}>
                       {activeExplorerTab === 'reception' ? 'В ПРИЙОМЦІ' : activeExplorerTab === 'sorting' ? 'СОРТУВАННЯ' : 'ЗАЛИШОК'}
                     </div>

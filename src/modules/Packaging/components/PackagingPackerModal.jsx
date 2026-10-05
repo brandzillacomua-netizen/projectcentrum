@@ -55,7 +55,7 @@ export const PackagingPackerModal = ({
           </div>
           <button
             onClick={onClose}
-            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', color: '#888', cursor: 'pointer', padding: '8px', display: 'flex' }}
+            style={{ background: 'var(--border-subtle)', border: '1px solid var(--border-subtle)', borderRadius: '10px', color: '#888', cursor: 'pointer', padding: '8px', display: 'flex' }}
           >
             <X size={18} />
           </button>
@@ -75,7 +75,7 @@ export const PackagingPackerModal = ({
                 background: 'rgba(168,85,247,0.08)',
                 border: '1.5px solid rgba(168,85,247,0.3)',
                 borderRadius: '14px',
-                color: '#fff',
+                color: 'var(--text-strong)',
                 fontSize: '0.95rem',
                 fontWeight: 700,
                 outline: 'none',
@@ -121,7 +121,7 @@ export const PackagingPackerModal = ({
               : 'rgba(255,255,255,0.05)',
             border: 'none',
             borderRadius: '14px',
-            color: selectedPackerId ? '#fff' : '#444',
+            color: selectedPackerId ? 'var(--text-strong)' : '#444',
             fontSize: '0.9rem',
             fontWeight: 900,
             cursor: selectedPackerId ? 'pointer' : 'not-allowed',

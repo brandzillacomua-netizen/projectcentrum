@@ -84,7 +84,7 @@ export const PriceListTab = ({
               padding: '10px 14px 10px 40px',
               borderRadius: '12px',
               border: '1px solid var(--glass-border)',
-              background: 'rgba(0,0,0,0.2)',
+              background: 'var(--fill-inset)',
               color: 'var(--text)',
               fontSize: '0.85rem',
               outline: 'none'
@@ -101,7 +101,7 @@ export const PriceListTab = ({
               padding: '9px 14px',
               borderRadius: '12px',
               border: '1px solid var(--glass-border)',
-              background: 'rgba(0,0,0,0.2)',
+              background: 'var(--fill-inset)',
               color: 'var(--text)',
               fontSize: '0.82rem',
               fontWeight: 800,
@@ -163,7 +163,7 @@ export const PriceListTab = ({
             <select
               value={bulkCategory}
               onChange={(e) => setBulkCategory(e.target.value)}
-              style={{ padding: '8px 12px', borderRadius: '10px', background: 'rgba(0,0,0,0.3)', color: 'var(--text)', border: '1px solid var(--glass-border)', outline: 'none', fontSize: '0.8rem' }}
+              style={{ padding: '8px 12px', borderRadius: '10px', background: 'var(--fill-inset)', color: 'var(--text)', border: '1px solid var(--glass-border)', outline: 'none', fontSize: '0.8rem' }}
             >
               <option value="all">Усі Категорії</option>
               {categories.filter(c => c !== 'all').map(c => <option key={c} value={c}>{c}</option>)}
@@ -172,7 +172,7 @@ export const PriceListTab = ({
             <select
               value={bulkField}
               onChange={(e) => setBulkField(e.target.value)}
-              style={{ padding: '8px 12px', borderRadius: '10px', background: 'rgba(0,0,0,0.3)', color: 'var(--text)', border: '1px solid var(--glass-border)', outline: 'none', fontSize: '0.8rem' }}
+              style={{ padding: '8px 12px', borderRadius: '10px', background: 'var(--fill-inset)', color: 'var(--text)', border: '1px solid var(--glass-border)', outline: 'none', fontSize: '0.8rem' }}
             >
               <option value="wholesalePrice">Гуртова Ціна</option>
               <option value="retailPrice">Роздрібна Ціна</option>
@@ -184,7 +184,7 @@ export const PriceListTab = ({
                 type="number"
                 value={bulkPercent}
                 onChange={(e) => setBulkPercent(e.target.value)}
-                style={{ width: '70px', padding: '8px 10px', borderRadius: '10px', background: 'rgba(0,0,0,0.3)', color: 'var(--text)', border: '1px solid #10b981', textAlign: 'center', fontWeight: 900, outline: 'none' }}
+                style={{ width: '70px', padding: '8px 10px', borderRadius: '10px', background: 'var(--fill-inset)', color: 'var(--text)', border: '1px solid #10b981', textAlign: 'center', fontWeight: 900, outline: 'none' }}
               />
               <span style={{ fontWeight: 900, color: '#10b981' }}>%</span>
             </div>
@@ -251,7 +251,7 @@ export const PriceListTab = ({
                   <tr
                     key={item.id}
                     style={{
-                      borderBottom: '1px solid rgba(255,255,255,0.04)',
+                      borderBottom: '1px solid var(--border-subtle)',
                       fontSize: '0.86rem',
                       transition: 'background 0.15s'
                     }}
@@ -293,7 +293,7 @@ export const PriceListTab = ({
                           type="number"
                           value={editForm.rawMaterialCost}
                           onChange={(e) => setEditForm({ ...editForm, rawMaterialCost: Number(e.target.value) })}
-                          style={{ width: '90px', padding: '6px 8px', borderRadius: '8px', border: '1px solid #6366f1', background: 'rgba(0,0,0,0.3)', color: '#fff', outline: 'none', fontWeight: 850 }}
+                          style={{ width: '90px', padding: '6px 8px', borderRadius: '8px', border: '1px solid #6366f1', background: 'var(--fill-inset)', color: 'var(--text-strong)', outline: 'none', fontWeight: 850 }}
                         />
                       ) : (
                         rawMaterialCost > 0 ? (
@@ -316,7 +316,7 @@ export const PriceListTab = ({
                           type="number"
                           value={editForm.wholesalePrice}
                           onChange={(e) => setEditForm({ ...editForm, wholesalePrice: Number(e.target.value) })}
-                          style={{ width: '95px', padding: '6px 8px', borderRadius: '8px', border: '1px solid #10b981', background: 'rgba(0,0,0,0.3)', color: '#fff', outline: 'none', fontWeight: 900 }}
+                          style={{ width: '95px', padding: '6px 8px', borderRadius: '8px', border: '1px solid #10b981', background: 'var(--fill-inset)', color: 'var(--text-strong)', outline: 'none', fontWeight: 900 }}
                         />
                       ) : (
                         wholesalePrice > 0 ? (
@@ -339,7 +339,7 @@ export const PriceListTab = ({
                           type="number"
                           value={editForm.retailPrice}
                           onChange={(e) => setEditForm({ ...editForm, retailPrice: Number(e.target.value) })}
-                          style={{ width: '95px', padding: '6px 8px', borderRadius: '8px', border: '1px solid #ff9000', background: 'rgba(0,0,0,0.3)', color: '#fff', outline: 'none', fontWeight: 900 }}
+                          style={{ width: '95px', padding: '6px 8px', borderRadius: '8px', border: '1px solid #ff9000', background: 'var(--fill-inset)', color: 'var(--text-strong)', outline: 'none', fontWeight: 900 }}
                         />
                       ) : (
                         retailPrice > 0 ? `₴${retailPrice.toLocaleString()}` : '—'
@@ -353,7 +353,7 @@ export const PriceListTab = ({
                           type="number"
                           value={editForm.dealerPrice}
                           onChange={(e) => setEditForm({ ...editForm, dealerPrice: Number(e.target.value) })}
-                          style={{ width: '95px', padding: '6px 8px', borderRadius: '8px', border: '1px solid #ec4899', background: 'rgba(0,0,0,0.3)', color: '#fff', outline: 'none', fontWeight: 900 }}
+                          style={{ width: '95px', padding: '6px 8px', borderRadius: '8px', border: '1px solid #ec4899', background: 'var(--fill-inset)', color: 'var(--text-strong)', outline: 'none', fontWeight: 900 }}
                         />
                       ) : (
                         dealerPrice > 0 ? `₴${dealerPrice.toLocaleString()}` : '—'
@@ -388,7 +388,7 @@ export const PriceListTab = ({
                             padding: '6px 12px',
                             borderRadius: '8px',
                             border: '1px solid var(--glass-border)',
-                            background: 'rgba(255,255,255,0.05)',
+                            background: 'var(--fill-subtle)',
                             color: 'var(--text)',
                             fontWeight: 800,
                             fontSize: '0.75rem',

@@ -19,13 +19,13 @@ export const PreparationQueueList = ({
             key={sub.id}
             onClick={() => onSelectSubTask(sub.id)}
             style={{
-              background: isActive ? '#10b981' : '#1a1a1a',
+              background: isActive ? '#10b981' : 'var(--surface-2)',
               borderRadius: '12px',
               padding: '15px',
               marginBottom: '10px',
               cursor: 'pointer',
               border: '1px solid',
-              borderColor: isActive ? '#10b981' : '#333',
+              borderColor: isActive ? '#10b981' : 'var(--border-subtle)',
               color: isActive ? '#000' : '#fff',
               transition: '0.2s'
             }}
@@ -39,7 +39,7 @@ export const PreparationQueueList = ({
             <div style={{ fontSize: '0.7rem', opacity: 0.8, marginBottom: '8px' }}>ПЛАН: {sub.plan} шт.</div>
             <span style={{
               fontSize: '0.6rem',
-              background: isActive ? 'rgba(0,0,0,0.2)' : 'rgba(16, 185, 129, 0.1)',
+              background: isActive ? 'var(--fill-inset)' : 'rgba(16, 185, 129, 0.1)',
               color: isActive ? '#000' : '#10b981',
               padding: '3px 8px',
               borderRadius: '6px',

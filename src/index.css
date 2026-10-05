@@ -22,6 +22,46 @@
   --radius-sm: 10px;
   --radius-lg: 24px;
   --shadow: 0 12px 40px rgba(0,0,0,0.6);
+
+  /* Semantic surface/text tokens (dark values). Light values live in light.css */
+  --surface-black: #000000;
+  --surface-inset: #0d0d0d;
+  --surface-1: #111111;
+  --surface-2: #181818;
+  --surface-3: #222222;
+  --border-subtle: #2a2a2a;
+  --fill-subtle: rgba(255, 255, 255, 0.04);
+  --fill-inset: rgba(0, 0, 0, 0.3);
+  --text-strong: #ffffff;
+  --text-soft: #cccccc;
+  --input-bg: rgba(255, 255, 255, 0.04);
+  --card-header-bg: rgba(255, 255, 255, 0.03);
+  --button-bg: rgba(255, 255, 255, 0.06);
+}
+
+/* Legacy alias tokens used across modules; re-resolved per theme root */
+:root, .light-theme {
+  --text-main: var(--text);
+  --text-primary: var(--text);
+  --text-secondary: var(--text-muted);
+  --border-color: var(--glass-border);
+  --bg-primary: var(--bg);
+  --bg-secondary: var(--bg-subtle);
+  --bg-card: var(--card-bg);
+  --text-color: var(--text);
+  --text-sub: var(--text-muted);
+  --bg-muted: var(--fill-subtle);
+  --table-head: var(--card-header-bg);
+  --card-inner-bg: var(--surface-1);
+  --btn-active-bg: var(--surface-3);
+  --btn-disabled-bg: var(--surface-2);
+  --badge-bg: var(--surface-2);
+  --card-hover-bg: var(--card-hover);
+  --bg-card-hover: var(--card-hover);
+  --card-selected-bg: var(--surface-3);
+}
+
+:root {
   
   /* 3-in-1 Pillars Theme Tokens */
   --crm-color: #6366f1; /* Electric Indigo */

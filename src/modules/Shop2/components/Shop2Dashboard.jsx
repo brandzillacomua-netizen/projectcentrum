@@ -52,21 +52,21 @@ export function Shop2Dashboard({
           const scrapQty = workCardHistory.filter(h => isShop2Card(h) && matchesStage(h.stage_name, stage)).reduce((acc, h) => acc + (Number(h.scrap_qty) || 0), 0)
 
           return (
-            <div key={stage} onClick={() => setDetailStage(stage)} style={{ background: '#111', border: '1px solid #222', borderRadius: '24px', padding: '20px', cursor: 'pointer', transition: '0.3s' }}>
+            <div key={stage} onClick={() => setDetailStage(stage)} style={{ background: 'var(--surface-1)', border: '1px solid var(--border-subtle)', borderRadius: '24px', padding: '20px', cursor: 'pointer', transition: '0.3s' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-                <span style={{ color: '#555', fontSize: '0.7rem', fontWeight: 900, textTransform: 'uppercase' }}>{stage}</span>
+                <span style={{ color: 'var(--text-dim)', fontSize: '0.7rem', fontWeight: 900, textTransform: 'uppercase' }}>{stage}</span>
                 <Layers size={14} color="#8b5cf6" />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', alignItems: 'flex-end', width: '100%' }}>
                 <div>
                   <div style={{ fontSize: '0.6rem', color: '#3b82f6', fontWeight: 800 }}>В РОБОТІ</div>
-                  <div style={{ fontSize: '1.3rem', fontWeight: 950, color: workQty > 0 ? '#fff' : '#222' }}>{workQty}</div>
+                  <div style={{ fontSize: '1.3rem', fontWeight: 950, color: workQty > 0 ? 'var(--text-strong)' : '#222' }}>{workQty}</div>
                 </div>
-                <div style={{ borderLeft: '1px solid #222', paddingLeft: '8px' }}>
+                <div style={{ borderLeft: '1px solid var(--border-subtle)', paddingLeft: '8px' }}>
                   <div style={{ fontSize: '0.6rem', color: '#10b981', fontWeight: 800 }}>БУФЕР</div>
                   <div style={{ fontSize: '1.3rem', fontWeight: 950, color: bQty > 0 ? '#10b981' : '#222' }}>{bQty}</div>
                 </div>
-                <div style={{ borderLeft: '1px solid #222', paddingLeft: '8px' }}>
+                <div style={{ borderLeft: '1px solid var(--border-subtle)', paddingLeft: '8px' }}>
                   <div style={{ fontSize: '0.6rem', color: '#ef4444', fontWeight: 800 }}>БРАК</div>
                   <div style={{ fontSize: '1.3rem', fontWeight: 950, color: scrapQty > 0 ? '#ef4444' : '#222' }}>{scrapQty}</div>
                 </div>

@@ -12,13 +12,13 @@ export function Shop2ActiveCardsTable({
   const activeCards = workCards.filter(c => isShop2Card(c) && (c.status === 'in-progress' || c.status === 'at-buffer'))
 
   return (
-    <div style={{ background: '#111', borderRadius: '24px', border: '1px solid #222', overflowX: 'auto' }}>
-      <div style={{ padding: '25px', borderBottom: '1px solid #222', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <div style={{ background: 'var(--surface-1)', borderRadius: '24px', border: '1px solid var(--border-subtle)', overflowX: 'auto' }}>
+      <div style={{ padding: '25px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 900 }}>ДЕТАЛІ В ПРОЦЕСІ (ЦЕХ №2)</h3>
         {isSyncing && <RefreshCw className="animate-spin" size={16} color="#8b5cf6" />}
       </div>
       <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '1200px' }}>
-        <thead style={{ background: '#0a0a0a', fontSize: '0.65rem', fontWeight: 900, color: '#555', textTransform: 'uppercase' }}>
+        <thead style={{ background: 'var(--surface-inset)', fontSize: '0.65rem', fontWeight: 900, color: '#555', textTransform: 'uppercase' }}>
           <tr>
             <th style={{ padding: '12px 15px' }}>ДЕТАЛЬ</th>
             <th style={{ padding: '12px 15px' }}>ЕТАП</th>
@@ -42,7 +42,7 @@ export function Shop2ActiveCardsTable({
             return (
               <tr key={card.id} 
                 onClick={() => setSelectedCardId(card.id)}
-                style={{ borderBottom: '1px solid #1a1a1a', fontSize: '0.85rem', cursor: 'pointer' }}>
+                style={{ borderBottom: '1px solid var(--border-subtle)', fontSize: '0.85rem', cursor: 'pointer' }}>
                 <td style={{ padding: '12px 15px', fontWeight: 800, whiteSpace: 'nowrap', fontSize: '0.75rem' }}>
                   {nom?.name || (card.card_info?.split('] ').pop() || `Картка #${card.id.slice(0, 8)}`)}
                 </td>
@@ -55,7 +55,7 @@ export function Shop2ActiveCardsTable({
                 
                 {/* БРАК ЦЕХУ 2 */}
                 <td style={{ padding: '12px 15px' }}>
-                  <span style={{ color: scrap > 0 ? '#ef4444' : '#555', fontWeight: 900, fontSize: '0.8rem' }}>
+                  <span style={{ color: scrap > 0 ? '#ef4444' : 'var(--text-dim)', fontWeight: 900, fontSize: '0.8rem' }}>
                     {scrap > 0 ? `${scrap} шт` : '0'}
                   </span>
                 </td>
@@ -67,15 +67,15 @@ export function Shop2ActiveCardsTable({
                   </span>
                 </td>
 
-                <td style={{ padding: '12px 15px', color: '#888' }}>{card.manager_name || '—'}</td>
-                <td style={{ padding: '12px 15px', color: '#888' }}>{card.shift_name || '—'}</td>
-                <td style={{ padding: '12px 15px', color: '#aaa' }}>{card.operator_name || '—'}</td>
+                <td style={{ padding: '12px 15px', color: 'var(--text-muted)' }}>{card.manager_name || '—'}</td>
+                <td style={{ padding: '12px 15px', color: 'var(--text-muted)' }}>{card.shift_name || '—'}</td>
+                <td style={{ padding: '12px 15px', color: 'var(--text-muted)' }}>{card.operator_name || '—'}</td>
                 <td style={{ padding: '12px 15px', color: '#eab308', fontWeight: 800 }}>{formatMachine(card.machine)}</td>
                 <td style={{ padding: '12px 15px', color: '#3b82f6', fontWeight: 700 }}>{formatPlanned(getPlannedTime(card, getNomFromCard))}</td>
                 <td style={{ padding: '12px 15px', color: '#10b981' }}>{formatElapsedTime(card.started_at)}</td>
                 <td style={{ padding: '12px 15px', textAlign: 'right' }}>
                   <button onClick={(e) => { e.stopPropagation(); setSelectedCardId(card.id) }}
-                    style={{ background: '#eab308', border: 'none', color: '#000', padding: '10px', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    style={{ background: '#eab308', border: 'none', color: 'var(--surface-black)', padding: '10px', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                     title="Відкрити">
                     <Eye size={18} />
                   </button>

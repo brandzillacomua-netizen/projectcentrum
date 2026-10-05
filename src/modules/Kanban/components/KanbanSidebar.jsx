@@ -112,7 +112,7 @@ export const KanbanSidebar = ({
                 <div key={task.id} className={`sb-deadline-item ${overdue ? 'dl-overdue' : isSoon ? 'dl-soon' : ''}`}
                   onClick={() => handleOpenTask(task)}>
                   <div className="dl-left">
-                    <div className="dl-date" style={{ color: overdue ? '#ef4444' : isSoon ? '#f59e0b' : '#888' }}>
+                    <div className="dl-date" style={{ color: overdue ? '#ef4444' : isSoon ? '#f59e0b' : 'var(--text-muted)' }}>
                       {overdue ? `Простр. ${Math.abs(daysLeft)}д` : isToday ? 'Сьогодні' : `${daysLeft}д`}
                     </div>
                     <div className="dl-title">{task.title}</div>
@@ -165,7 +165,7 @@ export const KanbanSidebar = ({
                 <div className="sb-mini-stats">
                   <div className="sb-mini-stat">
                     <span className="sb-mini-label">Нагальних</span>
-                    <span className="sb-mini-val" style={{ color: urgent > 0 ? '#ef4444' : '#555' }}>{urgent}</span>
+                    <span className="sb-mini-val" style={{ color: urgent > 0 ? '#ef4444' : 'var(--text-dim)' }}>{urgent}</span>
                   </div>
                   <div className="sb-mini-stat">
                     <span className="sb-mini-label">З чеклістом</span>

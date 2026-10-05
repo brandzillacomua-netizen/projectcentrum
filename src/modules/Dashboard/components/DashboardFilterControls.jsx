@@ -23,7 +23,7 @@ export const DashboardFilterControls = ({
           <button
             onClick={handleRefresh}
             disabled={isRefreshing}
-            style={{ background: 'var(--card-bg, #18181b)', border: '1px solid var(--glass-border, #27272a)', color: '#fff', padding: '10px 14px', borderRadius: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.2s', fontSize: '0.85rem' }}
+            style={{ background: 'var(--card-bg, #18181b)', border: '1px solid var(--glass-border, #27272a)', color: 'var(--text-strong)', padding: '10px 14px', borderRadius: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.2s', fontSize: '0.85rem' }}
           >
             <RefreshCw className={isRefreshing ? 'anim-spin' : ''} size={16} />
             <span>Оновити дані</span>
@@ -39,7 +39,7 @@ export const DashboardFilterControls = ({
             placeholder="Пошук деталі за назвою або кодом..."
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            style={{ width: '100%', padding: '12px 15px 12px 42px', background: 'var(--card-bg, #18181b)', border: '1px solid var(--glass-border, #27272a)', borderRadius: '12px', color: '#fff', fontSize: '0.85rem', outline: 'none', transition: 'border-color 0.2s' }}
+            style={{ width: '100%', padding: '12px 15px 12px 42px', background: 'var(--card-bg, #18181b)', border: '1px solid var(--glass-border, #27272a)', borderRadius: '12px', color: 'var(--text-strong)', fontSize: '0.85rem', outline: 'none', transition: 'border-color 0.2s' }}
             onFocus={e => e.target.style.borderColor = '#ff9000'}
             onBlur={e => e.target.style.borderColor = '#27272a'}
           />

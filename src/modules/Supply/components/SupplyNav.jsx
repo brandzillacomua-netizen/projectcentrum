@@ -27,23 +27,23 @@ export const SupplyNav = ({
         display: 'flex',
         justify: 'space-between',
         alignItems: 'center',
-        background: '#111',
+        background: 'var(--surface-1)',
         padding: '15px 30px',
-        borderBottom: '1px solid #222'
+        borderBottom: '1px solid var(--border-subtle)'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-          <Link to="/" style={{ color: '#666', display: 'flex', alignItems: 'center', textDecoration: 'none' }}>
+          <Link to="/" style={{ color: 'var(--text-dim)', display: 'flex', alignItems: 'center', textDecoration: 'none' }}>
             <ArrowLeft size={20} />
           </Link>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{ background: '#ff9000', color: '#000', padding: '8px', borderRadius: '12px', display: 'flex', alignItems: 'center' }}>
+            <div style={{ background: '#ff9000', color: 'var(--surface-black)', padding: '8px', borderRadius: '12px', display: 'flex', alignItems: 'center' }}>
               <Truck size={20} />
             </div>
             <div>
-              <h1 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 900, color: '#fff', letterSpacing: '0.5px' }}>
+              <h1 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 900, color: 'var(--text-strong)', letterSpacing: '0.5px' }}>
                 {isProcurementOnly ? 'ВІДДІЛ ПОСТАЧАННЯ' : 'СКЛАД ВИРОБНИЦТВА (СВ)'}
               </h1>
-              <span style={{ fontSize: '0.65rem', color: '#555', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px' }}>
+              <span style={{ fontSize: '0.65rem', color: 'var(--text-dim)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px' }}>
                 {isProcurementOnly ? 'Закупівлі та розподіл матеріалів' : 'Управління запасами та вишуки'}
               </span>
             </div>
@@ -53,9 +53,9 @@ export const SupplyNav = ({
               type="button"
               onClick={() => setShowReception(prev => !prev)}
               style={{
-                background: showReception ? 'rgba(14, 165, 233, 0.2)' : 'rgba(255,255,255,0.03)',
+                background: showReception ? 'rgba(14, 165, 233, 0.2)' : 'var(--fill-subtle)',
                 border: '1px solid rgba(14, 165, 233, 0.3)',
-                color: incomingReceptionCount > 0 ? '#0ea5e9' : '#888',
+                color: incomingReceptionCount > 0 ? '#0ea5e9' : 'var(--text-muted)',
                 padding: '6px 14px',
                 borderRadius: '10px',
                 fontSize: '0.75rem',
@@ -69,7 +69,7 @@ export const SupplyNav = ({
             >
               <Truck size={16} /> <span>ПРИЙОМКА</span>
               {incomingReceptionCount > 0 && (
-                <span className="badge-count anim-pulse" style={{ background: '#0ea5e9', color: '#000', borderRadius: '50%', padding: '2px 6px', fontSize: '0.65rem', fontWeight: 900 }}>
+                <span className="badge-count anim-pulse" style={{ background: '#0ea5e9', color: 'var(--surface-black)', borderRadius: '50%', padding: '2px 6px', fontSize: '0.65rem', fontWeight: 900 }}>
                   {incomingReceptionCount}
                 </span>
               )}
@@ -77,7 +77,7 @@ export const SupplyNav = ({
           )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-          <div className="hide-mobile" style={{ color: '#555', fontSize: '0.75rem', fontWeight: 600 }}>
+          <div className="hide-mobile" style={{ color: 'var(--text-dim)', fontSize: '0.75rem', fontWeight: 600 }}>
             {currentUser?.first_name} {currentUser?.last_name}
           </div>
           {!showCreate && (
@@ -87,7 +87,7 @@ export const SupplyNav = ({
                 setShowCreate(true)
               }}
               className="hide-mobile"
-              style={{ background: '#ff9000', color: '#000', border: 'none', padding: '10px 22px', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.85rem' }}
+              style={{ background: '#ff9000', color: 'var(--surface-black)', border: 'none', padding: '10px 22px', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.85rem' }}
             >
               <Plus size={20} /> НОВА ПОСТАВКА
             </button>
@@ -112,14 +112,14 @@ export const SupplyNav = ({
             gap: '15px'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-              <div style={{ background: '#0ea5e9', padding: '12px', borderRadius: '14px', color: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ background: '#0ea5e9', padding: '12px', borderRadius: '14px', color: 'var(--surface-black)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Truck size={22} />
               </div>
               <div>
-                <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: '#fff' }}>
+                <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-strong)' }}>
                   У ВАС Є НОВІ ПОСТАВКИ ДЛЯ ПРИЙОМКИ НА СВ!
                 </h4>
-                <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: '#888' }}>
+                <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                   Очікує підтвердження: <strong style={{ color: '#0ea5e9' }}>{incomingReceptionCount}</strong> документ(ів)
                 </p>
               </div>
@@ -148,7 +148,7 @@ export const SupplyNav = ({
 
         {/* RECEPTION DRAWER */}
         {!isProcurementOnly && showReception && (
-          <div className="content-card glass-panel" style={{ background: '#111', border: '1px solid #333', borderRadius: '24px', padding: '25px', marginBottom: '30px' }}>
+          <div className="content-card glass-panel" style={{ background: 'var(--surface-1)', border: '1px solid var(--border-subtle)', borderRadius: '24px', padding: '25px', marginBottom: '30px' }}>
             <h3 style={{ fontSize: '0.85rem', color: '#3b82f6', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
               <Truck size={18} /> ОЧІКУЮТЬ ПРИЙОМКИ НА СВ
             </h3>
@@ -156,9 +156,9 @@ export const SupplyNav = ({
               {(receptionDocs || [])
                 .filter(d => (d.status === 'shipped' || d.status === 'ordered') && (!d.target_warehouse || d.target_warehouse === 'production'))
                 .map(doc => (
-                  <div key={doc.id} style={{ minWidth: '350px', background: '#0a0a0a', border: '1px solid #222', padding: '20px', borderRadius: '20px' }}>
+                  <div key={doc.id} style={{ minWidth: '350px', background: 'var(--surface-inset)', border: '1px solid var(--border-subtle)', padding: '20px', borderRadius: '20px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
-                      <span style={{ fontSize: '0.8rem', color: '#555' }}>Документ #{doc.id.slice(0, 8)}</span>
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>Документ #{doc.id.slice(0, 8)}</span>
                       <button 
                         disabled={processingDocs.has(doc.id)}
                         onClick={() => setReceptionDocToAccept(doc)}
@@ -170,7 +170,7 @@ export const SupplyNav = ({
                     <div style={{ fontSize: '0.85rem' }}>
                       {(doc.items || []).map((it, i) => (
                         <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0' }}>
-                          <span style={{ color: '#aaa' }}>{resolveItemName(it, i)}</span>
+                          <span style={{ color: 'var(--text-muted)' }}>{resolveItemName(it, i)}</span>
                           <strong style={{ color: '#10b981' }}>{resolveItemQty(it)}</strong>
                         </div>
                       ))}
@@ -199,7 +199,7 @@ export const SupplyNav = ({
         )}
 
         {/* Tabs */}
-        <div className="supply-tabs" style={{ display: 'flex', background: '#111', padding: '5px', borderRadius: '14px', marginBottom: '25px', maxWidth: '700px', flexWrap: 'wrap', gap: '2px' }}>
+        <div className="supply-tabs" style={{ display: 'flex', background: 'var(--surface-1)', padding: '5px', borderRadius: '14px', marginBottom: '25px', maxWidth: '700px', flexWrap: 'wrap', gap: '2px' }}>
           <button onClick={() => { setActiveTab('requests'); setShowCreate(false) }} className={`tab-btn-m ${activeTab === 'requests' && !showCreate ? 'active' : ''}`}>ЗАПИТИ ({pendingRequestsCount})</button>
           <button onClick={() => { setActiveTab('registry'); setShowCreate(false) }} className={`tab-btn-m ${activeTab === 'registry' && !showCreate ? 'active' : ''}`}>РЕЄСТР</button>
           {!isProcurementOnly && <button onClick={() => { setActiveTab('stock'); setShowCreate(false) }} className={`tab-btn-m ${activeTab === 'stock' && !showCreate ? 'active' : ''}`}>ЗАЛИШКИ</button>}

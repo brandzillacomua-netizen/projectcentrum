@@ -87,7 +87,7 @@ export const CostingCalculatorTab = ({
               padding: '10px 14px',
               borderRadius: '12px',
               border: '1px solid #10b981',
-              background: 'rgba(0,0,0,0.3)',
+              background: 'var(--fill-inset)',
               color: 'var(--text)',
               fontSize: '0.92rem',
               fontWeight: 900,
@@ -120,7 +120,7 @@ export const CostingCalculatorTab = ({
               padding: '10px 14px',
               borderRadius: '12px',
               border: '1px solid #6366f1',
-              background: 'rgba(0,0,0,0.3)',
+              background: 'var(--fill-inset)',
               color: 'var(--text)',
               fontSize: '0.95rem',
               fontWeight: 900,
@@ -214,7 +214,7 @@ export const CostingCalculatorTab = ({
                       style={{
                         padding: '10px 14px',
                         borderRadius: '12px',
-                        background: 'rgba(255,255,255,0.03)',
+                        background: 'var(--fill-subtle)',
                         border: '1px solid var(--glass-border)',
                         display: 'flex',
                         alignItems: 'center',
@@ -249,7 +249,7 @@ export const CostingCalculatorTab = ({
                 </h4>
 
                 {/* Progress bar visualizer */}
-                <div style={{ height: '24px', borderRadius: '12px', background: 'rgba(0,0,0,0.3)', display: 'flex', overflow: 'hidden', marginBottom: '16px' }}>
+                <div style={{ height: '24px', borderRadius: '12px', background: 'var(--fill-inset)', display: 'flex', overflow: 'hidden', marginBottom: '16px' }}>
                   <div style={{ width: `${(costing.materialCost / costing.recommendedPrice) * 100}%`, background: '#6366f1' }} title="Сировина & BOM" />
                   <div style={{ width: `${(costing.directLaborCost / costing.recommendedPrice) * 100}%`, background: '#ff9000' }} title="Труд & Операції" />
                   <div style={{ width: `${(costing.overheadCost / costing.recommendedPrice) * 100}%`, background: '#ef4444' }} title="Накладні витрати" />

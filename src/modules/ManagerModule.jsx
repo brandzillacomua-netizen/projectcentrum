@@ -516,7 +516,7 @@ const ManagerModule = () => {
         position: 'sticky', top: 0, zIndex: 100,
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         padding: '12px 25px 12px 75px', background: 'rgba(10,10,10,0.8)', backdropFilter: 'blur(12px)',
-        borderBottom: '1px solid rgba(255,255,255,0.05)'
+        borderBottom: '1px solid var(--border-subtle)'
       }}>
         <Link to="/" className="back-btn-modern">
           <ArrowLeft size={18} /> <span>НАЗАД</span>

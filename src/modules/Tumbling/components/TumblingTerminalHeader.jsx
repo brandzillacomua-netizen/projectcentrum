@@ -8,7 +8,7 @@ export default function TumblingTerminalHeader({
   setSelectedShift
 }) {
   return (
-    <header style={{ flexShrink: 0, background: 'var(--card-bg, rgba(12,12,15,0.85))', backdropFilter: 'blur(12px)', borderBottom: '1px solid var(--glass-border, rgba(255,255,255,0.04))', zIndex: 10 }}>
+    <header style={{ flexShrink: 0, background: 'var(--card-bg, rgba(12,12,15,0.85))', backdropFilter: 'blur(12px)', borderBottom: '1px solid var(--glass-border, var(--border-subtle))', zIndex: 10 }}>
 
       {/* Row 1: Back + Title */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 20px 0 20px' }}>
@@ -45,7 +45,7 @@ export default function TumblingTerminalHeader({
         <select
           value={selectedShift}
           onChange={e => setSelectedShift(e.target.value)}
-          style={{ background: 'var(--input-bg, #121216)', border: '1px solid var(--glass-border, rgba(255,255,255,0.07))', color: 'var(--text, #fff)', padding: '7px 12px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 800, cursor: 'pointer', outline: 'none', flex: '0 0 auto' }}
+          style={{ background: 'var(--input-bg, #121216)', border: '1px solid var(--glass-border, var(--border-subtle))', color: 'var(--text, #fff)', padding: '7px 12px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 800, cursor: 'pointer', outline: 'none', flex: '0 0 auto' }}
         >
           <option value="">— Оберіть —</option>
           <option value="Зміна 1">Зміна 1</option>

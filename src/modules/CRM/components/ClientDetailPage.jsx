@@ -153,7 +153,7 @@ export const ClientDetailPage = ({
               padding: '10px 16px',
               borderRadius: '12px',
               border: '1px solid var(--glass-border)',
-              background: 'rgba(255,255,255,0.05)',
+              background: 'var(--fill-subtle)',
               color: 'var(--text)',
               fontWeight: 850,
               fontSize: '0.85rem',
@@ -259,7 +259,7 @@ export const ClientDetailPage = ({
                     padding: '10px 16px',
                     borderRadius: '12px',
                     border: '1px solid var(--glass-border)',
-                    background: 'rgba(255,255,255,0.05)',
+                    background: 'var(--fill-subtle)',
                     color: 'var(--text)',
                     fontWeight: 800,
                     fontSize: '0.85rem',
@@ -423,7 +423,7 @@ export const ClientDetailPage = ({
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid #6366f1', background: 'rgba(0,0,0,0.3)', color: 'var(--text)', outline: 'none', fontWeight: 800 }}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid #6366f1', background: 'var(--fill-inset)', color: 'var(--text)', outline: 'none', fontWeight: 800 }}
                 />
               ) : (
                 <div style={{ fontSize: '0.9rem', fontWeight: 850, color: 'var(--text)' }}>{formData.name}</div>
@@ -440,7 +440,7 @@ export const ClientDetailPage = ({
                   type="text"
                   value={formData.contactPerson}
                   onChange={(e) => setFormData({ ...formData, contactPerson: e.target.value })}
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid #6366f1', background: 'rgba(0,0,0,0.3)', color: 'var(--text)', outline: 'none', fontWeight: 800 }}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid #6366f1', background: 'var(--fill-inset)', color: 'var(--text)', outline: 'none', fontWeight: 800 }}
                 />
               ) : (
                 <div style={{ fontSize: '0.88rem', fontWeight: 750, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -459,7 +459,7 @@ export const ClientDetailPage = ({
                   type="text"
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid #6366f1', background: 'rgba(0,0,0,0.3)', color: 'var(--text)', outline: 'none', fontWeight: 800 }}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid #6366f1', background: 'var(--fill-inset)', color: 'var(--text)', outline: 'none', fontWeight: 800 }}
                 />
               ) : (
                 <div style={{ fontSize: '0.88rem', fontWeight: 750, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -478,7 +478,7 @@ export const ClientDetailPage = ({
                   type="email"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid #6366f1', background: 'rgba(0,0,0,0.3)', color: 'var(--text)', outline: 'none', fontWeight: 800 }}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid #6366f1', background: 'var(--fill-inset)', color: 'var(--text)', outline: 'none', fontWeight: 800 }}
                 />
               ) : (
                 <div style={{ fontSize: '0.88rem', fontWeight: 750, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -497,7 +497,7 @@ export const ClientDetailPage = ({
                   type="text"
                   value={formData.tin}
                   onChange={(e) => setFormData({ ...formData, tin: e.target.value })}
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid #6366f1', background: 'rgba(0,0,0,0.3)', color: 'var(--text)', outline: 'none', fontWeight: 800 }}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid #6366f1', background: 'var(--fill-inset)', color: 'var(--text)', outline: 'none', fontWeight: 800 }}
                 />
               ) : (
                 <div style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text)' }}>
@@ -518,14 +518,14 @@ export const ClientDetailPage = ({
                     placeholder="Місто"
                     value={formData.city}
                     onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                    style={{ width: '100%', padding: '8px 12px', borderRadius: '10px', border: '1px solid #6366f1', background: 'rgba(0,0,0,0.3)', color: 'var(--text)', outline: 'none' }}
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: '10px', border: '1px solid #6366f1', background: 'var(--fill-inset)', color: 'var(--text)', outline: 'none' }}
                   />
                   <input
                     type="text"
                     placeholder="Адреса"
                     value={formData.address}
                     onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                    style={{ width: '100%', padding: '8px 12px', borderRadius: '10px', border: '1px solid #6366f1', background: 'rgba(0,0,0,0.3)', color: 'var(--text)', outline: 'none' }}
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: '10px', border: '1px solid #6366f1', background: 'var(--fill-inset)', color: 'var(--text)', outline: 'none' }}
                   />
                 </div>
               ) : (
@@ -544,7 +544,7 @@ export const ClientDetailPage = ({
                 <select
                   value={formData.segment}
                   onChange={(e) => setFormData({ ...formData, segment: e.target.value })}
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid #6366f1', background: 'rgba(0,0,0,0.3)', color: 'var(--text)', outline: 'none', fontWeight: 800 }}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid #6366f1', background: 'var(--fill-inset)', color: 'var(--text)', outline: 'none', fontWeight: 800 }}
                 >
                   <option value="Regular" style={{ background: '#1c1c24' }}>Постійний Клієнт</option>
                   <option value="VIP" style={{ background: '#1c1c24' }}>👑 VIP Клієнт</option>
@@ -566,7 +566,7 @@ export const ClientDetailPage = ({
                   rows={3}
                   value={formData.notes}
                   onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid #6366f1', background: 'rgba(0,0,0,0.3)', color: 'var(--text)', outline: 'none', fontSize: '0.82rem', resize: 'vertical' }}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid #6366f1', background: 'var(--fill-inset)', color: 'var(--text)', outline: 'none', fontSize: '0.82rem', resize: 'vertical' }}
                 />
               ) : (
                 <div style={{ fontSize: '0.82rem', color: 'var(--text)', lineHeight: 1.4, background: 'var(--glass-border, rgba(0,0,0,0.05))', padding: '10px 12px', borderRadius: '10px' }}>
@@ -655,7 +655,7 @@ export const ClientDetailPage = ({
                     >
                       <span>📍 {addr.title || addr.city || `Адреса #${idx + 1}`}</span>
                       {isDef && (
-                        <span style={{ background: '#ff9000', color: '#000', padding: '1px 5px', borderRadius: '4px', fontSize: '0.6rem', fontWeight: 950 }}>
+                        <span style={{ background: '#ff9000', color: 'var(--surface-black)', padding: '1px 5px', borderRadius: '4px', fontSize: '0.6rem', fontWeight: 950 }}>
                           ★ Основна
                         </span>
                       )}
@@ -670,7 +670,7 @@ export const ClientDetailPage = ({
                 return (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                     {isEditing && (
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.03)', padding: '8px 12px', borderRadius: '10px', border: '1px solid var(--glass-border)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--fill-subtle)', padding: '8px 12px', borderRadius: '10px', border: '1px solid var(--glass-border)' }}>
                         <input
                           type="text"
                           value={currentAddr.title || ''}

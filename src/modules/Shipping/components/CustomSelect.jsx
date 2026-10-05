@@ -19,7 +19,7 @@ export const CustomSelect = React.memo(({ value, onChange, options, placeholder 
         style={{
           padding: '12px 40px 12px 14px',
           background: value ? `rgba(${accent === '#ff9000' ? '255,144,0' : '168,85,247'},0.08)` : 'var(--card-inner-bg, rgba(255,255,255,0.04))',
-          border: `1.5px solid ${value ? accent + '55' : 'var(--border-color, rgba(255,255,255,0.08))'}`,
+          border: `1.5px solid ${value ? accent + '55' : 'var(--border-color, var(--border-subtle))'}`,
           borderRadius: '12px',
           color: value ? 'var(--text, #fff)' : 'var(--text-secondary, #555)',
           fontSize: '0.85rem',

@@ -17,8 +17,8 @@ export function Shop1DetailStageModal({
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', zIndex: 10030, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '40px 20px', overflowY: 'auto' }}>
-      <div style={{ width: '100%', maxWidth: '620px', background: '#111', borderRadius: '24px', border: '1px solid #1e1e1e', overflow: 'hidden', margin: 'auto 0' }}>
-        <div style={{ padding: '20px 22px', background: '#161616', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div style={{ width: '100%', maxWidth: '620px', background: 'var(--surface-1)', borderRadius: '24px', border: '1px solid #1e1e1e', overflow: 'hidden', margin: 'auto 0' }}>
+        <div style={{ padding: '20px 22px', background: 'var(--surface-2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h2 style={{ margin: 0, color: '#eab308', fontWeight: 950 }}>{detailStage.toUpperCase()}</h2>
           <button onClick={onClose} style={{ background: '#1e1e1e', border: 'none', color: '#fff', padding: '8px', borderRadius: '8px', cursor: 'pointer' }}>
             <X size={17} />
@@ -76,7 +76,7 @@ export function Shop1DetailStageModal({
             return (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 {items.map((item, i) => (
-                  <div key={i} style={{ background: '#0d0d0d', padding: '12px 16px', borderRadius: '9px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div key={i} style={{ background: 'var(--surface-inset)', padding: '12px 16px', borderRadius: '9px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
                       <div style={{ fontWeight: 800, fontSize: '0.85rem' }}>{item.name}</div>
                       {item.op && (

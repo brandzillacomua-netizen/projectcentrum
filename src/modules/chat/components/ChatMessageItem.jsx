@@ -119,7 +119,7 @@ export const ChatMessageItem = ({
               {message.attachment_size ? <span className="meta-size">{bytesToLabel(message.attachment_size)}</span> : null}
               {showMeta && <span className="meta-time">{formatMessageTime(message.created_at)}</span>}
               {isMine && showMeta && (
-                <span className="meta-read-status" style={{ marginLeft: 4, color: isReadByOthers ? '#3b82f6' : '#888', display: 'inline-flex', alignItems: 'center' }}>
+                <span className="meta-read-status" style={{ marginLeft: 4, color: isReadByOthers ? '#3b82f6' : 'var(--text-muted)', display: 'inline-flex', alignItems: 'center' }}>
                   {isReadByOthers ? <CheckCheck size={14} /> : <Check size={14} />}
                 </span>
               )}

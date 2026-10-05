@@ -34,14 +34,14 @@ export const VKYARestorationLegacyModal = ({
           max={legacyDraft.total_qty}
           value={legacyQuantity}
           onChange={event => setLegacyQuantity(event.target.value)}
-          style={{ boxSizing: 'border-box', width: '100%', background: 'var(--bg, #050505)', border: '1px solid var(--glass-border, #333)', borderRadius: 11, color: 'var(--text, #fff)', padding: 13 }}
+          style={{ boxSizing: 'border-box', width: '100%', background: 'var(--bg, #050505)', border: '1px solid var(--glass-border, var(--border-subtle))', borderRadius: 11, color: 'var(--text, #fff)', padding: 13 }}
         />
 
         <label style={{ display: 'block', color: 'var(--text-muted, #888)', fontSize: '.7rem', fontWeight: 950, margin: '17px 0 7px' }}>ЕТАП ВІДНОВЛЕННЯ</label>
         <select
           value={legacyStageId}
           onChange={event => setLegacyStageId(event.target.value)}
-          style={{ boxSizing: 'border-box', width: '100%', background: 'var(--bg, #050505)', border: '1px solid var(--glass-border, #333)', borderRadius: 11, color: 'var(--text, #fff)', padding: 13 }}
+          style={{ boxSizing: 'border-box', width: '100%', background: 'var(--bg, #050505)', border: '1px solid var(--glass-border, var(--border-subtle))', borderRadius: 11, color: 'var(--text, #fff)', padding: 13 }}
         >
           <option value="">Оберіть етап</option>
           {restorationStages.map(stage => (

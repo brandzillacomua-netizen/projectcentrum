@@ -33,7 +33,7 @@ export const SupplyCreateShipmentModal = ({
     <section style={{
       background: 'var(--modal-bg, #0d0d0d)',
       borderRadius: '24px',
-      border: '1px solid var(--modal-border, #222)',
+      border: '1px solid var(--modal-border, var(--border-subtle))',
       padding: '30px',
       maxWidth: '650px',
       margin: '0 auto 30px auto',
@@ -42,7 +42,7 @@ export const SupplyCreateShipmentModal = ({
       position: 'relative'
     }}>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '25px', alignItems: 'center', borderBottom: '1px solid var(--border-color, #222)', paddingBottom: '20px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '25px', alignItems: 'center', borderBottom: '1px solid var(--border-color, var(--border-subtle))', paddingBottom: '20px' }}>
         <div>
           <h2 style={{ fontSize: '1.3rem', fontWeight: 900, color: 'var(--text-color, #fff)', margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
             <Truck size={22} style={{ color: '#ff9000' }} />
@@ -56,7 +56,7 @@ export const SupplyCreateShipmentModal = ({
         </div>
         <button
           onClick={() => { setShowCreate(false); setDraftItems([]); setTargetWarehouse('') }}
-          style={{ background: 'var(--btn-ghost-bg, #1c1c1c)', border: '1px solid var(--border-color, #2a2a2a)', color: 'var(--text-muted, #888)', cursor: 'pointer', width: '36px', height: '36px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          style={{ background: 'var(--btn-ghost-bg, #1c1c1c)', border: '1px solid var(--border-color, var(--border-subtle))', color: 'var(--text-muted, #888)', cursor: 'pointer', width: '36px', height: '36px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
         >
           <X size={18} />
         </button>
@@ -85,7 +85,7 @@ export const SupplyCreateShipmentModal = ({
                   onClick={() => setTargetWarehouse(wh.id)}
                   style={{
                     background: active ? `${wh.color}15` : 'var(--card-bg, #0a0a0a)',
-                    border: active ? `2px solid ${wh.color}` : '1px solid var(--border-color, #222)',
+                    border: active ? `2px solid ${wh.color}` : '1px solid var(--border-color, var(--border-subtle))',
                     color: active ? wh.color : 'var(--text-color, #fff)',
                     padding: '12px 14px',
                     borderRadius: '12px',
@@ -123,7 +123,7 @@ export const SupplyCreateShipmentModal = ({
               <div style={{ flex: 1, position: 'relative' }}>
                 <input
                   list="noms-list"
-                  style={{ width: '100%', background: 'var(--card-bg, #0a0a0a)', border: '1px solid var(--border-color, #222)', color: 'var(--text-color, #fff)', padding: '12px 15px', borderRadius: '10px', fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box' }}
+                  style={{ width: '100%', background: 'var(--card-bg, #0a0a0a)', border: '1px solid var(--border-color, var(--border-subtle))', color: 'var(--text-color, #fff)', padding: '12px 15px', borderRadius: '10px', fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box' }}
                   placeholder="Ввести або відсканувати..."
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
@@ -145,21 +145,21 @@ export const SupplyCreateShipmentModal = ({
             <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: 900, color: 'var(--text-muted, #555)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Кількість</label>
             <input
               type="number"
-              style={{ width: '100%', background: 'var(--card-bg, #0a0a0a)', border: '1px solid var(--border-color, #222)', color: 'var(--text-color, #fff)', padding: '12px 15px', borderRadius: '10px', fontSize: '0.9rem', outline: 'none', textAlign: 'center', boxSizing: 'border-box' }}
+              style={{ width: '100%', background: 'var(--card-bg, #0a0a0a)', border: '1px solid var(--border-color, var(--border-subtle))', color: 'var(--text-color, #fff)', padding: '12px 15px', borderRadius: '10px', fontSize: '0.9rem', outline: 'none', textAlign: 'center', boxSizing: 'border-box' }}
               placeholder="0"
               value={selectedQty}
               onChange={e => setSelectedQty(e.target.value)}
             />
           </div>
           <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-            <button type="button" onClick={addToDraft} style={{ height: '42px', width: '50px', background: '#ff9000', color: '#000', border: 'none', borderRadius: '10px', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <button type="button" onClick={addToDraft} style={{ height: '42px', width: '50px', background: '#ff9000', color: 'var(--surface-black)', border: 'none', borderRadius: '10px', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Plus size={20} />
             </button>
           </div>
         </div>
 
         {/* Draft list */}
-        <div style={{ background: 'var(--card-bg, #070707)', borderRadius: '14px', border: '1px solid var(--border-color, #1a1a1a)', padding: '15px' }}>
+        <div style={{ background: 'var(--card-bg, #070707)', borderRadius: '14px', border: '1px solid var(--border-color, var(--border-subtle))', padding: '15px' }}>
           <div style={{ fontSize: '0.65rem', fontWeight: 900, color: 'var(--text-muted, #444)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '10px' }}>СПИСОК ПОСТАВКИ ({draftItems.length})</div>
           {draftItems.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '25px 0', color: 'var(--text-muted, #333)' }}>
@@ -169,7 +169,7 @@ export const SupplyCreateShipmentModal = ({
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '180px', overflowY: 'auto' }}>
               {draftItems.map((it, idx) => (
-                <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: 'var(--card-inner-bg, #0d0d0d)', borderRadius: '8px', border: '1px solid var(--border-color, #222)' }}>
+                <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: 'var(--card-inner-bg, #0d0d0d)', borderRadius: '8px', border: '1px solid var(--border-color, var(--border-subtle))' }}>
                   <span style={{ fontSize: '0.8rem', color: 'var(--text-color, #ddd)' }}>{it.name}</span>
                   <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
                     <input
@@ -181,7 +181,7 @@ export const SupplyCreateShipmentModal = ({
                         updated[idx].qty = val
                         setDraftItems(updated)
                       }}
-                      style={{ width: '85px', background: 'var(--card-bg, #000)', border: '1px solid var(--border-color, #333)', color: '#ff9000', textAlign: 'center', borderRadius: '8px', padding: '6px 10px', fontSize: '0.85rem', fontWeight: 900, outline: 'none' }}
+                      style={{ width: '85px', background: 'var(--card-bg, #000)', border: '1px solid var(--border-color, var(--border-subtle))', color: '#ff9000', textAlign: 'center', borderRadius: '8px', padding: '6px 10px', fontSize: '0.85rem', fontWeight: 900, outline: 'none' }}
                     />
                     <button onClick={() => setDraftItems(draftItems.filter((_, i) => i !== idx))} style={{ color: 'var(--text-muted, #555)', border: 'none', background: 'transparent', cursor: 'pointer', padding: '2px' }}>
                       <X size={14} />
@@ -206,7 +206,7 @@ export const SupplyCreateShipmentModal = ({
                 : (targetWarehouse === 'production'
                     ? 'linear-gradient(135deg, #3b82f6, #1d4ed8)'
                     : 'linear-gradient(135deg, #10b981, #047857)'),
-              color: sendDisabled ? '#666' : '#fff',
+              color: sendDisabled ? 'var(--text-dim)' : 'var(--text-strong)',
               border: 'none',
               borderRadius: '12px',
               fontWeight: 900,

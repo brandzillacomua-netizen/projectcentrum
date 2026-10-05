@@ -30,7 +30,7 @@ export function WarehousePrepBoxes({
 
   if (cardsWithBoxes.length === 0) {
     return (
-      <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
+      <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-dim)' }}>
         Немає боксів для підготовки
       </div>
     )
@@ -45,14 +45,14 @@ export function WarehousePrepBoxes({
         const preparedCards = allBoxes.filter(b => b.isPrepared).length
 
         return (
-          <div key={g.orderNum} style={{ background: '#111', borderRadius: '20px', border: '1px solid #222', overflow: 'hidden' }}>
+          <div key={g.orderNum} style={{ background: 'var(--surface-1)', borderRadius: '20px', border: '1px solid var(--border-subtle)', overflow: 'hidden' }}>
             <div 
               onClick={() => setExpandedNaryads(prev => ({ ...prev, [g.orderNum]: !isExpanded }))}
-              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '18px 24px', cursor: 'pointer', background: '#161616' }}
+              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '18px 24px', cursor: 'pointer', background: 'var(--surface-2)' }}
             >
               <div>
                 <strong style={{ fontSize: '1.05rem' }}>НАРЯД #{g.orderNum}</strong>
-                <div style={{ fontSize: '0.75rem', color: '#666', marginTop: '2px' }}>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '2px' }}>
                   Зібрано фрез: <strong style={{ color: preparedCards === totalCards ? '#10b981' : '#ff9000' }}>{preparedCards} / {totalCards}</strong> боксів
                 </div>
               </div>
@@ -86,14 +86,14 @@ export function WarehousePrepBoxes({
                             const isAllChecked = boxItem.cutters.every(c => checkedCutters[cardId]?.[c.nomenclature_id])
 
                             return (
-                              <div key={cardId} style={{ background: '#151515', padding: '15px', borderRadius: '16px', border: '1px solid #222', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                              <div key={cardId} style={{ background: '#151515', padding: '15px', borderRadius: '16px', border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                                   <strong>Картка {cardNum}</strong>
                                   <span style={{ color: boxItem.isPrepared ? '#10b981' : '#f59e0b' }}>
                                     {boxItem.isPrepared ? 'ГОТОВО' : 'ОЧІКУЄ'}
                                   </span>
                                 </div>
-                                <div style={{ fontSize: '0.75rem', color: '#888' }}>
+                                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                                   Верстат: {boxItem.card.machine || '—'} | Листи: {boxItem.cardSheets} л.
                                 </div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -118,7 +118,7 @@ export function WarehousePrepBoxes({
                                   <button
                                     disabled={isProcessing || !isAllChecked}
                                     onClick={() => handlePrepareBox(boxItem)}
-                                    style={{ width: '100%', padding: '10px', background: isAllChecked ? '#10b981' : '#222', color: isAllChecked ? '#000' : '#555', border: 'none', borderRadius: '8px', fontWeight: 800, cursor: 'pointer' }}
+                                    style={{ width: '100%', padding: '10px', background: isAllChecked ? '#10b981' : 'var(--surface-3)', color: isAllChecked ? 'var(--surface-black)' : '#555', border: 'none', borderRadius: '8px', fontWeight: 800, cursor: 'pointer' }}
                                   >
                                     Зібрати бокс
                                   </button>

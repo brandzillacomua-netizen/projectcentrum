@@ -511,12 +511,12 @@ const Shop2Module = () => {
 
 
   return (
-    <div className="shop2-module" style={{ background: '#0a0a0a', minHeight: '100vh', color: '#fff', display: 'flex', flexDirection: 'column' }}>
+    <div className="shop2-module" style={{ background: 'var(--surface-inset)', minHeight: '100vh', color: 'var(--text-strong)', display: 'flex', flexDirection: 'column' }}>
       {/* ───── ШАПКА ───── */}
       <header className="module-nav" style={{
         padding: '15px 25px',
-        background: '#111',
-        borderBottom: '1px solid #1a1a1a',
+        background: 'var(--surface-1)',
+        borderBottom: '1px solid var(--border-subtle)',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
@@ -526,7 +526,7 @@ const Shop2Module = () => {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
           <Link to="/" className="back-link" style={{
-            color: '#fff',
+            color: 'var(--text-strong)',
             textDecoration: 'none',
             display: 'flex',
             alignItems: 'center',
@@ -598,15 +598,15 @@ const Shop2Module = () => {
           className={`side-panel ${isDrawerOpen ? 'drawer-open' : ''}`}
           style={{
             width: '300px',
-            background: '#121212',
-            borderRight: '1px solid #222',
+            background: 'var(--surface-1)',
+            borderRight: '1px solid var(--border-subtle)',
             display: 'flex',
             flexDirection: 'column',
             transition: '0.3s transform'
           }}
         >
-          <div style={{ padding: '15px 20px', borderBottom: '1px solid #1a1a1a', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#888', fontWeight: 800, fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+          <div style={{ padding: '15px 20px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'var(--text-muted)', fontWeight: 800, fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
               <span>{activeTab === 'active' ? `АКТИВНІ НАРЯДИ (${activeQueueCount})` : `АРХІВ НАРАДІВ (${archiveQueueCount})`}</span>
               {isDrawerOpen && (
                 <button onClick={() => setIsDrawerOpen(false)} style={{ background: 'transparent', border: 'none', color: '#555', cursor: 'pointer' }}>
@@ -616,7 +616,7 @@ const Shop2Module = () => {
             </div>
 
             {/* Вкладки Активні / Архів */}
-            <div style={{ display: 'flex', background: '#0a0a0a', padding: '3px', borderRadius: '10px', border: '1px solid #222' }}>
+            <div style={{ display: 'flex', background: 'var(--surface-inset)', padding: '3px', borderRadius: '10px', border: '1px solid var(--border-subtle)' }}>
               <button
                 onClick={() => { setActiveTab('active'); setCurrentPage(1); }}
                 style={{
@@ -655,21 +655,21 @@ const Shop2Module = () => {
 
             {/* Пагінація перелистування сторінок у верхній шапці */}
             {relevantTasks.length > itemsPerPage && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#0a0a0a', padding: '6px 12px', borderRadius: '8px', border: '1px solid #1f1f1f', marginTop: '2px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--surface-inset)', padding: '6px 12px', borderRadius: '8px', border: '1px solid var(--border-subtle)', marginTop: '2px' }}>
                 <button
                   disabled={currentPage === 1}
                   onClick={() => setCurrentPage(p => p - 1)}
-                  style={{ background: '#1c1c1c', border: '1px solid #333', color: '#fff', padding: '4px 12px', borderRadius: '6px', cursor: currentPage === 1 ? 'not-allowed' : 'pointer', opacity: currentPage === 1 ? 0.3 : 1, fontSize: '0.7rem', fontWeight: 800 }}
+                  style={{ background: '#1c1c1c', border: '1px solid var(--border-subtle)', color: '#fff', padding: '4px 12px', borderRadius: '6px', cursor: currentPage === 1 ? 'not-allowed' : 'pointer', opacity: currentPage === 1 ? 0.3 : 1, fontSize: '0.7rem', fontWeight: 800 }}
                 >
                   ← Назад
                 </button>
-                <div style={{ fontSize: '0.7rem', color: '#aaa', fontWeight: 900 }}>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 900 }}>
                   {currentPage} / {Math.ceil(relevantTasks.length / itemsPerPage)}
                 </div>
                 <button
                   disabled={currentPage === Math.ceil(relevantTasks.length / itemsPerPage)}
                   onClick={() => setCurrentPage(p => p + 1)}
-                  style={{ background: '#1c1c1c', border: '1px solid #333', color: '#fff', padding: '4px 12px', borderRadius: '6px', cursor: currentPage === Math.ceil(relevantTasks.length / itemsPerPage) ? 'not-allowed' : 'pointer', opacity: currentPage === Math.ceil(relevantTasks.length / itemsPerPage) ? 0.3 : 1, fontSize: '0.7rem', fontWeight: 800 }}
+                  style={{ background: '#1c1c1c', border: '1px solid var(--border-subtle)', color: '#fff', padding: '4px 12px', borderRadius: '6px', cursor: currentPage === Math.ceil(relevantTasks.length / itemsPerPage) ? 'not-allowed' : 'pointer', opacity: currentPage === Math.ceil(relevantTasks.length / itemsPerPage) ? 0.3 : 1, fontSize: '0.7rem', fontWeight: 800 }}
                 >
                   Вперед →
                 </button>
@@ -694,15 +694,15 @@ const Shop2Module = () => {
                   style={{
                     padding: '20px',
                     borderLeft: isActive ? '4px solid #8b5cf6' : '4px solid transparent',
-                    background: isActive ? '#1a1a1a' : 'transparent',
+                    background: isActive ? 'var(--surface-2)' : 'transparent',
                     cursor: 'pointer',
                     transition: '0.2s',
-                    borderBottom: '1px solid #1a1a1a',
+                    borderBottom: '1px solid var(--border-subtle)',
                     opacity: isWaitingForShop1 ? 0.5 : 1
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ fontWeight: 800, fontSize: '1rem', color: isCompleted ? '#444' : isWaitingForShop1 ? '#555' : '#fff' }}>№ {order?.order_num}{task.batch_index ? `/${task.batch_index}` : ''}</div>
+                    <div style={{ fontWeight: 800, fontSize: '1rem', color: isCompleted ? '#444' : isWaitingForShop1 ? 'var(--text-dim)' : 'var(--text-strong)' }}>№ {order?.order_num}{task.batch_index ? `/${task.batch_index}` : ''}</div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                       {(() => {
                         if (isCompleted) {
@@ -761,7 +761,7 @@ const Shop2Module = () => {
                       .reduce((s, it) => s + (Number(it.quantity) || 0), 0)
 
                     return (
-                      <div style={{ marginTop: '6px', borderTop: '1px dashed #222', paddingTop: '6px' }}>
+                      <div style={{ marginTop: '6px', borderTop: '1px dashed var(--border-subtle)', paddingTop: '6px' }}>
                         {order?.customer && (
                           <div style={{ fontSize: '0.75rem', color: isCompleted ? '#333' : '#a1a1aa', fontWeight: 700 }}>
                             {order.customer}
@@ -769,7 +769,7 @@ const Shop2Module = () => {
                         )}
                         {prodName !== '—' && (
                           <div style={{ fontSize: '0.72rem', color: isCompleted ? '#2a2a2a' : '#71717a', marginTop: '2px', fontWeight: 600 }}>
-                            Виріб: <span style={{ color: isCompleted ? '#444' : '#fff' }}>{prodName}</span>
+                            Виріб: <span style={{ color: isCompleted ? '#444' : 'var(--text-strong)' }}>{prodName}</span>
                           </div>
                         )}
                         {totalKits > 0 && (
@@ -811,21 +811,21 @@ const Shop2Module = () => {
 
             {/* ПАГІНАЦІЯ ВНИЗУ — ОДРАЗУ ПІД ОСТАННІМ НАРАДОМ */}
             {relevantTasks.length > itemsPerPage && (
-              <div style={{ padding: '12px 15px', borderTop: '1px solid #1a1a1a', background: '#0e0e0e', display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '10px 0' }}>
+              <div style={{ padding: '12px 15px', borderTop: '1px solid var(--border-subtle)', background: '#0e0e0e', display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '10px 0' }}>
                 <button
                   disabled={currentPage === 1}
                   onClick={() => setCurrentPage(p => p - 1)}
-                  style={{ background: '#1c1c1c', border: '1px solid #333', color: '#fff', padding: '6px 14px', borderRadius: '8px', cursor: currentPage === 1 ? 'not-allowed' : 'pointer', opacity: currentPage === 1 ? 0.3 : 1, fontSize: '0.75rem', fontWeight: 800 }}
+                  style={{ background: '#1c1c1c', border: '1px solid var(--border-subtle)', color: '#fff', padding: '6px 14px', borderRadius: '8px', cursor: currentPage === 1 ? 'not-allowed' : 'pointer', opacity: currentPage === 1 ? 0.3 : 1, fontSize: '0.75rem', fontWeight: 800 }}
                 >
                   ← Назад
                 </button>
-                <div style={{ fontSize: '0.75rem', color: '#aaa', fontWeight: 900 }}>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 900 }}>
                   {currentPage} / {Math.ceil(relevantTasks.length / itemsPerPage)}
                 </div>
                 <button
                   disabled={currentPage === Math.ceil(relevantTasks.length / itemsPerPage)}
                   onClick={() => setCurrentPage(p => p + 1)}
-                  style={{ background: '#1c1c1c', border: '1px solid #333', color: '#fff', padding: '6px 14px', borderRadius: '8px', cursor: currentPage === Math.ceil(relevantTasks.length / itemsPerPage) ? 'not-allowed' : 'pointer', opacity: currentPage === Math.ceil(relevantTasks.length / itemsPerPage) ? 0.3 : 1, fontSize: '0.75rem', fontWeight: 800 }}
+                  style={{ background: '#1c1c1c', border: '1px solid var(--border-subtle)', color: '#fff', padding: '6px 14px', borderRadius: '8px', cursor: currentPage === Math.ceil(relevantTasks.length / itemsPerPage) ? 'not-allowed' : 'pointer', opacity: currentPage === Math.ceil(relevantTasks.length / itemsPerPage) ? 0.3 : 1, fontSize: '0.75rem', fontWeight: 800 }}
                 >
                   Вперед →
                 </button>
@@ -864,7 +864,7 @@ const Shop2Module = () => {
                         </div>
                       )}
                     </h2>
-                    <div style={{ color: '#555', marginTop: '8px', fontSize: '1.1rem', fontWeight: 800 }}>
+                    <div style={{ color: 'var(--text-dim)', marginTop: '8px', fontSize: '1.1rem', fontWeight: 800 }}>
                       ВИРІБ: <strong style={{ color: '#8b5cf6' }}>{productNames || '—'}</strong> | {order?.customer}
                     </div>
                   </div>
@@ -911,10 +911,10 @@ const Shop2Module = () => {
                 </div>
 
                 {/* ТАБЛИЦЯ НОМЕНКЛАТУРИ */}
-                <div style={{ background: '#111', borderRadius: '28px', border: '1px solid #1a1a1a', overflowX: 'auto' }}>
+                <div style={{ background: 'var(--surface-1)', borderRadius: '28px', border: '1px solid var(--border-subtle)', overflowX: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead>
-                      <tr style={{ background: '#0a0a0a', textAlign: 'left', color: '#555', textTransform: 'uppercase', fontSize: '0.65rem', fontWeight: 900 }}>
+                      <tr style={{ background: 'var(--surface-inset)', textAlign: 'left', color: '#555', textTransform: 'uppercase', fontSize: '0.65rem', fontWeight: 900 }}>
                         <th style={{ padding: '15px 25px', minWidth: '220px' }}>НОМЕНКЛАТУРА</th>
                         <th style={{ padding: '15px 20px', textAlign: 'center', minWidth: '120px' }}>МАТЕРІАЛ</th>
                         <th style={{ padding: '15px 20px', textAlign: 'center', minWidth: '80px' }}>ПОТРЕБА</th>
@@ -1011,15 +1011,15 @@ const Shop2Module = () => {
                           const totalInWork = s2InWorkCards.reduce((s, c) => s + (Number(c.quantity) || 0), 0)
 
                           return (
-                            <tr key={idx} style={{ borderBottom: '1px solid #1a1a1a', opacity: (existingCard && existingCard.status === 'completed') ? 0.7 : 1 }}>
+                            <tr key={idx} style={{ borderBottom: '1px solid var(--border-subtle)', opacity: (existingCard && existingCard.status === 'completed') ? 0.7 : 1 }}>
                               <td style={{ padding: '20px' }}>
-                                <div style={{ fontWeight: 800, fontSize: '1.05rem', color: '#fff' }}>{item.nom?.name || '—'}</div>
+                                <div style={{ fontWeight: 800, fontSize: '1.05rem', color: 'var(--text-strong)' }}>{item.nom?.name || '—'}</div>
                                 <div style={{ fontSize: '0.7rem', color: '#444', marginTop: '2px' }}>{item.code || 'БЕЗ КОДУ'}</div>
                               </td>
                               <td style={{ padding: '20px', textAlign: 'center' }}>
-                                <div style={{ color: '#666', fontSize: '0.85rem', fontWeight: 700 }}>{item.nom?.material_type || '—'}</div>
+                                <div style={{ color: 'var(--text-dim)', fontSize: '0.85rem', fontWeight: 700 }}>{item.nom?.material_type || '—'}</div>
                               </td>
-                              <td style={{ padding: '20px', textAlign: 'center', color: '#fff', fontSize: '1.2rem', fontWeight: 600 }}>
+                              <td style={{ padding: '20px', textAlign: 'center', color: 'var(--text-strong)', fontSize: '1.2rem', fontWeight: 600 }}>
                                 {(() => {
                                   const snapEntry = snap[String(item.nom?.id)] || {}
                                   const bzStock = Number(snapEntry.stock) || 0
@@ -1076,7 +1076,7 @@ const Shop2Module = () => {
                                   value={selectedStages[String(item.nom?.id)] || (task.plan_snapshot?.[String(item.nom?.id)]?.shop2_stage) || ''}
                                   disabled={task.status === 'completed'}
                                   onChange={(e) => handleUpdateStage(task, item.nom?.id, e.target.value)}
-                                  style={{ width: '100%', minWidth: '150px', background: '#000', border: '1px solid #333', color: '#fff', padding: '10px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}
+                                  style={{ width: '100%', minWidth: '150px', background: 'var(--surface-black)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', padding: '10px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}
                                 >
                                   <option value="" disabled hidden>Оберіть етап</option>
                                   <option value="Пресування">Пресування</option>
@@ -1243,7 +1243,7 @@ const Shop2Module = () => {
                         animation: 'pulse 2s infinite'
                       }}>
                         <div style={{ color: '#10b981', fontSize: '1.8rem', fontWeight: 950, marginBottom: '10px' }}>🏆 ЛЕГЕНДА ЦЕХУ, ЦЕ ПЕРЕМОГА!</div>
-                        <div style={{ color: '#fff', fontSize: '1.1rem', fontWeight: 600, opacity: 0.9 }}>
+                        <div style={{ color: 'var(--text-strong)', fontSize: '1.1rem', fontWeight: 600, opacity: 0.9 }}>
                           Всі деталі на СГП, план розірвано в шматки! 🚀<br />
                           Тисніть на фіолетову кнопку зверху і отримайте порцію слави!
                         </div>
@@ -1271,11 +1271,11 @@ const Shop2Module = () => {
                     animation: 'fadeIn 0.5s ease-out'
                   }}>
                     <div style={{ fontSize: '150px', marginBottom: '20px', animation: 'bounce 1s infinite' }}>🏆</div>
-                    <h1 style={{ color: '#fff', fontSize: '5rem', fontWeight: 950, textAlign: 'center', margin: 0, textShadow: '0 0 50px #8b5cf6' }}>ВИ — ЧЕМПІОН!</h1>
+                    <h1 style={{ color: 'var(--text-strong)', fontSize: '5rem', fontWeight: 950, textAlign: 'center', margin: 0, textShadow: '0 0 50px #8b5cf6' }}>ВИ — ЧЕМПІОН!</h1>
                     <p style={{ color: '#8b5cf6', fontSize: '2rem', fontWeight: 800, marginTop: '20px' }}>Цех №2 пишається своїм лідером! 🚀</p>
                     <button
                       onClick={() => setShowVictory(false)}
-                      style={{ marginTop: '50px', background: '#fff', color: '#000', padding: '15px 40px', borderRadius: '20px', fontWeight: 900, cursor: 'pointer', border: 'none' }}
+                      style={{ marginTop: '50px', background: 'var(--text-strong)', color: 'var(--surface-black)', padding: '15px 40px', borderRadius: '20px', fontWeight: 900, cursor: 'pointer', border: 'none' }}
                     >
                       ПРОДОВЖИТИ ПІДКОРЕННЯ СВІТУ
                     </button>
@@ -1345,17 +1345,17 @@ const Shop2Module = () => {
                             const need = Math.max(matchedDi ? Number(matchedDi.need) : 0, arrival ? (Number(arrival.semi) || 0) + (Number(arrival.bz) || 0) : 0)
 
                             return (
-                              <div key={nomId} style={{ background: '#111', borderRadius: '24px', padding: '22px', border: remaining > 0 ? '1px solid #8b5cf644' : '1px solid #1a1a1a', boxShadow: remaining > 0 ? '0 0 20px rgba(139,92,246,0.1)' : 'none' }}>
+                              <div key={nomId} style={{ background: 'var(--surface-1)', borderRadius: '24px', padding: '22px', border: remaining > 0 ? '1px solid #8b5cf644' : '1px solid var(--border-subtle)', boxShadow: remaining > 0 ? '0 0 20px rgba(139,92,246,0.1)' : 'none' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '15px' }}>
                                   <div>
-                                    <div style={{ fontWeight: 900, fontSize: '0.9rem', color: '#fff' }}>{nom?.name || 'Деталь'}</div>
+                                    <div style={{ fontWeight: 900, fontSize: '0.9rem', color: 'var(--text-strong)' }}>{nom?.name || 'Деталь'}</div>
                                     <div style={{ fontSize: '0.65rem', color: '#8b5cf6', fontWeight: 900, textTransform: 'uppercase', marginTop: '4px' }}>
                                       БУФЕР ЦЕХУ №2
                                     </div>
                                   </div>
                                   <div style={{ textAlign: 'right' }}>
-                                    <div style={{ fontSize: '0.6rem', color: '#555', fontWeight: 900 }}>В РОБОТІ / ПОТРЕБА</div>
-                                    <div style={{ fontSize: '1.4rem', fontWeight: 1000, color: inWork > 0 ? '#3b82f6' : '#fff' }}>
+                                    <div style={{ fontSize: '0.6rem', color: 'var(--text-dim)', fontWeight: 900 }}>В РОБОТІ / ПОТРЕБА</div>
+                                    <div style={{ fontSize: '1.4rem', fontWeight: 1000, color: inWork > 0 ? '#3b82f6' : 'var(--text-strong)' }}>
                                       {inWork}<span style={{ fontSize: '0.8rem', color: '#444' }}> / {need}</span>
                                     </div>
                                     {remaining > 0 && (
@@ -1366,7 +1366,7 @@ const Shop2Module = () => {
                                   </div>
                                 </div>
                                 {remaining > 0 && (
-                                  <div style={{ fontSize: '0.65rem', color: '#555', textAlign: 'center', padding: '8px', background: '#0a0a0a', borderRadius: '10px' }}>
+                                  <div style={{ fontSize: '0.65rem', color: 'var(--text-dim)', textAlign: 'center', padding: '8px', background: 'var(--surface-inset)', borderRadius: '10px' }}>
                                     Оберіть етап у таблиці та натисніть ГЕНЕРУВАТИ
                                   </div>
                                 )}
@@ -1433,10 +1433,10 @@ const Shop2Module = () => {
                           </h3>
                           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '15px' }}>
                             {waitingItems.map(item => (
-                              <div key={item.nom?.id} style={{ background: '#111', borderRadius: '24px', padding: '22px', border: '1px solid #d9770644', boxShadow: '0 0 20px rgba(217,119,6,0.05)' }}>
+                              <div key={item.nom?.id} style={{ background: 'var(--surface-1)', borderRadius: '24px', padding: '22px', border: '1px solid #d9770644', boxShadow: '0 0 20px rgba(217,119,6,0.05)' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                   <div>
-                                    <div style={{ fontWeight: 900, fontSize: '0.9rem', color: '#fff' }}>{item.nom?.name || 'Деталь'}</div>
+                                    <div style={{ fontWeight: 900, fontSize: '0.9rem', color: 'var(--text-strong)' }}>{item.nom?.name || 'Деталь'}</div>
                                     <div style={{ fontSize: '0.7rem', color: '#d97706', fontWeight: 900, textTransform: 'uppercase', marginTop: '4px' }}>
                                       У РОЗКРОЇ / В ДОРОЗІ
                                     </div>
@@ -1445,11 +1445,11 @@ const Shop2Module = () => {
                                     )}
                                   </div>
                                   <div style={{ textAlign: 'right' }}>
-                                    <div style={{ fontSize: '0.6rem', color: '#555', fontWeight: 900 }}>ОЧІКУЄМО</div>
+                                    <div style={{ fontSize: '0.6rem', color: 'var(--text-dim)', fontWeight: 900 }}>ОЧІКУЄМО</div>
                                     <div style={{ fontSize: '1.4rem', fontWeight: 1000, color: '#d97706' }}>
                                       {item.waitingQty}<span style={{ fontSize: '0.8rem', color: '#444' }}> шт</span>
                                     </div>
-                                    <div style={{ fontSize: '0.65rem', color: '#555', marginTop: '2px' }}>
+                                    <div style={{ fontSize: '0.65rem', color: 'var(--text-dim)', marginTop: '2px' }}>
                                       (Прийшло {item.actualArrived} з {item.displayTotal})
                                     </div>
                                   </div>
@@ -1567,14 +1567,14 @@ const Shop2Module = () => {
                             const cards = grouped[nomId]
 
                             return (
-                              <div key={nomId} style={{ marginBottom: '30px', background: '#111', borderRadius: '24px', border: '1px solid #1a1a1a', overflowX: 'auto' }}>
-                                <div style={{ padding: '15px 20px', background: '#1a1a1a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                  <div style={{ fontWeight: 900, fontSize: '0.9rem', color: '#fff' }}>{nom?.name || 'Невідома деталь'}</div>
-                                  <div style={{ fontSize: '0.65rem', color: '#555', fontWeight: 800 }}>КАРТОК: {cards.length}</div>
+                              <div key={nomId} style={{ marginBottom: '30px', background: 'var(--surface-1)', borderRadius: '24px', border: '1px solid var(--border-subtle)', overflowX: 'auto' }}>
+                                <div style={{ padding: '15px 20px', background: 'var(--surface-2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <div style={{ fontWeight: 900, fontSize: '0.9rem', color: 'var(--text-strong)' }}>{nom?.name || 'Невідома деталь'}</div>
+                                  <div style={{ fontSize: '0.65rem', color: 'var(--text-dim)', fontWeight: 800 }}>КАРТОК: {cards.length}</div>
                                 </div>
                                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                             <thead>
-                              <tr style={{ textAlign: 'left', color: '#444', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', borderBottom: '1px solid #1a1a1a' }}>
+                              <tr style={{ textAlign: 'left', color: '#444', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', borderBottom: '1px solid var(--border-subtle)' }}>
                                 <th style={{ padding: '12px 20px' }}>ID КАРТКИ</th>
                                 <th style={{ padding: '12px 20px' }}>ЕТАП</th>
                                 <th style={{ padding: '12px 20px', textAlign: 'center' }}>КІЛЬКІСТЬ</th>
@@ -1585,8 +1585,8 @@ const Shop2Module = () => {
                             <tbody>
                               {cards.map(c => (
                                 <tr key={c.id} style={{ borderBottom: '1px solid #161616' }}>
-                                  <td style={{ padding: '12px 20px', fontSize: '0.75rem', color: '#888', fontWeight: 700 }}>#{String(c.id).slice(-8).toUpperCase()}</td>
-                                  <td style={{ padding: '12px 20px', fontSize: '0.85rem', fontWeight: 900, color: '#fff' }}>{c.operation}</td>
+                                  <td style={{ padding: '12px 20px', fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700 }}>#{String(c.id).slice(-8).toUpperCase()}</td>
+                                  <td style={{ padding: '12px 20px', fontSize: '0.85rem', fontWeight: 900, color: 'var(--text-strong)' }}>{c.operation}</td>
                                   <td style={{ padding: '12px 20px', textAlign: 'center', fontSize: '0.9rem', fontWeight: 1000, color: '#8b5cf6' }}>{c.quantity} шт</td>
                                   <td style={{ padding: '12px 20px', textAlign: 'center' }}>
                                     <div style={{
@@ -1595,8 +1595,8 @@ const Shop2Module = () => {
                                       borderRadius: '10px',
                                       fontSize: '0.65rem',
                                       fontWeight: 900,
-                                      background: c.status === 'completed' ? '#10b98122' : (c.status === 'in-progress' ? '#3b82f622' : '#222'),
-                                      color: c.status === 'completed' ? '#10b981' : (c.status === 'in-progress' ? '#3b82f6' : '#555')
+                                      background: c.status === 'completed' ? '#10b98122' : (c.status === 'in-progress' ? '#3b82f622' : 'var(--surface-3)'),
+                                      color: c.status === 'completed' ? '#10b981' : (c.status === 'in-progress' ? '#3b82f6' : 'var(--text-dim)')
                                     }}>
                                       {c.status === 'completed' ? 'ГОТОВО' : (c.status === 'in-progress' ? 'В РОБОТІ' : 'НОВА')}
                                     </div>
@@ -1663,18 +1663,18 @@ const Shop2Module = () => {
         <div className="print-modal-backdrop" style={{ position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(0,0,0,0.9)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
           {printModalData.isMultiple ? (
             /* MULTIPLE CARDS MODAL */
-            <div className="print-multiple-wrapper" style={{ background: '#fff', color: '#000', padding: '30px', borderRadius: '32px', maxWidth: '900px', width: '100%', maxHeight: '90vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', boxShadow: '0 30px 60px rgba(0,0,0,0.5)' }}>
+            <div className="print-multiple-wrapper" style={{ background: 'var(--text-strong)', color: 'var(--surface-black)', padding: '30px', borderRadius: '32px', maxWidth: '900px', width: '100%', maxHeight: '90vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', boxShadow: '0 30px 60px rgba(0,0,0,0.5)' }}>
               <div className="print-hide" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                 <div>
                   <h3 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 1000 }}>Друк всіх робочих карток цеху</h3>
-                  <div style={{ fontSize: '0.85rem', color: '#666', marginTop: '4px' }}>Всього карток до друку: {printModalData.cards.length} шт</div>
+                  <div style={{ fontSize: '0.85rem', color: 'var(--text-dim)', marginTop: '4px' }}>Всього карток до друку: {printModalData.cards.length} шт</div>
                 </div>
                 <button onClick={() => setPrintModalData(null)} style={{ background: '#f5f5f5', border: 'none', width: '40px', height: '40px', borderRadius: '50%', cursor: 'pointer' }}><X size={20} /></button>
               </div>
 
               <div className="print-multiple-grid">
                 {printModalData.cards.map((card, idx) => (
-                  <div key={idx} className="print-card" style={{ background: '#fff', color: '#000', border: '1px solid #000', borderRadius: '15px', padding: '10px 15px', display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', boxSizing: 'border-box', width: '100%' }}>
+                  <div key={idx} className="print-card" style={{ background: 'var(--text-strong)', color: 'var(--surface-black)', border: '1px solid #000', borderRadius: '15px', padding: '10px 15px', display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', boxSizing: 'border-box', width: '100%' }}>
                     <div className="print-layout-container" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', width: '100%', justifyContent: 'space-between', gap: '15px' }}>
                       <div className="print-qr-section" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
                         <QRCodeCanvas
@@ -1688,21 +1688,21 @@ const Shop2Module = () => {
 
                       <div className="print-info-section" style={{ textAlign: 'left', flex: 1 }}>
                         <div className="print-only-header" style={{ marginBottom: '5px' }}>
-                          <div style={{ fontSize: '0.55rem', fontWeight: 900, color: '#666', textTransform: 'uppercase', lineHeight: 1 }}>Робоча картка Цех №2</div>
+                          <div style={{ fontSize: '0.55rem', fontWeight: 900, color: 'var(--text-dim)', textTransform: 'uppercase', lineHeight: 1 }}>Робоча картка Цех №2</div>
                           <div style={{ fontSize: '0.9rem', fontWeight: 1000, lineHeight: 1.1 }}>Наряд №{card.orderNum}</div>
                         </div>
 
                         <div style={{ marginBottom: '8px' }}>
-                          <div style={{ fontSize: '0.6rem', fontWeight: 900, color: '#666', textTransform: 'uppercase' }}>Номенклатура</div>
+                          <div style={{ fontSize: '0.6rem', fontWeight: 900, color: 'var(--text-dim)', textTransform: 'uppercase' }}>Номенклатура</div>
                           <div style={{ fontSize: '0.85rem', fontWeight: 900, wordBreak: 'break-all' }}>{card.nomName}</div>
                         </div>
                         <div className="print-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                           <div>
-                            <div style={{ fontSize: '0.6rem', fontWeight: 900, color: '#666', textTransform: 'uppercase' }}>Кількість</div>
+                            <div style={{ fontSize: '0.6rem', fontWeight: 900, color: 'var(--text-dim)', textTransform: 'uppercase' }}>Кількість</div>
                             <div style={{ fontSize: '1.1rem', fontWeight: 1000, color: '#000' }} className="print-qty-text">{card.qty} шт</div>
                           </div>
                           <div>
-                            <div style={{ fontSize: '0.6rem', fontWeight: 900, color: '#666', textTransform: 'uppercase' }}>Етап</div>
+                            <div style={{ fontSize: '0.6rem', fontWeight: 900, color: 'var(--text-dim)', textTransform: 'uppercase' }}>Етап</div>
                             <div style={{ fontSize: '1.1rem', fontWeight: 1000, color: '#000' }} className="print-stage-text">{card.stage}</div>
                           </div>
                         </div>
@@ -1715,16 +1715,16 @@ const Shop2Module = () => {
               <button
                 className="print-hide"
                 onClick={() => window.print()}
-                style={{ width: '100%', background: '#000', color: '#fff', border: 'none', padding: '20px', borderRadius: '20px', fontWeight: 1000, fontSize: '1.1rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', marginTop: '30px' }}
+                style={{ width: '100%', background: 'var(--surface-black)', color: 'var(--text-strong)', border: 'none', padding: '20px', borderRadius: '20px', fontWeight: 1000, fontSize: '1.1rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', marginTop: '30px' }}
               >
                 ДРУКУВАТИ ВСІ КАРТКИ ({printModalData.cards.length} шт)
               </button>
             </div>
           ) : (
-            <div className="print-card" style={{ background: '#fff', color: '#000', padding: '40px', borderRadius: '32px', maxWidth: '500px', width: '100%', textAlign: 'center', boxShadow: '0 30px 60px rgba(0,0,0,0.5)' }}>
+            <div className="print-card" style={{ background: 'var(--text-strong)', color: 'var(--surface-black)', padding: '40px', borderRadius: '32px', maxWidth: '500px', width: '100%', textAlign: 'center', boxShadow: '0 30px 60px rgba(0,0,0,0.5)' }}>
               <div className="print-hide" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
                 <div style={{ textAlign: 'left' }}>
-                  <div style={{ fontSize: '0.7rem', fontWeight: 900, color: '#888', textTransform: 'uppercase' }}>Робоча картка Цех №2</div>
+                  <div style={{ fontSize: '0.7rem', fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Робоча картка Цех №2</div>
                   <div style={{ fontSize: '1.5rem', fontWeight: 1000 }}>Наряд №{printModalData.orderNum}</div>
                 </div>
                 <button onClick={() => setPrintModalData(null)} style={{ background: '#f5f5f5', border: 'none', width: '40px', height: '40px', borderRadius: '50%', cursor: 'pointer' }}><X size={20} /></button>
@@ -1738,26 +1738,26 @@ const Shop2Module = () => {
                     level="H"
                     includeMargin={true}
                   />
-                  <div style={{ marginTop: '15px', fontSize: '0.8rem', fontWeight: 900, color: '#aaa', letterSpacing: '0.1em' }}>ID: #{printModalData.cardId.slice(-8).toUpperCase()}</div>
+                  <div style={{ marginTop: '15px', fontSize: '0.8rem', fontWeight: 900, color: 'var(--text-muted)', letterSpacing: '0.1em' }}>ID: #{printModalData.cardId.slice(-8).toUpperCase()}</div>
                 </div>
 
                 <div className="print-info-section" style={{ textAlign: 'left' }}>
                   <div className="print-only-header" style={{ display: 'none', marginBottom: '10px' }}>
-                    <div style={{ fontSize: '0.55rem', fontWeight: 900, color: '#666', textTransform: 'uppercase', lineHeight: 1 }}>Робоча картка Цех №2</div>
+                    <div style={{ fontSize: '0.55rem', fontWeight: 900, color: 'var(--text-dim)', textTransform: 'uppercase', lineHeight: 1 }}>Робоча картка Цех №2</div>
                     <div style={{ fontSize: '1rem', fontWeight: 1000, lineHeight: 1.1 }}>Наряд №{printModalData.orderNum}</div>
                   </div>
 
                   <div style={{ marginBottom: '15px' }}>
-                    <div style={{ fontSize: '0.65rem', fontWeight: 900, color: '#888', textTransform: 'uppercase' }}>Номенклатура</div>
+                    <div style={{ fontSize: '0.65rem', fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Номенклатура</div>
                     <div style={{ fontSize: '1.1rem', fontWeight: 900, wordBreak: 'break-all' }}>{printModalData.nomName}</div>
                   </div>
                   <div className="print-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
                     <div>
-                      <div style={{ fontSize: '0.65rem', fontWeight: 900, color: '#888', textTransform: 'uppercase' }}>Кількість</div>
+                      <div style={{ fontSize: '0.65rem', fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Кількість</div>
                       <div style={{ fontSize: '1.5rem', fontWeight: 1000, color: '#8b5cf6' }} className="print-qty-text">{printModalData.qty} шт</div>
                     </div>
                     <div>
-                      <div style={{ fontSize: '0.65rem', fontWeight: 900, color: '#888', textTransform: 'uppercase' }}>Етап</div>
+                      <div style={{ fontSize: '0.65rem', fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Етап</div>
                       <div style={{ fontSize: '1.5rem', fontWeight: 1000, color: '#10b981' }} className="print-stage-text">{printModalData.stage}</div>
                     </div>
                   </div>
@@ -1767,7 +1767,7 @@ const Shop2Module = () => {
               <button
                 className="print-hide"
                 onClick={() => window.print()}
-                style={{ width: '100%', background: '#000', color: '#fff', border: 'none', padding: '20px', borderRadius: '20px', fontWeight: 1000, fontSize: '1.1rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', marginTop: '30px' }}
+                style={{ width: '100%', background: 'var(--surface-black)', color: 'var(--text-strong)', border: 'none', padding: '20px', borderRadius: '20px', fontWeight: 1000, fontSize: '1.1rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', marginTop: '30px' }}
               >
                 ДРУКУВАТИ КАРТКУ
               </button>
@@ -1779,13 +1779,13 @@ const Shop2Module = () => {
       {/* ── Модалка корекції браку від ВКЯ ── */}
       {qcModalCard && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.95)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 10025, padding: '40px 20px', overflowY: 'auto' }}>
-          <div style={{ background: '#111', width: '100%', maxWidth: '460px', borderRadius: '26px', border: '1px solid #ef444440', overflow: 'hidden', boxShadow: '0 20px 60px rgba(239,68,68,0.15)', margin: 'auto 0' }}>
-            <div style={{ padding: '20px 22px', background: '#161616', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #ef444420' }}>
+          <div style={{ background: 'var(--surface-1)', width: '100%', maxWidth: '460px', borderRadius: '26px', border: '1px solid #ef444440', overflow: 'hidden', boxShadow: '0 20px 60px rgba(239,68,68,0.15)', margin: 'auto 0' }}>
+            <div style={{ padding: '20px 22px', background: 'var(--surface-2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #ef444420' }}>
               <div>
                 <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 950, color: '#ef4444', display: 'flex', alignItems: 'center', gap: '6px' }}>
                   🛡️ ВІДДІЛ ВКЯ · ФІКСАЦІЯ БРАКУ
                 </h3>
-                <div style={{ fontSize: '0.6rem', color: '#888', marginTop: '2px' }}>
+                <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', marginTop: '2px' }}>
                   Виявлено додатковий дефект на етапі
                 </div>
               </div>
@@ -1804,7 +1804,7 @@ const Shop2Module = () => {
                   placeholder="Введіть ваше прізвище..."
                   value={qcInspector}
                   onChange={e => setQcInspector(e.target.value)}
-                  style={{ width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '13px', borderRadius: '12px', fontSize: '0.95rem', fontWeight: 700, boxSizing: 'border-box' }}
+                  style={{ width: '100%', background: 'var(--surface-black)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', padding: '13px', borderRadius: '12px', fontSize: '0.95rem', fontWeight: 700, boxSizing: 'border-box' }}
                 />
               </div>
 
@@ -1819,7 +1819,7 @@ const Shop2Module = () => {
                       setQcCustomReason('')
                     }
                   }}
-                  style={{ width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '13px', borderRadius: '12px', fontSize: '0.95rem', fontWeight: 700, boxSizing: 'border-box' }}
+                  style={{ width: '100%', background: 'var(--surface-black)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', padding: '13px', borderRadius: '12px', fontSize: '0.95rem', fontWeight: 700, boxSizing: 'border-box' }}
                 >
                   {(scrapReasons || []).map(reason => <option key={reason} value={reason}>{reason}</option>)}
                 </select>
@@ -1834,19 +1834,19 @@ const Shop2Module = () => {
                     placeholder="Введіть коментар..."
                     value={qcCustomReason}
                     onChange={e => setQcCustomReason(e.target.value)}
-                    style={{ width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '13px', borderRadius: '12px', fontSize: '0.95rem', fontWeight: 700, boxSizing: 'border-box' }}
+                    style={{ width: '100%', background: 'var(--surface-black)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', padding: '13px', borderRadius: '12px', fontSize: '0.95rem', fontWeight: 700, boxSizing: 'border-box' }}
                   />
                 </div>
               )}
 
               {/* Лічильник додаткового браку */}
-              <div style={{ background: '#0d0d0d', borderRadius: '14px', padding: '18px', textAlign: 'center', border: '1px solid #ef444422' }}>
+              <div style={{ background: 'var(--surface-inset)', borderRadius: '14px', padding: '18px', textAlign: 'center', border: '1px solid #ef444422' }}>
                 <label style={{ color: '#ef4444', fontWeight: 900, fontSize: '0.7rem', textTransform: 'uppercase', display: 'block', marginBottom: '12px' }}>
                   КІЛЬКІСТЬ ВИЯВЛЕНОГО БРАКУ
                 </label>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '14px' }}>
                   <button onClick={() => setQcScrapCount(v => Math.max(0, v - 1))}
-                    style={{ width: '46px', height: '46px', background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#fff', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}>−</button>
+                    style={{ width: '46px', height: '46px', background: 'var(--surface-2)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}>−</button>
                   <input type="number" min={0} max={qcModalCard.quantity} value={qcScrapCount === 0 ? '' : qcScrapCount} placeholder="0"
                     onChange={e => {
                       const val = e.target.value
@@ -1854,9 +1854,9 @@ const Shop2Module = () => {
                     }}
                     style={{ background: 'transparent', border: 'none', color: '#ef4444', fontSize: '3.2rem', width: '90px', textAlign: 'center', fontWeight: 900 }} />
                   <button onClick={() => setQcScrapCount(v => Math.min(qcModalCard.quantity, v + 1))}
-                    style={{ width: '46px', height: '46px', background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#fff', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}>+</button>
+                    style={{ width: '46px', height: '46px', background: 'var(--surface-2)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}>+</button>
                 </div>
-                <div style={{ marginTop: '10px', fontSize: '0.72rem', color: '#555' }}>
+                <div style={{ marginTop: '10px', fontSize: '0.72rem', color: 'var(--text-dim)' }}>
                   Залишиться в картці: <strong style={{ color: '#10b981' }}>{Math.max(0, (qcModalCard.quantity || 0) - qcScrapCount)} шт</strong>
                 </div>
               </div>
@@ -2066,7 +2066,7 @@ const Shop2Module = () => {
           padding: 10px;
           background: #0d0d0d;
           border-radius: 20px;
-          border: 1px solid #222;
+          border: 1px solid var(--border-subtle);
         }
         .anim-fade-in { animation: fadeIn 0.4s ease-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }

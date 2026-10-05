@@ -11,7 +11,7 @@ export function MachinesQrScanModal({ isScanning, setIsScanning, scanError, setS
           <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 900 }}>Сканувати QR верстата</h3>
           <button className="btn-close" onClick={() => { setIsScanning(false); setScanError(null); }}><X size={20} /></button>
         </div>
-        <div id="machine-qr-reader" style={{ width: '100%', borderRadius: '16px', overflow: 'hidden', background: '#000' }} />
+        <div id="machine-qr-reader" style={{ width: '100%', borderRadius: '16px', overflow: 'hidden', background: 'var(--surface-black)' }} />
         {scanError && (
           <div style={{ marginTop: '15px', color: '#ef4444', fontSize: '0.85rem', fontWeight: 700 }}>
             {scanError}

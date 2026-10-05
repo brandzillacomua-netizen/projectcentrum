@@ -56,15 +56,15 @@ export function SettingsUsersTab(props) {
     nowTick
   } = props
 
-  const inputStyle = { width: '100%', background: '#000', border: '1px solid rgba(255,255,255,0.06)', color: '#fff', padding: '12px', borderRadius: '12px', fontSize: '0.85rem', fontWeight: 600, outline: 'none' }
-  const filterSelectStyle = { background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '10px', padding: '6px 12px', color: '#ccc', fontSize: '0.72rem', fontWeight: 700, outline: 'none', cursor: 'pointer' }
+  const inputStyle = { width: '100%', background: 'var(--surface-black)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', padding: '12px', borderRadius: '12px', fontSize: '0.85rem', fontWeight: 600, outline: 'none' }
+  const filterSelectStyle = { background: 'var(--border-subtle)', border: '1px solid var(--border-subtle)', borderRadius: '10px', padding: '6px 12px', color: '#ccc', fontSize: '0.72rem', fontWeight: 700, outline: 'none', cursor: 'pointer' }
   const labelStyle = { display: 'block', fontSize: '0.65rem', color: '#444', fontWeight: 900, textTransform: 'uppercase', marginBottom: '7px' }
 
   return (
     <div className="admin-users-layout" style={{ display: 'grid', gridTemplateColumns: '380px 1fr', gap: '30px', alignItems: 'start' }}>
       
       {/* Left Column: Form Editor */}
-      <section className={`glass-panel user-editor-panel ${showMobileUserForm ? 'mobile-open' : ''}`} style={{ background: '#0e0e11', padding: '28px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.04)', boxShadow: '0 8px 32px rgba(0,0,0,0.5)', position: 'sticky', top: '24px' }}>
+      <section className={`glass-panel user-editor-panel ${showMobileUserForm ? 'mobile-open' : ''}`} style={{ background: '#0e0e11', padding: '28px', borderRadius: '24px', border: '1px solid var(--border-subtle)', boxShadow: '0 8px 32px rgba(0,0,0,0.5)', position: 'sticky', top: '24px' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px', marginBottom: '24px' }}>
           <h3 style={{ fontSize: '1.05rem', fontWeight: 900, margin: 0, display: 'flex', alignItems: 'center', gap: '10px', color: '#ff9000', letterSpacing: '0.02em' }}>
             <UserPlus size={18} /> {userForm.id ? 'РЕДАГУВАННЯ ДОСЬЄ' : 'СТВОРИТИ НОВОГО ПРАЦІВНИКА'}
@@ -73,7 +73,7 @@ export function SettingsUsersTab(props) {
             type="button"
             className="mobile-user-form-close"
             onClick={() => setShowMobileUserForm(false)}
-            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', color: '#aaa', width: '38px', height: '38px', borderRadius: '10px', display: 'none', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
+            style={{ background: 'var(--border-subtle)', border: '1px solid var(--border-subtle)', color: '#aaa', width: '38px', height: '38px', borderRadius: '10px', display: 'none', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
             title="Закрити форму"
           >
             <X size={16} />
@@ -187,20 +187,20 @@ export function SettingsUsersTab(props) {
                       return { ...prev, access_rights: nextRights }
                     })
                   }}
-                  style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#888', padding: '3px 8px', borderRadius: '6px', fontSize: '0.62rem', fontWeight: 800, cursor: 'pointer' }}
+                  style={{ background: 'var(--border-subtle)', border: '1px solid var(--border-subtle)', color: '#888', padding: '3px 8px', borderRadius: '6px', fontSize: '0.62rem', fontWeight: 800, cursor: 'pointer' }}
                 >
                   ✗ ЗНЯТИ ВСІ
                 </button>
               </div>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', padding: '6px', background: 'rgba(0,0,0,0.2)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.03)' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', padding: '6px', background: 'rgba(0,0,0,0.2)', borderRadius: '12px', border: '1px solid var(--border-subtle)' }}>
               {moduleList.map(mod => (
                 <div key={mod.id} 
                   onClick={() => toggleRight(mod.id)}
                   style={{ 
                     padding: '8px 10px', 
-                    background: userForm.access_rights[mod.id] ? 'rgba(255,144,0,0.08)' : '#000', 
-                    border: userForm.access_rights[mod.id] ? '1px solid rgba(255,144,0,0.3)' : '1px solid rgba(255,255,255,0.04)',
+                    background: userForm.access_rights[mod.id] ? 'rgba(255,144,0,0.08)' : 'var(--surface-black)', 
+                    border: userForm.access_rights[mod.id] ? '1px solid rgba(255,144,0,0.3)' : '1px solid var(--border-subtle)',
                     borderRadius: '8px',
                     display: 'flex',
                     alignItems: 'center',
@@ -212,7 +212,7 @@ export function SettingsUsersTab(props) {
                   className="permission-item"
                 >
                   {userForm.access_rights[mod.id] ? <CheckCircle2 size={14} color="#ff9000" /> : <div style={{ width: 12, height: 12, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.2)' }}></div>}
-                  <span style={{ color: userForm.access_rights[mod.id] ? '#fff' : '#666', fontWeight: userForm.access_rights[mod.id] ? 700 : 500 }}>{mod.label}</span>
+                  <span style={{ color: userForm.access_rights[mod.id] ? 'var(--text-strong)' : 'var(--text-dim)', fontWeight: userForm.access_rights[mod.id] ? 700 : 500 }}>{mod.label}</span>
                 </div>
               ))}
             </div>
@@ -240,7 +240,7 @@ export function SettingsUsersTab(props) {
             {userForm.id && (
               <button type="button" 
                 onClick={() => setUserForm({ id: null, login: '', password: '', first_name: '', last_name: '', position: companyPositions?.[0]?.name || 'Оператор', department: companyStructure?.[0]?.name || 'Цех №1', shift: 'Без зміни', access_rights: { operator: true } })} 
-                style={{ background: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid rgba(255,255,255,0.05)', padding: '10px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', transition: '0.2s' }}
+                style={{ background: 'var(--fill-subtle)', color: 'var(--text-strong)', border: '1px solid var(--border-subtle)', padding: '10px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', transition: '0.2s' }}
               >
                 СКАСУВАТИ
               </button>
@@ -253,10 +253,10 @@ export function SettingsUsersTab(props) {
       <section className="registry-area" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
         
         {/* Dossier Search and Filters Panel */}
-        <div className="glass-panel" style={{ background: '#0e0e11', padding: '20px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.04)', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+        <div className="glass-panel" style={{ background: '#0e0e11', padding: '20px', borderRadius: '20px', border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '15px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-              <h3 style={{ fontSize: '0.9rem', color: '#888', margin: 0, fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <h3 style={{ fontSize: '0.9rem', color: 'var(--text-muted)', margin: 0, fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Users size={18} color="#ff9000" /> КАРТОТЕКА ПРАЦІВНИКІВ ({systemUsers.length})
               </h3>
               <button
@@ -313,9 +313,9 @@ export function SettingsUsersTab(props) {
               </button>
             </div>
             <div style={{ position: 'relative', width: '260px' }}>
-              <Search size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#555' }} />
+              <Search size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-dim)' }} />
               <input 
-                style={{ background: '#000', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '10px', padding: '8px 12px 8px 36px', color: '#fff', fontSize: '0.8rem', width: '100%', outline: 'none' }} 
+                style={{ background: 'var(--surface-black)', border: '1px solid var(--border-subtle)', borderRadius: '10px', padding: '8px 12px 8px 36px', color: 'var(--text-strong)', fontSize: '0.8rem', width: '100%', outline: 'none' }} 
                 placeholder="Пошук по імені, логіну..." 
                 value={userSearch} 
                 onChange={e => setUserSearch(e.target.value)} 
@@ -324,10 +324,10 @@ export function SettingsUsersTab(props) {
           </div>
 
           {/* Filters Row */}
-          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', borderTop: '1px solid rgba(255,255,255,0.03)', paddingTop: '12px' }}>
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', borderTop: '1px solid var(--border-subtle)', paddingTop: '12px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <Filter size={12} color="#444" />
-              <span style={{ fontSize: '0.65rem', color: '#555', fontWeight: 900, textTransform: 'uppercase' }}>Фільтри:</span>
+              <span style={{ fontSize: '0.65rem', color: 'var(--text-dim)', fontWeight: 900, textTransform: 'uppercase' }}>Фільтри:</span>
             </div>
             
             {/* Department Filter */}
@@ -374,13 +374,13 @@ export function SettingsUsersTab(props) {
               alignItems: 'center', 
               gap: '8px', 
               cursor: 'pointer', 
-              background: filterOnlyOnline ? 'rgba(16,185,129,0.1)' : 'rgba(255,255,255,0.02)', 
-              border: filterOnlyOnline ? '1px solid rgba(16,185,129,0.3)' : '1px solid rgba(255,255,255,0.05)', 
+              background: filterOnlyOnline ? 'rgba(16,185,129,0.1)' : 'var(--fill-subtle)', 
+              border: filterOnlyOnline ? '1px solid rgba(16,185,129,0.3)' : '1px solid var(--border-subtle)', 
               padding: '6px 12px', 
               borderRadius: '10px', 
               fontSize: '0.72rem', 
               fontWeight: 700, 
-              color: filterOnlyOnline ? '#34d399' : '#888',
+              color: filterOnlyOnline ? '#34d399' : 'var(--text-muted)',
               transition: '0.2s' 
             }}>
               <input 
@@ -396,7 +396,7 @@ export function SettingsUsersTab(props) {
             {(filterDepartment !== 'all' || filterPosition !== 'all' || filterShift !== 'all' || userSearch !== '' || filterOnlyOnline) && (
               <button 
                 onClick={() => { setFilterDepartment('all'); setFilterPosition('all'); setFilterShift('all'); setUserSearch(''); setFilterOnlyOnline(false) }}
-                style={{ background: 'rgba(255,255,255,0.05)', border: 'none', color: '#aaa', padding: '6px 12px', borderRadius: '8px', fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                style={{ background: 'var(--fill-subtle)', border: 'none', color: '#aaa', padding: '6px 12px', borderRadius: '8px', fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
               >
                 <X size={12} /> скинути
               </button>
@@ -407,7 +407,7 @@ export function SettingsUsersTab(props) {
         {/* Dossier Card Grid */}
         <div className="dossier-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', gap: '20px' }}>
           {filteredUsers.length === 0 ? (
-            <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '60px 20px', background: '#0e0e11', border: '1px dashed rgba(255,255,255,0.05)', borderRadius: '24px', color: '#555' }}>
+            <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '60px 20px', background: '#0e0e11', border: '1px dashed var(--border-subtle)', borderRadius: '24px', color: '#555' }}>
               <Users size={40} style={{ marginBottom: '10px', opacity: 0.3 }} />
               <div style={{ fontSize: '0.9rem', fontWeight: 700 }}>Нікого не знайдено</div>
               <div style={{ fontSize: '0.75rem', marginTop: '4px' }}>Спробуйте змінити параметри пошуку або фільтри</div>
@@ -422,7 +422,7 @@ export function SettingsUsersTab(props) {
               return (
                 <div key={user.id} className="dossier-card" style={{ 
                   background: '#0e0e11', 
-                  border: userForm.id === user.id ? '1px solid #ff9000' : '1px solid rgba(255,255,255,0.04)',
+                  border: userForm.id === user.id ? '1px solid #ff9000' : '1px solid var(--border-subtle)',
                   borderRadius: '20px',
                   padding: '20px',
                   display: 'flex',
@@ -454,9 +454,9 @@ export function SettingsUsersTab(props) {
                     <div style={{ overflow: 'hidden', flex: 1 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'space-between' }}>
                         <span style={{ fontSize: '0.65rem', fontFamily: 'monospace', color: 'rgba(255,255,255,0.3)', fontWeight: 600 }}>ID: {user.id || 'new'}</span>
-                        <span style={{ fontSize: '0.65rem', color: '#555', fontWeight: 600 }}>@{user.login}</span>
+                        <span style={{ fontSize: '0.65rem', color: 'var(--text-dim)', fontWeight: 600 }}>@{user.login}</span>
                       </div>
-                      <div className="dossier-user-name" style={{ fontWeight: 800, fontSize: '0.92rem', color: '#fff', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <div className="dossier-user-name" style={{ fontWeight: 800, fontSize: '0.92rem', color: 'var(--text-strong)', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {user.first_name || user.last_name ? `${user.first_name || ''} ${user.last_name || ''}`.trim() : 'Без імені'}
                       </div>
                     </div>
@@ -471,7 +471,7 @@ export function SettingsUsersTab(props) {
                         borderRadius: '50%', 
                         background: isOnline ? '#10b981' : '#6b7280' 
                       }} />
-                      <span style={{ fontSize: '0.72rem', color: isOnline ? '#34d399' : '#888', fontWeight: 600 }}>
+                      <span style={{ fontSize: '0.72rem', color: isOnline ? '#34d399' : 'var(--text-muted)', fontWeight: 600 }}>
                         {isOnline ? 'В мережі' : `Візит: ${formatLastSeen(user.last_seen)}`}
                       </span>
                     </div>
@@ -492,13 +492,13 @@ export function SettingsUsersTab(props) {
                       <span style={{ 
                         fontSize: '0.72rem', 
                         fontWeight: 700, 
-                        color: typeColors[deptNode?.type || 'other'] || '#fff' 
+                        color: typeColors[deptNode?.type || 'other'] || 'var(--text-strong)' 
                       }}>{user.department || 'Не призначено'}</span>
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <Activity size={12} color="#555" />
-                      <span style={{ fontSize: '0.72rem', color: '#888', fontWeight: 600 }}>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>
                         {user.shift || 'Без зміни'}
                       </span>
                     </div>
@@ -509,7 +509,7 @@ export function SettingsUsersTab(props) {
                     display: 'flex', 
                     justifyContent: 'space-between', 
                     alignItems: 'center', 
-                    borderTop: '1px solid rgba(255,255,255,0.03)', 
+                    borderTop: '1px solid var(--border-subtle)', 
                     paddingTop: '12px',
                     marginTop: '4px'
                   }}>
@@ -519,14 +519,14 @@ export function SettingsUsersTab(props) {
                         {Object.entries(user.access_rights || {}).filter(([k,v]) => v === true).map(([k]) => (
                            <div key={k} style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#ff9000' }} title={k}></div>
                         ))}
-                        {allowedModulesCount === 0 && <span style={{ fontSize: '0.65rem', color: '#555' }}>немає</span>}
+                        {allowedModulesCount === 0 && <span style={{ fontSize: '0.65rem', color: 'var(--text-dim)' }}>немає</span>}
                       </div>
                     </div>
 
                     <div style={{ display: 'flex', gap: '6px' }}>
                       <button 
                         onClick={(e) => { e.stopPropagation(); editUser(user) }} 
-                        style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.04)', color: '#aaa', padding: '8px', borderRadius: '10px', cursor: 'pointer', transition: '0.2s', display: 'flex', alignItems: 'center' }}
+                        style={{ background: 'var(--fill-subtle)', border: '1px solid var(--border-subtle)', color: '#aaa', padding: '8px', borderRadius: '10px', cursor: 'pointer', transition: '0.2s', display: 'flex', alignItems: 'center' }}
                         title="Редагувати деталі"
                         className="card-action-btn"
                       >
@@ -554,31 +554,31 @@ export function SettingsUsersTab(props) {
       {/* CSV Import Modal */}
       {isImportModalOpen && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-          <div style={{ background: '#111', width: '100%', maxWidth: '800px', maxHeight: '90vh', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            <div style={{ padding: '20px 24px', background: '#16161a', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ background: 'var(--surface-1)', width: '100%', maxWidth: '800px', maxHeight: '90vh', borderRadius: '24px', border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div style={{ padding: '20px 24px', background: '#16161a', borderBottom: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h3 style={{ margin: 0, fontWeight: 900, fontSize: '1.1rem', color: '#ff9000' }}>ІМПОРТ СПИСКУ КОРИСТУВАЧІВ З CSV / EXCEL</h3>
               <button onClick={() => setIsImportModalOpen(false)} style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer' }}><X size={20} /></button>
             </div>
             
             <div style={{ padding: '24px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '20px' }}>
               {importStatus === 'idle' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', alignItems: 'center', padding: '40px 20px', border: '2px dashed rgba(255,255,255,0.05)', borderRadius: '16px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', alignItems: 'center', padding: '40px 20px', border: '2px dashed var(--border-subtle)', borderRadius: '16px' }}>
                   <Upload size={40} color="#555" />
                   <div style={{ textAlign: 'center' }}>
                     <div style={{ fontSize: '0.9rem', fontWeight: 700 }}>Оберіть CSV або Excel файл (.csv, .xlsx, .xls)</div>
-                    <div style={{ fontSize: '0.72rem', color: '#666', marginTop: '4px' }}>Файл має містити колонки з логінами, паролями, ПІБ, відділом, посадою та зміною</div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-dim)', marginTop: '4px' }}>Файл має містити колонки з логінами, паролями, ПІБ, відділом, посадою та зміною</div>
                   </div>
                   <input type="file" accept=".csv,.xlsx,.xls" onChange={handleFileChange} style={{ display: 'none' }} id="csv-file-input" />
                   <div style={{ display: 'flex', gap: '10px' }}>
-                    <label htmlFor="csv-file-input" style={{ background: '#ff9000', color: '#000', padding: '12px 24px', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', fontSize: '0.85rem' }}>ОБРАТИ ФАЙЛ</label>
-                    <button onClick={downloadTemplateExcel} style={{ background: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid rgba(255,255,255,0.05)', padding: '12px 20px', borderRadius: '12px', fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem' }}>Скачати шаблон Excel</button>
+                    <label htmlFor="csv-file-input" style={{ background: '#ff9000', color: 'var(--surface-black)', padding: '12px 24px', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', fontSize: '0.85rem' }}>ОБРАТИ ФАЙЛ</label>
+                    <button onClick={downloadTemplateExcel} style={{ background: 'var(--fill-subtle)', color: 'var(--text-strong)', border: '1px solid var(--border-subtle)', padding: '12px 20px', borderRadius: '12px', fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem' }}>Скачати шаблон Excel</button>
                   </div>
                 </div>
               )}
 
               {importStatus === 'preview' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '12px', background: '#09090b', padding: '16px', borderRadius: '16px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '12px', background: 'var(--surface-inset)', padding: '16px', borderRadius: '16px' }}>
                     {Object.keys(columnMapping).map(key => (
                       <div key={key}>
                         <label style={{ ...labelStyle, color: '#ff9000' }}>Колонка для {key}</label>
@@ -606,7 +606,7 @@ export function SettingsUsersTab(props) {
                     </div>
                   </div>
 
-                  <div style={{ overflowX: 'auto', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '12px' }}>
+                  <div style={{ overflowX: 'auto', border: '1px solid var(--border-subtle)', borderRadius: '12px' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left' }}>
                       <thead>
                         <tr style={{ background: '#16161a', color: '#888' }}>
@@ -619,12 +619,12 @@ export function SettingsUsersTab(props) {
                       </thead>
                       <tbody>
                         {previewData.map(row => (
-                          <tr key={row.key} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                          <tr key={row.key} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
                             <td style={{ padding: '10px', fontWeight: 700 }}>{row.login}</td>
                             <td style={{ padding: '10px' }}>{row.first_name} {row.last_name}</td>
                             <td style={{ padding: '10px' }}>{row.department}</td>
                             <td style={{ padding: '10px' }}>{row.position}</td>
-                            <td style={{ padding: '10px', color: row.status === 'error' ? '#ef4444' : row.status === 'skip' ? '#555' : '#10b981' }}>{row.message}</td>
+                            <td style={{ padding: '10px', color: row.status === 'error' ? '#ef4444' : row.status === 'skip' ? 'var(--text-dim)' : '#10b981' }}>{row.message}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -632,8 +632,8 @@ export function SettingsUsersTab(props) {
                   </div>
 
                   <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-                    <button onClick={() => setImportStatus('idle')} style={{ background: 'transparent', color: '#aaa', border: '1px solid rgba(255,255,255,0.05)', padding: '12px 20px', borderRadius: '12px', cursor: 'pointer', fontSize: '0.85rem' }}>Назад до вибору файлу</button>
-                    <button onClick={executeImport} style={{ background: '#ff9000', color: '#000', border: 'none', padding: '12px 24px', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', fontSize: '0.85rem' }}>ВИКОНАТИ ІМПОРТ ({previewData.filter(r => r.status==='insert'||r.status==='update').length} користувачів)</button>
+                    <button onClick={() => setImportStatus('idle')} style={{ background: 'transparent', color: '#aaa', border: '1px solid var(--border-subtle)', padding: '12px 20px', borderRadius: '12px', cursor: 'pointer', fontSize: '0.85rem' }}>Назад до вибору файлу</button>
+                    <button onClick={executeImport} style={{ background: '#ff9000', color: 'var(--surface-black)', border: 'none', padding: '12px 24px', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', fontSize: '0.85rem' }}>ВИКОНАТИ ІМПОРТ ({previewData.filter(r => r.status==='insert'||r.status==='update').length} користувачів)</button>
                   </div>
                 </div>
               )}
@@ -645,9 +645,9 @@ export function SettingsUsersTab(props) {
                     {importStatus === 'success' && <span style={{ color: '#10b981' }}>✓ Імпорт завершено!</span>}
                     {importStatus === 'error' && <span style={{ color: '#ef4444' }}>❌ Помилка імпорту</span>}
                   </div>
-                  <textarea readOnly value={importLog} style={{ width: '100%', height: '240px', background: '#050507', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '12px', color: '#34d399', fontFamily: 'monospace', padding: '15px', fontSize: '0.75rem', outline: 'none' }} />
+                  <textarea readOnly value={importLog} style={{ width: '100%', height: '240px', background: '#050507', border: '1px solid var(--border-subtle)', borderRadius: '12px', color: '#34d399', fontFamily: 'monospace', padding: '15px', fontSize: '0.75rem', outline: 'none' }} />
                   {importStatus !== 'importing' && (
-                    <button onClick={() => setIsImportModalOpen(false)} style={{ background: '#ff9000', color: '#000', border: 'none', padding: '12px', borderRadius: '12px', fontWeight: 900, cursor: 'pointer' }}>ЗАКРИТИ ВІКНО</button>
+                    <button onClick={() => setIsImportModalOpen(false)} style={{ background: '#ff9000', color: 'var(--surface-black)', border: 'none', padding: '12px', borderRadius: '12px', fontWeight: 900, cursor: 'pointer' }}>ЗАКРИТИ ВІКНО</button>
                   )}
                 </div>
               )}

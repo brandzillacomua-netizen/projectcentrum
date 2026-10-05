@@ -49,7 +49,7 @@ export const BrakClassificationQueue = React.memo(({
             {viewingCategory ? `Деталі: ${viewingCategoryLabel}` : 'КАРАНТИН · ОЧІКУЮТЬ КЛАСИФІКАЦІЇ ВКЯ'}
           </h2>
           <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-            <div style={{ background: viewingCategory ? 'var(--btn-ghost-bg, #333)' : '#ef444415', padding: '8px 14px', borderRadius: '10px', color: viewingCategory ? 'var(--text-color, #fff)' : '#ef4444', fontSize: '0.75rem', fontWeight: 1000 }}>
+            <div style={{ background: viewingCategory ? 'var(--btn-ghost-bg, var(--border-subtle))' : '#ef444415', padding: '8px 14px', borderRadius: '10px', color: viewingCategory ? 'var(--text-color, #fff)' : '#ef4444', fontSize: '0.75rem', fontWeight: 1000 }}>
               {viewingCategory
                 ? `${itemsInCat.length} ПОЗИЦІЙ · ${categoryTotalQuantity} ШТ`
                 : manualCardNumber.trim()
@@ -63,7 +63,7 @@ export const BrakClassificationQueue = React.memo(({
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           {(!viewingCategory && readyItems.length === 0) && (
             <div style={{ 
-              background: 'var(--card-bg, #0a0a0a)', border: '2px dashed var(--border-color, #1a1a1a)', borderRadius: '24px', 
+              background: 'var(--card-bg, #0a0a0a)', border: '2px dashed var(--border-color, var(--border-subtle))', borderRadius: '24px', 
               padding: '60px 40px', textAlign: 'center', color: 'var(--text-muted, #444)' 
             }}>
               <CheckCircle2 size={48} style={{ opacity: 0.1, marginBottom: '20px' }} />
@@ -82,7 +82,7 @@ export const BrakClassificationQueue = React.memo(({
           {viewingCategory ? (
             paginatedCategoryItems.map(item => (
               <div key={item.id} style={{ 
-                background: 'var(--card-bg, #111)', borderRadius: '20px', padding: '20px', border: '1px solid var(--border-color, #1a1a1a)',
+                background: 'var(--card-bg, #111)', borderRadius: '20px', padding: '20px', border: '1px solid var(--border-color, var(--border-subtle))',
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center'
               }}>
                 <div>
@@ -156,7 +156,7 @@ export const BrakClassificationQueue = React.memo(({
                   style={{ 
                     background: isActive ? 'rgba(239, 68, 68, 0.05)' : 'var(--card-bg, #111)', 
                     borderRadius: '20px', padding: '20px', cursor: 'pointer',
-                    border: `1px solid ${isActive ? '#ef444450' : 'var(--border-color, #1a1a1a)'}`,
+                    border: `1px solid ${isActive ? '#ef444450' : 'var(--border-color, var(--border-subtle))'}`,
                     transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                     transform: isActive ? 'scale(1.02)' : 'scale(1)',
@@ -198,7 +198,7 @@ export const BrakClassificationQueue = React.memo(({
                 disabled={queuePage === 1}
                 onClick={() => setQueuePage(p => Math.max(1, p - 1))}
                 style={{
-                  background: 'var(--card-bg, #111)', border: '1px solid var(--border-color, #222)', color: queuePage === 1 ? 'var(--text-muted, #444)' : 'var(--text-color, #fff)',
+                  background: 'var(--card-bg, #111)', border: '1px solid var(--border-color, var(--border-subtle))', color: queuePage === 1 ? 'var(--text-muted, #444)' : 'var(--text-color, #fff)',
                   padding: '8px 16px', borderRadius: '10px', fontWeight: 800, cursor: queuePage === 1 ? 'default' : 'pointer'
                 }}
               >
@@ -213,7 +213,7 @@ export const BrakClassificationQueue = React.memo(({
                     onClick={() => setQueuePage(pageNum)}
                     style={{
                       background: isActive ? '#ef4444' : 'var(--card-bg, #111)',
-                      border: `1px solid ${isActive ? '#ef4444' : 'var(--border-color, #222)'}`,
+                      border: `1px solid ${isActive ? '#ef4444' : 'var(--border-color, var(--border-subtle))'}`,
                       color: '#fff',
                       width: '36px', height: '36px', borderRadius: '10px',
                       fontWeight: 900, cursor: 'pointer',
@@ -228,7 +228,7 @@ export const BrakClassificationQueue = React.memo(({
                 disabled={queuePage === totalPages}
                 onClick={() => setQueuePage(p => Math.min(totalPages, p + 1))}
                 style={{
-                  background: 'var(--card-bg, #111)', border: '1px solid var(--border-color, #222)', color: queuePage === totalPages ? 'var(--text-muted, #444)' : 'var(--text-color, #fff)',
+                  background: 'var(--card-bg, #111)', border: '1px solid var(--border-color, var(--border-subtle))', color: queuePage === totalPages ? 'var(--text-muted, #444)' : 'var(--text-color, #fff)',
                   padding: '8px 16px', borderRadius: '10px', fontWeight: 800, cursor: queuePage === totalPages ? 'default' : 'pointer'
                 }}
               >
@@ -243,7 +243,7 @@ export const BrakClassificationQueue = React.memo(({
                 disabled={categoryPage === 1}
                 onClick={() => setCategoryPage(p => Math.max(1, p - 1))}
                 style={{
-                  background: 'var(--card-bg, #111)', border: '1px solid var(--border-color, #222)', color: categoryPage === 1 ? 'var(--text-muted, #444)' : 'var(--text-color, #fff)',
+                  background: 'var(--card-bg, #111)', border: '1px solid var(--border-color, var(--border-subtle))', color: categoryPage === 1 ? 'var(--text-muted, #444)' : 'var(--text-color, #fff)',
                   padding: '8px 16px', borderRadius: '10px', fontWeight: 800, cursor: categoryPage === 1 ? 'default' : 'pointer'
                 }}
               >
@@ -259,8 +259,8 @@ export const BrakClassificationQueue = React.memo(({
                     onClick={() => setCategoryPage(pageNum)}
                     style={{
                       background: isActive ? categoryColor : 'var(--card-bg, #111)',
-                      border: `1px solid ${isActive ? categoryColor : 'var(--border-color, #222)'}`,
-                      color: '#fff',
+                      border: `1px solid ${isActive ? categoryColor : 'var(--border-color, var(--border-subtle))'}`,
+                      color: 'var(--text-strong)',
                       width: '36px', height: '36px', borderRadius: '10px',
                       fontWeight: 900, cursor: 'pointer',
                       boxShadow: isActive ? `0 0 10px ${categoryColor}40` : 'none'
@@ -274,7 +274,7 @@ export const BrakClassificationQueue = React.memo(({
                 disabled={categoryPage === categoryTotalPages}
                 onClick={() => setCategoryPage(p => Math.min(categoryTotalPages, p + 1))}
                 style={{
-                  background: 'var(--card-bg, #111)', border: '1px solid var(--border-color, #222)', color: categoryPage === categoryTotalPages ? 'var(--text-muted, #444)' : 'var(--text-color, #fff)',
+                  background: 'var(--card-bg, #111)', border: '1px solid var(--border-color, var(--border-subtle))', color: categoryPage === categoryTotalPages ? 'var(--text-muted, #444)' : 'var(--text-color, #fff)',
                   padding: '8px 16px', borderRadius: '10px', fontWeight: 800, cursor: categoryPage === categoryTotalPages ? 'default' : 'pointer'
                 }}
               >
@@ -318,7 +318,7 @@ export const BrakClassificationQueue = React.memo(({
               boxSizing: 'border-box'
             }}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', borderBottom: '1px solid var(--border-color, #1f1f1f)', paddingBottom: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', borderBottom: '1px solid var(--border-color, var(--border-subtle))', paddingBottom: '20px' }}>
               <div>
                 <div style={{ color: '#ef4444', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Класифікація браку</div>
                 <h3 style={{ margin: '4px 0 0', fontSize: '1.4rem', fontWeight: 950, color: 'var(--text-color, #fff)' }}>{selectedItem.name}</h3>
@@ -341,14 +341,14 @@ export const BrakClassificationQueue = React.memo(({
                 </div>
                 <button
                   onClick={() => setRouteReturnDraft(selectedItem)}
-                  style={{ background: '#10b981', color: '#000', border: 'none', padding: '10px 18px', borderRadius: '12px', fontWeight: 950, fontSize: '0.8rem', cursor: 'pointer' }}
+                  style={{ background: '#10b981', color: 'var(--surface-black)', border: 'none', padding: '10px 18px', borderRadius: '12px', fontWeight: 950, fontSize: '0.8rem', cursor: 'pointer' }}
                 >
                   ПОВЕРНУТИ В НАРЯД
                 </button>
               </div>
             )}
 
-            <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '20px', padding: '25px', marginBottom: '25px', border: '1px solid var(--border-color, #1a1a1a)' }}>
+            <div style={{ background: 'var(--border-subtle)', borderRadius: '20px', padding: '25px', marginBottom: '25px', border: '1px solid var(--border-color, var(--border-subtle))' }}>
               <div style={{ fontSize: '0.65rem', color: 'var(--text-muted, #777)', fontWeight: 950, textTransform: 'uppercase', marginBottom: '15px' }}>РОЗПОДІЛ ЗА КАТЕГОРІЯМИ</div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
                 {QUALITY_CLASSIFICATION_OPTIONS.map(c => {
@@ -356,7 +356,7 @@ export const BrakClassificationQueue = React.memo(({
                   const labelText = c.label
                   const descText = c.description || c.desc
                   return (
-                    <div key={catKey} style={{ background: 'var(--card-inner-bg, #080808)', border: '1px solid var(--border-color, #1f1f1f)', borderRadius: '14px', padding: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div key={catKey} style={{ background: 'var(--card-inner-bg, #080808)', border: '1px solid var(--border-color, var(--border-subtle))', borderRadius: '14px', padding: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div>
                         <div style={{ fontSize: '0.85rem', fontWeight: 900, color: c.color }}>{labelText}</div>
                         <div style={{ fontSize: '0.62rem', color: 'var(--text-muted, #555)', marginTop: '2px' }}>{descText}</div>
@@ -364,7 +364,7 @@ export const BrakClassificationQueue = React.memo(({
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <button 
                           onClick={() => updateCategoryQty(catKey, Math.max(0, Number(distribution[catKey] || 0) - 1))}
-                          style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'var(--card-bg, #111)', border: '1px solid var(--border-color, #222)', color: 'var(--text-color, #fff)', cursor: 'pointer' }}
+                          style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'var(--card-bg, #111)', border: '1px solid var(--border-color, var(--border-subtle))', color: 'var(--text-color, #fff)', cursor: 'pointer' }}
                         >-</button>
                         <input 
                           type="number"
@@ -378,7 +378,7 @@ export const BrakClassificationQueue = React.memo(({
                         />
                         <button 
                           onClick={() => updateCategoryQty(catKey, Number(distribution[catKey] || 0) + 1)}
-                          style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'var(--card-bg, #111)', border: '1px solid var(--border-color, #222)', color: 'var(--text-color, #fff)', cursor: 'pointer' }}
+                          style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'var(--card-bg, #111)', border: '1px solid var(--border-color, var(--border-subtle))', color: 'var(--text-color, #fff)', cursor: 'pointer' }}
                         >+</button>
                       </div>
                     </div>
@@ -386,7 +386,7 @@ export const BrakClassificationQueue = React.memo(({
                 })}
               </div>
               <div style={{ 
-                marginTop: '25px', padding: '15px', borderRadius: '15px', background: 'var(--card-inner-bg, #000)', border: '1px solid var(--border-color, #222)',
+                marginTop: '25px', padding: '15px', borderRadius: '15px', background: 'var(--card-inner-bg, #000)', border: '1px solid var(--border-color, var(--border-subtle))',
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center'
               }}>
                 <div style={{ fontSize: '0.7rem', fontWeight: 900, color: 'var(--text-muted, #444)' }}>ВИБРАНО: <span style={{ color: remainingInBatch < 0 ? '#ef4444' : 'var(--text-color, #fff)' }}>{totalDistributed} / {selectedItem.total_qty}</span></div>
@@ -394,7 +394,7 @@ export const BrakClassificationQueue = React.memo(({
               </div>
             </div>
 
-            <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '20px', padding: '25px', marginBottom: '30px', border: '1px solid var(--border-color, #1a1a1a)' }}>
+            <div style={{ background: 'var(--border-subtle)', borderRadius: '20px', padding: '25px', marginBottom: '30px', border: '1px solid var(--border-color, var(--border-subtle))' }}>
               <div style={{ marginBottom: '18px' }}>
                 <div>
                   <div style={{ fontSize: '0.65rem', color: 'var(--text-muted, #777)', fontWeight: 950, textTransform: 'uppercase' }}>ПРИЧИНИ БРАКУ</div>
@@ -478,7 +478,7 @@ export const BrakClassificationQueue = React.memo(({
               </button>
               <button 
                 onClick={() => setSelectedItem(null)}
-                style={{ flex: 1, background: 'transparent', border: '1px solid var(--border-color, #222)', color: 'var(--text-muted, #444)', padding: '15px', borderRadius: '18px', fontWeight: 800, cursor: 'pointer' }}
+                style={{ flex: 1, background: 'transparent', border: '1px solid var(--border-color, var(--border-subtle))', color: 'var(--text-muted, #444)', padding: '15px', borderRadius: '18px', fontWeight: 800, cursor: 'pointer' }}
               >
                 СКАСУВАТИ
               </button>

@@ -22,7 +22,7 @@ export const ShiftCalendarView = ({
 
     return (
       <tr key={user.id} className="calendar-user-row" style={{
-        borderBottom: '1px solid rgba(255,255,255,0.01)',
+        borderBottom: '1px solid var(--border-subtle)',
         transition: 'background 0.2s',
         background: isMaster ? 'rgba(234,179,8,0.02)' : 'transparent'
       }}>
@@ -32,7 +32,7 @@ export const ShiftCalendarView = ({
           position: 'sticky',
           left: 0,
           zIndex: 9,
-          borderRight: '1px solid #1a1a1a'
+          borderRight: '1px solid var(--border-subtle)'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <div style={{
@@ -51,7 +51,7 @@ export const ShiftCalendarView = ({
             </div>
             <div>
               <div className={`user-name ${isMaster ? 'master' : ''}`} style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                {uName} {isMaster && <span style={{ fontSize: '0.6rem', background: '#ff9000', color: '#000', padding: '1px 4px', borderRadius: '4px', fontWeight: 900 }}>M</span>}
+                {uName} {isMaster && <span style={{ fontSize: '0.6rem', background: '#ff9000', color: 'var(--surface-black)', padding: '1px 4px', borderRadius: '4px', fontWeight: 900 }}>M</span>}
               </div>
               <div className="user-position" style={{ fontSize: '0.62rem', fontWeight: 700, textTransform: 'uppercase', marginTop: '2px' }}>{user.position || 'Робітник'}</div>
             </div>
@@ -93,7 +93,7 @@ export const ShiftCalendarView = ({
                 padding: '8px 4px',
                 textAlign: 'center',
                 cursor: 'pointer',
-                borderRight: '1px solid rgba(255,255,255,0.01)',
+                borderRight: '1px solid var(--border-subtle)',
                 transition: 'all 0.15s'
               }}
             >

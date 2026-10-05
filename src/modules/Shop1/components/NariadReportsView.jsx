@@ -73,7 +73,7 @@ const statusMeta = (s) => {
     pending: { label: 'Очікує', bg: 'rgba(234, 179, 8, 0.1)', color: '#eab308' },
     paused: { label: 'На паузі', bg: 'rgba(239, 68, 68, 0.1)', color: '#ef4444' }
   }
-  return map[s] || { label: s || '—', bg: 'rgba(255, 255, 255, 0.05)', color: '#888' }
+  return map[s] || { label: s || '—', bg: 'rgba(255, 255, 255, 0.05)', color: 'var(--text-muted)' }
 }
 
 const formatDurHMS = (seconds) => {
@@ -218,8 +218,8 @@ export const NariadReportsView = ({
 
         {nariadReportLoading && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '60vh', gap: '15px' }}>
-            <div style={{ width: '40px', height: '40px', border: '3px solid #1a1a1a', borderTop: '3px solid #3b82f6', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-            <div style={{ color: '#555', fontSize: '0.85rem', fontWeight: 800 }}>Завантаження звіту...</div>
+            <div style={{ width: '40px', height: '40px', border: '3px solid var(--border-subtle)', borderTop: '3px solid #3b82f6', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+            <div style={{ color: 'var(--text-dim)', fontSize: '0.85rem', fontWeight: 800 }}>Завантаження звіту...</div>
           </div>
         )}
 
@@ -416,7 +416,7 @@ export const NariadReportsView = ({
           return (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
               {/* Report header */}
-              <div style={{ borderBottom: '1px solid #1a1a1a', padding: '4px 0 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '15px', flexWrap: 'wrap' }}>
+              <div style={{ borderBottom: '1px solid var(--border-subtle)', padding: '4px 0 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '15px', flexWrap: 'wrap' }}>
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#3b82f6', fontSize: '0.68rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '4px' }}>
                     <Clock size={13} /> Звіт по виробництву · Цех №1 + Цех №2
@@ -487,7 +487,7 @@ export const NariadReportsView = ({
                   </div>
                   <div onClick={() => setNariadDetailModal('scrap')} title="Відкрити деталізацію браку" style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', cursor: 'pointer' }}>
                     <span>Брак:</span>
-                    <strong style={{ color: totalScrap > 0 ? '#ef4444' : '#555', borderBottom: `1px dashed ${totalScrap > 0 ? '#ef4444' : '#555'}` }}>{totalScrap} шт</strong>
+                    <strong style={{ color: totalScrap > 0 ? '#ef4444' : 'var(--text-dim)', borderBottom: `1px dashed ${totalScrap > 0 ? '#ef4444' : 'var(--text-dim)'}` }}>{totalScrap} шт</strong>
                   </div>
                 </div>
               </div>
@@ -507,8 +507,8 @@ export const NariadReportsView = ({
                         const stageColor = clr[stage] || '#8b5cf6'
                         return (
                           <button key={stage} onClick={() => setNariadStageFilter(stage)} style={{
-                            border: 'none', background: sel ? (stage === 'All' ? '#222' : stageColor) : 'transparent',
-                            color: sel ? (stage === 'All' ? '#fff' : '#000') : '#555',
+                            border: 'none', background: sel ? (stage === 'All' ? 'var(--surface-3)' : stageColor) : 'transparent',
+                            color: sel ? (stage === 'All' ? 'var(--text-strong)' : '#000') : 'var(--text-dim)',
                             padding: '4px 10px', borderRadius: '7px', fontSize: '0.6rem', fontWeight: 900, cursor: 'pointer', transition: 'all 0.15s',
                             textTransform: 'uppercase'
                           }}>
@@ -541,7 +541,7 @@ export const NariadReportsView = ({
                 <div style={{ overflowX: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.7rem' }}>
                     <thead>
-                      <tr style={{ borderBottom: '1px solid #1a1a1a' }}>
+                      <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
                         {['Деталь / Картка','Час (початок / завершення)','План. час','Факт. час','Етап','Оператор / Зміна','Робоче місце','Готово / Брак'].map(col => (
                           <th key={col} style={{ padding: '8px 10px', textAlign: 'left', color: '#444', fontWeight: 900, textTransform: 'uppercase', fontSize: '0.58rem', whiteSpace: 'nowrap' }}>{col}</th>
                         ))}
@@ -562,12 +562,12 @@ export const NariadReportsView = ({
                         const hasScrap = Number(row.scrap_qty) > 0
                         const fmt = (iso) => iso ? new Date(iso).toLocaleString('uk-UA', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }) : '—'
                         return (
-                          <tr key={row.id || idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)', background: idx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.005)' }}>
-                            <td style={{ padding: '8px 10px', color: '#bbb', fontWeight: 700, maxWidth: '220px' }}>
+                          <tr key={row.id || idx} style={{ borderBottom: '1px solid var(--border-subtle)', background: idx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.005)' }}>
+                            <td style={{ padding: '8px 10px', color: 'var(--text-soft)', fontWeight: 700, maxWidth: '220px' }}>
                               <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nom?.name || '—'}</div>
-                              <div style={{ color: '#666', fontSize: '0.58rem', marginTop: '2px' }}>Картка {sequenceLabel}</div>
+                              <div style={{ color: 'var(--text-dim)', fontSize: '0.58rem', marginTop: '2px' }}>Картка {sequenceLabel}</div>
                             </td>
-                            <td style={{ padding: '8px 10px', color: '#555', whiteSpace: 'nowrap' }}><div>{fmt(row.started_at)}</div><div style={{ marginTop: '2px' }}>{fmt(row.completed_at)}</div></td>
+                            <td style={{ padding: '8px 10px', color: 'var(--text-dim)', whiteSpace: 'nowrap' }}><div>{fmt(row.started_at)}</div><div style={{ marginTop: '2px' }}>{fmt(row.completed_at)}</div></td>
                             <td style={{ padding: '8px 10px', color: '#777', fontWeight: 800, whiteSpace: 'nowrap' }}>{plannedSec ? formatDurHMS(plannedSec) : '—'}</td>
                             <td style={{ padding: '8px 10px', color: dur !== null ? '#3b82f6' : '#333', fontWeight: 800, whiteSpace: 'nowrap' }}>{dur !== null ? formatDurHMS(dur) : '—'}</td>
                             <td style={{ padding: '8px 10px' }}>
@@ -575,11 +575,11 @@ export const NariadReportsView = ({
                                 {row.stage_name || '—'}
                               </span>
                             </td>
-                            <td style={{ padding: '8px 10px', color: '#666', fontWeight: 700 }}>
+                            <td style={{ padding: '8px 10px', color: 'var(--text-dim)', fontWeight: 700 }}>
                               <div>{row.operator_name || '—'}</div>
                               <div style={{ color: '#444', fontSize: '0.6rem' }}>{row.shift_name || ''}</div>
                             </td>
-                            <td style={{ padding: '8px 10px', color: '#666', fontWeight: 700 }}>{row.machine_name || '—'}</td>
+                            <td style={{ padding: '8px 10px', color: 'var(--text-dim)', fontWeight: 700 }}>{row.machine_name || '—'}</td>
                             <td style={{ padding: '8px 10px', fontWeight: 900, textAlign: 'right' }}><div style={{ color: '#10b981' }}>{Number(row.qty_completed) || 0} шт</div><div style={{ color: hasScrap ? '#ef4444' : '#333', marginTop: '3px' }}>{Number(row.scrap_qty) || 0} брак</div></td>
                           </tr>
                         )

@@ -8,12 +8,12 @@ export const PreparationMonitoringTable = ({
   return (
     <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
       <h2 style={{ fontSize: '1.8rem', fontWeight: 950, marginBottom: '25px' }}>МОНІТОРИНГ ВІДДІЛУ ПІДГОТОВКИ</h2>
-      <div style={{ background: '#111', borderRadius: '24px', border: '1px solid #222', overflowX: 'auto' }}>
-        <div style={{ padding: '25px', borderBottom: '1px solid #222' }}>
+      <div style={{ background: 'var(--surface-1)', borderRadius: '24px', border: '1px solid var(--border-subtle)', overflowX: 'auto' }}>
+        <div style={{ padding: '25px', borderBottom: '1px solid var(--border-subtle)' }}>
           <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 900 }}>В РОБОТІ ТА БУФЕРІ</h3>
         </div>
         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '800px' }}>
-          <thead style={{ background: '#0a0a0a', fontSize: '0.65rem', fontWeight: 900, color: '#555', textTransform: 'uppercase' }}>
+          <thead style={{ background: 'var(--surface-inset)', fontSize: '0.65rem', fontWeight: 900, color: '#555', textTransform: 'uppercase' }}>
             <tr>
               <th style={{ padding: '12px 15px' }}>ДЕТАЛЬ</th>
               <th style={{ padding: '12px 15px' }}>СТАТУС</th>
@@ -31,7 +31,7 @@ export const PreparationMonitoringTable = ({
               const operatorName = subTaskSnapshot?.operator || '—'
               const shiftName = subTaskSnapshot?.shift || '—'
               return (
-                <tr key={sub.id} style={{ borderBottom: '1px solid #1a1a1a', fontSize: '0.85rem' }}>
+                <tr key={sub.id} style={{ borderBottom: '1px solid var(--border-subtle)', fontSize: '0.85rem' }}>
                   <td style={{ padding: '12px 15px', fontWeight: 800, fontSize: '0.75rem' }}>{sub.name}</td>
                   <td style={{ padding: '12px 15px' }}>
                     <span style={{
@@ -46,15 +46,15 @@ export const PreparationMonitoringTable = ({
                     </span>
                   </td>
                   <td style={{ padding: '12px 15px', fontWeight: 900 }}>{sub.plan} шт</td>
-                  <td style={{ padding: '12px 15px', color: '#888' }}>{shiftName}</td>
-                  <td style={{ padding: '12px 15px', color: '#aaa' }}>{operatorName}</td>
+                  <td style={{ padding: '12px 15px', color: 'var(--text-muted)' }}>{shiftName}</td>
+                  <td style={{ padding: '12px 15px', color: 'var(--text-muted)' }}>{operatorName}</td>
                   <td style={{ padding: '12px 15px', color: '#10b981' }}>
                     {sub.status === 'in-progress' ? formatElapsedTime(startedAt) : '—'}
                   </td>
                   <td style={{ padding: '12px 15px', textAlign: 'right' }}>
                     <button
                       onClick={() => onSelectSubTask(sub.id)}
-                      style={{ background: '#10b981', border: 'none', color: '#000', padding: '10px', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                      style={{ background: '#10b981', border: 'none', color: 'var(--surface-black)', padding: '10px', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                       title="Відкрити"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0z"/><circle cx="12" cy="12" r="3"/></svg>

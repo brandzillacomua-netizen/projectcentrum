@@ -18,7 +18,7 @@ export function MasterHeader({
       display: 'flex', 
       justify: 'space-between', 
       alignItems: 'center', 
-      background: isLight ? '#ffffff' : '#000000', 
+      background: isLight ? '#ffffff' : 'var(--surface-black)', 
       borderBottom: isLight ? '1px solid #e2e8f0' : '1px solid #222222' 
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
@@ -96,7 +96,7 @@ export function MasterHeader({
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
         <ClipboardCheck className="text-accent" size={24} color={isLight ? '#ea580c' : '#ff9000'} />
-        <h1 style={{ fontSize: '1rem', fontWeight: 900, textTransform: 'uppercase', margin: 0, color: isLight ? '#0f172a' : '#ffffff' }} className="hide-mobile">Керування виробництвом</h1>
+        <h1 style={{ fontSize: '1rem', fontWeight: 900, textTransform: 'uppercase', margin: 0, color: isLight ? '#0f172a' : 'var(--text-strong)' }} className="hide-mobile">Керування виробництвом</h1>
       </div>
       <div className="hide-mobile" style={{ fontSize: '0.8rem', color: isLight ? '#64748b' : '#444444', fontWeight: 700 }}>СИСТЕМА MES v2.1</div>
     </nav>

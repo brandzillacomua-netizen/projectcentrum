@@ -68,7 +68,7 @@ export const ReceptionTerminal: React.FC = () => {
 
       {/* MAIN */}
       <main style={{ flex: 1, padding: '24px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <section style={{ flex: 1, background: 'var(--card-bg, #0c0c10)', borderRadius: '24px', border: '1px solid var(--glass-border, rgba(255,255,255,0.03))', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <section style={{ flex: 1, background: 'var(--card-bg, #0c0c10)', borderRadius: '24px', border: '1px solid var(--glass-border, var(--border-subtle))', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           
           {/* Filter tabs */}
           <ReceptionTerminalFilters

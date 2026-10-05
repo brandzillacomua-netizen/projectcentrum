@@ -132,7 +132,7 @@ export const ShippingModule: React.FC = () => {
                       key={i}
                       style={{
                         background: 'rgba(15,25,35,0.4)',
-                        border: '1px solid rgba(255,255,255,0.06)',
+                        border: '1px solid var(--border-subtle)',
                         borderRadius: '24px',
                         padding: '24px',
                         height: '140px',
@@ -175,7 +175,7 @@ export const ShippingModule: React.FC = () => {
                         onClick={() => setVisibleReadyCount(readyBatches.length)}
                         style={{
                           background: 'transparent',
-                          border: '1px solid rgba(255, 255, 255, 0.1)',
+                          border: '1px solid var(--border-subtle)',
                           color: 'var(--text-secondary, #888)',
                           padding: '12px 18px',
                           borderRadius: '14px',
@@ -209,7 +209,7 @@ export const ShippingModule: React.FC = () => {
                 <CheckCircle2 size={18} color="#555" />
                 <h3 style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-secondary, #555)', margin: 0 }}>ВІДПРАВЛЕНО</h3>
               </div>
-              <span style={{ background: 'var(--card-inner-bg, #111)', color: 'var(--text-secondary, #555)', fontSize: '0.65rem', fontWeight: 900, padding: '6px 12px', borderRadius: '10px', border: '1px solid var(--border, #222)' }}>
+              <span style={{ background: 'var(--card-inner-bg, #111)', color: 'var(--text-secondary, #555)', fontSize: '0.65rem', fontWeight: 900, padding: '6px 12px', borderRadius: '10px', border: '1px solid var(--border, var(--border-subtle))' }}>
                 {isLoading ? 'ЗВ’ЯЗОК...' : `${shippedBatches.length} ПАРТІЙ`}
               </span>
             </div>
@@ -222,7 +222,7 @@ export const ShippingModule: React.FC = () => {
                       key={i}
                       style={{
                         background: 'rgba(15,25,35,0.4)',
-                        border: '1px solid rgba(255,255,255,0.06)',
+                        border: '1px solid var(--border-subtle)',
                         borderRadius: '24px',
                         padding: '20px',
                         height: '90px',

@@ -118,7 +118,7 @@ export const MarginAnalyticsTab = ({
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '16px', marginBottom: '20px' }}>
           {/* Slider 1: Raw Material Price Hike */}
-          <div style={{ background: 'rgba(0,0,0,0.2)', padding: '16px', borderRadius: '14px', border: '1px solid var(--glass-border)' }}>
+          <div style={{ background: 'var(--fill-inset)', padding: '16px', borderRadius: '14px', border: '1px solid var(--glass-border)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.84rem', fontWeight: 900, marginBottom: '8px' }}>
               <span>Здорожчання Металу / Сировини:</span>
               <span style={{ color: '#ef4444' }}>+{steelPriceHikePercent}%</span>
@@ -134,7 +134,7 @@ export const MarginAnalyticsTab = ({
           </div>
 
           {/* Slider 2: Labor Cost Hike */}
-          <div style={{ background: 'rgba(0,0,0,0.2)', padding: '16px', borderRadius: '14px', border: '1px solid var(--glass-border)' }}>
+          <div style={{ background: 'var(--fill-inset)', padding: '16px', borderRadius: '14px', border: '1px solid var(--glass-border)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.84rem', fontWeight: 900, marginBottom: '8px' }}>
               <span>Зростання Тарифів Заробітної Плати:</span>
               <span style={{ color: '#ff9000' }}>+{laborPriceHikePercent}%</span>
@@ -165,7 +165,7 @@ export const MarginAnalyticsTab = ({
             </thead>
             <tbody>
               {simulatedSummaries.slice(0, 10).map(({ item, originalCOGS, originalPrice, simTotalCOGS, simRecPrice, priceDelta }) => (
-                <tr key={item.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                <tr key={item.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
                   <td style={{ padding: '10px', fontWeight: 900 }}>{item.name}</td>
                   <td style={{ padding: '10px', color: 'var(--text-muted)' }}>₴{originalCOGS}</td>
                   <td style={{ padding: '10px', color: '#ef4444', fontWeight: 900 }}>₴{simTotalCOGS}</td>

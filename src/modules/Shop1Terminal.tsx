@@ -18,7 +18,7 @@ import { supabase } from '../supabase'
 
 // Style constants
 const labelStyle: React.CSSProperties = { display: 'block', fontSize: '0.65rem', color: '#444', fontWeight: 900, textTransform: 'uppercase', marginBottom: '7px' }
-const selectStyle: React.CSSProperties = { width: '100%', background: '#0d0d0d', border: '1px solid #222', color: '#fff', padding: '13px', borderRadius: '12px', fontSize: '0.95rem', fontWeight: 700, boxSizing: 'border-box' }
+const selectStyle: React.CSSProperties = { width: '100%', background: 'var(--surface-inset)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', padding: '13px', borderRadius: '12px', fontSize: '0.95rem', fontWeight: 700, boxSizing: 'border-box' }
 const btnPrimary: React.CSSProperties = { background: '#3b82f6', color: '#fff', border: 'none', padding: '18px', borderRadius: '14px', fontSize: '1.1rem', fontWeight: 900, cursor: 'pointer', width: '100%', transition: 'opacity 0.2s' }
 const btnGreen: React.CSSProperties = { background: '#10b981', color: '#fff', border: 'none', padding: '18px', borderRadius: '14px', fontSize: '1.1rem', fontWeight: 900, cursor: 'pointer', width: '100%', transition: 'opacity 0.2s' }
 
@@ -65,7 +65,7 @@ export const Shop1Terminal: React.FC = () => {
   const completeToBufferDisabled = isProcessing || !hasCuttersFact
 
   return (
-    <div style={{ background: '#0a0a0a', height: '100vh', display: 'flex', flexDirection: 'column', color: '#fff', overflow: 'hidden' }}>
+    <div style={{ background: 'var(--surface-inset)', height: '100vh', display: 'flex', flexDirection: 'column', color: 'var(--text-strong)', overflow: 'hidden' }}>
 
       {/* Header */}
       <Shop1Header
@@ -78,7 +78,7 @@ export const Shop1Terminal: React.FC = () => {
       <div className="main-layout-responsive" style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
 
         {/* Left Queue Panel (Desktop) */}
-        <div className="side-panel hide-mobile" style={{ width: '280px', background: '#111', borderRight: '1px solid #1a1a1a', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+        <div className="side-panel hide-mobile" style={{ width: '280px', background: 'var(--surface-1)', borderRight: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
           <Shop1QueueList
             queueCards={queueCards}
             queueFilter={queueFilter}
@@ -133,7 +133,7 @@ export const Shop1Terminal: React.FC = () => {
         </div>
 
         {/* Main Content */}
-        <div className="content-panel" style={{ flex: 1, minWidth: 0, overflowY: 'auto', padding: '20px 24px 100px', background: '#0a0a0a' }}>
+        <div className="content-panel" style={{ flex: 1, minWidth: 0, overflowY: 'auto', padding: '20px 24px 100px', background: 'var(--surface-inset)' }}>
           {scanError && (
             <div style={{ background: '#ef444420', border: '1px solid #ef444440', borderRadius: '10px', padding: '12px 16px', marginBottom: '18px', display: 'flex', alignItems: 'center', gap: '10px', color: '#ef4444', maxWidth: '680px' }}>
               <AlertTriangle size={16} /> {scanError}
@@ -388,14 +388,14 @@ export const Shop1Terminal: React.FC = () => {
           zIndex: 99999, padding: '20px', animation: 'fadeIn 0.2s ease-out'
         }}>
           <div style={{
-            background: '#18181b', border: '1px solid #27272a',
+            background: 'var(--surface-2)', border: '1px solid #27272a',
             borderRadius: '24px', padding: '30px 24px', width: '100%', maxWidth: '440px',
             boxShadow: '0 20px 40px rgba(0,0,0,0.5)', textAlign: 'center'
           }}>
             <div style={{ fontSize: '2.5rem', marginBottom: '16px' }}>
               {customAlert.title.includes('Помилка') || customAlert.title.includes('❌') || customAlert.title.includes('⚠️') ? '⚠️' : 'ℹ️'}
             </div>
-            <h3 style={{ margin: '0 0 14px', fontSize: '1.2rem', fontWeight: 900, color: '#fff' }}>
+            <h3 style={{ margin: '0 0 14px', fontSize: '1.2rem', fontWeight: 900, color: 'var(--text-strong)' }}>
               {customAlert.title}
             </h3>
             <p style={{
@@ -407,7 +407,7 @@ export const Shop1Terminal: React.FC = () => {
             <button
               onClick={() => setCustomAlert(null)}
               style={{
-                width: '100%', background: '#eab308', color: '#000',
+                width: '100%', background: '#eab308', color: 'var(--surface-black)',
                 border: 'none', padding: '14px', borderRadius: '14px',
                 fontSize: '1rem', fontWeight: 1000, cursor: 'pointer',
                 boxShadow: '0 4px 12px rgba(234,179,8,0.2)'

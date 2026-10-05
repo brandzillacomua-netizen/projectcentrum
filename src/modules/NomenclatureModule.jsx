@@ -752,9 +752,9 @@ const NomenclatureModule = () => {
           <h1 className="hide-mobile">Керування номенклатурою</h1>
           <h1 className="mobile-only" style={{ fontSize: '1rem' }}>НОМЕНКЛАТУРА</h1>
         </div>
-        <div className="tab-switcher-v2" style={{ display: 'flex', marginLeft: 'auto', background: '#111', padding: '4px', borderRadius: '10px' }}>
-           <button onClick={() => setActiveTab('all')} style={{ background: activeTab === 'all' ? '#222' : 'transparent', border: 'none', color: '#fff', padding: '6px 15px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 800 }}>БАЗА</button>
-           <button onClick={() => setActiveTab('import')} style={{ background: activeTab === 'import' ? '#ff9000' : 'transparent', border: 'none', color: activeTab === 'import' ? '#000' : '#555', padding: '6px 15px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 800 }}>ІМПОРТ CSV</button>
+        <div className="tab-switcher-v2" style={{ display: 'flex', marginLeft: 'auto', background: 'var(--surface-1)', padding: '4px', borderRadius: '10px' }}>
+           <button onClick={() => setActiveTab('all')} style={{ background: activeTab === 'all' ? 'var(--surface-3)' : 'transparent', border: 'none', color: 'var(--text-strong)', padding: '6px 15px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 800 }}>БАЗА</button>
+           <button onClick={() => setActiveTab('import')} style={{ background: activeTab === 'import' ? '#ff9000' : 'transparent', border: 'none', color: activeTab === 'import' ? 'var(--surface-black)' : '#555', padding: '6px 15px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 800 }}>ІМПОРТ CSV</button>
         </div>
       </nav>
 
@@ -762,10 +762,10 @@ const NomenclatureModule = () => {
         
         {activeTab === 'import' ? (
           <div className="import-section anim-fade-in" style={{ maxWidth: '800px', margin: '0 auto' }}>
-             <div className="glass-panel" style={{ padding: '40px', borderRadius: '24px', textAlign: 'center', border: '2px dashed #333', background: 'rgba(20,20,20,0.4)' }}>
+             <div className="glass-panel" style={{ padding: '40px', borderRadius: '24px', textAlign: 'center', border: '2px dashed var(--border-subtle)', background: 'rgba(20,20,20,0.4)' }}>
                 <FileUp size={48} color="#ff9000" style={{ marginBottom: '20px', opacity: 0.5 }} />
                 <h2 style={{ fontSize: '1.5rem', fontWeight: 900, marginBottom: '10px' }}>Імпорт специфікацій</h2>
-                <p style={{ color: '#555', marginBottom: '30px', fontSize: '0.9rem' }}>Завантажте CSV-файл специфікації. Система автоматично створить <br/> набори та зв'язки BOM.</p>
+                <p style={{ color: 'var(--text-dim)', marginBottom: '30px', fontSize: '0.9rem' }}>Завантажте CSV-файл специфікації. Система автоматично створить <br/> набори та зв'язки BOM.</p>
                 
                 <input 
                   type="file" 
@@ -792,14 +792,14 @@ const NomenclatureModule = () => {
              </div>
 
              {importLogs.length > 0 && (
-               <div style={{ marginTop: '30px', background: '#000', borderRadius: '16px', border: '1px solid #1a1a1a', padding: '20px', maxHeight: '400px', overflowY: 'auto' }}>
-                  <h4 style={{ margin: '0 0 15px', color: '#555', display: 'flex', alignItems: 'center', gap: '8px' }}><Clock size={16}/> Логи процесу:</h4>
+               <div style={{ marginTop: '30px', background: 'var(--surface-black)', borderRadius: '16px', border: '1px solid var(--border-subtle)', padding: '20px', maxHeight: '400px', overflowY: 'auto' }}>
+                  <h4 style={{ margin: '0 0 15px', color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: '8px' }}><Clock size={16}/> Логи процесу:</h4>
                   {importLogs.map((log, i) => (
                     <div key={i} style={{ 
                       fontSize: '0.8rem', 
                       padding: '8px 0', 
                       borderBottom: '1px solid #111',
-                      color: log.includes('✅') ? '#10b981' : log.includes('❌') ? '#ef4444' : '#888',
+                      color: log.includes('✅') ? '#10b981' : log.includes('❌') ? '#ef4444' : 'var(--text-muted)',
                       fontWeight: log.startsWith('📦') || log.startsWith('✨') ? 800 : 400
                     }}>
                       {log}
@@ -811,7 +811,7 @@ const NomenclatureModule = () => {
         ) : (
           <div className="nomenclature-grid-responsive">
             
-            <div className="content-card entry-card glass-panel" style={{ padding: '25px', borderRadius: '24px', background: 'rgba(20,20,20,0.6)', border: '1px solid #222' }}>
+            <div className="content-card entry-card glass-panel" style={{ padding: '25px', borderRadius: '24px', background: 'rgba(20,20,20,0.6)', border: '1px solid var(--border-subtle)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
                 {isEditing ? <Edit3 size={20} color="#ff9000" /> : <Plus size={20} />} 
@@ -823,9 +823,9 @@ const NomenclatureModule = () => {
             <div className="type-buttons-v2" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '10px', marginBottom: '25px' }}>
               {types.map(t => (
                 <button key={t.id} onClick={() => setNewNom({...newNom, type: t.id})} style={{ 
-                  background: newNom.type === t.id ? t.color : 'rgba(255,255,255,0.03)', 
+                  background: newNom.type === t.id ? t.color : 'var(--fill-subtle)', 
                   color: newNom.type === t.id ? '#000' : '#444', 
-                  border: '1px solid ' + (newNom.type === t.id ? t.color : '#222'), 
+                  border: '1px solid ' + (newNom.type === t.id ? t.color : 'var(--border-subtle)'), 
                   padding: '12px 10px', 
                   borderRadius: '12px', 
                   fontSize: '0.72rem', 
@@ -846,49 +846,49 @@ const NomenclatureModule = () => {
             <form onSubmit={handleSaveNom} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               <div className="form-group">
                 <label style={{ fontSize: '0.65rem', color: '#ff9000', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>Номенклатура (Внутрішня назва)</label>
-                <input style={{ width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '14px', borderRadius: '12px', fontSize: '1.2rem', fontWeight: 700 }} value={newNom.name || ''} onChange={e => setNewNom({...newNom, name: e.target.value})} placeholder="напр. KHARAK 10.0" required />
+                <input style={{ width: '100%', background: 'var(--surface-black)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', padding: '14px', borderRadius: '12px', fontSize: '1.2rem', fontWeight: 700 }} value={newNom.name || ''} onChange={e => setNewNom({...newNom, name: e.target.value})} placeholder="напр. KHARAK 10.0" required />
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
                 <div className="form-group">
                   <label style={{ fontSize: '0.65rem', color: '#ff9000', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>Характеристика</label>
-                  <input style={{ width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '14px', borderRadius: '12px' }} value={newNom.characteristic || ''} onChange={e => setNewNom({...newNom, characteristic: e.target.value})} placeholder="напр. M4x16, вуглецева сталь" />
+                  <input style={{ width: '100%', background: 'var(--surface-black)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', padding: '14px', borderRadius: '12px' }} value={newNom.characteristic || ''} onChange={e => setNewNom({...newNom, characteristic: e.target.value})} placeholder="напр. M4x16, вуглецева сталь" />
                 </div>
                 <div className="form-group">
                   <label style={{ fontSize: '0.65rem', color: '#ff9000', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>Опис (Офіційна назва)</label>
-                  <input style={{ width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '14px', borderRadius: '12px' }} value={newNom.description || ''} onChange={e => setNewNom({...newNom, description: e.target.value})} placeholder="напр. ISO 7380-1 10.9" />
+                  <input style={{ width: '100%', background: 'var(--surface-black)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', padding: '14px', borderRadius: '12px' }} value={newNom.description || ''} onChange={e => setNewNom({...newNom, description: e.target.value})} placeholder="напр. ISO 7380-1 10.9" />
                 </div>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '15px' }}>
                 <div className="form-group">
                   <label style={{ fontSize: '0.65rem', color: '#ff9000', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>Кі-ть на од.</label>
-                  <input type="number" step="0.01" style={{ width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '14px', borderRadius: '12px' }} value={newNom.qty_per_unit || ''} onChange={e => setNewNom({...newNom, qty_per_unit: e.target.value})} placeholder="0" />
+                  <input type="number" step="0.01" style={{ width: '100%', background: 'var(--surface-black)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', padding: '14px', borderRadius: '12px' }} value={newNom.qty_per_unit || ''} onChange={e => setNewNom({...newNom, qty_per_unit: e.target.value})} placeholder="0" />
                 </div>
                 <div className="form-group">
                   <label style={{ fontSize: '0.65rem', color: '#ff9000', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>Опціон</label>
-                  <input style={{ width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '14px', borderRadius: '12px' }} value={newNom.option_label || ''} onChange={e => setNewNom({...newNom, option_label: e.target.value})} placeholder="напр. Додаткові деталі" />
+                  <input style={{ width: '100%', background: 'var(--surface-black)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', padding: '14px', borderRadius: '12px' }} value={newNom.option_label || ''} onChange={e => setNewNom({...newNom, option_label: e.target.value})} placeholder="напр. Додаткові деталі" />
                 </div>
                 <div className="form-group">
                   <label style={{ fontSize: '0.65rem', color: '#ff9000', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>Колір</label>
-                  <input style={{ width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '14px', borderRadius: '12px' }} value={newNom.color || ''} onChange={e => setNewNom({...newNom, color: e.target.value})} placeholder="напр. Чорний" />
+                  <input style={{ width: '100%', background: 'var(--surface-black)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', padding: '14px', borderRadius: '12px' }} value={newNom.color || ''} onChange={e => setNewNom({...newNom, color: e.target.value})} placeholder="напр. Чорний" />
                 </div>
               </div>
 
               <div className="form-group">
                 <label style={{ fontSize: '0.65rem', color: '#ff9000', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>Доп. інфо</label>
-                <input style={{ width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '14px', borderRadius: '12px' }} value={newNom.additional_info || ''} onChange={e => setNewNom({...newNom, additional_info: e.target.value})} placeholder="..." />
+                <input style={{ width: '100%', background: 'var(--surface-black)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', padding: '14px', borderRadius: '12px' }} value={newNom.additional_info || ''} onChange={e => setNewNom({...newNom, additional_info: e.target.value})} placeholder="..." />
               </div>
 
               {newNom.type === 'part' && (
-                <div style={{ background: 'rgba(255,255,255,0.01)', padding: '20px', borderRadius: '16px', border: '1px solid #222', display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                  <div style={{ fontSize: '0.75rem', fontWeight: 900, color: '#3b82f6', borderBottom: '1px solid #222', paddingBottom: '10px' }}>ПАРАМЕТРИ ДЕТАЛІ (ЛАЗЕР)</div>
+                <div style={{ background: 'var(--fill-subtle)', padding: '20px', borderRadius: '16px', border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 900, color: '#3b82f6', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '10px' }}>ПАРАМЕТРИ ДЕТАЛІ (ЛАЗЕР)</div>
                   
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
                     <div className="form-group">
                       <label style={{ fontSize: '0.65rem', color: '#3b82f6', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>МАТЕРІАЛ / ТОВЩИНА</label>
                       <select 
-                        style={{ width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '14px', borderRadius: '12px', appearance: 'none' }} 
+                        style={{ width: '100%', background: 'var(--surface-black)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', padding: '14px', borderRadius: '12px', appearance: 'none' }} 
                         value={newNom.material_type || ''} 
                         onChange={e => setNewNom({...newNom, material_type: e.target.value})} 
                         required
@@ -909,48 +909,48 @@ const NomenclatureModule = () => {
                     </div>
                     <div className="form-group">
                       <label style={{ fontSize: '0.65rem', color: '#3b82f6', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>ЧПК (.DXF)</label>
-                      <input style={{ width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '14px', borderRadius: '12px' }} value={newNom.cnc_program || ''} onChange={e => setNewNom({...newNom, cnc_program: e.target.value})} placeholder="..." />
+                      <input style={{ width: '100%', background: 'var(--surface-black)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', padding: '14px', borderRadius: '12px' }} value={newNom.cnc_program || ''} onChange={e => setNewNom({...newNom, cnc_program: e.target.value})} placeholder="..." />
                     </div>
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
                     <div className="form-group">
                       <label style={{ fontSize: '0.65rem', color: '#3b82f6', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>ШТ/ЛИСТ</label>
-                      <input type="number" step="0.01" style={{ width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '14px', borderRadius: '12px' }} value={newNom.units_per_sheet || ''} onChange={e => setNewNom({...newNom, units_per_sheet: e.target.value})} />
+                      <input type="number" step="0.01" style={{ width: '100%', background: 'var(--surface-black)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', padding: '14px', borderRadius: '12px' }} value={newNom.units_per_sheet || ''} onChange={e => setNewNom({...newNom, units_per_sheet: e.target.value})} />
                     </div>
                     <div className="form-group">
                       <label style={{ fontSize: '0.65rem', color: '#3b82f6', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>ЧАС РОЗКРОЮ/ШТ (ХВ)</label>
-                      <input type="number" step="0.01" style={{ width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '14px', borderRadius: '12px' }} value={newNom.time_per_unit || ''} onChange={e => setNewNom({...newNom, time_per_unit: e.target.value})} />
+                      <input type="number" step="0.01" style={{ width: '100%', background: 'var(--surface-black)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', padding: '14px', borderRadius: '12px' }} value={newNom.time_per_unit || ''} onChange={e => setNewNom({...newNom, time_per_unit: e.target.value})} />
                     </div>
                   </div>
                 </div>
               )}
 
               {newNom.type === 'consumable' && (
-                <div style={{ background: 'rgba(255,255,255,0.01)', padding: '20px', borderRadius: '16px', border: '1px solid #222', display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                  <div style={{ fontSize: '0.75rem', fontWeight: 900, color: '#ef4444', borderBottom: '1px solid #222', paddingBottom: '10px' }}>ПАРАМЕТРИ РОЗХІДНИКА</div>
+                <div style={{ background: 'var(--fill-subtle)', padding: '20px', borderRadius: '16px', border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 900, color: '#ef4444', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '10px' }}>ПАРАМЕТРИ РОЗХІДНИКА</div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
                     <div className="form-group">
                       <label style={{ fontSize: '0.65rem', color: '#ef4444', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>ВИТРАТА НА 1 ЛИСТ (ШТ)</label>
-                      <input type="number" step="0.01" style={{ width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '14px', borderRadius: '12px' }} value={newNom.consumption_per_sheet || ''} onChange={e => setNewNom({...newNom, consumption_per_sheet: e.target.value})} />
+                      <input type="number" step="0.01" style={{ width: '100%', background: 'var(--surface-black)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', padding: '14px', borderRadius: '12px' }} value={newNom.consumption_per_sheet || ''} onChange={e => setNewNom({...newNom, consumption_per_sheet: e.target.value})} />
                     </div>
                     <div className="form-group">
                       <label style={{ fontSize: '0.65rem', color: '#ef4444', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>РЕСУРС (ПРИБЛИЗНО)</label>
-                      <input type="number" step="0.01" style={{ width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '14px', borderRadius: '12px' }} value={newNom.time_per_unit || ''} onChange={e => setNewNom({...newNom, time_per_unit: e.target.value})} />
+                      <input type="number" step="0.01" style={{ width: '100%', background: 'var(--surface-black)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', padding: '14px', borderRadius: '12px' }} value={newNom.time_per_unit || ''} onChange={e => setNewNom({...newNom, time_per_unit: e.target.value})} />
                     </div>
                   </div>
                 </div>
               )}
 
-              <button type="submit" style={{ width: '100%', padding: '18px', background: isEditing ? '#3b82f6' : '#ff9000', color: '#000', border: 'none', borderRadius: '16px', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', fontSize: '1rem', marginTop: '10px' }}>
+              <button type="submit" style={{ width: '100%', padding: '18px', background: isEditing ? '#3b82f6' : '#ff9000', color: 'var(--surface-black)', border: 'none', borderRadius: '16px', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', fontSize: '1rem', marginTop: '10px' }}>
                 {isEditing ? <Check size={20} /> : <Save size={20} />} {isEditing ? 'ОНОВИТИ ПОЗИЦІЮ' : 'ЗБЕРЕГТИ НОВУ ПОЗИЦІЮ'}
               </button>
             </form>
           </div>
 
-          <div className="content-card bom-card glass-panel" style={{ padding: '25px', borderRadius: '24px', background: 'rgba(20,20,20,0.6)', border: '1px solid #222' }}>
+          <div className="content-card bom-card glass-panel" style={{ padding: '25px', borderRadius: '24px', background: 'rgba(20,20,20,0.6)', border: '1px solid var(--border-subtle)' }}>
             <h3 style={{ margin: '0 0 20px', display: 'flex', alignItems: 'center', gap: '10px' }}><Layers size={20} /> Специфікація BOM</h3>
-            <select value={selectedParent} onChange={e => setSelectedParent(e.target.value)} style={{ width: '100%', padding: '15px', background: '#000', border: '1px solid #ff900033', color: '#fff', borderRadius: '12px', fontWeight: 800, marginBottom: '20px' }}>
+            <select value={selectedParent} onChange={e => setSelectedParent(e.target.value)} style={{ width: '100%', padding: '15px', background: 'var(--surface-black)', border: '1px solid #ff900033', color: 'var(--text-strong)', borderRadius: '12px', fontWeight: 800, marginBottom: '20px' }}>
               <option value="">-- Оберіть виріб --</option>
               {nomenclatures.filter(n => n.type === 'product').map(n => <option key={n.id} value={n.id}>{n.name}</option>)}
             </select>
@@ -958,17 +958,17 @@ const NomenclatureModule = () => {
             {selectedParent && (
               <div className="bom-builder">
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 45px', gap: '10px', marginBottom: '20px' }}>
-                  <select style={{ background: '#000', border: '1px solid #222', color: '#fff', padding: '10px', borderRadius: '10px' }} value={partToAdd.child_id} onChange={e => setPartToAdd({...partToAdd, child_id: e.target.value})}>
+                  <select style={{ background: 'var(--surface-black)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', padding: '10px', borderRadius: '10px' }} value={partToAdd.child_id} onChange={e => setPartToAdd({...partToAdd, child_id: e.target.value})}>
                     <option value="">+</option>
                     {nomenclatures.filter(n => n.type === 'part' || n.type === 'hardware').map(n => <option key={n.id} value={n.id}>{n.name}</option>)}
                   </select>
-                  <input type="number" min="0.001" step="any" style={{ background: '#000', border: '1px solid #222', color: '#fff', padding: '10px', borderRadius: '10px', textAlign: 'center' }} value={partToAdd.qty} onChange={e => setPartToAdd({...partToAdd, qty: e.target.value})} />
+                  <input type="number" min="0.001" step="any" style={{ background: 'var(--surface-black)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', padding: '10px', borderRadius: '10px', textAlign: 'center' }} value={partToAdd.qty} onChange={e => setPartToAdd({...partToAdd, qty: e.target.value})} />
                   <button onClick={() => addToDraft('part', partToAdd)} style={{ background: '#ff9000', border: 'none', borderRadius: '10px', cursor: 'pointer' }}><Plus size={16} /></button>
                 </div>
                 <div style={{ maxHeight: '200px', overflowY: 'auto', marginBottom: '20px' }}>
                    {draftBOM.map(d => (
-                     <div key={d.child_id} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px', background: '#111', borderRadius: '8px', marginBottom: '5px' }}>
-                        <span style={{ fontSize: '0.85rem', color: '#888' }}>{nomenclatures.find(n => n.id === d.child_id)?.name}</span>
+                     <div key={d.child_id} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px', background: 'var(--surface-1)', borderRadius: '8px', marginBottom: '5px' }}>
+                        <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{nomenclatures.find(n => n.id === d.child_id)?.name}</span>
                         <div style={{ display: 'flex', gap: '10px' }}>
                            <span style={{ color: '#ff9000', fontWeight: 800 }}>{d.qty} шт</span>
                            <Trash2 size={14} color="#ef4444" style={{ cursor: 'pointer' }} onClick={() => removeFromDraft(d.child_id)} />
@@ -976,7 +976,7 @@ const NomenclatureModule = () => {
                      </div>
                    ))}
                 </div>
-                <button onClick={handleSyncBOM} style={{ width: '100%', padding: '12px', background: hasUnsavedChanges ? '#ff9000' : '#222', color: hasUnsavedChanges ? '#000' : '#555', border: 'none', borderRadius: '10px', fontWeight: 900, cursor: 'pointer' }} disabled={isSyncing || !hasUnsavedChanges}>
+                <button onClick={handleSyncBOM} style={{ width: '100%', padding: '12px', background: hasUnsavedChanges ? '#ff9000' : 'var(--surface-3)', color: hasUnsavedChanges ? 'var(--surface-black)' : '#555', border: 'none', borderRadius: '10px', fontWeight: 900, cursor: 'pointer' }} disabled={isSyncing || !hasUnsavedChanges}>
                   <Save size={16} /> ЗБЕРЕГТИ СКЛАД ВИРОБУ
                 </button>
               </div>
@@ -984,11 +984,11 @@ const NomenclatureModule = () => {
             {!selectedParent && <p style={{ color: '#333', fontSize: '0.8rem', textAlign: 'center', marginTop: '40px' }}>Оберіть виріб зі списку вище для перегляду або редагування його складу (BOM)</p>}
           </div>
 
-          <div className="content-card full-width glass-panel" style={{ padding: '25px', borderRadius: '24px', background: 'rgba(20,20,20,0.6)', border: '1px solid #222', marginTop: '20px' }}>
+          <div className="content-card full-width glass-panel" style={{ padding: '25px', borderRadius: '24px', background: 'rgba(20,20,20,0.6)', border: '1px solid var(--border-subtle)', marginTop: '20px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', flexWrap: 'wrap', gap: '20px' }}>
                <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>
                   <h3 style={{ margin: 0 }}>Реєстр номенклатури</h3>
-                  <div className="filter-pills" style={{ display: 'flex', gap: '8px', background: 'rgba(0,0,0,0.4)', padding: '4px', borderRadius: '12px', border: '1px solid #111', overflowX: 'auto', maxWidth: '100%' }}>
+                  <div className="filter-pills" style={{ display: 'flex', gap: '8px', background: 'var(--fill-inset)', padding: '4px', borderRadius: '12px', border: '1px solid #111', overflowX: 'auto', maxWidth: '100%' }}>
                     <button 
                       onClick={() => setFilterType('all')}
                       className={`filter-pill ${filterType === 'all' ? 'active' : ''}`}
@@ -1008,25 +1008,25 @@ const NomenclatureModule = () => {
                   </div>
                </div>
                <div style={{ position: 'relative' }}>
-                  <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#555' }} />
-                  <input style={{ background: '#000', border: '1px solid #222', padding: '10px 15px 10px 40px', borderRadius: '10px', color: '#fff', width: '250px' }} placeholder="Пошук за назвою..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+                  <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-dim)' }} />
+                  <input style={{ background: 'var(--surface-black)', border: '1px solid var(--border-subtle)', padding: '10px 15px 10px 40px', borderRadius: '10px', color: 'var(--text-strong)', width: '250px' }} placeholder="Пошук за назвою..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
                </div>
             </div>
 
             <div className="table-responsive-container hide-mobile">
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
-                  <tr style={{ background: '#111', borderBottom: '1px solid #222' }}>
-                    <th className="sticky-col" style={{ padding: '15px', textAlign: 'left', fontSize: '0.7rem', color: '#555', textTransform: 'uppercase' }}>Номенклатура</th>
-                    <th style={{ padding: '15px', textAlign: 'left', fontSize: '0.7rem', color: '#555', textTransform: 'uppercase' }}>Характеристика</th>
-                    <th style={{ padding: '15px', textAlign: 'left', fontSize: '0.7rem', color: '#555', textTransform: 'uppercase' }}>Опис</th>
-                    <th style={{ padding: '15px', textAlign: 'center', fontSize: '0.7rem', color: '#555', textTransform: 'uppercase' }}>Кі-ть на од.</th>
-                    <th style={{ padding: '15px', textAlign: 'left', fontSize: '0.7rem', color: '#555', textTransform: 'uppercase' }}>Опціон</th>
-                    <th style={{ padding: '15px', textAlign: 'left', fontSize: '0.7rem', color: '#555', textTransform: 'uppercase' }}>Колір</th>
-                    <th style={{ padding: '15px', textAlign: 'left', fontSize: '0.7rem', color: '#555', textTransform: 'uppercase' }}>Доп. інфо</th>
-                    <th style={{ padding: '15px', textAlign: 'left', fontSize: '0.7rem', color: '#555', textTransform: 'uppercase' }}>Тип</th>
-                    <th style={{ padding: '15px', textAlign: 'left', fontSize: '0.7rem', color: '#555', textTransform: 'uppercase' }}>Тех. параметри</th>
-                    <th style={{ padding: '15px', textAlign: 'center', fontSize: '0.7rem', color: '#555', textTransform: 'uppercase' }}>Дії</th>
+                  <tr style={{ background: 'var(--surface-1)', borderBottom: '1px solid var(--border-subtle)' }}>
+                    <th className="sticky-col" style={{ padding: '15px', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-dim)', textTransform: 'uppercase' }}>Номенклатура</th>
+                    <th style={{ padding: '15px', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-dim)', textTransform: 'uppercase' }}>Характеристика</th>
+                    <th style={{ padding: '15px', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-dim)', textTransform: 'uppercase' }}>Опис</th>
+                    <th style={{ padding: '15px', textAlign: 'center', fontSize: '0.7rem', color: 'var(--text-dim)', textTransform: 'uppercase' }}>Кі-ть на од.</th>
+                    <th style={{ padding: '15px', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-dim)', textTransform: 'uppercase' }}>Опціон</th>
+                    <th style={{ padding: '15px', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-dim)', textTransform: 'uppercase' }}>Колір</th>
+                    <th style={{ padding: '15px', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-dim)', textTransform: 'uppercase' }}>Доп. інфо</th>
+                    <th style={{ padding: '15px', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-dim)', textTransform: 'uppercase' }}>Тип</th>
+                    <th style={{ padding: '15px', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-dim)', textTransform: 'uppercase' }}>Тех. параметри</th>
+                    <th style={{ padding: '15px', textAlign: 'center', fontSize: '0.7rem', color: 'var(--text-dim)', textTransform: 'uppercase' }}>Дії</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1040,7 +1040,7 @@ const NomenclatureModule = () => {
                         key={n.id} 
                         style={{ 
                           borderBottom: '1px solid #151515',
-                          background: n.isFolder ? 'rgba(234, 179, 8, 0.04)' : n.isChild ? 'rgba(255,255,255,0.01)' : 'transparent',
+                          background: n.isFolder ? 'rgba(234, 179, 8, 0.04)' : n.isChild ? 'var(--fill-subtle)' : 'transparent',
                           cursor: n.isFolder ? 'pointer' : 'default',
                           transition: 'background 0.2s'
                         }}
@@ -1057,7 +1057,7 @@ const NomenclatureModule = () => {
                             padding: '15px', 
                             fontWeight: n.isFolder ? 900 : 800,
                             paddingLeft: n.isGrandChild ? '55px' : n.isChild ? '35px' : '15px',
-                            color: n.isFolder ? '#eab308' : n.isChild ? '#aaa' : '#fff'
+                            color: n.isFolder ? '#eab308' : n.isChild ? 'var(--text-muted)' : 'var(--text-strong)'
                           }}
                         >
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -1067,26 +1067,26 @@ const NomenclatureModule = () => {
                             <span>{n.name} {n.isFolder ? `(${n.childrenCount})` : ''}</span>
                           </div>
                         </td>
-                        <td style={{ padding: '15px', color: '#eee' }}>{n.characteristic || '—'}</td>
-                        <td style={{ padding: '15px', color: '#aaa', fontSize: '0.85rem' }}>{n.description || '—'}</td>
+                        <td style={{ padding: '15px', color: 'var(--text-soft)' }}>{n.characteristic || '—'}</td>
+                        <td style={{ padding: '15px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>{n.description || '—'}</td>
                         <td style={{ padding: '15px', textAlign: 'center', color: '#ff9000', fontWeight: 800 }}>{n.qty_per_unit || '0'}</td>
-                        <td style={{ padding: '15px', color: '#999' }}>{n.option_label || '—'}</td>
-                        <td style={{ padding: '15px', color: '#ccc' }}>{n.color || '—'}</td>
+                        <td style={{ padding: '15px', color: 'var(--text-muted)' }}>{n.option_label || '—'}</td>
+                        <td style={{ padding: '15px', color: 'var(--text-soft)' }}>{n.color || '—'}</td>
                         <td style={{ padding: '15px', color: '#777', fontSize: '0.85rem' }}>{n.additional_info || '—'}</td>
                         <td style={{ padding: '15px' }}><span style={{ color: typeInfo?.color, fontSize: '0.65rem', fontWeight: 900 }}>{typeInfo?.label.toUpperCase()}</span></td>
                         <td style={{ padding: '15px', fontSize: '0.8rem' }}>
                           {n.type === 'part' && (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                              <div><span style={{ color: '#555' }}>Мат:</span> <span style={{ color: '#3b82f6' }}>{n.material_type}</span></div>
-                              {n.cnc_program && <div><span style={{ color: '#555' }}>ЧПК:</span> <span style={{ color: '#10b981' }}>{n.cnc_program}</span></div>}
-                              <div><span style={{ color: '#555' }}>Норма:</span> <span style={{ color: '#ccc' }}>{n.units_per_sheet} шт/л</span></div>
-                              <div><span style={{ color: '#555' }}>Час:</span> <span style={{ color: '#ccc' }}>{n.time_per_unit} хв</span></div>
+                              <div><span style={{ color: 'var(--text-dim)' }}>Мат:</span> <span style={{ color: '#3b82f6' }}>{n.material_type}</span></div>
+                              {n.cnc_program && <div><span style={{ color: 'var(--text-dim)' }}>ЧПК:</span> <span style={{ color: '#10b981' }}>{n.cnc_program}</span></div>}
+                              <div><span style={{ color: 'var(--text-dim)' }}>Норма:</span> <span style={{ color: 'var(--text-soft)' }}>{n.units_per_sheet} шт/л</span></div>
+                              <div><span style={{ color: 'var(--text-dim)' }}>Час:</span> <span style={{ color: 'var(--text-soft)' }}>{n.time_per_unit} хв</span></div>
                             </div>
                           )}
                           {n.type === 'consumable' && (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                              <div><span style={{ color: '#555' }}>Витрата:</span> <span style={{ color: '#ef4444' }}>{n.consumption_per_sheet} шт/л</span></div>
-                              <div><span style={{ color: '#555' }}>Ресурс:</span> <span style={{ color: '#ccc' }}>{n.time_per_unit}</span></div>
+                              <div><span style={{ color: 'var(--text-dim)' }}>Витрата:</span> <span style={{ color: '#ef4444' }}>{n.consumption_per_sheet} шт/л</span></div>
+                              <div><span style={{ color: 'var(--text-dim)' }}>Ресурс:</span> <span style={{ color: 'var(--text-soft)' }}>{n.time_per_unit}</span></div>
                             </div>
                           )}
                           {n.type !== 'part' && n.type !== 'consumable' && <span style={{ color: '#333' }}>—</span>}
@@ -1114,11 +1114,11 @@ const NomenclatureModule = () => {
                   <div 
                     key={n.id} 
                     style={{ 
-                      background: n.isFolder ? 'rgba(234, 179, 8, 0.05)' : '#111', 
+                      background: n.isFolder ? 'rgba(234, 179, 8, 0.05)' : 'var(--surface-1)', 
                       padding: '15px', 
                       borderRadius: '15px', 
                       marginBottom: '10px', 
-                      border: `1px solid ${n.isFolder ? '#eab30833' : '#222'}`,
+                      border: `1px solid ${n.isFolder ? '#eab30833' : 'var(--border-subtle)'}`,
                       paddingLeft: n.isChild ? '30px' : '15px',
                       cursor: n.isFolder ? 'pointer' : 'default'
                     }}
@@ -1140,18 +1140,18 @@ const NomenclatureModule = () => {
                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         {n.isFolder && (isExpanded ? <FolderOpen size={16} color="#eab308" /> : <Folder size={16} color="#eab308" />)}
                         {n.isChild && <span style={{ color: '#444' }}>└─</span>}
-                        <strong style={{ color: n.isFolder ? '#eab308' : '#fff' }}>
+                        <strong style={{ color: n.isFolder ? '#eab308' : 'var(--text-strong)' }}>
                           {n.name} {n.isFolder ? `(${n.childrenCount})` : ''}
                         </strong>
                      </div>
-                     {n.characteristic && <div style={{ fontSize: '0.8rem', color: '#eee', marginTop: '5px' }}>Характер.: {n.characteristic}</div>}
-                     {n.description && <div style={{ fontSize: '0.8rem', color: '#aaa' }}>Опис: {n.description}</div>}
+                     {n.characteristic && <div style={{ fontSize: '0.8rem', color: 'var(--text-soft)', marginTop: '5px' }}>Характер.: {n.characteristic}</div>}
+                     {n.description && <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Опис: {n.description}</div>}
                      {n.qty_per_unit && <div style={{ fontSize: '0.8rem', color: '#ff9000' }}>Кі-ть на од.: {n.qty_per_unit}</div>}
-                     {n.option_label && <div style={{ fontSize: '0.8rem', color: '#999' }}>Опціон: {n.option_label}</div>}
-                     {n.color && <div style={{ fontSize: '0.8rem', color: '#ccc' }}>Колір: {n.color}</div>}
+                     {n.option_label && <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Опціон: {n.option_label}</div>}
+                     {n.color && <div style={{ fontSize: '0.8rem', color: 'var(--text-soft)' }}>Колір: {n.color}</div>}
                      {n.additional_info && <div style={{ fontSize: '0.8rem', color: '#777' }}>Доп. інфо: {n.additional_info}</div>}
                      {(n.type === 'part' || n.type === 'consumable') && (
-                        <div style={{ color: '#555', fontSize: '0.8rem', marginTop: '5px', borderTop: '1px solid #222', paddingTop: '5px' }}>
+                        <div style={{ color: 'var(--text-dim)', fontSize: '0.8rem', marginTop: '5px', borderTop: '1px solid var(--border-subtle)', paddingTop: '5px' }}>
                           {n.type === 'part' && (
                             <>
                               <div>Мат: {n.material_type}</div>

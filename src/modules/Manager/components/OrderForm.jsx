@@ -30,7 +30,7 @@ export const OrderForm = ({
         <form onSubmit={handleOrderSubmit} className="order-form-grid-modern">
           <div className="form-group-modern">
             <label>№ ЗАМОВЛЕННЯ</label>
-            <div className="input-wrapper" style={{ background: 'rgba(255,255,255,0.02)' }}>
+            <div className="input-wrapper" style={{ background: 'var(--fill-subtle)' }}>
               <Package size={16} />
               <input value={orderHeader.orderNum} readOnly style={{ opacity: 0.7, cursor: 'not-allowed' }} placeholder="Генерується автоматично..." />
             </div>

@@ -60,7 +60,7 @@ export function Shop2BufferTab({
             <Package size={18} color={isDark ? '#c4b5fd' : '#7c3aed'} />
           </div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-            <span style={{ fontSize: '2.2rem', fontWeight: 1000, color: isDark ? '#ffffff' : '#4c1d95', lineHeight: 1 }}>
+            <span style={{ fontSize: '2.2rem', fontWeight: 1000, color: isDark ? 'var(--text-strong)' : '#4c1d95', lineHeight: 1 }}>
               {totalShop2BufferParts.toLocaleString('uk-UA')}
             </span>
             <span style={{ fontSize: '0.9rem', fontWeight: 800, color: isDark ? '#c4b5fd' : '#6d28d9' }}>шт</span>

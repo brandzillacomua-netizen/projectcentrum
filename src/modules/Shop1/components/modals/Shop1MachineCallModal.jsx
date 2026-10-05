@@ -33,8 +33,8 @@ export function Shop1MachineCallModal({
       padding: '20px'
     }}>
       <div style={{
-        background: '#141414',
-        border: '1px solid #333',
+        background: 'var(--surface-1)',
+        border: '1px solid var(--border-subtle)',
         borderRadius: '24px',
         width: '100%',
         maxWidth: '450px',
@@ -50,7 +50,7 @@ export function Shop1MachineCallModal({
             right: '20px',
             background: 'none',
             border: 'none',
-            color: '#888',
+            color: 'var(--text-muted)',
             cursor: 'pointer',
             padding: '5px'
           }}
@@ -63,7 +63,7 @@ export function Shop1MachineCallModal({
             <AlertTriangle size={32} />
           </div>
           <div>
-            <h3 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 800, color: '#fff' }}>
+            <h3 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-strong)' }}>
               {machineCallModal.type}
             </h3>
             <p style={{ margin: '4px 0 0 0', color: '#f59e0b', fontWeight: 800, fontSize: '0.95rem' }}>
@@ -90,7 +90,7 @@ export function Shop1MachineCallModal({
           </div>
         ) : (
           <>
-            <p style={{ color: '#aaa', fontSize: '0.9rem', marginBottom: '20px', lineHeight: '1.5' }}>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '20px', lineHeight: '1.5' }}>
               Оберіть кого саме викликати до верстату. Виклик з'явиться на дашборді майстра та інженерів в реальному часі.
             </p>
 
@@ -122,10 +122,10 @@ export function Shop1MachineCallModal({
                   value={selectedCallMasterId}
                   onChange={e => setSelectedCallMasterId(e.target.value)}
                   style={{
-                    background: '#18181b',
+                    background: 'var(--surface-2)',
                     border: '1px solid #27272a',
                     borderRadius: '10px',
-                    color: '#fff',
+                    color: 'var(--text-strong)',
                     padding: '10px',
                     fontSize: '0.9rem',
                     outline: 'none'
@@ -167,10 +167,10 @@ export function Shop1MachineCallModal({
                   value={selectedCallEngineerId}
                   onChange={e => setSelectedCallEngineerId(e.target.value)}
                   style={{
-                    background: '#18181b',
+                    background: 'var(--surface-2)',
                     border: '1px solid #27272a',
                     borderRadius: '10px',
-                    color: '#fff',
+                    color: 'var(--text-strong)',
                     padding: '10px',
                     fontSize: '0.9rem',
                     outline: 'none'
@@ -212,10 +212,10 @@ export function Shop1MachineCallModal({
                   value={selectedCallQCId}
                   onChange={e => setSelectedCallQCId(e.target.value)}
                   style={{
-                    background: '#18181b',
+                    background: 'var(--surface-2)',
                     border: '1px solid #27272a',
                     borderRadius: '10px',
-                    color: '#fff',
+                    color: 'var(--text-strong)',
                     padding: '10px',
                     fontSize: '0.9rem',
                     outline: 'none'

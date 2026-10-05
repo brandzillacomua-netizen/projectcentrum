@@ -17,18 +17,18 @@ export function MasterMachineCallsModal({
         {activeCalls.map(c => {
           const mach = (machines || []).find(m => m.id === c.machine_id)
           return (
-            <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#111', border: '1px solid #222', borderRadius: '12px', padding: '12px 15px', flexWrap: 'wrap', gap: '10px' }}>
+            <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--surface-1)', border: '1px solid var(--border-subtle)', borderRadius: '12px', padding: '12px 15px', flexWrap: 'wrap', gap: '10px' }}>
               <div>
-                <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#fff' }}>
+                <div style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-strong)' }}>
                   {mach ? mach.name : 'Верстат'} (пор. №{mach?.sequence_number || '—'})
                 </div>
-                <div style={{ fontSize: '0.75rem', color: '#888', marginTop: '2px' }}>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
                   Локація: {mach?.floor || '—'} поверх | Викликав: {c.operator_name || 'Оператор'}
                   {c.called_employee_name && <span style={{ color: '#8b5cf6', fontWeight: 800 }}> | Цільовий для: {c.called_employee_name}</span>}
                 </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                <span style={{ fontSize: '0.75rem', color: '#666', fontWeight: 700 }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)', fontWeight: 700 }}>
                   {new Date(c.created_at).toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' })}
                 </span>
                 <button

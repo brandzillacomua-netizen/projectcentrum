@@ -1653,7 +1653,7 @@ export const NomenclatureCardModal = ({
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', fontSize: '0.72rem' }}>
                               {parentNom?.code && (
-                                <span style={{ fontFamily: 'monospace', fontWeight: 800, color: 'var(--text-muted, #64748b)', background: '#fff', padding: '1px 6px', borderRadius: '4px', border: '1px solid var(--border-color, #e2e8f0)' }}>
+                                <span style={{ fontFamily: 'monospace', fontWeight: 800, color: 'var(--text-muted, #64748b)', background: 'var(--text-strong)', padding: '1px 6px', borderRadius: '4px', border: '1px solid var(--border-color, #e2e8f0)' }}>
                                   {parentNom.code}
                                 </span>
                               )}

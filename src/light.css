@@ -1,4 +1,4 @@
-.light-theme {
+﻿.light-theme {
   --bg: #f0f2f7;
   --card-bg: #ffffff;
   --glass-border: #dde3ef;
@@ -6709,3 +6709,23 @@ body.light-theme .s1-card-detail-view .s1-planned-quantity-value small {
   color: #475569 !important;
   opacity: 1 !important;
 }
+
+/* ===== Semantic theme tokens (light values) ===== */
+.light-theme {
+  --surface-black: #e2e8f0;
+  --surface-inset: #f1f5f9;
+  --surface-1: #ffffff;
+  --surface-2: #f8fafc;
+  --surface-3: #e2e8f0;
+  --border-subtle: #dde3ef;
+  --fill-subtle: rgba(15, 23, 42, 0.04);
+  --fill-inset: rgba(15, 23, 42, 0.05);
+  --text-strong: #0f172a;
+  --text-soft: #334155;
+  --text-dim: #64748b;
+  --input-bg: #ffffff;
+  --card-header-bg: #f8fafc;
+  --button-bg: #f1f5f9;
+}
+.light-theme { --card-hover: #f1f5f9; }
+

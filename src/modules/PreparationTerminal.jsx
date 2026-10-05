@@ -53,13 +53,13 @@ const PreparationTerminal = () => {
             key={sub.id}
             onClick={() => handleSelectSubTask(sub.id)}
             style={{
-              background: isActive ? '#10b981' : '#1a1a1a',
+              background: isActive ? '#10b981' : 'var(--surface-2)',
               borderRadius: '12px',
               padding: '15px',
               marginBottom: '10px',
               cursor: 'pointer',
               border: '1px solid',
-              borderColor: isActive ? '#10b981' : '#333',
+              borderColor: isActive ? '#10b981' : 'var(--border-subtle)',
               color: isActive ? '#000' : '#fff',
               transition: '0.2s'
             }}
@@ -73,7 +73,7 @@ const PreparationTerminal = () => {
             <div style={{ fontSize: '0.7rem', opacity: 0.8, marginBottom: '8px' }}>ПЛАН: {sub.plan} шт.</div>
             <span style={{
               fontSize: '0.6rem',
-              background: isActive ? 'rgba(0,0,0,0.2)' : 'rgba(16, 185, 129, 0.1)',
+              background: isActive ? 'var(--fill-inset)' : 'rgba(16, 185, 129, 0.1)',
               color: isActive ? '#000' : '#10b981',
               padding: '3px 8px',
               borderRadius: '6px',
@@ -90,12 +90,12 @@ const PreparationTerminal = () => {
   const renderMonitoringTable = () => (
     <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
       <h2 style={{ fontSize: '1.8rem', fontWeight: 950, marginBottom: '25px' }}>МОНІТОРИНГ ВІДДІЛУ ПІДГОТОВКИ</h2>
-      <div style={{ background: '#111', borderRadius: '24px', border: '1px solid #222', overflowX: 'auto' }}>
-        <div style={{ padding: '25px', borderBottom: '1px solid #222' }}>
+      <div style={{ background: 'var(--surface-1)', borderRadius: '24px', border: '1px solid var(--border-subtle)', overflowX: 'auto' }}>
+        <div style={{ padding: '25px', borderBottom: '1px solid var(--border-subtle)' }}>
           <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 900 }}>В РОБОТІ ТА БУФЕРІ</h3>
         </div>
         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '800px' }}>
-          <thead style={{ background: '#0a0a0a', fontSize: '0.65rem', fontWeight: 900, color: '#555', textTransform: 'uppercase' }}>
+          <thead style={{ background: 'var(--surface-inset)', fontSize: '0.65rem', fontWeight: 900, color: '#555', textTransform: 'uppercase' }}>
             <tr>
               <th style={{ padding: '12px 15px' }}>ДЕТАЛЬ</th>
               <th style={{ padding: '12px 15px' }}>СТАТУС</th>
@@ -113,7 +113,7 @@ const PreparationTerminal = () => {
               const operatorName = subTaskSnapshot?.operator || '—'
               const shiftName = subTaskSnapshot?.shift || '—'
               return (
-                <tr key={sub.id} style={{ borderBottom: '1px solid #1a1a1a', fontSize: '0.85rem' }}>
+                <tr key={sub.id} style={{ borderBottom: '1px solid var(--border-subtle)', fontSize: '0.85rem' }}>
                   <td style={{ padding: '12px 15px', fontWeight: 800, fontSize: '0.75rem' }}>{sub.name}</td>
                   <td style={{ padding: '12px 15px' }}>
                     <span style={{
@@ -128,15 +128,15 @@ const PreparationTerminal = () => {
                     </span>
                   </td>
                   <td style={{ padding: '12px 15px', fontWeight: 900 }}>{sub.plan} шт</td>
-                  <td style={{ padding: '12px 15px', color: '#888' }}>{shiftName}</td>
-                  <td style={{ padding: '12px 15px', color: '#aaa' }}>{operatorName}</td>
+                  <td style={{ padding: '12px 15px', color: 'var(--text-muted)' }}>{shiftName}</td>
+                  <td style={{ padding: '12px 15px', color: 'var(--text-muted)' }}>{operatorName}</td>
                   <td style={{ padding: '12px 15px', color: '#10b981' }}>
                     {sub.status === 'in-progress' ? formatElapsedTime(startedAt) : '—'}
                   </td>
                   <td style={{ padding: '12px 15px', textAlign: 'right' }}>
                     <button
                       onClick={() => handleSelectSubTask(sub.id)}
-                      style={{ background: '#10b981', border: 'none', color: '#000', padding: '10px', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                      style={{ background: '#10b981', border: 'none', color: 'var(--surface-black)', padding: '10px', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                       title="Відкрити"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -159,9 +159,9 @@ const PreparationTerminal = () => {
   )
 
   return (
-    <div style={{ background: '#0a0a0a', height: '100vh', display: 'flex', flexDirection: 'column', color: '#fff', overflow: 'hidden' }}>
+    <div style={{ background: 'var(--surface-inset)', height: '100vh', display: 'flex', flexDirection: 'column', color: 'var(--text-strong)', overflow: 'hidden' }}>
       {/* HEADER */}
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 20px', height: '70px', background: '#000', borderBottom: '2px solid #10b981', flexShrink: 0 }}>
+      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 20px', height: '70px', background: 'var(--surface-black)', borderBottom: '2px solid #10b981', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
           <Link to="/" style={{ color: '#94a3b8', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, fontSize: '0.85rem' }}>
             <ArrowLeft size={18} /> <span className="hide-mobile">Вихід</span>
@@ -192,8 +192,8 @@ const PreparationTerminal = () => {
       <div className="main-layout-responsive" style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
 
         {/* SIDEBAR — desktop only */}
-        <div className="side-panel hide-mobile" style={{ width: '350px', background: '#121212', borderRight: '1px solid #222', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
-          <div style={{ padding: '20px', fontSize: '0.75rem', textTransform: 'uppercase', fontWeight: 900, color: '#555', display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div className="side-panel hide-mobile" style={{ width: '350px', background: 'var(--surface-1)', borderRight: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+          <div style={{ padding: '20px', fontSize: '0.75rem', textTransform: 'uppercase', fontWeight: 900, color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: '10px' }}>
             <ClipboardList size={16} /> ЗАВДАННЯ В ЧЕРЗІ ({prepSubTasks.length})
           </div>
           {renderQueue()}
@@ -212,13 +212,13 @@ const PreparationTerminal = () => {
           top: 0,
           bottom: 0,
           width: '320px',
-          background: '#121212',
+          background: 'var(--surface-1)',
           zIndex: 100000,
           transition: '0.3s',
           display: 'flex',
           flexDirection: 'column'
         }}>
-          <div style={{ padding: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #222' }}>
+          <div style={{ padding: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-subtle)' }}>
             <span style={{ fontSize: '0.8rem', fontWeight: 900 }}>ОБЕРІТЬ ЗАВДАННЯ</span>
             <X size={20} onClick={() => setIsDrawerOpen(false)} style={{ cursor: 'pointer' }} />
           </div>
@@ -250,38 +250,38 @@ const PreparationTerminal = () => {
                   <div style={{ fontSize: '1.1rem', color: '#10b981', fontWeight: 800, marginTop: '5px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                     ПІДГОТОВКА СИРОВИНИ
                   </div>
-                  <div style={{ fontSize: 'clamp(1rem, 3vw, 1.35rem)', color: '#eee', marginTop: '15px', fontWeight: 900 }}>
+                  <div style={{ fontSize: 'clamp(1rem, 3vw, 1.35rem)', color: 'var(--text-soft)', marginTop: '15px', fontWeight: 900 }}>
                     Деталь: <span style={{ color: '#ff9000' }}>{currentSubTask.name}</span>
                   </div>
                 </div>
                 <button
                   onClick={() => { setSelectedSubTaskId(null); setHasUserDeselected(true) }}
-                  style={{ background: '#111', border: 'none', color: '#555', padding: '10px', borderRadius: '12px', cursor: 'pointer', flexShrink: 0 }}
+                  style={{ background: 'var(--surface-1)', border: 'none', color: '#555', padding: '10px', borderRadius: '12px', cursor: 'pointer', flexShrink: 0 }}
                 >
                   <X size={24} />
                 </button>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '15px', marginBottom: '30px' }}>
-                <div style={{ background: '#111', border: '1px solid #222', borderRadius: '16px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                  <div style={{ fontSize: '0.7rem', color: '#555', fontWeight: 900 }}>ПЛАНОВА КІЛЬКІСТЬ</div>
+                <div style={{ background: 'var(--surface-1)', border: '1px solid var(--border-subtle)', borderRadius: '16px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', fontWeight: 900 }}>ПЛАНОВА КІЛЬКІСТЬ</div>
                   <div style={{ fontSize: '1.8rem', fontWeight: 950, color: '#3b82f6' }}>{currentSubTask.plan} шт</div>
                 </div>
-                <div style={{ background: '#111', border: '1px solid #222', borderRadius: '16px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                  <div style={{ fontSize: '0.7rem', color: '#555', fontWeight: 900 }}>ОБЛАДНАННЯ</div>
-                  <div style={{ fontSize: '1.3rem', fontWeight: 900, color: '#fff' }}>{currentSubTask.task.machine_name || '—'}</div>
+                <div style={{ background: 'var(--surface-1)', border: '1px solid var(--border-subtle)', borderRadius: '16px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', fontWeight: 900 }}>ОБЛАДНАННЯ</div>
+                  <div style={{ fontSize: '1.3rem', fontWeight: 900, color: 'var(--text-strong)' }}>{currentSubTask.task.machine_name || '—'}</div>
                 </div>
               </div>
 
-              <div style={{ background: 'rgba(255,255,255,0.02)', padding: 'clamp(15px, 4vw, 30px)', borderRadius: '24px', border: '1px solid #222' }}>
+              <div style={{ background: 'var(--fill-subtle)', padding: 'clamp(15px, 4vw, 30px)', borderRadius: '24px', border: '1px solid var(--border-subtle)' }}>
                 {currentSubTask.status === 'new' ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
                     <div>
-                      <label style={{ color: '#555', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', display: 'block', marginBottom: '10px' }}>Зміна</label>
+                      <label style={{ color: 'var(--text-dim)', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', display: 'block', marginBottom: '10px' }}>Зміна</label>
                       <select
                         value={selectedShift}
                         onChange={e => { setSelectedShift(e.target.value); setSelectedOperator('') }}
-                        style={{ width: '100%', background: '#0a0a0a', border: '1px solid #333', color: '#10b981', padding: '15px', borderRadius: '15px', fontSize: '1.1rem', fontWeight: 800 }}
+                        style={{ width: '100%', background: 'var(--surface-inset)', border: '1px solid var(--border-subtle)', color: '#10b981', padding: '15px', borderRadius: '15px', fontSize: '1.1rem', fontWeight: 800 }}
                       >
                         <option value="">— Оберіть зміну —</option>
                         <option value="Зміна 1">Зміна 1</option>
@@ -293,12 +293,12 @@ const PreparationTerminal = () => {
                     </div>
 
                     <div>
-                      <label style={{ color: '#555', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', display: 'block', marginBottom: '10px' }}>ПРАЦІВНИК ВП (АВТОРИЗАЦІЯ)</label>
+                      <label style={{ color: 'var(--text-dim)', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', display: 'block', marginBottom: '10px' }}>ПРАЦІВНИК ВП (АВТОРИЗАЦІЯ)</label>
                       <select
                         value={selectedOperator}
                         onChange={e => setSelectedOperator(e.target.value)}
                         disabled={!selectedShift}
-                        style={{ width: '100%', background: '#0a0a0a', border: '1px solid #333', color: '#10b981', padding: '15px', borderRadius: '15px', fontSize: '1.1rem', fontWeight: 800, opacity: selectedShift ? 1 : 0.5, cursor: selectedShift ? 'pointer' : 'not-allowed' }}
+                        style={{ width: '100%', background: 'var(--surface-inset)', border: '1px solid var(--border-subtle)', color: '#10b981', padding: '15px', borderRadius: '15px', fontSize: '1.1rem', fontWeight: 800, opacity: selectedShift ? 1 : 0.5, cursor: selectedShift ? 'pointer' : 'not-allowed' }}
                       >
                         <option value="">{selectedShift ? '— Оберіть працівника —' : '— Спочатку оберіть зміну —'}</option>
                         {prepOperators.map(o => <option key={o} value={o}>{o}</option>)}
@@ -333,11 +333,11 @@ const PreparationTerminal = () => {
                     <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: 'rgba(16, 185, 129, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981' }}>
                       <CheckCircle size={40} />
                     </div>
-                    <h3 style={{ margin: 0, fontSize: '1.5rem', color: '#fff' }}>ПРОЦЕС ВИКОНУЄТЬСЯ...</h3>
-                    <div style={{ fontSize: '1rem', color: '#888', marginTop: '-10px' }}>
-                      Працівник: <strong style={{ color: '#fff' }}>{currentSubTask.operator}</strong>
+                    <h3 style={{ margin: 0, fontSize: '1.5rem', color: 'var(--text-strong)' }}>ПРОЦЕС ВИКОНУЄТЬСЯ...</h3>
+                    <div style={{ fontSize: '1rem', color: 'var(--text-muted)', marginTop: '-10px' }}>
+                      Працівник: <strong style={{ color: 'var(--text-strong)' }}>{currentSubTask.operator}</strong>
                     </div>
-                    <div style={{ fontSize: 'clamp(3rem, 10vw, 4.5rem)', fontWeight: 1000, color: '#fff', fontFamily: 'monospace', letterSpacing: '-2px', margin: '15px 0' }}>
+                    <div style={{ fontSize: 'clamp(3rem, 10vw, 4.5rem)', fontWeight: 1000, color: 'var(--text-strong)', fontFamily: 'monospace', letterSpacing: '-2px', margin: '15px 0' }}>
                       {formatElapsedTime(currentSubTask.task?.plan_snapshot?.[currentSubTask.nomenclatureId]?.started_at)}
                     </div>
                     <button
@@ -365,17 +365,17 @@ const PreparationTerminal = () => {
 
         return (
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-            <div style={{ background: '#0a0a0a', width: '100%', maxWidth: '520px', borderRadius: '24px', border: '1px solid #333', padding: '30px', position: 'relative' }}>
+            <div style={{ background: 'var(--surface-inset)', width: '100%', maxWidth: '520px', borderRadius: '24px', border: '1px solid var(--border-subtle)', padding: '30px', position: 'relative' }}>
               <button onClick={() => setShowCompleteModal(false)} style={{ position: 'absolute', top: '20px', right: '20px', background: 'transparent', border: 'none', color: '#555', cursor: 'pointer' }}>
                 <X size={24} />
               </button>
               <h2 style={{ margin: '0 0 15px', fontSize: '1.6rem', color: '#10b981', fontWeight: 950 }}>ЗАКРИТТЯ ЗАДАЧІ ПІДГОТОВКИ</h2>
 
-              <div style={{ background: '#141414', border: '1px solid #282828', borderRadius: '16px', padding: '16px', marginBottom: '20px' }}>
-                <div style={{ fontSize: '0.72rem', color: '#888', fontWeight: 900, textTransform: 'uppercase' }}>Вхідна сировина (Склад СВ):</div>
+              <div style={{ background: 'var(--surface-1)', border: '1px solid #282828', borderRadius: '16px', padding: '16px', marginBottom: '20px' }}>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 900, textTransform: 'uppercase' }}>Вхідна сировина (Склад СВ):</div>
                 <div style={{ fontSize: '1.05rem', color: '#ff9000', fontWeight: 900, marginTop: '4px' }}>{currentSubTask.name}</div>
-                <div style={{ fontSize: '0.8rem', color: '#aaa', marginTop: '4px' }}>
-                  Взято на переділ: <strong style={{ color: '#fff' }}>{currentSubTask.plan} шт.</strong>
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                  Взято на переділ: <strong style={{ color: 'var(--text-strong)' }}>{currentSubTask.plan} шт.</strong>
                 </div>
                 {yieldRatio > 1 && (
                   <div style={{ background: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.3)', color: '#10b981', padding: '8px 12px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 800, marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -385,16 +385,16 @@ const PreparationTerminal = () => {
               </div>
 
               <div style={{ marginBottom: '20px' }}>
-                <div style={{ fontSize: '0.75rem', color: '#888', fontWeight: 900, textTransform: 'uppercase', marginBottom: '4px' }}>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 900, textTransform: 'uppercase', marginBottom: '4px' }}>
                   Оприбуткування на Склад Оперативний (СО):
                 </div>
                 <div style={{ fontSize: '1.05rem', color: '#10b981', fontWeight: 900, marginBottom: '8px' }}>
                   {targetSheetName}
                 </div>
-                <div style={{ width: '100%', background: '#111', border: '1px solid #10b981', color: '#10b981', padding: '16px', borderRadius: '16px', fontSize: '2.2rem', fontWeight: 950, textAlign: 'center', boxSizing: 'border-box' }}>
+                <div style={{ width: '100%', background: 'var(--surface-1)', border: '1px solid #10b981', color: '#10b981', padding: '16px', borderRadius: '16px', fontSize: '2.2rem', fontWeight: 950, textAlign: 'center', boxSizing: 'border-box' }}>
                   {readySheets} листів
                 </div>
-                <div style={{ fontSize: '0.72rem', color: '#666', marginTop: '6px', textAlign: 'center' }}>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-dim)', marginTop: '6px', textAlign: 'center' }}>
                   Вихід: {currentSubTask.plan} пл. × {yieldRatio} {scrapQty > 0 ? `- ${scrapQty} брак` : ''} = {readySheets} шт.
                 </div>
               </div>
@@ -413,7 +413,7 @@ const PreparationTerminal = () => {
                     const num = Math.max(0, Math.min(maxScrapPossible, isNaN(parsed) ? 0 : parsed))
                     setScrapQty(num)
                   }}
-                  style={{ width: '100%', background: '#111', border: '1px solid #ef4444', color: '#ef4444', padding: '14px', borderRadius: '14px', fontSize: '1.6rem', fontWeight: 950, textAlign: 'center', boxSizing: 'border-box' }}
+                  style={{ width: '100%', background: 'var(--surface-1)', border: '1px solid #ef4444', color: '#ef4444', padding: '14px', borderRadius: '14px', fontSize: '1.6rem', fontWeight: 950, textAlign: 'center', boxSizing: 'border-box' }}
                 />
               </div>
 
@@ -425,7 +425,7 @@ const PreparationTerminal = () => {
                     value={scrapReason}
                     onChange={e => setScrapReason(e.target.value)}
                     placeholder="Вкажіть причину браку..."
-                    style={{ width: '100%', background: '#111', border: '1px solid #ff9000', color: '#fff', padding: '12px 15px', borderRadius: '14px', fontSize: '0.95rem', boxSizing: 'border-box' }}
+                    style={{ width: '100%', background: 'var(--surface-1)', border: '1px solid #ff9000', color: 'var(--text-strong)', padding: '12px 15px', borderRadius: '14px', fontSize: '0.95rem', boxSizing: 'border-box' }}
                     required
                   />
                 </div>

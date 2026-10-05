@@ -30,7 +30,7 @@ export const BrakReportPage = React.memo(({
       {/* Header */}
       <nav style={{ 
         display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
-        padding: '0 25px', height: '75px', background: 'var(--header-bg, #000)', borderBottom: '1px solid var(--border-color, #1a1a1a)', flexShrink: 0 
+        padding: '0 25px', height: '75px', background: 'var(--header-bg, #000)', borderBottom: '1px solid var(--border-color, var(--border-subtle))', flexShrink: 0 
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
           <button 
@@ -55,7 +55,7 @@ export const BrakReportPage = React.memo(({
 
       {/* Filter Bar */}
       <div className="report-filters-bar" style={{ display: 'flex', gap: '15px', alignItems: 'center', flexWrap: 'wrap', background: 'var(--card-inner-bg, #000)', padding: '15px 25px', borderBottom: '1px solid var(--border-color, #111)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'var(--card-bg, #111)', border: '1px solid var(--border-color, #222)', padding: '8px 12px', borderRadius: '10px', width: '220px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'var(--card-bg, #111)', border: '1px solid var(--border-color, var(--border-subtle))', padding: '8px 12px', borderRadius: '10px', width: '220px' }}>
           <Search size={16} color="#555" />
           <input 
             type="text" 
@@ -69,7 +69,7 @@ export const BrakReportPage = React.memo(({
         <select 
           value={reportSelectedShiftFilter} 
           onChange={e => setReportSelectedShiftFilter(e.target.value)}
-          style={{ background: 'var(--card-bg, #111)', border: '1px solid var(--border-color, #222)', color: 'var(--text-color, #fff)', padding: '10px 15px', borderRadius: '10px', fontSize: '0.85rem', outline: 'none' }}
+          style={{ background: 'var(--card-bg, #111)', border: '1px solid var(--border-color, var(--border-subtle))', color: 'var(--text-color, #fff)', padding: '10px 15px', borderRadius: '10px', fontSize: '0.85rem', outline: 'none' }}
         >
           <option value="all">— Всі зміни —</option>
           <option value="Зміна 1">Зміна 1</option>
@@ -82,13 +82,13 @@ export const BrakReportPage = React.memo(({
         <select 
           value={reportSelectedEmployeeFilter} 
           onChange={e => setReportSelectedEmployeeFilter(e.target.value)}
-          style={{ background: 'var(--card-bg, #111)', border: '1px solid var(--border-color, #222)', color: 'var(--text-color, #fff)', padding: '10px 15px', borderRadius: '10px', fontSize: '0.85rem', outline: 'none', maxWidth: '200px' }}
+          style={{ background: 'var(--card-bg, #111)', border: '1px solid var(--border-color, var(--border-subtle))', color: 'var(--text-color, #fff)', padding: '10px 15px', borderRadius: '10px', fontSize: '0.85rem', outline: 'none', maxWidth: '200px' }}
         >
           <option value="all">— Всі працівники —</option>
           {reportUniqueOperators.map(op => <option key={op} value={op}>{op}</option>)}
         </select>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'var(--card-bg, #111)', border: '1px solid var(--border-color, #222)', padding: '8px 15px', borderRadius: '10px', fontSize: '0.85rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'var(--card-bg, #111)', border: '1px solid var(--border-color, var(--border-subtle))', padding: '8px 15px', borderRadius: '10px', fontSize: '0.85rem' }}>
           <Calendar size={16} color="#555" />
           <span style={{ color: 'var(--text-muted, #666)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 800 }}>Період:</span>
           <input 
@@ -109,7 +109,7 @@ export const BrakReportPage = React.memo(({
         <select 
           value={reportQuickPeriod} 
           onChange={handleReportQuickDateSelect}
-          style={{ background: 'var(--card-bg, #111)', border: '1px solid var(--border-color, #222)', color: '#ff9000', padding: '10px 15px', borderRadius: '10px', fontSize: '0.85rem', outline: 'none', fontWeight: 800 }}
+          style={{ background: 'var(--card-bg, #111)', border: '1px solid var(--border-color, var(--border-subtle))', color: '#ff9000', padding: '10px 15px', borderRadius: '10px', fontSize: '0.85rem', outline: 'none', fontWeight: 800 }}
         >
           <option value="">ОБРАТИ ПЕРІОД</option>
           <option value="today">Сьогодні</option>
@@ -135,7 +135,7 @@ export const BrakReportPage = React.memo(({
           <div className="report-main-columns" style={{ display: 'flex', gap: '20px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
             {/* Left Column: Totals & Stages */}
             <div className="report-left-column" style={{ flex: '1 1 300px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              <div style={{ background: 'var(--card-bg, #111)', padding: '20px', borderRadius: '16px', border: '1px solid var(--border-color, #222)' }}>
+              <div style={{ background: 'var(--card-bg, #111)', padding: '20px', borderRadius: '16px', border: '1px solid var(--border-color, var(--border-subtle))' }}>
                 <h4 style={{ margin: '0 0 15px', color: '#ef4444', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '8px', textTransform: 'uppercase', fontWeight: 900 }}>
                   <AlertTriangle size={18} /> Загальний облік браку
                 </h4>
@@ -144,10 +144,10 @@ export const BrakReportPage = React.memo(({
                 </div>
               </div>
 
-              <div style={{ background: 'var(--card-bg, #111)', padding: '20px', borderRadius: '16px', border: '1px solid var(--border-color, #222)' }}>
+              <div style={{ background: 'var(--card-bg, #111)', padding: '20px', borderRadius: '16px', border: '1px solid var(--border-color, var(--border-subtle))' }}>
                 <h4 style={{ margin: '0 0 15px', fontSize: '0.78rem', color: 'var(--text-muted, #a1a1aa)', textTransform: 'uppercase', fontWeight: 900 }}>Брак по етапах</h4>
                 {Object.entries(reportScrapStats.byStage).map(([stage, count]) => (
-                  <div key={stage} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', padding: '10px', background: 'var(--card-inner-bg, #09090b)', borderRadius: '8px', border: '1px solid var(--border-color, #222)' }}>
+                  <div key={stage} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', padding: '10px', background: 'var(--card-inner-bg, #09090b)', borderRadius: '8px', border: '1px solid var(--border-color, var(--border-subtle))' }}>
                     <span style={{ color: 'var(--text-color, #d4d4d8)', fontSize: '0.82rem', fontWeight: 700 }}>{stage}</span>
                     <strong style={{ color: '#ef4444', fontSize: '0.85rem' }}>{count} од.</strong>
                   </div>
@@ -156,8 +156,8 @@ export const BrakReportPage = React.memo(({
             </div>
 
             {/* Right Column: Toggle Tabs & Tables */}
-            <div className="report-right-column" style={{ flex: '2 2 600px', background: 'var(--card-bg, #111)', padding: '20px', borderRadius: '16px', border: '1px solid var(--border-color, #222)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', borderBottom: '1px solid var(--border-color, #222)', paddingBottom: '10px' }}>
+            <div className="report-right-column" style={{ flex: '2 2 600px', background: 'var(--card-bg, #111)', padding: '20px', borderRadius: '16px', border: '1px solid var(--border-color, var(--border-subtle))' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', borderBottom: '1px solid var(--border-color, var(--border-subtle))', paddingBottom: '10px' }}>
                 <h4 style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted, #a1a1aa)', textTransform: 'uppercase', fontWeight: 900 }}>
                   {scrapReportSubTab === 'cases' ? 'Деталізація випадків' : 'Аналітика причин браку'}
                 </h4>
@@ -166,7 +166,7 @@ export const BrakReportPage = React.memo(({
                     onClick={() => setScrapReportSubTab('cases')}
                     style={{
                       background: scrapReportSubTab === 'cases' ? '#ef4444' : 'transparent',
-                      color: '#fff', border: scrapReportSubTab === 'cases' ? 'none' : '1px solid var(--border-color, #222)',
+                      color: '#fff', border: scrapReportSubTab === 'cases' ? 'none' : '1px solid var(--border-color, var(--border-subtle))',
                       padding: '6px 14px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 800, cursor: 'pointer'
                     }}
                   >
@@ -176,7 +176,7 @@ export const BrakReportPage = React.memo(({
                     onClick={() => setScrapReportSubTab('reasons')}
                     style={{
                       background: scrapReportSubTab === 'reasons' ? '#ef4444' : 'transparent',
-                      color: '#fff', border: scrapReportSubTab === 'reasons' ? 'none' : '1px solid var(--border-color, #222)',
+                      color: '#fff', border: scrapReportSubTab === 'reasons' ? 'none' : '1px solid var(--border-color, var(--border-subtle))',
                       padding: '6px 14px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 800, cursor: 'pointer'
                     }}
                   >
@@ -189,7 +189,7 @@ export const BrakReportPage = React.memo(({
                 <div style={{ overflowX: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', minWidth: '550px' }}>
                     <thead>
-                      <tr style={{ color: 'var(--text-muted, #71717a)', textAlign: 'left', borderBottom: '2px solid var(--border-color, #222)' }}>
+                      <tr style={{ color: 'var(--text-muted, #71717a)', textAlign: 'left', borderBottom: '2px solid var(--border-color, var(--border-subtle))' }}>
                         <th style={{ padding: '10px 8px' }}>Дата</th>
                         <th style={{ padding: '10px 8px' }}>Деталь</th>
                         <th style={{ padding: '10px 8px' }}>Оператор</th>
@@ -202,7 +202,7 @@ export const BrakReportPage = React.memo(({
                     </thead>
                     <tbody>
                       {reportScrapStats.list.map(h => (
-                        <tr key={h.id} style={{ borderBottom: '1px solid var(--border-color, #222)' }}>
+                        <tr key={h.id} style={{ borderBottom: '1px solid var(--border-color, var(--border-subtle))' }}>
                           <td style={{ padding: '10px 8px', color: 'var(--text-muted, #71717a)' }}>{new Date(h.completed_at).toLocaleDateString()}</td>
                           <td style={{ padding: '10px 8px', color: 'var(--text-color, #fff)', fontWeight: 700 }}>{h.nom_name}</td>
                           <td style={{ padding: '10px 8px', color: 'var(--text-muted, #d4d4d8)' }}>{h.operator_name}</td>
@@ -223,7 +223,7 @@ export const BrakReportPage = React.memo(({
                 <div style={{ overflowX: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', minWidth: '550px' }}>
                     <thead>
-                      <tr style={{ color: 'var(--text-muted, #71717a)', textAlign: 'left', borderBottom: '2px solid var(--border-color, #222)' }}>
+                      <tr style={{ color: 'var(--text-muted, #71717a)', textAlign: 'left', borderBottom: '2px solid var(--border-color, var(--border-subtle))' }}>
                         <th style={{ padding: '10px 8px' }}>Причина браку</th>
                         <th style={{ padding: '10px 8px', textAlign: 'center' }}>Кількість деталей (шт)</th>
                         <th style={{ padding: '10px 8px', textAlign: 'center' }}>Відсоток (%)</th>
@@ -233,7 +233,7 @@ export const BrakReportPage = React.memo(({
                     </thead>
                     <tbody>
                       {reportScrapReasonsStats.map((item, idx) => (
-                        <tr key={idx} style={{ borderBottom: '1px solid var(--border-color, #222)' }}>
+                        <tr key={idx} style={{ borderBottom: '1px solid var(--border-color, var(--border-subtle))' }}>
                           <td style={{ padding: '12px 8px', color: 'var(--text-color, #fff)', fontWeight: 700 }}>{item.name}</td>
                           <td style={{ padding: '12px 8px', textAlign: 'center', color: '#ef4444', fontWeight: 900 }}>{item.quantity}</td>
                           <td style={{ padding: '12px 8px', textAlign: 'center', color: 'var(--text-muted, #71717a)' }}>{item.percentage}%</td>

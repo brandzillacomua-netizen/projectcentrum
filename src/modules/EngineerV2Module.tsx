@@ -84,8 +84,8 @@ export const EngineerV2Module: React.FC = () => {
         <Link to="/" className="back-link"><ArrowLeft size={18} /> <span className="hide-mobile">На головну</span></Link>
         <div className="module-title-group">
           <Settings className="text-secondary" size={24} />
-          <h1 className="hide-mobile" style={{ color: isLight ? '#0f172a' : '#fff' }}>Робоче місце Інженера (V2)</h1>
-          <h1 className="mobile-only" style={{ fontSize: '1rem', color: isLight ? '#0f172a' : '#fff' }}>ІНЖЕНЕР V2</h1>
+          <h1 className="hide-mobile" style={{ color: isLight ? '#0f172a' : 'var(--text-strong)' }}>Робоче місце Інженера (V2)</h1>
+          <h1 className="mobile-only" style={{ fontSize: '1rem', color: isLight ? '#0f172a' : 'var(--text-strong)' }}>ІНЖЕНЕР V2</h1>
         </div>
       </nav>
 
@@ -100,9 +100,9 @@ export const EngineerV2Module: React.FC = () => {
               {activeCalls.map((c: MachineCallEntry) => {
                 const mach = (machines || []).find((m: any) => m.id === c.machine_id)
                 return (
-                  <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: isLight ? '#ffffff' : '#111', border: `1px solid ${isLight ? '#cbd5e1' : '#222'}`, borderRadius: '12px', padding: '12px 15px', flexWrap: 'wrap', gap: '10px' }}>
+                  <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: isLight ? '#ffffff' : 'var(--surface-1)', border: `1px solid ${isLight ? '#cbd5e1' : 'var(--surface-3)'}`, borderRadius: '12px', padding: '12px 15px', flexWrap: 'wrap', gap: '10px' }}>
                     <div>
-                      <div style={{ fontSize: '0.9rem', fontWeight: 800, color: isLight ? '#0f172a' : '#fff' }}>
+                      <div style={{ fontSize: '0.9rem', fontWeight: 800, color: isLight ? '#0f172a' : 'var(--text-strong)' }}>
                         {mach ? mach.name : 'Верстат'} (пор. №{mach?.sequence_number || '—'})
                       </div>
                       <div style={{ fontSize: '0.75rem', color: 'var(--text-muted, #64748b)', marginTop: '2px' }}>
@@ -111,7 +111,7 @@ export const EngineerV2Module: React.FC = () => {
                       </div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                      <span style={{ fontSize: '0.75rem', color: isLight ? '#64748b' : '#666', fontWeight: 700 }}>
+                      <span style={{ fontSize: '0.75rem', color: isLight ? '#64748b' : 'var(--text-dim)', fontWeight: 700 }}>
                         {new Date(c.created_at).toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' })}
                       </span>
                       <button 
@@ -131,14 +131,14 @@ export const EngineerV2Module: React.FC = () => {
         <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap' }}>
           <button 
             onClick={() => setActiveTab('tasks')}
-            style={{ padding: '10px 20px', background: activeTab === 'tasks' ? '#3b82f6' : (isLight ? '#ffffff' : '#111'), color: activeTab === 'tasks' ? '#fff' : (isLight ? '#0f172a' : '#fff'), border: `1px solid ${activeTab === 'tasks' ? '#3b82f6' : (isLight ? '#cbd5e1' : '#222')}`, borderRadius: '8px', cursor: 'pointer', fontWeight: 700, boxShadow: isLight ? '0 1px 3px rgba(0,0,0,0.05)' : 'none' }}
+            style={{ padding: '10px 20px', background: activeTab === 'tasks' ? '#3b82f6' : (isLight ? '#ffffff' : 'var(--surface-1)'), color: activeTab === 'tasks' ? '#fff' : (isLight ? '#0f172a' : '#fff'), border: `1px solid ${activeTab === 'tasks' ? '#3b82f6' : (isLight ? '#cbd5e1' : 'var(--surface-3)')}`, borderRadius: '8px', cursor: 'pointer', fontWeight: 700, boxShadow: isLight ? '0 1px 3px rgba(0,0,0,0.05)' : 'none' }}
           >
             Черга ЧПК ({pendingTasks.length})
           </button>
           {isSuperAdmin && (
             <button 
               onClick={() => setActiveTab('operations')}
-              style={{ padding: '10px 20px', background: activeTab === 'operations' ? '#3b82f6' : (isLight ? '#ffffff' : '#111'), color: activeTab === 'operations' ? '#fff' : (isLight ? '#0f172a' : '#fff'), border: `1px solid ${activeTab === 'operations' ? '#3b82f6' : (isLight ? '#cbd5e1' : '#222')}`, borderRadius: '8px', cursor: 'pointer', fontWeight: 700, boxShadow: isLight ? '0 1px 3px rgba(0,0,0,0.05)' : 'none' }}
+              style={{ padding: '10px 20px', background: activeTab === 'operations' ? '#3b82f6' : (isLight ? '#ffffff' : 'var(--surface-1)'), color: activeTab === 'operations' ? '#fff' : (isLight ? '#0f172a' : '#fff'), border: `1px solid ${activeTab === 'operations' ? '#3b82f6' : (isLight ? '#cbd5e1' : 'var(--surface-3)')}`, borderRadius: '8px', cursor: 'pointer', fontWeight: 700, boxShadow: isLight ? '0 1px 3px rgba(0,0,0,0.05)' : 'none' }}
             >
               <Database size={16} style={{ display: 'inline', verticalAlign: 'text-bottom', marginRight: '5px' }} />
               Операції станків
@@ -146,21 +146,21 @@ export const EngineerV2Module: React.FC = () => {
           )}
           <button 
             onClick={() => setActiveTab('spec')}
-            style={{ padding: '10px 20px', background: activeTab === 'spec' ? 'linear-gradient(135deg,#4f46e5,#7c3aed)' : (isLight ? '#ffffff' : '#111'), color: activeTab === 'spec' ? '#fff' : (isLight ? '#0f172a' : '#fff'), border: `1px solid ${activeTab === 'spec' ? '#6366f1' : (isLight ? '#cbd5e1' : '#222')}`, borderRadius: '8px', cursor: 'pointer', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '7px', boxShadow: isLight ? '0 1px 3px rgba(0,0,0,0.05)' : 'none' }}
+            style={{ padding: '10px 20px', background: activeTab === 'spec' ? 'linear-gradient(135deg,#4f46e5,#7c3aed)' : (isLight ? '#ffffff' : 'var(--surface-1)'), color: activeTab === 'spec' ? '#fff' : (isLight ? '#0f172a' : '#fff'), border: `1px solid ${activeTab === 'spec' ? '#6366f1' : (isLight ? '#cbd5e1' : 'var(--surface-3)')}`, borderRadius: '8px', cursor: 'pointer', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '7px', boxShadow: isLight ? '0 1px 3px rgba(0,0,0,0.05)' : 'none' }}
           >
             <BookOpen size={15} style={{ display: 'inline' }} />
             Специфікації BOM
           </button>
           <button 
             onClick={() => setActiveTab('import')}
-            style={{ padding: '10px 20px', background: activeTab === 'import' ? 'linear-gradient(135deg,#059669,#10b981)' : (isLight ? '#ffffff' : '#111'), color: activeTab === 'import' ? '#fff' : (isLight ? '#0f172a' : '#aaa'), border: `1px solid ${activeTab === 'import' ? '#10b981' : (isLight ? '#cbd5e1' : '#222')}`, borderRadius: '8px', cursor: 'pointer', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '7px', boxShadow: activeTab === 'import' ? '0 4px 15px rgba(16,185,129,0.25)' : (isLight ? '0 1px 3px rgba(0,0,0,0.05)' : 'none') }}
+            style={{ padding: '10px 20px', background: activeTab === 'import' ? 'linear-gradient(135deg,#059669,#10b981)' : (isLight ? '#ffffff' : 'var(--surface-1)'), color: activeTab === 'import' ? '#fff' : (isLight ? '#0f172a' : '#aaa'), border: `1px solid ${activeTab === 'import' ? '#10b981' : (isLight ? '#cbd5e1' : 'var(--surface-3)')}`, borderRadius: '8px', cursor: 'pointer', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '7px', boxShadow: activeTab === 'import' ? '0 4px 15px rgba(16,185,129,0.25)' : (isLight ? '0 1px 3px rgba(0,0,0,0.05)' : 'none') }}
           >
             <FileUp size={15} style={{ display: 'inline' }} />
             Імпорт CSV
           </button>
           <button 
             onClick={() => setActiveTab('cutters')}
-            style={{ padding: '10px 20px', background: activeTab === 'cutters' ? '#3b82f6' : (isLight ? '#ffffff' : '#111'), color: activeTab === 'cutters' ? '#fff' : (isLight ? '#0f172a' : '#fff'), border: `1px solid ${activeTab === 'cutters' ? '#3b82f6' : (isLight ? '#cbd5e1' : '#222')}`, borderRadius: '8px', cursor: 'pointer', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '7px', boxShadow: isLight ? '0 1px 3px rgba(0,0,0,0.05)' : 'none' }}
+            style={{ padding: '10px 20px', background: activeTab === 'cutters' ? '#3b82f6' : (isLight ? '#ffffff' : 'var(--surface-1)'), color: activeTab === 'cutters' ? '#fff' : (isLight ? '#0f172a' : '#fff'), border: `1px solid ${activeTab === 'cutters' ? '#3b82f6' : (isLight ? '#cbd5e1' : 'var(--surface-3)')}`, borderRadius: '8px', cursor: 'pointer', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '7px', boxShadow: isLight ? '0 1px 3px rgba(0,0,0,0.05)' : 'none' }}
           >
             <Sliders size={15} style={{ display: 'inline' }} />
             Налаштування фрез

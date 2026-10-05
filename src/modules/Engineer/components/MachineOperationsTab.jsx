@@ -733,7 +733,7 @@ export function MachineOperationsTab() {
   }
 
   const renderOpList = (ops, setOps, title) => (
-    <div style={{ flex: 1, background: isLight ? '#f8fafc' : '#111', padding: '15px', borderRadius: '12px', border: `1px solid ${isLight ? '#cbd5e1' : '#222'}` }}>
+    <div style={{ flex: 1, background: isLight ? '#f8fafc' : 'var(--surface-1)', padding: '15px', borderRadius: '12px', border: `1px solid ${isLight ? '#cbd5e1' : 'var(--surface-3)'}` }}>
       <h4 style={{ margin: '0 0 10px 0', fontSize: '0.9rem', color: isLight ? '#334155' : 'var(--text-muted, #64748b)' }}>{title}</h4>
       {ops.map((op, idx) => (
         <div key={idx} style={{ display: 'flex', gap: '5px', marginBottom: '8px' }}>
@@ -744,12 +744,12 @@ export function MachineOperationsTab() {
               newOps[idx] = e.target.value
               setOps(newOps)
             }}
-            style={{ flex: 1, padding: '8px', background: isLight ? '#ffffff' : '#000', border: `1px solid ${isLight ? '#cbd5e1' : '#333'}`, color: isLight ? '#0f172a' : '#fff', borderRadius: '6px' }}
+            style={{ flex: 1, padding: '8px', background: isLight ? '#ffffff' : 'var(--surface-black)', border: `1px solid ${isLight ? '#cbd5e1' : 'var(--border-subtle)'}`, color: isLight ? '#0f172a' : '#fff', borderRadius: '6px' }}
           />
           <button onClick={() => setOps(ops.filter((_, i) => i !== idx))} style={{ background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: '6px', padding: '0 10px', cursor: 'pointer' }}><Trash2 size={14} /></button>
         </div>
       ))}
-      <button onClick={() => setOps([...ops, ''])} style={{ width: '100%', padding: '8px', background: 'transparent', border: `1px dashed ${isLight ? '#cbd5e1' : '#333'}`, color: '#3b82f6', borderRadius: '6px', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '5px' }}>
+      <button onClick={() => setOps([...ops, ''])} style={{ width: '100%', padding: '8px', background: 'transparent', border: `1px dashed ${isLight ? '#cbd5e1' : 'var(--border-subtle)'}`, color: '#3b82f6', borderRadius: '6px', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '5px' }}>
         <Plus size={16} /> Додати операцію
       </button>
     </div>
@@ -759,10 +759,10 @@ export function MachineOperationsTab() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: isLight ? '#ffffff' : '#111', padding: '20px', borderRadius: '16px', border: `1px solid ${isLight ? '#cbd5e1' : '#222'}`, boxShadow: isLight ? '0 2px 8px rgba(0,0,0,0.04)' : 'none' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: isLight ? '#ffffff' : 'var(--surface-1)', padding: '20px', borderRadius: '16px', border: `1px solid ${isLight ? '#cbd5e1' : 'var(--surface-3)'}`, boxShadow: isLight ? '0 2px 8px rgba(0,0,0,0.04)' : 'none' }}>
         <div>
-          <h2 style={{ margin: 0, fontSize: '1.2rem', color: isLight ? '#0f172a' : '#fff' }}>Масове завантаження CSV</h2>
-          <p style={{ margin: '5px 0 0 0', fontSize: '0.8rem', color: isLight ? '#64748b' : '#666' }}>Формат: рядок 1 — назва станку, рядок 2 — назва номенклатури, рядок 3 — заголовки, далі — операції по рядках (3 колонки через кому)</p>
+          <h2 style={{ margin: 0, fontSize: '1.2rem', color: isLight ? '#0f172a' : 'var(--text-strong)' }}>Масове завантаження CSV</h2>
+          <p style={{ margin: '5px 0 0 0', fontSize: '0.8rem', color: isLight ? '#64748b' : 'var(--text-dim)' }}>Формат: рядок 1 — назва станку, рядок 2 — назва номенклатури, рядок 3 — заголовки, далі — операції по рядках (3 колонки через кому)</p>
         </div>
         <div>
           <label style={{ background: '#3b82f6', color: '#fff', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', display: 'flex', gap: '8px', alignItems: 'center', fontWeight: 600 }}>
@@ -773,15 +773,15 @@ export function MachineOperationsTab() {
       </div>
 
       {machineOperations && machineOperations.length > 0 && (
-        <div style={{ background: isLight ? '#ffffff' : '#111', padding: '20px', borderRadius: '16px', border: `1px solid ${isLight ? '#cbd5e1' : '#222'}`, boxShadow: isLight ? '0 2px 8px rgba(0,0,0,0.04)' : 'none' }}>
+        <div style={{ background: isLight ? '#ffffff' : 'var(--surface-1)', padding: '20px', borderRadius: '16px', border: `1px solid ${isLight ? '#cbd5e1' : 'var(--surface-3)'}`, boxShadow: isLight ? '0 2px 8px rgba(0,0,0,0.04)' : 'none' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-            <h2 style={{ margin: 0, fontSize: '1.2rem', color: isLight ? '#0f172a' : '#fff' }}>Збережені операції ({machineOperations.length})</h2>
+            <h2 style={{ margin: 0, fontSize: '1.2rem', color: isLight ? '#0f172a' : 'var(--text-strong)' }}>Збережені операції ({machineOperations.length})</h2>
             <input 
               type="text" 
               placeholder="Пошук по номенклатурі..." 
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              style={{ width: '250px', padding: '10px 15px', background: isLight ? '#ffffff' : '#000', border: `1px solid ${isLight ? '#cbd5e1' : '#333'}`, color: isLight ? '#0f172a' : '#fff', borderRadius: '8px' }}
+              style={{ width: '250px', padding: '10px 15px', background: isLight ? '#ffffff' : 'var(--surface-black)', border: `1px solid ${isLight ? '#cbd5e1' : 'var(--border-subtle)'}`, color: isLight ? '#0f172a' : '#fff', borderRadius: '8px' }}
             />
           </div>
 
@@ -834,12 +834,12 @@ export function MachineOperationsTab() {
               }, {})
 
               if (Object.keys(groupedOps).length === 0) {
-                return <div style={{ color: '#666', textAlign: 'center', padding: '20px' }}>Нічого не знайдено</div>
+                return <div style={{ color: 'var(--text-dim)', textAlign: 'center', padding: '20px' }}>Нічого не знайдено</div>
               }
 
               return Object.entries(groupedOps).sort((a, b) => a[0].localeCompare(b[0])).map(([groupName, items]) => (
-                <div key={groupName} style={{ background: isLight ? '#f8fafc' : '#0a0a0a', border: `1px solid ${isLight ? '#cbd5e1' : '#222'}`, borderRadius: '12px', overflow: 'hidden' }}>
-                  <div style={{ background: isLight ? '#e2e8f0' : '#1a1a1a', padding: '10px 15px', borderBottom: `1px solid ${isLight ? '#cbd5e1' : '#222'}`, fontWeight: 800, color: isLight ? '#334155' : '#aaa', fontSize: '0.9rem' }}>
+                <div key={groupName} style={{ background: isLight ? '#f8fafc' : 'var(--surface-inset)', border: `1px solid ${isLight ? '#cbd5e1' : 'var(--surface-3)'}`, borderRadius: '12px', overflow: 'hidden' }}>
+                  <div style={{ background: isLight ? '#e2e8f0' : 'var(--surface-2)', padding: '10px 15px', borderBottom: `1px solid ${isLight ? '#cbd5e1' : 'var(--surface-3)'}`, fontWeight: 800, color: isLight ? '#334155' : '#aaa', fontSize: '0.9rem' }}>
                     Виріб: {groupName} ({items.length})
                   </div>
                   <div style={{ padding: '10px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
@@ -852,12 +852,12 @@ export function MachineOperationsTab() {
                         <div key={op.id} style={{
                           display: 'flex', alignItems: 'center', gap: '12px',
                           background: isSelected ? (isLight ? '#e0f2fe' : '#1a2a3a') : (isLight ? '#ffffff' : 'transparent'),
-                          border: `1px solid ${isSelected ? '#3b82f6' : (isLight ? '#cbd5e1' : '#222')}`,
+                          border: `1px solid ${isSelected ? '#3b82f6' : (isLight ? '#cbd5e1' : 'var(--border-subtle)')}`,
                           borderRadius: '8px', padding: '10px 12px'
                         }}>
                           <div style={{ flex: 1 }}>
-                            <div style={{ fontWeight: 700, fontSize: '0.9rem', color: isLight ? '#0f172a' : '#fff' }}>{nom?.name || '—'}</div>
-                            <div style={{ fontSize: '0.75rem', color: isLight ? '#64748b' : '#666', marginTop: '2px' }}>{macText}</div>
+                            <div style={{ fontWeight: 700, fontSize: '0.9rem', color: isLight ? '#0f172a' : 'var(--text-strong)' }}>{nom?.name || '—'}</div>
+                            <div style={{ fontSize: '0.75rem', color: isLight ? '#64748b' : 'var(--text-dim)', marginTop: '2px' }}>{macText}</div>
                             {(() => {
                               const cutterOps = (op.side2_cut_ops || []).filter(o => o.startsWith('__CUTTER__:'))
                               if (cutterOps.length === 0) return null
@@ -939,15 +939,15 @@ export function MachineOperationsTab() {
         </div>
       )}
 
-      <div style={{ background: isLight ? '#ffffff' : '#111', padding: '20px', borderRadius: '16px', border: `1px solid ${isLight ? '#cbd5e1' : '#222'}`, boxShadow: isLight ? '0 2px 8px rgba(0,0,0,0.04)' : 'none' }}>
-        <h2 style={{ margin: '0 0 20px 0', fontSize: '1.2rem', color: isLight ? '#0f172a' : '#fff' }}>Ручне редагування</h2>
+      <div style={{ background: isLight ? '#ffffff' : 'var(--surface-1)', padding: '20px', borderRadius: '16px', border: `1px solid ${isLight ? '#cbd5e1' : 'var(--surface-3)'}`, boxShadow: isLight ? '0 2px 8px rgba(0,0,0,0.04)' : 'none' }}>
+        <h2 style={{ margin: '0 0 20px 0', fontSize: '1.2rem', color: isLight ? '#0f172a' : 'var(--text-strong)' }}>Ручне редагування</h2>
         
         <div style={{ display: 'flex', gap: '15px', marginBottom: '20px' }}>
-          <select value={selectedNom} onChange={e => setSelectedNom(e.target.value)} style={{ flex: 1, padding: '12px', background: isLight ? '#ffffff' : '#000', border: `1px solid ${isLight ? '#cbd5e1' : '#333'}`, color: isLight ? '#0f172a' : '#fff', borderRadius: '8px' }}>
+          <select value={selectedNom} onChange={e => setSelectedNom(e.target.value)} style={{ flex: 1, padding: '12px', background: isLight ? '#ffffff' : 'var(--surface-black)', border: `1px solid ${isLight ? '#cbd5e1' : 'var(--border-subtle)'}`, color: isLight ? '#0f172a' : '#fff', borderRadius: '8px' }}>
             <option value="">-- Оберіть номенклатуру --</option>
             {nomenclatures.map(n => <option key={n.id} value={n.id}>{n.name}</option>)}
           </select>
-          <select value={selectedMachine} onChange={e => setSelectedMachine(e.target.value)} style={{ flex: 1, padding: '12px', background: isLight ? '#ffffff' : '#000', border: `1px solid ${isLight ? '#cbd5e1' : '#333'}`, color: isLight ? '#0f172a' : '#fff', borderRadius: '8px' }}>
+          <select value={selectedMachine} onChange={e => setSelectedMachine(e.target.value)} style={{ flex: 1, padding: '12px', background: isLight ? '#ffffff' : 'var(--surface-black)', border: `1px solid ${isLight ? '#cbd5e1' : 'var(--border-subtle)'}`, color: isLight ? '#0f172a' : '#fff', borderRadius: '8px' }}>
             <option value="">-- Оберіть тип верстата --</option>
             {MACHINE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
             {(machines || []).filter(m => !MACHINE_TYPES.includes(m.name)).map(m => (

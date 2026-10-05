@@ -125,7 +125,7 @@ const UserSettingsPage = () => {
       {/* Top Bar Header */}
       <header className="user-settings-header" style={{
         padding: '18px 24px',
-        borderBottom: '1px solid var(--glass-border, rgba(255, 255, 255, 0.08))',
+        borderBottom: '1px solid var(--glass-border, var(--border-subtle))',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
@@ -159,7 +159,7 @@ const UserSettingsPage = () => {
       {/* Tabs Bar */}
       <div className="user-settings-tabs-bar" style={{
         display: 'flex',
-        borderBottom: '1px solid var(--glass-border, rgba(255, 255, 255, 0.08))',
+        borderBottom: '1px solid var(--glass-border, var(--border-subtle))',
         background: 'var(--card-bg, #0b0d14)'
       }}>
         <button
@@ -231,7 +231,7 @@ const UserSettingsPage = () => {
                   className="user-settings-card"
                   style={{
                     background: 'var(--card-bg, rgba(22, 24, 34, 0.75))',
-                    border: '1px solid var(--glass-border, rgba(255, 255, 255, 0.07))',
+                    border: '1px solid var(--glass-border, var(--border-subtle))',
                     borderRadius: '18px',
                     padding: '18px 20px',
                     display: 'flex',
@@ -353,7 +353,7 @@ const UserSettingsPage = () => {
                     width: '100%',
                     padding: '12px 16px',
                     borderRadius: '14px',
-                    border: '1px solid var(--glass-border, rgba(255, 255, 255, 0.08))',
+                    border: '1px solid var(--glass-border, var(--border-subtle))',
                     background: 'var(--card-bg, rgba(22, 24, 34, 0.85))',
                     color: 'var(--text, #fff)',
                     fontSize: '0.92rem',
@@ -377,7 +377,7 @@ const UserSettingsPage = () => {
                     width: '100%',
                     padding: '12px 16px',
                     borderRadius: '14px',
-                    border: '1px solid var(--glass-border, rgba(255, 255, 255, 0.08))',
+                    border: '1px solid var(--glass-border, var(--border-subtle))',
                     background: 'var(--card-bg, rgba(22, 24, 34, 0.85))',
                     color: 'var(--text, #fff)',
                     fontSize: '0.92rem',
@@ -403,7 +403,7 @@ const UserSettingsPage = () => {
                       width: '100%',
                       padding: '12px 42px 12px 16px',
                       borderRadius: '14px',
-                      border: '1px solid var(--glass-border, rgba(255, 255, 255, 0.08))',
+                      border: '1px solid var(--glass-border, var(--border-subtle))',
                       background: 'var(--card-bg, rgba(22, 24, 34, 0.85))',
                       color: 'var(--text, #fff)',
                       fontSize: '0.92rem',

@@ -38,13 +38,13 @@ export const BrakRestorationModal = React.memo(({
           value={restorationQuantity} 
           onChange={event => setRestorationQuantity(event.target.value)} 
           placeholder={`Від 1 до ${restorationDraft.total_qty}`} 
-          style={{ boxSizing: 'border-box', width: '100%', background: 'var(--card-inner-bg, #050505)', border: '1px solid var(--border-color, #333)', borderRadius: '12px', color: 'var(--text-color, #fff)', padding: '14px', fontSize: '1.1rem', fontWeight: 900, outline: 'none' }} 
+          style={{ boxSizing: 'border-box', width: '100%', background: 'var(--card-inner-bg, #050505)', border: '1px solid var(--border-color, var(--border-subtle))', borderRadius: '12px', color: 'var(--text-color, #fff)', padding: '14px', fontSize: '1.1rem', fontWeight: 900, outline: 'none' }} 
         />
         <label style={{ display: 'block', margin: '18px 0 8px', color: 'var(--text-muted, #888)', fontSize: '.7rem', fontWeight: 950 }}>ЕТАП ВІДНОВЛЕННЯ</label>
         <select 
           value={restorationStageId} 
           onChange={event => setRestorationStageId(event.target.value)} 
-          style={{ boxSizing: 'border-box', width: '100%', background: 'var(--card-inner-bg, #050505)', border: '1px solid var(--border-color, #333)', borderRadius: '12px', color: 'var(--text-color, #fff)', padding: '14px', fontWeight: 850, outline: 'none' }}
+          style={{ boxSizing: 'border-box', width: '100%', background: 'var(--card-inner-bg, #050505)', border: '1px solid var(--border-color, var(--border-subtle))', borderRadius: '12px', color: 'var(--text-color, #fff)', padding: '14px', fontWeight: 850, outline: 'none' }}
         >
           <option value="">Оберіть етап відновлення</option>
           {restorationStages.map(stage => <option key={stage.id} value={stage.id}>{stage.name}</option>)}

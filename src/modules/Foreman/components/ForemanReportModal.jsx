@@ -186,8 +186,8 @@ export function ForemanReportModal({
       padding: '20px'
     }} className="report-modal-backdrop">
       <div style={{
-        background: '#0d0d0d',
-        border: '1px solid #222',
+        background: 'var(--surface-inset)',
+        border: '1px solid var(--border-subtle)',
         borderRadius: '24px',
         width: '95vw',
         maxWidth: '1400px',
@@ -196,7 +196,7 @@ export function ForemanReportModal({
         padding: '30px',
         boxShadow: '0 20px 50px rgba(0, 0, 0, 0.7)',
         position: 'relative',
-        color: '#fff'
+        color: 'var(--text-strong)'
       }} className="printable-report-area">
         {/* Close Button */}
         <button
@@ -206,9 +206,9 @@ export function ForemanReportModal({
             position: 'absolute',
             top: '20px',
             right: '20px',
-            background: '#1a1a1a',
-            border: '1px solid #333',
-            color: '#fff',
+            background: 'var(--surface-2)',
+            border: '1px solid var(--border-subtle)',
+            color: 'var(--text-strong)',
             width: '40px',
             height: '40px',
             borderRadius: '50%',
@@ -227,7 +227,7 @@ export function ForemanReportModal({
         {reportLoading ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '60px 0', gap: '15px' }}>
             <Loader2 size={40} className="animate-spin" color="#3b82f6" />
-            <span style={{ fontSize: '0.9rem', color: '#888', fontWeight: 800 }}>Формування звіту...</span>
+            <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)', fontWeight: 800 }}>Формування звіту...</span>
           </div>
         ) : reportData ? (() => {
           const currentTask = tasks.find(t => t.id === reportTaskId)
@@ -520,7 +520,7 @@ export function ForemanReportModal({
 
           return (
             <div>
-              <div style={{ borderBottom: '1px solid #1a1a1a', paddingBottom: '20px', marginBottom: '25px' }}>
+              <div style={{ borderBottom: '1px solid var(--border-subtle)', paddingBottom: '20px', marginBottom: '25px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px' }}>
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#3b82f6', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '5px' }}>
@@ -543,18 +543,18 @@ export function ForemanReportModal({
                     <RefreshCw size={12} className={reportLoading ? "animate-spin" : ""} /> ОНОВИТИ ДАНІ
                   </button>
                 </div>
-                <div style={{ color: '#aaa', fontSize: '0.9rem', marginTop: '6px', fontWeight: 700 }}>
+                <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: '6px', fontWeight: 700 }}>
                   Виріб: <strong style={{ color: '#ef4444' }} className="text-accent-red">{productNames || '—'}</strong>
                   {currentOrder?.customer && ` | Замовник: ${currentOrder.customer}`}
                 </div>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '15px', marginBottom: '30px' }}>
-                <div style={{ background: '#111', border: '1px solid #222', borderRadius: '16px', padding: '15px' }}>
-                  <div style={{ color: '#888', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>Фрези (Розкрій)</div>
+                <div style={{ background: 'var(--surface-1)', border: '1px solid var(--border-subtle)', borderRadius: '16px', padding: '15px' }}>
+                  <div style={{ color: 'var(--text-muted)', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>Фрези (Розкрій)</div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', borderBottom: '1px solid #222', paddingBottom: '6px' }}>
-                      <span>Потреба: <strong style={{ color: '#fff' }}>{totalPlannedCutters} шт</strong></span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '6px' }}>
+                      <span>Потреба: <strong style={{ color: 'var(--text-strong)' }}>{totalPlannedCutters} шт</strong></span>
                       <span>Факт: <strong style={{ color: '#eab308' }} className="text-accent-orange">{totalActualCutters} шт</strong></span>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -571,13 +571,13 @@ export function ForemanReportModal({
                           const factVal = actualCuttersBreakdown[name] || 0
                           const isExcess = factVal > planVal
                           return (
-                            <div key={name} style={{ fontSize: '0.68rem', borderBottom: '1px solid #1a1a1a', paddingBottom: '4px' }}>
-                              <div style={{ color: isExcess ? '#ef4444' : '#aaa', fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={name} className={isExcess ? 'text-accent-red' : ''}>
+                            <div key={name} style={{ fontSize: '0.68rem', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '4px' }}>
+                              <div style={{ color: isExcess ? '#ef4444' : 'var(--text-muted)', fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={name} className={isExcess ? 'text-accent-red' : ''}>
                                 {isExcess && '⚠️ '}{name}
                               </div>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '2px', color: '#888' }}>
-                                <span>Потреба: <strong style={{ color: '#bbb' }}>{planVal} шт</strong></span>
-                                <span>Факт: <strong style={{ color: isExcess ? '#ef4444' : '#bbb' }} className={isExcess ? 'text-accent-red' : 'text-accent-orange'}>{factVal} шт</strong></span>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '2px', color: 'var(--text-muted)' }}>
+                                <span>Потреба: <strong style={{ color: 'var(--text-soft)' }}>{planVal} шт</strong></span>
+                                <span>Факт: <strong style={{ color: isExcess ? '#ef4444' : 'var(--text-soft)' }} className={isExcess ? 'text-accent-red' : 'text-accent-orange'}>{factVal} шт</strong></span>
                               </div>
                             </div>
                           )
@@ -587,11 +587,11 @@ export function ForemanReportModal({
                   </div>
                 </div>
 
-                <div style={{ background: '#111', border: '1px solid #222', borderRadius: '16px', padding: '15px' }}>
-                  <div style={{ color: '#888', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>Листи (Матеріал)</div>
+                <div style={{ background: 'var(--surface-1)', border: '1px solid var(--border-subtle)', borderRadius: '16px', padding: '15px' }}>
+                  <div style={{ color: 'var(--text-muted)', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>Листи (Матеріал)</div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', borderBottom: '1px solid #222', paddingBottom: '6px' }}>
-                      <span>План: <strong style={{ color: '#fff' }}>{totalPlannedSheets} л.</strong></span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '6px' }}>
+                      <span>План: <strong style={{ color: 'var(--text-strong)' }}>{totalPlannedSheets} л.</strong></span>
                       <span>Факт: <strong style={{ color: totalActualSheets > totalPlannedSheets ? '#ef4444' : '#10b981' }} className={totalActualSheets > totalPlannedSheets ? 'text-accent-red' : 'text-accent-green'}>{totalActualSheets} л.</strong></span>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -599,13 +599,13 @@ export function ForemanReportModal({
                         Object.entries(materialStats).map(([matName, stats]) => {
                           const isExcess = stats.actualSheets > stats.plannedSheets
                           return (
-                            <div key={matName} style={{ fontSize: '0.68rem', borderBottom: '1px solid #1a1a1a', paddingBottom: '4px' }}>
-                              <div style={{ color: isExcess ? '#ef4444' : '#aaa', fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={matName} className={isExcess ? 'text-accent-red' : ''}>
+                            <div key={matName} style={{ fontSize: '0.68rem', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '4px' }}>
+                              <div style={{ color: isExcess ? '#ef4444' : 'var(--text-muted)', fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={matName} className={isExcess ? 'text-accent-red' : ''}>
                                 {isExcess && '⚠️ '}{matName}
                               </div>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '2px', color: '#888' }}>
-                                <span>План: <strong style={{ color: '#bbb' }}>{stats.plannedSheets} л.</strong></span>
-                                <span>Факт: <strong style={{ color: isExcess ? '#ef4444' : '#bbb' }} className={isExcess ? 'text-accent-red' : 'text-accent-green'}>{stats.actualSheets} л.</strong></span>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '2px', color: 'var(--text-muted)' }}>
+                                <span>План: <strong style={{ color: 'var(--text-soft)' }}>{stats.plannedSheets} л.</strong></span>
+                                <span>Факт: <strong style={{ color: isExcess ? '#ef4444' : 'var(--text-soft)' }} className={isExcess ? 'text-accent-red' : 'text-accent-green'}>{stats.actualSheets} л.</strong></span>
                               </div>
                             </div>
                           )
@@ -617,32 +617,32 @@ export function ForemanReportModal({
                   </div>
                 </div>
 
-                <div style={{ background: '#111', border: '1px solid #222', borderRadius: '16px', padding: '15px' }}>
-                  <div style={{ color: '#888', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>Деталі та Брак</div>
+                <div style={{ background: 'var(--surface-1)', border: '1px solid var(--border-subtle)', borderRadius: '16px', padding: '15px' }}>
+                  <div style={{ color: 'var(--text-muted)', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>Деталі та Брак</div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ color: '#aaa', fontSize: '0.9rem', fontWeight: 500 }}>Потреба наряду:</span>
-                      <strong style={{ color: '#fff', fontSize: '0.9rem', fontWeight: 700 }}>{productionSummary.need} шт</strong>
+                      <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem', fontWeight: 500 }}>Потреба наряду:</span>
+                      <strong style={{ color: 'var(--text-strong)', fontSize: '0.9rem', fontWeight: 700 }}>{productionSummary.need} шт</strong>
                     </div>
 
-                    <div style={{ paddingLeft: '10px', borderLeft: '2px solid #222', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: '#888', fontWeight: 800 }}>
+                    <div style={{ paddingLeft: '10px', borderLeft: '2px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 800 }}>
                         <span>План із БЗ:</span>
                         <span>{productionSummary.plannedBz} шт</span>
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: '#888', fontWeight: 800 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 800 }}>
                         <span>План цеху №1:</span>
                         <span>{productionSummary.plannedShop1} шт</span>
                       </div>
                     </div>
 
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ color: '#aaa', fontSize: '0.9rem', fontWeight: 500 }}>Фактично взято з БЗ:</span>
+                      <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem', fontWeight: 500 }}>Фактично взято з БЗ:</span>
                       <strong style={{ color: '#3b82f6', fontSize: '0.9rem', fontWeight: 700 }}>{productionSummary.fromBz} шт</strong>
                     </div>
 
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ color: '#aaa', fontSize: '0.9rem', fontWeight: 500 }}>Передано з цеху №1:</span>
+                      <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem', fontWeight: 500 }}>Передано з цеху №1:</span>
                       <strong style={{ color: '#10b981', fontSize: '0.9rem', fontWeight: 700 }}>{productionSummary.fromShop1} шт</strong>
                     </div>
 
@@ -653,7 +653,7 @@ export function ForemanReportModal({
                       onMouseLeave={e => e.currentTarget.style.opacity = 1}
                       title="Клікніть для деталізації прийнятих деталей"
                     >
-                      <span style={{ color: '#aaa', fontSize: '0.9rem', fontWeight: 500 }}>Разом забезпечено:</span>
+                      <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem', fontWeight: 500 }}>Разом забезпечено:</span>
                       <strong
                         style={{
                           color: '#10b981',
@@ -675,7 +675,7 @@ export function ForemanReportModal({
                       onMouseLeave={e => e.currentTarget.style.opacity = 1}
                       title="Клікніть для деталізації браку за етапами"
                     >
-                      <span style={{ color: '#aaa', fontSize: '0.9rem', fontWeight: 500 }}>Загально браку:</span>
+                      <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem', fontWeight: 500 }}>Загально браку:</span>
                       <strong
                         style={{
                           color: '#ef4444',
@@ -690,20 +690,20 @@ export function ForemanReportModal({
                       </strong>
                     </div>
 
-                    <div style={{ paddingLeft: '10px', marginTop: '4px', borderLeft: '2px solid #222', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: totalUtilScrap > 0 ? '#ef4444' : '#666', fontWeight: 800 }}>
+                    <div style={{ paddingLeft: '10px', marginTop: '4px', borderLeft: '2px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: totalUtilScrap > 0 ? '#ef4444' : 'var(--text-dim)', fontWeight: 800 }}>
                         <span>Утиль:</span>
                         <span>{totalUtilScrap} шт</span>
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: totalToRestoreScrap > 0 ? '#818cf8' : '#666', fontWeight: 800 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: totalToRestoreScrap > 0 ? '#818cf8' : 'var(--text-dim)', fontWeight: 800 }}>
                         <span>Брак (відновлення):</span>
                         <span>{totalToRestoreScrap} шт</span>
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: totalInVkyaScrap > 0 ? '#f59e0b' : '#666', fontWeight: 800 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: totalInVkyaScrap > 0 ? '#f59e0b' : 'var(--text-dim)', fontWeight: 800 }}>
                         <span>На ВКЯ:</span>
                         <span>{totalInVkyaScrap} шт</span>
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: totalReturnedScrap > 0 ? '#10b981' : '#666', fontWeight: 800 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: totalReturnedScrap > 0 ? '#10b981' : 'var(--text-dim)', fontWeight: 800 }}>
                         <span>Повернуто:</span>
                         <span>{totalReturnedScrap} шт</span>
                       </div>
@@ -762,44 +762,44 @@ export function ForemanReportModal({
                 const numCards = activeCardIds.size || reportData.taskCards.length || 1
 
                 return (
-                  <div style={{ background: '#111', border: '1px solid #222', borderRadius: '20px', padding: '20px', marginBottom: '30px' }}>
+                  <div style={{ background: 'var(--surface-1)', border: '1px solid var(--border-subtle)', borderRadius: '20px', padding: '20px', marginBottom: '30px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#10b981', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '15px' }}>
                       <Clock size={14} /> Аналітика перебування деталей в Цеху №1
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px' }}>
-                      <div style={{ background: '#0a0a0a', border: '1px solid #1a1a1a', borderRadius: '14px', padding: '15px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center' }}>
-                        <div style={{ color: '#888', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '6px' }}>Загальний час у Цеху №1</div>
+                      <div style={{ background: 'var(--surface-inset)', border: '1px solid var(--border-subtle)', borderRadius: '14px', padding: '15px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center' }}>
+                        <div style={{ color: 'var(--text-muted)', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '6px' }}>Загальний час у Цеху №1</div>
                         <div style={{ fontSize: '1.6rem', fontWeight: 1000, color: '#10b981' }} className="text-accent-green">
                           {timeStats.totalShop1 > 0 ? formatDurationHMS(timeStats.totalShop1) : '—'}
                         </div>
-                        <div style={{ fontSize: '0.6rem', color: '#555', marginTop: '4px', borderBottom: '1px solid #222', paddingBottom: '8px', width: '100%' }}>Від першого розкрою до передачі в Цех №2</div>
+                        <div style={{ fontSize: '0.6rem', color: 'var(--text-dim)', marginTop: '4px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '8px', width: '100%' }}>Від першого розкрою до передачі в Цех №2</div>
 
-                        <div style={{ fontSize: '0.7rem', color: '#aaa', marginTop: '8px', width: '100%', display: 'flex', flexDirection: 'column', gap: '5px', textAlign: 'left' }}>
+                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '8px', width: '100%', display: 'flex', flexDirection: 'column', gap: '5px', textAlign: 'left' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                            <span style={{ color: '#888' }}>Сер. робота / картку:</span>
+                            <span style={{ color: 'var(--text-muted)' }}>Сер. робота / картку:</span>
                             <strong style={{ color: '#3b82f6' }} className="text-accent-blue">{formatDurationHMS(Math.round(totalActiveSec / numCards))}</strong>
                           </div>
                           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                            <span style={{ color: '#888' }}>Сер. буфер / картку:</span>
+                            <span style={{ color: 'var(--text-muted)' }}>Сер. буфер / картку:</span>
                             <strong style={{ color: '#f59e0b' }} className="text-accent-orange">{formatDurationHMS(Math.round(totalBufferSec / numCards))}</strong>
                           </div>
                         </div>
                       </div>
 
-                      <div style={{ background: '#0a0a0a', border: '1px solid #1a1a1a', borderRadius: '14px', padding: '15px' }}>
-                        <div style={{ color: '#888', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px', borderBottom: '1px solid #111', paddingBottom: '4px' }}>Робочі етапи (Активна робота)</div>
+                      <div style={{ background: 'var(--surface-inset)', border: '1px solid var(--border-subtle)', borderRadius: '14px', padding: '15px' }}>
+                        <div style={{ color: 'var(--text-muted)', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px', borderBottom: '1px solid #111', paddingBottom: '4px' }}>Робочі етапи (Активна робота)</div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.75rem' }}>
                           {Object.entries(timeStats.stages).filter(([name]) => name !== 'Прийомка').map(([name, s]) => (
                             <div key={name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <span style={{ color: '#aaa', fontWeight: 600 }}>{name}:</span>
+                              <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>{name}:</span>
                               <strong style={{ color: '#3b82f6' }} className="text-accent-blue">{s.total > 0 ? formatDurationHMS(s.total) : '00год. 00хв. 00с'}</strong>
                             </div>
                           ))}
                         </div>
                       </div>
 
-                      <div style={{ background: '#0a0a0a', border: '1px solid #1a1a1a', borderRadius: '14px', padding: '15px' }}>
-                        <div style={{ color: '#888', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px', borderBottom: '1px solid #111', paddingBottom: '4px' }}>Буфери накопичення (Зараз)</div>
+                      <div style={{ background: 'var(--surface-inset)', border: '1px solid var(--border-subtle)', borderRadius: '14px', padding: '15px' }}>
+                        <div style={{ color: 'var(--text-muted)', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px', borderBottom: '1px solid #111', paddingBottom: '4px' }}>Буфери накопичення (Зараз)</div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.75rem' }}>
                           {['Розкрій', 'Галтовка', 'Прийомка', 'Сортування'].map(stageName => {
                             const bufCards = workCards.filter(c =>
@@ -815,7 +815,7 @@ export function ForemanReportModal({
                             return (
                               <div key={stageName} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #151515', paddingBottom: '4px' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                  <span style={{ color: '#aaa', fontWeight: 600 }}>Буфер {stageName}:</span>
+                                  <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Буфер {stageName}:</span>
                                   {cardCount > 0 && (
                                     <span style={{ background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', fontSize: '0.65rem', padding: '1px 6px', borderRadius: '4px', fontWeight: 800 }}>
                                       Зараз: {totalQty} шт
@@ -836,11 +836,11 @@ export function ForemanReportModal({
               })()}
 
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '10px' }}>
-                <h4 style={{ fontSize: '1rem', fontWeight: 900, margin: 0, color: '#fff', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                <h4 style={{ fontSize: '1rem', fontWeight: 900, margin: 0, color: 'var(--text-strong)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                   Хронологічний лог етапів
                 </h4>
 
-                <div style={{ display: 'flex', gap: '4px', background: '#0a0a0a', padding: '4px', borderRadius: '10px', border: '1px solid #222' }} className="no-print">
+                <div style={{ display: 'flex', gap: '4px', background: 'var(--surface-inset)', padding: '4px', borderRadius: '10px', border: '1px solid var(--border-subtle)' }} className="no-print">
                   {['All', 'Розкрій', 'Галтовка', 'Прийомка', 'Сортування'].map(stage => {
                     const isSelected = reportStageFilter === stage
                     let color = '#555'
@@ -858,7 +858,7 @@ export function ForemanReportModal({
                           setReportOperatorFilter('All')
                         }}
                         style={{
-                          border: 'none', background: bg, color: isSelected ? (stage === 'All' ? '#fff' : '#000') : color,
+                          border: 'none', background: bg, color: isSelected ? (stage === 'All' ? 'var(--text-strong)' : 'var(--surface-black)') : color,
                           padding: '5px 12px', borderRadius: '7px', fontSize: '0.65rem', fontWeight: 900, cursor: 'pointer', transition: 'all 0.15s ease', textTransform: 'uppercase',
                           boxShadow: isSelected && stage !== 'All' ? `0 2px 8px ${bg}44` : 'none'
                         }}
@@ -872,14 +872,14 @@ export function ForemanReportModal({
 
               <div style={{ display: 'flex', gap: '15px', marginBottom: '15px', flexWrap: 'wrap', alignItems: 'center' }} className="no-print">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ fontSize: '0.7rem', color: '#888', fontWeight: 800, textTransform: 'uppercase' }}>Деталь:</span>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase' }}>Деталь:</span>
                   <select
                     value={reportNomFilter}
                     onChange={e => setReportNomFilter(e.target.value)}
                     style={{
-                      background: '#111',
-                      border: '1px solid #333',
-                      color: '#fff',
+                      background: 'var(--surface-1)',
+                      border: '1px solid var(--border-subtle)',
+                      color: 'var(--text-strong)',
                       padding: '6px 12px',
                       borderRadius: '8px',
                       fontSize: '0.75rem',
@@ -908,7 +908,7 @@ export function ForemanReportModal({
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ fontSize: '0.7rem', color: '#888', fontWeight: 800, textTransform: 'uppercase' }}>Сортування:</span>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase' }}>Сортування:</span>
                   <select
                     value={reportSortBy}
                     onChange={e => {
@@ -918,9 +918,9 @@ export function ForemanReportModal({
                       }
                     }}
                     style={{
-                      background: '#111',
-                      border: '1px solid #333',
-                      color: '#fff',
+                      background: 'var(--surface-1)',
+                      border: '1px solid var(--border-subtle)',
+                      color: 'var(--text-strong)',
                       padding: '6px 12px',
                       borderRadius: '8px',
                       fontSize: '0.75rem',
@@ -938,14 +938,14 @@ export function ForemanReportModal({
 
                 {reportSortBy === 'operator' && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ fontSize: '0.7rem', color: '#888', fontWeight: 800, textTransform: 'uppercase' }}>Оператор:</span>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase' }}>Оператор:</span>
                     <select
                       value={reportOperatorFilter}
                       onChange={e => setReportOperatorFilter(e.target.value)}
                       style={{
-                        background: '#111',
-                        border: '1px solid #333',
-                        color: '#fff',
+                        background: 'var(--surface-1)',
+                        border: '1px solid var(--border-subtle)',
+                        color: 'var(--text-strong)',
                         padding: '6px 12px',
                         borderRadius: '8px',
                         fontSize: '0.75rem',
@@ -1027,17 +1027,17 @@ export function ForemanReportModal({
 
                 if (processedRows.length === 0) {
                   return (
-                    <div style={{ padding: '30px', textAlign: 'center', background: '#111', borderRadius: '16px', color: '#555', fontSize: '0.85rem' }}>
+                    <div style={{ padding: '30px', textAlign: 'center', background: 'var(--surface-1)', borderRadius: '16px', color: '#555', fontSize: '0.85rem' }}>
                       Операцій для обраних фільтрів ще не проводилось.
                     </div>
                   )
                 }
 
                 return (
-                  <div style={{ background: '#111', borderRadius: '18px', overflowX: 'auto', border: '1px solid #222' }}>
+                  <div style={{ background: 'var(--surface-1)', borderRadius: '18px', overflowX: 'auto', border: '1px solid var(--border-subtle)' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', textAlign: 'left', minWidth: '850px' }}>
                       <thead>
-                        <tr style={{ background: '#161616', color: '#888', textTransform: 'uppercase', fontSize: '0.6rem', fontWeight: 900, borderBottom: '1px solid #222' }}>
+                        <tr style={{ background: 'var(--surface-2)', color: '#888', textTransform: 'uppercase', fontSize: '0.6rem', fontWeight: 900, borderBottom: '1px solid var(--border-subtle)' }}>
                           <th style={{ padding: '12px 15px' }}>Деталь / Картка</th>
                           <th style={{ padding: '12px 15px' }}>Час (початок / завершення)</th>
                           <th style={{ padding: '12px 15px', textAlign: 'center' }}>План. час</th>
@@ -1087,16 +1087,16 @@ export function ForemanReportModal({
                                   : 'sorting'
 
                           return (
-                            <tr key={row.id || idx} style={{ borderBottom: idx < processedRows.length - 1 ? '1px solid #222' : 'none' }}>
+                            <tr key={row.id || idx} style={{ borderBottom: idx < processedRows.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
                               <td style={{ padding: '12px 15px' }}>
-                                <div style={{ fontWeight: 800, color: '#fff' }}>{nom?.name || '—'}</div>
-                                <div style={{ fontSize: '0.65rem', color: '#888', marginTop: '2px' }}>Картка {seqStr}</div>
+                                <div style={{ fontWeight: 800, color: 'var(--text-strong)' }}>{nom?.name || '—'}</div>
+                                <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '2px' }}>Картка {seqStr}</div>
                               </td>
                               <td style={{ padding: '12px 15px' }}>
-                                <div style={{ color: '#888', fontWeight: 600 }}>{startTime}</div>
-                                <div style={{ color: '#aaa', fontWeight: 700, marginTop: '2px' }}>{completedTime}</div>
+                                <div style={{ color: 'var(--text-muted)', fontWeight: 600 }}>{startTime}</div>
+                                <div style={{ color: 'var(--text-muted)', fontWeight: 700, marginTop: '2px' }}>{completedTime}</div>
                               </td>
-                              <td style={{ padding: '12px 15px', textAlign: 'center', color: '#fff', fontWeight: 700 }}>{planStr}</td>
+                              <td style={{ padding: '12px 15px', textAlign: 'center', color: 'var(--text-strong)', fontWeight: 700 }}>{planStr}</td>
                               <td style={{ padding: '12px 15px', textAlign: 'center', color: '#3b82f6', fontWeight: 700 }}>{factStr}</td>
                               <td style={{ padding: '12px 15px' }}>
                                 <span
@@ -1115,8 +1115,8 @@ export function ForemanReportModal({
                                 </span>
                               </td>
                               <td style={{ padding: '12px 15px' }}>
-                                <div style={{ color: '#fff', fontWeight: 800 }}>{row.operator_name}</div>
-                                <div style={{ color: '#555', fontSize: '0.65rem' }}>{row.shift_name}</div>
+                                <div style={{ color: 'var(--text-strong)', fontWeight: 800 }}>{row.operator_name}</div>
+                                <div style={{ color: 'var(--text-dim)', fontSize: '0.65rem' }}>{row.shift_name}</div>
                                 {(() => {
                                   const replacedMatch = row.card_info?.match(/\[REPLACED_BY:(.*?)\]/)
                                   if (replacedMatch) {
@@ -1129,7 +1129,7 @@ export function ForemanReportModal({
                                   return null
                                 })()}
                               </td>
-                              <td style={{ padding: '12px 15px', color: '#888' }}>
+                              <td style={{ padding: '12px 15px', color: 'var(--text-muted)' }}>
                                 {row.machine_name || row.machine || '—'}
                               </td>
                               <td style={{ padding: '12px 15px', textAlign: 'center' }}>
@@ -1172,9 +1172,9 @@ export function ForemanReportModal({
                 <button
                   onClick={() => setShowReportModal(false)}
                   style={{
-                    background: '#222',
-                    color: '#fff',
-                    border: '1px solid #333',
+                    background: 'var(--surface-3)',
+                    color: 'var(--text-strong)',
+                    border: '1px solid var(--border-subtle)',
                     padding: '10px 20px',
                     borderRadius: '10px',
                     fontWeight: 800,
@@ -1210,8 +1210,8 @@ export function ForemanReportModal({
           <div
             onClick={e => e.stopPropagation()}
             style={{
-              background: '#0d0d0d',
-              border: '1px solid #222',
+              background: 'var(--surface-inset)',
+              border: '1px solid var(--border-subtle)',
               borderRadius: '20px',
               width: '90vw',
               maxWidth: '850px',
@@ -1220,7 +1220,7 @@ export function ForemanReportModal({
               padding: '25px',
               boxShadow: '0 20px 40px rgba(0, 0, 0, 0.6)',
               position: 'relative',
-              color: '#fff'
+              color: 'var(--text-strong)'
             }}
           >
             <button
@@ -1229,9 +1229,9 @@ export function ForemanReportModal({
                 position: 'absolute',
                 top: '15px',
                 right: '15px',
-                background: '#222',
+                background: 'var(--surface-3)',
                 border: 'none',
-                color: '#fff',
+                color: 'var(--text-strong)',
                 width: '30px',
                 height: '30px',
                 borderRadius: '50%',
@@ -1289,12 +1289,12 @@ export function ForemanReportModal({
                     </div>
                   </div>
                   {items.length === 0 ? (
-                    <div style={{ padding: '20px', textAlign: 'center', color: '#666' }}>Деталей ще не прийнято</div>
+                    <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-dim)' }}>Деталей ще не прийнято</div>
                   ) : (
-                    <div style={{ background: '#111', borderRadius: '14px', border: '1px solid #222', overflow: 'hidden' }}>
+                    <div style={{ background: 'var(--surface-1)', borderRadius: '14px', border: '1px solid var(--border-subtle)', overflow: 'hidden' }}>
                       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', textAlign: 'left' }}>
                         <thead>
-                          <tr style={{ background: '#161616', color: '#666', borderBottom: '1px solid #222', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase' }}>
+                          <tr style={{ background: 'var(--surface-2)', color: '#666', borderBottom: '1px solid var(--border-subtle)', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase' }}>
                             <th style={{ padding: '10px 12px' }}>Деталь</th>
                             <th style={{ padding: '10px 12px', textAlign: 'right' }}>З БЗ</th>
                             <th style={{ padding: '10px 12px', textAlign: 'right' }}>Цех №1</th>
@@ -1303,10 +1303,10 @@ export function ForemanReportModal({
                         </thead>
                         <tbody>
                           {items.map((item, idx) => (
-                            <tr key={idx} style={{ borderBottom: idx < items.length - 1 ? '1px solid #1a1a1a' : 'none' }}>
+                            <tr key={idx} style={{ borderBottom: idx < items.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
                               <td style={{ padding: '10px 12px' }}>
-                                <div style={{ fontWeight: 800, color: '#fff' }}>{item.name}</div>
-                                <div style={{ fontSize: '0.65rem', color: '#555', marginTop: '2px' }}>{item.code}</div>
+                                <div style={{ fontWeight: 800, color: 'var(--text-strong)' }}>{item.name}</div>
+                                <div style={{ fontSize: '0.65rem', color: 'var(--text-dim)', marginTop: '2px' }}>{item.code}</div>
                               </td>
                               <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 800, color: '#3b82f6', fontSize: '0.85rem' }}>
                                 {item.fromBz} шт
@@ -1314,7 +1314,7 @@ export function ForemanReportModal({
                               <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 800, color: '#10b981', fontSize: '0.85rem' }}>
                                 {item.fromShop1} шт
                               </td>
-                              <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 900, color: '#fff', fontSize: '0.9rem' }}>
+                              <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 900, color: 'var(--text-strong)', fontSize: '0.9rem' }}>
                                 {item.qty} шт
                               </td>
                             </tr>
@@ -1359,20 +1359,20 @@ export function ForemanReportModal({
                     </div>
                   </div>
                   {items.length === 0 ? (
-                    <div style={{ padding: '20px', textAlign: 'center', color: '#666' }}>Бракованих деталей немає</div>
+                    <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-dim)' }}>Бракованих деталей немає</div>
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                       {items.map((item, idx) => (
-                        <div key={idx} style={{ background: '#111', border: '1px solid #222', borderRadius: '12px', padding: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div key={idx} style={{ background: 'var(--surface-1)', border: '1px solid var(--border-subtle)', borderRadius: '12px', padding: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                           <div style={{ display: 'flex', flexDirection: 'column', flex: 1, marginRight: '15px' }}>
-                            <div style={{ fontWeight: 800, color: '#fff', fontSize: '0.8rem' }}>{item.name}</div>
-                            <div style={{ fontSize: '0.65rem', color: '#555', marginTop: '2px' }}>{item.code}</div>
-                            <div style={{ display: 'flex', gap: '10px', marginTop: '6px', fontSize: '0.65rem', color: '#888', flexWrap: 'wrap' }}>
-                              <span>Етап: <strong style={{ color: '#aaa' }}>{item.stage}</strong></span>
+                            <div style={{ fontWeight: 800, color: 'var(--text-strong)', fontSize: '0.8rem' }}>{item.name}</div>
+                            <div style={{ fontSize: '0.65rem', color: 'var(--text-dim)', marginTop: '2px' }}>{item.code}</div>
+                            <div style={{ display: 'flex', gap: '10px', marginTop: '6px', fontSize: '0.65rem', color: 'var(--text-muted)', flexWrap: 'wrap' }}>
+                              <span>Етап: <strong style={{ color: 'var(--text-muted)' }}>{item.stage}</strong></span>
                               {item.machine && item.machine !== '—' && (
-                                <span>Верстат: <strong style={{ color: '#aaa' }}>{item.machine}</strong></span>
+                                <span>Верстат: <strong style={{ color: 'var(--text-muted)' }}>{item.machine}</strong></span>
                               )}
-                              <span>Оператор: <strong style={{ color: '#aaa' }}>{item.operator}</strong></span>
+                              <span>Оператор: <strong style={{ color: 'var(--text-muted)' }}>{item.operator}</strong></span>
                             </div>
                           </div>
                           <div style={{ color: '#ef4444', fontWeight: 900, fontSize: '1rem', whiteSpace: 'nowrap' }}>

@@ -10,7 +10,7 @@ export default function TumblingTerminalFilters({
   getNextTumblingOperation
 }) {
   return (
-    <div style={{ padding: '18px 24px', background: 'rgba(255,255,255,0.01)', borderBottom: '1px solid var(--glass-border, rgba(255,255,255,0.03))', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+    <div style={{ padding: '18px 24px', background: 'var(--fill-subtle)', borderBottom: '1px solid var(--glass-border, var(--border-subtle))', display: 'flex', flexDirection: 'column', gap: '14px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px' }}>
         <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', maxWidth: '100%', paddingBottom: '6px', scrollbarWidth: 'none' }} className="hide-scrollbar">
           {[
@@ -25,7 +25,7 @@ export default function TumblingTerminalFilters({
               style={{
                 background: filterMode === tab.mode ? `rgba(${tab.mode === 'in_work' ? '16,185,129' : tab.mode === 'waiting' ? '245,158,11' : '6,182,214'}, 0.12)` : 'var(--card-bg, #121216)',
                 color: filterMode === tab.mode ? tab.color : 'var(--text-muted, #888)',
-                border: `1px solid ${filterMode === tab.mode ? tab.color + '40' : 'var(--glass-border, rgba(255,255,255,0.04))'}`,
+                border: `1px solid ${filterMode === tab.mode ? tab.color + '40' : 'var(--glass-border, var(--border-subtle))'}`,
                 padding: '8px 16px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.2s', flexShrink: 0
               }}
             >
@@ -62,7 +62,7 @@ export default function TumblingTerminalFilters({
             style={{
               background: subStageFilter === sub.id ? 'rgba(6,182,212,0.12)' : 'var(--card-bg, #121216)',
               color: subStageFilter === sub.id ? '#06b6d4' : 'var(--text-muted, #888)',
-              border: `1px solid ${subStageFilter === sub.id ? 'rgba(6,182,212,0.4)' : 'var(--glass-border, rgba(255,255,255,0.04))'}`,
+              border: `1px solid ${subStageFilter === sub.id ? 'rgba(6,182,212,0.4)' : 'var(--glass-border, var(--border-subtle))'}`,
               padding: '6px 14px', borderRadius: '10px', fontSize: '0.72rem', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', transition: 'all 0.15s', flexShrink: 0
             }}
           >

@@ -48,7 +48,7 @@ const MachinesModule = () => {
   } = useMachinesData()
 
   return (
-    <div className="machines-module-v3" style={{ background: '#050505', minHeight: '100vh', color: '#fff', display: 'flex', flexDirection: 'column' }}>
+    <div className="machines-module-v3" style={{ background: 'var(--surface-inset)', minHeight: '100vh', color: 'var(--text-strong)', display: 'flex', flexDirection: 'column' }}>
       <MachinesNavbar stats={stats} />
 
       <div className="module-content" style={{ padding: '30px', overflowY: 'auto', flex: 1 }}>
@@ -119,9 +119,9 @@ const MachinesModule = () => {
       />
 
       <style dangerouslySetInnerHTML={{ __html: `
-        .stat-pill { background: #111; padding: 6px 15px; border-radius: 10px; font-size: 0.75rem; border: 1px solid #1a1a1a; color: #555; font-weight: 800; }
+        .stat-pill { background: #111; padding: 6px 15px; border-radius: 10px; font-size: 0.75rem; border: 1px solid var(--border-subtle); color: #555; font-weight: 800; }
         .input-group label { display: flex; align-items: center; gap: 8px; font-size: 0.65rem; color: #444; text-transform: uppercase; font-weight: 900; margin-bottom: 8px; }
-        .input-group input { width: 100%; background: #000; border: 1px solid #222; color: #fff; padding: 15px; border-radius: 12px; font-size: 0.9rem; outline: none; transition: 0.2s; }
+        .input-group input { width: 100%; background: #000; border: 1px solid var(--border-subtle); color: #fff; padding: 15px; border-radius: 12px; font-size: 0.9rem; outline: none; transition: 0.2s; }
         .input-group input:focus, .input-group select:focus { border-color: #ff9000; background: #050505; }
 
         .machine-card-v3 {
@@ -132,7 +132,7 @@ const MachinesModule = () => {
         .machine-card-v3:hover { transform: translateY(-8px); border-color: #333; box-shadow: 0 30px 60px rgba(0,0,0,0.6); }
         
         .card-top { display: flex; justify-content: space-between; align-items: center; }
-        .machine-icon-box { background: #111; width: 48px; height: 48px; border-radius: 14px; display: flex; align-items: center; justify-content: center; color: #ff9000; border: 1px solid #1a1a1a; }
+        .machine-icon-box { background: #111; width: 48px; height: 48px; border-radius: 14px; display: flex; align-items: center; justify-content: center; color: #ff9000; border: 1px solid var(--border-subtle); }
         
         .status-badge { display: flex; align-items: center; gap: 8px; font-size: 0.65rem; font-weight: 950; letter-spacing: 1px; color: #444; }
         .is-busy .status-badge { color: #ef4444; }
@@ -179,11 +179,11 @@ const MachinesModule = () => {
         .progress-bar-inner { height: 100%; background: #ef4444; box-shadow: 0 0 10px #ef4444; }
 
         .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 2000; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(10px); }
-        .modal-content { background: #0a0a0a; border: 1px solid #222; border-radius: 32px; box-shadow: 0 50px 100px rgba(0,0,0,0.8); overflow: hidden; animation: zoomIn 0.3s; }
+        .modal-content { background: #0a0a0a; border: 1px solid var(--border-subtle); border-radius: 32px; box-shadow: 0 50px 100px rgba(0,0,0,0.8); overflow: hidden; animation: zoomIn 0.3s; }
         .machine-detail-modal { width: 1000px; max-width: 95vw; }
         
         .modal-header { padding: 40px; display: flex; justify-content: space-between; align-items: center; background: #000; border-bottom: 1px solid #1a1a1a; }
-        .modal-icon { width: 70px; height: 70px; background: #111; border-radius: 20px; display: flex; align-items: center; justify-content: center; color: #ff9000; border: 1px solid #222; }
+        .modal-icon { width: 70px; height: 70px; background: #111; border-radius: 20px; display: flex; align-items: center; justify-content: center; color: #ff9000; border: 1px solid var(--border-subtle); }
         .btn-close { background: #111; border: none; color: #fff; width: 48px; height: 48px; border-radius: 14px; cursor: pointer; }
         
         .modal-body-split { display: grid; grid-template-columns: 300px 1fr; }
@@ -192,7 +192,7 @@ const MachinesModule = () => {
         .side-metric span { font-size: 1.2rem; font-weight: 1000; color: #fff; }
         
         .detail-main { padding: 40px; }
-        .history-table-wrapper { background: #050505; border-radius: 20px; border: 1px solid #1a1a1a; overflow: hidden; }
+        .history-table-wrapper { background: #050505; border-radius: 20px; border: 1px solid var(--border-subtle); overflow: hidden; }
         .history-table-wrapper table { width: 100%; border-collapse: collapse; text-align: left; }
         .history-table-wrapper th { padding: 15px 20px; font-size: 0.7rem; color: #333; text-transform: uppercase; font-weight: 1000; background: #000; }
         .history-table-wrapper td { padding: 15px 20px; border-bottom: 1px solid #111; font-size: 0.85rem; }

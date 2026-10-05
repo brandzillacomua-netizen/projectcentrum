@@ -78,7 +78,7 @@ export const PressingTerminal: React.FC = () => {
 
       {/* MAIN CONTENT */}
       <main style={{ flex: 1, padding: '16px 20px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <section style={{ flex: 1, background: 'var(--card-bg, #0c0c10)', borderRadius: '24px', border: '1px solid var(--glass-border, rgba(255,255,255,0.03))', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <section style={{ flex: 1, background: 'var(--card-bg, #0c0c10)', borderRadius: '24px', border: '1px solid var(--glass-border, var(--border-subtle))', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           
           {/* Filter tabs */}
           <PressingTerminalFilters
@@ -271,7 +271,7 @@ export const PressingTerminal: React.FC = () => {
             flex: 1;
             box-shadow: none !important;
             background: #000 !important;
-            border: 1px solid #222 !important;
+            border: 1px solid var(--border-subtle) !important;
           }
           .floating-controls-container form input {
             width: 100% !important;

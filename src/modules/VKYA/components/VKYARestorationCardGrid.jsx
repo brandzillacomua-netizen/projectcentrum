@@ -20,14 +20,14 @@ export const VKYARestorationCardGrid = ({
 }) => {
   if (tab === 'legacy') {
     return (
-      <div style={{ background: 'var(--card-bg, #121212)', border: '1px solid var(--glass-border, #222)', borderRadius: 16, padding: 20 }}>
+      <div style={{ background: 'var(--card-bg, #121212)', border: '1px solid var(--glass-border, var(--border-subtle))', borderRadius: 16, padding: 20 }}>
         <h3 style={{ margin: '0 0 16px', color: '#f59e0b' }}>Брак зі старого обліку (потребує відновлення)</h3>
         {legacyItems.length === 0 ? (
           <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted, #666)' }}>Немає позицій старого обліку браку</div>
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.85rem' }}>
             <thead>
-              <tr style={{ borderBottom: '1px solid var(--glass-border, #222)', color: 'var(--text-muted, #777)', textAlign: 'left' }}>
+              <tr style={{ borderBottom: '1px solid var(--glass-border, var(--border-subtle))', color: 'var(--text-muted, #777)', textAlign: 'left' }}>
                 <th style={{ padding: 10 }}>Назва деталі</th>
                 <th style={{ padding: 10 }}>Кількість</th>
                 <th style={{ padding: 10, textAlign: 'right' }}>Дія</th>
@@ -35,13 +35,13 @@ export const VKYARestorationCardGrid = ({
             </thead>
             <tbody>
               {legacyItems.map(item => (
-                <tr key={item.id} style={{ borderBottom: '1px solid var(--glass-border, #1a1a1a)' }}>
+                <tr key={item.id} style={{ borderBottom: '1px solid var(--glass-border, var(--border-subtle))' }}>
                   <td style={{ padding: 10, fontWeight: 700 }}>{item.name}</td>
                   <td style={{ padding: 10, color: '#f59e0b', fontWeight: 900 }}>{item.total_qty} {item.unit || 'шт'}</td>
                   <td style={{ padding: 10, textAlign: 'right' }}>
                     <button
                       onClick={() => onSelectLegacy(item)}
-                      style={{ background: '#f59e0b', border: 0, color: '#000', padding: '6px 12px', borderRadius: 8, fontWeight: 900, cursor: 'pointer' }}
+                      style={{ background: '#f59e0b', border: 0, color: 'var(--surface-black)', padding: '6px 12px', borderRadius: 8, fontWeight: 900, cursor: 'pointer' }}
                     >
                       Створити карту відновлення
                     </button>

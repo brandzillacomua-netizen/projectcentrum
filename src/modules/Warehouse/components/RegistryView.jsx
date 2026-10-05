@@ -22,13 +22,13 @@ export const RegistryView = ({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
       {list.map(doc => (
-        <div key={doc.id} style={{ background: '#111', borderRadius: '20px', border: '1px solid #222', overflow: 'hidden' }}>
+        <div key={doc.id} style={{ background: 'var(--surface-1)', borderRadius: '20px', border: '1px solid var(--border-subtle)', overflow: 'hidden' }}>
           <div 
             onClick={() => setExpandedDoc(expandedDoc === doc.id ? null : doc.id)}
             style={{ padding: '20px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
           >
             <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
-              <div style={{ background: '#0a0a0a', padding: '12px', borderRadius: '12px', color: doc.status === 'completed' ? '#10b981' : '#ff9000' }}>
+              <div style={{ background: 'var(--surface-inset)', padding: '12px', borderRadius: '12px', color: doc.status === 'completed' ? '#10b981' : '#ff9000' }}>
                 <Package size={20} />
               </div>
               <div>
@@ -47,7 +47,7 @@ export const RegistryView = ({
           </div>
           
           {expandedDoc === doc.id && (
-            <div style={{ padding: '20px', background: '#0a0a0a', borderTop: '1px solid #222' }}>
+            <div style={{ padding: '20px', background: 'var(--surface-inset)', borderTop: '1px solid var(--border-subtle)' }}>
               <div style={{ marginBottom: '15px' }}>
                 {(Array.isArray(doc.items) ? doc.items : []).map((it, idx) => {
                   const nom = (nomenclatures || []).find(n => n.id === it.nomenclature_id)
@@ -55,8 +55,8 @@ export const RegistryView = ({
                   const itemQty = it.qty ?? it.missingAmount ?? it.needed ?? it.quantity ?? '?'
                   return (
                     <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #111' }}>
-                      <span style={{ fontSize: '0.8rem', color: '#888' }}>{itemName}</span>
-                      <strong style={{ fontSize: '0.8rem', color: '#fff' }}>{itemQty}</strong>
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{itemName}</span>
+                      <strong style={{ fontSize: '0.8rem', color: 'var(--text-strong)' }}>{itemQty}</strong>
                     </div>
                   )
                 })}

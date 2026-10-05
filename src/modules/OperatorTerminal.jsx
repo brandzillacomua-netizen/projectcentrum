@@ -25,8 +25,8 @@ import { useStore } from '../store/index.js'
 import { apiService } from '../services/apiDispatcher'
 
 const SpecCard = ({ icon: Icon, label, value, color = '#eab308' }) => (
-  <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid #1a1a1a', padding: '18px', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '8px', minWidth: '130px' }}>
-    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#555', fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase' }}>
+  <div style={{ background: 'var(--border-subtle)', border: '1px solid var(--border-subtle)', padding: '18px', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '8px', minWidth: '130px' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-dim)', fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase' }}>
       <Icon size={14} /> {label}
     </div>
     <div style={{ fontSize: '1.2rem', fontWeight: 900, color }}>{value}</div>
@@ -204,13 +204,13 @@ const OperatorTerminal = () => {
         const isActive = selectedCardId === card.id
         const batchQty = getQtyFromCard(card)
         return (
-          <div key={card.id} onClick={() => { setSelectedCardId(card.id); setIsDrawerOpen(false); }} style={{ background: isActive ? '#eab308' : '#1a1a1a', borderRadius: '12px', padding: '15px', marginBottom: '10px', cursor: 'pointer', border: '1px solid', borderColor: isActive ? '#eab308' : '#333', transition: '0.2s', color: isActive ? '#000' : '#fff' }}>
+          <div key={card.id} onClick={() => { setSelectedCardId(card.id); setIsDrawerOpen(false); }} style={{ background: isActive ? '#eab308' : 'var(--surface-2)', borderRadius: '12px', padding: '15px', marginBottom: '10px', cursor: 'pointer', border: '1px solid', borderColor: isActive ? '#eab308' : 'var(--border-subtle)', transition: '0.2s', color: isActive ? 'var(--surface-black)' : '#fff' }}>
             <div style={{ marginBottom: '4px' }}>
               <strong style={{ display: 'block', fontSize: '0.9rem', fontWeight: 800 }}>{nom?.name || 'Без назви'}</strong>
               <div style={{ fontSize: '0.65rem', opacity: 0.7 }}>{batchQty} шт | {card.operation} {getSheetsFromCard(card) ? `| Лист ${getSheetsFromCard(card)}` : ''}</div>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
-              <span style={{ fontSize: '0.6rem', background: isActive ? 'rgba(0,0,0,0.2)' : 'rgba(234, 179, 8, 0.1)', color: isActive ? '#000' : '#eab308', padding: '2px 6px', borderRadius: '4px', fontWeight: 900, textTransform: 'uppercase' }}>{card.status === 'in-progress' ? 'У РОБОТІ' : 'ОЧІКУЄ'}</span>
+              <span style={{ fontSize: '0.6rem', background: isActive ? 'var(--fill-inset)' : 'rgba(234, 179, 8, 0.1)', color: isActive ? 'var(--surface-black)' : '#eab308', padding: '2px 6px', borderRadius: '4px', fontWeight: 900, textTransform: 'uppercase' }}>{card.status === 'in-progress' ? 'У РОБОТІ' : 'ОЧІКУЄ'}</span>
               <span style={{ fontSize: '0.65rem', fontWeight: 800 }}>{card.estimated_time || 0} хв</span>
             </div>
           </div>
@@ -220,8 +220,8 @@ const OperatorTerminal = () => {
   )
 
   return (
-    <div className="operator-terminal-v2" style={{ background: '#0a0a0a', height: '100vh', display: 'flex', flexDirection: 'column', color: '#fff', overflow: 'hidden' }}>
-      <header className="terminal-nav" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 20px', height: '70px', background: '#000', borderBottom: '2px solid #eab308', flexShrink: 0 }}>
+    <div className="operator-terminal-v2" style={{ background: 'var(--surface-inset)', height: '100vh', display: 'flex', flexDirection: 'column', color: 'var(--text-strong)', overflow: 'hidden' }}>
+      <header className="terminal-nav" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 20px', height: '70px', background: 'var(--surface-black)', borderBottom: '2px solid #eab308', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
           <Link to="/" style={{ color: '#94a3b8', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, fontSize: '0.85rem' }}>
             <ArrowLeft size={18} /> <span className="hide-mobile">Вихід</span>
@@ -239,8 +239,8 @@ const OperatorTerminal = () => {
       </header>
 
       <div className="main-layout-responsive" style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-        <div className="side-panel hide-mobile" style={{ width: '300px', background: '#121212', borderRight: '1px solid #222', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
-          <div style={{ padding: '20px', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 800, color: '#555', display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div className="side-panel hide-mobile" style={{ width: '300px', background: 'var(--surface-1)', borderRight: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+          <div style={{ padding: '20px', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 800, color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: '10px' }}>
             <ClipboardList size={16} /> ЧЕРГА КАРТ ({queuedCards.length})
           </div>
           {renderQueue()}
@@ -252,18 +252,18 @@ const OperatorTerminal = () => {
           {renderQueue()}
         </div>
 
-        <div className="content-panel" style={{ flex: 1, padding: '20px 15px', background: '#0a0a0a', overflowY: 'auto', position: 'relative' }}>
+        <div className="content-panel" style={{ flex: 1, padding: '20px 15px', background: 'var(--surface-inset)', overflowY: 'auto', position: 'relative' }}>
           {currentCard ? (
             <div style={{ maxWidth: '900px', margin: '0 auto' }} className="anim-fade-in">
               <div style={{ marginBottom: '35px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
                     <div style={{ background: currentCard.status === 'new' ? '#ef4444' : '#3b82f6', color: 'white', padding: '4px 10px', borderRadius: '6px', fontSize: '0.65rem', fontWeight: 900 }}>{currentCard.status === 'new' ? 'НОВА КАРТА' : 'РОБОЧА КАРТА'}</div>
-                    <div style={{ fontSize: '0.7rem', color: '#555', fontWeight: 800 }}>№ {currentCard.id}</div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', fontWeight: 800 }}>№ {currentCard.id}</div>
                   </div>
                   <h2 style={{ fontSize: '2.5rem', margin: 0, fontWeight: 950, letterSpacing: '-0.02em', lineHeight: 1 }}>{getNomFromCard(currentCard)?.name || 'Деталь'}</h2>
                 </div>
-                <button onClick={() => setSelectedCardId(null)} style={{ background: '#111', border: 'none', color: '#555', padding: '10px', borderRadius: '12px', cursor: 'pointer' }}><X size={24} /></button>
+                <button onClick={() => setSelectedCardId(null)} style={{ background: 'var(--surface-1)', border: 'none', color: '#555', padding: '10px', borderRadius: '12px', cursor: 'pointer' }}><X size={24} /></button>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', marginBottom: '30px' }}>
@@ -272,23 +272,23 @@ const OperatorTerminal = () => {
                 <SpecCard icon={Gauge} label="Обладнання" value={currentCard.machine || '—'} />
               </div>
 
-              <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '28px', border: '1px solid #1a1a1a', padding: '40px' }}>
+              <div style={{ background: 'var(--fill-subtle)', borderRadius: '28px', border: '1px solid var(--border-subtle)', padding: '40px' }}>
                 {currentCard.status === 'new' || currentCard.status === 'at-buffer' ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '25px', maxWidth: '500px', margin: '0 auto' }}>
                     <div>
-                      <label style={{ color: '#555', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', display: 'block', marginBottom: '10px' }}>Етап робіт</label>
-                      <select value={selectedStage || currentCard.operation} onChange={(e) => setSelectedStage(e.target.value)} style={{ width: '100%', background: '#111', border: '1px solid #333', color: '#fff', padding: '15px', borderRadius: '15px', fontSize: '1.1rem', fontWeight: 700 }}>
+                      <label style={{ color: 'var(--text-dim)', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', display: 'block', marginBottom: '10px' }}>Етап робіт</label>
+                      <select value={selectedStage || currentCard.operation} onChange={(e) => setSelectedStage(e.target.value)} style={{ width: '100%', background: 'var(--surface-1)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', padding: '15px', borderRadius: '15px', fontSize: '1.1rem', fontWeight: 700 }}>
                         <option value="">— Оберіть етап —</option>
                         {productionStages.map(s => <option key={s} value={s}>{s}</option>)}
                       </select>
                     </div>
                     <div>
-                      <label style={{ color: '#555', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', display: 'block', marginBottom: '10px' }}>Номер верстата</label>
-                      <input type="text" placeholder="Введіть номер..." value={selectedMachine} onChange={(e) => setSelectedMachine(e.target.value)} style={{ width: '100%', background: '#111', border: '1px solid #333', color: '#fff', padding: '15px', borderRadius: '15px', fontSize: '1.1rem', fontWeight: 700 }} />
+                      <label style={{ color: 'var(--text-dim)', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', display: 'block', marginBottom: '10px' }}>Номер верстата</label>
+                      <input type="text" placeholder="Введіть номер..." value={selectedMachine} onChange={(e) => setSelectedMachine(e.target.value)} style={{ width: '100%', background: 'var(--surface-1)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', padding: '15px', borderRadius: '15px', fontSize: '1.1rem', fontWeight: 700 }} />
                     </div>
                     <div>
-                      <label style={{ color: '#555', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', display: 'block', marginBottom: '10px' }}>Відповідальний оператор</label>
-                      <select value={selectedOperator} onChange={(e) => setSelectedOperator(e.target.value)} style={{ width: '100%', background: '#111', border: '1px solid #333', color: '#fff', padding: '15px', borderRadius: '15px', fontSize: '1.1rem', fontWeight: 700 }}>
+                      <label style={{ color: 'var(--text-dim)', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', display: 'block', marginBottom: '10px' }}>Відповідальний оператор</label>
+                      <select value={selectedOperator} onChange={(e) => setSelectedOperator(e.target.value)} style={{ width: '100%', background: 'var(--surface-1)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', padding: '15px', borderRadius: '15px', fontSize: '1.1rem', fontWeight: 700 }}>
                         <option value="">— Оберіть оператора —</option>
                         {operators.map(o => <option key={o} value={o}>{o}</option>)}
                       </select>
@@ -309,7 +309,7 @@ const OperatorTerminal = () => {
             <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
                 <h2 style={{ margin: 0, fontSize: '1.8rem', fontWeight: 950 }}>ЛАНЦЮЖОК ВИРОБНИЦТВА</h2>
-                <button onClick={() => setIsScanning(true)} style={{ background: '#eab308', border: 'none', color: '#000', padding: '15px 30px', borderRadius: '15px', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}><Camera size={20} /> ВІДКРИТИ СКАНЕР</button>
+                <button onClick={() => setIsScanning(true)} style={{ background: '#eab308', border: 'none', color: 'var(--surface-black)', padding: '15px 30px', borderRadius: '15px', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}><Camera size={20} /> ВІДКРИТИ СКАНЕР</button>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px', marginBottom: '50px' }}>
@@ -326,21 +326,21 @@ const OperatorTerminal = () => {
                     return hn === stageKey || hn.includes(stageKey) || stageKey.includes(hn)
                   }).reduce((acc, h) => acc + (Number(h.scrap_qty) || 0), 0)
                   return (
-                    <div key={stage} onClick={() => setDetailStage(stage)} className="stage-card-hover" style={{ background: '#111', border: '1px solid #222', borderRadius: '24px', padding: '20px', cursor: 'pointer', position: 'relative' }}>
+                    <div key={stage} onClick={() => setDetailStage(stage)} className="stage-card-hover" style={{ background: 'var(--surface-1)', border: '1px solid var(--border-subtle)', borderRadius: '24px', padding: '20px', cursor: 'pointer', position: 'relative' }}>
                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-                          <span style={{ color: '#555', fontSize: '0.7rem', fontWeight: 900, textTransform: 'uppercase' }}>{stage}</span>
+                          <span style={{ color: 'var(--text-dim)', fontSize: '0.7rem', fontWeight: 900, textTransform: 'uppercase' }}>{stage}</span>
                           <Layers size={14} color="#333" />
                        </div>
                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', alignItems: 'flex-end', width: '100%' }}>
                           <div style={{ overflow: 'hidden' }}>
                             <div style={{ fontSize: '0.6rem', color: '#3b82f6', fontWeight: 800, whiteSpace: 'nowrap' }}>У РОБОТІ</div>
-                            <div style={{ fontSize: '1.3rem', fontWeight: 950, whiteSpace: 'nowrap', letterSpacing: '-0.02em', color: workQty > 0 ? '#fff' : '#222' }}>{workQty} <small style={{ fontSize: '0.55rem', opacity: 0.3 }}>шт</small></div>
+                            <div style={{ fontSize: '1.3rem', fontWeight: 950, whiteSpace: 'nowrap', letterSpacing: '-0.02em', color: workQty > 0 ? 'var(--text-strong)' : '#222' }}>{workQty} <small style={{ fontSize: '0.55rem', opacity: 0.3 }}>шт</small></div>
                           </div>
-                          <div style={{ borderLeft: '1px solid #222', paddingLeft: '8px', overflow: 'hidden' }}>
+                          <div style={{ borderLeft: '1px solid var(--border-subtle)', paddingLeft: '8px', overflow: 'hidden' }}>
                             <div style={{ fontSize: '0.6rem', color: '#10b981', fontWeight: 800, whiteSpace: 'nowrap' }}>БУФЕР</div>
                             <div style={{ fontSize: '1.3rem', fontWeight: 950, whiteSpace: 'nowrap', letterSpacing: '-0.02em', color: bufferQty > 0 ? '#10b981' : '#222' }}>{bufferQty} <small style={{ fontSize: '0.55rem', opacity: 0.3 }}>шт</small></div>
                           </div>
-                          <div style={{ borderLeft: '1px solid #222', paddingLeft: '8px', overflow: 'hidden' }}>
+                          <div style={{ borderLeft: '1px solid var(--border-subtle)', paddingLeft: '8px', overflow: 'hidden' }}>
                             <div style={{ fontSize: '0.6rem', color: '#ef4444', fontWeight: 800, whiteSpace: 'nowrap' }}>БРАК</div>
                             <div style={{ fontSize: '1.3rem', fontWeight: 950, whiteSpace: 'nowrap', letterSpacing: '-0.02em', color: scrapQty > 0 ? '#ef4444' : '#222' }}>{scrapQty} <small style={{ fontSize: '0.55rem', opacity: 0.3 }}>шт</small></div>
                           </div>
@@ -351,24 +351,24 @@ const OperatorTerminal = () => {
                 })}
               </div>
 
-              <div style={{ background: '#111', borderRadius: '24px', border: '1px solid #222', overflow: 'hidden' }}>
-                <div style={{ padding: '25px', borderBottom: '1px solid #222', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ background: 'var(--surface-1)', borderRadius: '24px', border: '1px solid var(--border-subtle)', overflow: 'hidden' }}>
+                <div style={{ padding: '25px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                    <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 900 }}>В РОБОТІ ТА БУФЕРІ</h3>
                    {isSyncing && <div style={{ fontSize: '0.7rem', color: '#eab308', display: 'flex', alignItems: 'center', gap: '8px' }}><RefreshCw className="animate-spin" size={12} /> ОНОВЛЕННЯ...</div>}
                 </div>
                 <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                  <thead style={{ background: '#0a0a0a', fontSize: '0.65rem', fontWeight: 900, color: '#555', textTransform: 'uppercase' }}>
+                  <thead style={{ background: 'var(--surface-inset)', fontSize: '0.65rem', fontWeight: 900, color: '#555', textTransform: 'uppercase' }}>
                     <tr><th style={{ padding: '15px 25px' }}>ДЕТАЛЬ</th><th style={{ padding: '15px 25px' }}>ЕТАП</th><th style={{ padding: '15px 25px' }}>К-СТЬ</th><th style={{ padding: '15px 25px' }}>ОПЕРАТОР</th><th style={{ padding: '15px 25px' }}>ЧАС</th><th style={{ padding: '15px 25px' }}></th></tr>
                   </thead>
                   <tbody>
                     {workCards.filter(c => c.status === 'in-progress' || c.status === 'at-buffer').map(card => (
-                      <tr key={card.id} style={{ borderBottom: '1px solid #1a1a1a', fontSize: '0.85rem' }}>
+                      <tr key={card.id} style={{ borderBottom: '1px solid var(--border-subtle)', fontSize: '0.85rem' }}>
                         <td style={{ padding: '15px 25px', fontWeight: 800 }}>{getNomFromCard(card)?.name}</td>
                         <td style={{ padding: '15px 25px' }}><span style={{ color: card.status === 'at-buffer' ? '#10b981' : '#3b82f6', fontWeight: 900, fontSize: '0.7rem' }}>{card.status === 'at-buffer' ? 'БУФЕР' : card.operation?.toUpperCase()}</span></td>
                         <td style={{ padding: '15px 25px', fontWeight: 900 }}>{card.quantity} шт</td>
-                        <td style={{ padding: '15px 25px', color: '#aaa' }}>{card.operator_name || '—'}</td>
+                        <td style={{ padding: '15px 25px', color: 'var(--text-muted)' }}>{card.operator_name || '—'}</td>
                         <td style={{ padding: '15px 25px', color: '#10b981' }}>{formatElapsedTime(card.started_at)}</td>
-                        <td style={{ padding: '15px 25px', textAlign: 'right' }}><button onClick={() => setSelectedCardId(card.id)} style={{ background: '#222', border: 'none', color: '#fff', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.7rem' }}>ВІДКРИТИ</button></td>
+                        <td style={{ padding: '15px 25px', textAlign: 'right' }}><button onClick={() => setSelectedCardId(card.id)} style={{ background: 'var(--surface-3)', border: 'none', color: 'var(--text-strong)', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.7rem' }}>ВІДКРИТИ</button></td>
                       </tr>
                     ))}
                   </tbody>
@@ -380,8 +380,8 @@ const OperatorTerminal = () => {
       </div>
 
       {isScanning && (
-        <div style={{ position: 'fixed', inset: 0, background: '#000', zIndex: 10001, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-          <button onClick={() => setIsScanning(false)} style={{ position: 'absolute', top: 30, right: 30, color: '#fff', background: '#1a1a1a', border: 'none', padding: '15px', borderRadius: '50%' }}><X size={32} /></button>
+        <div style={{ position: 'fixed', inset: 0, background: 'var(--surface-black)', zIndex: 10001, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+          <button onClick={() => setIsScanning(false)} style={{ position: 'absolute', top: 30, right: 30, color: 'var(--text-strong)', background: 'var(--surface-2)', border: 'none', padding: '15px', borderRadius: '50%' }}><X size={32} /></button>
           <div style={{ width: '90%', maxWidth: '500px', border: '4px solid #3b82f6', borderRadius: '32px', overflow: 'hidden' }} id="reader"></div>
         </div>
       )}
@@ -389,11 +389,11 @@ const OperatorTerminal = () => {
       {showPinModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.98)', zIndex: 10010, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
            <div style={{ width: '100%', maxWidth: '350px', textAlign: 'center' }}>
-              <div style={{ background: '#111', padding: '20px', borderRadius: '24px', fontSize: '3rem', fontWeight: 1000, marginBottom: '30px', border: `3px solid ${pinError ? '#ef4444' : '#222'}` }}>{pin.split('').map(() => '*').join('')}</div>
+              <div style={{ background: 'var(--surface-1)', padding: '20px', borderRadius: '24px', fontSize: '3rem', fontWeight: 1000, marginBottom: '30px', border: `3px solid ${pinError ? '#ef4444' : 'var(--surface-3)'}` }}>{pin.split('').map(() => '*').join('')}</div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '15px' }}>
-                 {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => <button key={num} onClick={() => setPin(pin + num)} style={{ background: '#1a1a1a', color: '#fff', border: '1px solid #333', fontSize: '2rem', padding: '20px', borderRadius: '15px' }}>{num}</button>)}
-                 <button onClick={() => setPin('')} style={{ background: '#1a1a1a', color: '#ef4444', fontSize: '2rem', borderRadius: '15px' }}>C</button>
-                 <button onClick={() => setPin(pin + '0')} style={{ background: '#1a1a1a', color: '#fff', fontSize: '2rem', borderRadius: '15px' }}>0</button>
+                 {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => <button key={num} onClick={() => setPin(pin + num)} style={{ background: 'var(--surface-2)', color: 'var(--text-strong)', border: '1px solid var(--border-subtle)', fontSize: '2rem', padding: '20px', borderRadius: '15px' }}>{num}</button>)}
+                 <button onClick={() => setPin('')} style={{ background: 'var(--surface-2)', color: '#ef4444', fontSize: '2rem', borderRadius: '15px' }}>C</button>
+                 <button onClick={() => setPin(pin + '0')} style={{ background: 'var(--surface-2)', color: 'var(--text-strong)', fontSize: '2rem', borderRadius: '15px' }}>0</button>
                  <button onClick={validatePin} style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '15px', fontSize: '1.2rem' }}>OK</button>
               </div>
               <button onClick={() => setShowPinModal(false)} style={{ marginTop: '30px', background: 'transparent', color: '#555', border: 'none' }}>СКАСУВАТИ</button>
@@ -403,19 +403,19 @@ const OperatorTerminal = () => {
 
       {showScrapModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.96)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10020, padding: '20px' }}>
-          <div style={{ background: '#111', width: '100%', maxWidth: '500px', borderRadius: '32px', border: '1px solid #333', overflow: 'hidden' }}>
-            <div style={{ padding: '25px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#1a1a1a' }}>
+          <div style={{ background: 'var(--surface-1)', width: '100%', maxWidth: '500px', borderRadius: '32px', border: '1px solid var(--border-subtle)', overflow: 'hidden' }}>
+            <div style={{ padding: '25px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--surface-2)' }}>
               <h3 style={{ margin: 0 }}>ЗАВЕРШИТЬ ЕТАП</h3>
               <button onClick={() => setShowScrapModal(false)} style={{ background: 'transparent', border: 'none', color: '#555' }}><X size={26} /></button>
             </div>
             <div style={{ padding: '30px', textAlign: 'center' }}>
               <h2 style={{ margin: '0 0 20px' }}>{getNomFromCard(currentCard)?.name}</h2>
-              <div style={{ background: '#000', padding: '20px', borderRadius: '20px' }}>
+              <div style={{ background: 'var(--surface-black)', padding: '20px', borderRadius: '20px' }}>
                 <label style={{ color: '#ef4444', fontWeight: 900, display: 'block', marginBottom: '15px' }}>КІЛЬКІСТЬ БРАКУ</label>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '15px' }}>
-                  <button onClick={() => setScrapCounts(p => ({ ...p, [getNomFromCard(currentCard)?.id]: Math.max(0, (p[getNomFromCard(currentCard)?.id] || 0) - 1) }))} style={{ width: '50px', height: '50px', background: '#1a1a1a', border: '1px solid #333', color: '#fff', borderRadius: '12px' }}>-</button>
-                  <input type="number" value={scrapCounts[getNomFromCard(currentCard)?.id] === 0 ? '' : (scrapCounts[getNomFromCard(currentCard)?.id] || '')} placeholder="0" onChange={e => { const val = e.target.value; setScrapCounts({ [getNomFromCard(currentCard)?.id]: val === '' ? 0 : (parseInt(val) || 0) }) }} style={{ background: 'transparent', border: 'none', color: '#fff', fontSize: '3rem', width: '100px', textAlign: 'center' }} />
-                  <button onClick={() => setScrapCounts(p => ({ ...p, [getNomFromCard(currentCard)?.id]: (p[getNomFromCard(currentCard)?.id] || 0) + 1 }))} style={{ width: '50px', height: '50px', background: '#1a1a1a', border: '1px solid #333', color: '#fff', borderRadius: '12px' }}>+</button>
+                  <button onClick={() => setScrapCounts(p => ({ ...p, [getNomFromCard(currentCard)?.id]: Math.max(0, (p[getNomFromCard(currentCard)?.id] || 0) - 1) }))} style={{ width: '50px', height: '50px', background: 'var(--surface-2)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', borderRadius: '12px' }}>-</button>
+                  <input type="number" value={scrapCounts[getNomFromCard(currentCard)?.id] === 0 ? '' : (scrapCounts[getNomFromCard(currentCard)?.id] || '')} placeholder="0" onChange={e => { const val = e.target.value; setScrapCounts({ [getNomFromCard(currentCard)?.id]: val === '' ? 0 : (parseInt(val) || 0) }) }} style={{ background: 'transparent', border: 'none', color: 'var(--text-strong)', fontSize: '3rem', width: '100px', textAlign: 'center' }} />
+                  <button onClick={() => setScrapCounts(p => ({ ...p, [getNomFromCard(currentCard)?.id]: (p[getNomFromCard(currentCard)?.id] || 0) + 1 }))} style={{ width: '50px', height: '50px', background: 'var(--surface-2)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', borderRadius: '12px' }}>+</button>
                 </div>
               </div>
               <button onClick={handleFinalFinish} style={{ width: '100%', background: '#10b981', color: '#fff', border: 'none', padding: '20px', borderRadius: '15px', fontWeight: 900, marginTop: '30px' }}>ПІДТВЕРДИТИ ТА В БУФЕР</button>
@@ -426,15 +426,15 @@ const OperatorTerminal = () => {
 
       {detailStage && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.95)', zIndex: 10030, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-           <div style={{ width: '100%', maxWidth: '700px', background: '#111', borderRadius: '32px', border: '1px solid #333', overflow: 'hidden' }}>
-              <div style={{ padding: '25px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#1a1a1a' }}>
+           <div style={{ width: '100%', maxWidth: '700px', background: 'var(--surface-1)', borderRadius: '32px', border: '1px solid var(--border-subtle)', overflow: 'hidden' }}>
+              <div style={{ padding: '25px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--surface-2)' }}>
                  <h2 style={{ margin: 0, color: '#eab308' }}>{detailStage.toUpperCase()}</h2>
-                 <button onClick={() => setDetailStage(null)} style={{ background: '#222', border: 'none', color: '#fff', padding: '10px', borderRadius: '10px' }}><X size={20} /></button>
+                 <button onClick={() => setDetailStage(null)} style={{ background: 'var(--surface-3)', border: 'none', color: 'var(--text-strong)', padding: '10px', borderRadius: '10px' }}><X size={20} /></button>
               </div>
               <div style={{ display: 'flex', padding: '15px', gap: '10px' }}>
-                 <button onClick={() => setDetailTab('work')} style={{ flex: 1, padding: '15px', borderRadius: '15px', border: 'none', background: detailTab === 'work' ? '#3b82f6' : '#222', color: '#fff', fontWeight: 900 }}>У РОБОТІ</button>
-                 <button onClick={() => setDetailTab('buffer')} style={{ flex: 1, padding: '15px', borderRadius: '15px', border: 'none', background: detailTab === 'buffer' ? '#10b981' : '#222', color: '#fff', fontWeight: 900 }}>БУФЕР</button>
-                 <button onClick={() => setDetailTab('scrap')} style={{ flex: 1, padding: '15px', borderRadius: '15px', border: 'none', background: detailTab === 'scrap' ? '#ef4444' : '#222', color: '#fff', fontWeight: 900 }}>БРАК</button>
+                 <button onClick={() => setDetailTab('work')} style={{ flex: 1, padding: '15px', borderRadius: '15px', border: 'none', background: detailTab === 'work' ? '#3b82f6' : 'var(--surface-3)', color: '#fff', fontWeight: 900 }}>У РОБОТІ</button>
+                 <button onClick={() => setDetailTab('buffer')} style={{ flex: 1, padding: '15px', borderRadius: '15px', border: 'none', background: detailTab === 'buffer' ? '#10b981' : 'var(--surface-3)', color: '#fff', fontWeight: 900 }}>БУФЕР</button>
+                 <button onClick={() => setDetailTab('scrap')} style={{ flex: 1, padding: '15px', borderRadius: '15px', border: 'none', background: detailTab === 'scrap' ? '#ef4444' : 'var(--surface-3)', color: '#fff', fontWeight: 900 }}>БРАК</button>
               </div>
               <div style={{ padding: '0 15px 15px', maxHeight: '450px', overflowY: 'auto' }}>
                  {(() => {
@@ -459,7 +459,7 @@ const OperatorTerminal = () => {
                     return (
                        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                           {items.map(([name, qty], idx) => (
-                             <div key={idx} style={{ background: 'rgba(255,255,255,0.02)', padding: '15px 20px', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                             <div key={idx} style={{ background: 'var(--fill-subtle)', padding: '15px 20px', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <div style={{ fontWeight: 800 }}>{name}</div>
                                 <div style={{ fontWeight: 1000, fontSize: '1.2rem', color: detailTab === 'work' ? '#3b82f6' : detailTab === 'buffer' ? '#10b981' : '#ef4444' }}>{qty} <small style={{ opacity: 0.3 }}>шт</small></div>
                              </div>

@@ -58,7 +58,7 @@ export const VKYARestorationTerminal: React.FC = () => {
         <div style={{ width: 1, height: 32, background: 'var(--glass-border, #222)' }}/>
         <div><div style={{ fontSize: '1.45rem', fontWeight: 1000, color: 'var(--text, #fff)' }}>Термінал відновлення ВКЯ</div><div style={{ color: 'var(--text-dim, #64748b)', fontSize: '.75rem', marginTop: 4 }}>Карти внутрішнього відновлення деталей</div></div>
       </div>
-      <button onClick={loadCards} disabled={loading} style={{ background: 'var(--card-bg, #111)', border: '1px solid var(--glass-border, #2a2a2a)', color: 'var(--text, #fff)', borderRadius: 12, padding: '11px 15px', cursor: 'pointer' }}><RefreshCw size={17}/></button>
+      <button onClick={loadCards} disabled={loading} style={{ background: 'var(--card-bg, #111)', border: '1px solid var(--glass-border, var(--border-subtle))', color: 'var(--text, #fff)', borderRadius: 12, padding: '11px 15px', cursor: 'pointer' }}><RefreshCw size={17}/></button>
     </header>
 
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(150px, 1fr))', gap: 12, marginBottom: 22 }}>
@@ -86,7 +86,7 @@ export const VKYARestorationTerminal: React.FC = () => {
           style={{
             background: tab === value ? '#06b6d4' : 'var(--card-bg, #111)',
             color: tab === value ? '#001014' : 'var(--text-muted, #aaa)',
-            border: '1px solid var(--glass-border, #222)',
+            border: '1px solid var(--glass-border, var(--border-subtle))',
             padding: '10px 18px',
             borderRadius: 11,
             fontWeight: 950,
@@ -109,14 +109,14 @@ export const VKYARestorationTerminal: React.FC = () => {
           </span>
         </button>
       ))}
-      <label style={{ flex: 1, minWidth: 230, display: 'flex', alignItems: 'center', gap: 9, background: 'var(--card-bg, #0d0d0d)', border: '1px solid var(--glass-border, #222)', borderRadius: 11, padding: '0 13px' }}>
+      <label style={{ flex: 1, minWidth: 230, display: 'flex', alignItems: 'center', gap: 9, background: 'var(--card-bg, #0d0d0d)', border: '1px solid var(--glass-border, var(--border-subtle))', borderRadius: 11, padding: '0 13px' }}>
         <Search size={16} color="var(--text-dim, #666)"/>
         <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Пошук за деталлю, етапом або картою" style={{ width: '100%', border: 0, outline: 0, background: 'transparent', color: 'var(--text, #fff)', padding: '11px 0' }}/>
       </label>
     </div>
 
     {error && <div style={{ background: '#ef444418', border: '1px solid #ef444455', color: '#fca5a5', borderRadius: 12, padding: 14, marginBottom: 16 }}>Помилка: {error}</div>}
-    {!loading && visibleCards.length === 0 && <div style={{ border: '2px dashed var(--glass-border, #222)', borderRadius: 22, padding: 55, textAlign: 'center', color: 'var(--text-dim, #555)' }}>У цій черзі карт немає</div>}
+    {!loading && visibleCards.length === 0 && <div style={{ border: '2px dashed var(--glass-border, var(--border-subtle))', borderRadius: 22, padding: 55, textAlign: 'center', color: 'var(--text-dim, #555)' }}>У цій черзі карт немає</div>}
 
     {visibleCards.length > 0 && (
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 14, padding: '10px 16px', background: 'var(--card-bg, #0a0a0a)', border: '1px solid var(--glass-border, #1c1c1c)', borderRadius: 13 }}>
@@ -184,7 +184,7 @@ export const VKYARestorationTerminal: React.FC = () => {
               <div style={{ fontSize: '1.1rem', fontWeight: 950, marginTop: 6, overflowWrap: 'anywhere', color: 'var(--text, #fff)' }}>{card.nomenclature_name}</div>
               <div style={{ color: 'var(--text-muted, #64748b)', fontSize: '.72rem', marginTop: 5, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <span>Створено {new Date(card.created_at).toLocaleString('uk-UA')}</span>
-                {card.source_stage_name && <span>• Початковий етап: <strong style={{ color: '#aaa' }}>{card.source_stage_name}</strong></span>}
+                {card.source_stage_name && <span>• Початковий етап: <strong style={{ color: 'var(--text-muted)' }}>{card.source_stage_name}</strong></span>}
               </div>
             </div>
             <div>
@@ -236,7 +236,7 @@ export const VKYARestorationTerminal: React.FC = () => {
                     style={{
                       background: currentPage === page ? '#06b6d4' : 'var(--card-bg, #121212)',
                       color: currentPage === page ? '#001014' : 'var(--text-muted, #aaa)',
-                      border: '1px solid var(--glass-border, #222)',
+                      border: '1px solid var(--glass-border, var(--border-subtle))',
                       borderRadius: 8,
                       width: 34,
                       height: 34,
@@ -265,7 +265,7 @@ export const VKYARestorationTerminal: React.FC = () => {
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 15 }}><div><div style={{ color: '#06b6d4', fontSize: '.7rem', fontWeight: 950, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}><span>КАРТА №{selectedCard.card_number}</span>{(selectedCard.source_naryad_number || selectedCard.source_card_sequence || selectedCard.source_card_number) && (<span style={{ color: '#f59e0b', background: '#f59e0b15', border: '1px solid #f59e0b35', padding: '1px 7px', borderRadius: 5, fontSize: '.68rem' }}>Наряд №{selectedCard.source_naryad_number || '—'} · Картка №{selectedCard.source_card_sequence || selectedCard.source_card_number || '—'}</span>)}</div><h2 style={{ margin: '8px 0 4px', color: 'var(--text, #fff)' }}>{selectedCard.nomenclature_name}</h2><div style={{ color: 'var(--text-muted, #888)' }}>{selectedCard.restoration_stage} · {selectedCard.quantity} {selectedCard.unit}</div></div><button onClick={() => setSelectedCard(null)} style={{ background: 'transparent', border: 0, color: 'var(--text-muted, #777)', cursor: 'pointer' }}><X/></button></div>
       {selectedCard.status === 'new' && <>
         <label style={{ display: 'block', color: 'var(--text-muted, #888)', fontSize: '.72rem', fontWeight: 900, margin: '25px 0 8px' }}>ПРАЦІВНИК ВКЯ</label>
-        <input autoFocus value={operator} onChange={event => setOperator(event.target.value)} placeholder="Вкажіть працівника" style={{ boxSizing: 'border-box', width: '100%', background: 'var(--bg, #050505)', border: '1px solid var(--glass-border, #333)', borderRadius: 12, color: 'var(--text, #fff)', padding: 14 }}/>
+        <input autoFocus value={operator} onChange={event => setOperator(event.target.value)} placeholder="Вкажіть працівника" style={{ boxSizing: 'border-box', width: '100%', background: 'var(--bg, #050505)', border: '1px solid var(--glass-border, var(--border-subtle))', borderRadius: 12, color: 'var(--text, #fff)', padding: 14 }}/>
         <button onClick={startCard} disabled={saving || !operator.trim()} style={{ width: '100%', marginTop: 20, background: '#06b6d4', border: 0, borderRadius: 13, padding: 14, color: '#001014', fontWeight: 1000, cursor: 'pointer' }}><Play size={17} style={{ verticalAlign: 'middle', marginRight: 7 }}/>ВЗЯТИ В РОБОТУ</button>
       </>}
       {selectedCard.status === 'in_progress' && <>
@@ -298,7 +298,7 @@ export const VKYARestorationTerminal: React.FC = () => {
         </div>
       )}
     </div></div>}
-    {legacyDraft && <div onClick={() => !saving && setLegacyDraft(null)} style={{ position: 'fixed', inset: 0, zIndex: 10060, background: 'rgba(0,0,0,.88)', display: 'grid', placeItems: 'center', padding: 20 }}><div onClick={event => event.stopPropagation()} style={{ width: '100%', maxWidth: 500, background: 'var(--card-bg, #0d0d0d)', border: '1px solid #f59e0b55', borderRadius: 22, padding: 25, color: 'var(--text, #fff)' }}><div style={{ display: 'flex', justifyContent: 'space-between', gap: 14 }}><div><div style={{ color: '#f59e0b', fontSize: '.68rem', fontWeight: 1000 }}>РОЗПОДІЛИТИ У КАРТУ</div><h2 style={{ margin: '7px 0 3px', overflowWrap: 'anywhere', color: 'var(--text, #fff)' }}>{legacyDraft.name}</h2><div style={{ color: 'var(--text-muted, #777)' }}>Доступно: {legacyDraft.total_qty} {legacyDraft.unit || 'шт'}</div></div><button onClick={() => setLegacyDraft(null)} style={{ alignSelf: 'flex-start', background: 'transparent', border: 0, color: 'var(--text-muted, #777)', cursor: 'pointer' }}><X/></button></div><label style={{ display: 'block', color: 'var(--text-muted, #888)', fontSize: '.7rem', fontWeight: 950, margin: '22px 0 7px' }}>КІЛЬКІСТЬ</label><input autoFocus type="number" min="1" max={legacyDraft.total_qty} value={legacyQuantity} onChange={event => setLegacyQuantity(event.target.value)} style={{ boxSizing: 'border-box', width: '100%', background: 'var(--bg, #050505)', border: '1px solid var(--glass-border, #333)', borderRadius: 11, color: 'var(--text, #fff)', padding: 13 }}/><label style={{ display: 'block', color: 'var(--text-muted, #888)', fontSize: '.7rem', fontWeight: 950, margin: '17px 0 7px' }}>ЕТАП ВІДНОВЛЕННЯ</label><select value={legacyStageId} onChange={event => setLegacyStageId(event.target.value)} style={{ boxSizing: 'border-box', width: '100%', background: 'var(--bg, #050505)', border: '1px solid var(--glass-border, #333)', borderRadius: 11, color: 'var(--text, #fff)', padding: 13 }}><option value="">Оберіть етап</option>{restorationStages.map((stage: any) => <option key={stage.id} value={stage.id}>{stage.name}</option>)}</select><button onClick={assignLegacyItem} disabled={saving || !legacyStageId || !Number.isInteger(Number(legacyQuantity)) || Number(legacyQuantity) <= 0 || Number(legacyQuantity) > Number(legacyDraft.total_qty)} style={{ width: '100%', marginTop: 21, background: '#f59e0b', color: '#170d00', border: 0, borderRadius: 12, padding: 14, fontWeight: 1000, cursor: 'pointer' }}>{saving ? 'СТВОРЕННЯ...' : 'СТВОРИТИ КАРТУ'}</button></div></div>}
+    {legacyDraft && <div onClick={() => !saving && setLegacyDraft(null)} style={{ position: 'fixed', inset: 0, zIndex: 10060, background: 'rgba(0,0,0,.88)', display: 'grid', placeItems: 'center', padding: 20 }}><div onClick={event => event.stopPropagation()} style={{ width: '100%', maxWidth: 500, background: 'var(--card-bg, #0d0d0d)', border: '1px solid #f59e0b55', borderRadius: 22, padding: 25, color: 'var(--text, #fff)' }}><div style={{ display: 'flex', justifyContent: 'space-between', gap: 14 }}><div><div style={{ color: '#f59e0b', fontSize: '.68rem', fontWeight: 1000 }}>РОЗПОДІЛИТИ У КАРТУ</div><h2 style={{ margin: '7px 0 3px', overflowWrap: 'anywhere', color: 'var(--text, #fff)' }}>{legacyDraft.name}</h2><div style={{ color: 'var(--text-muted, #777)' }}>Доступно: {legacyDraft.total_qty} {legacyDraft.unit || 'шт'}</div></div><button onClick={() => setLegacyDraft(null)} style={{ alignSelf: 'flex-start', background: 'transparent', border: 0, color: 'var(--text-muted, #777)', cursor: 'pointer' }}><X/></button></div><label style={{ display: 'block', color: 'var(--text-muted, #888)', fontSize: '.7rem', fontWeight: 950, margin: '22px 0 7px' }}>КІЛЬКІСТЬ</label><input autoFocus type="number" min="1" max={legacyDraft.total_qty} value={legacyQuantity} onChange={event => setLegacyQuantity(event.target.value)} style={{ boxSizing: 'border-box', width: '100%', background: 'var(--bg, #050505)', border: '1px solid var(--glass-border, var(--border-subtle))', borderRadius: 11, color: 'var(--text, #fff)', padding: 13 }}/><label style={{ display: 'block', color: 'var(--text-muted, #888)', fontSize: '.7rem', fontWeight: 950, margin: '17px 0 7px' }}>ЕТАП ВІДНОВЛЕННЯ</label><select value={legacyStageId} onChange={event => setLegacyStageId(event.target.value)} style={{ boxSizing: 'border-box', width: '100%', background: 'var(--bg, #050505)', border: '1px solid var(--glass-border, var(--border-subtle))', borderRadius: 11, color: 'var(--text, #fff)', padding: 13 }}><option value="">Оберіть етап</option>{restorationStages.map((stage: any) => <option key={stage.id} value={stage.id}>{stage.name}</option>)}</select><button onClick={assignLegacyItem} disabled={saving || !legacyStageId || !Number.isInteger(Number(legacyQuantity)) || Number(legacyQuantity) <= 0 || Number(legacyQuantity) > Number(legacyDraft.total_qty)} style={{ width: '100%', marginTop: 21, background: '#f59e0b', color: '#170d00', border: 0, borderRadius: 12, padding: 14, fontWeight: 1000, cursor: 'pointer' }}>{saving ? 'СТВОРЕННЯ...' : 'СТВОРИТИ КАРТУ'}</button></div></div>}
   </div>
 }
 

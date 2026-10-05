@@ -39,7 +39,7 @@ export const SupplyRequestsTab = ({
           marginBottom: '25px',
           maxWidth: '500px',
           gap: '4px',
-          border: '1px solid var(--border-color, #222)'
+          border: '1px solid var(--border-color, var(--border-subtle))'
         }}>
           {[
             { id: 'all', label: 'Всі запити', count: groupedPrepRequests.length + pendingRequests.length },
@@ -174,7 +174,7 @@ export const SupplyRequestsTab = ({
                         const itemEnough = available >= qty
 
                         return (
-                          <div key={req.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--card-inner-bg, #111)', padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--border-color, #222)' }}>
+                          <div key={req.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--card-inner-bg, #111)', padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--border-color, var(--border-subtle))' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', textAlign: 'left' }}>
                               <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-color, #eee)' }}>{reqName}</span>
                               <div style={{ textTransform: 'uppercase', fontSize: '0.7rem', color: itemEnough ? '#10b981' : '#ef4444', fontWeight: 800 }}>
@@ -254,7 +254,7 @@ export const SupplyRequestsTab = ({
                         style={{
                           background: hasActivePRForProcurement ? 'var(--btn-disabled-bg, #1a1a1a)' : '#ef4444',
                           color: hasActivePRForProcurement ? 'var(--text-muted, #444)' : '#fff',
-                          border: hasActivePRForProcurement ? '1px solid var(--border-color, #222)' : 'none',
+                          border: hasActivePRForProcurement ? '1px solid var(--border-color, var(--border-subtle))' : 'none',
                           padding: '10px 18px',
                           borderRadius: '10px',
                           fontWeight: 950,
@@ -273,7 +273,7 @@ export const SupplyRequestsTab = ({
                 )
               })}
               {groupedPrepRequests.length === 0 && (
-                <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted, #444)', fontSize: '0.85rem', background: 'var(--card-bg, #0a0a0a)', border: '1px dashed var(--border-color, #222)', borderRadius: '18px' }}>
+                <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted, #444)', fontSize: '0.85rem', background: 'var(--card-bg, #0a0a0a)', border: '1px dashed var(--border-color, var(--border-subtle))', borderRadius: '18px' }}>
                   Немає активних запитів від відділу підготовки
                 </div>
               )}
@@ -327,7 +327,7 @@ export const SupplyRequestsTab = ({
                 const isExpanded = expandedPRs.has(pr.id) || (!expandedPRs.has(`collapsed-${pr.id}`) && pr.status !== 'ordered' && !relatedReception)
 
                 return (
-                  <div key={pr.id} className="request-card" style={{ background: 'var(--card-bg, #0a0a0a)', padding: '20px', borderRadius: '18px', border: '1px solid var(--border-color, #222)', borderLeft: pr.status === 'accepted' ? '4px solid #3b82f6' : '4px solid #ef4444', boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}>
+                  <div key={pr.id} className="request-card" style={{ background: 'var(--card-bg, #0a0a0a)', padding: '20px', borderRadius: '18px', border: '1px solid var(--border-color, var(--border-subtle))', borderLeft: pr.status === 'accepted' ? '4px solid #3b82f6' : '4px solid #ef4444', boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                         <strong style={pr.status === 'accepted' ? { color: '#3b82f6', fontSize: '0.95rem' } : { color: '#ef4444', fontSize: '0.95rem' }}>
@@ -370,7 +370,7 @@ export const SupplyRequestsTab = ({
                               }
                             }} 
                             style={{ 
-                              background: processingDocs.has(pr.id) ? '#1a1a1a' : '#3b82f6', 
+                              background: processingDocs.has(pr.id) ? 'var(--surface-2)' : '#3b82f6', 
                               color: processingDocs.has(pr.id) ? '#444' : '#fff', 
                               border: 'none', 
                               padding: '6px 12px', 
@@ -523,7 +523,7 @@ export const SupplyRequestsTab = ({
                           return aggregated.map((it, idx) => {
                             const isDeficit = !isProcurementOnly && (it.available < it.needed)
                             return (
-                              <div key={idx} style={{ padding: '8px 0', borderBottom: '1px solid var(--border-color, #1a1a1a)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <div key={idx} style={{ padding: '8px 0', borderBottom: '1px solid var(--border-color, var(--border-subtle))', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <span style={{ color: isDeficit ? '#ef4444' : 'var(--text-color, #aaa)' }}>{it.name}</span>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                   {!isProcurementOnly && (
@@ -543,7 +543,7 @@ export const SupplyRequestsTab = ({
                 )
               })}
               {pendingRequests.length === 0 && (
-                <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted, #444)', fontSize: '0.85rem', background: 'var(--card-bg, #0a0a0a)', border: '1px dashed var(--border-color, #222)', borderRadius: '18px' }}>
+                <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted, #444)', fontSize: '0.85rem', background: 'var(--card-bg, #0a0a0a)', border: '1px dashed var(--border-color, var(--border-subtle))', borderRadius: '18px' }}>
                   Активних дефіцитів не зафіксовано
                 </div>
               )}

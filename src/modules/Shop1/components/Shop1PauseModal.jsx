@@ -13,18 +13,18 @@ export function Shop1PauseModal({
   getNom
 }) {
   const labelStyle = { display: 'block', fontSize: '0.65rem', color: '#444', fontWeight: 900, textTransform: 'uppercase', marginBottom: '7px' }
-  const selectStyle = { width: '100%', background: '#0d0d0d', border: '1px solid #222', color: '#fff', padding: '13px', borderRadius: '12px', fontSize: '0.95rem', fontWeight: 700, boxSizing: 'border-box' }
+  const selectStyle = { width: '100%', background: 'var(--surface-inset)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', padding: '13px', borderRadius: '12px', fontSize: '0.95rem', fontWeight: 700, boxSizing: 'border-box' }
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.95)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 10030, padding: '40px 20px', overflowY: 'auto' }}>
-      <div style={{ background: '#111', width: '100%', maxWidth: '420px', borderRadius: '28px', border: '1px solid #ef444440', overflow: 'hidden', boxShadow: '0 20px 60px rgba(239,68,68,0.15)', margin: 'auto 0' }}>
+      <div style={{ background: 'var(--surface-1)', width: '100%', maxWidth: '420px', borderRadius: '28px', border: '1px solid #ef444440', overflow: 'hidden', boxShadow: '0 20px 60px rgba(239,68,68,0.15)', margin: 'auto 0' }}>
         {/* Header */}
-        <div style={{ padding: '20px 22px', background: '#161616', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #ef444420' }}>
+        <div style={{ padding: '20px 22px', background: 'var(--surface-2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #ef444420' }}>
           <div>
             <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 950, color: '#ef4444', display: 'flex', alignItems: 'center', gap: '8px' }}>
               🛑 ЗУПИНИТИ ВЕРСТАТ (ПАУЗА)
             </h3>
-            <div style={{ fontSize: '0.6rem', color: '#555', marginTop: '3px', fontWeight: 700 }}>
+            <div style={{ fontSize: '0.6rem', color: 'var(--text-dim)', marginTop: '3px', fontWeight: 700 }}>
               Призупинити виконання картки розкрою
             </div>
           </div>
@@ -33,9 +33,9 @@ export function Shop1PauseModal({
 
         <div style={{ padding: '24px 22px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
           {/* Деталь */}
-          <div style={{ background: '#0d0d0d', borderRadius: '12px', padding: '12px 16px', border: '1px solid #1e1e1e' }}>
+          <div style={{ background: 'var(--surface-inset)', borderRadius: '12px', padding: '12px 16px', border: '1px solid #1e1e1e' }}>
             <div style={{ fontSize: '0.55rem', color: '#444', fontWeight: 900, textTransform: 'uppercase', marginBottom: '4px' }}>Поточна картка</div>
-            <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#888' }}>{getNom(currentCard)?.name || 'Деталь'}</div>
+            <div style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-muted)' }}>{getNom(currentCard)?.name || 'Деталь'}</div>
             <div style={{ fontSize: '0.6rem', color: '#333', marginTop: '2px' }}>{currentCard.machine || 'Верстат не вказано'}</div>
           </div>
 
@@ -70,7 +70,7 @@ export function Shop1PauseModal({
                 placeholder="Введіть коментар..."
                 value={customPauseReason}
                 onChange={e => setCustomPauseReason(e.target.value)}
-                style={{ ...selectStyle, background: '#000' }}
+                style={{ ...selectStyle, background: 'var(--surface-black)' }}
               />
             </div>
           )}

@@ -62,7 +62,7 @@ function SystemDialog({ dialog, isBusy, onClose, onConfirm }) {
         aria-modal="true"
         style={{
           width: 'min(520px, 100%)',
-          background: '#111',
+          background: 'var(--surface-1)',
           border: `1px solid ${accent}55`,
           borderRadius: '14px',
           boxShadow: '0 24px 80px rgba(0,0,0,.55)',
@@ -70,13 +70,13 @@ function SystemDialog({ dialog, isBusy, onClose, onConfirm }) {
         }}
         onClick={event => event.stopPropagation()}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '18px 20px', borderBottom: '1px solid #222' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '18px 20px', borderBottom: '1px solid var(--border-subtle)' }}>
           <div style={{ width: 36, height: 36, borderRadius: '10px', background: `${accent}18`, border: `1px solid ${accent}55`, color: accent, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             {isSuccess ? <CheckCircle2 size={20} /> : <AlertTriangle size={20} />}
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ color: '#fff', fontWeight: 950, fontSize: '.95rem', letterSpacing: '.02em' }}>{dialog.title}</div>
-            <div style={{ color: '#666', fontWeight: 800, fontSize: '.72rem', marginTop: '3px', textTransform: 'uppercase' }}>Системне повідомлення</div>
+            <div style={{ color: 'var(--text-strong)', fontWeight: 950, fontSize: '.95rem', letterSpacing: '.02em' }}>{dialog.title}</div>
+            <div style={{ color: 'var(--text-dim)', fontWeight: 800, fontSize: '.72rem', marginTop: '3px', textTransform: 'uppercase' }}>Системне повідомлення</div>
           </div>
           <button
             type="button"
@@ -86,7 +86,7 @@ function SystemDialog({ dialog, isBusy, onClose, onConfirm }) {
               width: 34,
               height: 34,
               borderRadius: '9px',
-              border: '1px solid #2a2a2a',
+              border: '1px solid var(--border-subtle)',
               background: '#171717',
               color: isBusy ? '#444' : '#aaa',
               cursor: isBusy ? 'not-allowed' : 'pointer',
@@ -116,7 +116,7 @@ function SystemDialog({ dialog, isBusy, onClose, onConfirm }) {
               disabled={isBusy}
               style={{
                 background: '#171717',
-                border: '1px solid #333',
+                border: '1px solid var(--border-subtle)',
                 color: isBusy ? '#444' : '#aaa',
                 borderRadius: '9px',
                 padding: '10px 14px',
@@ -283,13 +283,13 @@ export default function AdminCardDeletePanel({
         onConfirm={confirmDelete}
       />
 
-      <div style={{ padding: '14px 16px', borderBottom: '1px solid #222', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+      <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
         <ShieldAlert size={18} color="#ef4444" />
         <div style={{ flex: 1, minWidth: '220px' }}>
           <div style={{ color: '#ef4444', fontWeight: 950, letterSpacing: '.5px', textTransform: 'uppercase', fontSize: '.78rem' }}>
             Адмін-видалення робочих карток
           </div>
-          <div style={{ color: '#666', fontWeight: 800, fontSize: '.72rem', marginTop: '3px' }}>
+          <div style={{ color: 'var(--text-dim)', fontWeight: 800, fontSize: '.72rem', marginTop: '3px' }}>
             Доступні тільки картки без фактичного проходження етапів: нові, очікують склад або верстат.
           </div>
         </div>
@@ -316,7 +316,7 @@ export default function AdminCardDeletePanel({
           disabled={isDeleting || selectedIds.size === 0}
           style={{
             background: '#151515',
-            border: '1px solid #333',
+            border: '1px solid var(--border-subtle)',
             color: selectedIds.size === 0 ? '#444' : '#aaa',
             borderRadius: '8px',
             padding: '8px 11px',
@@ -332,7 +332,7 @@ export default function AdminCardDeletePanel({
           onClick={handleDelete}
           disabled={isDeleting || selectedCards.length === 0}
           style={{
-            background: selectedCards.length === 0 ? '#222' : '#ef4444',
+            background: selectedCards.length === 0 ? 'var(--surface-3)' : '#ef4444',
             border: 'none',
             color: selectedCards.length === 0 ? '#555' : '#fff',
             borderRadius: '8px',
@@ -364,7 +364,7 @@ export default function AdminCardDeletePanel({
 
       <div style={{ padding: '12px 16px 16px', display: 'grid', gap: '8px' }}>
         {parts.length === 0 && (
-          <div style={{ color: '#555', fontWeight: 850, fontSize: '.78rem', padding: '10px' }}>
+          <div style={{ color: 'var(--text-dim)', fontWeight: 850, fontSize: '.78rem', padding: '10px' }}>
             У цьому наряді поки немає робочих карток.
           </div>
         )}
@@ -373,7 +373,7 @@ export default function AdminCardDeletePanel({
           const safeCount = part.adminSafeCards.length
           const selectedInPart = part.adminCards.filter(card => selectedIds.has(String(card.id))).length
           return (
-            <div key={part.nomId} style={{ border: '1px solid #222', borderRadius: '8px', background: '#0b0b0b', overflow: 'hidden' }}>
+            <div key={part.nomId} style={{ border: '1px solid var(--border-subtle)', borderRadius: '8px', background: '#0b0b0b', overflow: 'hidden' }}>
               <div
                 role="button"
                 tabIndex={0}
@@ -389,7 +389,7 @@ export default function AdminCardDeletePanel({
                   width: '100%',
                   border: 'none',
                   background: 'transparent',
-                  color: '#fff',
+                  color: 'var(--text-strong)',
                   padding: '11px 12px',
                   cursor: 'pointer',
                   display: 'flex',
@@ -401,7 +401,7 @@ export default function AdminCardDeletePanel({
                 {isExpanded ? <ChevronDown size={15} color="#777" /> : <ChevronRight size={15} color="#777" />}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 950, fontSize: '.86rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{part.name}</div>
-                  <div style={{ color: '#555', fontSize: '.68rem', fontWeight: 850, marginTop: '2px' }}>
+                  <div style={{ color: 'var(--text-dim)', fontSize: '.68rem', fontWeight: 850, marginTop: '2px' }}>
                     карток: {part.adminCards.length} | можна видалити: {safeCount} | вибрано: {selectedInPart}
                   </div>
                 </div>
@@ -433,9 +433,9 @@ export default function AdminCardDeletePanel({
                   }}
                   disabled={isDeleting || selectedInPart === 0}
                   style={{
-                    background: '#141414',
-                    border: '1px solid #2a2a2a',
-                    color: selectedInPart === 0 ? '#444' : '#aaa',
+                    background: 'var(--surface-1)',
+                    border: '1px solid var(--border-subtle)',
+                    color: selectedInPart === 0 ? '#444' : 'var(--text-muted)',
                     borderRadius: '7px',
                     padding: '6px 9px',
                     fontWeight: 900,
@@ -459,7 +459,7 @@ export default function AdminCardDeletePanel({
                         title={!safe ? 'Ця картка вже стартувала або завершена, з інтерфейсу не видаляємо.' : 'Вибрати картку для видалення'}
                         style={{
                           background: selected ? 'rgba(239,68,68,.14)' : '#080808',
-                          border: selected ? '1px solid rgba(239,68,68,.55)' : '1px solid #222',
+                          border: selected ? '1px solid rgba(239,68,68,.55)' : '1px solid var(--border-subtle)',
                           color: safe ? '#fff' : '#555',
                           borderRadius: '8px',
                           padding: '10px',
@@ -486,7 +486,7 @@ export default function AdminCardDeletePanel({
                               height: 28,
                               borderRadius: '7px',
                               border: '1px solid rgba(239,68,68,.35)',
-                              background: safe ? 'rgba(239,68,68,.12)' : '#111',
+                              background: safe ? 'rgba(239,68,68,.12)' : 'var(--surface-1)',
                               color: safe ? '#ef4444' : '#333',
                               cursor: !safe || isDeleting ? 'not-allowed' : 'pointer',
                               display: 'flex',
@@ -498,10 +498,10 @@ export default function AdminCardDeletePanel({
                             <Trash2 size={14} />
                           </button>
                         </div>
-                        <div style={{ color: safe ? '#888' : '#555', fontSize: '.68rem', fontWeight: 800 }}>
+                        <div style={{ color: safe ? 'var(--text-muted)' : 'var(--text-dim)', fontSize: '.68rem', fontWeight: 800 }}>
                           {card.operation || 'операція не вказана'} | {cardStatusLabel(card.status)}
                         </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', color: '#aaa', fontSize: '.72rem', fontWeight: 900 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)', fontSize: '.72rem', fontWeight: 900 }}>
                           <span>к-сть: {formatQty(card.quantity)}</span>
                           <span>БЗ: {formatQty(card.buffer_qty || card.bufferQty)}</span>
                         </div>

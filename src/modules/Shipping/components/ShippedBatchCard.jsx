@@ -7,7 +7,7 @@ export const ShippedBatchCard = React.memo(({ batch, onViewPackingSlip, handleVi
   const colorObj = PALLET_COLORS.find(c => c.id === batch.batchColor)
   return (
     <div className="shipped-batch-card" style={{
-      background: 'var(--card-bg, #0d0d0d)', border: '1px solid var(--border, #1a1a1a)', borderRadius: '20px',
+      background: 'var(--card-bg, #0d0d0d)', border: '1px solid var(--border, var(--border-subtle))', borderRadius: '20px',
       padding: '18px 20px', position: 'relative', overflow: 'hidden'
     }}>
       {colorObj && (
@@ -38,7 +38,7 @@ export const ShippedBatchCard = React.memo(({ batch, onViewPackingSlip, handleVi
           )}
         </div>
       </div>
-      <div style={{ marginTop: '14px', borderTop: '1px dashed var(--border, #1a1a1a)', paddingTop: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div style={{ marginTop: '14px', borderTop: '1px dashed var(--border, var(--border-subtle))', paddingTop: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
           {batch.ttn && (
             <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary, #555)', background: 'var(--card-inner-bg, #111)', padding: '3px 8px', borderRadius: '6px', fontWeight: 700 }}>

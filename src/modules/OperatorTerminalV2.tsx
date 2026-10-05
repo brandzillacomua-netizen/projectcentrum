@@ -182,7 +182,7 @@ export const OperatorTerminal: React.FC = () => {
   }
 
   return (
-    <div className="operator-terminal-v2" style={{ background: '#0a0a0a', height: '100vh', display: 'flex', flexDirection: 'column', color: '#fff', overflow: 'hidden' }}>
+    <div className="operator-terminal-v2" style={{ background: 'var(--surface-inset)', height: '100vh', display: 'flex', flexDirection: 'column', color: 'var(--text-strong)', overflow: 'hidden' }}>
       <OperatorHeader currentTime={currentTime} setIsDrawerOpen={setIsDrawerOpen} />
 
       <div className="main-layout-responsive" style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
@@ -198,7 +198,7 @@ export const OperatorTerminal: React.FC = () => {
           orders={orders}
         />
 
-        <div className="content-panel" style={{ flex: 1, padding: '20px 15px', background: '#0a0a0a', overflowY: 'auto', position: 'relative' }}>
+        <div className="content-panel" style={{ flex: 1, padding: '20px 15px', background: 'var(--surface-inset)', overflowY: 'auto', position: 'relative' }}>
           {scanError && (
             <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#ef4444', padding: '12px 18px', borderRadius: '12px', marginBottom: '20px', fontSize: '0.85rem', fontWeight: 800 }}>
               ⚠️ {scanError}

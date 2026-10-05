@@ -114,19 +114,19 @@ export const AccessModule: React.FC = () => {
   }, [accessLogs])
 
   return (
-    <div className="access-module" style={{ background: '#050505', minHeight: '100vh', color: '#fff', display: 'flex', flexDirection: 'column' }}>
+    <div className="access-module" style={{ background: 'var(--surface-inset)', minHeight: '100vh', color: 'var(--text-strong)', display: 'flex', flexDirection: 'column' }}>
       {/* Header */}
       <nav className="module-nav" style={{ 
         padding: '0 20px', 
         height: '70px', 
-        background: '#000', 
-        borderBottom: '1px solid #1a1a1a',
+        background: 'var(--surface-black)', 
+        borderBottom: '1px solid var(--border-subtle)',
         display: 'flex', 
         justifyContent: 'space-between', 
         alignItems: 'center' 
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-          <Link to="/" style={{ color: '#555', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem' }}>
+          <Link to="/" style={{ color: 'var(--text-dim)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem' }}>
             <ArrowLeft size={18} /> <span className="hide-mobile">На головну</span>
           </Link>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -138,7 +138,7 @@ export const AccessModule: React.FC = () => {
         </div>
 
         {/* Tab Selector */}
-        <div style={{ display: 'flex', gap: '8px', background: '#111', padding: '4px', borderRadius: '12px', border: '1px solid #222' }}>
+        <div style={{ display: 'flex', gap: '8px', background: 'var(--surface-1)', padding: '4px', borderRadius: '12px', border: '1px solid var(--border-subtle)' }}>
           <button
             onClick={() => setActiveTab('fortnet')}
             style={{
@@ -185,8 +185,8 @@ export const AccessModule: React.FC = () => {
             onClick={activeTab === 'fortnet' ? syncFortnetEvents : fetchSystemAccessLogs}
             className="anim-pulse-hover"
             style={{ 
-              background: '#111', 
-              border: '1px solid #222', 
+              background: 'var(--surface-1)', 
+              border: '1px solid var(--border-subtle)', 
               color: '#ff9000', 
               padding: '8px 15px', 
               borderRadius: '8px', 
@@ -207,8 +207,8 @@ export const AccessModule: React.FC = () => {
         
         {/* Dashboard Cards */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '30px' }}>
-          <div className="glass-panel" style={{ background: '#111', padding: '20px', borderRadius: '20px', border: '1px solid #1a1a1a' }}>
-            <div style={{ color: '#555', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '10px' }}>
+          <div className="glass-panel" style={{ background: 'var(--surface-1)', padding: '20px', borderRadius: '20px', border: '1px solid var(--border-subtle)' }}>
+            <div style={{ color: 'var(--text-dim)', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '10px' }}>
               {activeTab === 'fortnet' ? "Статус З'єднання Fortnet" : "Контур Безпеки RLS"}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -220,8 +220,8 @@ export const AccessModule: React.FC = () => {
             </div>
           </div>
 
-          <div className="glass-panel" style={{ background: '#111', padding: '20px', borderRadius: '20px', border: '1px solid #1a1a1a' }}>
-            <div style={{ color: '#555', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '10px' }}>
+          <div className="glass-panel" style={{ background: 'var(--surface-1)', padding: '20px', borderRadius: '20px', border: '1px solid var(--border-subtle)' }}>
+            <div style={{ color: 'var(--text-dim)', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '10px' }}>
               {activeTab === 'fortnet' ? 'Подій за сьогодні' : 'Аудит-записів авторизації'}
             </div>
             <div style={{ fontWeight: 800, fontSize: '1.8rem', color: '#ff9000' }}>
@@ -233,7 +233,7 @@ export const AccessModule: React.FC = () => {
         {/* Filters */}
         <div style={{ display: 'flex', gap: '15px', marginBottom: '25px', flexWrap: 'wrap' }}>
           <div style={{ position: 'relative', flex: 1, minWidth: '300px' }}>
-            <Search size={18} style={{ position: 'absolute', left: '15px', top: '50%', transform: 'translateY(-50%)', color: '#555' }} />
+            <Search size={18} style={{ position: 'absolute', left: '15px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-dim)' }} />
             <input 
               style={inputStyle} 
               placeholder={activeTab === 'fortnet' ? "Пошук працівника або коду картки..." : "Пошук користувача, IP або дії..."} 
@@ -243,10 +243,10 @@ export const AccessModule: React.FC = () => {
           </div>
 
           {activeTab === 'fortnet' ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: '#111', padding: '0 15px', borderRadius: '14px', border: '1px solid #1a1a1a' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'var(--surface-1)', padding: '0 15px', borderRadius: '14px', border: '1px solid var(--border-subtle)' }}>
               <Filter size={16} color="#555" />
               <select 
-                style={{ background: 'transparent', border: 'none', color: '#fff', fontSize: '0.85rem', fontWeight: 700, outline: 'none', padding: '12px 0' }}
+                style={{ background: 'transparent', border: 'none', color: 'var(--text-strong)', fontSize: '0.85rem', fontWeight: 700, outline: 'none', padding: '12px 0' }}
                 value={filterDoor}
                 onChange={e => setFilterDoor(e.target.value)}
               >
@@ -255,10 +255,10 @@ export const AccessModule: React.FC = () => {
               </select>
             </div>
           ) : (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: '#111', padding: '0 15px', borderRadius: '14px', border: '1px solid #1a1a1a' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'var(--surface-1)', padding: '0 15px', borderRadius: '14px', border: '1px solid var(--border-subtle)' }}>
               <Filter size={16} color="#555" />
               <select 
-                style={{ background: 'transparent', border: 'none', color: '#fff', fontSize: '0.85rem', fontWeight: 700, outline: 'none', padding: '12px 0' }}
+                style={{ background: 'transparent', border: 'none', color: 'var(--text-strong)', fontSize: '0.85rem', fontWeight: 700, outline: 'none', padding: '12px 0' }}
                 value={statusFilter}
                 onChange={e => setStatusFilter(e.target.value)}
               >
@@ -273,10 +273,10 @@ export const AccessModule: React.FC = () => {
 
         {/* Tab 1: Fortnet Logs Table */}
         {activeTab === 'fortnet' && (
-          <div className="glass-panel" style={{ background: '#111', borderRadius: '24px', border: '1px solid #1a1a1a', overflow: 'hidden' }}>
+          <div className="glass-panel" style={{ background: 'var(--surface-1)', borderRadius: '24px', border: '1px solid var(--border-subtle)', overflow: 'hidden' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
-                <tr style={{ background: '#000', borderBottom: '1px solid #1a1a1a', textAlign: 'left' }}>
+                <tr style={{ background: 'var(--surface-black)', borderBottom: '1px solid var(--border-subtle)', textAlign: 'left' }}>
                   <th style={thStyle}><Clock size={14} /> ЧАС</th>
                   <th style={thStyle}><User size={14} /> ПРАЦІВНИК</th>
                   <th style={thStyle}><MapPin size={14} /> ТОЧКА ДОСТУПУ</th>
@@ -292,7 +292,7 @@ export const AccessModule: React.FC = () => {
                       <div style={{ fontSize: '0.65rem', color: '#444' }}>{new Date(log.event_time).toLocaleDateString('uk-UA')}</div>
                     </td>
                     <td style={tdStyle}>
-                      <div style={{ fontWeight: 900, color: '#fff' }}>{log.person_name || 'Невідомо'}</div>
+                      <div style={{ fontWeight: 900, color: 'var(--text-strong)' }}>{log.person_name || 'Невідомо'}</div>
                     </td>
                     <td style={tdStyle}>
                       <span style={{ fontSize: '0.8rem', color: '#ff9000', fontWeight: 700 }}>{log.hardware_name || 'Турнікет'}</span>
@@ -311,7 +311,7 @@ export const AccessModule: React.FC = () => {
                       </span>
                     </td>
                     <td style={{ ...tdStyle, textAlign: 'right' }}>
-                      <code style={{ fontSize: '0.8rem', color: '#555', fontWeight: 900 }}>{log.card_code}</code>
+                      <code style={{ fontSize: '0.8rem', color: 'var(--text-dim)', fontWeight: 900 }}>{log.card_code}</code>
                     </td>
                   </tr>
                 )) : (
@@ -328,15 +328,15 @@ export const AccessModule: React.FC = () => {
 
         {/* Tab 2: System Access Audit Table */}
         {activeTab === 'system_audit' && (
-          <div className="glass-panel" style={{ background: '#111', borderRadius: '24px', border: '1px solid #1a1a1a', overflow: 'hidden' }}>
+          <div className="glass-panel" style={{ background: 'var(--surface-1)', borderRadius: '24px', border: '1px solid var(--border-subtle)', overflow: 'hidden' }}>
             {systemLogsError && (
-              <div style={{ padding: '15px 20px', background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', fontSize: '0.85rem', fontWeight: 700, borderBottom: '1px solid #1a1a1a' }}>
+              <div style={{ padding: '15px 20px', background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', fontSize: '0.85rem', fontWeight: 700, borderBottom: '1px solid var(--border-subtle)' }}>
                 ⚠️ {systemLogsError}
               </div>
             )}
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
-                <tr style={{ background: '#000', borderBottom: '1px solid #1a1a1a', textAlign: 'left' }}>
+                <tr style={{ background: 'var(--surface-black)', borderBottom: '1px solid var(--border-subtle)', textAlign: 'left' }}>
                   <th style={thStyle}><Clock size={14} /> ЧАС</th>
                   <th style={thStyle}><User size={14} /> КОРИСТУВАЧ</th>
                   <th style={thStyle}><Activity size={14} /> ДІЯ</th>
@@ -358,15 +358,15 @@ export const AccessModule: React.FC = () => {
                         <div style={{ fontSize: '0.65rem', color: '#444' }}>{new Date(log.created_at).toLocaleDateString('uk-UA')}</div>
                       </td>
                       <td style={tdStyle}>
-                        <div style={{ fontWeight: 900, color: '#fff' }}>{log.user_name || log.user_login}</div>
-                        <div style={{ fontSize: '0.7rem', color: '#555' }}>@{log.user_login}</div>
+                        <div style={{ fontWeight: 900, color: 'var(--text-strong)' }}>{log.user_name || log.user_login}</div>
+                        <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>@{log.user_login}</div>
                       </td>
                       <td style={tdStyle}>
                         <span style={{ fontSize: '0.8rem', color: '#ff9000', fontWeight: 800 }}>{log.action_type}</span>
                         <div style={{ fontSize: '0.65rem', color: '#444', textTransform: 'uppercase' }}>{log.category}</div>
                       </td>
                       <td style={tdStyle}>
-                        <span style={{ fontSize: '0.8rem', color: '#888' }}>{log.details || '—'}</span>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{log.details || '—'}</span>
                       </td>
                       <td style={tdStyle}>
                         <span style={{ 
@@ -388,7 +388,7 @@ export const AccessModule: React.FC = () => {
                         </span>
                       </td>
                       <td style={{ ...tdStyle, textAlign: 'right' }}>
-                        <code style={{ fontSize: '0.75rem', color: '#555', fontWeight: 900 }}>{log.ip_address || '127.0.0.1'}</code>
+                        <code style={{ fontSize: '0.75rem', color: 'var(--text-dim)', fontWeight: 900 }}>{log.ip_address || '127.0.0.1'}</code>
                       </td>
                     </tr>
                   )
@@ -421,9 +421,9 @@ const thStyle = { padding: '15px 20px', fontSize: '0.65rem', color: '#444', font
 const tdStyle = { padding: '18px 20px', fontSize: '0.9rem' }
 const inputStyle: React.CSSProperties = { 
   width: '100%', 
-  background: '#111', 
-  border: '1px solid #1a1a1a', 
-  color: '#fff', 
+  background: 'var(--surface-1)', 
+  border: '1px solid var(--border-subtle)', 
+  color: 'var(--text-strong)', 
   padding: '12px 15px 12px 45px', 
   borderRadius: '14px', 
   fontSize: '0.9rem', 

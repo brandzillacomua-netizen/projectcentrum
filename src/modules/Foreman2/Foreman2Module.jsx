@@ -331,13 +331,13 @@ export default function Foreman2Module() {
           setIsDrawerOpen={setIsQueueOpen}
           onOpenCreateNaryad={() => setIsCreateNaryadOpen(true)}
         />
-        <div className="content-panel no-print" style={{ flex: 1, background: '#0a0a0a', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+        <div className="content-panel no-print" style={{ flex: 1, background: 'var(--surface-inset)', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
           <ActiveCallsWidget
             activeCalls={activeCalls}
             machines={machines || []}
             onResolveCall={handleResolveCall}
           />
-          <div className="foreman2-tabs no-print" style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid #222', background: '#090909', flexShrink: 0, marginTop: activeCalls.length > 0 ? '0' : '0' }}>
+          <div className="foreman2-tabs no-print" style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid var(--border-subtle)', background: '#090909', flexShrink: 0, marginTop: activeCalls.length > 0 ? '0' : '0' }}>
             <button type="button" className="active" style={{ borderBottom: '2px solid #ef4444' }}>
               <ListTodo size={15} /> Робочі наряди
             </button>

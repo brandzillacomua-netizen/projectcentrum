@@ -21,18 +21,18 @@ export function SettingsStructureTab(props) {
     typeLabels
   } = props
 
-  const inputStyle = { width: '100%', background: '#000', border: '1px solid rgba(255,255,255,0.06)', color: '#fff', padding: '12px', borderRadius: '12px', fontSize: '0.85rem', fontWeight: 600, outline: 'none' }
+  const inputStyle = { width: '100%', background: 'var(--surface-black)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', padding: '12px', borderRadius: '12px', fontSize: '0.85rem', fontWeight: 600, outline: 'none' }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%' }}>
       
       {/* Sub-tab Navigation */}
-      <div style={{ display: 'flex', gap: '10px', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '10px' }}>
+      <div style={{ display: 'flex', gap: '10px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '10px' }}>
         <button 
           onClick={() => setStructureSubTab('departments')}
           style={{
             background: structureSubTab === 'departments' ? 'rgba(255,144,0,0.08)' : 'transparent',
-            color: structureSubTab === 'departments' ? '#ff9000' : '#888',
+            color: structureSubTab === 'departments' ? '#ff9000' : 'var(--text-muted)',
             border: structureSubTab === 'departments' ? '1px solid rgba(255,144,0,0.15)' : '1px solid transparent',
             padding: '8px 16px',
             borderRadius: '10px',
@@ -51,7 +51,7 @@ export function SettingsStructureTab(props) {
           onClick={() => setStructureSubTab('positions')}
           style={{
             background: structureSubTab === 'positions' ? 'rgba(255,144,0,0.08)' : 'transparent',
-            color: structureSubTab === 'positions' ? '#ff9000' : '#888',
+            color: structureSubTab === 'positions' ? '#ff9000' : 'var(--text-muted)',
             border: structureSubTab === 'positions' ? '1px solid rgba(255,144,0,0.15)' : '1px solid transparent',
             padding: '8px 16px',
             borderRadius: '10px',
@@ -72,7 +72,7 @@ export function SettingsStructureTab(props) {
         <div className="admin-structure-layout" style={{ display: 'grid', gridTemplateColumns: '400px 1fr', gap: '30px', alignItems: 'start', animation: 'fadeIn 0.2s ease' }}>
           
           {/* Left: Add Structure Node Form */}
-          <section className="glass-panel" style={{ background: '#0e0e11', padding: '28px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.04)' }}>
+          <section className="glass-panel" style={{ background: '#0e0e11', padding: '28px', borderRadius: '24px', border: '1px solid var(--border-subtle)' }}>
             <h3 style={{ fontSize: '1.05rem', fontWeight: 900, marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px', color: '#ff9000' }}>
               {structureForm.id ? <Edit3 size={18} /> : <Plus size={18} />} {structureForm.id ? 'РЕДАГУВАТИ ПІДРОЗДІЛ' : 'ДОДАТИ ПІДРОЗДІЛ СТРУКТУРИ'}
             </h3>
@@ -126,7 +126,7 @@ export function SettingsStructureTab(props) {
                 {structureForm.id && (
                   <button type="button" 
                     onClick={() => setStructureForm({ id: null, name: '', type: 'shop' })} 
-                    style={{ background: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid rgba(255,255,255,0.05)', padding: '10px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', transition: '0.2s' }}
+                    style={{ background: 'var(--fill-subtle)', color: 'var(--text-strong)', border: '1px solid var(--border-subtle)', padding: '10px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', transition: '0.2s' }}
                   >
                     СКАСУВАТИ
                   </button>
@@ -137,7 +137,7 @@ export function SettingsStructureTab(props) {
 
           {/* Right: Structure Nodes List */}
           <section className="structure-list-area">
-            <h3 style={{ fontSize: '0.9rem', color: '#888', marginBottom: '20px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <h3 style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: '20px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Layers size={18} color="#ff9000" /> ПОТОЧНА СТРУКТУРА ПІДПРИЄМСТВА ({companyStructure.length})
             </h3>
             
@@ -145,7 +145,7 @@ export function SettingsStructureTab(props) {
               {(companyStructure || []).map(node => (
                 <div key={node.id} style={{ 
                   background: '#0e0e11', 
-                  border: '1px solid rgba(255,255,255,0.04)', 
+                  border: '1px solid var(--border-subtle)', 
                   borderRadius: '16px', 
                   padding: '16px',
                   display: 'flex',
@@ -154,12 +154,12 @@ export function SettingsStructureTab(props) {
                   transition: 'all 0.2s ease'
                 }} className="structure-node-card">
                   <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                    <div style={{ background: 'rgba(255,255,255,0.02)', width: '38px', height: '38px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(255,255,255,0.04)' }}>
+                    <div style={{ background: 'var(--fill-subtle)', width: '38px', height: '38px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border-subtle)' }}>
                       {getStructureTypeIcon(node.type)}
                     </div>
                     <div>
-                      <div style={{ fontWeight: 800, fontSize: '0.88rem', color: '#fff' }}>{node.name}</div>
-                      <div style={{ fontSize: '0.68rem', color: '#555', fontWeight: 600, marginTop: '2px' }}>{typeLabels[node.type] || node.type}</div>
+                      <div style={{ fontWeight: 800, fontSize: '0.88rem', color: 'var(--text-strong)' }}>{node.name}</div>
+                      <div style={{ fontSize: '0.68rem', color: 'var(--text-dim)', fontWeight: 600, marginTop: '2px' }}>{typeLabels[node.type] || node.type}</div>
                     </div>
                   </div>
                   
@@ -190,7 +190,7 @@ export function SettingsStructureTab(props) {
         <div className="admin-structure-layout" style={{ display: 'grid', gridTemplateColumns: '400px 1fr', gap: '30px', alignItems: 'start', animation: 'fadeIn 0.2s ease' }}>
           
           {/* Left: Add Position Form */}
-          <section className="glass-panel" style={{ background: '#0e0e11', padding: '28px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.04)' }}>
+          <section className="glass-panel" style={{ background: '#0e0e11', padding: '28px', borderRadius: '24px', border: '1px solid var(--border-subtle)' }}>
             <h3 style={{ fontSize: '1.05rem', fontWeight: 900, marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px', color: '#ff9000' }}>
               {positionForm.id ? <Edit3 size={18} /> : <Plus size={18} />} {positionForm.id ? 'РЕДАГУВАТИ ПОСАДУ' : 'СТВОРЕННЯ ШТАТНОЇ ПОСАДИ'}
             </h3>
@@ -242,7 +242,7 @@ export function SettingsStructureTab(props) {
                 {positionForm.id && (
                   <button type="button" 
                     onClick={() => setPositionForm({ id: null, name: '', department_id: '' })} 
-                    style={{ background: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid rgba(255,255,255,0.05)', padding: '10px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', transition: '0.2s' }}
+                    style={{ background: 'var(--fill-subtle)', color: 'var(--text-strong)', border: '1px solid var(--border-subtle)', padding: '10px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', transition: '0.2s' }}
                   >
                     СКАСУВАТИ
                   </button>
@@ -253,7 +253,7 @@ export function SettingsStructureTab(props) {
           
           {/* Right: Positions List */}
           <section className="structure-list-area">
-            <h3 style={{ fontSize: '0.9rem', color: '#888', marginBottom: '20px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <h3 style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: '20px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Briefcase size={18} color="#ff9000" /> ПОТОЧНІ ШТАТНІ ПОСАДИ ({companyPositions.length})
             </h3>
             
@@ -263,7 +263,7 @@ export function SettingsStructureTab(props) {
                 return (
                   <div key={pos.id} style={{ 
                     background: '#0e0e11', 
-                    border: '1px solid rgba(255,255,255,0.04)', 
+                    border: '1px solid var(--border-subtle)', 
                     borderRadius: '16px', 
                     padding: '16px',
                     display: 'flex',
@@ -272,11 +272,11 @@ export function SettingsStructureTab(props) {
                     transition: 'all 0.2s ease'
                   }} className="structure-node-card">
                     <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                      <div style={{ background: 'rgba(255,255,255,0.02)', width: '38px', height: '38px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(255,255,255,0.04)' }}>
+                      <div style={{ background: 'var(--fill-subtle)', width: '38px', height: '38px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border-subtle)' }}>
                         <Briefcase size={16} color="#ff9000" />
                       </div>
                       <div>
-                        <div style={{ fontWeight: 800, fontSize: '0.88rem', color: '#fff' }}>{pos.name}</div>
+                        <div style={{ fontWeight: 800, fontSize: '0.88rem', color: 'var(--text-strong)' }}>{pos.name}</div>
                         {linkedDept && (
                           <div style={{ fontSize: '0.68rem', color: '#ff9000', fontWeight: 600, marginTop: '2px', textTransform: 'uppercase' }}>
                             {linkedDept.name}

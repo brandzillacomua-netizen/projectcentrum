@@ -18,11 +18,11 @@ export default function SortingTerminalScannerBar({
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', maxWidth: '600px', margin: '0 auto' }}>
         <button
           onClick={() => setIsScanning(true)}
-          style={{ background: ACCENT, color: '#000', border: 'none', padding: '14px', borderRadius: '18px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 8px 32px rgba(${ACCENT_RGB},0.2)`, transition: '0.2s' }}
+          style={{ background: ACCENT, color: 'var(--surface-black)', border: 'none', padding: '14px', borderRadius: '18px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 8px 32px rgba(${ACCENT_RGB},0.2)`, transition: '0.2s' }}
         >
           <Camera size={20} />
         </button>
-        <form onSubmit={handleManualSubmit} style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '10px', background: '#0e0e12', border: '1px solid rgba(255,255,255,0.03)', padding: '12px 18px', borderRadius: '18px' }}>
+        <form onSubmit={handleManualSubmit} style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '10px', background: 'var(--surface-inset)', border: '1px solid var(--border-subtle)', padding: '12px 18px', borderRadius: '18px' }}>
           <Search size={18} color="#6b7280" />
           <input
             type="text"
@@ -30,9 +30,9 @@ export default function SortingTerminalScannerBar({
             value={manualId}
             onChange={e => setManualId(e.target.value)}
             disabled={isProcessing}
-            style={{ flex: 1, background: 'transparent', border: 'none', color: '#fff', fontSize: '0.85rem', fontWeight: 700, outline: 'none' }}
+            style={{ flex: 1, background: 'transparent', border: 'none', color: 'var(--text-strong)', fontSize: '0.85rem', fontWeight: 700, outline: 'none' }}
           />
-          <button type="submit" disabled={isProcessing} style={{ background: ACCENT, color: '#000', border: 'none', padding: '6px 14px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer' }}>
+          <button type="submit" disabled={isProcessing} style={{ background: ACCENT, color: 'var(--surface-black)', border: 'none', padding: '6px 14px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer' }}>
             {isProcessing ? <RefreshCw size={12} className="anim-spin" /> : 'ВВЕСТИ'}
           </button>
         </form>

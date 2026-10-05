@@ -29,30 +29,30 @@ export default function ReissueModal({ task, part, machines, onClose, onConfirm,
             <div style={{ color: '#ef4444', fontSize: '.68rem', fontWeight: 950, letterSpacing: '.14em', textTransform: 'uppercase' }}>Довипуск Foreman2</div>
             <h3 style={{ margin: '4px 0 0', fontSize: '1.15rem' }}>{part.name}</h3>
           </div>
-          <button onClick={onClose} style={{ width: '36px', height: '36px', borderRadius: '8px', border: '1px solid #2a2a2a', background: '#151515', color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+          <button onClick={onClose} style={{ width: '36px', height: '36px', borderRadius: '8px', border: '1px solid var(--border-subtle)', background: '#151515', color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
             <X size={17} />
           </button>
         </div>
 
         <div style={{ padding: '20px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '16px' }}>
-            <div style={{ background: '#0a0a0a', border: '1px solid #222', borderRadius: '8px', padding: '12px' }}>
-              <div style={{ color: '#666', fontSize: '.62rem', fontWeight: 950 }}>НЕСТАЧА</div>
+            <div style={{ background: 'var(--surface-inset)', border: '1px solid var(--border-subtle)', borderRadius: '8px', padding: '12px' }}>
+              <div style={{ color: 'var(--text-dim)', fontSize: '.62rem', fontWeight: 950 }}>НЕСТАЧА</div>
               <strong style={{ color: '#ef4444', fontSize: '1.25rem' }}>{formatQty(part.shortage)}</strong>
             </div>
-            <div style={{ background: '#0a0a0a', border: '1px solid #222', borderRadius: '8px', padding: '12px' }}>
-              <div style={{ color: '#666', fontSize: '.62rem', fontWeight: 950 }}>ЛИСТІВ</div>
+            <div style={{ background: 'var(--surface-inset)', border: '1px solid var(--border-subtle)', borderRadius: '8px', padding: '12px' }}>
+              <div style={{ color: 'var(--text-dim)', fontSize: '.62rem', fontWeight: 950 }}>ЛИСТІВ</div>
               <strong style={{ color: '#ffb020', fontSize: '1.25rem' }}>{plan.valid ? formatQty(plan.sheets) : '-'}</strong>
             </div>
-            <div style={{ background: '#0a0a0a', border: '1px solid #222', borderRadius: '8px', padding: '12px' }}>
-              <div style={{ color: '#666', fontSize: '.62rem', fontWeight: 950 }}>КАРТОК</div>
-              <strong style={{ color: '#fff', fontSize: '1.25rem' }}>{plan.valid ? formatQty(plan.totalCards) : '-'}</strong>
+            <div style={{ background: 'var(--surface-inset)', border: '1px solid var(--border-subtle)', borderRadius: '8px', padding: '12px' }}>
+              <div style={{ color: 'var(--text-dim)', fontSize: '.62rem', fontWeight: 950 }}>КАРТОК</div>
+              <strong style={{ color: 'var(--text-strong)', fontSize: '1.25rem' }}>{plan.valid ? formatQty(plan.totalCards) : '-'}</strong>
             </div>
           </div>
 
-          <div style={{ background: '#0a0a0a', border: '1px solid #222', borderRadius: '8px', padding: '14px', marginBottom: '14px' }}>
-            <div style={{ color: '#666', fontSize: '.68rem', fontWeight: 950, textTransform: 'uppercase', marginBottom: '8px' }}>Верстат</div>
-            <div style={{ color: '#fff', fontWeight: 900 }}>{plan.valid ? plan.machine?.name : part.machine || 'Не вказано'}</div>
+          <div style={{ background: 'var(--surface-inset)', border: '1px solid var(--border-subtle)', borderRadius: '8px', padding: '14px', marginBottom: '14px' }}>
+            <div style={{ color: 'var(--text-dim)', fontSize: '.68rem', fontWeight: 950, textTransform: 'uppercase', marginBottom: '8px' }}>Верстат</div>
+            <div style={{ color: 'var(--text-strong)', fontWeight: 900 }}>{plan.valid ? plan.machine?.name : part.machine || 'Не вказано'}</div>
           </div>
 
           <label style={{ display: 'block', color: '#777', fontSize: '.72rem', fontWeight: 900, marginBottom: '8px' }}>Завантаження листів у картку</label>
@@ -62,15 +62,15 @@ export default function ReissueModal({ task, part, machines, onClose, onConfirm,
             max={maxCap}
             value={capacity || currentCapacity}
             onChange={event => setCapacity(event.target.value)}
-            style={{ width: '100%', background: '#050505', border: '1px solid #303030', borderRadius: '8px', color: '#fff', padding: '12px', fontWeight: 900, marginBottom: '14px' }}
+            style={{ width: '100%', background: 'var(--surface-inset)', border: '1px solid #303030', borderRadius: '8px', color: 'var(--text-strong)', padding: '12px', fontWeight: 900, marginBottom: '14px' }}
           />
 
           {plan.valid && (
-            <div style={{ maxHeight: '150px', overflowY: 'auto', border: '1px solid #222', borderRadius: '8px', marginBottom: '14px' }}>
+            <div style={{ maxHeight: '150px', overflowY: 'auto', border: '1px solid var(--border-subtle)', borderRadius: '8px', marginBottom: '14px' }}>
               {plan.cards.map((card, index) => (
                 <div key={index} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 12px', borderBottom: '1px solid #191919', fontSize: '.78rem' }}>
-                  <span style={{ color: '#aaa' }}>{card.cardInfo}</span>
-                  <strong style={{ color: '#fff' }}>{formatQty(card.quantity)} шт</strong>
+                  <span style={{ color: 'var(--text-muted)' }}>{card.cardInfo}</span>
+                  <strong style={{ color: 'var(--text-strong)' }}>{formatQty(card.quantity)} шт</strong>
                 </div>
               ))}
             </div>

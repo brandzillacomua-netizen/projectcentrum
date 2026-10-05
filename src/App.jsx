@@ -76,8 +76,8 @@ import { subscribeToPush } from './services/pushService'
 
 // ── Shared loading fallback ─────────────────────────────────────────────────────
 const ModuleLoader = () => (
-  <div style={{ background: '#050505', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '16px' }}>
-    <div style={{ width: '40px', height: '40px', border: '3px solid #1a1a1a', borderTop: '3px solid #ff9000', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+  <div style={{ background: 'var(--surface-inset)', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '16px' }}>
+    <div style={{ width: '40px', height: '40px', border: '3px solid var(--border-subtle)', borderTop: '3px solid #ff9000', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
     <div style={{ color: '#333', fontSize: '0.65rem', fontWeight: 900, letterSpacing: '0.3em', textTransform: 'uppercase' }}>Завантаження модуля...</div>
     <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
   </div>
@@ -104,15 +104,15 @@ const PermissionGuard = ({ id, children }) => {
 
   if (!hasAccess) {
     return (
-      <div style={{ background: '#050505', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '20px', padding: '20px', color: '#fff', textAlign: 'center' }}>
+      <div style={{ background: 'var(--surface-inset)', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '20px', padding: '20px', color: 'var(--text-strong)', textAlign: 'center' }}>
         <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid #ef4444', color: '#ef4444', padding: '20px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '10px' }}>
           <AlertTriangle size={40} />
         </div>
         <h1 style={{ fontSize: '1.8rem', fontWeight: 950, margin: 0 }}>У вас немає прав доступу</h1>
-        <p style={{ color: '#888', fontSize: '0.9rem', maxWidth: '400px', margin: '0 0 20px' }}>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', maxWidth: '400px', margin: '0 0 20px' }}>
           Доступ до цього модуля обмежено налаштуваннями вашого облікового запису. Зверніться до адміністратора для отримання дозволу.
         </p>
-        <Link to="/" style={{ background: '#ff9000', color: '#000', textDecoration: 'none', padding: '12px 24px', borderRadius: '12px', fontWeight: 900, fontSize: '0.85rem', textTransform: 'uppercase', transition: '0.2s' }}>
+        <Link to="/" style={{ background: '#ff9000', color: 'var(--surface-black)', textDecoration: 'none', padding: '12px 24px', borderRadius: '12px', fontWeight: 900, fontSize: '0.85rem', textTransform: 'uppercase', transition: '0.2s' }}>
           Повернутися на головну
         </Link>
       </div>
@@ -165,7 +165,7 @@ const SystemAlertHost = () => {
         aria-modal="true"
         style={{
           width: 'min(520px, 100%)',
-          background: '#111',
+          background: 'var(--surface-1)',
           border: '1px solid rgba(59,130,246,.45)',
           borderRadius: '14px',
           boxShadow: '0 24px 80px rgba(0,0,0,.55)',
@@ -173,13 +173,13 @@ const SystemAlertHost = () => {
         }}
         onClick={event => event.stopPropagation()}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '18px 20px', borderBottom: '1px solid #222' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '18px 20px', borderBottom: '1px solid var(--border-subtle)' }}>
           <div style={{ width: 36, height: 36, borderRadius: '10px', background: 'rgba(59,130,246,.14)', border: '1px solid rgba(59,130,246,.45)', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <AlertTriangle size={20} />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ color: '#fff', fontWeight: 950, fontSize: '.95rem', letterSpacing: '.02em' }}>Повідомлення системи</div>
-            <div style={{ color: '#666', fontWeight: 800, fontSize: '.72rem', marginTop: '3px', textTransform: 'uppercase' }}>Centrum MES</div>
+            <div style={{ color: 'var(--text-strong)', fontWeight: 950, fontSize: '.95rem', letterSpacing: '.02em' }}>Повідомлення системи</div>
+            <div style={{ color: 'var(--text-dim)', fontWeight: 800, fontSize: '.72rem', marginTop: '3px', textTransform: 'uppercase' }}>Centrum MES</div>
           </div>
           <button
             type="button"
@@ -188,7 +188,7 @@ const SystemAlertHost = () => {
               width: 34,
               height: 34,
               borderRadius: '9px',
-              border: '1px solid #2a2a2a',
+              border: '1px solid var(--border-subtle)',
               background: '#171717',
               color: '#aaa',
               cursor: 'pointer',
@@ -275,7 +275,7 @@ const ProfileModal = ({ isOpen, onClose }) => {
       <div className="glass-panel" style={{ width: '100%', maxWidth: '480px', borderRadius: '24px', background: 'var(--card-bg)', border: '1px solid var(--glass-border)', padding: '28px', color: 'var(--text)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: 'linear-gradient(135deg, #ff9000, #e65100)', color: '#000', fontWeight: 950, fontSize: '1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: 'linear-gradient(135deg, #ff9000, #e65100)', color: 'var(--surface-black)', fontWeight: 950, fontSize: '1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <User size={22} />
             </div>
             <div>
@@ -324,7 +324,7 @@ const ProfileModal = ({ isOpen, onClose }) => {
             <button type="button" onClick={onClose} style={{ flex: 1, padding: '12px', borderRadius: '12px', border: '1px solid var(--glass-border)', background: 'transparent', color: 'var(--text)', fontWeight: 800, cursor: 'pointer' }}>
               Скасувати
             </button>
-            <button type="submit" disabled={isSaving} style={{ flex: 1, padding: '12px', borderRadius: '12px', border: 'none', background: 'linear-gradient(135deg, #ff9000, #e65100)', color: '#000', fontWeight: 950, cursor: 'pointer' }}>
+            <button type="submit" disabled={isSaving} style={{ flex: 1, padding: '12px', borderRadius: '12px', border: 'none', background: 'linear-gradient(135deg, #ff9000, #e65100)', color: 'var(--surface-black)', fontWeight: 950, cursor: 'pointer' }}>
               {isSaving ? 'Збереження...' : 'Зберегти Профіль'}
             </button>
           </div>
@@ -388,7 +388,7 @@ const NotificationCenterModal = ({ isOpen, onClose, notifications = [], unreadCo
         }}
       >
         {/* Header */}
-        <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--glass-border, rgba(255,255,255,0.08))', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--glass-border, var(--border-subtle))', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div style={{ width: 42, height: 42, borderRadius: '12px', background: 'rgba(255,144,0,0.14)', border: '1px solid rgba(255,144,0,0.3)', color: '#ff9000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Bell size={20} />
@@ -419,7 +419,7 @@ const NotificationCenterModal = ({ isOpen, onClose, notifications = [], unreadCo
             )}
             <button
               onClick={onClose}
-              style={{ width: 34, height: 34, borderRadius: '10px', background: 'rgba(255,255,255,0.06)', border: '1px solid var(--glass-border)', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              style={{ width: 34, height: 34, borderRadius: '10px', background: 'var(--border-subtle)', border: '1px solid var(--glass-border)', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             >
               <X size={18} />
             </button>
@@ -430,7 +430,7 @@ const NotificationCenterModal = ({ isOpen, onClose, notifications = [], unreadCo
         <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
           {notifications.length === 0 ? (
             <div style={{ padding: '60px 20px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px' }}>
-              <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>
+              <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--fill-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>
                 <BellOff size={26} />
               </div>
               <div>
@@ -448,8 +448,8 @@ const NotificationCenterModal = ({ isOpen, onClose, notifications = [], unreadCo
                   style={{
                     padding: '14px 16px',
                     borderRadius: '16px',
-                    background: isUnread ? 'rgba(255,144,0,0.06)' : 'rgba(255,255,255,0.03)',
-                    border: `1px solid ${isUnread ? 'rgba(255,144,0,0.3)' : 'var(--glass-border, rgba(255,255,255,0.06))'}`,
+                    background: isUnread ? 'rgba(255,144,0,0.06)' : 'var(--fill-subtle)',
+                    border: `1px solid ${isUnread ? 'rgba(255,144,0,0.3)' : 'var(--glass-border, var(--border-subtle))'}`,
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'flex-start',
@@ -774,9 +774,9 @@ const AppLayout = ({ children, chatUnreadCount }) => {
               window.location.href = '/?env=prod'
             }}
             style={{
-              background: 'rgba(0,0,0,0.3)',
+              background: 'var(--fill-inset)',
               border: '1px solid rgba(255,255,255,0.4)',
-              color: '#fff',
+              color: 'var(--text-strong)',
               borderRadius: '5px',
               padding: '2px 10px',
               fontSize: '10px',
@@ -829,7 +829,7 @@ const AppContent = () => {
   // Поки перевіряємо сесію з Supabase — показуємо спіннер (не редіректимо)
   if (sessionLoading) {
     return (
-      <div style={{ background: '#050505', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '20px' }}>
+      <div style={{ background: 'var(--surface-inset)', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '20px' }}>
         <img src="/kulytsya.png" alt="Logo" style={{ height: '60px', filter: 'drop-shadow(0 0 15px rgba(255,144,0,0.4))', animation: 'spin 2s linear infinite' }} />
         <div style={{ color: '#333', fontSize: '0.7rem', fontWeight: 900, letterSpacing: '0.3em', textTransform: 'uppercase' }}>Завантаження...</div>
         <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>

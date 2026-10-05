@@ -61,7 +61,7 @@ export const ClientsList = ({ clients = [], onOpenClientDetail, onDeleteClient, 
                 padding: '10px 14px 10px 40px',
                 borderRadius: '12px',
                 border: '1px solid var(--glass-border)',
-                background: 'rgba(0,0,0,0.2)',
+                background: 'var(--fill-inset)',
                 color: 'var(--text)',
                 fontSize: '0.85rem',
                 outline: 'none',
@@ -113,7 +113,7 @@ export const ClientsList = ({ clients = [], onOpenClientDetail, onDeleteClient, 
                   padding: '8px 12px',
                   borderRadius: '10px',
                   border: selectedSegment === seg ? '1px solid #6366f1' : '1px solid transparent',
-                  background: selectedSegment === seg ? 'rgba(99, 102, 241, 0.2)' : 'rgba(255,255,255,0.04)',
+                  background: selectedSegment === seg ? 'rgba(99, 102, 241, 0.2)' : 'var(--fill-subtle)',
                   color: selectedSegment === seg ? '#6366f1' : 'var(--text-muted)',
                   fontWeight: 850,
                   fontSize: '0.78rem',
@@ -135,7 +135,7 @@ export const ClientsList = ({ clients = [], onOpenClientDetail, onDeleteClient, 
               padding: '8px 12px',
               borderRadius: '10px',
               border: '1px solid var(--glass-border)',
-              background: 'rgba(0,0,0,0.2)',
+              background: 'var(--fill-inset)',
               color: 'var(--text)',
               fontSize: '0.78rem',
               fontWeight: 800,
@@ -181,7 +181,7 @@ export const ClientsList = ({ clients = [], onOpenClientDetail, onDeleteClient, 
                     key={`${client.id}-${index}`}
                     onClick={() => onOpenClientDetail(client)}
                     style={{
-                      borderBottom: '1px solid rgba(255,255,255,0.04)',
+                      borderBottom: '1px solid var(--border-subtle)',
                       fontSize: '0.88rem',
                       cursor: 'pointer',
                       transition: 'background 0.15s'
@@ -227,7 +227,7 @@ export const ClientsList = ({ clients = [], onOpenClientDetail, onDeleteClient, 
 
                     {/* Orders Count */}
                     <td style={{ padding: '14px 12px', fontWeight: 800 }}>
-                      <span style={{ padding: '4px 10px', borderRadius: '10px', background: 'rgba(255,255,255,0.06)', fontSize: '0.8rem' }}>
+                      <span style={{ padding: '4px 10px', borderRadius: '10px', background: 'var(--fill-subtle)', fontSize: '0.8rem' }}>
                         {client.ordersCount} шт
                       </span>
                     </td>

@@ -341,7 +341,7 @@ export const GlobalUserNav = ({ chatUnreadCount = 0 }) => {
         /* Technical support banner */
         .support-banner {
           background: linear-gradient(135deg, rgba(20, 20, 20, 0.5) 0%, rgba(10, 10, 10, 0.7) 100%);
-          border: 1px solid rgba(255, 255, 255, 0.05);
+          border: 1px solid var(--border-subtle);
           border-radius: 16px;
           padding: 14px;
           margin: 15px;
@@ -456,11 +456,11 @@ export const GlobalUserNav = ({ chatUnreadCount = 0 }) => {
           pointerEvents: activeSubPanel ? 'none' : 'auto'
         }}>
           {/* Header section with Logo and Close button */}
-          <div className="sidebar-header-bar" style={{ padding: '24px 20px 20px 20px', borderBottom: '1px solid rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div className="sidebar-header-bar" style={{ padding: '24px 20px 20px 20px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <img src="/kulytsya.png" alt="Logo" style={{ height: '36px', filter: 'drop-shadow(0 0 10px rgba(255,144,0,0.3))' }} />
               <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <span style={{ fontSize: '1.05rem', fontWeight: 950, color: '#fff', letterSpacing: '-0.5px' }}>
+                <span style={{ fontSize: '1.05rem', fontWeight: 950, color: 'var(--text-strong)', letterSpacing: '-0.5px' }}>
                   CRM <span style={{ color: '#ff9000' }}>КУЛИЦЯ</span>
                 </span>
                 <span style={{ fontSize: '0.55rem', color: '#444', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.15em', marginTop: '1px' }}>
@@ -492,7 +492,7 @@ export const GlobalUserNav = ({ chatUnreadCount = 0 }) => {
                 style={{
                   background: 'transparent',
                   border: 'none',
-                  color: '#555',
+                  color: 'var(--text-dim)',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
@@ -512,8 +512,8 @@ export const GlobalUserNav = ({ chatUnreadCount = 0 }) => {
           {/* User Mini Profile */}
           <div className="user-profile-bar" style={{
             padding: '16px 20px',
-            background: 'rgba(255,255,255,0.01)',
-            borderBottom: '1px solid rgba(255,255,255,0.04)',
+            background: 'var(--fill-subtle)',
+            borderBottom: '1px solid var(--border-subtle)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -527,10 +527,10 @@ export const GlobalUserNav = ({ chatUnreadCount = 0 }) => {
                 '0.85rem'
               )}
               <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#fff' }}>
+                <span style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-strong)' }}>
                   {currentUser?.first_name} {currentUser?.last_name}
                 </span>
-                <span style={{ fontSize: '0.62rem', color: '#555', fontWeight: 900, textTransform: 'uppercase', marginTop: '2px' }}>
+                <span style={{ fontSize: '0.62rem', color: 'var(--text-dim)', fontWeight: 900, textTransform: 'uppercase', marginTop: '2px' }}>
                   {currentUser?.position || 'Співробітник'}
                 </span>
               </div>
@@ -541,7 +541,7 @@ export const GlobalUserNav = ({ chatUnreadCount = 0 }) => {
                 style={{
                   background: 'transparent',
                   border: 'none',
-                  color: '#555',
+                  color: 'var(--text-dim)',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
@@ -611,7 +611,7 @@ export const GlobalUserNav = ({ chatUnreadCount = 0 }) => {
           </div>
 
           {/* Notification Center Trigger Row */}
-          <div style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+          <div style={{ borderBottom: '1px solid var(--border-subtle)' }}>
             <div
               onClick={() => setActiveSubPanel('notifications')}
               style={{
@@ -628,7 +628,7 @@ export const GlobalUserNav = ({ chatUnreadCount = 0 }) => {
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <Bell size={16} color={unreadCount > 0 ? '#ff9000' : '#555'} />
-                <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#fff' }}>Сповіщення</span>
+                <span style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-strong)' }}>Сповіщення</span>
                 {unreadCount > 0 && (
                   <span style={{
                     background: '#ef4444',
@@ -670,8 +670,8 @@ export const GlobalUserNav = ({ chatUnreadCount = 0 }) => {
                       padding: '10px 12px',
                       cursor: 'pointer',
                       borderRadius: '10px',
-                      background: 'rgba(255,255,255,0.02)',
-                      border: '1px solid rgba(255,255,255,0.04)',
+                      background: 'var(--fill-subtle)',
+                      border: '1px solid var(--border-subtle)',
                       marginTop: '8px',
                       marginBottom: '4px',
                       transition: 'all 0.2s ease',
@@ -688,10 +688,10 @@ export const GlobalUserNav = ({ chatUnreadCount = 0 }) => {
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: cat.color }} />
-                      <span style={{ fontSize: '0.72rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#aaa' }}>
+                      <span style={{ fontSize: '0.72rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>
                         {cat.title}
                       </span>
-                      <span style={{ fontSize: '0.65rem', color: '#555', fontWeight: 800 }}>
+                      <span style={{ fontSize: '0.65rem', color: 'var(--text-dim)', fontWeight: 800 }}>
                         ({catModules.length})
                       </span>
                     </div>
@@ -719,7 +719,7 @@ export const GlobalUserNav = ({ chatUnreadCount = 0 }) => {
                           >
                             <div style={{
                               color: isActive ? '#ff9000' : m.color,
-                              background: isActive ? 'rgba(255,144,0,0.1)' : 'rgba(0,0,0,0.2)',
+                              background: isActive ? 'rgba(255,144,0,0.1)' : 'var(--fill-inset)',
                               width: '32px',
                               height: '32px',
                               borderRadius: '10px',
@@ -740,7 +740,7 @@ export const GlobalUserNav = ({ chatUnreadCount = 0 }) => {
                             {m.badge > 0 && (
                               <span style={{
                                 background: m.color,
-                                color: '#fff',
+                                color: 'var(--text-strong)',
                                 padding: '2px 8px',
                                 borderRadius: '10px',
                                 fontSize: '0.6rem',
@@ -761,11 +761,11 @@ export const GlobalUserNav = ({ chatUnreadCount = 0 }) => {
           </div>
 
           {/* Support section and Logout button */}
-          <div style={{ borderTop: '1px solid rgba(255,255,255,0.04)', padding: '10px' }}>
+          <div style={{ borderTop: '1px solid var(--border-subtle)', padding: '10px' }}>
             <div className="support-banner">
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center', marginBottom: '4px' }}>
                 <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981', boxShadow: '0 0 8px #10b981' }}></div>
-                <span style={{ fontSize: '0.65rem', color: '#666', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                <span style={{ fontSize: '0.65rem', color: 'var(--text-dim)', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                   Технічна підтримка
                 </span>
               </div>
@@ -774,7 +774,7 @@ export const GlobalUserNav = ({ chatUnreadCount = 0 }) => {
                 style={{
                   fontSize: '0.9rem',
                   fontWeight: 800,
-                  color: '#fff',
+                  color: 'var(--text-strong)',
                   background: 'rgba(255, 144, 0, 0.15)',
                   border: '1px solid rgba(255, 144, 0, 0.3)',
                   padding: '10px 14px',

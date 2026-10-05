@@ -16,7 +16,7 @@ export function MachinesTypesGrid({ machines, setSelectedType, activeWorkForMach
 
         return (
           <div key={type} className="machine-card-v3" onClick={() => setSelectedType(type)} style={{ justifyContent: 'center', alignItems: 'center', textAlign: 'center', minHeight: '200px' }}>
-            <div style={{ background: '#111', width: '64px', height: '64px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ff9000', marginBottom: '15px' }}>
+            <div style={{ background: 'var(--surface-1)', width: '64px', height: '64px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ff9000', marginBottom: '15px' }}>
               <Layers size={32} />
             </div>
             <h3 style={{ margin: '0 0 10px', fontSize: '1.4rem', fontWeight: 900 }}>{type}</h3>

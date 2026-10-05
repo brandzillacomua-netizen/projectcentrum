@@ -56,7 +56,7 @@ export function CreateRerunModal({
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)', zIndex: 1050, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }} onClick={onClose}>
-      <div style={{ background: 'var(--card-bg, #0e0e0e)', width: '100%', maxWidth: '540px', borderRadius: '24px', padding: '36px', position: 'relative', border: '1px solid var(--border, #222)', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.7)' }} onClick={e => e.stopPropagation()}>
+      <div style={{ background: 'var(--card-bg, #0e0e0e)', width: '100%', maxWidth: '540px', borderRadius: '24px', padding: '36px', position: 'relative', border: '1px solid var(--border, var(--border-subtle))', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.7)' }} onClick={e => e.stopPropagation()}>
         <button
           onClick={onClose}
           style={{ position: 'absolute', top: '22px', right: '22px', background: 'var(--border, #1c1c1c)', border: 'none', color: 'var(--text-muted, #888)', cursor: 'pointer', width: '36px', height: '36px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
@@ -92,7 +92,7 @@ export function CreateRerunModal({
             <select
               value={selectedOrderId}
               onChange={(e) => setSelectedOrderId(e.target.value)}
-              style={{ width: '100%', background: 'var(--input-bg, #000)', border: '1px solid var(--border, #2a2a2a)', color: 'var(--text, #fff)', padding: '14px', borderRadius: '14px', fontSize: '0.9rem', outline: 'none', fontWeight: 800 }}
+              style={{ width: '100%', background: 'var(--input-bg, #000)', border: '1px solid var(--border, var(--border-subtle))', color: 'var(--text, #fff)', padding: '14px', borderRadius: '14px', fontSize: '0.9rem', outline: 'none', fontWeight: 800 }}
             >
               <option value="">-- Без прив'язки (Загальний складський довипуск) --</option>
               {orders.map(o => (
@@ -128,7 +128,7 @@ export function CreateRerunModal({
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               placeholder="Причина списання заготовок..."
-              style={{ width: '100%', background: 'var(--input-bg, #000)', border: '1px solid var(--border, #2a2a2a)', color: 'var(--text, #fff)', padding: '12px', borderRadius: '14px', fontSize: '0.85rem', outline: 'none', fontWeight: 700 }}
+              style={{ width: '100%', background: 'var(--input-bg, #000)', border: '1px solid var(--border, var(--border-subtle))', color: 'var(--text, #fff)', padding: '12px', borderRadius: '14px', fontSize: '0.85rem', outline: 'none', fontWeight: 700 }}
             />
           </div>
 

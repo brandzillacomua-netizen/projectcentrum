@@ -2,8 +2,8 @@ import React from 'react'
 import { X, Layers, Box, Gauge } from 'lucide-react'
 
 const SpecCard = ({ icon: Icon, label, value, color = "#eab308" }) => (
-  <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid #1a1a1a', padding: '18px', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '8px', minWidth: '130px' }}>
-    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#555', fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase' }}>
+  <div style={{ background: 'var(--fill-subtle)', border: '1px solid var(--border-subtle)', padding: '18px', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '8px', minWidth: '130px' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-dim)', fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase' }}>
       <Icon size={14} /> {label}
     </div>
     <div style={{ fontSize: '1.2rem', fontWeight: 900, color }}>{value}</div>
@@ -57,7 +57,7 @@ export const OperatorCardDetailsView = ({
             <div style={{ background: currentCard.status === 'new' ? '#ef4444' : '#3b82f6', color: 'white', padding: '4px 10px', borderRadius: '6px', fontSize: '0.65rem', fontWeight: 900 }}>
               {currentCard.status === 'new' ? 'НОВА КАРТА' : 'РОБОЧА КАРТА'}
             </div>
-            <div style={{ fontSize: '0.7rem', color: '#555', fontWeight: 800 }}>
+            <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', fontWeight: 800 }}>
               ЗАМОВЛЕННЯ №{orders?.find(o => o.id === currentCard.order_id)?.order_num || '—'} | КАРТКА #{currentCard.id.slice(0, 8).toUpperCase()}... | {(() => {
                 const bz = Number(currentCard.buffer_qty) || Number(currentCard.card_info?.match(/\[BZ:(\d+)\]/)?.[1]) || 0
                 const need = Number(currentCard.card_info?.match(/\[REQ:(\d+)\]/)?.[1]) || Number(currentCard.card_info?.match(/\[NEED:(\d+)\]/)?.[1]) || (Number(currentCard.quantity) - bz)
@@ -70,7 +70,7 @@ export const OperatorCardDetailsView = ({
             {getNomFromCard(currentCard)?.name || 'Деталь'}
           </h2>
         </div>
-        <button onClick={() => setSelectedCardId(null)} style={{ background: '#111', border: 'none', color: '#555', padding: '10px', borderRadius: '12px', cursor: 'pointer' }}>
+        <button onClick={() => setSelectedCardId(null)} style={{ background: 'var(--surface-1)', border: 'none', color: '#555', padding: '10px', borderRadius: '12px', cursor: 'pointer' }}>
           <X size={24} />
         </button>
       </div>
@@ -81,12 +81,12 @@ export const OperatorCardDetailsView = ({
         <SpecCard icon={Gauge} label="Обладнання" value={currentCard.machine || '—'} />
       </div>
 
-      <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '28px', border: '1px solid #1a1a1a', padding: '40px' }}>
+      <div style={{ background: 'var(--fill-subtle)', borderRadius: '28px', border: '1px solid var(--border-subtle)', padding: '40px' }}>
         {currentCard.status === 'new' ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '25px', maxWidth: '500px', margin: '0 auto' }}>
             <div>
-              <label style={{ color: '#555', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', display: 'block', marginBottom: '10px' }}>Виберіть верстат</label>
-              <select value={selectedMachine} onChange={(e) => setSelectedMachine(e.target.value)} style={{ width: '100%', background: '#111', border: '1px solid #333', color: '#fff', padding: '15px', borderRadius: '15px', fontSize: '1.1rem', fontWeight: 700 }}>
+              <label style={{ color: 'var(--text-dim)', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', display: 'block', marginBottom: '10px' }}>Виберіть верстат</label>
+              <select value={selectedMachine} onChange={(e) => setSelectedMachine(e.target.value)} style={{ width: '100%', background: 'var(--surface-1)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', padding: '15px', borderRadius: '15px', fontSize: '1.1rem', fontWeight: 700 }}>
                 <option value="">— Оберіть обладнання —</option>
                 {machines.map(m => (
                   <option key={m.id} value={m.id}>
@@ -97,15 +97,15 @@ export const OperatorCardDetailsView = ({
               </select>
             </div>
             <div>
-              <label style={{ color: '#555', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', display: 'block', marginBottom: '10px' }}>Майстер</label>
-              <select value={selectedMaster} onChange={(e) => setSelectedMaster(e.target.value)} style={{ width: '100%', background: '#111', border: '1px solid #333', color: '#fff', padding: '15px', borderRadius: '15px', fontSize: '1.1rem', fontWeight: 700 }}>
+              <label style={{ color: 'var(--text-dim)', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', display: 'block', marginBottom: '10px' }}>Майстер</label>
+              <select value={selectedMaster} onChange={(e) => setSelectedMaster(e.target.value)} style={{ width: '100%', background: 'var(--surface-1)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', padding: '15px', borderRadius: '15px', fontSize: '1.1rem', fontWeight: 700 }}>
                 <option value="">— Оберіть майстра —</option>
                 {getFilteredManagers(getCardDept(currentCard)).map(o => <option key={o} value={o}>{o}</option>)}
               </select>
             </div>
             <div>
-              <label style={{ color: '#555', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', display: 'block', marginBottom: '10px' }}>Зміна</label>
-              <select value={selectedShift} onChange={(e) => setSelectedShift(e.target.value)} style={{ width: '100%', background: '#111', border: '1px solid #333', color: '#fff', padding: '15px', borderRadius: '15px', fontSize: '1.1rem', fontWeight: 700 }}>
+              <label style={{ color: 'var(--text-dim)', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', display: 'block', marginBottom: '10px' }}>Зміна</label>
+              <select value={selectedShift} onChange={(e) => setSelectedShift(e.target.value)} style={{ width: '100%', background: 'var(--surface-1)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', padding: '15px', borderRadius: '15px', fontSize: '1.1rem', fontWeight: 700 }}>
                 <option value="">— Оберіть зміну —</option>
                 <option value="Зміна 1">Зміна 1</option>
                 <option value="Зміна 2">Зміна 2</option>
@@ -113,8 +113,8 @@ export const OperatorCardDetailsView = ({
               </select>
             </div>
             <div>
-              <label style={{ color: '#555', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', display: 'block', marginBottom: '10px' }}>Відповідальний оператор</label>
-              <select value={selectedOperator} onChange={(e) => setSelectedOperator(e.target.value)} style={{ width: '100%', background: '#111', border: '1px solid #333', color: '#fff', padding: '15px', borderRadius: '15px', fontSize: '1.1rem', fontWeight: 700 }}>
+              <label style={{ color: 'var(--text-dim)', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', display: 'block', marginBottom: '10px' }}>Відповідальний оператор</label>
+              <select value={selectedOperator} onChange={(e) => setSelectedOperator(e.target.value)} style={{ width: '100%', background: 'var(--surface-1)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', padding: '15px', borderRadius: '15px', fontSize: '1.1rem', fontWeight: 700 }}>
                 <option value="">— Оберіть оператора —</option>
                 {getFilteredOperators(getCardDept(currentCard), selectedShift, selectedStage || currentCard.operation).map(o => <option key={o} value={o}>{o}</option>)}
               </select>
@@ -130,7 +130,7 @@ export const OperatorCardDetailsView = ({
                       ⚠️ Верстат заблоковано! Очікується проведення технологічного ремонту (очистка стола).
                     </div>
                   )}
-                  <button disabled={isProcessing || !selectedOperator || isMachBlocked} onClick={handleStartOperation} style={{ background: isMachBlocked ? '#333' : '#3b82f6', color: isMachBlocked ? '#666' : '#fff', border: 'none', padding: '22px', borderRadius: '18px', fontSize: '1.4rem', fontWeight: 900, cursor: isMachBlocked ? 'not-allowed' : 'pointer' }}>ВЗЯТИ В РОБОТУ</button>
+                  <button disabled={isProcessing || !selectedOperator || isMachBlocked} onClick={handleStartOperation} style={{ background: isMachBlocked ? 'var(--border-subtle)' : '#3b82f6', color: isMachBlocked ? '#666' : '#fff', border: 'none', padding: '22px', borderRadius: '18px', fontSize: '1.4rem', fontWeight: 900, cursor: isMachBlocked ? 'not-allowed' : 'pointer' }}>ВЗЯТИ В РОБОТУ</button>
                 </>
               )
             })()}

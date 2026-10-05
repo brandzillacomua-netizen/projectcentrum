@@ -134,7 +134,7 @@ export const MasterModule: React.FC = () => {
   const [showCallsModal, setShowCallsModal] = useState(false)
 
   return (
-    <div className="module-container" style={{ background: isLight ? '#f5f7fa' : '#000000', color: isLight ? '#0f172a' : '#ffffff', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <div className="module-container" style={{ background: isLight ? '#f5f7fa' : 'var(--surface-black)', color: isLight ? '#0f172a' : '#ffffff', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       {/* MACHINE EMERGENCY CALLS BANNER */}
       {activeCalls.length > 0 && (
         <div 
@@ -203,7 +203,7 @@ export const MasterModule: React.FC = () => {
           {/* COLUMN 3: RECENT ARCHIVE */}
           <section className="grid-col" style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ fontSize: '0.85rem', color: isLight ? '#0f172a' : '#ffffff', margin: 0, display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 900, textTransform: 'uppercase' }}>
+              <h3 style={{ fontSize: '0.85rem', color: isLight ? '#0f172a' : 'var(--text-strong)', margin: 0, display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 900, textTransform: 'uppercase' }}>
                 <Clock size={14} color={isLight ? '#0f172a' : '#ffffff'} /> АРХІВ (ОСТАННІ 3 ДНІ)
               </h3>
             </div>
@@ -237,7 +237,7 @@ export const MasterModule: React.FC = () => {
         >
           <div
             style={{
-              background: isLight ? '#ffffff' : '#0a0a0a',
+              background: isLight ? '#ffffff' : 'var(--surface-inset)',
               width: '85%',
               maxWidth: '380px',
               height: '100%',
@@ -251,8 +251,8 @@ export const MasterModule: React.FC = () => {
             }}
             onClick={e => e.stopPropagation()}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: isLight ? '1px solid #e2e8f0' : '1px solid #1a1a1a', paddingBottom: '15px' }}>
-              <h3 style={{ fontSize: '1rem', fontWeight: 900, margin: 0, display: 'flex', alignItems: 'center', gap: '8px', color: isLight ? '#0f172a' : '#ffffff' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: isLight ? '1px solid #e2e8f0' : '1px solid var(--border-subtle)', paddingBottom: '15px' }}>
+              <h3 style={{ fontSize: '1rem', fontWeight: 900, margin: 0, display: 'flex', alignItems: 'center', gap: '8px', color: isLight ? '#0f172a' : 'var(--text-strong)' }}>
                 {drawerType === 'queue' ? (
                   <>
                     <ListChecks size={18} color={isLight ? '#ea580c' : '#ff9000'} />
@@ -268,7 +268,7 @@ export const MasterModule: React.FC = () => {
               <button
                 onClick={() => setIsDrawerOpen(false)}
                 style={{
-                  background: isLight ? '#f1f5f9' : '#1a1a1a',
+                  background: isLight ? '#f1f5f9' : 'var(--surface-2)',
                   border: isLight ? '1px solid #cbd5e1' : '1px solid #333333',
                   color: isLight ? '#64748b' : '#aaaaaa',
                   width: '32px',

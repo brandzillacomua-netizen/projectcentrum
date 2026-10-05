@@ -4,13 +4,13 @@ import { Link } from 'react-router-dom'
 
 export default function Foreman2Layout({ loading, error, onRefresh, onOpenQueue, children }) {
   return (
-    <div className="foreman-module" style={{ background: '#0a0a0a', minHeight: '100vh', color: '#fff', display: 'flex', flexDirection: 'column' }}>
-      <header className="module-nav no-print" style={{ flexShrink: 0, padding: '0 20px', height: '70px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#000', borderBottom: '1px solid #222' }}>
+    <div className="foreman-module" style={{ background: 'var(--surface-inset)', minHeight: '100vh', color: 'var(--text-strong)', display: 'flex', flexDirection: 'column' }}>
+      <header className="module-nav no-print" style={{ flexShrink: 0, padding: '0 20px', height: '70px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--surface-black)', borderBottom: '1px solid var(--border-subtle)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
           <Link
             to="/"
             title="На головну"
-            style={{ background: '#111', border: '1px solid #333', color: '#aaa', borderRadius: '8px', width: '38px', height: '38px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none', flexShrink: 0 }}
+            style={{ background: 'var(--surface-1)', border: '1px solid var(--border-subtle)', color: '#aaa', borderRadius: '8px', width: '38px', height: '38px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none', flexShrink: 0 }}
           >
             <ArrowLeft size={18} />
           </Link>
@@ -18,7 +18,7 @@ export default function Foreman2Layout({ loading, error, onRefresh, onOpenQueue,
             onClick={onOpenQueue}
             className="foreman2-mobile-menu"
             title="Черга нарядів"
-            style={{ background: '#111', border: '1px solid #333', color: '#aaa', borderRadius: '8px', width: '38px', height: '38px', alignItems: 'center', justifyContent: 'center', display: 'none' }}
+            style={{ background: 'var(--surface-1)', border: '1px solid var(--border-subtle)', color: '#aaa', borderRadius: '8px', width: '38px', height: '38px', alignItems: 'center', justifyContent: 'center', display: 'none' }}
           >
             <Menu size={18} />
           </button>
@@ -30,21 +30,21 @@ export default function Foreman2Layout({ loading, error, onRefresh, onOpenQueue,
             <div style={{ color: '#ff9000', fontSize: '0.62rem', fontWeight: 950, letterSpacing: '0.18em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
               <ShieldCheck size={12} /> Foreman 2.0
             </div>
-            <h1 style={{ margin: 0, color: '#fff', fontSize: '1.25rem', lineHeight: 1.1, fontWeight: 950, whiteSpace: 'nowrap' }}>
+            <h1 style={{ margin: 0, color: 'var(--text-strong)', fontSize: '1.25rem', lineHeight: 1.1, fontWeight: 950, whiteSpace: 'nowrap' }}>
               ВИРОБНИЦТВО
             </h1>
           </div>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', justifyContent: 'flex-end', minWidth: 0 }}>
-          <span className="foreman2-mode-label" style={{ fontSize: '0.72rem', color: '#555', fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+          <span className="foreman2-mode-label" style={{ fontSize: '0.72rem', color: 'var(--text-dim)', fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
             РЕЖИМ МАЙСТРА
           </span>
           <button
             onClick={onRefresh}
             disabled={loading}
             title="Оновити дані"
-            style={{ width: '38px', height: '38px', borderRadius: '8px', border: '1px solid #333', background: '#111', color: loading ? '#555' : '#aaa', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: loading ? 'wait' : 'pointer', flexShrink: 0 }}
+            style={{ width: '38px', height: '38px', borderRadius: '8px', border: '1px solid var(--border-subtle)', background: 'var(--surface-1)', color: loading ? '#555' : '#aaa', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: loading ? 'wait' : 'pointer', flexShrink: 0 }}
           >
             <RefreshCw size={17} className={loading ? 'foreman2-spin' : ''} />
           </button>

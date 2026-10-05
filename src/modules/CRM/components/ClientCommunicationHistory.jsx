@@ -93,7 +93,7 @@ export const ClientCommunicationHistory = ({ clientId, communications = [], onAd
                   padding: '6px 12px',
                   borderRadius: '8px',
                   border: commType === t ? '1px solid #6366f1' : '1px solid transparent',
-                  background: commType === t ? '#6366f1' : 'rgba(255,255,255,0.05)',
+                  background: commType === t ? '#6366f1' : 'var(--fill-subtle)',
                   color: commType === t ? '#fff' : 'var(--text-muted)',
                   fontSize: '0.75rem',
                   fontWeight: 800,
@@ -110,7 +110,7 @@ export const ClientCommunicationHistory = ({ clientId, communications = [], onAd
             placeholder="Тема комунікації (наприклад: Узгодження термінів)..."
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--glass-border)', background: 'rgba(0,0,0,0.3)', color: 'var(--text)', outline: 'none', fontSize: '0.85rem' }}
+            style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--glass-border)', background: 'var(--fill-inset)', color: 'var(--text)', outline: 'none', fontSize: '0.85rem' }}
           />
 
           <textarea
@@ -118,7 +118,7 @@ export const ClientCommunicationHistory = ({ clientId, communications = [], onAd
             placeholder="Деталі розмови, досягнуті домовленості..."
             value={content}
             onChange={(e) => setContent(e.target.value)}
-            style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--glass-border)', background: 'rgba(0,0,0,0.3)', color: 'var(--text)', outline: 'none', fontSize: '0.85rem', resize: 'vertical' }}
+            style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--glass-border)', background: 'var(--fill-inset)', color: 'var(--text)', outline: 'none', fontSize: '0.85rem', resize: 'vertical' }}
           />
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
@@ -147,7 +147,7 @@ export const ClientCommunicationHistory = ({ clientId, communications = [], onAd
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', position: 'relative', paddingLeft: '14px' }}>
           {/* Vertical Timeline Line */}
-          <div style={{ position: 'absolute', left: '6px', top: '10px', bottom: '10px', width: '2px', background: 'rgba(255,255,255,0.08)' }} />
+          <div style={{ position: 'absolute', left: '6px', top: '10px', bottom: '10px', width: '2px', background: 'var(--fill-subtle)' }} />
 
           {communications.map((comm) => (
             <div key={comm.id} style={{

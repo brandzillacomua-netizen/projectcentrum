@@ -28,8 +28,8 @@ export const ChecklistMultiAssigneeSelector = ({ values = [], onChange, systemUs
         type="button"
         onClick={e => { e.stopPropagation(); setOpen(o => !o) }}
         style={{
-          background: selectedUsers.length > 0 ? 'rgba(255,144,0,0.1)' : 'rgba(255,255,255,0.03)',
-          border: selectedUsers.length > 0 ? '1px solid rgba(255,144,0,0.3)' : '1px solid rgba(255,255,255,0.06)',
+          background: selectedUsers.length > 0 ? 'rgba(255,144,0,0.1)' : 'var(--fill-subtle)',
+          border: selectedUsers.length > 0 ? '1px solid rgba(255,144,0,0.3)' : '1px solid var(--border-subtle)',
           borderRadius: '20px',
           padding: selectedUsers.length > 0 ? '3px 8px 3px 4px' : '0',
           width: selectedUsers.length > 0 ? 'auto' : '26px',
@@ -44,7 +44,7 @@ export const ChecklistMultiAssigneeSelector = ({ values = [], onChange, systemUs
             {selectedUsers.slice(0, 2).map((u, i) => (
               <div key={u.login} style={{
                 width: '18px', height: '18px', borderRadius: '50%',
-                background: '#ff9000', color: '#000', fontSize: '0.55rem', fontWeight: 900,
+                background: '#ff9000', color: 'var(--surface-black)', fontSize: '0.55rem', fontWeight: 900,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 marginLeft: i > 0 ? '-4px' : 0, flexShrink: 0
               }}>
@@ -62,10 +62,10 @@ export const ChecklistMultiAssigneeSelector = ({ values = [], onChange, systemUs
           <div style={{ position: 'fixed', inset: 0, zIndex: 10000 }} onClick={() => { setOpen(false); setSearch('') }} />
           <div style={{
             position: 'absolute', bottom: '30px', right: 0,
-            background: '#111', border: '1px solid #222', borderRadius: '12px',
+            background: 'var(--surface-1)', border: '1px solid var(--border-subtle)', borderRadius: '12px',
             zIndex: 10001, width: '210px', boxShadow: '0 10px 30px rgba(0,0,0,0.6)', overflow: 'hidden'
           }}>
-            <div style={{ padding: '8px 10px', borderBottom: '1px solid #1a1a1a', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <div style={{ padding: '8px 10px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', gap: '6px' }}>
               <Search size={12} color="#555" />
               <input
                 autoFocus
@@ -74,20 +74,20 @@ export const ChecklistMultiAssigneeSelector = ({ values = [], onChange, systemUs
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 onClick={e => e.stopPropagation()}
-                style={{ background: 'transparent', border: 'none', outline: 'none', color: '#fff', fontSize: '0.78rem', flex: 1, fontFamily: 'inherit' }}
+                style={{ background: 'transparent', border: 'none', outline: 'none', color: 'var(--text-strong)', fontSize: '0.78rem', flex: 1, fontFamily: 'inherit' }}
               />
             </div>
             {values.length > 0 && (
               <div
                 onClick={() => { onChange([]); setOpen(false); setSearch('') }}
-                style={{ padding: '6px 10px', fontSize: '0.7rem', color: '#ef4444', cursor: 'pointer', borderBottom: '1px solid #1a1a1a', fontWeight: 700 }}
+                style={{ padding: '6px 10px', fontSize: '0.7rem', color: '#ef4444', cursor: 'pointer', borderBottom: '1px solid var(--border-subtle)', fontWeight: 700 }}
               >
                 Зняти всіх
               </div>
             )}
             <div style={{ maxHeight: '180px', overflowY: 'auto' }}>
               {filtered.length === 0 && (
-                <div style={{ padding: '10px 12px', fontSize: '0.72rem', color: '#555', textAlign: 'center' }}>Нікого не знайдено</div>
+                <div style={{ padding: '10px 12px', fontSize: '0.72rem', color: 'var(--text-dim)', textAlign: 'center' }}>Нікого не знайдено</div>
               )}
               {filtered.map(u => {
                 const sel = values.includes(u.login)
@@ -97,14 +97,14 @@ export const ChecklistMultiAssigneeSelector = ({ values = [], onChange, systemUs
                     onClick={e => { e.stopPropagation(); toggle(u.login) }}
                     style={{
                       padding: '7px 10px', fontSize: '0.75rem',
-                      color: sel ? '#ff9000' : '#fff',
+                      color: sel ? '#ff9000' : 'var(--text-strong)',
                       background: sel ? 'rgba(255,144,0,0.08)' : 'transparent',
                       cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px',
                     }}
                     onMouseEnter={e => { if (!sel) e.currentTarget.style.background = '#ff900010' }}
                     onMouseLeave={e => { if (!sel) e.currentTarget.style.background = 'transparent' }}
                   >
-                    <div style={{ width: '18px', height: '18px', borderRadius: '50%', background: sel ? '#ff9000' : '#2a2a2a', color: sel ? '#000' : '#888', fontSize: '0.55rem', fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <div style={{ width: '18px', height: '18px', borderRadius: '50%', background: sel ? '#ff9000' : 'var(--border-subtle)', color: sel ? 'var(--surface-black)' : '#888', fontSize: '0.55rem', fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                       {getInitials(u)}
                     </div>
                     <span style={{ flex: 1 }}>{u.last_name} {u.first_name}</span>
@@ -161,7 +161,7 @@ export const ChecklistEditor = ({ items, onToggle, newItem, setNewItem, onAdd, o
             <button type="button" className="check-toggle" style={{ pointerEvents: 'none' }}>
               {isChecked ? <CheckSquare size={18} color="#10b981" /> : <Square size={18} color="#555" />}
             </button>
-            <span className="check-text" style={isChild ? { fontSize: '0.82rem', color: isChecked ? '#666' : '#bbb' } : { fontWeight: hasChildren ? 700 : 500 }}>
+            <span className="check-text" style={isChild ? { fontSize: '0.82rem', color: isChecked ? 'var(--text-dim)' : 'var(--text-soft)' } : { fontWeight: hasChildren ? 700 : 500 }}>
               {item.text}
             </span>
             {hasChildren && !isChild && (
@@ -198,8 +198,8 @@ export const ChecklistEditor = ({ items, onToggle, newItem, setNewItem, onAdd, o
                   }}
                   onClick={e => { try { e.target.showPicker() } catch (err) { } }}
                   style={{
-                    background: item.deadline ? 'rgba(255,144,0,0.06)' : 'rgba(255,255,255,0.02)',
-                    border: item.deadline ? '1px solid rgba(255,144,0,0.15)' : '1px solid rgba(255,255,255,0.05)',
+                    background: item.deadline ? 'rgba(255,144,0,0.06)' : 'var(--fill-subtle)',
+                    border: item.deadline ? '1px solid rgba(255,144,0,0.15)' : '1px solid var(--border-subtle)',
                     color: item.deadline ? '#ff9000' : '#444',
                     borderRadius: '6px',
                     fontSize: '0.68rem',
@@ -221,9 +221,9 @@ export const ChecklistEditor = ({ items, onToggle, newItem, setNewItem, onAdd, o
                     }}
                     onClick={e => { try { e.target.showPicker() } catch (err) { } }}
                     style={{
-                      background: 'rgba(255,255,255,0.02)',
-                      border: '1px solid rgba(255,255,255,0.05)',
-                      color: '#bbb',
+                      background: 'var(--fill-subtle)',
+                      border: '1px solid var(--border-subtle)',
+                      color: 'var(--text-soft)',
                       borderRadius: '6px',
                       fontSize: '0.68rem',
                       padding: '3px 4px',
@@ -255,7 +255,7 @@ export const ChecklistEditor = ({ items, onToggle, newItem, setNewItem, onAdd, o
                       </div>
                     ))}
                     {clAssigneeUsers.length > 3 && (
-                      <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: '#1a1a1a', border: '1px solid #333', color: '#888', fontSize: '0.55rem', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', marginLeft: '-6px' }}>
+                      <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: 'var(--surface-2)', border: '1px solid var(--border-subtle)', color: '#888', fontSize: '0.55rem', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', marginLeft: '-6px' }}>
                         +{clAssigneeUsers.length - 3}
                       </div>
                     )}
@@ -323,11 +323,11 @@ export const ChecklistEditor = ({ items, onToggle, newItem, setNewItem, onAdd, o
                 }
               }}
               style={{
-                background: '#0d0d0d',
+                background: 'var(--surface-inset)',
                 border: '1px solid #ff9000',
                 borderRadius: '8px',
                 padding: '6px 12px',
-                color: '#fff',
+                color: 'var(--text-strong)',
                 fontSize: '0.8rem',
                 flex: 1
               }}
@@ -341,7 +341,7 @@ export const ChecklistEditor = ({ items, onToggle, newItem, setNewItem, onAdd, o
                 setActiveAddId(null)
                 setSubText('')
               }}
-              style={{ background: '#ff9000', border: 'none', color: '#000', borderRadius: '8px', padding: '6px 12px', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer' }}
+              style={{ background: '#ff9000', border: 'none', color: 'var(--surface-black)', borderRadius: '8px', padding: '6px 12px', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer' }}
             >
               Додати
             </button>
@@ -351,7 +351,7 @@ export const ChecklistEditor = ({ items, onToggle, newItem, setNewItem, onAdd, o
                 setActiveAddId(null)
                 setSubText('')
               }}
-              style={{ background: 'transparent', border: '1px solid #333', color: '#888', borderRadius: '8px', padding: '6px 12px', fontSize: '0.8rem', cursor: 'pointer' }}
+              style={{ background: 'transparent', border: '1px solid var(--border-subtle)', color: '#888', borderRadius: '8px', padding: '6px 12px', fontSize: '0.8rem', cursor: 'pointer' }}
             >
               ✕
             </button>
@@ -371,8 +371,8 @@ export const ChecklistEditor = ({ items, onToggle, newItem, setNewItem, onAdd, o
             type="button"
             onClick={() => setIsEditing(!isEditing)}
             style={{
-              background: isEditing ? '#ff9000' : 'rgba(255,255,255,0.05)',
-              border: isEditing ? 'none' : '1px solid rgba(255,255,255,0.1)',
+              background: isEditing ? '#ff9000' : 'var(--fill-subtle)',
+              border: isEditing ? 'none' : '1px solid var(--border-subtle)',
               color: isEditing ? '#000' : '#ff9000',
               padding: '6px 14px',
               borderRadius: '8px',

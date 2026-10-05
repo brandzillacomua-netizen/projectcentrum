@@ -87,7 +87,7 @@ export const PackagingAddItemModal = ({
           </div>
           <button
             onClick={onClose}
-            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', color: '#888', cursor: 'pointer', padding: '8px', display: 'flex', transition: 'all 0.2s' }}
+            style={{ background: 'var(--border-subtle)', border: '1px solid var(--border-subtle)', borderRadius: '10px', color: '#888', cursor: 'pointer', padding: '8px', display: 'flex', transition: 'all 0.2s' }}
             onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; e.currentTarget.style.color = '#fff' }}
             onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = '#888' }}
           >
@@ -111,10 +111,10 @@ export const PackagingAddItemModal = ({
                 onClick={() => setAddItemCategoryKey(cat.key)}
                 style={{
                   padding: '6px 12px',
-                  background: addItemCategoryKey === cat.key ? `${cat.color}22` : 'rgba(255,255,255,0.03)',
-                  border: `1.5px solid ${addItemCategoryKey === cat.key ? cat.color + '66' : 'rgba(255,255,255,0.08)'}`,
+                  background: addItemCategoryKey === cat.key ? `${cat.color}22` : 'var(--fill-subtle)',
+                  border: `1.5px solid ${addItemCategoryKey === cat.key ? cat.color + '66' : 'var(--border-subtle)'}`,
                   borderRadius: '10px',
-                  color: addItemCategoryKey === cat.key ? cat.color : '#555',
+                  color: addItemCategoryKey === cat.key ? cat.color : 'var(--text-dim)',
                   fontSize: '0.65rem',
                   fontWeight: 900,
                   cursor: 'pointer',
@@ -239,7 +239,7 @@ export const PackagingAddItemModal = ({
             }}>
               <CheckCircle2 size={16} color="#06b6d4" style={{ flexShrink: 0 }} />
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{addItemSelectedNom.name}</div>
+                <div style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-strong)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{addItemSelectedNom.name}</div>
                 <div style={{ fontSize: '0.65rem', color: '#06b6d4', fontWeight: 700, display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                   {addItemSelectedNom.nomenclature_code && <span>Код: {addItemSelectedNom.nomenclature_code}</span>}
                   {addItemSelectedNom.description && <span style={{ color: '#a0aec0' }}>{addItemSelectedNom.description}</span>}
@@ -291,7 +291,7 @@ export const PackagingAddItemModal = ({
                 background: 'rgba(6,182,212,0.06)',
                 border: '1.5px solid rgba(6,182,212,0.2)',
                 borderRadius: '10px',
-                color: '#fff',
+                color: 'var(--text-strong)',
                 fontSize: '1.2rem',
                 fontWeight: 1000,
                 textAlign: 'center',
@@ -321,7 +321,7 @@ export const PackagingAddItemModal = ({
               : 'rgba(255,255,255,0.04)',
             border: 'none',
             borderRadius: '14px',
-            color: addItemSelectedNom ? '#fff' : '#333',
+            color: addItemSelectedNom ? 'var(--text-strong)' : '#333',
             fontSize: '0.9rem',
             fontWeight: 900,
             cursor: addItemSelectedNom ? 'pointer' : 'not-allowed',

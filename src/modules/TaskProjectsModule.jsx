@@ -195,7 +195,7 @@ function Styles() {
   .tp-heading,.tp-header-actions{display:flex;align-items:center;gap:14px}
   .tp-heading h1{font-size:1rem;letter-spacing:1.5px;margin:0 0 4px;color:var(--text, #eee)}
   .tp-heading p{margin:0;color:var(--text-muted, #666);font-size:.72rem}
-  .tp-icon-btn,.tp-logo{width:38px;height:38px;display:flex;align-items:center;justify-content:center;border-radius:10px;border:1px solid var(--glass-border, #222);background:var(--card-bg, #101010);color:var(--text-muted, #aaa);text-decoration:none}
+  .tp-icon-btn,.tp-logo{width:38px;height:38px;display:flex;align-items:center;justify-content:center;border-radius:10px;border:1px solid var(--glass-border, var(--border-subtle));background:var(--card-bg, #101010);color:var(--text-muted, #aaa);text-decoration:none}
   .tp-logo{color:#ff9000;background:rgba(255,144,0,0.07);border-color:rgba(255,144,0,0.2)}
   .tp-primary,.tp-secondary,.tp-danger{border:0;border-radius:10px;padding:10px 15px;font-weight:800;display:flex;align-items:center;justify-content:center;gap:7px;cursor:pointer}
   .tp-primary{background:linear-gradient(135deg, #ff9000, #ffab2e);color:#090909;border:1px solid #ffc05a !important;box-shadow:0 5px 18px rgba(255,144,0,0.2);transition:transform .2s,box-shadow .2s,filter .2s}
@@ -231,7 +231,7 @@ function Styles() {
   .tp-col-controls button:hover{color:#ff9000;background:rgba(255,144,0,0.12)}
   .tp-col-controls .tp-col-del:hover{color:#ef4444;background:rgba(239,68,68,0.12)}
   .tp-col-color-picker{width:16px;height:16px;border:none;background:none;cursor:pointer;padding:0;border-radius:50%}
-  .tp-add-column-card{min-width:270px;min-height:140px;border:2px dashed var(--glass-border, #222);border-radius:15px;background:var(--card-bg, #090909);color:var(--text-muted, #666);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;cursor:pointer;transition:all 0.2s;font-weight:800;font-size:0.82rem}
+  .tp-add-column-card{min-width:270px;min-height:140px;border:2px dashed var(--glass-border, var(--border-subtle));border-radius:15px;background:var(--card-bg, #090909);color:var(--text-muted, #666);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;cursor:pointer;transition:all 0.2s;font-weight:800;font-size:0.82rem}
   .tp-add-column-card:hover{border-color:#ff9000;color:#ff9000;background:rgba(255,144,0,0.04);transform:translateY(-2px)}
   .tp-new-column-card{min-width:270px;background:var(--card-bg, #0d0d0d);border:1px solid #ff900055;border-radius:15px;padding:16px;display:flex;flex-direction:column;gap:10px;box-shadow:0 8px 30px rgba(0,0,0,0.5)}
   .tp-new-column-card input{background:#141414;border:1px solid #292929;border-radius:8px;padding:8px 12px;color:#fff;font-size:0.82rem;outline:none}
@@ -240,9 +240,9 @@ function Styles() {
   .tp-new-col-colors button.active{border-color:#fff}
   .tp-new-col-actions{display:flex;gap:8px;justify-content:flex-end}
   .tp-primary-sm{background:#ff9000;color:#000;border:none;padding:5px 12px;border-radius:7px;font-weight:800;font-size:0.75rem;cursor:pointer}
-  .tp-secondary-sm{background:#222;color:#aaa;border:none;padding:5px;border-radius:7px;cursor:pointer;display:flex;align-items:center}
+  .tp-secondary-sm{background:var(--border-subtle);color:#aaa;border:none;padding:5px;border-radius:7px;cursor:pointer;display:flex;align-items:center}
   .tp-cards{padding:11px;display:flex;flex-direction:column;gap:10px}
-  .tp-task{position:relative;background:var(--card-bg, #111);border:1px solid var(--glass-border, #222);border-radius:13px;padding:15px;cursor:pointer;transition:transform 0.15s,border-color 0.15s,box-shadow 0.15s}
+  .tp-task{position:relative;background:var(--card-bg, #111);border:1px solid var(--glass-border, var(--border-subtle));border-radius:13px;padding:15px;cursor:pointer;transition:transform 0.15s,border-color 0.15s,box-shadow 0.15s}
   .tp-task:hover{border-color:rgba(255,255,255,0.15);transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,0,0,0.3)}
   .tp-task h3{font-size:.88rem;margin:10px 0 7px;color:var(--text, #fff);font-weight:700;word-break:break-word}
   .tp-task>p{font-size:.72rem;color:var(--text-muted, #aaa);line-height:1.45;margin:0 0 13px}
@@ -254,7 +254,7 @@ function Styles() {
   .tp-task:hover .tp-task-actions{display:flex}
   .tp-task-actions button,.tp-modal header button{background:var(--card-bg, #191919);color:var(--text-muted, #888);border:1px solid var(--glass-border, transparent);border-radius:7px;padding:6px;cursor:pointer}
   .tp-task-actions button:hover{color:#ff9000;background:rgba(255,144,0,0.1)}
-  .tp-empty-column{text-align:center;border:1px dashed var(--glass-border, #1d1d1d);border-radius:11px;color:var(--text-muted, #333);font-size:.68rem;padding:25px 8px}
+  .tp-empty-column{text-align:center;border:1px dashed var(--glass-border, #1d1d1d);border-radius:11px;color:var(--text-muted, var(--border-subtle));font-size:.68rem;padding:25px 8px}
   .tp-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:100100;display:flex;align-items:center;justify-content:center;padding:18px;backdrop-filter:blur(4px)}
   .tp-modal{width:min(620px,96vw);max-height:90vh;overflow:auto;background:var(--card-bg, #0c0c0c);border:1px solid var(--glass-border, #292929);border-radius:17px;box-shadow:var(--shadow, 0 30px 90px rgba(0,0,0,0.8))}
   .tp-modal>header{display:flex;align-items:center;justify-content:space-between;padding:18px 21px;border-bottom:1px solid var(--glass-border, #1c1c1c)}
@@ -314,9 +314,9 @@ function Styles() {
   .check-remove{background:none;border:none;color:var(--text-muted, #555);cursor:pointer;padding:2px;display:flex}
   .checklist-empty{text-align:center;padding:20px;color:var(--text-muted, #333);font-size:.8rem}
   .add-check-row{display:flex;gap:8px}
-  .add-check-row input{flex:1;background:var(--card-bg, #0d0d0d);border:1px solid var(--glass-border, #1a1a1a);color:var(--text, #fff);padding:9px 14px;border-radius:9px;outline:none}
+  .add-check-row input{flex:1;background:var(--card-bg, #0d0d0d);border:1px solid var(--glass-border, var(--border-subtle));color:var(--text, #fff);padding:9px 14px;border-radius:9px;outline:none}
   .add-check-btn{width:36px;height:36px;border-radius:9px;background:rgba(255,144,0,0.1);border:1px solid rgba(255,144,0,0.2);color:#ff9000;display:flex;align-items:center;justify-content:center;cursor:pointer}
-  .tp-add-popup{position:fixed;right:32px;bottom:100px;z-index:99999;background:var(--card-bg, #0c0c0c);border:1px solid var(--glass-border, #222);border-radius:16px;padding:12px;box-shadow:var(--shadow, 0 10px 40px rgba(0,0,0,0.8));width:260px;display:flex;flex-direction:column;gap:8px}
+  .tp-add-popup{position:fixed;right:32px;bottom:100px;z-index:99999;background:var(--card-bg, #0c0c0c);border:1px solid var(--glass-border, var(--border-subtle));border-radius:16px;padding:12px;box-shadow:var(--shadow, 0 10px 40px rgba(0,0,0,0.8));width:260px;display:flex;flex-direction:column;gap:8px}
   .tp-menu-item{background:none;border:none;color:var(--text, #eee);text-align:left;padding:10px 14px;border-radius:8px;cursor:pointer;display:flex;align-items:center;gap:8px;font-weight:600;font-size:0.82rem;width:100%;transition:background 0.2s,color 0.2s}
   .tp-menu-item:hover{background:rgba(255,144,0,0.08) !important;color:#ff9000 !important}
   .tp-popup-header{padding:4px 8px 8px;font-size:0.72rem;color:#ff9000;font-weight:800;border-bottom:1px solid var(--glass-border, #1a1a1a);display:flex;justify-content:space-between;align-items:center}

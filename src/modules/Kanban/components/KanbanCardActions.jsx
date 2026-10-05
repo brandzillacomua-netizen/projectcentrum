@@ -23,7 +23,7 @@ export const KanbanCardActions = ({ task, canAdvance, canManageTask, updateManag
               <button className="ca-btn ca-reject" onClick={async () => updateManagementTask(task.id, { status: 'in_progress' })}>✕ Відхилити</button>
             </>
           ) : (
-            <button className="ca-btn ca-reject" style={{ background: 'rgba(255,255,255,0.05)', color: '#888', border: '1px solid rgba(255,255,255,0.1)' }} onClick={async () => updateManagementTask(task.id, { status: 'in_progress' })}>↩ Скасувати перевірку</button>
+            <button className="ca-btn ca-reject" style={{ background: 'var(--fill-subtle)', color: '#888', border: '1px solid var(--border-subtle)' }} onClick={async () => updateManagementTask(task.id, { status: 'in_progress' })}>↩ Скасувати перевірку</button>
           )}
         </div>
       )}

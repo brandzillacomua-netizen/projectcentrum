@@ -98,7 +98,7 @@ export const BoxesView = ({
     const total   = Object.values(g.nomenclatures).reduce((a, l) => a + l.length, 0)
     const prepared = Object.values(g.nomenclatures).reduce((a, l) => a + l.filter(b => b.isPrepared || b.isIssued).length, 0)
     return (
-      <div style={{ borderRadius: 20, overflow: 'hidden', border: `1px solid ${accentColor}33`, marginBottom: 8, background: '#111' }}>
+      <div style={{ borderRadius: 20, overflow: 'hidden', border: `1px solid ${accentColor}33`, marginBottom: 8, background: 'var(--surface-1)' }}>
         <div
           onClick={() => setExpandedNaryads(prev => ({ ...prev, [`${g.orderNum}-${accentColor}`]: !isExpanded }))}
           style={{ padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', borderLeft: `4px solid ${accentColor}` }}
@@ -106,8 +106,8 @@ export const BoxesView = ({
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <span style={{ fontSize: '1.1rem' }}>📦</span>
             <div>
-              <div style={{ fontWeight: 900, fontSize: '1rem', color: '#fff', letterSpacing: '0.02em' }}>НАРЯД #{g.orderNum}</div>
-              <div style={{ fontSize: '0.7rem', color: '#aaa', marginTop: 3 }}>
+              <div style={{ fontWeight: 900, fontSize: '1rem', color: 'var(--text-strong)', letterSpacing: '0.02em' }}>НАРЯД #{g.orderNum}</div>
+              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 3 }}>
                 Зібрано: <strong style={{ color: prepared === total ? '#10b981' : accentColor }}>{prepared}</strong> / {total} боксів
               </div>
             </div>
@@ -119,7 +119,7 @@ export const BoxesView = ({
         </div>
 
         {isExpanded && (
-          <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 20, background: '#0a0a0a' }}>
+          <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 20, background: 'var(--surface-inset)' }}>
             {Object.entries(g.nomenclatures).map(([nomName, boxList]) => {
               const nomKey = `${g.orderNum}-${nomName}-${accentColor}`
               const isNomExpanded = expandedNomenclatures[nomKey] === true
@@ -135,8 +135,8 @@ export const BoxesView = ({
                   <div
                     onClick={() => setExpandedNomenclatures(prev => ({ ...prev, [nomKey]: !isNomExpanded }))}
                     style={{
-                      background: '#181818',
-                      border: `1px solid ${isNomExpanded ? accentColor + '44' : '#2a2a2a'}`,
+                      background: 'var(--surface-2)',
+                      border: `1px solid ${isNomExpanded ? accentColor + '44' : 'var(--border-subtle)'}`,
                       borderRadius: 14,
                       padding: '13px 16px',
                       cursor: 'pointer',
@@ -145,15 +145,15 @@ export const BoxesView = ({
                     }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-                      <span style={{ fontWeight: 800, fontSize: '0.88rem', flex: 1, color: '#f0f0f0', lineHeight: 1.3 }}>{nomName}</span>
+                      <span style={{ fontWeight: 800, fontSize: '0.88rem', flex: 1, color: 'var(--text-soft)', lineHeight: 1.3 }}>{nomName}</span>
                       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
                         <span style={{ background: accentColor + '22', color: accentColor, padding: '3px 10px', borderRadius: 8, fontSize: '0.68rem', fontWeight: 900 }}>
                           {boxList.length} бокс{boxList.length === 1 ? '' : 'ів'}
                         </span>
-                        <span style={{ color: '#bbb', fontSize: '0.75rem', fontWeight: 700, minWidth: 14, textAlign: 'center' }}>{isNomExpanded ? '▲' : '▼'}</span>
+                        <span style={{ color: 'var(--text-soft)', fontSize: '0.75rem', fontWeight: 700, minWidth: 14, textAlign: 'center' }}>{isNomExpanded ? '▲' : '▼'}</span>
                       </div>
                     </div>
-                    <div style={{ display: 'flex', gap: 18, marginTop: 8, flexWrap: 'wrap', fontSize: '0.72rem', color: '#999' }}>
+                    <div style={{ display: 'flex', gap: 18, marginTop: 8, flexWrap: 'wrap', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
                       <span>⚡ {Object.entries(sheetsSummary).map(([m, q]) => `${q}л ${m}`).join(', ')}</span>
                       <span>🛠️ {Object.entries(cuttersSummary).map(([n, q]) => `${q}шт`).slice(0, 2).join(', ')}{Object.keys(cuttersSummary).length > 2 ? ' …' : ''}</span>
                     </div>
@@ -169,7 +169,7 @@ export const BoxesView = ({
                         const canSubmit = isAllChecked && isSheetChecked
 
                         return (
-                          <div key={cardId} style={{ background: '#111', borderRadius: 18, padding: 16, display: 'flex', flexDirection: 'column', gap: 12, border: `1px solid ${boxItem.isIssued ? '#10b98133' : boxItem.isPrepared ? '#3b82f633' : '#ff900022'}` }}>
+                          <div key={cardId} style={{ background: 'var(--surface-1)', borderRadius: 18, padding: 16, display: 'flex', flexDirection: 'column', gap: 12, border: `1px solid ${boxItem.isIssued ? '#10b98133' : boxItem.isPrepared ? '#3b82f633' : '#ff900022'}` }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                               <strong style={{ fontSize: '0.95rem' }}>Картка {cardNum}</strong>
                               {boxItem.isIssued ? (
@@ -181,23 +181,23 @@ export const BoxesView = ({
                               )}
                             </div>
 
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, background: '#0d0d0d', borderRadius: 12, padding: '10px 14px', fontSize: '0.72rem', color: '#ccc' }}>
-                              <div><div style={{ color: '#888', fontSize: '0.6rem', fontWeight: 800, marginBottom: 2 }}>ВЕРСТАТ</div>{boxItem.card.machine || '—'}</div>
-                              <div><div style={{ color: '#888', fontSize: '0.6rem', fontWeight: 800, marginBottom: 2 }}>ЛИСТИ</div>{boxItem.cardSheets} л.</div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, background: 'var(--surface-inset)', borderRadius: 12, padding: '10px 14px', fontSize: '0.72rem', color: '#ccc' }}>
+                              <div><div style={{ color: 'var(--text-muted)', fontSize: '0.6rem', fontWeight: 800, marginBottom: 2 }}>ВЕРСТАТ</div>{boxItem.card.machine || '—'}</div>
+                              <div><div style={{ color: 'var(--text-muted)', fontSize: '0.6rem', fontWeight: 800, marginBottom: 2 }}>ЛИСТИ</div>{boxItem.cardSheets} л.</div>
                             </div>
 
                             {!boxItem.isPrepared && !boxItem.isIssued && (
                               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                                <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#888', marginBottom: 2 }}>НАПОВНЕННЯ БОКСУ:</div>
+                                <div style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--text-muted)', marginBottom: 2 }}>НАПОВНЕННЯ БОКСУ:</div>
                                 <div
                                   onClick={() => setCheckedSheets(prev => ({ ...prev, [cardId]: !prev[cardId] }))}
-                                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', borderRadius: 10, cursor: 'pointer', background: isSheetChecked ? '#10b98110' : '#0d0d0d', border: `1px solid ${isSheetChecked ? '#10b98133' : '#222'}` }}
+                                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', borderRadius: 10, cursor: 'pointer', background: isSheetChecked ? '#10b98110' : 'var(--surface-inset)', border: `1px solid ${isSheetChecked ? '#10b98133' : 'var(--surface-3)'}` }}
                                 >
                                   <div style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: '0.73rem' }}>
                                     <input type="checkbox" checked={isSheetChecked} onChange={() => {}} style={{ accentColor: '#10b981' }} />
                                     <span style={{ fontWeight: isSheetChecked ? 700 : 400 }}>{boxItem.activeMaterialName}</span>
                                   </div>
-                                  <strong style={{ color: isSheetChecked ? '#10b981' : '#555', fontSize: '0.75rem' }}>{boxItem.cardSheets} л.</strong>
+                                  <strong style={{ color: isSheetChecked ? '#10b981' : 'var(--text-dim)', fontSize: '0.75rem' }}>{boxItem.cardSheets} л.</strong>
                                 </div>
                                 {boxItem.cutters.map(cutter => {
                                   const isChecked = !!checkedCutters[cardId]?.[cutter.nomenclature_id]
@@ -205,13 +205,13 @@ export const BoxesView = ({
                                     <div
                                       key={cutter.nomenclature_id}
                                       onClick={() => handleToggleCutterCheck(cardId, cutter.nomenclature_id)}
-                                      style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', borderRadius: 10, cursor: 'pointer', background: isChecked ? '#10b98110' : '#0d0d0d', border: `1px solid ${isChecked ? '#10b98133' : '#222'}` }}
+                                      style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', borderRadius: 10, cursor: 'pointer', background: isChecked ? '#10b98110' : 'var(--surface-inset)', border: `1px solid ${isChecked ? '#10b98133' : 'var(--surface-3)'}` }}
                                     >
                                       <div style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: '0.73rem', flex: 1, marginRight: 8 }}>
                                         <input type="checkbox" checked={isChecked} onChange={() => {}} style={{ accentColor: '#10b981' }} />
                                         <span style={{ fontWeight: isChecked ? 700 : 400, lineHeight: 1.3 }}>{cutter.name}</span>
                                       </div>
-                                      <strong style={{ color: isChecked ? '#10b981' : '#555', fontSize: '0.75rem', whiteSpace: 'nowrap' }}>{cutter.qty} шт</strong>
+                                      <strong style={{ color: isChecked ? '#10b981' : 'var(--text-dim)', fontSize: '0.75rem', whiteSpace: 'nowrap' }}>{cutter.qty} шт</strong>
                                     </div>
                                   )
                                 })}
@@ -223,7 +223,7 @@ export const BoxesView = ({
                               <button
                                 disabled={isProcessing || !canSubmit}
                                 onClick={() => handlePrepareBox(boxItem, null)}
-                                style={{ width: '100%', padding: '11px', background: canSubmit ? '#ff9000' : '#1a1a1a', color: canSubmit ? '#000' : '#444', border: 'none', borderRadius: 12, fontWeight: 900, fontSize: '0.78rem', textTransform: 'uppercase', cursor: (isProcessing || !canSubmit) ? 'not-allowed' : 'pointer', transition: 'all 0.2s', marginTop: 4 }}
+                                style={{ width: '100%', padding: '11px', background: canSubmit ? '#ff9000' : 'var(--surface-2)', color: canSubmit ? 'var(--surface-black)' : '#444', border: 'none', borderRadius: 12, fontWeight: 900, fontSize: '0.78rem', textTransform: 'uppercase', cursor: (isProcessing || !canSubmit) ? 'not-allowed' : 'pointer', transition: 'all 0.2s', marginTop: 4 }}
                               >
                                 <Package size={14} style={{ display: 'inline', marginRight: 6, verticalAlign: 'middle' }} />
                                 {!canSubmit ? 'Позначте всі матеріали' : 'Завершити комплектацію'}
@@ -254,7 +254,7 @@ export const BoxesView = ({
   }
 
   const EmptyState = ({ label }) => (
-    <div style={{ textAlign: 'center', padding: '30px 20px', color: '#333', fontSize: '0.8rem', border: '1px dashed #1e1e1e', borderRadius: 16 }}>
+    <div style={{ textAlign: 'center', padding: '30px 20px', color: 'var(--border-subtle)', fontSize: '0.8rem', border: '1px dashed #1e1e1e', borderRadius: 16 }}>
       {label}
     </div>
   )
@@ -275,7 +275,7 @@ export const BoxesView = ({
             <select
               value={selectedOrder}
               onChange={e => setSelectedOrder(e.target.value)}
-              style={{ background: '#111', color: '#fff', border: '1px solid #2a2a2a', borderRadius: 14, padding: '10px 16px', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer', outline: 'none', minWidth: 180 }}
+              style={{ background: 'var(--surface-1)', color: 'var(--text-strong)', border: '1px solid var(--border-subtle)', borderRadius: 14, padding: '10px 16px', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer', outline: 'none', minWidth: 180 }}
             >
               <option value="all">🗂️ Всі наряди</option>
               {orderOptions.map(o => (

@@ -158,15 +158,15 @@ export default function MachineChangeModal({
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', backdropFilter: 'blur(15px)', zIndex: 15500, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '10px', overflowY: 'auto' }}>
-      <div style={{ background: '#111', width: '100%', maxWidth: '480px', maxHeight: '92vh', overflowY: 'auto', borderRadius: '24px', border: '1px solid #222', padding: '25px 20px', position: 'relative', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }}>
+      <div style={{ background: 'var(--surface-1)', width: '100%', maxWidth: '480px', maxHeight: '92vh', overflowY: 'auto', borderRadius: '24px', border: '1px solid var(--border-subtle)', padding: '25px 20px', position: 'relative', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }}>
         <button
           onClick={onClose}
-          style={{ position: 'absolute', top: '25px', right: '25px', background: '#222', border: 'none', color: '#fff', cursor: 'pointer', width: '35px', height: '35px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          style={{ position: 'absolute', top: '25px', right: '25px', background: 'var(--surface-3)', border: 'none', color: 'var(--text-strong)', cursor: 'pointer', width: '35px', height: '35px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
         >
           <X size={20} />
         </button>
 
-        <h2 style={{ fontSize: '1.3rem', fontWeight: 950, margin: '0 0 10px', textAlign: 'center', textTransform: 'uppercase', letterSpacing: '1px', color: '#fff' }}>⚙️ Зміна верстата для деталі</h2>
+        <h2 style={{ fontSize: '1.3rem', fontWeight: 950, margin: '0 0 10px', textAlign: 'center', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--text-strong)' }}>⚙️ Зміна верстата для деталі</h2>
         <div style={{ color: '#ef4444', fontWeight: 900, textAlign: 'center', fontSize: '0.85rem', marginBottom: '20px', wordBreak: 'break-all', background: 'rgba(239, 68, 68, 0.05)', padding: '10px', borderRadius: '12px', border: '1px solid rgba(239, 68, 68, 0.1)' }}>
           {partName}
         </div>
@@ -174,13 +174,13 @@ export default function MachineChangeModal({
         <div style={{ background: 'rgba(59, 130, 246, 0.05)', border: '1px solid rgba(59, 130, 246, 0.15)', borderRadius: '14px', padding: '12px 16px', marginBottom: '20px', fontSize: '0.78rem', color: '#a1a1aa' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
             <span>Всього заплановано листів:</span>
-            <strong style={{ color: '#fff' }}>{totalSheetsPlanned} л.</strong>
+            <strong style={{ color: 'var(--text-strong)' }}>{totalSheetsPlanned} л.</strong>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
             <span>Вже згенеровано карт:</span>
-            <strong style={{ color: '#fff' }}>{generatedSheets} л.</strong>
+            <strong style={{ color: 'var(--text-strong)' }}>{generatedSheets} л.</strong>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #222', paddingTop: '4px', fontWeight: 800 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--border-subtle)', paddingTop: '4px', fontWeight: 800 }}>
             <span style={{ color: '#ff9000' }}>Залишилось згенерувати:</span>
             <strong style={{ color: '#ff9000' }}>{remainingSheets} л.</strong>
           </div>
@@ -188,7 +188,7 @@ export default function MachineChangeModal({
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginBottom: '30px' }}>
           <div>
-            <label style={{ display: 'block', color: '#888', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>
+            <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>
               Оберіть новий верстат:
             </label>
             <select
@@ -200,7 +200,7 @@ export default function MachineChangeModal({
                 setSelectedLoadCapacity(nextMachineInfo?.max_capacity || nextMachineInfo?.sheet_capacity || 1)
                 setSelectedCutterTypes({})
               }}
-              style={{ width: '100%', background: '#000', border: '1px solid #333', color: '#fff', padding: '15px', borderRadius: '15px', fontSize: '0.95rem', outline: 'none', fontWeight: 800 }}
+              style={{ width: '100%', background: 'var(--surface-black)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', padding: '15px', borderRadius: '15px', fontSize: '0.95rem', outline: 'none', fontWeight: 800 }}
             >
               {MACHINE_TYPES.map(t => (
                 <option key={t} value={t}>{t}</option>
@@ -225,18 +225,18 @@ export default function MachineChangeModal({
                   value = Math.min(maxLoadCapacity, Math.max(minLoadCapacity, value))
                   setSelectedLoadCapacity(value)
                 }}
-                style={{ width: '100%', background: '#000', border: '1px solid rgba(255,144,0,.45)', color: '#ff9000', padding: '12px', borderRadius: '12px', fontSize: '1.15rem', fontWeight: 950, textAlign: 'center', outline: 'none' }}
+                style={{ width: '100%', background: 'var(--surface-black)', border: '1px solid rgba(255,144,0,.45)', color: '#ff9000', padding: '12px', borderRadius: '12px', fontSize: '1.15rem', fontWeight: 950, textAlign: 'center', outline: 'none' }}
               />
               <div style={{ marginTop: '8px', color: '#777', fontSize: '0.72rem', fontWeight: 800, display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
                 <span>Зміна тільки для залишку</span>
-                <strong style={{ color: '#fff' }}>{plannedRemainingLoads} завант.</strong>
+                <strong style={{ color: 'var(--text-strong)' }}>{plannedRemainingLoads} завант.</strong>
               </div>
             </div>
           )}
 
           {remainingSheets > 0 && cutters.length > 0 && (
-            <div style={{ background: '#09090c', padding: '16px', borderRadius: '16px', border: '1px solid #222' }}>
-              <label style={{ display: 'block', color: '#888', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '10px' }}>
+            <div style={{ background: '#09090c', padding: '16px', borderRadius: '16px', border: '1px solid var(--border-subtle)' }}>
+              <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '10px' }}>
                 Дозамовити фрези на СО (під {remainingSheets} листів):
               </label>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -246,13 +246,13 @@ export default function MachineChangeModal({
                   return (
                     <div key={cut.id} style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '8px 0', borderBottom: '1px solid #181818' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem' }}>
-                        <span style={{ color: '#888' }}>{cut.name}</span>
+                        <span style={{ color: 'var(--text-muted)' }}>{cut.name}</span>
                         <strong style={{ color: '#ff9000' }}>{cut.totalNeeded} шт</strong>
                       </div>
                       <select
                         value={selectedInventoryId}
                         onChange={(event) => setSelectedCutterTypes(prev => ({ ...prev, [String(cut.id)]: event.target.value }))}
-                        style={{ width: '100%', background: '#000', border: selectedInventoryId ? '1px solid rgba(255,144,0,.45)' : '1px solid #333', color: '#fff', padding: '10px', borderRadius: '9px', fontSize: '0.74rem', fontWeight: 700 }}
+                        style={{ width: '100%', background: 'var(--surface-black)', border: selectedInventoryId ? '1px solid rgba(255,144,0,.45)' : '1px solid var(--border-subtle)', color: 'var(--text-strong)', padding: '10px', borderRadius: '9px', fontSize: '0.74rem', fontWeight: 700 }}
                       >
                         <option value="">— Оберіть конкретну фрезу —</option>
                         {options.map(item => {
@@ -281,7 +281,7 @@ export default function MachineChangeModal({
             <div style={{ fontWeight: 950, fontSize: '0.85rem' }}>⚠️ Недостатньо інструменту для зміни станка:</div>
             {cutterDeficits.map((def, idx) => (
               <div key={idx}>
-                • <strong style={{ color: '#fff' }}>{def.name}</strong>: Доступно на складі: <span style={{ color: '#ef4444' }}>{def.available} шт</span>, потрібно: <span style={{ color: '#ff9000' }}>{def.needed} шт</span> (дефіцит: {def.shortage} шт)
+                • <strong style={{ color: 'var(--text-strong)' }}>{def.name}</strong>: Доступно на складі: <span style={{ color: '#ef4444' }}>{def.available} шт</span>, потрібно: <span style={{ color: '#ff9000' }}>{def.needed} шт</span> (дефіцит: {def.shortage} шт)
               </div>
             ))}
           </div>
@@ -292,12 +292,12 @@ export default function MachineChangeModal({
           disabled={isChanging || hasMissingCutterSelection || hasCutterDeficit}
           style={{
             width: '100%',
-            background: (isChanging || hasMissingCutterSelection || hasCutterDeficit) ? '#222' : '#3b82f6',
+            background: (isChanging || hasMissingCutterSelection || hasCutterDeficit) ? 'var(--surface-3)' : '#3b82f6',
             color: (isChanging || hasMissingCutterSelection || hasCutterDeficit) ? '#555' : '#fff',
             padding: '18px',
             borderRadius: '16px', fontSize: '0.95rem', fontWeight: 950,
             cursor: (isChanging || hasMissingCutterSelection || hasCutterDeficit) ? 'not-allowed' : 'pointer',
-            border: (isChanging || hasMissingCutterSelection || hasCutterDeficit) ? '1px solid #333' : 'none',
+            border: (isChanging || hasMissingCutterSelection || hasCutterDeficit) ? '1px solid var(--border-subtle)' : 'none',
             textTransform: 'uppercase', letterSpacing: '1px',
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
             boxShadow: (isChanging || hasMissingCutterSelection || hasCutterDeficit) ? 'none' : '0 10px 20px -5px rgba(59, 130, 246, 0.4)',

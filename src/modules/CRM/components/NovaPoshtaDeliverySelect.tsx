@@ -417,7 +417,7 @@ export function NovaPoshtaDeliverySelect({
               )}
             </div>
           ) : (
-            <div style={{ padding: '9px 12px', borderRadius: '10px', background: 'rgba(255,255,255,0.03)', fontSize: '0.82rem', fontWeight: 800 }}>
+            <div style={{ padding: '9px 12px', borderRadius: '10px', background: 'var(--fill-subtle)', fontSize: '0.82rem', fontWeight: 800 }}>
               {cityQuery || '—'}
             </div>
           )}
@@ -565,7 +565,7 @@ export function NovaPoshtaDeliverySelect({
               </div>
             )
           ) : (
-            <div style={{ padding: '9px 12px', borderRadius: '10px', background: 'rgba(255,255,255,0.03)', fontSize: '0.82rem', fontWeight: 800 }}>
+            <div style={{ padding: '9px 12px', borderRadius: '10px', background: 'var(--fill-subtle)', fontSize: '0.82rem', fontWeight: 800 }}>
               {deliveryMethod === 'np_courier' ? (addressText || '—') : (warehouseQuery || '—')}
             </div>
           )}
@@ -596,7 +596,7 @@ export function NovaPoshtaDeliverySelect({
               }}
             />
           ) : (
-            <div style={{ padding: '9px 12px', borderRadius: '10px', background: 'rgba(255,255,255,0.03)', fontSize: '0.82rem', fontWeight: 800 }}>
+            <div style={{ padding: '9px 12px', borderRadius: '10px', background: 'var(--fill-subtle)', fontSize: '0.82rem', fontWeight: 800 }}>
               {recipientName || '—'}
             </div>
           )}
@@ -624,7 +624,7 @@ export function NovaPoshtaDeliverySelect({
               }}
             />
           ) : (
-            <div style={{ padding: '9px 12px', borderRadius: '10px', background: 'rgba(255,255,255,0.03)', fontSize: '0.82rem', fontWeight: 800 }}>
+            <div style={{ padding: '9px 12px', borderRadius: '10px', background: 'var(--fill-subtle)', fontSize: '0.82rem', fontWeight: 800 }}>
               {recipientPhone || '—'}
             </div>
           )}
@@ -646,7 +646,7 @@ export function NovaPoshtaDeliverySelect({
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '12px' }}>
             <div>
-              <label style={{ fontSize: '0.68rem', fontWeight: 800, color: '#aaa', display: 'block', marginBottom: '4px' }}>
+              <label style={{ fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
                 Код ЄДРПОУ / ІПН
               </label>
               {isEditing ? (
@@ -662,8 +662,8 @@ export function NovaPoshtaDeliverySelect({
                       padding: '8px 12px',
                       borderRadius: '8px',
                       border: '1px solid var(--glass-border)',
-                      background: '#000',
-                      color: '#fff',
+                      background: 'var(--surface-black)',
+                      color: 'var(--text-strong)',
                       fontSize: '0.8rem',
                       fontWeight: 800,
                       fontFamily: 'monospace'
@@ -674,14 +674,14 @@ export function NovaPoshtaDeliverySelect({
                   )}
                 </div>
               ) : (
-                <div style={{ padding: '8px 12px', borderRadius: '8px', background: 'rgba(0,0,0,0.3)', fontFamily: 'monospace', fontSize: '0.8rem', fontWeight: 800 }}>
+                <div style={{ padding: '8px 12px', borderRadius: '8px', background: 'var(--fill-inset)', fontFamily: 'monospace', fontSize: '0.8rem', fontWeight: 800 }}>
                   {edrpouCode || '—'}
                 </div>
               )}
             </div>
 
             <div>
-              <label style={{ fontSize: '0.68rem', fontWeight: 800, color: '#aaa', display: 'block', marginBottom: '4px' }}>
+              <label style={{ fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
                 Назва ТОВ / ФОП (Автозаповнення)
               </label>
               {isEditing ? (
@@ -698,14 +698,14 @@ export function NovaPoshtaDeliverySelect({
                     padding: '8px 12px',
                     borderRadius: '8px',
                     border: '1px solid var(--glass-border)',
-                    background: '#000',
-                    color: '#fff',
+                    background: 'var(--surface-black)',
+                    color: 'var(--text-strong)',
                     fontSize: '0.8rem',
                     fontWeight: 700
                   }}
                 />
               ) : (
-                <div style={{ padding: '8px 12px', borderRadius: '8px', background: 'rgba(0,0,0,0.3)', fontSize: '0.8rem', fontWeight: 800 }}>
+                <div style={{ padding: '8px 12px', borderRadius: '8px', background: 'var(--fill-inset)', fontSize: '0.8rem', fontWeight: 800 }}>
                   {companyName || '—'}
                 </div>
               )}

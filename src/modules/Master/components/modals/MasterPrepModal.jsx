@@ -131,8 +131,8 @@ export function MasterPrepModal({
         }}
         style={{
           width: '100%',
-          background: '#000',
-          border: '1px solid #333',
+          background: 'var(--surface-black)',
+          border: '1px solid var(--border-subtle)',
           color,
           padding: '6px',
           borderRadius: '8px',
@@ -163,10 +163,10 @@ export function MasterPrepModal({
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div className="glass-panel" style={{ 
-        background: '#0a0a0a', 
+        background: 'var(--surface-inset)', 
         padding: '30px', 
         borderRadius: '24px', 
-        border: '1px solid #222', 
+        border: '1px solid var(--border-subtle)', 
         width: 'calc(100vw - 32px)',
         maxWidth: '1600px',
         boxSizing: 'border-box',
@@ -189,10 +189,10 @@ export function MasterPrepModal({
               gridTemplateColumns: '1.2fr 1fr 1fr', 
               gap: '10px', 
               paddingBottom: '5px',
-              borderBottom: '1px solid #222',
+              borderBottom: '1px solid var(--border-subtle)',
               fontSize: '0.7rem',
               fontWeight: 900,
-              color: '#666',
+              color: 'var(--text-dim)',
               textTransform: 'uppercase',
               letterSpacing: '1px'
             }}>
@@ -209,12 +209,12 @@ export function MasterPrepModal({
                   gridTemplateColumns: '1.2fr 1fr 1fr', 
                   alignItems: 'center', 
                   gap: '10px', 
-                  background: '#111',
+                  background: 'var(--surface-1)',
                   padding: '6px 12px',
                   borderRadius: '10px',
-                  border: '1px solid #1a1a1a'
+                  border: '1px solid var(--border-subtle)'
                 }}>
-                  <span style={{ fontSize: '0.85rem', color: '#eee', fontWeight: 800 }}>Лист ({thick})</span>
+                  <span style={{ fontSize: '0.85rem', color: 'var(--text-soft)', fontWeight: 800 }}>Лист ({thick})</span>
                   <div>{renderQuantityInput(entry, 't300', '#22c55e')}</div>
                   <div>{renderQuantityInput(entry, 't700', '#0ea5e9')}</div>
                 </div>
@@ -222,18 +222,18 @@ export function MasterPrepModal({
             })}
           </div>
 
-          <div style={{ flex: '2 1 760px', minWidth: '300px', background: '#0d0d0d', border: '1px solid #1f2937', borderRadius: '16px', padding: '16px', boxSizing: 'border-box' }}>
+          <div style={{ flex: '2 1 760px', minWidth: '300px', background: 'var(--surface-inset)', border: '1px solid #1f2937', borderRadius: '16px', padding: '16px', boxSizing: 'border-box' }}>
             <div style={{ fontSize: '0.75rem', color: '#a1a1aa', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '12px' }}>
               Наявність листів на складах
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '12px', alignItems: 'start' }}>
               {stockWarehouses.map(warehouse => (
-                <div key={warehouse.key} style={{ background: '#111', border: '1px solid #202020', borderRadius: '12px', overflow: 'hidden' }}>
+                <div key={warehouse.key} style={{ background: 'var(--surface-1)', border: '1px solid #202020', borderRadius: '12px', overflow: 'hidden' }}>
                   <div style={{ padding: '10px 12px', borderBottom: '1px solid #242424', color: warehouse.accent, fontSize: '0.78rem', fontWeight: 950, textTransform: 'uppercase' }}>
                     {warehouse.label}
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'minmax(110px, 1.4fr) repeat(3, minmax(58px, 0.7fr))', gap: '6px', padding: '8px 12px 5px', color: '#555', fontSize: '0.62rem', fontWeight: 900, textTransform: 'uppercase' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'minmax(110px, 1.4fr) repeat(3, minmax(58px, 0.7fr))', gap: '6px', padding: '8px 12px 5px', color: 'var(--text-dim)', fontSize: '0.62rem', fontWeight: 900, textTransform: 'uppercase' }}>
                     <div>Стан листа</div>
                     <div style={{ textAlign: 'right' }}>Всього</div>
                     <div style={{ textAlign: 'right' }}>Резерв</div>
@@ -249,7 +249,7 @@ export function MasterPrepModal({
                     ].filter(group => group.items.length > 0)
                     return (
                       <div key={preparation.key} style={{ borderTop: '1px solid #242424' }}>
-                        <div style={{ padding: '7px 12px', color: '#a1a1aa', background: '#0d0d0d', fontSize: '0.66rem', fontWeight: 950, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        <div style={{ padding: '7px 12px', color: '#a1a1aa', background: 'var(--surface-inset)', fontSize: '0.66rem', fontWeight: 950, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                           {preparation.label}
                         </div>
                         {stockItems.length > 0 ? gradeGroups.map(group => (
@@ -259,7 +259,7 @@ export function MasterPrepModal({
                             </div>
                             {group.items.map(stock => (
                               <div key={stock.id} style={{ display: 'grid', gridTemplateColumns: 'minmax(110px, 1.4fr) repeat(3, minmax(58px, 0.7fr))', gap: '6px', alignItems: 'center', padding: '8px 12px', borderTop: '1px solid #1d1d1d' }}>
-                                <div title={stock.name} style={{ color: '#ddd', fontSize: '0.72rem', fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{stock.name}</div>
+                                <div title={stock.name} style={{ color: 'var(--text-soft)', fontSize: '0.72rem', fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{stock.name}</div>
                                 <div style={{ color: '#f4f4f5', textAlign: 'right', fontSize: '0.82rem', fontWeight: 900 }}>{formatStock(stock.total)}</div>
                                 <div style={{ color: '#f59e0b', textAlign: 'right', fontSize: '0.82rem', fontWeight: 900 }}>{formatStock(stock.reserved)}</div>
                                 <div style={{ color: '#22c55e', textAlign: 'right', fontSize: '0.82rem', fontWeight: 950 }}>{formatStock(stock.free)}</div>
@@ -284,12 +284,12 @@ export function MasterPrepModal({
             type="date"
             value={prepDeadline ? prepDeadline.split('T')[0] : ''}
             onChange={e => setPrepDeadline(e.target.value)}
-            style={{ width: '100%', background: '#111', border: '1px solid #333', color: '#fff', padding: '12px', borderRadius: '12px', fontSize: '1rem', fontWeight: 800 }}
+            style={{ width: '100%', background: 'var(--surface-1)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', padding: '12px', borderRadius: '12px', fontSize: '1rem', fontWeight: 800 }}
           />
         </div>
 
         <div style={{ display: 'flex', gap: '10px' }}>
-          <button onClick={() => setShowPrepModal(false)} style={{ flex: 1, padding: '12px', background: '#222', color: '#555', border: 'none', borderRadius: '12px', fontWeight: 800, cursor: 'pointer' }}>СКАСУВАТИ</button>
+          <button onClick={() => setShowPrepModal(false)} style={{ flex: 1, padding: '12px', background: 'var(--surface-3)', color: '#555', border: 'none', borderRadius: '12px', fontWeight: 800, cursor: 'pointer' }}>СКАСУВАТИ</button>
           <button
             onClick={handleCreatePrepOrder}
             disabled={isSubmitting}

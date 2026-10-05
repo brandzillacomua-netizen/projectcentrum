@@ -31,7 +31,7 @@ export const PackagingActionRow = ({
           background: canSendRequest 
             ? 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)' 
             : 'var(--card-header-bg, #f1f5f9)',
-          color: canSendRequest ? '#ffffff' : 'var(--text-muted, #64748b)',
+          color: canSendRequest ? 'var(--text-strong)' : 'var(--text-muted, #64748b)',
           border: canSendRequest ? 'none' : '1px solid var(--border-color, #cbd5e1)',
           boxShadow: canSendRequest ? '0 8px 24px rgba(37,99,235,0.25)' : 'none',
           borderRadius: '18px',
@@ -95,7 +95,7 @@ export const PackagingActionRow = ({
           background: allBoxesFilled && !activeBatchData.isPackaged 
             ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' 
             : 'var(--card-header-bg, #f1f5f9)',
-          color: allBoxesFilled && !activeBatchData.isPackaged ? '#ffffff' : 'var(--text-muted, #94a3b8)',
+          color: allBoxesFilled && !activeBatchData.isPackaged ? 'var(--text-strong)' : 'var(--text-muted, #94a3b8)',
           border: allBoxesFilled && !activeBatchData.isPackaged ? 'none' : '1px solid var(--border-color, #cbd5e1)',
           borderRadius: '18px',
           fontWeight: 950,

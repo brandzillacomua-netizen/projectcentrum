@@ -177,12 +177,12 @@ export const CreateProductModal = ({ isOpen, onClose, onCreated, initialQuery = 
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(10px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-      <div style={{ background: '#0d0d0d', border: '1px solid rgba(255,144,0,0.3)', borderRadius: '24px', width: '100%', maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto', padding: '30px', boxShadow: '0 20px 50px rgba(0,0,0,0.9)', fontFamily: '"Outfit", sans-serif' }}>
+      <div style={{ background: 'var(--surface-inset)', border: '1px solid rgba(255,144,0,0.3)', borderRadius: '24px', width: '100%', maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto', padding: '30px', boxShadow: '0 20px 50px rgba(0,0,0,0.9)', fontFamily: '"Outfit", sans-serif' }}>
         
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '15px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '15px', borderBottom: '1px solid var(--border-subtle)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <Sparkles size={22} color="#ff9000" />
-            <h3 style={{ margin: 0, fontWeight: 900, fontSize: '1.2rem', color: '#fff' }}>
+            <h3 style={{ margin: 0, fontWeight: 900, fontSize: '1.2rem', color: 'var(--text-strong)' }}>
               Створення готового виробу (Продакшн)
             </h3>
           </div>
@@ -199,14 +199,14 @@ export const CreateProductModal = ({ isOpen, onClose, onCreated, initialQuery = 
               <Layers size={16} />
               <span>04. Готова продукція → Продакшн (FG.PRODUCTION)</span>
             </div>
-            <span style={{ fontSize: '0.68rem', color: '#666', marginTop: '4px', display: 'block' }}>Менеджеру дозволено створювати лише готові вироби у папку Продакшн</span>
+            <span style={{ fontSize: '0.68rem', color: 'var(--text-dim)', marginTop: '4px', display: 'block' }}>Менеджеру дозволено створювати лише готові вироби у папку Продакшн</span>
           </div>
 
           <div style={{ background: 'rgba(255,144,0,0.08)', border: '1px solid rgba(255,144,0,0.35)', borderRadius: '16px', padding: '18px' }}>
             <div style={{ fontSize: '0.68rem', fontWeight: 900, color: '#ff9000', textTransform: 'uppercase', marginBottom: '6px', letterSpacing: '0.5px' }}>
               ✨ СГЕНЕРОВАНА СТАНДАРТИЗОВАНА НАЗВА:
             </div>
-            <div style={{ fontSize: '1.1rem', fontWeight: 900, color: '#fff', wordBreak: 'break-word' }}>
+            <div style={{ fontSize: '1.1rem', fontWeight: 900, color: 'var(--text-strong)', wordBreak: 'break-word' }}>
               {generatedName}
             </div>
 
@@ -223,11 +223,11 @@ export const CreateProductModal = ({ isOpen, onClose, onCreated, initialQuery = 
             </div>
           )}
 
-          <div style={{ background: '#111', padding: '20px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.05)', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div style={{ background: 'var(--surface-1)', padding: '20px', borderRadius: '16px', border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '16px' }}>
             
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                <label style={{ fontSize: '0.72rem', color: '#888', fontWeight: 900, textTransform: 'uppercase', margin: 0 }}>ПОЧАТОК НАЗВИ / ТИП ВИРОБУ</label>
+                <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 900, textTransform: 'uppercase', margin: 0 }}>ПОЧАТОК НАЗВИ / ТИП ВИРОБУ</label>
                 {isDirector && (
                   <button
                     type="button"
@@ -240,11 +240,11 @@ export const CreateProductModal = ({ isOpen, onClose, onCreated, initialQuery = 
               </div>
 
               {showPrefixManage && isDirector && (
-                <div style={{ background: '#161616', border: '1px solid #333', borderRadius: '12px', padding: '10px 12px', marginBottom: '8px' }}>
+                <div style={{ background: 'var(--surface-2)', border: '1px solid var(--border-subtle)', borderRadius: '12px', padding: '10px 12px', marginBottom: '8px' }}>
                   <div style={{ fontSize: '0.68rem', color: '#ff9000', fontWeight: 900, marginBottom: '6px' }}>ВИДАЛЕННЯ ЗІ СПИСКУ (АДМІН/КЕРІВНИК):</div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                     {prefixList.map(item => (
-                      <div key={item} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', color: '#ddd' }}>
+                      <div key={item} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', color: 'var(--text-soft)' }}>
                         <span>{item}</span>
                         <button
                           type="button"
@@ -263,7 +263,7 @@ export const CreateProductModal = ({ isOpen, onClose, onCreated, initialQuery = 
               <select 
                 value={prefixChoice} 
                 onChange={e => setPrefixChoice(e.target.value)} 
-                style={{ width: '100%', background: '#1a1a1a', border: '1px solid #333', borderRadius: '12px', padding: '10px 12px', color: '#fff', fontWeight: 700, outline: 'none' }}
+                style={{ width: '100%', background: 'var(--surface-2)', border: '1px solid var(--border-subtle)', borderRadius: '12px', padding: '10px 12px', color: 'var(--text-strong)', fontWeight: 700, outline: 'none' }}
               >
                 {prefixList.map(p => (
                   <option key={p} value={p}>{p}</option>
@@ -276,18 +276,18 @@ export const CreateProductModal = ({ isOpen, onClose, onCreated, initialQuery = 
                   value={customPrefix} 
                   onChange={e => setCustomPrefix(e.target.value)} 
                   placeholder="напр. Набір карбонових деталей" 
-                  style={{ width: '100%', background: '#1a1a1a', border: '1px solid #ff9000', borderRadius: '12px', padding: '10px 12px', color: '#fff', marginTop: '8px', outline: 'none' }} 
+                  style={{ width: '100%', background: 'var(--surface-2)', border: '1px solid #ff9000', borderRadius: '12px', padding: '10px 12px', color: 'var(--text-strong)', marginTop: '8px', outline: 'none' }} 
                 />
               )}
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
               <div>
-                <label style={{ fontSize: '0.72rem', color: '#888', fontWeight: 900, textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>ТИП ПРОЄКТУ</label>
+                <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 900, textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>ТИП ПРОЄКТУ</label>
                 <select 
                   value={projType} 
                   onChange={e => setProjType(e.target.value)} 
-                  style={{ width: '100%', background: '#1a1a1a', border: '1px solid #333', borderRadius: '12px', padding: '10px 12px', color: '#fff', fontWeight: 700, outline: 'none' }}
+                  style={{ width: '100%', background: 'var(--surface-2)', border: '1px solid var(--border-subtle)', borderRadius: '12px', padding: '10px 12px', color: 'var(--text-strong)', fontWeight: 700, outline: 'none' }}
                 >
                   <option value="SERIAL">Серійний виріб (без дужок / без тегу)</option>
                   <option value="RND">Серія RND</option>
@@ -300,26 +300,26 @@ export const CreateProductModal = ({ isOpen, onClose, onCreated, initialQuery = 
                     value={customProjType} 
                     onChange={e => setCustomProjType(e.target.value)} 
                     placeholder="напр. Спецпроєкт" 
-                    style={{ width: '100%', background: '#1a1a1a', border: '1px solid #ff9000', borderRadius: '12px', padding: '10px 12px', color: '#fff', marginTop: '8px', outline: 'none' }} 
+                    style={{ width: '100%', background: 'var(--surface-2)', border: '1px solid #ff9000', borderRadius: '12px', padding: '10px 12px', color: 'var(--text-strong)', marginTop: '8px', outline: 'none' }} 
                   />
                 )}
               </div>
 
               <div>
-                <label style={{ fontSize: '0.72rem', color: '#888', fontWeight: 900, textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>НОМЕР ПРОЄКТУ</label>
+                <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 900, textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>НОМЕР ПРОЄКТУ</label>
                 <input 
                   type="text" 
                   value={projNum} 
                   onChange={e => setProjNum(e.target.value)} 
                   placeholder="напр. 52, 176..." 
-                  style={{ width: '100%', background: '#1a1a1a', border: '1px solid #333', borderRadius: '12px', padding: '10px 12px', color: '#fff', outline: 'none' }} 
+                  style={{ width: '100%', background: 'var(--surface-2)', border: '1px solid var(--border-subtle)', borderRadius: '12px', padding: '10px 12px', color: 'var(--text-strong)', outline: 'none' }} 
                 />
               </div>
             </div>
 
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                <label style={{ fontSize: '0.72rem', color: '#888', fontWeight: 900, textTransform: 'uppercase', margin: 0 }}>ТИП СЕРІЇ</label>
+                <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 900, textTransform: 'uppercase', margin: 0 }}>ТИП СЕРІЇ</label>
                 {isDirector && (
                   <button
                     type="button"
@@ -332,11 +332,11 @@ export const CreateProductModal = ({ isOpen, onClose, onCreated, initialQuery = 
               </div>
 
               {showSeriesManage && isDirector && (
-                <div style={{ background: '#161616', border: '1px solid #333', borderRadius: '12px', padding: '10px 12px', marginBottom: '8px' }}>
+                <div style={{ background: 'var(--surface-2)', border: '1px solid var(--border-subtle)', borderRadius: '12px', padding: '10px 12px', marginBottom: '8px' }}>
                   <div style={{ fontSize: '0.68rem', color: '#ff9000', fontWeight: 900, marginBottom: '6px' }}>ВИДАЛЕННЯ ЗІ СПИСКУ (АДМІН/КЕРІВНИК):</div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                     {seriesList.map(item => (
-                      <div key={item} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', color: '#ddd' }}>
+                      <div key={item} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', color: 'var(--text-soft)' }}>
                         <span>{item}</span>
                         <button
                           type="button"
@@ -355,7 +355,7 @@ export const CreateProductModal = ({ isOpen, onClose, onCreated, initialQuery = 
               <select 
                 value={seriesType} 
                 onChange={e => setSeriesType(e.target.value)} 
-                style={{ width: '100%', background: '#1a1a1a', border: '1px solid #333', borderRadius: '12px', padding: '10px 12px', color: '#fff', fontWeight: 700, outline: 'none' }}
+                style={{ width: '100%', background: 'var(--surface-2)', border: '1px solid var(--border-subtle)', borderRadius: '12px', padding: '10px 12px', color: 'var(--text-strong)', fontWeight: 700, outline: 'none' }}
               >
                 <option value="">— Не вказано (без серії)</option>
                 {seriesList.map(s => (
@@ -369,42 +369,42 @@ export const CreateProductModal = ({ isOpen, onClose, onCreated, initialQuery = 
                   value={customSeries} 
                   onChange={e => setCustomSeries(e.target.value)} 
                   placeholder="напр. Серія Марун" 
-                  style={{ width: '100%', background: '#1a1a1a', border: '1px solid #ff9000', borderRadius: '12px', padding: '10px 12px', color: '#fff', marginTop: '8px', outline: 'none' }} 
+                  style={{ width: '100%', background: 'var(--surface-2)', border: '1px solid #ff9000', borderRadius: '12px', padding: '10px 12px', color: 'var(--text-strong)', marginTop: '8px', outline: 'none' }} 
                 />
               )}
             </div>
 
             <div>
-              <label style={{ fontSize: '0.72rem', color: '#888', fontWeight: 900, textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>НАЗВА МОДЕЛІ / РАМИ</label>
+              <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 900, textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>НАЗВА МОДЕЛІ / РАМИ</label>
               <input 
                 type="text" 
                 value={modelName} 
                 onChange={e => setModelName(e.target.value)} 
                 placeholder="напр. Drozd, Interceptor..." 
-                style={{ width: '100%', background: '#1a1a1a', border: '1px solid #333', borderRadius: '12px', padding: '10px 12px', color: '#fff', outline: 'none' }} 
+                style={{ width: '100%', background: 'var(--surface-2)', border: '1px solid var(--border-subtle)', borderRadius: '12px', padding: '10px 12px', color: 'var(--text-strong)', outline: 'none' }} 
               />
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
               <div>
-                <label style={{ fontSize: '0.72rem', color: '#888', fontWeight: 900, textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>КОД / АРТИКУЛ (ОПЦІОНАЛЬНО)</label>
+                <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 900, textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>КОД / АРТИКУЛ (ОПЦІОНАЛЬНО)</label>
                 <input 
                   type="text" 
                   value={customCode} 
                   onChange={e => setCustomCode(e.target.value)} 
                   placeholder="Автоматично (V2-XXXXX)" 
-                  style={{ width: '100%', background: '#1a1a1a', border: '1px solid #333', borderRadius: '12px', padding: '10px 12px', color: '#fff', outline: 'none' }} 
+                  style={{ width: '100%', background: 'var(--surface-2)', border: '1px solid var(--border-subtle)', borderRadius: '12px', padding: '10px 12px', color: 'var(--text-strong)', outline: 'none' }} 
                 />
               </div>
 
               <div>
-                <label style={{ fontSize: '0.72rem', color: '#888', fontWeight: 900, textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>ОДИНИЦЯ ВИМІРУ</label>
+                <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 900, textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>ОДИНИЦЯ ВИМІРУ</label>
                 <input 
                   type="text" 
                   value={unit} 
                   onChange={e => setUnit(e.target.value)} 
                   readOnly 
-                  style={{ width: '100%', background: '#1a1a1a', border: '1px solid #333', borderRadius: '12px', padding: '10px 12px', color: '#888', outline: 'none', cursor: 'not-allowed' }} 
+                  style={{ width: '100%', background: 'var(--surface-2)', border: '1px solid var(--border-subtle)', borderRadius: '12px', padding: '10px 12px', color: '#888', outline: 'none', cursor: 'not-allowed' }} 
                 />
               </div>
             </div>

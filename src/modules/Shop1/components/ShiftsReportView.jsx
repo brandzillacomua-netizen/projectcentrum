@@ -210,13 +210,13 @@ export const ShiftsReportView = ({
               </div>
 
               {/* General counts clickable */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', borderBottom: '1px solid rgba(255,255,255,0.02)', paddingBottom: '15px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '15px' }}>
                 <div
                   onClick={() => counts.active > 0 && setSelectedReportDetails({ shift: shiftName, type: 'active', cards: counts.activeCards })}
                   style={{ cursor: counts.active > 0 ? 'pointer' : 'default', padding: '8px', borderRadius: '12px', background: counts.active > 0 ? 'rgba(34, 197, 94, 0.03)' : 'transparent', border: counts.active > 0 ? '1px solid rgba(34, 197, 94, 0.08)' : '1px solid transparent', transition: '0.2s' }}
                   className={counts.active > 0 ? "hover-scale" : ""}
                 >
-                  <div style={{ fontSize: '0.58rem', color: '#555', fontWeight: 900, textTransform: 'uppercase' }}>В роботі ➔</div>
+                  <div style={{ fontSize: '0.58rem', color: 'var(--text-dim)', fontWeight: 900, textTransform: 'uppercase' }}>В роботі ➔</div>
                   <div style={{ fontSize: '1.25rem', fontWeight: 950, color: '#22c55e', marginTop: '4px' }}>{counts.active} <span style={{ fontSize: '0.75rem', color: '#444', fontWeight: 700 }}>карт</span></div>
                 </div>
                 <div
@@ -224,7 +224,7 @@ export const ShiftsReportView = ({
                   style={{ cursor: counts.paused > 0 ? 'pointer' : 'default', padding: '8px', borderRadius: '12px', background: counts.paused > 0 ? 'rgba(234, 179, 8, 0.03)' : 'transparent', border: counts.paused > 0 ? '1px solid rgba(234, 179, 8, 0.08)' : '1px solid transparent', transition: '0.2s' }}
                   className={counts.paused > 0 ? "hover-scale" : ""}
                 >
-                  <div style={{ fontSize: '0.58rem', color: '#555', fontWeight: 900, textTransform: 'uppercase' }}>На паузі →</div>
+                  <div style={{ fontSize: '0.58rem', color: 'var(--text-dim)', fontWeight: 900, textTransform: 'uppercase' }}>На паузі →</div>
                   <div style={{ fontSize: '1.25rem', fontWeight: 950, color: '#eab308', marginTop: '4px' }}>{counts.paused} <span style={{ fontSize: '0.75rem', color: '#444', fontWeight: 700 }}>карт</span></div>
                 </div>
                 <div
@@ -232,22 +232,22 @@ export const ShiftsReportView = ({
                   style={{ cursor: counts.completed > 0 ? 'pointer' : 'default', padding: '8px', borderRadius: '12px', background: counts.completed > 0 ? 'rgba(59, 130, 246, 0.03)' : 'transparent', border: counts.completed > 0 ? '1px solid rgba(59, 130, 246, 0.08)' : '1px solid transparent', transition: '0.2s' }}
                   className={counts.completed > 0 ? "hover-scale" : ""}
                 >
-                  <div style={{ fontSize: '0.58rem', color: '#555', fontWeight: 900, textTransform: 'uppercase' }}>Завершено ➔</div>
+                  <div style={{ fontSize: '0.58rem', color: 'var(--text-dim)', fontWeight: 900, textTransform: 'uppercase' }}>Завершено ➔</div>
                   <div style={{ fontSize: '1.25rem', fontWeight: 950, color: '#3b82f6', marginTop: '4px' }}>{counts.completed} <span style={{ fontSize: '0.75rem', color: '#444', fontWeight: 700 }}>карт</span></div>
                 </div>
               </div>
 
               {/* Breakdown by operations */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', borderBottom: '1px solid rgba(255,255,255,0.02)', paddingBottom: '15px', fontSize: '0.7rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '15px', fontSize: '0.7rem' }}>
                 <div>
-                  <div style={{ fontSize: '0.58rem', color: '#888', fontWeight: 900, marginBottom: '6px', letterSpacing: '0.05em' }}>✂️ РОЗКРІЙ</div>
+                  <div style={{ fontSize: '0.58rem', color: 'var(--text-muted)', fontWeight: 900, marginBottom: '6px', letterSpacing: '0.05em' }}>✂️ РОЗКРІЙ</div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                     <span>Зараз у роботі: <strong style={{ color: '#22c55e' }}>{counts.cuttingActive}</strong></span>
                     <span>Здано: <strong style={{ color: '#3b82f6' }}>{counts.cuttingCompleted}</strong></span>
                   </div>
                 </div>
                 <div>
-                  <div style={{ fontSize: '0.58rem', color: '#888', fontWeight: 900, marginBottom: '6px', letterSpacing: '0.05em' }}>🌀 ГАЛТОВКА</div>
+                  <div style={{ fontSize: '0.58rem', color: 'var(--text-muted)', fontWeight: 900, marginBottom: '6px', letterSpacing: '0.05em' }}>🌀 ГАЛТОВКА</div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                     <span>Зараз у роботі: <strong style={{ color: '#22c55e' }}>{counts.tumblingActive}</strong></span>
                     <span>Здано: <strong style={{ color: '#3b82f6' }}>{counts.tumblingCompleted}</strong></span>
@@ -271,9 +271,9 @@ export const ShiftsReportView = ({
                     { counts.completed > 0 ? Math.round(counts.completedWorkingTimeMins / counts.completed) : 0 } хв
                   </strong>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed rgba(255,255,255,0.03)', paddingTop: '6px', marginTop: '2px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed var(--border-subtle)', paddingTop: '6px', marginTop: '2px' }}>
                   <span>📦 Буфер / Черга запуску:</span>
-                  <strong style={{ color: queueCount > 0 ? '#eab308' : '#555' }}>{queueCount} карт</strong>
+                  <strong style={{ color: queueCount > 0 ? '#eab308' : 'var(--text-dim)' }}>{queueCount} карт</strong>
                 </div>
               </div>
             </div>
@@ -304,7 +304,7 @@ export const ShiftsReportView = ({
             flexDirection: 'column',
             animation: 'fadeIn 0.15s ease-out'
           }} onClick={e => e.stopPropagation()}>
-            <div style={{ padding: '20px 25px', borderBottom: '1px solid rgba(255,255,255,0.04)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ padding: '20px 25px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
                 <h3 className="modal-shift-title" style={{ margin: 0, fontSize: '1.1rem', fontWeight: 950 }}>
                   {selectedReportDetails.shift} — {selectedReportDetails.type === 'active' ? 'Картки в роботі' : selectedReportDetails.type === 'paused' ? 'Картки на паузі' : 'Завершені операції'}

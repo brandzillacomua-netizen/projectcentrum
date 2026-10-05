@@ -31,7 +31,7 @@ export default function SortingTerminalCardList({
           : formatDuration(card.started_at)
 
         return (
-          <div key={card.id} className="terminal-card hover-lift" style={{ background: '#111116', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '18px', padding: '16px 18px', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '16px', position: 'relative' }}>
+          <div key={card.id} className="terminal-card hover-lift" style={{ background: '#111116', border: '1px solid var(--border-subtle)', borderRadius: '18px', padding: '16px 18px', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '16px', position: 'relative' }}>
             <div style={{ position: 'absolute', left: 0, top: '15px', bottom: '15px', width: '3px', background: isWaiting ? '#f59e0b' : ACCENT, borderRadius: '0 3px 3px 0' }} />
             <div style={{ flex: '1 1 300px', paddingLeft: '6px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
@@ -54,18 +54,18 @@ export default function SortingTerminalCardList({
                   </span>
                 )}
               </div>
-              <h4 style={{ fontSize: '0.85rem', fontWeight: 800, color: '#fff', margin: '0 0 6px 0', lineHeight: 1.3 }}>
+              <h4 style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-strong)', margin: '0 0 6px 0', lineHeight: 1.3 }}>
                 {nom?.name || 'Невказана деталь'}
               </h4>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
                 <span style={{ fontSize: '0.7rem', color: '#6b7280', fontWeight: 700 }}>
-                  К-сть: <strong style={{ color: '#fff' }}>{card.quantity} шт</strong>
+                  К-сть: <strong style={{ color: 'var(--text-strong)' }}>{card.quantity} шт</strong>
                 </span>
                 <span style={{ fontSize: '0.7rem', color: '#6b7280', fontWeight: 700 }}>
-                  Оператор: <span style={{ color: '#aaa' }}>{(card.operator_name || 'Не вказано').split(' (')[0]}</span>
+                  Оператор: <span style={{ color: 'var(--text-muted)' }}>{(card.operator_name || 'Не вказано').split(' (')[0]}</span>
                 </span>
                 <span style={{ fontSize: '0.7rem', color: '#6b7280', fontWeight: 700 }}>
-                  Зміна: <span style={{ color: '#aaa' }}>{card.shift_name || '—'}</span>
+                  Зміна: <span style={{ color: 'var(--text-muted)' }}>{card.shift_name || '—'}</span>
                 </span>
               </div>
             </div>

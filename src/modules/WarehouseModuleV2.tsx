@@ -371,7 +371,7 @@ export const WarehouseModuleV2: React.FC = () => {
         />}
 
         {/* Main Content card */}
-        {!isIssueView && <div className="content-card glass-panel" style={{ padding: '25px 25px 120px', borderRadius: '24px', background: 'rgba(20,20,20,0.6)', border: '1px solid #222' }}>
+        {!isIssueView && <div className="content-card glass-panel" style={{ padding: '25px 25px 120px', borderRadius: '24px', background: 'rgba(20,20,20,0.6)', border: '1px solid var(--border-subtle)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px', marginBottom: '25px' }}>
             <h2 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 900 }}>
               {isStockView ? 'ЗАЛИШКИ СО' : tabs.find(t => t.id === activeTab)?.label.toUpperCase()}
@@ -380,14 +380,14 @@ export const WarehouseModuleV2: React.FC = () => {
               <div style={{ position: 'relative' }}>
                 <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#444' }} />
                 <input
-                  style={{ background: '#000', border: '1px solid #222', padding: '8px 12px 8px 35px', borderRadius: '10px', color: '#fff', width: '180px' }}
+                  style={{ background: 'var(--surface-black)', border: '1px solid var(--border-subtle)', padding: '8px 12px 8px 35px', borderRadius: '10px', color: '#fff', width: '180px' }}
                   placeholder="Пошук..." value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
                 />
               </div>
               {isStockView && <button
                 onClick={() => setShowAdd(!showAdd)}
-                style={{ background: '#222', color: '#fff', border: 'none', padding: '8px 12px', borderRadius: '10px', cursor: 'pointer' }}
+                style={{ background: 'var(--surface-3)', color: 'var(--text-strong)', border: 'none', padding: '8px 12px', borderRadius: '10px', cursor: 'pointer' }}
               >
                 <Plus size={20} />
               </button>}
@@ -517,7 +517,7 @@ export const WarehouseModuleV2: React.FC = () => {
             flex: 1;
             box-shadow: none !important;
             background: #000 !important;
-            border: 1px solid #222 !important;
+            border: 1px solid var(--border-subtle) !important;
             border-radius: 28px !important;
           }
         }

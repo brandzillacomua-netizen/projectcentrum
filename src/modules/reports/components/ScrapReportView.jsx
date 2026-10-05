@@ -11,10 +11,10 @@ export const ScrapReportView = ({
   scrapReasonsStats
 }) => {
   if (isSyncing) {
-    return <div className="glass-panel" style={{ background: '#111', padding: '35px', borderRadius: '16px', border: '1px solid #222', color: '#aaa', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px' }}><RefreshCw size={20} className="spin" /> Завантажуємо брак за обраний період…</div>
+    return <div className="glass-panel" style={{ background: 'var(--surface-1)', padding: '35px', borderRadius: '16px', border: '1px solid var(--border-subtle)', color: '#aaa', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px' }}><RefreshCw size={20} className="spin" /> Завантажуємо брак за обраний період…</div>
   }
   if (historyLoadError) {
-    return <div className="glass-panel" style={{ background: '#111', padding: '25px', borderRadius: '16px', border: '1px solid #7f1d1d', color: '#fca5a5' }}>Не вдалося завантажити звіт: {historyLoadError}</div>
+    return <div className="glass-panel" style={{ background: 'var(--surface-1)', padding: '25px', borderRadius: '16px', border: '1px solid #7f1d1d', color: '#fca5a5' }}>Не вдалося завантажити звіт: {historyLoadError}</div>
   }
 
   const totalCat4Utilit = scrapStats.totalCat4
@@ -26,50 +26,50 @@ export const ScrapReportView = ({
     <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
       {/* TOP KPI DASHBOARD */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
-        <div className="glass-panel" style={{ background: '#111', padding: '20px', borderRadius: '16px', border: '1px solid #222', borderLeft: '4px solid #ef4444' }}>
-          <div style={{ fontSize: '0.7rem', color: '#888', textTransform: 'uppercase', fontWeight: 800, marginBottom: '8px' }}>Реальний Утиль (Кат. 4)</div>
-          <div style={{ fontSize: '2.2rem', fontWeight: 950, color: '#ef4444', lineHeight: 1 }}>{totalCat4Utilit} <span style={{ fontSize: '0.9rem', color: '#888', fontWeight: 600 }}>од.</span></div>
-          <div style={{ fontSize: '0.75rem', color: '#666', marginTop: '8px' }}>Остаточно списано в утиль за період</div>
+        <div className="glass-panel" style={{ background: 'var(--surface-1)', padding: '20px', borderRadius: '16px', border: '1px solid var(--border-subtle)', borderLeft: '4px solid #ef4444' }}>
+          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 800, marginBottom: '8px' }}>Реальний Утиль (Кат. 4)</div>
+          <div style={{ fontSize: '2.2rem', fontWeight: 950, color: '#ef4444', lineHeight: 1 }}>{totalCat4Utilit} <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)', fontWeight: 600 }}>од.</span></div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '8px' }}>Остаточно списано в утиль за період</div>
         </div>
 
-        <div className="glass-panel" style={{ background: '#111', padding: '20px', borderRadius: '16px', border: '1px solid #222', borderLeft: '4px solid #eab308' }}>
-          <div style={{ fontSize: '0.7rem', color: '#888', textTransform: 'uppercase', fontWeight: 800, marginBottom: '8px' }}>Брак на доопрацювання (Кат. 1–2)</div>
-          <div style={{ fontSize: '2.2rem', fontWeight: 950, color: '#eab308', lineHeight: 1 }}>{totalCat123Rework} <span style={{ fontSize: '0.9rem', color: '#888', fontWeight: 600 }}>од.</span></div>
-          <div style={{ fontSize: '0.75rem', color: '#666', marginTop: '8px' }}>Відновлювані деталі за період</div>
+        <div className="glass-panel" style={{ background: 'var(--surface-1)', padding: '20px', borderRadius: '16px', border: '1px solid var(--border-subtle)', borderLeft: '4px solid #eab308' }}>
+          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 800, marginBottom: '8px' }}>Брак на доопрацювання (Кат. 1–2)</div>
+          <div style={{ fontSize: '2.2rem', fontWeight: 950, color: '#eab308', lineHeight: 1 }}>{totalCat123Rework} <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)', fontWeight: 600 }}>од.</span></div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '8px' }}>Відновлювані деталі за період</div>
         </div>
 
-        <div className="glass-panel" style={{ background: '#111', padding: '20px', borderRadius: '16px', border: '1px solid #222', borderLeft: '4px solid #f97316' }}>
-          <div style={{ fontSize: '0.7rem', color: '#888', textTransform: 'uppercase', fontWeight: 800, marginBottom: '8px' }}>Не класифіковано / Карантин</div>
-          <div style={{ fontSize: '2.2rem', fontWeight: 950, color: '#f97316', lineHeight: 1 }}>{totalQuarantinePending} <span style={{ fontSize: '0.9rem', color: '#888', fontWeight: 600 }}>од.</span></div>
-          <div style={{ fontSize: '0.75rem', color: '#666', marginTop: '8px' }}>Очікують рішення інспектора ВКЯ за період</div>
+        <div className="glass-panel" style={{ background: 'var(--surface-1)', padding: '20px', borderRadius: '16px', border: '1px solid var(--border-subtle)', borderLeft: '4px solid #f97316' }}>
+          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 800, marginBottom: '8px' }}>Не класифіковано / Карантин</div>
+          <div style={{ fontSize: '2.2rem', fontWeight: 950, color: '#f97316', lineHeight: 1 }}>{totalQuarantinePending} <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)', fontWeight: 600 }}>од.</span></div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '8px' }}>Очікують рішення інспектора ВКЯ за період</div>
         </div>
 
-        <div className="glass-panel" style={{ background: '#111', padding: '20px', borderRadius: '16px', border: '1px solid #222', borderLeft: '4px solid #a855f7' }}>
-          <div style={{ fontSize: '0.7rem', color: '#888', textTransform: 'uppercase', fontWeight: 800, marginBottom: '8px' }}>Зафіксовано брак-подій всього</div>
-          <div style={{ fontSize: '2.2rem', fontWeight: 950, color: '#fff', lineHeight: 1 }}>{totalOverallScrap} <span style={{ fontSize: '0.9rem', color: '#888', fontWeight: 600 }}>од.</span></div>
-          <div style={{ fontSize: '0.75rem', color: '#666', marginTop: '8px' }}>Сума (Утиль + Доопрацювання + Карантин)</div>
+        <div className="glass-panel" style={{ background: 'var(--surface-1)', padding: '20px', borderRadius: '16px', border: '1px solid var(--border-subtle)', borderLeft: '4px solid #a855f7' }}>
+          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 800, marginBottom: '8px' }}>Зафіксовано брак-подій всього</div>
+          <div style={{ fontSize: '2.2rem', fontWeight: 950, color: 'var(--text-strong)', lineHeight: 1 }}>{totalOverallScrap} <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)', fontWeight: 600 }}>од.</span></div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '8px' }}>Сума (Утиль + Доопрацювання + Карантин)</div>
         </div>
       </div>
 
       <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
         <div style={{ width: '300px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          <div className="glass-panel" style={{ background: '#111', padding: '20px', borderRadius: '16px', border: '1px solid #222' }}>
-            <h4 style={{ margin: '0 0 15px', fontSize: '0.8rem', color: '#888', textTransform: 'uppercase', fontWeight: 900 }}>Брак по етапах виникнення</h4>
+          <div className="glass-panel" style={{ background: 'var(--surface-1)', padding: '20px', borderRadius: '16px', border: '1px solid var(--border-subtle)' }}>
+            <h4 style={{ margin: '0 0 15px', fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 900 }}>Брак по етапах виникнення</h4>
             {Object.entries(scrapStats.byStage).map(([stage, count]) => (
-              <div key={stage} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', padding: '10px', background: '#0a0a0a', borderRadius: '8px', border: '1px solid #1a1a1a' }}>
-                <span style={{ color: '#ccc', fontSize: '0.85rem', fontWeight: 700 }}>{stage}</span>
+              <div key={stage} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', padding: '10px', background: 'var(--surface-inset)', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
+                <span style={{ color: 'var(--text-soft)', fontSize: '0.85rem', fontWeight: 700 }}>{stage}</span>
                 <strong style={{ color: '#ef4444', fontSize: '0.9rem' }}>{count} од.</strong>
               </div>
             ))}
             {Object.keys(scrapStats.byStage).length === 0 && (
-              <div style={{ color: '#555', fontSize: '0.85rem' }}>Немає даних за обраний період</div>
+              <div style={{ color: 'var(--text-dim)', fontSize: '0.85rem' }}>Немає даних за обраний період</div>
             )}
           </div>
         </div>
 
-        <div className="glass-panel" style={{ flex: 1, minWidth: '600px', background: '#111', padding: '20px', borderRadius: '16px', border: '1px solid #222' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', borderBottom: '1px solid #222', paddingBottom: '12px' }}>
-            <h4 style={{ margin: 0, fontSize: '0.85rem', color: '#fff', textTransform: 'uppercase', fontWeight: 900 }}>
+        <div className="glass-panel" style={{ flex: 1, minWidth: '600px', background: 'var(--surface-1)', padding: '20px', borderRadius: '16px', border: '1px solid var(--border-subtle)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '12px' }}>
+            <h4 style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-strong)', textTransform: 'uppercase', fontWeight: 900 }}>
               {scrapReportSubTab === 'cases' ? '📋 Деталізація всіх випадків браку' : '🎯 Аналітика причин браку'}
             </h4>
             <div style={{ display: 'flex', gap: '10px' }}>
@@ -77,7 +77,7 @@ export const ScrapReportView = ({
                 onClick={() => setScrapReportSubTab('cases')}
                 style={{
                   background: scrapReportSubTab === 'cases' ? '#ef4444' : 'transparent',
-                  color: '#fff', border: scrapReportSubTab === 'cases' ? 'none' : '1px solid #333',
+                  color: '#fff', border: scrapReportSubTab === 'cases' ? 'none' : '1px solid var(--border-subtle)',
                   padding: '6px 14px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer'
                 }}
               >
@@ -87,7 +87,7 @@ export const ScrapReportView = ({
                 onClick={() => setScrapReportSubTab('reasons')}
                 style={{
                   background: scrapReportSubTab === 'reasons' ? '#ef4444' : 'transparent',
-                  color: '#fff', border: scrapReportSubTab === 'reasons' ? 'none' : '1px solid #333',
+                  color: '#fff', border: scrapReportSubTab === 'reasons' ? 'none' : '1px solid var(--border-subtle)',
                   padding: '6px 14px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer'
                 }}
               >
@@ -100,7 +100,7 @@ export const ScrapReportView = ({
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                 <thead>
-                  <tr style={{ color: '#888', textAlign: 'left', borderBottom: '2px solid #222', background: '#0a0a0a' }}>
+                  <tr style={{ color: 'var(--text-muted)', textAlign: 'left', borderBottom: '2px solid var(--border-subtle)', background: 'var(--surface-inset)' }}>
                     <th style={{ padding: '12px 10px' }}>Дата</th>
                     <th style={{ padding: '12px 10px' }}>Деталь</th>
                     <th style={{ padding: '12px 10px' }}>Оператор</th>
@@ -108,7 +108,7 @@ export const ScrapReportView = ({
                     <th style={{ padding: '12px 10px', textAlign: 'center', color: '#eab308' }}>Брак</th>
                     <th style={{ padding: '12px 10px', textAlign: 'center', color: '#f97316' }}>Карантин</th>
                     <th style={{ padding: '12px 10px', textAlign: 'center', color: '#ef4444' }}>Утиль</th>
-                    <th style={{ padding: '12px 10px', textAlign: 'center', color: '#666' }}>Не класиф.</th>
+                    <th style={{ padding: '12px 10px', textAlign: 'center', color: 'var(--text-dim)' }}>Не класиф.</th>
                     <th style={{ padding: '12px 10px', textAlign: 'right' }}>Всього</th>
                   </tr>
                 </thead>
@@ -116,21 +116,21 @@ export const ScrapReportView = ({
                   {scrapStats.list.map(h => {
                     const dateDisplay = h.completed_at || h.created_at ? new Date(h.completed_at || h.created_at).toLocaleDateString('uk-UA') : '—'
                     return (
-                      <tr key={h.id} style={{ borderBottom: '1px solid #1a1a1a' }}>
-                        <td style={{ padding: '10px', color: '#888', whiteSpace: 'nowrap' }}>{dateDisplay}</td>
-                        <td style={{ padding: '10px', color: '#fff', fontWeight: 700 }}>{h.nom_name}</td>
-                        <td style={{ padding: '10px', color: '#aaa' }}>{h.operator_name || 'Не вказано'}</td>
-                        <td style={{ padding: '10px', color: '#aaa' }}>{h.stage_name}</td>
+                      <tr key={h.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                        <td style={{ padding: '10px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{dateDisplay}</td>
+                        <td style={{ padding: '10px', color: 'var(--text-strong)', fontWeight: 700 }}>{h.nom_name}</td>
+                        <td style={{ padding: '10px', color: 'var(--text-muted)' }}>{h.operator_name || 'Не вказано'}</td>
+                        <td style={{ padding: '10px', color: 'var(--text-muted)' }}>{h.stage_name}</td>
                         <td style={{ padding: '10px', textAlign: 'center', color: h.cat1 + h.cat2 > 0 ? '#eab308' : '#444', fontWeight: h.cat1 + h.cat2 > 0 ? '900' : '400' }}>{h.cat1 + h.cat2 || '—'}</td>
                         <td style={{ padding: '10px', textAlign: 'center', color: h.cat3 > 0 ? '#f97316' : '#444', fontWeight: h.cat3 > 0 ? '900' : '400' }}>{h.cat3 || '—'}</td>
                         <td style={{ padding: '10px', textAlign: 'center', color: h.cat4 > 0 ? '#ef4444' : '#444', fontWeight: h.cat4 > 0 ? '900' : '400' }}>{h.cat4 || '—'}</td>
-                        <td style={{ padding: '10px', textAlign: 'center', color: h.unclassified > 0 ? '#888' : '#333', fontWeight: h.unclassified > 0 ? '700' : '400' }}>{h.unclassified || '—'}</td>
+                        <td style={{ padding: '10px', textAlign: 'center', color: h.unclassified > 0 ? 'var(--text-muted)' : '#333', fontWeight: h.unclassified > 0 ? '700' : '400' }}>{h.unclassified || '—'}</td>
                         <td style={{ padding: '10px', textAlign: 'right', color: '#ef4444', fontWeight: 900 }}>{h.scrap_qty}</td>
                       </tr>
                     )
                   })}
                   {scrapStats.list.length === 0 && (
-                    <tr><td colSpan="9" style={{ padding: '25px', textAlign: 'center', color: '#555' }}>Брак відсутній за обраний період</td></tr>
+                    <tr><td colSpan="9" style={{ padding: '25px', textAlign: 'center', color: 'var(--text-dim)' }}>Брак відсутній за обраний період</td></tr>
                   )}
                 </tbody>
               </table>
@@ -139,7 +139,7 @@ export const ScrapReportView = ({
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                 <thead>
-                  <tr style={{ color: '#888', textAlign: 'left', borderBottom: '2px solid #222', background: '#0a0a0a' }}>
+                  <tr style={{ color: 'var(--text-muted)', textAlign: 'left', borderBottom: '2px solid var(--border-subtle)', background: 'var(--surface-inset)' }}>
                     <th style={{ padding: '12px 10px' }}>Причина браку</th>
                     <th style={{ padding: '12px 10px', textAlign: 'center' }}>Кількість деталей (шт)</th>
                     <th style={{ padding: '12px 10px', textAlign: 'center' }}>Відсоток (%)</th>
@@ -149,16 +149,16 @@ export const ScrapReportView = ({
                 </thead>
                 <tbody>
                   {scrapReasonsStats.map((item, idx) => (
-                    <tr key={idx} style={{ borderBottom: '1px solid #1a1a1a' }}>
-                      <td style={{ padding: '12px 10px', color: '#fff', fontWeight: 700 }}>{item.name}</td>
+                    <tr key={idx} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                      <td style={{ padding: '12px 10px', color: 'var(--text-strong)', fontWeight: 700 }}>{item.name}</td>
                       <td style={{ padding: '12px 10px', textAlign: 'center', color: '#ef4444', fontWeight: 900 }}>{item.quantity}</td>
-                      <td style={{ padding: '12px 10px', textAlign: 'center', color: '#888' }}>{item.percentage}%</td>
-                      <td style={{ padding: '12px 10px', color: '#aaa' }}>{item.topItem}</td>
-                      <td style={{ padding: '12px 10px', textAlign: 'right', color: '#aaa' }}>{item.topOperator}</td>
+                      <td style={{ padding: '12px 10px', textAlign: 'center', color: 'var(--text-muted)' }}>{item.percentage}%</td>
+                      <td style={{ padding: '12px 10px', color: 'var(--text-muted)' }}>{item.topItem}</td>
+                      <td style={{ padding: '12px 10px', textAlign: 'right', color: 'var(--text-muted)' }}>{item.topOperator}</td>
                     </tr>
                   ))}
                   {scrapReasonsStats.length === 0 && (
-                    <tr><td colSpan="5" style={{ padding: '25px', textAlign: 'center', color: '#555' }}>Немає класифікованого браку за обраний період</td></tr>
+                    <tr><td colSpan="5" style={{ padding: '25px', textAlign: 'center', color: 'var(--text-dim)' }}>Немає класифікованого браку за обраний період</td></tr>
                   )}
                 </tbody>
               </table>

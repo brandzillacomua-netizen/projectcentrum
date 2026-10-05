@@ -63,9 +63,9 @@ export function Shop1CardDetails({
   const parentTask = (tasks || []).find(t => String(t.id) === String(currentCard?.task_id))
   const pendingReqsForCard = getPendingRequestsForCard(currentCard, requests || [], parentTask, nomenclatures || [])
 
-  const labelStyle = { fontSize: '0.6rem', fontWeight: 900, color: '#555', textTransform: 'uppercase', marginBottom: '6px', display: 'block' }
-  const selectStyle = { width: '100%', background: '#1a1a1a', border: '1px solid #333', color: '#fff', padding: '12px', borderRadius: '12px', fontSize: '0.9rem', fontWeight: 700 }
-  const btnPrimary = { background: '#eab308', color: '#000', border: 'none', padding: '15px', borderRadius: '14px', fontSize: '1rem', fontWeight: 1000, cursor: 'pointer' }
+  const labelStyle = { fontSize: '0.6rem', fontWeight: 900, color: 'var(--text-dim)', textTransform: 'uppercase', marginBottom: '6px', display: 'block' }
+  const selectStyle = { width: '100%', background: 'var(--surface-2)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', padding: '12px', borderRadius: '12px', fontSize: '0.9rem', fontWeight: 700 }
+  const btnPrimary = { background: '#eab308', color: 'var(--surface-black)', border: 'none', padding: '15px', borderRadius: '14px', fontSize: '1rem', fontWeight: 1000, cursor: 'pointer' }
   const btnGreen = { background: '#10b981', color: '#fff', border: 'none', padding: '15px', borderRadius: '14px', fontSize: '1rem', fontWeight: 1000, cursor: 'pointer' }
 
   return (
@@ -81,7 +81,7 @@ export function Shop1CardDetails({
               <span className={`s1-chain-pill ${isCurrent ? 'current' : isDone ? 'done' : 'inactive'}`} style={{
                 fontSize: '0.6rem', fontWeight: 900, textTransform: 'uppercase',
                 padding: '3px 9px', borderRadius: '5px',
-                background: isCurrent ? '#eab308' : isDone ? '#10b98120' : '#1a1a1a',
+                background: isCurrent ? '#eab308' : isDone ? '#10b98120' : 'var(--surface-2)',
                 color: isCurrent ? '#000' : isDone ? '#10b981' : '#333'
               }}>{s}</span>
               {i < CHAIN.length - 1 && <ChevronRight size={10} color="#2a2a2a" />}
@@ -96,7 +96,7 @@ export function Shop1CardDetails({
           <h2 style={{ margin: 0, fontSize: '1.6rem', fontWeight: 950, letterSpacing: '-0.02em', lineHeight: 1.1 }}>
             {nom?.name || 'Деталь'}
           </h2>
-          <div style={{ fontSize: '0.65rem', color: '#555', fontWeight: 800, marginTop: '6px', textTransform: 'uppercase' }}>
+          <div style={{ fontSize: '0.65rem', color: 'var(--text-dim)', fontWeight: 800, marginTop: '6px', textTransform: 'uppercase' }}>
             ЗАМОВЛЕННЯ №{orders?.find(o => o.id === currentCard.order_id)?.order_num || '—'} · Картка #{currentCard.id.slice(-8).toUpperCase()} · {(() => {
               const bz = Number(currentCard.buffer_qty) || Number(currentCard.card_info?.match(/\[BZ:(\d+)\]/)?.[1]) || 0
               const need = Number(currentCard.card_info?.match(/\[REQ:(\d+)\]/)?.[1]) || Number(currentCard.card_info?.match(/\[NEED:(\d+)\]/)?.[1]) || (Number(currentCard.quantity) - bz)
@@ -121,7 +121,7 @@ export function Shop1CardDetails({
             🛡️ <span className="hide-mobile">БРАК ВКЯ</span>
           </button>
           <button className="s1-close-btn" onClick={() => setSelectedCardId(null)}
-            style={{ background: '#111', border: 'none', color: '#555', padding: '10px', borderRadius: '12px', cursor: 'pointer' }}>
+            style={{ background: 'var(--surface-1)', border: 'none', color: '#555', padding: '10px', borderRadius: '12px', cursor: 'pointer' }}>
             <X size={22} />
           </button>
         </div>
@@ -135,11 +135,11 @@ export function Shop1CardDetails({
               {row.completed_at ? new Date(row.completed_at).toLocaleString('uk-UA') : 'Дата не вказана'} · {row.qc_scrap_reason || row.qc_scrap_comment || 'Причина не вказана'} · {Number(row.scrap_qty) || 0} шт · Відповідальний: {row.operator_name || 'не вказаний'}
             </div>
           ))}
-          <div style={{ color: '#888', fontSize: '0.64rem', marginTop: '8px' }}>Поточна кількість картки вже зменшена на цей брак. Повторно його не вносьте.</div>
+          <div style={{ color: 'var(--text-muted)', fontSize: '0.64rem', marginTop: '8px' }}>Поточна кількість картки вже зменшена на цей брак. Повторно його не вносьте.</div>
         </div>
       )}
 
-      <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '24px', border: '1px solid #1a1a1a', padding: '25px 20px' }}>
+      <div style={{ background: 'var(--fill-subtle)', borderRadius: '24px', border: '1px solid var(--border-subtle)', padding: '25px 20px' }}>
 
         {/* ── СТАН: NEW / WAITING-CUTTERS / WAITING-MATERIALS → Форма старту ──────────────────────────────────── */}
         {(status === 'new' || status === 'waiting-cutters' || status === 'waiting-materials' || status === 'waiting_material' || (status === 'in-progress' && !CHAIN.includes(currentCard.operation))) && (() => {
@@ -175,7 +175,7 @@ export function Shop1CardDetails({
               {/* Акцентована планова кількість */}
               <div className="s1-planned-quantity" style={{ background: '#eab30810', border: '1px solid #eab30830', borderRadius: '18px', padding: '20px', textAlign: 'center', marginBottom: '8px' }}>
                 <div className="s1-planned-quantity-label" style={{ fontSize: '0.65rem', fontWeight: 950, color: '#eab308', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '6px' }}>ПЛАНОВА КІЛЬКІСТЬ</div>
-                <div className="s1-planned-quantity-value" style={{ fontSize: '3rem', fontWeight: 1000, color: '#fff', lineHeight: 1 }}>
+                <div className="s1-planned-quantity-value" style={{ fontSize: '3rem', fontWeight: 1000, color: 'var(--text-strong)', lineHeight: 1 }}>
                   {currentCard.quantity} <small style={{ fontSize: '1rem', opacity: 0.3 }}>шт</small>
                 </div>
               </div>
@@ -232,7 +232,7 @@ export function Shop1CardDetails({
                           style={{
                             ...selectStyle, fontSize: '1.2rem', fontWeight: 1000, color: '#eab308',
                             paddingLeft: machineSequenceConfig.prefix.length > 1 ? '40px' : '32px', width: '100%', cursor: 'text',
-                            borderColor: machineNumber ? '#eab308' : '#333'
+                            borderColor: machineNumber ? '#eab308' : 'var(--border-subtle)'
                           }}
                           onKeyDown={e => {
                             if (e.key === 'Enter' && selectedOperator && selectedShift && !isProcessing && selectedMachine?.trim() && machineNumber?.trim()) {
@@ -268,15 +268,15 @@ export function Shop1CardDetails({
 
           return (
             <div style={{ textAlign: 'center' }}>
-              <div style={{ display: 'flex', alignItems: 'stretch', gap: '0', background: '#0f0f0f', border: '1px solid #222', borderRadius: '16px', marginBottom: '24px', overflow: 'hidden', width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
-                <div style={{ padding: '10px 20px', textAlign: 'left', borderRight: '1px solid #222' }}>
+              <div style={{ display: 'flex', alignItems: 'stretch', gap: '0', background: 'var(--surface-inset)', border: '1px solid var(--border-subtle)', borderRadius: '16px', marginBottom: '24px', overflow: 'hidden', width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
+                <div style={{ padding: '10px 20px', textAlign: 'left', borderRight: '1px solid var(--border-subtle)' }}>
                   <div style={{ fontSize: '0.5rem', color: isPaused ? '#ef4444' : '#3b82f6', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
                     {isPaused ? 'ЗУПИНЕНО' : 'У РОБОТІ'}
                   </div>
                   <div style={{ fontSize: '1.4rem', fontWeight: 1000, lineHeight: 1.2 }}>{currentCard.quantity} <small style={{ fontSize: '0.6rem', opacity: 0.35 }}>шт</small></div>
                 </div>
-                <div style={{ padding: '10px 20px', textAlign: 'left', borderRight: currentCard.machine ? '1px solid #222' : 'none' }}>
-                  <div style={{ fontSize: '0.5rem', color: '#555', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em' }}>ЕТАП</div>
+                <div style={{ padding: '10px 20px', textAlign: 'left', borderRight: currentCard.machine ? '1px solid var(--border-subtle)' : 'none' }}>
+                  <div style={{ fontSize: '0.5rem', color: 'var(--text-dim)', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em' }}>ЕТАП</div>
                   <div style={{ fontSize: '0.95rem', fontWeight: 900, color: isPaused ? '#ef4444' : '#3b82f6', lineHeight: 1.2, marginTop: '2px' }}>{opName}</div>
                 </div>
                 {currentCard.machine && (
@@ -292,13 +292,13 @@ export function Shop1CardDetails({
                   <div style={{ fontSize: '1.1rem', fontWeight: 950, color: '#ef4444', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                     ⚠️ ВЕРСТАТ ЗУПИНЕНО (ПАУЗА)
                   </div>
-                  <div style={{ fontSize: '0.85rem', color: '#fff', fontWeight: 700, marginTop: '6px' }}>
+                  <div style={{ fontSize: '0.85rem', color: 'var(--text-strong)', fontWeight: 700, marginTop: '6px' }}>
                     Причина: <span style={{ color: '#ef4444' }}>{pauseReasonStr}</span>
                   </div>
                   <div style={{ fontSize: '3rem', fontWeight: 1000, color: '#ef4444', fontFamily: 'monospace', marginTop: '10px', lineHeight: 1 }}>
                     {formatTime(pausedAtStr)}
                   </div>
-                  <div style={{ fontSize: '0.55rem', color: '#888', fontWeight: 800, textTransform: 'uppercase', marginTop: '4px' }}>
+                  <div style={{ fontSize: '0.55rem', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', marginTop: '4px' }}>
                     ТРИВАЛІСТЬ ЗУПИНКИ
                   </div>
                 </div>
@@ -316,8 +316,8 @@ export function Shop1CardDetails({
               <div style={{
                 margin: '20px auto 10px',
                 padding: '12px 20px',
-                background: 'rgba(255,255,255,0.02)',
-                border: '1px solid #222',
+                background: 'var(--fill-subtle)',
+                border: '1px solid var(--border-subtle)',
                 borderRadius: '16px',
                 maxWidth: '380px',
                 display: 'flex',
@@ -325,14 +325,14 @@ export function Shop1CardDetails({
                 alignItems: 'center'
               }}>
                 <div style={{ textAlign: 'left' }}>
-                  <div style={{ color: '#555', fontSize: '0.55rem', fontWeight: 800, textTransform: 'uppercase' }}>ПОТОЧНИЙ ОПЕРАТОР</div>
-                  <div style={{ color: '#fff', fontSize: '0.85rem', fontWeight: 900, marginTop: '2px' }}>{currentCard.operator_name || '—'}</div>
+                  <div style={{ color: 'var(--text-dim)', fontSize: '0.55rem', fontWeight: 800, textTransform: 'uppercase' }}>ПОТОЧНИЙ ОПЕРАТОР</div>
+                  <div style={{ color: 'var(--text-strong)', fontSize: '0.85rem', fontWeight: 900, marginTop: '2px' }}>{currentCard.operator_name || '—'}</div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ color: '#555', fontSize: '0.55rem', fontWeight: 800, textTransform: 'uppercase' }}>
+                  <div style={{ color: 'var(--text-dim)', fontSize: '0.55rem', fontWeight: 800, textTransform: 'uppercase' }}>
                     {isPaused ? 'АКТИВНИЙ ЧАС' : 'ЧАС ЗМІНИ'}
                   </div>
-                  <div style={{ color: isPaused ? '#666' : '#eab308', fontSize: '1.1rem', fontWeight: 900, fontFamily: 'monospace', marginTop: '2px' }}>
+                  <div style={{ color: isPaused ? 'var(--text-dim)' : '#eab308', fontSize: '1.1rem', fontWeight: 900, fontFamily: 'monospace', marginTop: '2px' }}>
                     {isPaused ? formatSec(getCardTimeMetrics(currentCard).totalSec) : formatTime(currentCard.started_at)}
                   </div>
                 </div>
@@ -359,8 +359,8 @@ export function Shop1CardDetails({
                 }
 
                 return (
-                  <div style={{ margin: '15px auto 0', maxWidth: '380px', background: '#09090b', border: '1px solid #18181b', borderRadius: '16px', padding: '14px 18px' }}>
-                    <div style={{ fontSize: '0.55rem', color: '#555', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px', letterSpacing: '0.08em', textAlign: 'left' }}>
+                  <div style={{ margin: '15px auto 0', maxWidth: '380px', background: 'var(--surface-inset)', border: '1px solid #18181b', borderRadius: '16px', padding: '14px 18px' }}>
+                    <div style={{ fontSize: '0.55rem', color: 'var(--text-dim)', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px', letterSpacing: '0.08em', textAlign: 'left' }}>
                       ⏱️ ЧАС ПОПЕРЕДНІХ ЗМІН
                     </div>
                     {shiftHistory.map((h, i) => (
@@ -381,9 +381,9 @@ export function Shop1CardDetails({
               <div style={{ marginBottom: '25px' }} />
 
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '25px', background: '#f59e0b0d', border: '1px solid #f59e0b22', borderRadius: '14px', padding: '12px', flexWrap: 'wrap' }}>
-                <span style={{ fontSize: '0.65rem', color: '#555', fontWeight: 700 }}>{currentCard.operation}</span>
+                <span style={{ fontSize: '0.65rem', color: 'var(--text-dim)', fontWeight: 700 }}>{currentCard.operation}</span>
                 <ArrowRight size={12} color="#f59e0b" />
-                <span style={{ fontSize: '0.6rem', background: '#f59e0b', color: '#000', fontWeight: 900, padding: '3px 8px', borderRadius: '6px', textTransform: 'uppercase' }}>
+                <span style={{ fontSize: '0.6rem', background: '#f59e0b', color: 'var(--surface-black)', fontWeight: 900, padding: '3px 8px', borderRadius: '6px', textTransform: 'uppercase' }}>
                   БУФЕР {currentCard.operation?.toUpperCase()}
                 </span>
                 {!isFinal && (
@@ -399,7 +399,7 @@ export function Shop1CardDetails({
                   onClick={handleResumeCard}
                   disabled={isProcessing}
                   style={{
-                    background: '#10b981', color: '#000', border: 'none', padding: '20px', width: '100%',
+                    background: '#10b981', color: 'var(--surface-black)', border: 'none', padding: '20px', width: '100%',
                     borderRadius: '18px', fontSize: '1.25rem', fontWeight: 1000, cursor: 'pointer',
                     boxShadow: '0 8px 24px rgba(16,185,129,0.25)', display: 'flex', alignItems: 'center',
                     justifyContent: 'center', gap: '10px'
@@ -471,7 +471,7 @@ export function Shop1CardDetails({
                 <div style={{ fontSize: '0.65rem', fontWeight: 950, color: '#8b5cf6', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: '8px' }}>
                   🔵 СОРТУВАННЯ — ГОТОВО ДО ВІДПРАВКИ В ЦЕХ №2
                 </div>
-                <div style={{ fontSize: '3.5rem', fontWeight: 1000, color: '#fff', lineHeight: 1 }}>
+                <div style={{ fontSize: '3.5rem', fontWeight: 1000, color: 'var(--text-strong)', lineHeight: 1 }}>
                   {currentCard.quantity} <small style={{ fontSize: '1.2rem', opacity: 0.3 }}>шт</small>
                 </div>
                 <div style={{ fontSize: '0.7rem', color: '#8b5cf6', marginTop: '8px', fontWeight: 700 }}>
@@ -479,13 +479,13 @@ export function Shop1CardDetails({
                 </div>
               </div>
 
-              <div style={{ background: '#0d0d0d', borderRadius: '20px', padding: '20px', textAlign: 'center', border: '1px solid #ef444422' }}>
+              <div style={{ background: 'var(--surface-inset)', borderRadius: '20px', padding: '20px', textAlign: 'center', border: '1px solid #ef444422' }}>
                 <label style={{ color: '#ef4444', fontWeight: 900, fontSize: '0.7rem', textTransform: 'uppercase', display: 'block', marginBottom: '12px' }}>
                   КІЛЬКІСТЬ БРАКУ ПРИ СОРТУВАННІ
                 </label>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '14px' }}>
                   <button onClick={() => setScrapCount(v => Math.max(0, v - 1))}
-                    style={{ width: '46px', height: '46px', background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#fff', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}>−</button>
+                    style={{ width: '46px', height: '46px', background: 'var(--surface-2)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}>−</button>
                   <input type="number" min={0} max={currentCard.quantity - reworkCount} value={scrapCount === 0 ? '' : scrapCount} placeholder="0"
                     onChange={e => {
                       const val = e.target.value
@@ -493,17 +493,17 @@ export function Shop1CardDetails({
                     }}
                     style={{ background: 'transparent', border: 'none', color: '#ef4444', fontSize: '3.2rem', width: '90px', textAlign: 'center', fontWeight: 900 }} />
                   <button onClick={() => setScrapCount(v => Math.min(currentCard.quantity - reworkCount, v + 1))}
-                    style={{ width: '46px', height: '46px', background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#fff', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}>+</button>
+                    style={{ width: '46px', height: '46px', background: 'var(--surface-2)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}>+</button>
                 </div>
               </div>
 
-              <div style={{ background: '#0d0d0d', borderRadius: '20px', padding: '20px', textAlign: 'center', border: '1px solid #f59e0b22' }}>
+              <div style={{ background: 'var(--surface-inset)', borderRadius: '20px', padding: '20px', textAlign: 'center', border: '1px solid #f59e0b22' }}>
                 <label style={{ color: '#f59e0b', fontWeight: 900, fontSize: '0.7rem', textTransform: 'uppercase', display: 'block', marginBottom: '12px' }}>
                   КІЛЬКІСТЬ НА ДООПРАЦЮВАННЯ (ДОДАТКОВА КАРТКА)
                 </label>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '14px' }}>
                   <button onClick={() => setReworkCount(v => Math.max(0, v - 1))}
-                    style={{ width: '46px', height: '46px', background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#fff', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}>−</button>
+                    style={{ width: '46px', height: '46px', background: 'var(--surface-2)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}>−</button>
                   <input type="number" min={0} max={currentCard.quantity - scrapCount} value={reworkCount === 0 ? '' : reworkCount} placeholder="0"
                     onChange={e => {
                       const val = e.target.value
@@ -511,7 +511,7 @@ export function Shop1CardDetails({
                     }}
                     style={{ background: 'transparent', border: 'none', color: '#f59e0b', fontSize: '3.2rem', width: '90px', textAlign: 'center', fontWeight: 900 }} />
                   <button onClick={() => setReworkCount(v => Math.min(currentCard.quantity - scrapCount, v + 1))}
-                    style={{ width: '46px', height: '46px', background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#fff', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}>+</button>
+                    style={{ width: '46px', height: '46px', background: 'var(--surface-2)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}>+</button>
                 </div>
               </div>
 
@@ -555,13 +555,13 @@ export function Shop1CardDetails({
                 <div style={{ fontSize: '0.65rem', fontWeight: 950, color: '#f59e0b', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: '8px' }}>
                   БУФЕР · ОЧІКУЄ {nextOp?.toUpperCase()}
                 </div>
-                <div style={{ fontSize: '3.5rem', fontWeight: 1000, color: '#fff', lineHeight: 1 }}>
+                <div style={{ fontSize: '3.5rem', fontWeight: 1000, color: 'var(--text-strong)', lineHeight: 1 }}>
                   {currentCard.quantity} <small style={{ fontSize: '1.2rem', opacity: 0.3 }}>шт</small>
                 </div>
               </div>
 
               {nextOp === 'Прийомка' ? (
-                <div className="s1-action-card" style={{ background: '#111', padding: '24px', borderRadius: '20px', border: '1px solid #222' }}>
+                <div className="s1-action-card" style={{ background: 'var(--surface-1)', padding: '24px', borderRadius: '20px', border: '1px solid var(--border-subtle)' }}>
                   <div style={{ fontSize: '0.7rem', color: '#10b981', fontWeight: 900, marginBottom: '20px', textTransform: 'uppercase', textAlign: 'center' }}>
                     📦 ПРИЙНЯТИ НА СКЛАД НФ (ПРИЙОМКА)
                   </div>
@@ -598,8 +598,8 @@ export function Shop1CardDetails({
                   </div>
                 </div>
               ) : (
-                <div className="s1-action-card" style={{ background: '#111', padding: '24px', borderRadius: '20px', border: '1px solid #222' }}>
-                  <div style={{ fontSize: '0.7rem', color: '#555', fontWeight: 800, marginBottom: '20px', textTransform: 'uppercase', textAlign: 'center' }}>
+                <div className="s1-action-card" style={{ background: 'var(--surface-1)', padding: '24px', borderRadius: '20px', border: '1px solid var(--border-subtle)' }}>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', fontWeight: 800, marginBottom: '20px', textTransform: 'uppercase', textAlign: 'center' }}>
                     НАСТУПНИЙ ЕТАП: <span style={{ color: '#f59e0b' }}>{nextOp}</span>
                   </div>
 

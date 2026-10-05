@@ -41,8 +41,8 @@ export function MasterStockInfoModal({
       `}</style>
       <div
         style={{
-          background: isLight ? '#ffffff' : '#0a0a0a',
-          border: isLight ? '1px solid #cbd5e1' : '1px solid #333',
+          background: isLight ? '#ffffff' : 'var(--surface-inset)',
+          border: isLight ? '1px solid #cbd5e1' : '1px solid var(--border-subtle)',
           borderRadius: '24px',
           padding: '25px 30px',
           width: '95%',
@@ -55,7 +55,7 @@ export function MasterStockInfoModal({
         }}
         onClick={e => e.stopPropagation()}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px', borderBottom: isLight ? '1px solid #e2e8f0' : '1px solid #1a1a1a', paddingBottom: '14px', flexShrink: 0 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px', borderBottom: isLight ? '1px solid #e2e8f0' : '1px solid var(--border-subtle)', paddingBottom: '14px', flexShrink: 0 }}>
           <h3 style={{ margin: 0, fontSize: '1.25rem', color: isLight ? '#9333ea' : '#a855f7', fontWeight: 950, letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Info size={20} />
             {stockInfoModalData.title}
@@ -63,8 +63,8 @@ export function MasterStockInfoModal({
           <button
             onClick={() => setStockInfoModalData(null)}
             style={{
-              background: isLight ? '#f1f5f9' : '#1a1a1a',
-              border: isLight ? '1px solid #cbd5e1' : '1px solid #333',
+              background: isLight ? '#f1f5f9' : 'var(--surface-2)',
+              border: isLight ? '1px solid #cbd5e1' : '1px solid var(--border-subtle)',
               color: isLight ? '#64748b' : '#aaa',
               width: '34px',
               height: '34px',
@@ -82,10 +82,10 @@ export function MasterStockInfoModal({
 
         <div className="stock-info-scroll" style={{ display: 'flex', flexDirection: 'column', gap: '10px', overflowY: 'auto', flex: 1, paddingRight: '4px', scrollBehavior: 'smooth' }}>
           {stockInfoModalData.items.map((item, idx) => (
-            <div key={idx} style={{ background: isLight ? '#f8fafc' : '#111', border: isLight ? '1px solid #e2e8f0' : '1px solid #222', borderRadius: '14px', padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+            <div key={idx} style={{ background: isLight ? '#f8fafc' : 'var(--surface-1)', border: isLight ? '1px solid #e2e8f0' : '1px solid var(--border-subtle)', borderRadius: '14px', padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
               <div>
-                <div style={{ fontWeight: 900, color: isLight ? '#0f172a' : '#fff', fontSize: '1.05rem' }}>{item.thickness}</div>
-                <div style={{ fontSize: '0.75rem', color: isLight ? '#64748b' : '#666', marginTop: '2px' }}>Залишок підготовлених листів</div>
+                <div style={{ fontWeight: 900, color: isLight ? '#0f172a' : 'var(--text-strong)', fontSize: '1.05rem' }}>{item.thickness}</div>
+                <div style={{ fontSize: '0.75rem', color: isLight ? '#64748b' : 'var(--text-dim)', marginTop: '2px' }}>Залишок підготовлених листів</div>
               </div>
               <div style={{ display: 'flex', gap: '15px' }}>
                 <div style={{ textAlign: 'center' }}>

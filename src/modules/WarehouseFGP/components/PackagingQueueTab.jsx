@@ -458,7 +458,7 @@ export function PackagingQueueTab({
               onMouseLeave={e => { e.currentTarget.style.background = '#10b981' }}
             >
               <Archive size={18} color="#ffffff" />
-              <span style={{ color: '#ffffff', fontWeight: 950 }}>ПЕРЕГЛЯНУТИ ЗАЛИШКИ СГП</span>
+              <span style={{ color: 'var(--text-strong)', fontWeight: 950 }}>ПЕРЕГЛЯНУТИ ЗАЛИШКИ СГП</span>
             </button>
           </div>
         </div>

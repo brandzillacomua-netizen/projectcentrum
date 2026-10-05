@@ -38,7 +38,7 @@ export const BrakReworkModal = React.memo(({
             if (event.key === 'Enter' && isFormValid) handleSendToRework()
           }}
           placeholder={`Від 1 до ${reworkDraft.total_qty}`}
-          style={{ boxSizing: 'border-box', width: '100%', background: 'var(--card-inner-bg, #050505)', border: '1px solid var(--border-color, #333)', borderRadius: '12px', color: 'var(--text-color, #fff)', padding: '14px', fontSize: '1.1rem', fontWeight: 900, outline: 'none' }}
+          style={{ boxSizing: 'border-box', width: '100%', background: 'var(--card-inner-bg, #050505)', border: '1px solid var(--border-color, var(--border-subtle))', borderRadius: '12px', color: 'var(--text-color, #fff)', padding: '14px', fontSize: '1.1rem', fontWeight: 900, outline: 'none' }}
         />
         <div style={{ color: 'var(--text-muted, #555)', fontSize: '.68rem', marginTop: '8px' }}>У категорії залишиться невибрана кількість. Наряд буде створено лише на вказану кількість деталей.</div>
         <button

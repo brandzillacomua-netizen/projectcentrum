@@ -35,14 +35,14 @@ const SettingsModule = () => {
         height: '72px', 
         background: 'rgba(10,10,12,0.85)', 
         backdropFilter: 'blur(12px)',
-        borderBottom: '1px solid rgba(255,255,255,0.05)',
+        borderBottom: '1px solid var(--border-subtle)',
         display: 'flex', 
         justifyContent: 'space-between', 
         alignItems: 'center',
         zIndex: 50
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
-          <Link to="/" style={{ color: '#888', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', fontWeight: 600, transition: '0.2s' }} className="nav-back-link">
+          <Link to="/" style={{ color: 'var(--text-muted)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', fontWeight: 600, transition: '0.2s' }} className="nav-back-link">
             <ArrowLeft size={16} /> <span className="hide-mobile">На головну</span>
           </Link>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -65,7 +65,7 @@ const SettingsModule = () => {
       <div className="module-content" style={{ padding: '24px', overflowY: 'auto', flex: 1, maxWidth: '1600px', width: '100%', margin: '0 auto' }}>
         
         {/* Navigation Tabs */}
-        <div className="settings-tabs" style={{ display: 'inline-flex', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', padding: '6px', borderRadius: '18px', marginBottom: '30px', gap: '4px' }}>
+        <div className="settings-tabs" style={{ display: 'inline-flex', background: 'var(--fill-subtle)', border: '1px solid var(--border-subtle)', padding: '6px', borderRadius: '18px', marginBottom: '30px', gap: '4px' }}>
            {isAdmin && (
              <button onClick={() => setActiveTab('users')} className={`tab-btn-v2 ${activeTab === 'users' ? 'active' : ''}`}>
                <UsersIcon size={16} /> КОРИСТУВАЧІ & ДОСЬЄ

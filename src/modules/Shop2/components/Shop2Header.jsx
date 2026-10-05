@@ -10,7 +10,7 @@ export function Shop2Header({
   isAdmin
 }) {
   return (
-    <header className="terminal-nav" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 20px', height: '70px', background: '#000', borderBottom: '2px solid #8b5cf6', flexShrink: 0 }}>
+    <header className="terminal-nav" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 20px', height: '70px', background: 'var(--surface-black)', borderBottom: '2px solid #8b5cf6', flexShrink: 0 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
         <button onClick={onOpenDrawer} className="burger-btn-labeled mobile-only">
           <Menu size={20} />

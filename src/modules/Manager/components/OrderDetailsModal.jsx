@@ -136,7 +136,7 @@ export const OrderDetailsModal = ({
               </div>
               <div className="detail-item">
                 <label>№ РАХУНКУ</label>
-                <div style={{ color: selectedOrder.invoice_num ? '#3b82f6' : '#555', fontWeight: 700 }}>
+                <div style={{ color: selectedOrder.invoice_num ? '#3b82f6' : 'var(--text-dim)', fontWeight: 700 }}>
                   {selectedOrder.invoice_num ? `№ ${selectedOrder.invoice_num}` : '—'}
                 </div>
               </div>
@@ -150,7 +150,7 @@ export const OrderDetailsModal = ({
               </div>
               <div className="detail-item">
                 <label>ОФІЦІЙНА НАЗВА</label>
-                <div style={{ fontSize: '0.9rem', color: '#888' }}>{selectedOrder.official_customer || '—'}</div>
+                <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>{selectedOrder.official_customer || '—'}</div>
               </div>
             </div>
             
@@ -174,7 +174,7 @@ export const OrderDetailsModal = ({
               )}
             </div>
 
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '20px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', borderTop: '1px solid var(--border-subtle)', paddingTop: '20px', flexWrap: 'wrap' }}>
               {currentUser?.login === 'admin@workshop.local' && (
                 <button onClick={() => handleSuperDeleteClick(selectedOrder.id)} disabled={isSubmitting} className="btn-primary-modern" style={{ background: 'linear-gradient(135deg, #ef4444, #b91c1c)', color: '#fff', border: 'none', padding: '12px 20px', marginTop: 0, display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 14px rgba(239,68,68,0.4)' }}>
                   <Trash2 size={16} /> СУПЕР-ВИДАЛЕННЯ
@@ -183,7 +183,7 @@ export const OrderDetailsModal = ({
               <button onClick={() => handleDeleteClick(selectedOrder.id)} disabled={isSubmitting} className="btn-load-more" style={{ color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.2)', padding: '12px 20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Trash2 size={16} /> ВИДАЛИТИ
               </button>
-              <button onClick={() => handleBatchScheduleInit(selectedOrder)} className="btn-primary-modern" style={{ background: 'linear-gradient(135deg, #ff9000, #e67e00)', color: '#000', boxShadow: '0 4px 14px rgba(255,144,0,0.3)', padding: '12px 20px', marginTop: 0, display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '900' }}>
+              <button onClick={() => handleBatchScheduleInit(selectedOrder)} className="btn-primary-modern" style={{ background: 'linear-gradient(135deg, #ff9000, #e67e00)', color: 'var(--surface-black)', boxShadow: '0 4px 14px rgba(255,144,0,0.3)', padding: '12px 20px', marginTop: 0, display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '900' }}>
                 <Calendar size={16} /> КАЛЕНДАР ПАРТІЙ
               </button>
               <button onClick={() => handleEditInit(selectedOrder)} className="btn-primary-modern" style={{ background: '#3b82f6', color: '#fff', boxShadow: 'none', padding: '12px 20px', marginTop: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>

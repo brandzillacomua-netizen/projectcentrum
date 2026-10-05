@@ -97,7 +97,7 @@ const MachineCallModule = () => {
   
   if (loading) {
     return (
-      <div style={{ background: '#09090b', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
+      <div style={{ background: 'var(--surface-inset)', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-strong)' }}>
         <div style={{ width: '40px', height: '40px', border: '3px solid #27272a', borderTop: '3px solid #ff9000', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
         <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
       </div>
@@ -106,7 +106,7 @@ const MachineCallModule = () => {
   
   if (!machine) {
     return (
-      <div style={{ background: '#09090b', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#fff', padding: '20px', textAlign: 'center' }}>
+      <div style={{ background: 'var(--surface-inset)', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-strong)', padding: '20px', textAlign: 'center' }}>
         <AlertTriangle size={48} color="#ef4444" style={{ marginBottom: '20px' }} />
         <h2 style={{ fontSize: '1.5rem', fontWeight: 900 }}>Верстат не знайдено</h2>
         <p style={{ color: '#71717a', fontSize: '0.9rem', marginTop: '10px' }}>QR-код містить некоректний ідентифікатор обладнання.</p>
@@ -116,7 +116,7 @@ const MachineCallModule = () => {
   }
   
   return (
-    <div style={{ background: '#09090b', minHeight: '100vh', color: '#fff', padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily: 'inherit' }}>
+    <div style={{ background: 'var(--surface-inset)', minHeight: '100vh', color: 'var(--text-strong)', padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily: 'inherit' }}>
       <div style={{ width: '100%', maxWidth: '480px', background: 'rgba(24, 24, 27, 0.75)', border: '1px solid #27272a', borderRadius: '28px', padding: '30px', backdropFilter: 'blur(20px)', boxShadow: '0 20px 40px rgba(0,0,0,0.5)' }}>
         
         {/* Machine info header */}
@@ -149,7 +149,7 @@ const MachineCallModule = () => {
             placeholder="Введіть ваше ім'я..." 
             value={operatorName}
             onChange={e => setOperatorName(e.target.value)}
-            style={{ width: '100%', background: '#09090b', border: '1px solid #27272a', borderRadius: '12px', color: '#fff', padding: '12px 15px', fontSize: '0.85rem', outline: 'none', transition: 'border-color 0.2s' }}
+            style={{ width: '100%', background: 'var(--surface-inset)', border: '1px solid #27272a', borderRadius: '12px', color: 'var(--text-strong)', padding: '12px 15px', fontSize: '0.85rem', outline: 'none', transition: 'border-color 0.2s' }}
             onFocus={e => e.target.style.borderColor = '#ff9000'}
             onBlur={e => e.target.style.borderColor = '#27272a'}
           />
@@ -166,10 +166,10 @@ const MachineCallModule = () => {
               disabled={isSubmitting}
               style={{ 
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', 
-                background: activeCalls.some(c => c.called_role === 'master') ? 'rgba(255,144,0,0.1)' : '#09090b',
+                background: activeCalls.some(c => c.called_role === 'master') ? 'rgba(255,144,0,0.1)' : 'var(--surface-inset)',
                 border: '1px solid',
                 borderColor: activeCalls.some(c => c.called_role === 'master') ? '#ff9000' : '#27272a',
-                borderRadius: '16px', color: '#fff', cursor: 'pointer', transition: 'all 0.2s', width: '100%',
+                borderRadius: '16px', color: 'var(--text-strong)', cursor: 'pointer', transition: 'all 0.2s', width: '100%',
                 outline: 'none'
               }}
             >
@@ -190,10 +190,10 @@ const MachineCallModule = () => {
                 onChange={e => setSelectedMasterId(e.target.value)}
                 style={{
                   width: '100%',
-                  background: '#09090b',
+                  background: 'var(--surface-inset)',
                   border: '1px solid #27272a',
                   borderRadius: '12px',
-                  color: '#fff',
+                  color: 'var(--text-strong)',
                   padding: '12px 15px',
                   fontSize: '0.85rem',
                   outline: 'none',
@@ -219,10 +219,10 @@ const MachineCallModule = () => {
               disabled={isSubmitting}
               style={{ 
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', 
-                background: activeCalls.some(c => c.called_role === 'engineer') ? 'rgba(139,92,246,0.1)' : '#09090b',
+                background: activeCalls.some(c => c.called_role === 'engineer') ? 'rgba(139,92,246,0.1)' : 'var(--surface-inset)',
                 border: '1px solid',
                 borderColor: activeCalls.some(c => c.called_role === 'engineer') ? '#8b5cf6' : '#27272a',
-                borderRadius: '16px', color: '#fff', cursor: 'pointer', transition: 'all 0.2s', width: '100%',
+                borderRadius: '16px', color: 'var(--text-strong)', cursor: 'pointer', transition: 'all 0.2s', width: '100%',
                 outline: 'none'
               }}
             >
@@ -243,10 +243,10 @@ const MachineCallModule = () => {
                 onChange={e => setSelectedEngineerId(e.target.value)}
                 style={{
                   width: '100%',
-                  background: '#09090b',
+                  background: 'var(--surface-inset)',
                   border: '1px solid #27272a',
                   borderRadius: '12px',
-                  color: '#fff',
+                  color: 'var(--text-strong)',
                   padding: '12px 15px',
                   fontSize: '0.85rem',
                   outline: 'none',
@@ -272,10 +272,10 @@ const MachineCallModule = () => {
               disabled={isSubmitting}
               style={{ 
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', 
-                background: activeCalls.some(c => c.called_role === 'quality') ? 'rgba(239,68,68,0.1)' : '#09090b',
+                background: activeCalls.some(c => c.called_role === 'quality') ? 'rgba(239,68,68,0.1)' : 'var(--surface-inset)',
                 border: '1px solid',
                 borderColor: activeCalls.some(c => c.called_role === 'quality') ? '#ef4444' : '#27272a',
-                borderRadius: '16px', color: '#fff', cursor: 'pointer', transition: 'all 0.2s', width: '100%',
+                borderRadius: '16px', color: 'var(--text-strong)', cursor: 'pointer', transition: 'all 0.2s', width: '100%',
                 outline: 'none'
               }}
             >
@@ -296,10 +296,10 @@ const MachineCallModule = () => {
                 onChange={e => setSelectedQualityId(e.target.value)}
                 style={{
                   width: '100%',
-                  background: '#09090b',
+                  background: 'var(--surface-inset)',
                   border: '1px solid #27272a',
                   borderRadius: '12px',
-                  color: '#fff',
+                  color: 'var(--text-strong)',
                   padding: '12px 15px',
                   fontSize: '0.85rem',
                   outline: 'none',
@@ -328,7 +328,7 @@ const MachineCallModule = () => {
                 const label = c.called_role === 'master' ? 'МАЙСТЕР' : c.called_role === 'engineer' ? 'ІНЖЕНЕР' : 'ВКЯ'
                 const color = c.called_role === 'master' ? '#ff9000' : c.called_role === 'engineer' ? '#8b5cf6' : '#ef4444'
                 return (
-                  <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '10px 14px', borderRadius: '8px', border: '1px solid #27272a', fontSize: '0.78rem' }}>
+                  <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--fill-subtle)', padding: '10px 14px', borderRadius: '8px', border: '1px solid #27272a', fontSize: '0.78rem' }}>
                     <span style={{ color, fontWeight: 900 }}>{label}</span>
                     <span style={{ color: '#71717a', fontSize: '0.7rem' }}>
                       Надіслано: {new Date(c.created_at).toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' })}

@@ -56,16 +56,16 @@ export const WarehouseBoxesModule: React.FC = () => {
       <nav style={{
         flexShrink: 0,
         padding: isMobile ? '12px 15px' : '15px 25px',
-        background: '#111',
+        background: 'var(--surface-1)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        borderBottom: '1px solid #222',
+        borderBottom: '1px solid var(--border-subtle)',
         boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
         zIndex: 100
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '8px' : '20px' }}>
-          <Link to="/" style={{ color: '#aaa', transition: '0.2s', display: 'flex', alignItems: 'center', textDecoration: 'none' }}>
+          <Link to="/" style={{ color: 'var(--text-muted)', transition: '0.2s', display: 'flex', alignItems: 'center', textDecoration: 'none' }}>
             <ArrowLeft size={18} />
             <span style={{ marginLeft: '4px', fontSize: '0.8rem', fontWeight: 600 }}>Назад</span>
           </Link>
@@ -127,13 +127,13 @@ export const WarehouseBoxesModule: React.FC = () => {
         {!isMobile && (
           <aside style={{
             width: '260px',
-            background: '#0d0d0d',
-            borderRight: '1px solid #1a1a1a',
+            background: 'var(--surface-inset)',
+            borderRight: '1px solid var(--border-subtle)',
             display: 'flex',
             flexDirection: 'column',
             flexShrink: 0
           }}>
-            <div style={{ padding: '15px', borderBottom: '1px solid #1a1a1a' }}>
+            <div style={{ padding: '15px', borderBottom: '1px solid var(--border-subtle)' }}>
               <span style={{ fontSize: '0.68rem', color: '#ff9000', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Черга нарядів</span>
             </div>
             
@@ -146,7 +146,7 @@ export const WarehouseBoxesModule: React.FC = () => {
                   border: selectedOrderNum === 'all' ? '1px solid rgba(255, 144, 0, 0.3)' : '1px solid transparent',
                   borderRadius: '12px',
                   padding: '12px 15px',
-                  color: selectedOrderNum === 'all' ? '#ff9000' : '#888',
+                  color: selectedOrderNum === 'all' ? '#ff9000' : 'var(--text-muted)',
                   fontSize: '0.82rem',
                   fontWeight: 800,
                   textAlign: 'left',
@@ -159,7 +159,7 @@ export const WarehouseBoxesModule: React.FC = () => {
                 }}
               >
                 <span>Усі наряди</span>
-                <span style={{ background: '#181818', color: '#aaa', fontSize: '0.7rem', padding: '2px 8px', borderRadius: '6px' }}>{allBoxes.length}</span>
+                <span style={{ background: 'var(--surface-2)', color: '#aaa', fontSize: '0.7rem', padding: '2px 8px', borderRadius: '6px' }}>{allBoxes.length}</span>
               </button>
 
               {orderList.map((ord: any) => (
@@ -172,7 +172,7 @@ export const WarehouseBoxesModule: React.FC = () => {
                     border: selectedOrderNum === ord.orderNum ? '1px solid rgba(255, 144, 0, 0.3)' : '1px solid transparent',
                     borderRadius: '12px',
                     padding: '12px 15px',
-                    color: selectedOrderNum === ord.orderNum ? '#ff9000' : '#fff',
+                    color: selectedOrderNum === ord.orderNum ? '#ff9000' : 'var(--text-strong)',
                     fontSize: '0.82rem',
                     fontWeight: 800,
                     textAlign: 'left',
@@ -194,7 +194,7 @@ export const WarehouseBoxesModule: React.FC = () => {
                           : `Зібрано: ${ord.prepared}/${ord.total} (Видано: ${ord.issued})`}
                     </span>
                   </div>
-                  <span style={{ background: '#181818', color: '#666', fontSize: '0.7rem', padding: '2px 8px', borderRadius: '6px' }}>{ord.total}</span>
+                  <span style={{ background: 'var(--surface-2)', color: '#666', fontSize: '0.7rem', padding: '2px 8px', borderRadius: '6px' }}>{ord.total}</span>
                 </button>
               ))}
             </div>
@@ -215,11 +215,11 @@ export const WarehouseBoxesModule: React.FC = () => {
                   value={selectedOrderNum}
                   onChange={e => setSelectedOrderNum(e.target.value)}
                   style={{
-                    background: '#111',
-                    border: '1px solid #222',
+                    background: 'var(--surface-1)',
+                    border: '1px solid var(--border-subtle)',
                     borderRadius: '10px',
                     padding: '10px',
-                    color: '#fff',
+                    color: 'var(--text-strong)',
                     fontSize: '0.8rem',
                     fontWeight: 800,
                     outline: 'none'
@@ -237,7 +237,7 @@ export const WarehouseBoxesModule: React.FC = () => {
 
             <div style={{ display: 'flex', flexDirection: isMobile ? 'row' : 'row', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
               {/* Status Tabs */}
-              <div style={{ display: 'flex', background: '#111', padding: '3px', borderRadius: '10px', border: '1px solid #222', flex: 1, maxWidth: isMobile ? 'none' : 'fit-content' }}>
+              <div style={{ display: 'flex', background: 'var(--surface-1)', padding: '3px', borderRadius: '10px', border: '1px solid var(--border-subtle)', flex: 1, maxWidth: isMobile ? 'none' : 'fit-content' }}>
                 <button
                   onClick={() => setFilterStatus('pending')}
                   style={{
@@ -284,7 +284,7 @@ export const WarehouseBoxesModule: React.FC = () => {
 
               {/* Search Input */}
               <div style={{ position: 'relative', flex: isMobile ? 1 : 'none', width: isMobile ? 'auto' : '260px' }}>
-                <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#555' }} />
+                <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-dim)' }} />
                 <input
                   type="text"
                   placeholder="Пошук..."
@@ -292,11 +292,11 @@ export const WarehouseBoxesModule: React.FC = () => {
                   onChange={e => setSearchQuery(e.target.value)}
                   style={{
                     width: '100%',
-                    background: '#111',
-                    border: '1px solid #222',
+                    background: 'var(--surface-1)',
+                    border: '1px solid var(--border-subtle)',
                     borderRadius: '10px',
                     padding: '8px 12px 8px 32px',
-                    color: '#fff',
+                    color: 'var(--text-strong)',
                     fontSize: '0.8rem',
                     outline: 'none',
                     boxSizing: 'border-box'
@@ -308,9 +308,9 @@ export const WarehouseBoxesModule: React.FC = () => {
 
           {/* Nomenclature accordions */}
           {filteredBoxes.length === 0 ? (
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', border: '2px dashed #222', borderRadius: '16px', padding: '40px 20px' }}>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', border: '2px dashed var(--border-subtle)', borderRadius: '16px', padding: '40px 20px' }}>
               <Box size={32} style={{ color: '#333', marginBottom: '10px' }} />
-              <span style={{ color: '#555', fontSize: '0.78rem', fontWeight: 600 }}>Немає відповідних боксів</span>
+              <span style={{ color: 'var(--text-dim)', fontSize: '0.78rem', fontWeight: 600 }}>Немає відповідних боксів</span>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '10px' : '14px', paddingBottom: isMobile ? '86px' : '20px' }}>
@@ -338,8 +338,8 @@ export const WarehouseBoxesModule: React.FC = () => {
                         minHeight: isMobile ? '72px' : '78px',
                         padding: isMobile ? '12px' : '14px 18px',
                         border: 'none',
-                        background: isExpanded ? 'rgba(255, 144, 0, 0.055)' : '#111',
-                        color: '#fff',
+                        background: isExpanded ? 'rgba(255, 144, 0, 0.055)' : 'var(--surface-1)',
+                        color: 'var(--text-strong)',
                         cursor: 'pointer',
                         textAlign: 'left',
                         display: 'grid',
@@ -366,7 +366,7 @@ export const WarehouseBoxesModule: React.FC = () => {
                           </strong>
                           <span style={{ fontSize: '0.54rem', color: '#777', fontWeight: 800, textTransform: 'uppercase' }}>статус комплектації</span>
                         </span>
-                        <ChevronDown size={19} style={{ color: '#888', transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform .2s ease' }} />
+                        <ChevronDown size={19} style={{ color: 'var(--text-muted)', transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform .2s ease' }} />
                       </span>
                     </button>
 
@@ -388,8 +388,8 @@ export const WarehouseBoxesModule: React.FC = () => {
                             <div
                               key={cardId}
                               style={{
-                                background: boxItem.isPrepared ? 'rgba(16, 185, 129, 0.01)' : '#111',
-                                border: boxItem.isPrepared ? '1px solid rgba(16, 185, 129, 0.15)' : '1px solid #222',
+                                background: boxItem.isPrepared ? 'rgba(16, 185, 129, 0.01)' : 'var(--surface-1)',
+                                border: boxItem.isPrepared ? '1px solid rgba(16, 185, 129, 0.15)' : '1px solid var(--border-subtle)',
                                 borderRadius: '16px',
                                 padding: isMobile ? '14px' : '18px',
                                 display: 'flex',
@@ -400,12 +400,12 @@ export const WarehouseBoxesModule: React.FC = () => {
                               }}
                             >
                               {/* Card Header */}
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid #222', paddingBottom: '8px' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '8px' }}>
                                 <div>
                                   <div style={{ fontSize: '0.62rem', color: '#ff9000', fontWeight: 900, textTransform: 'uppercase' }}>
                                     НАРЯД #{boxItem.orderNum}
                                   </div>
-                                  <strong style={{ fontSize: '0.95rem', color: '#fff' }}>Картка {boxItem.cardNum}</strong>
+                                  <strong style={{ fontSize: '0.95rem', color: 'var(--text-strong)' }}>Картка {boxItem.cardNum}</strong>
                                 </div>
                                 
                                 {boxItem.isIssued ? (
@@ -425,17 +425,17 @@ export const WarehouseBoxesModule: React.FC = () => {
 
                               {/* Part name */}
                               <div>
-                                <div style={{ fontSize: '0.58rem', color: '#555', fontWeight: 900, textTransform: 'uppercase' }}>Деталь</div>
-                                <div style={{ fontSize: '0.78rem', color: '#ccc', fontWeight: 700, marginTop: '2px', wordBreak: 'break-all', whiteSpace: 'normal' }}>
+                                <div style={{ fontSize: '0.58rem', color: 'var(--text-dim)', fontWeight: 900, textTransform: 'uppercase' }}>Деталь</div>
+                                <div style={{ fontSize: '0.78rem', color: 'var(--text-soft)', fontWeight: 700, marginTop: '2px', wordBreak: 'break-all', whiteSpace: 'normal' }}>
                                   {boxItem.partName}
                                 </div>
                               </div>
 
                               {/* Machine and sheets count */}
-                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', background: '#0a0a0a', padding: '8px 12px', borderRadius: '10px', border: '1px solid #1a1a1a' }}>
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', background: 'var(--surface-inset)', padding: '8px 12px', borderRadius: '10px', border: '1px solid var(--border-subtle)' }}>
                                 <div>
                                   <div style={{ fontSize: '0.55rem', color: '#444', fontWeight: 800 }}>ВЕРСТАТ</div>
-                                  <div style={{ fontSize: '0.72rem', color: '#fff', fontWeight: 700 }}>{boxItem.card.machine || '—'}</div>
+                                  <div style={{ fontSize: '0.72rem', color: 'var(--text-strong)', fontWeight: 700 }}>{boxItem.card.machine || '—'}</div>
                                 </div>
                                 <div>
                                   <div style={{ fontSize: '0.55rem', color: '#444', fontWeight: 800 }}>ЛИСТИ</div>
@@ -445,7 +445,7 @@ export const WarehouseBoxesModule: React.FC = () => {
 
                               {/* Filling Checklists */}
                               <div>
-                                <div style={{ fontSize: '0.6rem', color: '#888', fontWeight: 800, marginBottom: '6px' }}>СПИСОК НАПОВНЕННЯ:</div>
+                                <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', fontWeight: 800, marginBottom: '6px' }}>СПИСОК НАПОВНЕННЯ:</div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                   {/* Sheets check */}
                                   <div 
@@ -454,10 +454,10 @@ export const WarehouseBoxesModule: React.FC = () => {
                                       display: 'flex', 
                                       alignItems: 'center', 
                                       justifyContent: 'space-between', 
-                                      background: isSheetChecked ? 'rgba(16, 185, 129, 0.04)' : '#0a0a0a', 
+                                      background: isSheetChecked ? 'rgba(16, 185, 129, 0.04)' : 'var(--surface-inset)', 
                                       padding: '8px 12px', 
                                       borderRadius: '8px', 
-                                      border: isSheetChecked ? '1px solid rgba(16, 185, 129, 0.15)' : '1px solid #222',
+                                      border: isSheetChecked ? '1px solid rgba(16, 185, 129, 0.15)' : '1px solid var(--border-subtle)',
                                       cursor: boxItem.isPrepared ? 'default' : 'pointer'
                                     }}
                                   >
@@ -469,11 +469,11 @@ export const WarehouseBoxesModule: React.FC = () => {
                                         onChange={() => {}} 
                                         style={{ cursor: boxItem.isPrepared ? 'default' : 'pointer' }}
                                       />
-                                      <span style={{ fontSize: '0.7rem', color: isSheetChecked ? '#aaa' : '#fff' }}>
+                                      <span style={{ fontSize: '0.7rem', color: isSheetChecked ? 'var(--text-muted)' : 'var(--text-strong)' }}>
                                         {boxItem.activeMaterialName}
                                       </span>
                                     </div>
-                                    <strong style={{ fontSize: '0.72rem', color: isSheetChecked ? '#10b981' : '#fff' }}>
+                                    <strong style={{ fontSize: '0.72rem', color: isSheetChecked ? '#10b981' : 'var(--text-strong)' }}>
                                       {boxItem.cardSheets} л.
                                     </strong>
                                   </div>
@@ -489,10 +489,10 @@ export const WarehouseBoxesModule: React.FC = () => {
                                           display: 'flex', 
                                           alignItems: 'center', 
                                           justifyContent: 'space-between', 
-                                          background: isChecked ? 'rgba(16, 185, 129, 0.04)' : '#0a0a0a', 
+                                          background: isChecked ? 'rgba(16, 185, 129, 0.04)' : 'var(--surface-inset)', 
                                           padding: '8px 12px', 
                                           borderRadius: '8px', 
-                                          border: isChecked ? '1px solid rgba(16, 185, 129, 0.15)' : '1px solid #222',
+                                          border: isChecked ? '1px solid rgba(16, 185, 129, 0.15)' : '1px solid var(--border-subtle)',
                                           cursor: boxItem.isPrepared ? 'default' : 'pointer'
                                         }}
                                       >
@@ -504,11 +504,11 @@ export const WarehouseBoxesModule: React.FC = () => {
                                             onChange={() => {}} 
                                             style={{ cursor: boxItem.isPrepared ? 'default' : 'pointer' }}
                                           />
-                                          <span style={{ fontSize: '0.7rem', color: isChecked ? '#aaa' : '#fff', wordBreak: 'break-word', whiteSpace: 'normal', display: 'inline-block' }}>
+                                          <span style={{ fontSize: '0.7rem', color: isChecked ? 'var(--text-muted)' : 'var(--text-strong)', wordBreak: 'break-word', whiteSpace: 'normal', display: 'inline-block' }}>
                                             {cutter.name}
                                           </span>
                                         </div>
-                                        <strong style={{ fontSize: '0.72rem', color: isChecked ? '#10b981' : '#fff', whiteSpace: 'nowrap' }}>
+                                        <strong style={{ fontSize: '0.72rem', color: isChecked ? '#10b981' : 'var(--text-strong)', whiteSpace: 'nowrap' }}>
                                           {cutter.qty} шт
                                         </strong>
                                       </div>
@@ -525,7 +525,7 @@ export const WarehouseBoxesModule: React.FC = () => {
                                   style={{
                                     width: '100%',
                                     padding: '10px',
-                                    background: canSubmit ? '#ff9000' : '#1a1a1a',
+                                    background: canSubmit ? '#ff9000' : 'var(--surface-2)',
                                     color: canSubmit ? '#000' : '#555',
                                     border: 'none',
                                     borderRadius: '8px',

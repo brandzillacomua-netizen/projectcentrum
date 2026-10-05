@@ -4,7 +4,7 @@ import { Clock, AlertTriangle } from 'lucide-react'
 export const MachineMonitorView = ({ machineMonitorList }) => {
   return (
     <div className="machine-monitor-view" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      <h2 className="shop1-section-title" style={{ fontSize: '1.05rem', fontWeight: 900, color: '#888', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+      <h2 className="shop1-section-title" style={{ fontSize: '1.05rem', fontWeight: 900, color: 'var(--text-muted)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
         🔌 СТАТУС ВЕРСТАТІВ ТА ОБЛАДНАННЯ
       </h2>
 
@@ -51,7 +51,7 @@ export const MachineMonitorView = ({ machineMonitorList }) => {
                     <div className="card-number-tag" style={{ fontSize: '0.65rem', marginTop: '2px' }}>Картка #{activeCard.id?.slice(-8).toUpperCase()}</div>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', borderTop: '1px solid rgba(255,255,255,0.04)', paddingTop: '8px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', borderTop: '1px solid var(--border-subtle)', paddingTop: '8px' }}>
                     <div>
                       <span className="card-field-label" style={{ fontSize: '0.55rem', display: 'block', fontWeight: 800 }}>ОПЕРАТОР</span>
                       <span className="card-field-val" style={{ fontSize: '0.72rem', fontWeight: 700 }}>{activeCard.operator_name || 'Невідомо'}</span>
@@ -75,7 +75,7 @@ export const MachineMonitorView = ({ machineMonitorList }) => {
                 <div className="machine-idle-text" style={{ fontSize: '0.78rem', fontStyle: 'italic', padding: '10px 0' }}>Верстат зараз не активний</div>
               )}
 
-              <div className="machine-card-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid rgba(255,255,255,0.03)', paddingTop: '12px', fontSize: '0.7rem' }}>
+              <div className="machine-card-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border-subtle)', paddingTop: '12px', fontSize: '0.7rem' }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <Clock size={12} /> {activeCard ? `В роботі: ${runningMins} хв` : 'Очікує запуску'}
                 </span>

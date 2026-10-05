@@ -24,7 +24,7 @@ export const WarehouseFloatingControls = ({
           display: 'flex',
           alignItems: 'center',
           background: 'rgba(10, 10, 10, 0.95)',
-          border: '1px solid #222',
+          border: '1px solid var(--border-subtle)',
           padding: '5px 6px 5px 18px',
           borderRadius: '28px',
           boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
@@ -44,7 +44,7 @@ export const WarehouseFloatingControls = ({
           style={{ 
             background: 'transparent', 
             border: 'none', 
-            color: '#fff', 
+            color: 'var(--text-strong)', 
             fontSize: '0.88rem', 
             fontWeight: 900, 
             outline: 'none', 

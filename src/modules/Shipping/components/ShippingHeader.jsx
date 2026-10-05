@@ -4,9 +4,9 @@ import { Link } from 'react-router-dom'
 
 export const ShippingHeader = React.memo(({ currentUser }) => {
   return (
-    <header className="shipping-header" style={{ padding: '20px 40px', background: 'var(--header-bg, rgba(10,10,10,0.95))', backdropFilter: 'blur(20px)', borderBottom: '1px solid var(--border, #1a1a1a)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, zIndex: 100 }}>
+    <header className="shipping-header" style={{ padding: '20px 40px', background: 'var(--header-bg, rgba(10,10,10,0.95))', backdropFilter: 'blur(20px)', borderBottom: '1px solid var(--border, var(--border-subtle))', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, zIndex: 100 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-        <Link to="/" style={{ background: 'var(--card-bg, #111)', color: 'var(--text-secondary, #555)', width: '44px', height: '44px', borderRadius: '14px', border: '1px solid var(--border, #222)', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: '0.2s', textDecoration: 'none' }}>
+        <Link to="/" style={{ background: 'var(--card-bg, #111)', color: 'var(--text-secondary, #555)', width: '44px', height: '44px', borderRadius: '14px', border: '1px solid var(--border, var(--border-subtle))', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: '0.2s', textDecoration: 'none' }}>
           <ArrowLeft size={20} />
         </Link>
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>

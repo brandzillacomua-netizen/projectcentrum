@@ -44,7 +44,7 @@ export const SupplyQrTab = ({
   }
 
   return (
-    <section className="qrcodes-col glass-panel" style={{ background: 'var(--card-bg, #111)', padding: '25px', borderRadius: '24px', border: '1px solid var(--border-color, #222)', width: '100%' }}>
+    <section className="qrcodes-col glass-panel" style={{ background: 'var(--card-bg, #111)', padding: '25px', borderRadius: '24px', border: '1px solid var(--border-color, var(--border-subtle))', width: '100%' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', flexWrap: 'wrap', gap: '15px' }}>
         <div>
           <h3 style={{ fontSize: '1.2rem', fontWeight: 900, margin: 0, display: 'flex', alignItems: 'center', gap: '10px', color: '#ff9000' }}>
@@ -56,7 +56,7 @@ export const SupplyQrTab = ({
         </div>
         <div style={{ position: 'relative' }}>
           <input
-            style={{ background: 'var(--card-inner-bg, #000)', border: '1px solid var(--border-color, #222)', padding: '10px 15px', borderRadius: '10px', color: 'var(--text-color, #fff)', width: '250px', outline: 'none' }}
+            style={{ background: 'var(--card-inner-bg, #000)', border: '1px solid var(--border-color, var(--border-subtle))', padding: '10px 15px', borderRadius: '10px', color: 'var(--text-color, #fff)', width: '250px', outline: 'none' }}
             placeholder="Пошук номенклатури..." 
             value={qrNomSearch} 
             onChange={e => setQrNomSearch(e.target.value)}
@@ -112,13 +112,13 @@ export const SupplyQrTab = ({
               `)
               qrWindow.document.close()
             }}
-            style={{ background: '#ff9000', color: '#000', border: 'none', padding: '8px 18px', borderRadius: '10px', fontWeight: 900, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem' }}
+            style={{ background: '#ff9000', color: 'var(--surface-black)', border: 'none', padding: '8px 18px', borderRadius: '10px', fontWeight: 900, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem' }}
           >
             <Printer size={16} /> ДРУКУВАТИ ОБРАНІ ({selectedQrNomIds.size})
           </button>
           <button
             onClick={() => setSelectedQrNomIds(new Set())}
-            style={{ background: 'transparent', border: '1px solid var(--border-color, #333)', color: 'var(--text-muted, #888)', padding: '8px 18px', borderRadius: '10px', cursor: 'pointer', fontSize: '0.8rem' }}
+            style={{ background: 'transparent', border: '1px solid var(--border-color, var(--border-subtle))', color: 'var(--text-muted, #888)', padding: '8px 18px', borderRadius: '10px', cursor: 'pointer', fontSize: '0.8rem' }}
           >
             СКАСУВАТИ ВИДІЛЕННЯ
           </button>
@@ -128,7 +128,7 @@ export const SupplyQrTab = ({
       <div className="table-responsive-container">
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
-            <tr style={{ borderBottom: '1px solid var(--border-color, #222)', textAlign: 'left' }}>
+            <tr style={{ borderBottom: '1px solid var(--border-color, var(--border-subtle))', textAlign: 'left' }}>
               <th style={{ padding: '15px 10px', width: '40px', textAlign: 'center' }}>
                 <input
                   type="checkbox"
@@ -174,14 +174,14 @@ export const SupplyQrTab = ({
                           value={editingQrCodeValue}
                           onChange={e => setEditingQrCodeValue(e.target.value)}
                           placeholder="Введіть код..."
-                          style={{ background: 'var(--card-inner-bg, #000)', border: '1px solid #ff9000', color: '#fff', padding: '6px 10px', borderRadius: '8px', fontSize: '0.8rem', width: '150px', outline: 'none' }}
+                          style={{ background: 'var(--card-inner-bg, #000)', border: '1px solid #ff9000', color: 'var(--text-strong)', padding: '6px 10px', borderRadius: '8px', fontSize: '0.8rem', width: '150px', outline: 'none' }}
                         />
                         <button
                           onClick={() => {
                             const rand = 'NOM-' + Math.random().toString(36).substring(2, 8).toUpperCase()
                             setEditingQrCodeValue(rand)
                           }}
-                          style={{ background: '#222', border: '1px solid #444', color: '#ff9000', padding: '6px 10px', borderRadius: '8px', fontSize: '0.75rem', cursor: 'pointer', fontWeight: 700 }}
+                          style={{ background: 'var(--surface-3)', border: '1px solid #444', color: '#ff9000', padding: '6px 10px', borderRadius: '8px', fontSize: '0.75rem', cursor: 'pointer', fontWeight: 700 }}
                         >
                           АВТО
                         </button>
@@ -202,13 +202,13 @@ export const SupplyQrTab = ({
                         <button
                           onClick={() => handleSaveQrCode(nom.id, editingQrCodeValue)}
                           disabled={savingQr}
-                          style={{ background: '#10b981', color: '#000', border: 'none', padding: '6px 12px', borderRadius: '8px', fontSize: '0.75rem', cursor: 'pointer', fontWeight: 900 }}
+                          style={{ background: '#10b981', color: 'var(--surface-black)', border: 'none', padding: '6px 12px', borderRadius: '8px', fontSize: '0.75rem', cursor: 'pointer', fontWeight: 900 }}
                         >
                           {savingQr ? '...' : 'ЗБЕРЕГТИ'}
                         </button>
                         <button
                           onClick={() => setEditingQrNomId(null)}
-                          style={{ background: '#222', color: '#fff', border: '1px solid #333', padding: '6px 12px', borderRadius: '8px', fontSize: '0.75rem', cursor: 'pointer' }}
+                          style={{ background: 'var(--surface-3)', color: 'var(--text-strong)', border: '1px solid var(--border-subtle)', padding: '6px 12px', borderRadius: '8px', fontSize: '0.75rem', cursor: 'pointer' }}
                         >
                           СКАСУВАТИ
                         </button>
@@ -220,7 +220,7 @@ export const SupplyQrTab = ({
                             setEditingQrNomId(nom.id)
                             setEditingQrCodeValue(qrVal || 'NOM-' + Math.random().toString(36).substring(2, 8).toUpperCase())
                           }}
-                          style={{ background: 'transparent', border: '1px solid var(--border-color, #333)', color: '#ff9000', padding: '6px 12px', borderRadius: '8px', fontSize: '0.75rem', cursor: 'pointer', fontWeight: 700 }}
+                          style={{ background: 'transparent', border: '1px solid var(--border-color, var(--border-subtle))', color: '#ff9000', padding: '6px 12px', borderRadius: '8px', fontSize: '0.75rem', cursor: 'pointer', fontWeight: 700 }}
                         >
                           {qrVal ? 'РЕДАГУВАТИ' : '+ ДОДАТИ'}
                         </button>

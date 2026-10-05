@@ -31,7 +31,7 @@ export default function TumblingStartConfirmModal({
         {/* Content */}
         <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
           {/* Card info block */}
-          <div style={{ background: 'var(--bg, rgba(255,255,255,0.02))', border: '1px solid var(--glass-border, rgba(255,255,255,0.05))', borderRadius: '16px', padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div style={{ background: 'var(--bg, var(--border-subtle))', border: '1px solid var(--glass-border, var(--border-subtle))', borderRadius: '16px', padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span style={{ fontSize: '0.6rem', color: '#ff9000', fontWeight: 900, textTransform: 'uppercase' }}>
                 #{pendingStartCard.id.slice(-8).toUpperCase()}
@@ -63,14 +63,14 @@ export default function TumblingStartConfirmModal({
             <button
               onClick={onClose}
               disabled={isProcessing}
-              style={{ flex: 1, background: 'var(--bg, #1a1a1f)', border: '1px solid var(--glass-border, rgba(255,255,255,0.05))', color: 'var(--text-sub, #aaa)', padding: '14px', borderRadius: '14px', fontSize: '0.8rem', fontWeight: 900, cursor: 'pointer' }}
+              style={{ flex: 1, background: 'var(--bg, #1a1a1f)', border: '1px solid var(--glass-border, var(--border-subtle))', color: 'var(--text-sub, #aaa)', padding: '14px', borderRadius: '14px', fontSize: '0.8rem', fontWeight: 900, cursor: 'pointer' }}
             >
               СКАСУВАТИ
             </button>
             <button
               onClick={() => onConfirm(pendingStartCard)}
               disabled={isProcessing}
-              style={{ flex: 2, background: '#06b6d4', border: 'none', color: '#000', padding: '14px', borderRadius: '14px', fontSize: '0.9rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: '0 4px 16px rgba(6,182,212,0.25)' }}
+              style={{ flex: 2, background: '#06b6d4', border: 'none', color: 'var(--surface-black)', padding: '14px', borderRadius: '14px', fontSize: '0.9rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: '0 4px 16px rgba(6,182,212,0.25)' }}
             >
               {isProcessing ? <RefreshCw size={15} className="anim-spin" /> : <><Play size={15} fill="currentColor" /> В РОБОТУ</>}
             </button>

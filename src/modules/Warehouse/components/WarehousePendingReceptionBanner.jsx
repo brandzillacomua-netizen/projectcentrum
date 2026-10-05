@@ -24,14 +24,14 @@ export const WarehousePendingReceptionBanner = ({
       gap: '15px'
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-        <div style={{ background: '#0ea5e9', padding: '12px', borderRadius: '14px', color: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ background: '#0ea5e9', padding: '12px', borderRadius: '14px', color: 'var(--surface-black)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <Truck size={22} />
         </div>
         <div>
-          <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: '#fff' }}>
+          <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-strong)' }}>
             У ВАС Є НОВІ ПОСТАВКИ ДЛЯ ПРИЙОМКИ!
           </h4>
-          <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: '#888' }}>
+          <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
             Очікує підтвердження: <strong style={{ color: '#0ea5e9' }}>{pendingDocsCount}</strong> документ(ів)
           </p>
         </div>
@@ -39,7 +39,7 @@ export const WarehousePendingReceptionBanner = ({
       <button
         onClick={onOpenReception}
         style={{
-          background: '#0ea5e9', color: '#000', border: 'none',
+          background: '#0ea5e9', color: 'var(--surface-black)', border: 'none',
           padding: '12px 24px', borderRadius: '12px', fontWeight: 900,
           fontSize: '0.8rem', cursor: 'pointer', textTransform: 'uppercase',
           boxShadow: '0 4px 12px rgba(14, 165, 233, 0.3)', transition: '0.2s',

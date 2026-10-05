@@ -45,10 +45,10 @@ const AnalyticsModule = () => {
 
   const renderKPI = (title, value, sub, icon, color) => (
     <div className="kpi-card glass-panel" style={{ 
-      background: '#111', 
+      background: 'var(--surface-1)', 
       padding: '25px', 
       borderRadius: '28px', 
-      border: '1px solid #1a1a1a', 
+      border: '1px solid var(--border-subtle)', 
       flex: 1, 
       minWidth: '240px',
       position: 'relative',
@@ -56,8 +56,8 @@ const AnalyticsModule = () => {
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
-          <div style={{ color: '#555', fontSize: '0.7rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '10px' }}>{title}</div>
-          <div style={{ fontSize: '2.2rem', fontWeight: 1000, color: '#fff' }}>{value}</div>
+          <div style={{ color: 'var(--text-dim)', fontSize: '0.7rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '10px' }}>{title}</div>
+          <div style={{ fontSize: '2.2rem', fontWeight: 1000, color: 'var(--text-strong)' }}>{value}</div>
           <div style={{ color: color, fontSize: '0.75rem', fontWeight: 800, marginTop: '5px' }}>{sub}</div>
         </div>
         <div style={{ background: `${color}15`, padding: '12px', borderRadius: '16px', color: color }}>
@@ -69,25 +69,25 @@ const AnalyticsModule = () => {
   )
 
   return (
-    <div className="analytics-module" style={{ background: '#050505', minHeight: '100vh', color: '#fff', paddingBottom: '50px' }}>
+    <div className="analytics-module" style={{ background: 'var(--surface-inset)', minHeight: '100vh', color: 'var(--text-strong)', paddingBottom: '50px' }}>
       {/* ─── NAVIGATION ─── */}
       <nav style={{ padding: '0 30px', height: '80px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #111', background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(10px)', position: 'sticky', top: 0, zIndex: 100 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-          <Link to="/" style={{ color: '#555', textDecoration: 'none' }}><ArrowLeft size={24} /></Link>
+          <Link to="/" style={{ color: 'var(--text-dim)', textDecoration: 'none' }}><ArrowLeft size={24} /></Link>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <TrendingUp size={28} color="#8b5cf6" />
             <h1 style={{ fontSize: '1.2rem', fontWeight: 950, textTransform: 'uppercase', margin: 0, letterSpacing: '1px' }}>Аналітика Виробництва</h1>
           </div>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
-           <div style={{ background: '#111', padding: '8px 16px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 800, color: '#555', border: '1px solid #1a1a1a' }}>
+           <div style={{ background: 'var(--surface-1)', padding: '8px 16px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 800, color: '#555', border: '1px solid var(--border-subtle)' }}>
              <Calendar size={14} style={{ marginRight: '8px', verticalAlign: 'middle' }} />
              {analyticsHistoryLoading
                ? 'ЗАВАНТАЖЕННЯ ІСТОРІЇ...'
                : `ОСТАННІ ${ANALYTICS_PERIOD_DAYS} ДНІВ · ${stats.historyCount.toLocaleString()} ЗАПИСІВ`}
            </div>
            {analyticsHistoryError && (
-             <div style={{ background: '#111', padding: '8px 16px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 800, color: '#ef4444', border: '1px solid #1a1a1a' }}>
+             <div style={{ background: 'var(--surface-1)', padding: '8px 16px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 800, color: '#ef4444', border: '1px solid var(--border-subtle)' }}>
                {analyticsHistoryError}
              </div>
            )}
@@ -108,13 +108,13 @@ const AnalyticsModule = () => {
         <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '30px', marginBottom: '40px' }}>
           
           {/* VOLUME BY MATERIAL (Chart) */}
-          <div className="glass-panel" style={{ background: '#0a0a0a', padding: '30px', borderRadius: '32px', border: '1px solid #111' }}>
+          <div className="glass-panel" style={{ background: 'var(--surface-inset)', padding: '30px', borderRadius: '32px', border: '1px solid #111' }}>
              <h3 style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1rem', fontWeight: 900, marginBottom: '30px', color: '#444' }}>
                 <BarChart3 size={18} /> ОРІЄНТОВНА ВИТРАТА ЛИСТІВ ЗА МАТЕРІАЛАМИ
              </h3>
              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                 {Object.entries(stats.sheetUsageByMaterial).length === 0 ? (
-                  <div style={{ color: '#555', textAlign: 'center', padding: '30px 10px', fontSize: '0.8rem', fontWeight: 800 }}>
+                  <div style={{ color: 'var(--text-dim)', textAlign: 'center', padding: '30px 10px', fontSize: '0.8rem', fontWeight: 800 }}>
                     Немає записів розкрою для розрахунку витрати листів
                   </div>
                 ) : Object.entries(stats.sheetUsageByMaterial).sort((a,b) => b[1].sheets - a[1].sheets).slice(0, 6).map(([type, usage], idx) => {
@@ -129,7 +129,7 @@ const AnalyticsModule = () => {
                       <div style={{ color: '#444', fontSize: '0.62rem', fontWeight: 800, marginBottom: '6px' }}>
                         розкрій: {usage.units.toLocaleString()} деталей
                       </div>
-                      <div style={{ height: '8px', background: '#111', borderRadius: '4px', overflow: 'hidden' }}>
+                      <div style={{ height: '8px', background: 'var(--surface-1)', borderRadius: '4px', overflow: 'hidden' }}>
                         <div style={{ 
                           width: `${percent}%`, 
                           height: '100%', 
@@ -145,22 +145,22 @@ const AnalyticsModule = () => {
           </div>
 
           {/* SYSTEM SNAPSHOT */}
-          <div className="glass-panel" style={{ background: '#0a0a0a', padding: '30px', borderRadius: '32px', border: '1px solid #111' }}>
+          <div className="glass-panel" style={{ background: 'var(--surface-inset)', padding: '30px', borderRadius: '32px', border: '1px solid #111' }}>
              <h3 style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1rem', fontWeight: 900, marginBottom: '30px', color: '#444' }}>
                 <Zap size={18} /> ПОТОЧНИЙ СТАН СИСТЕМИ
              </h3>
              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                <div style={{ background: '#000', padding: '20px', borderRadius: '20px', border: '1px solid #111' }}>
+                <div style={{ background: 'var(--surface-black)', padding: '20px', borderRadius: '20px', border: '1px solid #111' }}>
                    <div style={{ color: '#333', fontSize: '0.6rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '5px' }}>В РОБОТІ</div>
                    <div style={{ fontSize: '1.8rem', fontWeight: 1000, color: '#3b82f6' }}>{stats.activeTasks}</div>
                    <div style={{ fontSize: '0.65rem', color: '#333' }}>Активні наряди</div>
                 </div>
-                <div style={{ background: '#000', padding: '20px', borderRadius: '20px', border: '1px solid #111' }}>
+                <div style={{ background: 'var(--surface-black)', padding: '20px', borderRadius: '20px', border: '1px solid #111' }}>
                    <div style={{ color: '#333', fontSize: '0.6rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '5px' }}>БЕЗ БРАКУ</div>
                    <div style={{ fontSize: '1.8rem', fontWeight: 1000, color: '#10b981' }}>{stats.totalProducedFull > 0 ? `${stats.qualityRate}%` : "0%"}</div>
                    <div style={{ fontSize: '0.65rem', color: '#333' }}>Показник якості</div>
                 </div>
-                <div style={{ background: '#000', padding: '20px', borderRadius: '20px', border: '1px solid #111', gridColumn: 'span 2' }}>
+                <div style={{ background: 'var(--surface-black)', padding: '20px', borderRadius: '20px', border: '1px solid #111', gridColumn: 'span 2' }}>
                    <div style={{ color: '#333', fontSize: '0.6rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '10px' }}>ЗАВАНТАЖЕННЯ ЦЕХІВ</div>
                    <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end', height: '60px' }}>
                       {stats.shopLoad.map((item, i) => (
@@ -188,17 +188,17 @@ const AnalyticsModule = () => {
         </div>
 
         {/* ─── OPERATOR KPI TABLE ─── */}
-        <div className="glass-panel" style={{ background: '#0a0a0a', padding: '40px', borderRadius: '32px', border: '1px solid #111' }}>
+        <div className="glass-panel" style={{ background: 'var(--surface-inset)', padding: '40px', borderRadius: '32px', border: '1px solid #111' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '35px' }}>
              <h3 style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.2rem', fontWeight: 950, margin: 0 }}>
                 <Users size={22} color="#8b5cf6" /> KPI ОПЕРАТОРІВ ТА ВИКОНАВЦІВ
              </h3>
-             <button style={{ background: '#111', border: '1px solid #1a1a1a', color: '#555', padding: '8px 20px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer' }}>ЕКСПОРТ EXCEL</button>
+             <button style={{ background: 'var(--surface-1)', border: '1px solid var(--border-subtle)', color: '#555', padding: '8px 20px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer' }}>ЕКСПОРТ EXCEL</button>
           </div>
           
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
-              <tr style={{ textAlign: 'left', color: '#333', fontSize: '0.7rem', fontWeight: 900, textTransform: 'uppercase', borderBottom: '1px solid #111' }}>
+              <tr style={{ textAlign: 'left', color: 'var(--border-subtle)', fontSize: '0.7rem', fontWeight: 900, textTransform: 'uppercase', borderBottom: '1px solid #111' }}>
                 <th style={{ padding: '15px 10px' }}>ОПЕРАТОР</th>
                 <th style={{ padding: '15px 10px', textAlign: 'center' }}>ВИКОНАНО</th>
                 <th style={{ padding: '15px 10px', textAlign: 'center' }}>БРАК</th>
@@ -214,10 +214,10 @@ const AnalyticsModule = () => {
                   <tr key={op.name} style={{ borderBottom: '1px solid #0f0f0f', transition: '0.2s transform' }}>
                     <td style={{ padding: '20px 10px' }}>
                        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                          <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: `linear-gradient(135deg, #111, #000)`, border: '1px solid #222', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '0.8rem', color: '#8b5cf6' }}>
+                          <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: `linear-gradient(135deg, #111, #000)`, border: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '0.8rem', color: '#8b5cf6' }}>
                              {op.name.charAt(0)}
                           </div>
-                          <div style={{ fontWeight: 800, color: '#fff' }}>{op.name}</div>
+                          <div style={{ fontWeight: 800, color: 'var(--text-strong)' }}>{op.name}</div>
                        </div>
                     </td>
                     <td style={{ padding: '20px 10px', textAlign: 'center', fontWeight: 900, fontSize: '1rem', color: '#ff9000' }}>{op.produced.toLocaleString()}</td>
@@ -235,7 +235,7 @@ const AnalyticsModule = () => {
                          {quality}%
                        </div>
                     </td>
-                    <td style={{ padding: '20px 10px', textAlign: 'center', color: '#555', fontSize: '0.75rem', fontWeight: 700 }}>{op.actions} операцій</td>
+                    <td style={{ padding: '20px 10px', textAlign: 'center', color: 'var(--text-dim)', fontSize: '0.75rem', fontWeight: 700 }}>{op.actions} операцій</td>
                     <td style={{ padding: '20px 10px', textAlign: 'right' }}>
                        {idx === 0 && <span style={{ color: '#fbbf24' }}>🏆 ТОП-1</span>}
                        {idx > 0 && <span style={{ color: '#222', fontSize: '0.8rem', fontWeight: 900 }}>#{idx + 1}</span>}
@@ -249,20 +249,20 @@ const AnalyticsModule = () => {
 
         {/* ─── ARCHIVE HISTORY ─── */}
         <div style={{ marginTop: '50px' }}>
-           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '25px', borderBottom: '1px solid #1a1a1a', paddingBottom: '15px' }}>
+           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '25px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '15px' }}>
              <h3 style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.2rem', fontWeight: 950, margin: 0 }}>
                 <Layers size={22} color="#3b82f6" /> АРХІВНІ ЗАПИСИ (TRACEABILITY)
              </h3>
              <div style={{ display: 'flex', gap: '10px' }}>
                 <button 
                   onClick={() => setArchiveTab('shop1')}
-                  style={{ background: archiveTab === 'shop1' ? '#3b82f6' : '#111', color: archiveTab === 'shop1' ? '#fff' : '#555', border: 'none', padding: '10px 20px', borderRadius: '12px', fontWeight: 900, fontSize: '0.8rem', cursor: 'pointer', transition: '0.2s' }}
+                  style={{ background: archiveTab === 'shop1' ? '#3b82f6' : 'var(--surface-1)', color: archiveTab === 'shop1' ? '#fff' : '#555', border: 'none', padding: '10px 20px', borderRadius: '12px', fontWeight: 900, fontSize: '0.8rem', cursor: 'pointer', transition: '0.2s' }}
                 >
                   ЦЕХ №1
                 </button>
                 <button 
                   onClick={() => setArchiveTab('shop2')}
-                  style={{ background: archiveTab === 'shop2' ? '#8b5cf6' : '#111', color: archiveTab === 'shop2' ? '#fff' : '#555', border: 'none', padding: '10px 20px', borderRadius: '12px', fontWeight: 900, fontSize: '0.8rem', cursor: 'pointer', transition: '0.2s' }}
+                  style={{ background: archiveTab === 'shop2' ? '#8b5cf6' : 'var(--surface-1)', color: archiveTab === 'shop2' ? '#fff' : '#555', border: 'none', padding: '10px 20px', borderRadius: '12px', fontWeight: 900, fontSize: '0.8rem', cursor: 'pointer', transition: '0.2s' }}
                 >
                   ЦЕХ №2
                 </button>
@@ -303,21 +303,21 @@ const AnalyticsModule = () => {
 
                 const orderKeys = Object.keys(grouped).sort((a,b) => b.localeCompare(a))
 
-                if (orderKeys.length === 0) return <div style={{ color: '#555', textAlign: 'center', padding: '50px' }}>Записи відсутні у вибраному цеху</div>
+                if (orderKeys.length === 0) return <div style={{ color: 'var(--text-dim)', textAlign: 'center', padding: '50px' }}>Записи відсутні у вибраному цеху</div>
 
                 return orderKeys.map(orderNum => {
                   const nomKeys = Object.keys(grouped[orderNum])
                   const totalCardsInOrder = nomKeys.reduce((sum, nId) => sum + grouped[orderNum][nId].length, 0)
 
                   return (
-                    <div key={orderNum} style={{ background: '#0a0a0a', border: '1px solid #1a1a1a', borderRadius: '20px', overflow: 'hidden' }}>
+                    <div key={orderNum} style={{ background: 'var(--surface-inset)', border: '1px solid var(--border-subtle)', borderRadius: '20px', overflow: 'hidden' }}>
                       
-                      <div onClick={() => toggleOrder(orderNum)} style={{ background: '#111', padding: '15px 25px', display: 'flex', alignItems: 'center', borderBottom: expandedOrders[orderNum] ? '1px solid #1a1a1a' : 'none', cursor: 'pointer', transition: '0.2s' }}>
+                      <div onClick={() => toggleOrder(orderNum)} style={{ background: 'var(--surface-1)', padding: '15px 25px', display: 'flex', alignItems: 'center', borderBottom: expandedOrders[orderNum] ? '1px solid var(--border-subtle)' : 'none', cursor: 'pointer', transition: '0.2s' }}>
                          <div style={{ background: archiveTab === 'shop1' ? '#3b82f620' : '#8b5cf620', color: archiveTab === 'shop1' ? '#3b82f6' : '#8b5cf6', padding: '6px 12px', borderRadius: '8px', fontSize: '0.7rem', fontWeight: 900, marginRight: '15px' }}>
                             ЗАМОВЛЕННЯ
                          </div>
-                         <div style={{ fontSize: '1.2rem', fontWeight: 950, color: '#fff', flex: 1 }}>№{orderNum}</div>
-                         <div style={{ color: '#555', fontSize: '0.7rem', fontWeight: 900, background: '#1a1a1a', padding: '6px 12px', borderRadius: '8px' }}>
+                         <div style={{ fontSize: '1.2rem', fontWeight: 950, color: 'var(--text-strong)', flex: 1 }}>№{orderNum}</div>
+                         <div style={{ color: 'var(--text-dim)', fontSize: '0.7rem', fontWeight: 900, background: 'var(--surface-2)', padding: '6px 12px', borderRadius: '8px' }}>
                             {expandedOrders[orderNum] ? '▲ ЗГОРНУТИ' : `▼ РОЗГОРНУТИ (${totalCardsInOrder} записів)`}
                          </div>
                       </div>
@@ -330,26 +330,26 @@ const AnalyticsModule = () => {
                             const key = `${orderNum}_${nomId}`
                             
                             return (
-                              <div key={nomId} style={{ background: '#111', borderRadius: '16px', overflow: 'hidden', border: '1px solid #1a1a1a' }}>
-                                 <div onClick={() => toggleNom(orderNum, nomId)} style={{ padding: '15px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', background: 'rgba(255,255,255,0.02)' }}>
+                              <div key={nomId} style={{ background: 'var(--surface-1)', borderRadius: '16px', overflow: 'hidden', border: '1px solid var(--border-subtle)' }}>
+                                 <div onClick={() => toggleNom(orderNum, nomId)} style={{ padding: '15px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', background: 'var(--fill-subtle)' }}>
                                     <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
                                        <div style={{ fontWeight: 900, color: '#e2e8f0', fontSize: '1rem' }}>{nom?.name || 'Деталь'}</div>
                                        {nom?.material_type && <div style={{ fontSize: '0.7rem', color: '#10b981', background: '#10b98115', padding: '4px 10px', borderRadius: '6px', fontWeight: 800 }}>{nom.material_type}</div>}
                                     </div>
-                                    <div style={{ color: '#555', fontSize: '0.7rem', fontWeight: 900, background: '#0a0a0a', padding: '4px 10px', borderRadius: '6px' }}>
+                                    <div style={{ color: 'var(--text-dim)', fontSize: '0.7rem', fontWeight: 900, background: 'var(--surface-inset)', padding: '4px 10px', borderRadius: '6px' }}>
                                        {expandedNoms[key] ? '▲' : `▼ ${items.length} карток`}
                                     </div>
                                  </div>
 
                                  {expandedNoms[key] && (
-                                   <div style={{ padding: '15px 20px', display: 'flex', flexDirection: 'column', gap: '8px', background: '#0a0a0a' }}>
+                                   <div style={{ padding: '15px 20px', display: 'flex', flexDirection: 'column', gap: '8px', background: 'var(--surface-inset)' }}>
                                      {items.map(h => (
-                                       <div key={h.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 15px', background: '#111', borderRadius: '12px', border: '1px solid #1a1a1a' }}>
+                                       <div key={h.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 15px', background: 'var(--surface-1)', borderRadius: '12px', border: '1px solid var(--border-subtle)' }}>
                                          <div style={{ display: 'flex', gap: '25px', alignItems: 'center' }}>
-                                           <div style={{ width: '120px', color: '#555', fontSize: '0.65rem', fontWeight: 800 }}>{new Date(h.completed_at).toLocaleString()}</div>
+                                           <div style={{ width: '120px', color: 'var(--text-dim)', fontSize: '0.65rem', fontWeight: 800 }}>{new Date(h.completed_at).toLocaleString()}</div>
                                            <div>
-                                              <div style={{ fontSize: '0.65rem', color: '#555', marginBottom: '4px', fontWeight: 900, letterSpacing: '0.05em' }}>
-                                                КАРТКА <span style={{ color: '#888' }}>#{h.card_id?.slice(0,8) || '---'}</span>
+                                              <div style={{ fontSize: '0.65rem', color: 'var(--text-dim)', marginBottom: '4px', fontWeight: 900, letterSpacing: '0.05em' }}>
+                                                КАРТКА <span style={{ color: 'var(--text-muted)' }}>#{h.card_id?.slice(0,8) || '---'}</span>
                                               </div>
                                               <div style={{ fontSize: '0.85rem', color: archiveTab === 'shop1' ? '#3b82f6' : '#8b5cf6', fontWeight: 900 }}>Етап: {h.stage_name}</div>
                                            </div>
@@ -364,7 +364,7 @@ const AnalyticsModule = () => {
                                                )}
                                             </div>
                                             <div style={{ width: '100px', textAlign: 'right' }}>
-                                               <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#fff' }}>{h.operator_name}</div>
+                                               <div style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-strong)' }}>{h.operator_name}</div>
                                             </div>
                                          </div>
                                        </div>

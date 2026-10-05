@@ -144,8 +144,8 @@ export function SettingsAuditLogTab({ systemUsers = [] }: SettingsAuditLogTabPro
             style={{
               padding: '8px 14px',
               borderRadius: '10px',
-              border: '1px solid var(--glass-border, rgba(255,255,255,0.08))',
-              background: 'rgba(255,255,255,0.04)',
+              border: '1px solid var(--glass-border, var(--border-subtle))',
+              background: 'var(--fill-subtle)',
               color: 'var(--text, #fff)',
               fontSize: '0.78rem',
               fontWeight: 800,
@@ -183,10 +183,10 @@ export function SettingsAuditLogTab({ systemUsers = [] }: SettingsAuditLogTabPro
       </div>
 
       {/* Search & Filtering Control Bar */}
-      <div className="glass-panel" style={{ padding: '16px 20px', borderRadius: '16px', background: '#0e0e11', border: '1px solid rgba(255,255,255,0.04)', display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+      <div className="glass-panel" style={{ padding: '16px 20px', borderRadius: '16px', background: '#0e0e11', border: '1px solid var(--border-subtle)', display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
         {/* Search */}
         <div style={{ position: 'relative', flex: 1, minWidth: '220px' }}>
-          <Search size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#666' }} />
+          <Search size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-dim)' }} />
           <input
             type="text"
             value={searchTerm}
@@ -196,9 +196,9 @@ export function SettingsAuditLogTab({ systemUsers = [] }: SettingsAuditLogTabPro
               width: '100%',
               padding: '8px 12px 8px 36px',
               borderRadius: '10px',
-              border: '1px solid rgba(255,255,255,0.06)',
-              background: '#000',
-              color: '#fff',
+              border: '1px solid var(--border-subtle)',
+              background: 'var(--surface-black)',
+              color: 'var(--text-strong)',
               fontSize: '0.8rem',
               outline: 'none'
             }}
@@ -209,7 +209,7 @@ export function SettingsAuditLogTab({ systemUsers = [] }: SettingsAuditLogTabPro
         <select
           value={selectedCategory}
           onChange={e => setSelectedCategory(e.target.value)}
-          style={{ padding: '8px 12px', borderRadius: '10px', background: '#000', border: '1px solid rgba(255,255,255,0.06)', color: '#ccc', fontSize: '0.78rem', fontWeight: 700, outline: 'none' }}
+          style={{ padding: '8px 12px', borderRadius: '10px', background: 'var(--surface-black)', border: '1px solid var(--border-subtle)', color: '#ccc', fontSize: '0.78rem', fontWeight: 700, outline: 'none' }}
         >
           <option value="all">Всі Категорії Подій</option>
           <option value="security">🛡️ Безпека & Права</option>
@@ -222,7 +222,7 @@ export function SettingsAuditLogTab({ systemUsers = [] }: SettingsAuditLogTabPro
         <select
           value={selectedUser}
           onChange={e => setSelectedUser(e.target.value)}
-          style={{ padding: '8px 12px', borderRadius: '10px', background: '#000', border: '1px solid rgba(255,255,255,0.06)', color: '#ccc', fontSize: '0.78rem', fontWeight: 700, outline: 'none' }}
+          style={{ padding: '8px 12px', borderRadius: '10px', background: 'var(--surface-black)', border: '1px solid var(--border-subtle)', color: '#ccc', fontSize: '0.78rem', fontWeight: 700, outline: 'none' }}
         >
           <option value="all">Всі Користувачі ({systemUsers.length})</option>
           {systemUsers.map(u => (
@@ -232,11 +232,11 @@ export function SettingsAuditLogTab({ systemUsers = [] }: SettingsAuditLogTabPro
       </div>
 
       {/* Audit Logs Table View */}
-      <div className="glass-panel" style={{ borderRadius: '20px', background: '#0e0e11', border: '1px solid rgba(255,255,255,0.04)', overflow: 'hidden' }}>
+      <div className="glass-panel" style={{ borderRadius: '20px', background: '#0e0e11', border: '1px solid var(--border-subtle)', overflow: 'hidden' }}>
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem', textAlign: 'left' }}>
             <thead>
-              <tr style={{ background: '#141418', borderBottom: '1px solid rgba(255,255,255,0.06)', color: '#888' }}>
+              <tr style={{ background: '#141418', borderBottom: '1px solid var(--border-subtle)', color: '#888' }}>
                 <th style={{ padding: '12px 16px', fontWeight: 900 }}>ЧАС</th>
                 <th style={{ padding: '12px 16px', fontWeight: 900 }}>КОРИСТУВАЧ</th>
                 <th style={{ padding: '12px 16px', fontWeight: 900 }}>КАТЕГОРІЯ</th>
@@ -248,10 +248,10 @@ export function SettingsAuditLogTab({ systemUsers = [] }: SettingsAuditLogTabPro
             <tbody>
               {filteredLogs.length === 0 ? (
                 <tr>
-                  <td colSpan={6} style={{ textAlign: 'center', padding: '50px 20px', color: '#888' }}>
+                  <td colSpan={6} style={{ textAlign: 'center', padding: '50px 20px', color: 'var(--text-muted)' }}>
                     <ShieldCheck size={36} color="#ff9000" style={{ marginBottom: '10px', opacity: 0.6 }} />
-                    <div style={{ fontWeight: 800, color: '#fff', fontSize: '0.9rem' }}>Таблицю `system_access_logs` створено та активовано в БД</div>
-                    <div style={{ fontSize: '0.78rem', color: '#aaa', marginTop: '4px', marginBottom: '16px' }}>Поки що немає збережених реальних подій або фільтри не знайшли записів.</div>
+                    <div style={{ fontWeight: 800, color: 'var(--text-strong)', fontSize: '0.9rem' }}>Таблицю `system_access_logs` створено та активовано в БД</div>
+                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '4px', marginBottom: '16px' }}>Поки що немає збережених реальних подій або фільтри не знайшли записів.</div>
                     <button
                       type="button"
                       onClick={handleCreateTestLog}
@@ -275,12 +275,12 @@ export function SettingsAuditLogTab({ systemUsers = [] }: SettingsAuditLogTabPro
                 filteredLogs.map(log => {
                   const badge = getCategoryBadge(log.category)
                   return (
-                    <tr key={log.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', transition: 'background 0.15s' }}>
-                      <td style={{ padding: '12px 16px', color: '#aaa', whiteSpace: 'nowrap', fontWeight: 600 }}>
+                    <tr key={log.id} style={{ borderBottom: '1px solid var(--border-subtle)', transition: 'background 0.15s' }}>
+                      <td style={{ padding: '12px 16px', color: 'var(--text-muted)', whiteSpace: 'nowrap', fontWeight: 600 }}>
                         <Clock size={12} style={{ display: 'inline', marginRight: '6px', verticalAlign: 'middle' }} />
                         {new Date(log.created_at).toLocaleString('uk-UA')}
                       </td>
-                      <td style={{ padding: '12px 16px', fontWeight: 800, color: '#fff' }}>
+                      <td style={{ padding: '12px 16px', fontWeight: 800, color: 'var(--text-strong)' }}>
                         @{log.user_login}
                       </td>
                       <td style={{ padding: '12px 16px' }}>
@@ -299,10 +299,10 @@ export function SettingsAuditLogTab({ systemUsers = [] }: SettingsAuditLogTabPro
                       <td style={{ padding: '12px 16px', fontWeight: 800, color: '#ff9000' }}>
                         {log.action_type}
                       </td>
-                      <td style={{ padding: '12px 16px', fontFamily: 'monospace', color: '#888', fontSize: '0.75rem' }}>
+                      <td style={{ padding: '12px 16px', fontFamily: 'monospace', color: 'var(--text-muted)', fontSize: '0.75rem' }}>
                         {log.ip_address || '192.168.1.1'}
                       </td>
-                      <td style={{ padding: '12px 16px', color: '#ccc', fontWeight: 500 }}>
+                      <td style={{ padding: '12px 16px', color: 'var(--text-soft)', fontWeight: 500 }}>
                         {log.details}
                       </td>
                     </tr>

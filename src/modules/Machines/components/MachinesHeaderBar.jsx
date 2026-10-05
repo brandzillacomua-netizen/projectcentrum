@@ -26,7 +26,7 @@ export function MachinesHeaderBar({ setIsScanning, showAdd, setShowAdd, setForm 
         <button 
           onClick={() => { setShowAdd(!showAdd); if(!showAdd) setForm({id:null, name:'', type: MACHINE_TYPES[0], capacity:'1', sequence_number:'', inventory_no:'', floor:'', description:'', status:'idle'}) }}
           style={{ 
-            background: showAdd ? '#1a1a1a' : '#ff9000', 
+            background: showAdd ? 'var(--surface-2)' : '#ff9000', 
             color: showAdd ? '#fff' : '#000', 
             border: 'none', padding: '14px 30px', borderRadius: '14px', 
             fontWeight: 950, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px',

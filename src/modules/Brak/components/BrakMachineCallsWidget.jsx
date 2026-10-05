@@ -18,7 +18,7 @@ export const BrakMachineCallsWidget = React.memo(({
         {activeCalls.map(c => {
           const mach = machines?.find(m => m.id === c.machine_id)
           return (
-            <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--card-bg, #111)', border: '1px solid var(--border-color, #222)', borderRadius: '12px', padding: '12px 15px', flexWrap: 'wrap', gap: '10px' }}>
+            <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--card-bg, #111)', border: '1px solid var(--border-color, var(--border-subtle))', borderRadius: '12px', padding: '12px 15px', flexWrap: 'wrap', gap: '10px' }}>
               <div>
                 <div style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-color, #fff)' }}>
                   {mach ? mach.name : 'Верстат'} (пор. №{mach?.sequence_number || '—'})

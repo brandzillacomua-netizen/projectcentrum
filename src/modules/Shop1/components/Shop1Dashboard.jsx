@@ -40,7 +40,7 @@ export function Shop1Dashboard({
             border-radius: 0; box-shadow: 0 -10px 35px rgba(0,0,0,0.9); backdrop-filter: blur(15px);
           }
           .floating-controls-container form {
-            flex: 1; box-shadow: none !important; background: #000 !important; border: 1px solid #222 !important;
+            flex: 1; box-shadow: none !important; background: #000 !important; border: 1px solid var(--border-subtle) !important;
           }
         }
       `}</style>
@@ -49,7 +49,7 @@ export function Shop1Dashboard({
       <div className="floating-controls-container">
         <form onSubmit={handleManualEntry} style={{
           display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(10, 10, 10, 0.95)',
-          border: '1px solid #222', padding: '10px 14px', borderRadius: '24px',
+          border: '1px solid var(--border-subtle)', padding: '10px 14px', borderRadius: '24px',
           boxShadow: '0 10px 30px rgba(0,0,0,0.5)', backdropFilter: 'blur(10px)'
         }}>
           <Search size={16} color="#6b7280" />
@@ -59,9 +59,9 @@ export function Shop1Dashboard({
             value={manualId}
             onChange={e => setManualId(e.target.value)}
             disabled={isProcessing}
-            style={{ background: 'transparent', border: 'none', color: '#fff', fontSize: '0.85rem', fontWeight: 700, outline: 'none', width: '100%' }}
+            style={{ background: 'transparent', border: 'none', color: 'var(--text-strong)', fontSize: '0.85rem', fontWeight: 700, outline: 'none', width: '100%' }}
           />
-          <button type="submit" disabled={isProcessing} className="floating-search-btn" style={{ background: '#eab308', color: '#000', border: 'none', padding: '6px 14px', borderRadius: '16px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+          <button type="submit" disabled={isProcessing} className="floating-search-btn" style={{ background: '#eab308', color: 'var(--surface-black)', border: 'none', padding: '6px 14px', borderRadius: '16px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
             {isProcessing ? <RefreshCw size={12} className="anim-spin" /> : 'ЗНАЙТИ'}
           </button>
         </form>
@@ -69,7 +69,7 @@ export function Shop1Dashboard({
         <button onClick={() => setIsScanning(true)}
           className="hover-lift floating-qr-btn"
           style={{
-            background: '#eab308', border: 'none', color: '#000', width: '64px', height: '64px',
+            background: '#eab308', border: 'none', color: 'var(--surface-black)', width: '64px', height: '64px',
             borderRadius: '50%', display: 'flex', justifyContent: 'center', alignItems: 'center',
             cursor: 'pointer', boxShadow: '0 10px 30px rgba(234,179,8,0.4)', transition: 'all 0.2s', flexShrink: 0
           }}>
@@ -114,7 +114,7 @@ export function Shop1Dashboard({
                 className={`s1-stage-card ${cardClass} s1-stage-hover`}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                   <span className="stage-card-title" style={{ fontSize: '0.65rem', fontWeight: 1000, color: stageColor, textTransform: 'uppercase', letterSpacing: '0.12em' }}>{stage}</span>
-                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: st.inWork > 0 ? '#10b981' : '#222', boxShadow: st.inWork > 0 ? '0 0 8px #10b981' : 'none' }} />
+                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: st.inWork > 0 ? '#10b981' : 'var(--surface-3)', boxShadow: st.inWork > 0 ? '0 0 8px #10b981' : 'none' }} />
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: '8px' }}>
@@ -122,7 +122,7 @@ export function Shop1Dashboard({
                     { label: 'РОБОТА', val: st.inWork, color: '#3b82f6' },
                     { label: 'БУФЕР', val: st.inBuffer, color: '#f59e0b' },
                   ].map(({ label, val, color }, li) => (
-                    <div key={label} style={li > 0 ? { borderLeft: '1px solid rgba(255,255,255,0.08)', paddingLeft: '8px' } : {}}>
+                    <div key={label} style={li > 0 ? { borderLeft: '1px solid var(--border-subtle)', paddingLeft: '8px' } : {}}>
                       <div className="metric-label" style={{ fontSize: '0.55rem', color: '#6b7280', fontWeight: 1000, marginBottom: '2px', textTransform: 'uppercase' }}>{label}</div>
                       <div style={{
                         fontSize: '1.4rem', fontWeight: 1000, letterSpacing: '-0.02em',
@@ -147,7 +147,7 @@ export function Shop1Dashboard({
                 </div>
                 <div style={{
                   marginTop: '5px', fontSize: '0.46rem', fontWeight: 900, textTransform: 'uppercase', padding: '2px 6px', borderRadius: '4px',
-                  background: st.inBuffer > 0 ? `${idx === 0 ? '#f59e0b20' : '#10b98120'}` : 'rgba(255,255,255,0.05)', color: st.inBuffer > 0 ? (idx === 0 ? '#f59e0b' : '#10b981') : '#64748b'
+                  background: st.inBuffer > 0 ? `${idx === 0 ? '#f59e0b20' : '#10b98120'}` : 'var(--fill-subtle)', color: st.inBuffer > 0 ? (idx === 0 ? '#f59e0b' : '#10b981') : '#64748b'
                 }}>
                   {st.inBuffer > 0 ? `${st.inBuffer} шт` : (idx === 0 ? 'БУФЕР' : 'СКЛАД')}
                 </div>
@@ -186,7 +186,7 @@ export function Shop1Dashboard({
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   {isActive && (
                     <div style={{
-                      background: cardColor, color: '#000', padding: '2.5px 8px', borderRadius: '6px',
+                      background: cardColor, color: 'var(--surface-black)', padding: '2.5px 8px', borderRadius: '6px',
                       fontSize: '0.52rem', fontWeight: 950, letterSpacing: '0.5px'
                     }}>
                       АКТИВНО
@@ -201,7 +201,7 @@ export function Shop1Dashboard({
                   { label: 'ПРИЙОМКА', val: receptionQty, color: '#3b82f6' },
                   { label: 'СОРТУВАННЯ', val: realSortingQty, color: '#8b5cf6' },
                 ].map(({ label, val, color }, i) => (
-                  <div key={label} style={i > 0 ? { borderLeft: '1px solid rgba(255,255,255,0.08)', paddingLeft: '6px' } : {}}>
+                  <div key={label} style={i > 0 ? { borderLeft: '1px solid var(--border-subtle)', paddingLeft: '6px' } : {}}>
                     <div className="metric-label" style={{ fontSize: '0.45rem', color: '#6b7280', fontWeight: 1000, marginBottom: '2px', textTransform: 'uppercase' }}>{label}</div>
                     <div style={{ fontSize: '1.2rem', fontWeight: 1000, letterSpacing: '-0.02em', color: val > 0 ? color : '#475569' }}>
                       {val}

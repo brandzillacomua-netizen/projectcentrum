@@ -17,14 +17,14 @@ export function TumblingDashboardHeader({
       alignItems: 'center',
       background: 'rgba(15, 15, 22, 0.85)',
       backdropFilter: 'blur(10px)',
-      border: '1px solid rgba(255, 255, 255, 0.05)',
+      border: '1px solid var(--border-subtle)',
       borderRadius: '16px',
       padding: '12px 24px',
       marginBottom: '16px',
       flexShrink: 0
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-        <Link to="/" style={{ color: '#888', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: 700 }}>
+        <Link to="/" style={{ color: 'var(--text-muted)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: 700 }}>
           <ArrowLeft size={16} /> На головну
         </Link>
         <div style={{ width: '1px', height: '20px', background: 'rgba(255, 255, 255, 0.1)' }} />
@@ -37,7 +37,7 @@ export function TumblingDashboardHeader({
               ТВ Режим
             </span>
           </div>
-          <div style={{ fontSize: '0.65rem', color: '#666', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+          <div style={{ fontSize: '0.65rem', color: 'var(--text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
             Черга та пріоритети на основі комплектності готової продукції
           </div>
         </div>
@@ -71,11 +71,11 @@ export function TumblingDashboardHeader({
           <div style={{ display: 'flex', gap: '16px' }}>
             {shiftDeficits.map(def => (
               <div key={`${def.orderNum}-${def.nomenclatureId}`} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#fff', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', maxWidth: '100px' }} title={def.name}>
+                <div style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-strong)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', maxWidth: '100px' }} title={def.name}>
                   {def.name}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <div style={{ width: '40px', height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', overflow: 'hidden' }}>
+                  <div style={{ width: '40px', height: '4px', background: 'var(--border-subtle)', borderRadius: '2px', overflow: 'hidden' }}>
                     <div style={{ width: `${def.percent}%`, height: '100%', background: '#ef4444' }} />
                   </div>
                   <span style={{ fontSize: '0.62rem', color: '#ef4444', fontWeight: 800 }}>{def.percent}%</span>
@@ -95,7 +95,7 @@ export function TumblingDashboardHeader({
             style={{
               background: autoScrollActive ? 'rgba(6,182,212,0.1)' : '#1a1a24',
               color: autoScrollActive ? '#06b6d4' : '#888',
-              border: `1px solid ${autoScrollActive ? 'rgba(6,182,212,0.3)' : 'rgba(255,255,255,0.05)'}`,
+              border: `1px solid ${autoScrollActive ? 'rgba(6,182,212,0.3)' : 'var(--border-subtle)'}`,
               padding: '6px 12px',
               borderRadius: '8px',
               fontSize: '0.7rem',
@@ -110,7 +110,7 @@ export function TumblingDashboardHeader({
             style={{
               background: '#1a1a24',
               color: '#fff',
-              border: '1px solid rgba(255,255,255,0.05)',
+              border: '1px solid var(--border-subtle)',
               padding: '6px 12px',
               borderRadius: '8px',
               fontSize: '0.7rem',
@@ -123,11 +123,11 @@ export function TumblingDashboardHeader({
         </div>
 
         <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: '1.25rem', fontWeight: 900, fontFamily: 'monospace', color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <div style={{ fontSize: '1.25rem', fontWeight: 900, fontFamily: 'monospace', color: 'var(--text-strong)', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <Clock size={16} color="#06b6d4" />
             {currentTime.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
           </div>
-          <div style={{ fontSize: '0.65rem', color: '#555', fontWeight: 800, textTransform: 'uppercase' }}>
+          <div style={{ fontSize: '0.65rem', color: 'var(--text-dim)', fontWeight: 800, textTransform: 'uppercase' }}>
             {currentTime.toLocaleDateString('uk-UA', { day: '2-digit', month: 'long', year: 'numeric' })}
           </div>
         </div>

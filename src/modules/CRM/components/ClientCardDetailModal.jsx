@@ -90,7 +90,7 @@ export const ClientCardDetailModal = ({
           gap: '14px',
           padding: '16px',
           borderRadius: '16px',
-          background: 'rgba(0,0,0,0.2)',
+          background: 'var(--fill-inset)',
           border: '1px solid var(--glass-border)',
           marginBottom: '20px'
         }}>

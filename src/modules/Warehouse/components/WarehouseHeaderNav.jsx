@@ -16,17 +16,17 @@ export const WarehouseHeaderNav = ({
     <nav className="module-nav" style={{ 
       flexShrink: 0, 
       padding: window.innerWidth < 768 ? '10px 15px' : '15px 25px', 
-      background: '#111', 
+      background: 'var(--surface-1)', 
       display: 'flex', 
       alignItems: 'center', 
       justifyContent: 'space-between', 
-      borderBottom: '1px solid #222',
+      borderBottom: '1px solid var(--border-subtle)',
       width: '100%',
       boxSizing: 'border-box'
     }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: window.innerWidth < 768 ? '8px' : '20px', width: '100%', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: window.innerWidth < 768 ? '8px' : '20px' }}>
-          <Link to="/" className="back-link" style={{ color: '#555', transition: '0.3s', display: 'flex', alignItems: 'center' }}>
+          <Link to="/" className="back-link" style={{ color: 'var(--text-dim)', transition: '0.3s', display: 'flex', alignItems: 'center' }}>
             <ArrowLeft size={18} /> <span className="hide-mobile" style={{ marginLeft: '5px' }}>Назад</span>
           </Link>
           <div className="module-title-group" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -107,7 +107,7 @@ export const WarehouseHeaderNav = ({
           <ManualIssueJournalButton onClick={manualIssue.openJournal} compact={window.innerWidth < 900} />
         </div>
       </div>
-      <div className="hide-mobile" style={{ color: '#555', fontSize: '0.75rem', fontWeight: 600 }}>
+      <div className="hide-mobile" style={{ color: 'var(--text-dim)', fontSize: '0.75rem', fontWeight: 600 }}>
         {currentUser?.first_name} {currentUser?.last_name}
       </div>
     </nav>

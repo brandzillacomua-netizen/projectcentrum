@@ -56,7 +56,7 @@ export const BrakCardScrapModal = React.memo(({
               placeholder="Введіть ваше прізвище..."
               value={qcInspector}
               onChange={e => setQcInspector(e.target.value)}
-              style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid var(--border-color, #333)', background: 'var(--card-inner-bg, #000)', color: 'var(--text-color, #fff)', fontSize: '0.9rem', fontWeight: 800, boxSizing: 'border-box', outline: 'none' }}
+              style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid var(--border-color, var(--border-subtle))', background: 'var(--card-inner-bg, #000)', color: 'var(--text-color, #fff)', fontSize: '0.9rem', fontWeight: 800, boxSizing: 'border-box', outline: 'none' }}
             />
           </div>
 
@@ -93,7 +93,7 @@ export const BrakCardScrapModal = React.memo(({
                   setQcCustomReason('')
                 }
               }}
-              style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid var(--border-color, #333)', background: 'var(--card-inner-bg, #000)', color: 'var(--text-color, #fff)', fontSize: '0.9rem', fontWeight: 800, boxSizing: 'border-box', outline: 'none' }}
+              style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid var(--border-color, var(--border-subtle))', background: 'var(--card-inner-bg, #000)', color: 'var(--text-color, #fff)', fontSize: '0.9rem', fontWeight: 800, boxSizing: 'border-box', outline: 'none' }}
             >
               {scrapReasons.filter(reason => scrapReasonRows.find(row => row.name === reason)?.is_active !== false).map(reason => <option key={reason} value={reason}>{reason}</option>)}
             </select>
@@ -108,7 +108,7 @@ export const BrakCardScrapModal = React.memo(({
                 placeholder="Введіть коментар..."
                 value={qcCustomReason}
                 onChange={e => setQcCustomReason(e.target.value)}
-                style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid var(--border-color, #333)', background: 'var(--card-inner-bg, #000)', color: 'var(--text-color, #fff)', fontSize: '0.9rem', fontWeight: 800, boxSizing: 'border-box', outline: 'none' }}
+                style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid var(--border-color, var(--border-subtle))', background: 'var(--card-inner-bg, #000)', color: 'var(--text-color, #fff)', fontSize: '0.9rem', fontWeight: 800, boxSizing: 'border-box', outline: 'none' }}
               />
             </div>
           )}
@@ -121,7 +121,7 @@ export const BrakCardScrapModal = React.memo(({
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '14px' }}>
               <button 
                 onClick={() => setQcScrapCount(v => Math.max(0, v - 1))}
-                style={{ width: '46px', height: '46px', background: 'var(--card-bg, #1a1a1a)', border: '1px solid var(--border-color, #2a2a2a)', color: 'var(--text-color, #fff)', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}
+                style={{ width: '46px', height: '46px', background: 'var(--card-bg, var(--border-subtle))', border: '1px solid var(--border-color, var(--border-subtle))', color: 'var(--text-color, #fff)', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}
               >−</button>
               <input 
                 type="number" min={0} max={scannedCard.quantity} value={qcScrapCount === 0 ? '' : qcScrapCount} placeholder="0"
@@ -133,7 +133,7 @@ export const BrakCardScrapModal = React.memo(({
               />
               <button 
                 onClick={() => setQcScrapCount(v => Math.min(scannedCard.quantity, v + 1))}
-                style={{ width: '46px', height: '46px', background: 'var(--card-bg, #1a1a1a)', border: '1px solid var(--border-color, #2a2a2a)', color: 'var(--text-color, #fff)', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}
+                style={{ width: '46px', height: '46px', background: 'var(--card-bg, var(--border-subtle))', border: '1px solid var(--border-color, var(--border-subtle))', color: 'var(--text-color, #fff)', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}
               >+</button>
             </div>
             <div style={{ marginTop: '10px', fontSize: '0.72rem', color: 'var(--text-muted, #555)' }}>

@@ -10,7 +10,7 @@ export const ChecklistBar = ({ checklist }) => {
       <div className="checklist-bar-track">
         <div className="checklist-bar-fill" style={{ width: `${p.pct}%`, background: p.pct === 100 ? '#10b981' : '#3b82f6' }} />
       </div>
-      <span className="checklist-bar-label" style={{ color: p.pct === 100 ? '#10b981' : '#888' }}>
+      <span className="checklist-bar-label" style={{ color: p.pct === 100 ? '#10b981' : 'var(--text-muted)' }}>
         <CheckSquare size={10} /> {p.done}/{p.total}
       </span>
     </div>

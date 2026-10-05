@@ -38,9 +38,9 @@ export default function TaskQueue({ taskModels, nomenclatures = [], activeId, on
   return (
     <aside
       className={`side-panel no-print ${isDrawerOpen ? 'drawer-open' : ''}`}
-      style={{ display: 'flex', flexDirection: 'column', background: '#121212', borderRight: '1px solid #222', transition: '0.3s transform', width: '300px', flexShrink: 0 }}
+      style={{ display: 'flex', flexDirection: 'column', background: 'var(--surface-1)', borderRight: '1px solid var(--border-subtle)', transition: '0.3s transform', width: '300px', flexShrink: 0 }}
     >
-      <div style={{ padding: '16px 20px', color: '#888', fontWeight: 850, fontSize: '0.65rem', display: 'flex', flexDirection: 'column', gap: '10px', borderBottom: '1px solid #1a1a1a' }}>
+      <div style={{ padding: '16px 20px', color: 'var(--text-muted)', fontWeight: 850, fontSize: '0.65rem', display: 'flex', flexDirection: 'column', gap: '10px', borderBottom: '1px solid var(--border-subtle)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
           <span>ЧЕРГА НАРЯДІВ ({taskModels.length})</span>
           {isDrawerOpen && (
@@ -110,34 +110,34 @@ export default function TaskQueue({ taskModels, nomenclatures = [], activeId, on
                 cursor: 'pointer',
                 transition: 'all .2s',
                 marginBottom: '1px',
-                color: '#fff'
+                color: 'var(--text-strong)'
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
-                <div style={{ fontWeight: 900, fontSize: '0.9rem', color: state.key === 'completed' ? '#555' : '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <div style={{ fontWeight: 900, fontSize: '0.9rem', color: state.key === 'completed' ? 'var(--text-dim)' : 'var(--text-strong)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   № {title}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: state.color, flexShrink: 0 }}>
                   {state.icon}
                   {state.key !== 'idle' && (
-                    <span style={{ fontSize: '0.58rem', fontWeight: 950, color: state.key === 'progress' ? '#000' : '#fff', background: state.color, borderRadius: '6px', padding: '3px 7px', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                    <span style={{ fontSize: '0.58rem', fontWeight: 950, color: state.key === 'progress' ? 'var(--surface-black)' : 'var(--text-strong)', background: state.color, borderRadius: '6px', padding: '3px 7px', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
                       {state.label}
                     </span>
                   )}
                 </div>
               </div>
 
-              <div style={{ fontSize: '0.83rem', color: state.key === 'completed' ? '#555' : '#eaeaea', fontWeight: 900, margin: '4px 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <div style={{ fontSize: '0.83rem', color: state.key === 'completed' ? 'var(--text-dim)' : '#eaeaea', fontWeight: 900, margin: '4px 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {product} • <span style={{ color: state.key === 'completed' ? '#777' : '#ff9000' }}>{qty} шт.</span>
               </div>
               {customer && (
-                <div style={{ fontSize: '0.7rem', color: state.key === 'completed' ? '#333' : '#555', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <div style={{ fontSize: '0.7rem', color: state.key === 'completed' ? '#333' : 'var(--text-dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {customer}
                 </div>
               )}
 
-              <div style={{ display: 'flex', gap: '10px', marginTop: '9px', color: state.key === 'completed' ? '#333' : '#555', fontSize: '0.63rem', fontWeight: 950, textTransform: 'uppercase', flexWrap: 'wrap' }}>
-                <span>Карток: <b style={{ color: state.key === 'completed' ? '#555' : '#ddd' }}>{model.summary.totalCards}</b></span>
+              <div style={{ display: 'flex', gap: '10px', marginTop: '9px', color: state.key === 'completed' ? '#333' : 'var(--text-dim)', fontSize: '0.63rem', fontWeight: 950, textTransform: 'uppercase', flexWrap: 'wrap' }}>
+                <span>Карток: <b style={{ color: state.key === 'completed' ? 'var(--text-dim)' : 'var(--text-soft)' }}>{model.summary.totalCards}</b></span>
                 <span>Брак: <b style={{ color: model.summary.totalScrap > 0 ? '#ef4444' : '#777' }}>{formatQty(model.summary.totalScrap)}</b></span>
                 {model.summary.totalShortage > 0 && <span style={{ color: '#ef4444' }}>Нестача: {formatQty(model.summary.totalShortage)}</span>}
               </div>

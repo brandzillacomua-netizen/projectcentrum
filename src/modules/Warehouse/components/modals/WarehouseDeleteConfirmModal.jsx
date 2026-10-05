@@ -25,7 +25,7 @@ export const WarehouseDeleteConfirmModal = ({
       padding: '20px'
     }}>
       <div style={{
-        background: '#111',
+        background: 'var(--surface-1)',
         border: '1px solid rgba(239, 68, 68, 0.4)',
         borderRadius: '24px',
         padding: '28px',
@@ -38,7 +38,7 @@ export const WarehouseDeleteConfirmModal = ({
             <AlertTriangle size={26} />
           </div>
           <div>
-            <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 900, color: '#fff' }}>
+            <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 900, color: 'var(--text-strong)' }}>
               ПІДТВЕРДЖЕННЯ ВИДАЛЕННЯ
             </h3>
             <span style={{ fontSize: '0.68rem', color: '#ef4444', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
@@ -47,14 +47,14 @@ export const WarehouseDeleteConfirmModal = ({
           </div>
         </div>
 
-        <div style={{ background: '#080808', border: '1px solid #222', borderRadius: '16px', padding: '16px', marginBottom: '24px' }}>
-          <p style={{ margin: '0 0 8px 0', fontSize: '0.82rem', color: '#888' }}>
+        <div style={{ background: '#080808', border: '1px solid var(--border-subtle)', borderRadius: '16px', padding: '16px', marginBottom: '24px' }}>
+          <p style={{ margin: '0 0 8px 0', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
             Ви дійсно бажаєте безповоротно видалити позицію зі склада?
           </p>
-          <div style={{ fontSize: '0.95rem', fontWeight: 900, color: '#fff', wordBreak: 'break-word', lineHeight: '1.4' }}>
+          <div style={{ fontSize: '0.95rem', fontWeight: 900, color: 'var(--text-strong)', wordBreak: 'break-word', lineHeight: '1.4' }}>
             {itemToDelete.name}
           </div>
-          <div style={{ display: 'flex', gap: '15px', marginTop: '12px', fontSize: '0.78rem', color: '#555' }}>
+          <div style={{ display: 'flex', gap: '15px', marginTop: '12px', fontSize: '0.78rem', color: 'var(--text-dim)' }}>
             <span>Наявність: <strong style={{ color: '#ff9000' }}>{itemToDelete.total_qty || 0} {itemToDelete.unit || 'шт'}</strong></span>
             <span>ID: <code style={{ color: '#444' }}>{String(itemToDelete.id).substring(0, 8)}</code></span>
           </div>
@@ -66,9 +66,9 @@ export const WarehouseDeleteConfirmModal = ({
             disabled={isDeleting}
             onClick={() => setItemToDelete(null)}
             style={{
-              background: '#1a1a1a',
-              color: '#ccc',
-              border: '1px solid #333',
+              background: 'var(--surface-2)',
+              color: 'var(--text-soft)',
+              border: '1px solid var(--border-subtle)',
               padding: '12px 22px',
               borderRadius: '12px',
               fontWeight: 800,

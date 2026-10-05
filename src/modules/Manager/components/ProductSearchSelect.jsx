@@ -51,11 +51,11 @@ export const ProductSearchSelect = ({
       <div
         className="input-wrapper"
         style={{
-          borderColor: isOpen ? '#ff9000' : (value ? 'rgba(255,144,0,0.3)' : 'var(--glass-border, rgba(255,255,255,0.1))'),
+          borderColor: isOpen ? '#ff9000' : (value ? 'rgba(255,144,0,0.3)' : 'var(--glass-border, var(--border-subtle))'),
           background: value ? 'rgba(255,144,0,0.03)' : 'var(--card-bg, rgba(0,0,0,0.3))',
         }}
       >
-        <Layers size={16} style={{ color: value ? '#ff9000' : '#888' }} />
+        <Layers size={16} style={{ color: value ? '#ff9000' : 'var(--text-muted)' }} />
         <input
           type="text"
           value={isOpen ? query : (selectedProduct ? `${selectedProduct.name}${selectedProduct.code ? ` (${selectedProduct.code})` : ''}` : query)}
@@ -77,7 +77,7 @@ export const ProductSearchSelect = ({
             style={{
               background: 'transparent',
               border: 'none',
-              color: '#888',
+              color: 'var(--text-muted)',
               cursor: 'pointer',
               padding: '4px',
               display: 'flex',
@@ -92,7 +92,7 @@ export const ProductSearchSelect = ({
             <X size={15} />
           </button>
         ) : (
-          <Search size={15} style={{ position: 'absolute', right: '12px', color: isOpen ? '#ff9000' : '#888', pointerEvents: 'none' }} />
+          <Search size={15} style={{ position: 'absolute', right: '12px', color: isOpen ? '#ff9000' : 'var(--text-muted)', pointerEvents: 'none' }} />
         )}
       </div>
 
@@ -123,20 +123,20 @@ export const ProductSearchSelect = ({
                       justifyContent: 'space-between',
                       alignItems: 'center',
                       background: isSelected ? 'rgba(255,144,0,0.12)' : undefined,
-                      color: isSelected ? '#ff9000' : '#fff',
+                      color: isSelected ? '#ff9000' : 'var(--text-strong)',
                       fontWeight: isSelected ? 800 : 400
                     }}
                   >
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                       <span>{p.name}</span>
-                      {p.code && <span style={{ fontSize: '0.72rem', color: '#888' }}>Код / Арт: {p.code}</span>}
+                      {p.code && <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Код / Арт: {p.code}</span>}
                     </div>
                     {isSelected && <span style={{ fontSize: '0.8rem', color: '#ff9000', fontWeight: 900 }}>✓</span>}
                   </div>
                 )
               })
             ) : (
-              <div style={{ padding: '14px', fontSize: '0.82rem', color: '#666', textAlign: 'center' }}>
+              <div style={{ padding: '14px', fontSize: '0.82rem', color: 'var(--text-dim)', textAlign: 'center' }}>
                 Нічого не знайдено за запитом &quot;{query}&quot;
               </div>
             )}

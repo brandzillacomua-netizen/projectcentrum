@@ -23,7 +23,7 @@ export function ForemanTaskList({
   return (
     <div
       className={`side-panel no-print ${isDrawerOpen ? 'drawer-open' : ''}`}
-      style={{ display: 'flex', flexDirection: 'column', background: '#121212', borderRight: '1px solid #222', transition: '0.3s transform' }}
+      style={{ display: 'flex', flexDirection: 'column', background: 'var(--surface-1)', borderRight: '1px solid var(--border-subtle)', transition: '0.3s transform' }}
     >
       <div style={{ padding: '20px', color: '#444', fontWeight: 800, fontSize: '0.65rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         ЧЕРГА НАРЯДІВ ({relevantTasks.length})
@@ -89,7 +89,7 @@ export function ForemanTaskList({
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ fontWeight: 800, fontSize: '0.9rem', color: isCompleted ? '#555' : '#fff' }}>
+                <div style={{ fontWeight: 800, fontSize: '0.9rem', color: isCompleted ? 'var(--text-dim)' : 'var(--text-strong)' }}>
                   № {order?.order_num}{task.batch_index ? `/${task.batch_index}` : ''}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
@@ -97,19 +97,19 @@ export function ForemanTaskList({
                   {isReady && !isCompleted && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#10b981', borderRadius: '6px', padding: '3px 8px', boxShadow: '0 4px 10px rgba(16,185,129,0.3)' }}>
                       <ArrowRight size={10} color="#fff" />
-                      <span style={{ fontSize: '0.6rem', fontWeight: 950, color: '#fff', letterSpacing: '0.5px' }}>ГОТОВО</span>
+                      <span style={{ fontSize: '0.6rem', fontWeight: 950, color: 'var(--text-strong)', letterSpacing: '0.5px' }}>ГОТОВО</span>
                     </div>
                   )}
                   {isShortage && !isCompleted && !isReady && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#ef4444', borderRadius: '6px', padding: '3px 8px', boxShadow: '0 4px 10px rgba(239,68,68,0.3)' }}>
                       <AlertTriangle size={10} color="#fff" />
-                      <span style={{ fontSize: '0.6rem', fontWeight: 950, color: '#fff', letterSpacing: '0.5px' }}>НЕСТАЧА</span>
+                      <span style={{ fontSize: '0.6rem', fontWeight: 950, color: 'var(--text-strong)', letterSpacing: '0.5px' }}>НЕСТАЧА</span>
                     </div>
                   )}
                   {isNew && (
                     <div className="anim-pulse-blue" style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#3b82f6', borderRadius: '6px', padding: '3px 8px', boxShadow: '0 4px 10px rgba(59,130,246,0.3)' }}>
                       <Clock size={10} color="#fff" />
-                      <span style={{ fontSize: '0.6rem', fontWeight: 950, color: '#fff', letterSpacing: '0.5px' }}>НОВИЙ</span>
+                      <span style={{ fontSize: '0.6rem', fontWeight: 950, color: 'var(--text-strong)', letterSpacing: '0.5px' }}>НОВИЙ</span>
                     </div>
                   )}
                   {isInProgress && (
@@ -125,12 +125,12 @@ export function ForemanTaskList({
                 const prod = nomenclatures?.find(n => String(n.id) === String(prodId))
                 const qty = task.planned_sets || order?.quantity || 0
                 return (
-                  <div style={{ fontSize: '0.85rem', color: isCompleted ? '#555' : '#eaeaea', fontWeight: 900, margin: '4px 0' }}>
+                  <div style={{ fontSize: '0.85rem', color: isCompleted ? 'var(--text-dim)' : '#eaeaea', fontWeight: 900, margin: '4px 0' }}>
                     {prod ? prod.name : '—'} • <span style={{ color: isCompleted ? '#777' : '#ff9000' }}>{qty} шт.</span>
                   </div>
                 )
               })()}
-              <div style={{ fontSize: '0.7rem', color: isCompleted ? '#333' : '#555' }}>{order?.customer}</div>
+              <div style={{ fontSize: '0.7rem', color: isCompleted ? '#333' : 'var(--text-dim)' }}>{order?.customer}</div>
               {isCompleted && <div style={{ fontSize: '0.6rem', color: '#10b981', fontWeight: 900, marginTop: '4px' }}>ВИКОНАНО</div>}
               {isReady && !isCompleted && (
                 <div style={{ fontSize: '0.6rem', color: '#10b981', fontWeight: 900, marginTop: '5px', display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -164,19 +164,19 @@ export function ForemanTaskList({
         )}
       </div>
       {relevantTasks.length > itemsPerPage && (
-        <div style={{ padding: '15px', borderTop: '1px solid #222', display: 'flex', justifyContent: 'center', gap: '10px' }}>
+        <div style={{ padding: '15px', borderTop: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'center', gap: '10px' }}>
           <button
             disabled={currentPage === 1}
             onClick={() => setCurrentPage(p => p - 1)}
-            style={{ background: '#222', border: 'none', color: '#fff', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', opacity: currentPage === 1 ? 0.3 : 1 }}
+            style={{ background: 'var(--surface-3)', border: 'none', color: 'var(--text-strong)', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', opacity: currentPage === 1 ? 0.3 : 1 }}
           >Назад</button>
-          <div style={{ fontSize: '0.7rem', color: '#555', fontWeight: 800, display: 'flex', alignItems: 'center' }}>
+          <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', fontWeight: 800, display: 'flex', alignItems: 'center' }}>
             {currentPage} / {Math.ceil(relevantTasks.length / itemsPerPage)}
           </div>
           <button
             disabled={currentPage === Math.ceil(relevantTasks.length / itemsPerPage)}
             onClick={() => setCurrentPage(p => p + 1)}
-            style={{ background: '#222', border: 'none', color: '#fff', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', opacity: currentPage === Math.ceil(relevantTasks.length / itemsPerPage) ? 0.3 : 1 }}
+            style={{ background: 'var(--surface-3)', border: 'none', color: 'var(--text-strong)', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', opacity: currentPage === Math.ceil(relevantTasks.length / itemsPerPage) ? 0.3 : 1 }}
           >Вперед</button>
         </div>
       )}

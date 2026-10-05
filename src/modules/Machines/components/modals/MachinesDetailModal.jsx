@@ -45,7 +45,7 @@ export function MachinesDetailModal({
             </div>
             <div className="side-metric">
               <label>ОПИС / ПРИМІТКИ</label>
-              <p style={{ fontSize: '0.8rem', color: '#555', margin: 0, lineHeight: 1.5 }}>
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-dim)', margin: 0, lineHeight: 1.5 }}>
                 {selectedMachine.description || 'Додаткова інформація не вказана.'}
               </p>
             </div>
@@ -55,7 +55,7 @@ export function MachinesDetailModal({
             </div>
             <div className="side-metric" style={{ marginTop: '20px', textAlign: 'center' }}>
               <label>QR-КОД ДЛЯ ВИКЛИКУ</label>
-              <div style={{ background: '#ffffff', border: '1px solid #222', borderRadius: '16px', padding: '15px', display: 'inline-block', margin: '10px 0' }}>
+              <div style={{ background: '#ffffff', border: '1px solid var(--border-subtle)', borderRadius: '16px', padding: '15px', display: 'inline-block', margin: '10px 0' }}>
                 <img 
                   src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&color=000000&bgcolor=ffffff&data=${encodeURIComponent(`${window.location.origin}/machines/${selectedMachine.id}/call`)}`} 
                   alt="QR Code" 
@@ -65,7 +65,7 @@ export function MachinesDetailModal({
               <button 
                 onClick={() => handlePrintQR(selectedMachine)}
                 style={{ 
-                  background: '#ff9000', color: '#000', border: 'none', 
+                  background: '#ff9000', color: 'var(--surface-black)', border: 'none', 
                   width: '100%', padding: '12px', borderRadius: '12px', 
                   fontWeight: 950, cursor: 'pointer', fontSize: '0.8rem',
                   marginTop: '5px', transition: '0.2s', boxShadow: '0 4px 12px rgba(255,144,0,0.2)'
@@ -78,7 +78,7 @@ export function MachinesDetailModal({
 
           <main className="detail-main">
             {activeCallsForMachine.length > 0 && (
-              <div style={{ marginBottom: '35px', background: 'rgba(239,68,68,0.02)', border: '1px solid #222', borderRadius: '20px', padding: '25px' }}>
+              <div style={{ marginBottom: '35px', background: 'rgba(239,68,68,0.02)', border: '1px solid var(--border-subtle)', borderRadius: '20px', padding: '25px' }}>
                 <h4 style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1rem', color: '#ef4444', margin: '0 0 20px 0' }}>
                   <AlertTriangle size={18} /> АКТИВНІ ВИКЛИКИ ОПЕРАТОРА
                 </h4>
@@ -87,12 +87,12 @@ export function MachinesDetailModal({
                     const label = c.called_role === 'master' ? 'МАЙСТЕР' : c.called_role === 'engineer' ? 'ІНЖЕНЕР' : 'ВКЯ'
                     const roleColor = c.called_role === 'master' ? '#ff9000' : c.called_role === 'engineer' ? '#8b5cf6' : '#ef4444'
                     return (
-                      <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#050505', border: '1px solid #1a1a1a', padding: '15px 20px', borderRadius: '12px' }}>
+                      <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--surface-inset)', border: '1px solid var(--border-subtle)', padding: '15px 20px', borderRadius: '12px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                          <span style={{ background: roleColor, color: '#000', padding: '4px 10px', borderRadius: '6px', fontSize: '0.7rem', fontWeight: 1000 }}>{label}</span>
+                          <span style={{ background: roleColor, color: 'var(--surface-black)', padding: '4px 10px', borderRadius: '6px', fontSize: '0.7rem', fontWeight: 1000 }}>{label}</span>
                           <div style={{ display: 'flex', flexDirection: 'column' }}>
                             <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>Викликав: {c.operator_name || 'Оператор'}</span>
-                            <span style={{ fontSize: '0.7rem', color: '#555', marginTop: '2px' }}>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '2px' }}>
                               Час виклику: {new Date(c.created_at).toLocaleString('uk-UA', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                             </span>
                           </div>
@@ -114,7 +114,7 @@ export function MachinesDetailModal({
                               alert('Помилка закриття виклику: ' + err.message)
                             }
                           }}
-                          style={{ background: '#10b981', color: '#000', border: 'none', padding: '8px 16px', borderRadius: '8px', fontWeight: 900, cursor: 'pointer', fontSize: '0.78rem' }}
+                          style={{ background: '#10b981', color: 'var(--surface-black)', border: 'none', padding: '8px 16px', borderRadius: '8px', fontWeight: 900, cursor: 'pointer', fontSize: '0.78rem' }}
                         >
                           ОБРОБЛЕНО
                         </button>
@@ -130,7 +130,7 @@ export function MachinesDetailModal({
                 <h4 style={{ margin: '0 0 10px 0', color: '#f59e0b', fontSize: '1.1rem', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <AlertTriangle size={20} /> ТЕХНОЛОГІЧНЕ ОБСЛУГОВУВАННЯ (ЧИСТКА СТОЛА)
                 </h4>
-                <p style={{ margin: '0 0 20px 0', fontSize: '0.85rem', color: '#aaa', lineHeight: 1.5 }}>
+                <p style={{ margin: '0 0 20px 0', fontSize: '0.85rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
                   Верстат виконав 5 карток розкрою поспіль і потребує очищення робочої поверхні (стола). Будь ласка, оберіть дію нижче:
                 </p>
                 
@@ -211,7 +211,7 @@ export function MachinesDetailModal({
                           
                           fetchData('machines');
                         }}
-                        style={{ background: '#222', color: '#888', border: '1px solid #333', padding: '12px 25px', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', fontSize: '0.85rem' }}
+                        style={{ background: 'var(--surface-3)', color: '#888', border: '1px solid var(--border-subtle)', padding: '12px 25px', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', fontSize: '0.85rem' }}
                       >
                         🚀 ЗАПУСТИТИ БЕЗ РЕМОНТУ
                       </button>
@@ -256,7 +256,7 @@ export function MachinesDetailModal({
                         
                         fetchData('machines');
                       }}
-                      style={{ background: '#10b981', color: '#000', border: 'none', padding: '12px 25px', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', fontSize: '0.85rem' }}
+                      style={{ background: '#10b981', color: 'var(--surface-black)', border: 'none', padding: '12px 25px', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', fontSize: '0.85rem' }}
                     >
                       ✅ ЗАВЕРШИТИ ОБСЛУГОВУВАННЯ
                     </button>
@@ -292,7 +292,7 @@ export function MachinesDetailModal({
 
                       return (
                         <tr key={h.id} style={{ opacity: h.is_pending ? 0.7 : 1 }}>
-                          <td style={{ fontSize: '0.7rem', color: '#555' }}>
+                          <td style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>
                             {new Date(h.completed_at || h.created_at || new Date()).toLocaleString('uk-UA', { 
                               day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' 
                             })}
@@ -301,10 +301,10 @@ export function MachinesDetailModal({
                             {!h.is_active && !h.is_pending && <span style={{ marginLeft: '8px', color: '#00ff64', fontSize: '0.6rem', fontWeight: 1000, background: 'rgba(0,255,100,0.1)', padding: '2px 6px', borderRadius: '4px' }}>ВИКОНАНО</span>}
                           </td>
                           <td style={{ textAlign: 'center', fontSize: '0.8rem', fontWeight: 700, color: '#ff9000' }}>{orderNumStr}</td>
-                          <td style={{ textAlign: 'center', fontSize: '0.7rem', color: '#888' }}>{cardNumStr}</td>
+                          <td style={{ textAlign: 'center', fontSize: '0.7rem', color: 'var(--text-muted)' }}>{cardNumStr}</td>
                           <td style={{ fontWeight: 800 }}>{nom?.name || '—'}</td>
                           <td style={{ fontSize: '0.8rem' }}>{h.operator_name || '—'}</td>
-                          <td style={{ textAlign: 'right', fontWeight: 900, color: '#fff' }}>{h.qty_completed || h.quantity} шт</td>
+                          <td style={{ textAlign: 'right', fontWeight: 900, color: 'var(--text-strong)' }}>{h.qty_completed || h.quantity} шт</td>
                           <td style={{ textAlign: 'right', fontWeight: 900, color: '#ef4444' }}>{h.scrap_qty || 0} шт</td>
                         </tr>
                       );
@@ -341,17 +341,17 @@ export function MachinesDetailModal({
                     
                     return (
                       <tr key={log.id}>
-                        <td style={{ fontSize: '0.8rem', color: '#aaa' }}>
+                        <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                           {new Date(log.triggered_at).toLocaleString('uk-UA')}
                         </td>
-                        <td style={{ fontSize: '0.8rem', color: '#aaa' }}>
+                        <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                           {log.started_at ? new Date(log.started_at).toLocaleTimeString('uk-UA') : '—'}
                         </td>
                         <td>
                           {log.status === 'pending' && <span style={{ color: '#ef4444', fontWeight: 900 }}>ОЧІКУЄ</span>}
                           {log.status === 'in_progress' && <span style={{ color: '#3b82f6', fontWeight: 900 }}>ОБСЛУГОВУЄТЬСЯ</span>}
                           {log.status === 'completed' && <span style={{ color: '#10b981', fontWeight: 900 }}>ВИКОНАНО</span>}
-                          {log.status === 'skipped' && <span style={{ color: '#888', fontWeight: 900 }}>ПРОПУЩЕНО</span>}
+                          {log.status === 'skipped' && <span style={{ color: 'var(--text-muted)', fontWeight: 900 }}>ПРОПУЩЕНО</span>}
                         </td>
                         <td>{log.performed_by || '—'}</td>
                         <td style={{ textAlign: 'right', fontWeight: 700 }}>

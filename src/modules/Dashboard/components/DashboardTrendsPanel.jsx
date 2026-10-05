@@ -16,7 +16,7 @@ export const DashboardTrendsPanel = ({
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.1rem' }}>⚡</div>
           <div>
-            <div style={{ fontSize: '0.85rem', fontWeight: 900, color: '#fff', letterSpacing: '0.03em', textTransform: 'uppercase' }}>Вузькі Місця & Тренди за нарядами</div>
+            <div style={{ fontSize: '0.85rem', fontWeight: 900, color: 'var(--text-strong)', letterSpacing: '0.03em', textTransform: 'uppercase' }}>Вузькі Місця & Тренди за нарядами</div>
             <div style={{ fontSize: '0.65rem', color: '#71717a', fontWeight: 600, marginTop: '1px' }}>Аналіз потенціалу нарядів та обмежувальних деталей</div>
           </div>
         </div>

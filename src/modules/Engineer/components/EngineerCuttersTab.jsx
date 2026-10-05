@@ -189,7 +189,7 @@ export function EngineerCuttersTab() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
       {/* Створення типу фрези */}
-      <div style={{ background: '#111', padding: '25px', borderRadius: '16px', border: '1px solid #222' }}>
+      <div style={{ background: 'var(--surface-1)', padding: '25px', borderRadius: '16px', border: '1px solid var(--border-subtle)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '10px' }}>
           <h3 style={{ margin: 0, fontSize: '1.1rem', color: '#10b981', fontWeight: 900 }}>✚ Створити новий тип фрези</h3>
           <button
@@ -203,25 +203,25 @@ export function EngineerCuttersTab() {
         </div>
         <form onSubmit={handleAddCutterType} style={{ display: 'flex', gap: '15px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
           <div style={{ flex: 2, minWidth: '200px' }}>
-            <label style={{ display: 'block', fontSize: '0.7rem', color: '#888', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px' }}>Назва фрези в системі</label>
+            <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px' }}>Назва фрези в системі</label>
             <input 
               type="text" 
               placeholder="напр. Тип Ф2, Тип Ф3, Фреза ф6, Фреза ф6 (90)" 
               value={newCutterName}
               onChange={e => setNewCutterName(e.target.value)}
-              style={{ width: '100%', padding: '10px 14px', background: '#000', border: '1px solid #333', color: '#fff', borderRadius: '8px', fontSize: '0.9rem', outline: 'none' }}
+              style={{ width: '100%', padding: '10px 14px', background: 'var(--surface-black)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', borderRadius: '8px', fontSize: '0.9rem', outline: 'none' }}
               required
             />
           </div>
           <div style={{ flex: 1, minWidth: '120px' }}>
-            <label style={{ display: 'block', fontSize: '0.7rem', color: '#888', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px' }}>Діаметр (мм)</label>
+            <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px' }}>Діаметр (мм)</label>
             <input 
               type="number" 
               step="any" 
               placeholder="напр. 1.5, 2, 3, 4, 6" 
               value={newCutterDiam}
               onChange={e => setNewCutterDiam(e.target.value)}
-              style={{ width: '100%', padding: '10px 14px', background: '#000', border: '1px solid #333', color: '#fff', borderRadius: '8px', fontSize: '0.9rem', outline: 'none' }}
+              style={{ width: '100%', padding: '10px 14px', background: 'var(--surface-black)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', borderRadius: '8px', fontSize: '0.9rem', outline: 'none' }}
             />
           </div>
           <button 
@@ -236,17 +236,17 @@ export function EngineerCuttersTab() {
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '25px', alignItems: 'start' }}>
         {/* Список типів фрез */}
-        <div style={{ background: '#111', padding: '25px', borderRadius: '16px', border: '1px solid #222' }}>
-          <h3 style={{ margin: '0 0 20px 0', fontSize: '1.1rem', fontWeight: 900, color: '#fff' }}>Типи фрез в системі ({cutterTypes.length})</h3>
+        <div style={{ background: 'var(--surface-1)', padding: '25px', borderRadius: '16px', border: '1px solid var(--border-subtle)' }}>
+          <h3 style={{ margin: '0 0 20px 0', fontSize: '1.1rem', fontWeight: 900, color: 'var(--text-strong)' }}>Типи фрез в системі ({cutterTypes.length})</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {cutterTypes.map(c => {
               const diam = c.material_type || c.rule_params?.diameter || c.name?.match(/ф\s*([0-9.]+)/i)?.[1] || '—'
               const assignedCount = physicalCutters.filter(p => String(p.assignedCutterTypeId) === String(c.id)).length
               return (
-                <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#0a0a0a', padding: '12px 15px', borderRadius: '10px', border: '1px solid #222' }}>
+                <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--surface-inset)', padding: '12px 15px', borderRadius: '10px', border: '1px solid var(--border-subtle)' }}>
                   <div>
-                    <div style={{ fontWeight: 800, color: '#fff' }}>{c.name}</div>
-                    <div style={{ fontSize: '0.72rem', color: '#888', marginTop: '2px' }}>
+                    <div style={{ fontWeight: 800, color: 'var(--text-strong)' }}>{c.name}</div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
                       Діаметр: <span style={{ color: '#38bdf8', fontWeight: 700 }}>{diam} мм</span> | Прив'язано фрез зі складу: <span style={{ color: '#10b981', fontWeight: 800 }}>{assignedCount}</span>
                     </div>
                   </div>
@@ -260,7 +260,7 @@ export function EngineerCuttersTab() {
               )
             })}
             {cutterTypes.length === 0 && (
-              <div style={{ color: '#888', fontSize: '0.85rem', textAlign: 'center', padding: '20px' }}>
+              <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', textAlign: 'center', padding: '20px' }}>
                 Немає типів фрез. Натисніть кнопку вище для створення стандартних типів (Ф1.5 - Ф6).
               </div>
             )}
@@ -268,30 +268,30 @@ export function EngineerCuttersTab() {
         </div>
 
         {/* Прив'язка фізичних фрез зі складу */}
-        <div style={{ background: '#111', padding: '25px', borderRadius: '16px', border: '1px solid #222' }}>
-          <h3 style={{ margin: '0 0 20px 0', fontSize: '1.1rem', fontWeight: 900, color: '#fff' }}>Прив'язка фрез зі складу до типів фрез ({physicalCutters.length})</h3>
-          <p style={{ fontSize: '0.75rem', color: '#888', marginTop: '-15px', marginBottom: '20px', lineHeight: 1.4 }}>
+        <div style={{ background: 'var(--surface-1)', padding: '25px', borderRadius: '16px', border: '1px solid var(--border-subtle)' }}>
+          <h3 style={{ margin: '0 0 20px 0', fontSize: '1.1rem', fontWeight: 900, color: 'var(--text-strong)' }}>Прив'язка фрез зі складу до типів фрез ({physicalCutters.length})</h3>
+          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '-15px', marginBottom: '20px', lineHeight: 1.4 }}>
             Оберіть для кожної фізичної фрези зі складу відповідний віртуальний тип фрези в системі. Це дозволяє оператору та майстру автоматично підбирати відповідні фрези на виробництві.
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '500px', overflowY: 'auto', paddingRight: '5px' }}>
             {physicalCutters.map(p => (
-              <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#0a0a0a', padding: '12px 15px', borderRadius: '10px', border: '1px solid #222', gap: '15px' }}>
+              <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--surface-inset)', padding: '12px 15px', borderRadius: '10px', border: '1px solid var(--border-subtle)', gap: '15px' }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 800, color: '#eee', fontSize: '0.85rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
-                  <div style={{ fontSize: '0.72rem', color: '#666', marginTop: '2px' }}>{p.material_type || p.rule_type || '—'}</div>
+                  <div style={{ fontWeight: 800, color: 'var(--text-soft)', fontSize: '0.85rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-dim)', marginTop: '2px' }}>{p.material_type || p.rule_type || '—'}</div>
                 </div>
                 <select 
                   value={p.assignedCutterTypeId || ''}
                   onChange={e => handleAssignCutterType(p.id, e.target.value)}
                   disabled={assigningId === p.id}
-                  style={{ width: '190px', padding: '8px', background: '#000', border: '1px solid #333', color: p.assignedCutterTypeId ? '#10b981' : '#888', borderRadius: '6px', fontSize: '0.78rem', fontWeight: p.assignedCutterTypeId ? 800 : 500 }}
+                  style={{ width: '190px', padding: '8px', background: 'var(--surface-black)', border: '1px solid var(--border-subtle)', color: p.assignedCutterTypeId ? '#10b981' : '#888', borderRadius: '6px', fontSize: '0.78rem', fontWeight: p.assignedCutterTypeId ? 800 : 500 }}
                 >
                   <option value="">-- Не призначено --</option>
                   {cutterTypes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </div>
             ))}
-            {physicalCutters.length === 0 && <div style={{ color: '#888', fontSize: '0.85rem', textAlign: 'center', padding: '20px' }}>Не знайдено складських фрез.</div>}
+            {physicalCutters.length === 0 && <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', textAlign: 'center', padding: '20px' }}>Не знайдено складських фрез.</div>}
           </div>
         </div>
       </div>

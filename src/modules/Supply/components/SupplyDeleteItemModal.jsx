@@ -51,7 +51,7 @@ export const SupplyDeleteItemModal = ({
           </div>
         </div>
 
-        <div style={{ background: 'var(--card-inner-bg, #080808)', border: '1px solid var(--border-color, #222)', borderRadius: '16px', padding: '16px', marginBottom: '24px' }}>
+        <div style={{ background: 'var(--card-inner-bg, #080808)', border: '1px solid var(--border-color, var(--border-subtle))', borderRadius: '16px', padding: '16px', marginBottom: '24px' }}>
           <p style={{ margin: '0 0 8px 0', fontSize: '0.82rem', color: 'var(--text-muted, #888)' }}>
             Ви дійсно бажаєте безповоротно видалити позицію зі склада?
           </p>
@@ -72,7 +72,7 @@ export const SupplyDeleteItemModal = ({
             style={{
               background: 'var(--btn-ghost-bg, #1a1a1a)',
               color: 'var(--text-muted, #ccc)',
-              border: '1px solid var(--border-color, #333)',
+              border: '1px solid var(--border-color, var(--border-subtle))',
               padding: '12px 22px',
               borderRadius: '12px',
               fontWeight: 800,

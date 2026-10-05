@@ -9,7 +9,7 @@ export default function ReceptionTerminalHeader({
   setSelectedShift
 }) {
   return (
-    <header style={{ flexShrink: 0, background: 'var(--card-bg, rgba(12,12,15,0.85))', backdropFilter: 'blur(12px)', borderBottom: '1px solid var(--glass-border, rgba(255,255,255,0.04))', padding: '0 24px', height: '80px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', zIndex: 10 }}>
+    <header style={{ flexShrink: 0, background: 'var(--card-bg, rgba(12,12,15,0.85))', backdropFilter: 'blur(12px)', borderBottom: '1px solid var(--glass-border, var(--border-subtle))', padding: '0 24px', height: '80px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', zIndex: 10 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
         <Link to="/" style={{ color: 'var(--text-muted, #888)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', fontWeight: 700 }}>
           <ArrowLeft size={16} /> На головну
@@ -32,7 +32,7 @@ export default function ReceptionTerminalHeader({
           <select
             value={selectedShift}
             onChange={e => setSelectedShift(e.target.value)}
-            style={{ background: 'var(--input-bg, #121216)', border: '1px solid var(--glass-border, rgba(255,255,255,0.05))', color: 'var(--text, #fff)', padding: '8px 12px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 800, cursor: 'pointer', outline: 'none', width: '120px' }}
+            style={{ background: 'var(--input-bg, #121216)', border: '1px solid var(--glass-border, var(--border-subtle))', color: 'var(--text, #fff)', padding: '8px 12px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 800, cursor: 'pointer', outline: 'none', width: '120px' }}
           >
             <option value="">— Оберіть —</option>
             <option value="Зміна 1">Зміна 1</option>

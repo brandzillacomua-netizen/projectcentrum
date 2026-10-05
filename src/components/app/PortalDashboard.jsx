@@ -146,12 +146,12 @@ export const PortalDashboard = ({ chatUnreadCount }) => {
 
   if (!hasDashboardAccess && modules.length === 0) {
     return (
-      <div style={{ background: '#050505', minHeight: 'calc(100vh - 64px)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '20px', padding: '20px', color: '#fff', textAlign: 'center' }}>
+      <div style={{ background: 'var(--surface-inset)', minHeight: 'calc(100vh - 64px)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '20px', padding: '20px', color: 'var(--text-strong)', textAlign: 'center' }}>
         <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid #ef4444', color: '#ef4444', padding: '20px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '10px' }}>
           <AlertTriangle size={40} />
         </div>
         <h1 style={{ fontSize: '1.8rem', fontWeight: 950, margin: 0 }}>Немає призначених модулів</h1>
-        <p style={{ color: '#888', fontSize: '0.9rem', maxWidth: '400px', margin: '0 0 20px' }}>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', maxWidth: '400px', margin: '0 0 20px' }}>
           У вашому обліковому записі не обрано жодного доступного модуля. Зверніться до адміністратора в модулі «Система».
         </p>
       </div>
@@ -165,7 +165,7 @@ export const PortalDashboard = ({ chatUnreadCount }) => {
         {/* Executive Command Header & Pulse Status */}
         <div style={{
           background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(255, 144, 0, 0.08) 100%)',
-          border: '1px solid var(--glass-border, rgba(255, 255, 255, 0.1))',
+          border: '1px solid var(--glass-border, var(--border-subtle))',
           borderRadius: '24px',
           padding: '24px 28px',
           marginBottom: '24px',
@@ -266,7 +266,7 @@ export const PortalDashboard = ({ chatUnreadCount }) => {
               </Link>
             )}
 
-            <Link to="/chat" style={{ background: 'var(--secondary, rgba(255,255,255,0.06))', color: 'var(--text)', border: '1px solid var(--glass-border)', textDecoration: 'none', padding: '9px 18px', borderRadius: '14px', fontSize: '0.82rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px', transition: '0.2s' }}>
+            <Link to="/chat" style={{ background: 'var(--secondary, var(--border-subtle))', color: 'var(--text)', border: '1px solid var(--glass-border)', textDecoration: 'none', padding: '9px 18px', borderRadius: '14px', fontSize: '0.82rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px', transition: '0.2s' }}>
               <MessageCircle size={16} color="#6366f1" /> Чат
             </Link>
           </div>
@@ -571,7 +571,7 @@ export const PortalDashboard = ({ chatUnreadCount }) => {
             </div>
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
               {hasModule('director') && (
-                <Link to="/director" style={{ background: '#ff9000', color: '#000', textDecoration: 'none', padding: '8px 15px', borderRadius: '12px', fontSize: '0.82rem', fontWeight: 900, transition: '0.2s' }}>
+                <Link to="/director" style={{ background: '#ff9000', color: 'var(--surface-black)', textDecoration: 'none', padding: '8px 15px', borderRadius: '12px', fontSize: '0.82rem', fontWeight: 900, transition: '0.2s' }}>
                   Кабінет Директора →
                 </Link>
               )}

@@ -190,10 +190,10 @@ export const ScannerPanel = ({
           display: none !important;
         }
       `}</style>
-      <div style={{ background: '#111', width: '100%', maxWidth: '440px', borderRadius: '28px', border: '1px solid #333', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ background: 'var(--surface-1)', width: '100%', maxWidth: '440px', borderRadius: '28px', border: '1px solid var(--border-subtle)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         
         {/* Header */}
-        <div style={{ padding: '18px 20px', background: '#1a1a1a', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #222' }}>
+        <div style={{ padding: '18px 20px', background: 'var(--surface-2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-subtle)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: color, fontWeight: 900, fontSize: '0.9rem' }}>
             <QrCode size={18} /> СКАНУВАННЯ РОБОЧОЇ КАРТКИ
           </div>
@@ -209,7 +209,7 @@ export const ScannerPanel = ({
                 {localError}
               </div>
             )}
-            <div style={{ color: '#aaa', fontSize: '0.78rem', fontWeight: 700, maxWidth: '320px', lineHeight: 1.5 }}>
+            <div style={{ color: 'var(--text-muted)', fontSize: '0.78rem', fontWeight: 700, maxWidth: '320px', lineHeight: 1.5 }}>
               Введіть номер або ID картки вручну:
             </div>
             <div style={{ display: 'flex', gap: '8px', width: '100%', maxWidth: '340px' }}>
@@ -225,7 +225,7 @@ export const ScannerPanel = ({
                   }
                 }}
                 placeholder="Введіть ID або номер картки..."
-                style={{ flex: 1, padding: '12px 14px', background: '#000', border: '1px solid #333', color: '#fff', borderRadius: '12px', fontSize: '0.85rem', outline: 'none', fontWeight: 700 }}
+                style={{ flex: 1, padding: '12px 14px', background: 'var(--surface-black)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', borderRadius: '12px', fontSize: '0.85rem', outline: 'none', fontWeight: 700 }}
                 autoFocus
               />
               <button
@@ -237,7 +237,7 @@ export const ScannerPanel = ({
                     handleCardScan(manualCardInput.trim()) 
                   } 
                 }}
-                style={{ padding: '12px 18px', background: color, color: '#000', border: 'none', borderRadius: '12px', fontWeight: 1000, cursor: 'pointer', fontSize: '0.85rem' }}
+                style={{ padding: '12px 18px', background: color, color: 'var(--surface-black)', border: 'none', borderRadius: '12px', fontWeight: 1000, cursor: 'pointer', fontSize: '0.85rem' }}
               >
                 ОК
               </button>
@@ -259,18 +259,18 @@ export const ScannerPanel = ({
                 const videoEl = document.querySelector('#warehouse-reader video')
                 if (videoEl) videoEl.play().catch(() => {})
               }}
-              style={{ padding: '12px', position: 'relative', background: '#000', minHeight: '290px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+              style={{ padding: '12px', position: 'relative', background: 'var(--surface-black)', minHeight: '290px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
             >
               <div id="warehouse-reader" style={{ width: '100%', minHeight: '280px', height: '100%', border: 'none', borderRadius: '18px', overflow: 'hidden' }} />
             </div>
-            <div style={{ padding: '14px 20px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#161616', borderTop: '1px solid #222' }}>
-              <span style={{ fontSize: '0.75rem', color: '#888', fontWeight: 700 }}>
+            <div style={{ padding: '14px 20px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--surface-2)', borderTop: '1px solid var(--border-subtle)' }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700 }}>
                 Наведіть камеру на QR-код
               </span>
               <button
                 type="button"
                 onClick={() => setShowManual(true)}
-                style={{ background: '#222', border: '1px solid #333', color: '#fff', padding: '6px 12px', borderRadius: '8px', fontSize: '0.72rem', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+                style={{ background: 'var(--surface-3)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', padding: '6px 12px', borderRadius: '8px', fontSize: '0.72rem', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
               >
                 <Keyboard size={14} /> Ввести ID вручну
               </button>

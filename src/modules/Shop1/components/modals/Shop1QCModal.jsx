@@ -24,13 +24,13 @@ export function Shop1QCModal({
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.95)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 10025, padding: '40px 20px', overflowY: 'auto' }}>
-      <div style={{ background: '#111', width: '100%', maxWidth: '460px', borderRadius: '26px', border: '1px solid #ef444440', overflow: 'hidden', boxShadow: '0 20px 60px rgba(239,68,68,0.15)', margin: 'auto 0' }}>
-        <div style={{ padding: '20px 22px', background: '#161616', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #ef444420' }}>
+      <div style={{ background: 'var(--surface-1)', width: '100%', maxWidth: '460px', borderRadius: '26px', border: '1px solid #ef444440', overflow: 'hidden', boxShadow: '0 20px 60px rgba(239,68,68,0.15)', margin: 'auto 0' }}>
+        <div style={{ padding: '20px 22px', background: 'var(--surface-2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #ef444420' }}>
           <div>
             <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 950, color: '#ef4444', display: 'flex', alignItems: 'center', gap: '6px' }}>
               🛡️ ВІДДІЛ ВКЯ · ФІКСАЦІЯ БРАКУ
             </h3>
-            <div style={{ fontSize: '0.6rem', color: '#888', marginTop: '2px' }}>
+            <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', marginTop: '2px' }}>
               Виявлено додатковий дефект на етапі
             </div>
           </div>
@@ -47,7 +47,7 @@ export function Shop1QCModal({
               placeholder="Введіть ваше прізвище..."
               value={qcInspector}
               onChange={e => setQcInspector(e.target.value)}
-              style={{ ...selectStyle, background: '#000' }}
+              style={{ ...selectStyle, background: 'var(--surface-black)' }}
             />
           </div>
 
@@ -62,7 +62,7 @@ export function Shop1QCModal({
                   setQcCustomReason('')
                 }
               }}
-              style={{ ...selectStyle, background: '#000' }}
+              style={{ ...selectStyle, background: 'var(--surface-black)' }}
             >
               {scrapReasons.map(reason => <option key={reason} value={reason}>{reason}</option>)}
             </select>
@@ -77,19 +77,19 @@ export function Shop1QCModal({
                 placeholder="Введіть коментар..."
                 value={qcCustomReason}
                 onChange={e => setQcCustomReason(e.target.value)}
-                style={{ ...selectStyle, background: '#000' }}
+                style={{ ...selectStyle, background: 'var(--surface-black)' }}
               />
             </div>
           )}
 
           {/* Лічильник додаткового браку */}
-          <div style={{ background: '#0d0d0d', borderRadius: '14px', padding: '18px', textAlign: 'center', border: '1px solid #ef444422' }}>
+          <div style={{ background: 'var(--surface-inset)', borderRadius: '14px', padding: '18px', textAlign: 'center', border: '1px solid #ef444422' }}>
             <label style={{ color: '#ef4444', fontWeight: 900, fontSize: '0.7rem', textTransform: 'uppercase', display: 'block', marginBottom: '12px' }}>
               КІЛЬКІСТЬ ВИЯВЛЕНОГО БРАКУ
             </label>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '14px' }}>
               <button onClick={() => setQcScrapCount(v => Math.max(0, v - 1))}
-                style={{ width: '46px', height: '46px', background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#fff', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}>−</button>
+                style={{ width: '46px', height: '46px', background: 'var(--surface-2)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}>−</button>
               <input type="number" min={0} max={currentCard.quantity} value={qcScrapCount === 0 ? '' : qcScrapCount} placeholder="0"
                 onChange={e => {
                   const val = e.target.value;
@@ -97,9 +97,9 @@ export function Shop1QCModal({
                 }}
                 style={{ background: 'transparent', border: 'none', color: '#ef4444', fontSize: '3.2rem', width: '90px', textAlign: 'center', fontWeight: 900 }} />
               <button onClick={() => setQcScrapCount(v => Math.min(currentCard.quantity, v + 1))}
-                style={{ width: '46px', height: '46px', background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#fff', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}>+</button>
+                style={{ width: '46px', height: '46px', background: 'var(--surface-2)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}>+</button>
             </div>
-            <div style={{ marginTop: '10px', fontSize: '0.72rem', color: '#555' }}>
+            <div style={{ marginTop: '10px', fontSize: '0.72rem', color: 'var(--text-dim)' }}>
               Залишиться в картці: <strong style={{ color: '#10b981' }}>{Math.max(0, (currentCard.quantity || 0) - qcScrapCount)} шт</strong>
             </div>
           </div>

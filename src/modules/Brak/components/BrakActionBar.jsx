@@ -50,7 +50,7 @@ export const BrakActionBar = React.memo(({
         )}
         <button
           onClick={openQcCardByNumber}
-          style={{ padding: '12px 16px', background: '#ef444418', border: 'none', borderLeft: '1px solid var(--border-color, #333)', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '7px', fontWeight: 900 }}
+          style={{ padding: '12px 16px', background: '#ef444418', border: 'none', borderLeft: '1px solid var(--border-color, var(--border-subtle))', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '7px', fontWeight: 900 }}
         >
           <Search size={17} /> ЗНАЙТИ
         </button>

@@ -27,13 +27,13 @@ export const OperatorQueueDrawer = ({
             key={card.id}
             onClick={() => { setSelectedCardId(card.id); setIsDrawerOpen(false) }}
             style={{
-              background: isActive ? '#eab308' : '#1a1a1a',
+              background: isActive ? '#eab308' : 'var(--surface-2)',
               borderRadius: '12px',
               padding: '15px',
               marginBottom: '10px',
               cursor: 'pointer',
               border: '1px solid',
-              borderColor: isActive ? '#eab308' : '#333',
+              borderColor: isActive ? '#eab308' : 'var(--border-subtle)',
               transition: '0.2s',
               color: isActive ? '#000' : '#fff'
             }}
@@ -50,7 +50,7 @@ export const OperatorQueueDrawer = ({
               </div>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
-              <span style={{ fontSize: '0.6rem', background: isActive ? 'rgba(0,0,0,0.2)' : 'rgba(234, 179, 8, 0.1)', color: isActive ? '#000' : '#eab308', padding: '2px 6px', borderRadius: '4px', fontWeight: 900, textTransform: 'uppercase' }}>
+              <span style={{ fontSize: '0.6rem', background: isActive ? 'var(--fill-inset)' : 'rgba(234, 179, 8, 0.1)', color: isActive ? 'var(--surface-black)' : '#eab308', padding: '2px 6px', borderRadius: '4px', fontWeight: 900, textTransform: 'uppercase' }}>
                 {card.status === 'in-progress' ? 'У РОБОТІ' : 'ОЧІКУЄ'}
               </span>
               <span style={{ fontSize: '0.65rem', fontWeight: 800 }}>
@@ -70,8 +70,8 @@ export const OperatorQueueDrawer = ({
 
   return (
     <>
-      <div className="side-panel hide-mobile" style={{ width: '300px', background: '#121212', borderRight: '1px solid #222', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
-        <div style={{ padding: '20px', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 800, color: '#555', display: 'flex', alignItems: 'center', gap: '10px' }}>
+      <div className="side-panel hide-mobile" style={{ width: '300px', background: 'var(--surface-1)', borderRight: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+        <div style={{ padding: '20px', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 800, color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: '10px' }}>
           <ClipboardList size={16} /> ЧЕРГА КАРТ ({queuedCards.length})
         </div>
         {renderQueueContent()}

@@ -32,8 +32,8 @@ export const MaterialDetailModal = ({
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.95)', zIndex: 10040, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-      <div style={{ background: '#111', width: '100%', maxWidth: '500px', borderRadius: '28px', border: '1px solid #333', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ padding: '20px 25px', background: '#1a1a1a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div style={{ background: 'var(--surface-1)', width: '100%', maxWidth: '500px', borderRadius: '28px', border: '1px solid var(--border-subtle)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ padding: '20px 25px', background: 'var(--surface-2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <span style={{ color: '#ff9000', fontWeight: 900, fontSize: '0.95rem' }}>ДЕТАЛІ МАТЕРІАЛІВ КАРТКИ</span>
@@ -51,7 +51,7 @@ export const MaterialDetailModal = ({
                 </span>
               )}
             </div>
-            <div style={{ fontSize: '0.72rem', color: '#666', marginTop: '2px', fontWeight: 700 }}>
+            <div style={{ fontSize: '0.72rem', color: 'var(--text-dim)', marginTop: '2px', fontWeight: 700 }}>
               {scannedCard.card_info?.split(' ')[0] || `Картка #${scannedCard.id.substring(0, 8)}`}
             </div>
           </div>
@@ -83,7 +83,7 @@ export const MaterialDetailModal = ({
               }}>
                 {isFullyIssued ? 'БОКС ВИДАНО' : 'ЛОКАЦІЯ МАТЕРІАЛІВ НА СКЛАДІ'}
               </div>
-              <div style={{ fontSize: '1.25rem', fontWeight: 1000, color: '#fff', marginTop: '2px' }}>
+              <div style={{ fontSize: '1.25rem', fontWeight: 1000, color: 'var(--text-strong)', marginTop: '2px' }}>
                 БОКС №{scannedCard.box_number} {isFullyIssued && formattedIssueTime && `(в ${formattedIssueTime})`}
               </div>
             </div>
@@ -93,14 +93,14 @@ export const MaterialDetailModal = ({
         <div style={{ padding: '25px', display: 'flex', flexDirection: 'column', gap: '15px', maxHeight: '450px', overflowY: 'auto' }}>
           <div style={{
             background: '#090909',
-            border: '1px solid #1a1a1a',
+            border: '1px solid var(--border-subtle)',
             borderRadius: '16px',
             padding: '14px 16px'
           }}>
             <div style={{ fontSize: '0.62rem', color: '#ff9000', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
               Виконується в картці
             </div>
-            <div style={{ fontSize: '0.9rem', color: '#fff', fontWeight: 900, marginTop: '5px', lineHeight: 1.25, wordBreak: 'break-word' }}>
+            <div style={{ fontSize: '0.9rem', color: 'var(--text-strong)', fontWeight: 900, marginTop: '5px', lineHeight: 1.25, wordBreak: 'break-word' }}>
               {cardNomName}
             </div>
             <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginTop: '8px', fontSize: '0.68rem', color: '#777', fontWeight: 800 }}>
@@ -133,15 +133,15 @@ export const MaterialDetailModal = ({
             const requiredQty = req.displayQty ?? Number(req.quantity)
 
             return (
-              <div key={idx} style={{ padding: '15px', background: '#000', borderRadius: '16px', border: '1px solid #1a1a1a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div key={idx} style={{ padding: '15px', background: 'var(--surface-black)', borderRadius: '16px', border: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ flex: 1, marginRight: '10px' }}>
-                  <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#fff' }}>{itemName}</div>
+                  <div style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-strong)' }}>{itemName}</div>
                   <div style={{ fontSize: '0.65rem', color: isPending ? '#ff9000' : '#10b981', fontWeight: 900, textTransform: 'uppercase', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                     {isPending ? 'Не видано' : <><Check size={10} /> Видано</>}
                   </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: '1rem', fontWeight: 900, color: isPending ? '#ff9000' : '#888' }}>
+                  <div style={{ fontSize: '1rem', fontWeight: 900, color: isPending ? '#ff9000' : 'var(--text-muted)' }}>
                     {requiredQty} шт
                   </div>
                 </div>
@@ -149,10 +149,10 @@ export const MaterialDetailModal = ({
             )
           })}
         </div>
-        <div style={{ padding: '20px 25px', background: '#1a1a1a', display: 'flex', gap: '15px' }}>
+        <div style={{ padding: '20px 25px', background: 'var(--surface-2)', display: 'flex', gap: '15px' }}>
           <button
             onClick={() => { setScannedCard(null); setScannedRequests([]) }}
-            style={{ flex: 1, padding: '12px', borderRadius: '10px', background: '#222', color: '#fff', border: 'none', fontWeight: 900, cursor: 'pointer' }}
+            style={{ flex: 1, padding: '12px', borderRadius: '10px', background: 'var(--surface-3)', color: 'var(--text-strong)', border: 'none', fontWeight: 900, cursor: 'pointer' }}
           >
             Закрити
           </button>
@@ -160,7 +160,7 @@ export const MaterialDetailModal = ({
             <button
               disabled={isIssuingCard}
               onClick={handleIssueCardMaterials}
-              style={{ flex: 2, padding: '12px', borderRadius: '10px', background: '#ff9000', color: '#000', border: 'none', fontWeight: 900, cursor: isIssuingCard ? 'not-allowed' : 'pointer', opacity: isIssuingCard ? 0.5 : 1 }}
+              style={{ flex: 2, padding: '12px', borderRadius: '10px', background: '#ff9000', color: 'var(--surface-black)', border: 'none', fontWeight: 900, cursor: isIssuingCard ? 'not-allowed' : 'pointer', opacity: isIssuingCard ? 0.5 : 1 }}
             >
               {isIssuingCard ? 'ОБРОБКА...' : 'ВИДАТИ МАТЕРІАЛИ'}
             </button>

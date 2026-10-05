@@ -30,7 +30,7 @@ export function NavNotificationFeed({
       {/* Header section with Back and Close button */}
       <div style={{
         padding: '24px 20px 20px 20px',
-        borderBottom: '1px solid rgba(255,255,255,0.04)',
+        borderBottom: '1px solid var(--border-subtle)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between'
@@ -52,7 +52,7 @@ export function NavNotificationFeed({
         >
           <ArrowLeft size={16} /> Назад
         </button>
-        <span style={{ fontSize: '0.95rem', fontWeight: 900, color: '#fff' }}>
+        <span style={{ fontSize: '0.95rem', fontWeight: 900, color: 'var(--text-strong)' }}>
           Сповіщення {unreadCount > 0 && `(${unreadCount})`}
         </span>
       </div>
@@ -64,7 +64,7 @@ export function NavNotificationFeed({
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          borderBottom: '1px solid rgba(255,255,255,0.02)'
+          borderBottom: '1px solid var(--border-subtle)'
         }}>
           <span style={{ fontSize: '0.65rem', color: '#444', fontWeight: 800 }}>
             НЕПРОЧИТАНИХ: {unreadCount}
@@ -115,9 +115,9 @@ export function NavNotificationFeed({
                   gap: '12px',
                   padding: '12px',
                   borderRadius: '12px',
-                  background: isUnread ? 'rgba(255, 144, 0, 0.04)' : 'rgba(255, 255, 255, 0.01)',
+                  background: isUnread ? 'rgba(255, 144, 0, 0.04)' : 'var(--fill-subtle)',
                   border: '1px solid',
-                  borderColor: isUnread ? 'rgba(255, 144, 0, 0.12)' : 'rgba(255, 255, 255, 0.03)',
+                  borderColor: isUnread ? 'rgba(255, 144, 0, 0.12)' : 'var(--border-subtle)',
                   cursor: 'pointer',
                   transition: 'all 0.2s ease',
                   marginBottom: '8px',
@@ -146,12 +146,12 @@ export function NavNotificationFeed({
                   {n.icon}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-                  <span style={{ fontSize: '0.78rem', fontWeight: 800, color: '#fff', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                  <span style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--text-strong)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
                     {n.title}
                   </span>
                   <span style={{
                     fontSize: '0.68rem',
-                    color: '#888',
+                    color: 'var(--text-muted)',
                     marginTop: '3px',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',

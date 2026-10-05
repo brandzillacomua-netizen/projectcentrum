@@ -49,7 +49,7 @@ export const Shop1ForemanHeader = ({ activeTab, setActiveTab }) => {
         </div>
       </div>
 
-      <hr className="shop1-header-divider" style={{ border: 'none', height: '1px', background: 'rgba(255,255,255,0.03)', margin: '0' }} />
+      <hr className="shop1-header-divider" style={{ border: 'none', height: '1px', background: 'var(--fill-subtle)', margin: '0' }} />
     </>
   )
 }
