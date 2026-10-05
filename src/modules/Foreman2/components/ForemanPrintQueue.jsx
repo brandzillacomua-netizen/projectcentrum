@@ -12,6 +12,24 @@ const getLoadingSequence = (metadata) => {
   return leadingNumber ? Number(leadingNumber[1]) : Number.MAX_SAFE_INTEGER
 }
 
+const isMatchingMachine = (m1, m2) => {
+  if (!m1 || !m2) return false
+  const s1 = String(m1).toLowerCase()
+  const s2 = String(m2).toLowerCase()
+  if (s1 === s2) return true
+  
+  const check = (keywords) => keywords.some(k => s1.includes(k)) && keywords.some(k => s2.includes(k))
+  
+  if (check(['ke xin'])) return true
+  if (check(['1200', '12x8', 'мал'])) return true
+  if (check(['3050', '16x16'])) return true
+  if (check(['3060', '30x16'])) return true
+  if (check(['6000', '60x20'])) return true
+  if (check(['2000', '20x30', 'велик'])) return true
+  
+  return false
+}
+
 const getLoadingDeclaredTotal = (metadata) => {
   const loading = String(metadata?.loading || metadata?.card_info || '')
   const fraction = loading.match(/(?:^|\D)(\d+)\s*\/\s*(\d+)(?:\D|$)/)
@@ -141,10 +159,12 @@ export default function ForemanPrintQueue({
 
         // Dynamically resolve operations
         const mac = machines.find(mac => mac.name === m.machine)
-        const opData = machineOperations?.find(o =>
-          o.nomenclature_id === nomenclature?.id &&
-          (o.machine_type === m.machine || (mac && o.machine_id === mac.id))
-        )
+        const opData = machineOperations?.find(o => {
+          if (o.nomenclature_id !== nomenclature?.id) return false
+          if (o.machine_type === m.machine || (mac && o.machine_id === mac.id)) return true
+          if (isMatchingMachine(o.machine_type, m.machine)) return true
+          return false
+        })
         let s1Ops = (opData?.side1_ops || []).filter(op => !op.startsWith('__CUTTER__:') && !op.startsWith('__CUTTER__Reference:'))
         let s2Ops = (opData?.side2_ops || []).filter(op => !op.startsWith('__CUTTER__:') && !op.startsWith('__CUTTER__Reference:'))
         let s2CutOps = (opData?.side2_cut_ops || []).filter(op => !op.startsWith('__CUTTER__:') && !op.startsWith('__CUTTER__Reference:'))

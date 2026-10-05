@@ -181,7 +181,15 @@ export function useForeman2Data({ mes }) {
     return () => { cancelled = true }
   }, [relevantTasks, orders, orderCache])
 
-  const allCards = useMemo(() => uniqueById([...workCards, ...dbCards]), [workCards, dbCards])
+  const allCards = useMemo(() => {
+    return uniqueById([...workCards, ...dbCards]).filter(c => {
+      // Exclude rework cards that belong to Shop 2 (e.g. from sorting) from Shop 1 calculations
+      if (c.operation === 'Доопрацювання' || String(c.card_info || '').includes('[ЦЕХ №2] Автоматично')) {
+        return false;
+      }
+      return true;
+    });
+  }, [workCards, dbCards])
   
   const scrapTotalsHistoryRows = useMemo(() => {
     return (workCardScrapTotals || [])
