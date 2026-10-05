@@ -100,7 +100,7 @@ export const getAvailableModules = (currentUser, badgeCount, chatBadgeCount = 0)
       return checkRight('foreman') || checkRight('foreman2');
     }
     if (m.id === 'rework_terminal') {
-      return checkRight('foreman') || checkRight('foreman2') || isAdmin;
+      return checkRight('rework_terminal') || checkRight('foreman') || checkRight('foreman2') || isAdmin;
     }
     return checkRight(m.id);
   });

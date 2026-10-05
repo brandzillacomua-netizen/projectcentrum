@@ -109,7 +109,7 @@ export const NomenclatureWizardModal = ({
           <div style={{ background: 'rgba(255,144,0,0.06)', border: '1px solid rgba(255,144,0,0.3)', borderRadius: '16px', padding: '18px' }}>
             <div style={{ fontSize: '0.7rem', fontWeight: 900, color: '#d97706', textTransform: 'uppercase', marginBottom: '6px' }}>АВТОМАТИЧНО СГЕНЕРОВАНА НАЗВА:</div>
             <div style={{ fontSize: '1.1rem', fontWeight: 900, color: 'var(--text, #0f172a)', wordBreak: 'break-word' }}>
-              {generatedName || <span style={{ color: 'var(--text-muted, #64748b)', fontStyle: 'italic', fontWeight: 600 }}>{wizardRuleType === 'frame_part' ? 'Введіть назву деталі у поле нижче (напр. KR-10(218)-П-7-60)...' : 'Заповніть параметри нижче...'}</span>}
+              {generatedName || <span style={{ color: 'var(--text-muted, #64748b)', fontStyle: 'italic', fontWeight: 600 }}>{(wizardRuleType === 'frame_part' || wizardRuleType === 'generic' || wizardRuleType === 'paint') ? 'Введіть назву позиції у поле нижче...' : 'Заповніть параметри нижче...'}</span>}
             </div>
 
             {isDuplicate && (
@@ -917,8 +917,8 @@ export const NomenclatureWizardModal = ({
               </>
             )}
 
-            {/* GENERIC / CUSTOM */}
-            {wizardRuleType === 'generic' && (
+            {/* GENERIC / CUSTOM / PAINT */}
+            {(wizardRuleType === 'generic' || wizardRuleType === 'paint') && (
               <div>
                 <label style={{ fontSize: '0.72rem', color: 'var(--text-muted, #64748b)', fontWeight: 800 }}>ПОВНА НАЗВА ПОЗИЦІЇ</label>
                 <input type="text" value={wizardParams.customName} onChange={e => setWizardParams({...wizardParams, customName: e.target.value})} placeholder="Введіть стандартизовану назву..." style={inputStyle} />

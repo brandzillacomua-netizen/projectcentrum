@@ -98,13 +98,6 @@ export const ERP_CATEGORY_SCHEMAS = {
       { key: 'thickness', label: 'Товщина (мм)', required: true }
     ]
   },
-  paint: {
-    title: '01. Лакофарбові матеріали',
-    fields: [
-      { key: 'category', label: 'Тип матеріалу', required: true },
-      { key: 'code', label: 'Бренд / Маркування', required: true }
-    ]
-  },
   frame_part: {
     title: '03. Деталі (Лазерне різання)',
     fields: [
@@ -203,15 +196,8 @@ export const generateStandardName = (ruleType, params) => {
       const thick = (params.thickness || '2').trim();
       return `Гума еластична листова ${dims}*${thick}мм`.trim();
     }
-    case 'paint': {
-      const category = (params.category || 'Фарба поліуретанова').trim();
-      const code = (params.code || '7525 SELEMIX').trim();
-      const ral = (params.ral || 'RAL 7024').trim();
-      if (category.includes('Фарба')) {
-        return `${category} ${code} ${ral}`.trim();
-      }
-      return `${category} ${code}`.trim();
-    }
+    case 'paint':
+      return (params.customName || '').trim();
     case 'full_frame':
     case 'element_kit': {
       const prefixChoice = params.prefixChoice || (ruleType === 'element_kit' ? 'Комплект карбонових елементів' : 'Комплект карбонової рами');
