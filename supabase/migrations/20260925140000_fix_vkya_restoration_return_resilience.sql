@@ -1,3 +1,12 @@
+-- rollout-contract: v1
+-- risk: low
+-- transaction: transactional
+-- preflight: supabase/diagnostics/20260925140000_fix_vkya_restoration_return_resilience_preflight.sql
+-- postcondition: supabase/diagnostics/20260925140000_fix_vkya_restoration_return_resilience_postcondition.sql
+-- rollback: supabase/rollbacks/20260925140000_fix_vkya_restoration_return_resilience_rollback.sql
+SET lock_timeout = '5s';
+SET statement_timeout = '60s';
+
 begin;
 
 -- Resilient return_vkya_restoration_to_route function.
@@ -63,7 +72,7 @@ end;
 $body$;
 
 revoke all on function public.vkya_add_route_inventory(uuid,text,integer) from public;
-grant execute on function public.vkya_add_route_inventory(uuid,text,integer) to anon, authenticated, service_role;
+grant execute on function public.vkya_add_route_inventory(uuid,text,integer) to authenticated, service_role;
 
 create or replace function public.return_legacy_restoration_to_bz(
   p_restoration_card_id uuid,
@@ -119,7 +128,7 @@ end;
 $body$;
 
 revoke all on function public.return_legacy_restoration_to_bz(uuid,text) from public;
-grant execute on function public.return_legacy_restoration_to_bz(uuid,text) to anon, authenticated, service_role;
+grant execute on function public.return_legacy_restoration_to_bz(uuid,text) to authenticated, service_role;
 
 create or replace function public.return_vkya_restoration_to_route(
   p_restoration_card_id uuid,
@@ -319,6 +328,6 @@ end;
 $body$;
 
 revoke all on function public.return_vkya_restoration_to_route(uuid,text) from public;
-grant execute on function public.return_vkya_restoration_to_route(uuid,text) to anon, authenticated, service_role;
+grant execute on function public.return_vkya_restoration_to_route(uuid,text) to authenticated, service_role;
 
 commit;

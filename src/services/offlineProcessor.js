@@ -21,7 +21,7 @@ export const processOfflineMutation = async (item) => {
         allowOfflineQueue: false
       })
 
-      if (transitionResult?.conflict) {
+      if (transitionResult?.success !== true || transitionResult?.conflict) {
         console.warn(`[OfflineProcessor] Conflict detected on START_WORK_CARD replay for card ${cardId}:`, transitionResult)
         sentryLogger.logWarning(
           new Error(`[OFFLINE REPLAY CONFLICT] START_WORK_CARD rejected: ${transitionResult.message}`),
@@ -42,7 +42,7 @@ export const processOfflineMutation = async (item) => {
         allowOfflineQueue: false
       })
 
-      if (transitionResult?.conflict) {
+      if (transitionResult?.success !== true || transitionResult?.conflict) {
         console.warn(`[OfflineProcessor] Conflict detected on COMPLETE_WORK_CARD replay for card ${cardId}:`, transitionResult)
         sentryLogger.logWarning(
           new Error(`[OFFLINE REPLAY CONFLICT] COMPLETE_WORK_CARD rejected: ${transitionResult.message}`),
@@ -64,7 +64,7 @@ export const processOfflineMutation = async (item) => {
         allowOfflineQueue: false
       })
 
-      if (transitionResult?.conflict) {
+      if (transitionResult?.success !== true || transitionResult?.conflict) {
         console.warn(`[OfflineProcessor] Conflict detected on TRANSITION_WORK_CARD replay for card ${cardId}:`, transitionResult)
         sentryLogger.logWarning(
           new Error(`[OFFLINE REPLAY CONFLICT] TRANSITION_WORK_CARD rejected: ${transitionResult.message}`),
@@ -84,11 +84,15 @@ export const processOfflineMutation = async (item) => {
         idempotencyKey: item.key || null,
         allowOfflineQueue: false
       })
+      if (scrapResult?.success !== true) {
+        throw new Error(scrapResult?.error || 'Сервер відхилив списання браку. Потрібна перевірка операції.');
+      }
       return { success: true, scrapResult }
     }
 
     case 'INCREMENT_INVENTORY': {
-      await incrementInventoryStock(payload)
+      const incrementResult = await incrementInventoryStock(payload)
+      if (incrementResult?.success !== true) throw new Error('Сервер не підтвердив зарахування залишку')
       return { success: true }
     }
 
@@ -107,7 +111,7 @@ export const processOfflineMutation = async (item) => {
         p_idempotency_key: item.key || null
       })
       if (rpcErr) throw rpcErr
-      if (rpcRes?.success === false) {
+      if (rpcRes?.success !== true) {
         throw new Error(rpcRes.error || 'Server rejected buffer confirmation')
       }
       return { success: true }

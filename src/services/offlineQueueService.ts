@@ -244,6 +244,9 @@ export const flushOfflineQueue = async (processorFn: (item: OfflineMutation) => 
 
     try {
       const res = await processorFn(item)
+      if (!res || (res as { success?: boolean }).success !== true) {
+        throw new Error('Операція не підтверджена сервером і залишається в черзі')
+      }
       markAsProcessed(item.key, res)
       dequeueOfflineMutation(item.key)
       flushed++

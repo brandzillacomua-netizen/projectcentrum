@@ -1,3 +1,4 @@
+import { confirmedRpc } from '../../../services/confirmedRpc.js'
 import { useState, useEffect, useMemo } from 'react'
 import { useMES } from '../../../MESContext'
 import { useStore } from '../../../store/index.js'
@@ -241,215 +242,36 @@ export function useSortingTerminalData() {
 
   // Full Shop2 handoff — same logic as Shop1Terminal.handleSortToShop2
   const submitSortingComplete = async () => {
-    if (!activeCompletingCard) return
+    if (!activeCompletingCard || isProcessing) return
+    const total = Number(activeCompletingCard.quantity)
+    const scrap = Number(scrapCount)
+    const rework = Number(reworkCount)
+    if (![total, scrap, rework].every(Number.isFinite) || scrap < 0 || rework < 0 || scrap + rework > total) {
+      setScanError('Брак і доопрацювання не можуть перевищувати кількість картки.')
+      return
+    }
     setIsProcessing(true)
     try {
-      const now = new Date().toISOString()
-      const goodQty = Math.max(0, (activeCompletingCard.quantity || 0) - scrapCount - reworkCount)
-      const op = selectedOperator || activeCompletingCard.operator_name || 'Сортування'
-      const activeShift = selectedShift || activeCompletingCard.shift_name || 'Без зміни'
-
-      // ── Primary Atomic Path: Try PostgreSQL ACID RPC ──
-      try {
-        const { data: rpcRes, error: rpcErr } = await supabase.rpc('rpc_submit_sorting_complete_atomic', {
-          p_card_id: activeCompletingCard.id,
-          p_good_qty: goodQty,
-          p_scrap_qty: scrapCount,
-          p_rework_qty: reworkCount,
-          p_operator_name: op,
-          p_shift_name: activeShift
-        })
-
-        if (!rpcErr && rpcRes?.success) {
-          setShowCompleteModal(false)
-          setActiveCompletingCard(null)
-          setManualId('')
-          setScanError(null)
-          setScrapCount(0)
-          setReworkCount(0)
-          fetchData(['work_cards', 'work_card_history', 'inventory']).catch(() => {})
-          alert(`✅ ${goodQty} шт відправлено в буфер Цеху №2!`)
-          return
-        }
-      } catch (rpcEx) {
-        console.warn('RPC submitSortingComplete fallback engaged:', rpcEx?.message || rpcEx)
-      }
-
-      // ── Fallback Path: Sequential HTTP writes ──
-      const generateUUID = () => {
-        if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID()
-        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-          const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8)
-          return v.toString(16)
-        })
-      }
-
-      // Parallel read: inventory, shop2 tasks, s1 task
-      const [existingInvResult, shop2TasksResult, s1TaskResult] = await Promise.all([
-        supabase.from('inventory').select('*').eq('nomenclature_id', activeCompletingCard.nomenclature_id).in('type', ['semi', 'wip_bz', 'bz', 'semi_shop2', 'bz_shop2', 'scrap_ready']),
-        supabase.from('tasks').select('*').eq('order_id', activeCompletingCard.order_id).ilike('step', '%ЦЕХ №2%').neq('status', 'completed'),
-        supabase.from('tasks').select('*').eq('id', activeCompletingCard.task_id).maybeSingle()
-      ])
-
-      const existingItems = existingInvResult.data || []
-      const shop2Tasks = shop2TasksResult.data || []
-      const s1TaskData = s1TaskResult.data
-      const findItem = (type) => existingItems.find(i => i.type === type)
-
-      const cardBz = Number(activeCompletingCard.buffer_qty) || Number((activeCompletingCard.card_info || '').match(/\[BZ:(\d+)\]/)?.[1]) || 0
-      const cardNeed = Number((activeCompletingCard.card_info || '').match(/\[REQ:(\d+)\]/)?.[1]) || Number((activeCompletingCard.card_info || '').match(/\[NEED:(\d+)\]/)?.[1]) || Math.max(0, Number(activeCompletingCard.quantity) - cardBz)
-      const actualNeed = Math.min(goodQty, cardNeed)
-      const actualBz = Math.max(0, goodQty - actualNeed)
-
-      const invUpdates = []
-      const invInserts = []
-      const nom = nomenclatures.find(n => n.id === activeCompletingCard.nomenclature_id)
-
-      // Decrease semi in shop1
-      if (actualNeed > 0) {
-        const s1Semi = findItem('semi')
-        if (s1Semi) invUpdates.push({ ...s1Semi, total_qty: Math.max(0, (Number(s1Semi.total_qty) || 0) - actualNeed) })
-      }
-      // Decrease wip_bz/bz in shop1
-      if (actualBz > 0) {
-        let rem = actualBz
-        const s1Wip = findItem('wip_bz')
-        if (s1Wip) { const take = Math.min(Number(s1Wip.total_qty) || 0, rem); invUpdates.push({ ...s1Wip, total_qty: Math.max(0, (Number(s1Wip.total_qty) || 0) - take) }); rem -= take }
-        if (rem > 0) { const s1Bz = findItem('bz'); if (s1Bz) { const take = Math.min(Number(s1Bz.total_qty) || 0, rem); invUpdates.push({ ...s1Bz, total_qty: Math.max(0, (Number(s1Bz.total_qty) || 0) - take) }) } }
-      }
-      // Atomic stock increments for Shop 2 buffer and scrap
-      const stockIncrements = []
-      if (actualNeed > 0) {
-        stockIncrements.push(
-          incrementInventoryStock({
-            nomenclatureId: activeCompletingCard.nomenclature_id,
-            qty: actualNeed,
-            type: 'semi_shop2',
-            nomenclatures
-          })
-        )
-      }
-      if (actualBz > 0) {
-        stockIncrements.push(
-          incrementInventoryStock({
-            nomenclatureId: activeCompletingCard.nomenclature_id,
-            qty: actualBz,
-            type: 'bz_shop2',
-            nomenclatures
-          })
-        )
-      }
-      if (scrapCount > 0) {
-        stockIncrements.push(
-          incrementInventoryStock({
-            nomenclatureId: activeCompletingCard.nomenclature_id,
-            qty: scrapCount,
-            type: 'scrap_ready',
-            nomenclatures
-          })
-        )
-      }
-
-      // History
-      let scrapOperator = op;
-      if (scrapCount > 0) {
-        try {
-          const { data: cuttingHistory } = await supabase
-            .from('work_card_history')
-            .select('operator_name')
-            .eq('card_id', activeCompletingCard.id)
-            .eq('stage_name', 'Розкрій')
-            .order('completed_at', { ascending: false })
-            .limit(1);
-
-          if (String(cuttingHistory?.[0]?.operator_name || '').trim()) {
-            scrapOperator = String(cuttingHistory[0].operator_name).trim();
-          }
-        } catch (err) {
-          console.error('Failed to resolve cutting operator:', err);
-        }
-      }
-
-      // VKYA delivery is recorded before any card/inventory/task mutation.
-      const historyDelivery = await recordSortingHistoryGuaranteed(supabase, {
-        card: activeCompletingCard,
-        operatorName: scrapOperator,
-        bufferOperatorName: op,
-        shiftName: activeShift,
-        qtyCompleted: goodQty,
-        scrapQty: scrapCount,
-        recordedAt: now
+      const goodQty = total - scrap - rework
+      await confirmedRpc(supabase, 'rpc_submit_sorting_complete_atomic', {
+        p_card_id: activeCompletingCard.id,
+        p_good_qty: goodQty,
+        p_scrap_qty: scrap,
+        p_rework_qty: rework,
+        p_operator_name: selectedOperator || activeCompletingCard.operator_name || 'Сортування',
+        p_shift_name: selectedShift || activeCompletingCard.shift_name || 'Без зміни'
       })
-      if (historyDelivery.error) throw historyDelivery.error
-
-      // Task arrivals
-      let shop2TaskId = null
-      const writePromises = []
-
-      writePromises.push(
-        supabase.from('work_cards').update({
-          status: 'at-shop2-buffer',
-          operation: 'Сортування',
-          quantity: goodQty + reworkCount,
-          used_in_shop2_qty: reworkCount,
-          completed_at: now
-        }).eq('id', activeCompletingCard.id)
-      )
-
-      if (shop2Tasks && shop2Tasks.length > 0) {
-        shop2TaskId = shop2Tasks[0].id
-        const existingArrivals = shop2Tasks[0]?.plan_snapshot?.arrivals || []
-        const updatedArrivals = [...existingArrivals]
-        const matchIdx = updatedArrivals.findIndex(a => String(a.id) === String(activeCompletingCard.nomenclature_id))
-        if (matchIdx >= 0) {
-          updatedArrivals[matchIdx] = { ...updatedArrivals[matchIdx], semi: (Number(updatedArrivals[matchIdx].semi) || 0) + actualNeed, bz: (Number(updatedArrivals[matchIdx].bz) || 0) + actualBz }
-        } else {
-          updatedArrivals.push({ id: activeCompletingCard.nomenclature_id, name: nom?.name || 'Деталь', semi: actualNeed, bz: actualBz })
-        }
-        writePromises.push(
-          supabase.from('tasks').update({ status: 'in-progress', plan_snapshot: { ...(shop2Tasks[0].plan_snapshot || {}), arrivals: updatedArrivals } }).eq('id', shop2Tasks[0].id)
-        )
-      }
-
-      // Rework card
-      if (reworkCount > 0) {
-        writePromises.push(
-          supabase.from('work_cards').insert([{
-            task_id: shop2TaskId || activeCompletingCard.task_id,
-            order_id: activeCompletingCard.order_id,
-            nomenclature_id: activeCompletingCard.nomenclature_id,
-            operation: 'Доопрацювання',
-            quantity: reworkCount,
-            status: 'new',
-            card_info: '[ЦЕХ №2] Автоматично з Сортування'
-          }])
-        )
-      }
-
-      if (invUpdates.length > 0) writePromises.push(supabase.from('inventory').upsert(invUpdates))
-      // Inventory must be safely persisted before the card is allowed to leave
-      // Sorting. Running both groups in one Promise.all previously let the card
-      // advance even when the inventory increment failed with a unique-key error.
-      const stockResults = await Promise.all(stockIncrements)
-      for (const res of stockResults) {
-        if (res?.error) throw res.error
-        if (res?.success === false) throw new Error(res?.data?.error || res?.error || 'Не вдалося оновити залишок Цеху №2')
-      }
-
-      const writeResults = await Promise.all(writePromises)
-      for (const res of writeResults) { if (res?.error) throw res.error }
-
       setShowCompleteModal(false)
       setActiveCompletingCard(null)
       setManualId('')
       setScanError(null)
       setScrapCount(0)
       setReworkCount(0)
-      fetchData(['work_cards', 'work_card_history', 'inventory']).catch(() => {})
-      alert(`✅ ${goodQty} шт відправлено в буфер Цеху №2!`)
-    } catch (e) {
-      setScanError('Помилка завершення сортування: ' + e.message)
+      alert('✅ ' + goodQty + ' шт відправлено в буфер Цеху №2!')
+    } catch (error) {
+      setScanError('Сортування не підтверджено: ' + error.message)
     } finally {
+      fetchData(['work_cards', 'work_card_history', 'inventory']).catch(() => {})
       setIsProcessing(false)
     }
   }

@@ -39,7 +39,7 @@
     "customers": ["delete", "insert", "select", "update"],
     "cutter_restoration_batches": ["delete", "insert", "select"],
     "cutter_restoration_events": ["delete"],
-    "cutter_usage_events": ["delete"],
+    "cutter_usage_events": ["delete", "select"],
     "inventory": ["delete", "insert", "select", "update", "upsert"],
     "machine_calls": ["select", "update"],
     "machine_maintenance_logs": ["insert", "select", "update"],

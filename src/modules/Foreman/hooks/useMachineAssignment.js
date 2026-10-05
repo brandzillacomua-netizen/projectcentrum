@@ -2,6 +2,14 @@ import { useState } from 'react'
 import { supabase } from '../../../supabase'
 import { useMES } from '../../../MESContext'
 
+async function checkReservationResults(operations) {
+  const results = await Promise.all(operations)
+  for (const result of results) {
+    if (result.error) throw result.error
+    if (result.data?.success !== true) throw new Error(result.data?.error || 'Резервування не підтверджене сервером')
+  }
+}
+
 export function useMachineAssignment(setCustomAlert) {
   const {
     tasks,
@@ -56,7 +64,7 @@ export function useMachineAssignment(setCustomAlert) {
       }
 
       if (inventoryUpdates.length > 0) {
-        await Promise.all(inventoryUpdates)
+        await checkReservationResults(inventoryUpdates)
       }
 
       // 3. Видаляємо старі запити на фрези
@@ -177,7 +185,7 @@ export function useMachineAssignment(setCustomAlert) {
       }
 
       if (newInventoryReservations.length > 0) {
-        await Promise.all(newInventoryReservations)
+        await checkReservationResults(newInventoryReservations)
       }
 
       // 6. Оновлюємо сам наряд (task)
@@ -274,7 +282,7 @@ export function useMachineAssignment(setCustomAlert) {
       }
 
       if (inventoryUpdates.length > 0) {
-        await Promise.all(inventoryUpdates)
+        await checkReservationResults(inventoryUpdates)
       }
 
       const cutterRequestIds = cutterRequests.map(r => r.id)
@@ -405,7 +413,7 @@ export function useMachineAssignment(setCustomAlert) {
       }
 
       if (newInventoryReservations.length > 0) {
-        await Promise.all(newInventoryReservations)
+        await checkReservationResults(newInventoryReservations)
       }
 
       updatedSnapshot.consumables = newConsumablesSnapshot

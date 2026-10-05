@@ -683,15 +683,16 @@ export function useShippingData() {
             packing_slip_number: nextSlipNumber,
           }
         }
-        await supabase.from('tasks').update({ plan_snapshot: newSnapshot }).eq('id', t.id)
+        await supabase.from('tasks').update({ plan_snapshot: newSnapshot }).eq('id', t.id).throwOnError()
       }
 
       // 3. Якщо всі партії відвантажені → статус замовлення = shipped
-      const { data: siblingTasks } = await supabase
+      const { data: siblingTasks, error: siblingError } = await supabase
         .from('tasks').select('plan_snapshot').eq('order_id', batch.orderId)
-      const allShipped = (siblingTasks || []).every(st => st.plan_snapshot?._metadata?.is_shipped === true)
+      if (siblingError) throw siblingError
+      const allShipped = Boolean(siblingTasks?.length) && siblingTasks.every(st => st.plan_snapshot?._metadata?.is_shipped === true)
       if (allShipped) {
-        await supabase.from('orders').update({ status: 'shipped' }).eq('id', batch.orderId)
+        await supabase.from('orders').update({ status: 'shipped' }).eq('id', batch.orderId).throwOnError()
       }
 
       await fetchData(['tasks', 'orders'])

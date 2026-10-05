@@ -197,7 +197,7 @@ export const useWarehouseComputed = ({
       const snapshotPart = task?.plan_snapshot?.[card.nomenclature_id]
       const activeMaterialName = getDisplayMaterial(nom, snapshotPart)
 
-      const preparedCutters = []
+      const preparedCuttersMap = new Map()
       for (const [cNomId, rate] of Object.entries(cuttersRates)) {
         const cNom = nomenclatures.find(n => 
           String(n.id) === String(cNomId) || 
@@ -238,12 +238,22 @@ export const useWarehouseComputed = ({
           }
         }
 
-        preparedCutters.push({
-          nomenclature_id: finalNomId,
-          name: cutterName,
-          qty: Math.ceil(rate * cardSheets)
-        })
+        const isGenericCutter = /^фреза\s+ф\d+/i.test((cutterName || '').trim())
+        if (!isGenericCutter) {
+          const qty = Math.ceil(rate * cardSheets)
+          if (preparedCuttersMap.has(finalNomId)) {
+            const existing = preparedCuttersMap.get(finalNomId)
+            existing.qty = Math.max(existing.qty, qty)
+          } else {
+            preparedCuttersMap.set(finalNomId, {
+              nomenclature_id: finalNomId,
+              name: cutterName,
+              qty: qty
+            })
+          }
+        }
       }
+      const preparedCutters = Array.from(preparedCuttersMap.values())
 
       const isPrepared = Boolean(card.is_box_prepared || (card.card_info || '').includes('[BOX_PREPARED:true]'))
       const isIssued   = Boolean(card.is_box_issued   || (card.card_info || '').includes('[BOX_ISSUED:true]'))

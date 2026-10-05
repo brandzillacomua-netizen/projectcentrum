@@ -177,7 +177,7 @@ export function useReportsModuleData() {
     try {
       const completeHistoryPromise = fetchReportHistoryRange(startIso, endExclusiveIso)
 
-      let classQuery = supabase.from('scrap_classifications').select('*')
+      let classQuery = supabase.from('scrap_classifications').select('*, scrap_classification_categories(category, quantity)')
       if (startIso) classQuery = classQuery.gte('created_at', startIso)
       if (endExclusiveIso) classQuery = classQuery.lt('created_at', endExclusiveIso)
 
@@ -207,6 +207,9 @@ export function useReportsModuleData() {
         usageQuery
       ])
 
+      for (const result of [classResult, dbReasonsResult, classificationsResult, usageResult]) {
+        if (result?.error) throw result.error
+      }
       if (requestSeq === historyRequestSeqRef.current) {
         setWorkCardHistory(completeHistory || [])
         if (classResult && !classResult.error && classResult.data) {

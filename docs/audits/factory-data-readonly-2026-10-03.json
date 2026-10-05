@@ -1,0 +1,9 @@
+{
+  "at": "2026-10-03T18:45:53.859Z",
+  "mode": "READ ONLY; aggregate data and schema only",
+  "checks": {},
+  "connectionError": {
+    "code": "28P01",
+    "message": "password authentication failed for user \"postgres\""
+  }
+}

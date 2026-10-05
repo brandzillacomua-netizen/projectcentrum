@@ -1,12 +1,13 @@
 -- rollout-contract: v1
--- preflight: 20260921173000_fix_vkya_recoverable_zero_qty_delete_preflight.sql
--- postcondition: 20260921173000_fix_vkya_recoverable_zero_qty_delete_postcondition.sql
--- rollback: 20260921173000_fix_vkya_recoverable_zero_qty_delete_rollback.sql
+-- risk: low
+-- transaction: transactional
+-- preflight: supabase/diagnostics/20260921173000_fix_vkya_recoverable_zero_qty_delete_preflight.sql
+-- postcondition: supabase/diagnostics/20260921173000_fix_vkya_recoverable_zero_qty_delete_postcondition.sql
+-- rollback: supabase/rollbacks/20260921173000_fix_vkya_recoverable_zero_qty_delete_rollback.sql
+SET lock_timeout = '5s';
+SET statement_timeout = '60s';
 
 begin;
-
-set lock_timeout = '5s';
-set statement_timeout = '15s';
 
 create or replace function public.vkya_take_recoverable_scrap(
   p_nomenclature_id uuid,

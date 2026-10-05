@@ -775,7 +775,7 @@ export function usePackagingData() {
           await supabase
             .from('orders')
             .update({ report: JSON.stringify({ ...currentReport, batch_schedule: updatedSchedule }) })
-            .eq('id', activeBatchData.orderId)
+            .eq('id', activeBatchData.orderId).throwOnError()
 
           const allScheduledDone = updatedSchedule.every(sb => sb.packaged === true)
           if (allScheduledDone) {
@@ -794,7 +794,7 @@ export function usePackagingData() {
                 plan_snapshot: newSnapshot,
                 status: 'completed',
                 completed_at: new Date().toISOString()
-              }).eq('id', task.id)
+              }).eq('id', task.id).throwOnError()
             }
           }
         }
@@ -814,7 +814,7 @@ export function usePackagingData() {
             plan_snapshot: newSnapshot,
             status: 'completed',
             completed_at: new Date().toISOString()
-          }).eq('id', task.id)
+          }).eq('id', task.id).throwOnError()
         }
       }
 
@@ -822,15 +822,16 @@ export function usePackagingData() {
       setSelectedBatch(null)
       await fetchData(['tasks', 'orders'])
       
-      const { data: freshTasks } = await supabase.from('tasks').select('id, status, plan_snapshot, planned_sets').eq('order_id', activeBatchData.orderId)
-      const allTasksPackaged = (freshTasks || []).every(t => t.plan_snapshot?._metadata?.is_packaged === true)
+      const { data: freshTasks, error: tasksError } = await supabase.from('tasks').select('id, status, plan_snapshot, planned_sets').eq('order_id', activeBatchData.orderId)
+      if (tasksError) throw tasksError
+      const allTasksPackaged = Boolean(freshTasks?.length) && freshTasks.every(t => t.plan_snapshot?._metadata?.is_packaged === true)
       const totalPlanned = (freshTasks || []).reduce((acc, t) => acc + (Number(t.planned_sets) || 0), 0)
       const totalOrderQty = orders.find(o => o.id === activeBatchData.orderId)?.order_items?.reduce((acc, it) => acc + (Number(it.quantity) || 0), 0) || 0
       
       if (allTasksPackaged && totalPlanned >= totalOrderQty) {
         await completePackaging(activeBatchData.orderId)
       } else {
-        await supabase.from('orders').update({ status: 'in-progress' }).eq('id', activeBatchData.orderId)
+        await supabase.from('orders').update({ status: 'in-progress' }).eq('id', activeBatchData.orderId).throwOnError()
       }
     } catch (e) { 
       console.error(e)

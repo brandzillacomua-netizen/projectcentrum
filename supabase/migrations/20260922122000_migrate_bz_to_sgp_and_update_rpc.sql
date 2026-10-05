@@ -1,3 +1,14 @@
+-- rollout-contract: v1
+-- risk: low
+-- transaction: transactional
+-- preflight: supabase/diagnostics/20260922122000_migrate_bz_to_sgp_and_update_rpc_preflight.sql
+-- postcondition: supabase/diagnostics/20260922122000_migrate_bz_to_sgp_and_update_rpc_postcondition.sql
+-- rollback: supabase/rollbacks/20260922122000_migrate_bz_to_sgp_and_update_rpc_rollback.sql
+SET lock_timeout = '5s';
+SET statement_timeout = '60s';
+
+BEGIN;
+
 -- 1. Drop old 5-parameter signature if it exists to avoid overload ambiguity
 drop function if exists public.rpc_increment_inventory_stock(uuid, numeric, text, text, text);
 
@@ -210,3 +221,6 @@ begin
   end loop;
 end;
 $$;
+
+
+COMMIT;

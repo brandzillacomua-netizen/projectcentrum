@@ -1,7 +1,6 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
-import { Html5Qrcode } from 'html5-qrcode'
 import App from './App'
 import { AppErrorBoundary, ConnectionStatus, ServiceWorkerUpdateManager } from './components/SystemResilience'
 import { sentryLogger } from './services/sentryLogger'
@@ -9,7 +8,11 @@ import './index.css'
 import './light.css'
 
 if (typeof window !== 'undefined') {
-  window.Html5Qrcode = Html5Qrcode
+  // Dynamically import heavy scanner library so it doesn't bloat the main bundle
+  import('html5-qrcode').then(mod => {
+    window.Html5Qrcode = mod.Html5Qrcode
+  }).catch(e => console.error("Failed to load scanner:", e))
+
   if (!localStorage.getItem('theme-reset-light-v1')) {
     localStorage.setItem('app-theme', 'light')
     localStorage.setItem('theme-reset-light-v1', 'true')

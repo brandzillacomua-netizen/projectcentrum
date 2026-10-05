@@ -1,0 +1,9 @@
+{
+  "at": "2026-10-03T18:47:18.582Z",
+  "mode": "REST SELECT only; audit account subject to RLS; not a consistent database snapshot",
+  "checks": {},
+  "error": {
+    "name": "AuthApiError",
+    "message": "Invalid login credentials"
+  }
+}
