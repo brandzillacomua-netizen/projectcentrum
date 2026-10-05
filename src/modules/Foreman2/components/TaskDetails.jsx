@@ -24,6 +24,7 @@ const getCardStatus = (card) => {
   if (status === 'completed') return { label: 'Готово', color: '#10b981' }
   if (status === 'at-shop2-buffer' || status === 'waiting-buffer' || status === 'at-buffer') return { label: 'Буфер', color: '#10b981' }
   if (status === 'waiting-materials') return { label: 'Очікує склад', color: '#eab308' }
+  if (status === 'waiting-cutters') return { label: 'Очікує фрези', color: '#eab308' }
   if (status === 'in-progress') return { label: 'В роботі', color: '#eab308' }
   if (status === 'paused') return { label: 'Пауза', color: '#a855f7' }
   if (status === 'scrapped') return { label: 'Брак', color: '#ef4444' }
@@ -179,9 +180,24 @@ const getCardSeq = (card) => {
   return match ? parseInt(match[1], 10) : 999999
 }
 
+const MACHINE_ALIASES = {
+  'CNC 1200x800 - 4 листи (Малий)': 'CNC 12x8',
+  'CNC 1200x800': 'CNC 12x8',
+  'CNC 1200x800 (Малий)': 'CNC 12x8',
+  'CNC 2000x3000 - 15 листів (Великий)': 'CNC 20x30',
+  'CNC 2000x3000 (Великий)': 'CNC 20x30',
+  'CNC 2000x3000': 'CNC 20x30'
+}
+
 const getMachineType = (rawName) => {
   if (!rawName) return 'Верстат не вказано'
-  return String(rawName).split(' №')[0].replace(/\s*№\s*[\d\.]+/g, '').trim() || 'Верстат не вказано'
+  let baseName = String(rawName).split(' №')[0].replace(/\s*№\s*[\d\.]+/g, '').trim() || 'Верстат не вказано'
+  
+  if (MACHINE_ALIASES[baseName]) {
+    baseName = MACHINE_ALIASES[baseName]
+  }
+  
+  return baseName
 }
 
 const WorkCardsArchive = ({ parts, task, expandedId, onToggle, onOpenReissue, onMachineChange, onPrintCards, isLoading }) => {
@@ -209,9 +225,9 @@ const WorkCardsArchive = ({ parts, task, expandedId, onToggle, onOpenReissue, on
           const load = getLoadProgress(part)
           const completedCards = (part.productionCards || []).filter(card => ['completed', 'at-shop2-buffer', 'at-buffer', 'waiting-buffer'].includes(card.status)).length
           const inWorkCards = (part.productionCards || []).filter(card => card.status === 'in-progress').length
-          const waitingCards = (part.productionCards || []).filter(card => card.status === 'new' || card.status === 'waiting-materials').length
+          const waitingCards = (part.productionCards || []).filter(card => card.status === 'new' || card.status === 'waiting-materials' || card.status === 'waiting-cutters').length
           const redoCards = getRedoProductionCards(part)
-          const waitingMaterials = (part.cards || []).some(card => card.status === 'waiting-materials')
+          const waitingMaterials = (part.cards || []).some(card => card.status === 'waiting-materials' || card.status === 'waiting-cutters')
           const bzAfterScrap = part.spareFromSheets - part.scrap
           const hasShortage = part.shortage > 0 && task.status !== 'completed' && !isLoading
 
@@ -338,7 +354,7 @@ const WorkCardsArchive = ({ parts, task, expandedId, onToggle, onOpenReissue, on
                     Array.from(machineGroups.entries()).map(([machineType, machineCards]) => {
                       const machineKey = `${part.nomId}:${machineType}`
                       const isMachineExpanded = expandedMachines[machineKey] !== false // Default open
-                      const mWaiting = machineCards.filter(c => c.status === 'new' || c.status === 'waiting-materials').length
+                      const mWaiting = machineCards.filter(c => c.status === 'new' || c.status === 'waiting-materials' || c.status === 'waiting-cutters').length
                       const mInWork = machineCards.filter(c => c.status === 'in-progress').length
                       const mDone = machineCards.filter(c => ['completed', 'at-buffer', 'waiting-buffer', 'at-shop2-buffer'].includes(c.status)).length
                       const mProduced = machineCards.reduce((sum, c) => sum + (['completed', 'at-buffer', 'waiting-buffer', 'at-shop2-buffer'].includes(c.status) ? (Number(c.quantity) || 0) : 0), 0)
@@ -619,7 +635,7 @@ export default function TaskDetails({ model, nomenclatures = [], allCards, onOpe
                 const load = getLoadProgress(part, rowCapacities[part.nomId])
                 const redoCards = getRedoProductionCards(part)
                 const surplus = part.plannedSheets > 0 ? Math.max(0, (part.plannedSheets * part.unitsPerSheet) - part.plan) : 0
-                const isWaitingMaterials = part.cards.some(card => card.status === 'waiting-materials')
+                const isWaitingMaterials = part.cards.some(card => card.status === 'waiting-materials' || card.status === 'waiting-cutters')
                 const capacities = capacityRangeByMachine(part.machine)
                 part.defaultCapacity = capacities.defaultCapacity
                 part.maxCapacity = capacities.maxCapacity

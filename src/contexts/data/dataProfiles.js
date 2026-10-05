@@ -101,7 +101,7 @@ export const ROUTE_DATA_PROFILES = Object.freeze({
   // machine_operations (fetched without filters) and purchase_requests are NOT used in the
   // Warehouse SO module — removing them eliminates the ~10s initial load delay.
   '/warehouse': ['inventory', 'material_requests', 'nomenclatures', 'reception_docs', 'orders', 'tasks', 'work_cards', 'system_users'],
-  '/warehouse-boxes': ['inventory', 'material_requests', 'nomenclatures', 'orders', 'tasks', 'work_cards'],
+  '/warehouse-boxes': ['inventory', 'material_requests', 'nomenclatures', 'orders', 'tasks', 'work_cards', 'machine_operations'],
   '/warehouse-fgp': ['inventory', 'material_requests', 'nomenclatures', 'reception_docs', 'orders', 'tasks', 'work_cards', 'work_card_history', 'system_users'],
   '/cutter-restoration': [],
   '/master': ['orders', 'tasks', 'nomenclatures', 'bom_items', 'inventory', 'material_requests', 'machines', 'machine_calls', 'machine_operations'],

@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { getInventoryDisplayName } from '../utils/inventoryDisplayName.js'
-import { isMachineMatch, resolveMachineType } from '../../../utils/cutterCalculator.js'
+import { isMachineMatch, resolveMachineType, resolveCutterTypeName } from '../../../utils/cutterCalculator.js'
 
 export const normalize = (s) => (s || '').toLowerCase().trim()
   .replace(/[тt]/g, 't').replace(/[аa]/g, 'a').replace(/[еe]/g, 'e')
@@ -106,17 +106,25 @@ export const useWarehouseComputed = ({
       const opType = resolveMachineType(cardMac)
       const cardNomId = String(card.nomenclature_id)
       const cardLegacyIds = (nom.legacy_ids || []).map(String)
-      const ops = (machineOperations || []).find(o => 
-        (String(o.nomenclature_id) === cardNomId || cardLegacyIds.includes(String(o.nomenclature_id))) && 
-        (
+      const cardNomName = normalize(nom?.name)
+      const ops = (machineOperations || []).find(o => {
+        const oNom = nomenclatures.find(n => String(n.id) === String(o.nomenclature_id))
+        const isNomMatch = String(o.nomenclature_id) === cardNomId || 
+                           cardLegacyIds.includes(String(o.nomenclature_id)) || 
+                           (cardNomName && normalize(oNom?.name) === cardNomName)
+        if (!isNomMatch) return false
+        return (
           normalize(o.machine_type) === normalize(opType) || 
           String(o.machine_id) === String(cardMac) ||
           isMachineMatch(o.machine_type || o.machine_id, cardMac) ||
           isMachineMatch(o.machine_type || o.machine_id, opType)
         )
-      ) || (machineOperations || []).find(o => 
-        String(o.nomenclature_id) === cardNomId || cardLegacyIds.includes(String(o.nomenclature_id))
-      )
+      }) || (machineOperations || []).find(o => {
+        const oNom = nomenclatures.find(n => String(n.id) === String(o.nomenclature_id))
+        return String(o.nomenclature_id) === cardNomId || 
+               cardLegacyIds.includes(String(o.nomenclature_id)) || 
+               (cardNomName && normalize(oNom?.name) === cardNomName)
+      })
 
       const cuttersRates = {}
       if (ops && Array.isArray(ops.side2_cut_ops)) {
@@ -125,7 +133,8 @@ export const useWarehouseComputed = ({
           if (op.startsWith('__CUTTER__:')) {
             const parts = op.split(':')
             const cNomId = parts[1]
-            const cQty = parseFloat(parts[2]) || 0
+            const qtyStr = String(parts[2] || '').replace(',', '.')
+            const cQty = parseFloat(qtyStr) || 0
             if (cNomId && cQty > 0) {
               cuttersRates[cNomId] = cQty
             }
@@ -206,16 +215,25 @@ export const useWarehouseComputed = ({
         let cutterName = cNom?.name || 'Фреза'
         let finalNomId = cNomId
 
-        const selectedInvId = task?.plan_snapshot?.selectedCutters?.[cNomId] ||
+        const cTypeName = resolveCutterTypeName(cNom, nomenclatures).toLowerCase().trim()
+        const selectedCuttersVal = task?.plan_snapshot?.selectedCutters?.[cNomId] ||
           task?.plan_snapshot?.selectedCutters?.[cNom?.id] ||
           task?.plan_snapshot?.selectedCutters?.[cNom?.name] ||
-          task?.plan_snapshot?.selectedCutters?.[cNom?.name?.toLowerCase()]
-        const selectedInv = selectedInvId
-          ? (inventory || []).find(i => String(i.id) === String(selectedInvId))
+          task?.plan_snapshot?.selectedCutters?.[cNom?.name?.toLowerCase()] ||
+          task?.plan_snapshot?.selectedCutters?.[cTypeName] ||
+          task?.plan_snapshot?.selectedCutters?.[cTypeName.replace('тип ', '')]
+
+        let selectedNom = selectedCuttersVal
+          ? nomenclatures.find(n => String(n.id) === String(selectedCuttersVal) || (Array.isArray(n.legacy_ids) && n.legacy_ids.map(String).includes(String(selectedCuttersVal))))
           : null
-        const selectedNom = selectedInv
-          ? nomenclatures.find(n => String(n.id) === String(selectedInv.nomenclature_id) || (Array.isArray(n.legacy_ids) && n.legacy_ids.map(String).includes(String(selectedInv.nomenclature_id))))
-          : null
+
+        // Fallback in case it's actually an inventory ID (legacy)
+        if (!selectedNom && selectedCuttersVal) {
+          const selectedInv = (inventory || []).find(i => String(i.id) === String(selectedCuttersVal))
+          if (selectedInv) {
+            selectedNom = nomenclatures.find(n => String(n.id) === String(selectedInv.nomenclature_id) || (Array.isArray(n.legacy_ids) && n.legacy_ids.map(String).includes(String(selectedInv.nomenclature_id))))
+          }
+        }
 
         if (selectedNom) {
           cutterName = selectedNom.name
@@ -235,22 +253,35 @@ export const useWarehouseComputed = ({
               cutterName = exactNom.name
               finalNomId = exactNom.id
             }
+          } else {
+            const typeReq = (requests || []).find(r => {
+              if (String(r.task_id || r.order_id) !== String(card.task_id || card.order_id)) return false
+              if (!r.nomenclature_id) return false
+              const rNom = nomenclatures.find(n => String(n.id) === String(r.nomenclature_id) || (Array.isArray(n.legacy_ids) && n.legacy_ids.map(String).includes(String(r.nomenclature_id))))
+              if (!rNom) return false
+              const rTypeName = resolveCutterTypeName(rNom, nomenclatures).toLowerCase().trim()
+              return rTypeName === cTypeName && rTypeName !== 'фреза'
+            })
+            if (typeReq) {
+              const typeNom = nomenclatures.find(n => String(n.id) === String(typeReq.nomenclature_id))
+              if (typeNom) {
+                cutterName = typeNom.name
+                finalNomId = typeNom.id
+              }
+            }
           }
         }
 
-        const isGenericCutter = /^фреза\s+ф\d+/i.test((cutterName || '').trim())
-        if (!isGenericCutter) {
-          const qty = Math.ceil(rate * cardSheets)
-          if (preparedCuttersMap.has(finalNomId)) {
-            const existing = preparedCuttersMap.get(finalNomId)
-            existing.qty = Math.max(existing.qty, qty)
-          } else {
-            preparedCuttersMap.set(finalNomId, {
-              nomenclature_id: finalNomId,
-              name: cutterName,
-              qty: qty
-            })
-          }
+        const qty = Math.ceil(rate * cardSheets)
+        if (preparedCuttersMap.has(finalNomId)) {
+          const existing = preparedCuttersMap.get(finalNomId)
+          existing.qty = Math.max(existing.qty, qty)
+        } else {
+          preparedCuttersMap.set(finalNomId, {
+            nomenclature_id: finalNomId,
+            name: cutterName,
+            qty: qty
+          })
         }
       }
       const preparedCutters = Array.from(preparedCuttersMap.values())
