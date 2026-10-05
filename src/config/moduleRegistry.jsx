@@ -99,9 +99,6 @@ export const getAvailableModules = (currentUser, badgeCount, chatBadgeCount = 0)
     if (m.id === 'foreman') {
       return checkRight('foreman') || checkRight('foreman2');
     }
-    if (m.id === 'rework_terminal') {
-      return checkRight('rework_terminal') || checkRight('foreman') || checkRight('foreman2') || isAdmin;
-    }
     return checkRight(m.id);
   });
 }

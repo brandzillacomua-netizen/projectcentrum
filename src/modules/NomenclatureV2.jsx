@@ -139,6 +139,49 @@ const NomenclatureV2 = () => {
   }
 
   useEffect(() => {
+    const doMigration = async () => {
+      if (localStorage.getItem('centrum_plastic_migrated')) return;
+      
+      const { data: grpData } = await supabase.from('nomenclature_catalog_groups').select('id').ilike('name', '%пластик%').limit(1);
+      if (grpData && grpData.length > 0) {
+        const pId = grpData[0].id;
+        const codes = [];
+        for (let i = 91112; i <= 91126; i++) codes.push('V2-' + i);
+        
+        await supabase.from('nomenclatures_v2').update({ group_id: pId }).in('code', codes);
+        await supabase.from('nomenclature_catalog_profiles').update({ group_id: pId }).in('catalog_code', codes);
+        
+        localStorage.setItem('centrum_plastic_migrated', 'true');
+        loadData(); // reload
+        console.log('Migration to Plastic complete!');
+      }
+    };
+    doMigration();
+  }, []);
+
+  useEffect(() => {
+    const doMigration2 = async () => {
+      if (localStorage.getItem('centrum_plastic_clean_material')) return;
+      
+      const codes = [];
+      for (let i = 91112; i <= 91126; i++) codes.push('V2-' + i);
+      codes.push('V2-91111'); // V2-91111 is Розчинник органічний (might be unrelated but let's include it if needed. Actually I'll just use the explicit array of codes the user had)
+      
+      const targetCodes = ['V2-91111', 'V2-91112', 'V2-91113', 'V2-91114', 'V2-91115', 'V2-91116', 'V2-91117', 'V2-91118', 'V2-91119', 'V2-91120', 'V2-91121', 'V2-91122', 'V2-91123', 'V2-91124', 'V2-91125', 'V2-91126'];
+      
+      await supabase.from('nomenclatures_v2').update({ 
+        rule_type: 'generic', 
+        rule_params: {}, 
+        material_type: null 
+      }).in('code', targetCodes);
+      
+      localStorage.setItem('centrum_plastic_clean_material', 'true');
+      loadData();
+    };
+    doMigration2();
+  }, []);
+
+  useEffect(() => {
     document.title = 'Номенклатура ERP v2 | Centrum'
     loadData()
   }, [])
@@ -165,7 +208,7 @@ const NomenclatureV2 = () => {
           const codeUpper = String(g.code || '').trim().toUpperCase()
 
           if (!g.parent_id && !validRootIds.has(g.id)) {
-            let parentId = rootIdMap[codeUpper]
+            let parentId = rootIdMap[codeUpper] || rootIdMap[codeUpper.split('.')[0]]
             if (!parentId) {
               if (nameLower.includes('сировин') || nameLower.includes('інструм') || nameLower.includes('розхід')) parentId = 'cat_raw'
               else if (nameLower.includes('метиз')) parentId = 'cat_hw'
@@ -359,40 +402,48 @@ const NomenclatureV2 = () => {
         cleanCode = (parentGroup?.code ? `${parentGroup.code}.` : 'GRP.') + Math.floor(Math.random() * 1000)
       }
 
+      const validRootIds = new Set(['cat_raw', 'cat_hw', 'cat_parts', 'cat_fg'])
+      const dbParentId = validRootIds.has(newGroup.parent_id) ? null : (newGroup.parent_id || null)
+
       if (editingGroup) {
-        const payload = {
+        const payloadToDb = {
           name: newGroup.name.trim(),
           code: cleanCode,
-          parent_id: newGroup.parent_id || null,
-          rule_type: newGroup.rule_type
+          parent_id: dbParentId
         }
         const { error } = await supabase
           .from('nomenclature_catalog_groups')
-          .update(payload)
+          .update(payloadToDb)
           .eq('id', editingGroup.id)
 
         if (error) console.warn('Group update DB fallback:', error)
 
-        setGroups(prev => prev.map(g => g.id === editingGroup.id ? { ...g, ...payload } : g))
+        setGroups(prev => prev.map(g => g.id === editingGroup.id ? { ...g, ...payloadToDb, parent_id: newGroup.parent_id || null, rule_type: newGroup.rule_type } : g))
         showToast(`✅ Категорію «${newGroup.name}» оновлено!`)
       } else {
-        const gId = 'grp_' + Date.now()
-        const payload = {
-          id: gId,
+        const payloadToDb = {
           code: cleanCode,
           name: newGroup.name.trim(),
-          parent_id: newGroup.parent_id || null,
+          parent_id: dbParentId,
           is_active: true,
-          sort_order: groups.length + 10,
+          sort_order: groups.length + 10
+        }
+
+        const { data, error } = await supabase.from('nomenclature_catalog_groups').insert([payloadToDb]).select().single()
+        
+        if (error) {
+          console.warn('Group DB insert error:', error)
+          alert('Помилка бази даних: ' + error.message)
+          return
+        }
+
+        const finalGroup = {
+          ...data,
+          parent_id: newGroup.parent_id || null,
           rule_type: newGroup.rule_type
         }
 
-        const { error } = await supabase.from('nomenclature_catalog_groups').insert([payload])
-        if (error && !error.message.includes('404')) {
-          console.warn('Group DB insert fallback to local state:', error)
-        }
-
-        setGroups(prev => [...prev, payload])
+        setGroups(prev => [...prev, finalGroup])
         showToast(`✅ Нову категорію «${newGroup.name}» створено!`)
       }
 

@@ -161,7 +161,7 @@ export const SupplyQrTab = ({
                     />
                   </td>
                   <td style={{ padding: '15px', fontWeight: 700, color: 'var(--text-color, #fff)' }}>
-                    {nom.name} {nom.material_type && <span style={{ color: 'var(--text-muted, #555)', fontSize: '0.75rem' }}>({nom.material_type})</span>}
+                    {(nom.name || '').replace(/\s*\(Алюміній\)/gi, '').replace(/\s*\(алюміній\)/gi, '').trim()} {nom.material_type && String(nom.material_type).trim().toLowerCase() !== 'алюміній' && <span style={{ color: 'var(--text-muted, #555)', fontSize: '0.75rem' }}>({nom.material_type})</span>}
                   </td>
                   <td style={{ padding: '15px', fontSize: '0.75rem', color: 'var(--text-muted, #888)' }}>
                     {nom.type === 'raw' ? 'Сировина' : nom.type === 'hardware' ? 'Метизи' : nom.type === 'consumable' ? 'Розхідник' : nom.type}

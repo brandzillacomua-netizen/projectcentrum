@@ -462,13 +462,19 @@ export const mapV2ToStandardNom = (v) => {
   if (!v) return null;
   const type = classifyV2Type(v);
   const rawUnitsPerSheet = Number(v.rule_params?.unitsPerSheet) || Number(v.units_per_sheet) || null;
-  const rawMaterial = v.rule_params?.rawSheet || v.rule_params?.material || v.material_type || v.material || '';
+  let rawMaterial = v.rule_params?.rawSheet || v.rule_params?.material || v.material_type || v.material || '';
   
+  if (typeof rawMaterial === 'string' && rawMaterial.trim().toLowerCase() === 'алюміній') {
+    rawMaterial = '';
+  }
+
+  const cleanName = (v.name || '').replace(/\s*\(Алюміній\)/gi, '').replace(/\s*\(алюміній\)/gi, '').trim();
+
   return {
     ...v,
     id: v.id,
     default_material_id: v.default_material_id || v.rule_params?.default_material_id || null,
-    name: v.name,
+    name: cleanName,
     code: v.code || '',
     nomenclature_code: v.code || '',
     type,

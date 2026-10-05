@@ -46,8 +46,10 @@ export const getDocDisplayId = (doc) => {
 
 export const getNomLabel = (nom) => {
   if (!nom) return ''
-  let label = nom.name
-  if (nom.material_type) label += ` (${nom.material_type})`
+  let label = (nom.name || '').replace(/\s*\(Алюміній\)/gi, '').replace(/\s*\(алюміній\)/gi, '').trim()
+  if (nom.material_type && String(nom.material_type).trim().toLowerCase() !== 'алюміній') {
+    label += ` (${nom.material_type})`
+  }
   if (nom.thickness) label += ` ${nom.thickness}мм`
   if (nom.color) label += ` ${nom.color}`
   return label

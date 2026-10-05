@@ -177,6 +177,139 @@ export function createWarehouseActions({
     return { error }
   }
 
+  const confirmReceptionFallback = async (docId, options = {}) => {
+    const { data: doc, error: fetchErr } = await supabase
+      .from('reception_docs')
+      .select('*')
+      .eq('id', docId)
+      .single()
+
+    if (fetchErr || !doc) {
+      throw new Error(fetchErr?.message || 'Документ прийомки не знайдено')
+    }
+
+    if (doc.status === 'completed') {
+      return { success: true, already_completed: true }
+    }
+
+    const actualItems = Array.isArray(options?.actualItems) ? options.actualItems : []
+    const note = options?.note || null
+    const docItems = Array.isArray(doc.items) ? doc.items : []
+    const targetWh = doc.target_warehouse || 'production'
+    const sourceWh = doc.source_warehouse || null
+    const actNum = 'ACT-' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '-' + String(docId).slice(0, 6).toUpperCase()
+
+    const completedItems = []
+
+    for (let idx = 0; idx < docItems.length; idx++) {
+      const item = docItems[idx]
+      const actual = actualItems.find(a => Number(a.index) === idx) || null
+
+      const expectedQty = Number(item.expected_qty ?? item.qty ?? item.missingAmount ?? item.quantity ?? item.needed ?? 0)
+      const actualQty = actual ? Number(actual.actual_qty ?? actual.qty ?? actual.received_qty ?? expectedQty) : expectedQty
+      const discrepancy = actualQty - expectedQty
+
+      completedItems.push({
+        ...item,
+        expected_qty: expectedQty,
+        actual_qty: actualQty,
+        accepted_qty: actualQty,
+        discrepancy_qty: discrepancy,
+        discrepancy_type: discrepancy < 0 ? 'shortage' : discrepancy > 0 ? 'surplus' : 'matched',
+        discrepancy_note: actual?.note || '',
+        discrepancy_act: discrepancy !== 0 ? {
+          act_num: actNum,
+          created_at: new Date().toISOString(),
+          target_warehouse: targetWh,
+          source_warehouse: sourceWh,
+          expected_qty: expectedQty,
+          actual_qty: actualQty,
+          discrepancy_qty: discrepancy,
+          reason: actual?.note || note || 'Фактична кількість не збігається з документом прийомки'
+        } : null
+      })
+
+      if (actualQty <= 0) continue
+
+      const nomId = item.nomenclature_id || null
+      const itemName = item.name || item.reqDetails || item.details || ''
+
+      if (sourceWh) {
+        let query = supabase.from('inventory').select('*').eq('warehouse', sourceWh)
+        if (nomId) query = query.eq('nomenclature_id', nomId)
+        else if (itemName) query = query.ilike('name', itemName.trim())
+
+        const { data: sourceRows } = await query
+        if (sourceRows && sourceRows.length > 0) {
+          const sourceRow = sourceRows.sort((a, b) => (Number(b.total_qty) || 0) - (Number(a.total_qty) || 0))[0]
+          const newTotal = Math.max(0, (Number(sourceRow.total_qty) || 0) - actualQty)
+          const newReserved = Math.max(0, (Number(sourceRow.reserved_qty) || 0) - actualQty)
+          await supabase.from('inventory').update({
+            total_qty: newTotal,
+            reserved_qty: newReserved,
+            updated_at: new Date().toISOString()
+          }).eq('id', sourceRow.id)
+        }
+      }
+
+      let targetQuery = supabase.from('inventory').select('*').eq('warehouse', targetWh)
+      if (doc.pocket_owner) {
+        targetQuery = targetQuery.eq('pocket_owner', doc.pocket_owner)
+      } else {
+        targetQuery = targetQuery.is('pocket_owner', null)
+      }
+
+      if (nomId) targetQuery = targetQuery.eq('nomenclature_id', nomId)
+      else if (itemName) targetQuery = targetQuery.ilike('name', itemName.trim())
+
+      const { data: targetRows } = await targetQuery
+
+      if (targetRows && targetRows.length > 0) {
+        const targetRow = targetRows[0]
+        await supabase.from('inventory').update({
+          total_qty: (Number(targetRow.total_qty) || 0) + actualQty,
+          nomenclature_id: targetRow.nomenclature_id || nomId,
+          updated_at: new Date().toISOString()
+        }).eq('id', targetRow.id)
+      } else {
+        let nomDetails = null
+        if (nomId) {
+          const { data: nData } = await supabase.from('nomenclatures_v2').select('*').eq('id', nomId).maybeSingle()
+          nomDetails = nData
+        }
+        await supabase.from('inventory').insert([{
+          nomenclature_id: nomId,
+          name: nomDetails?.name || itemName || 'Прийнята позиція',
+          total_qty: actualQty,
+          reserved_qty: 0,
+          type: nomDetails?.type || 'raw',
+          warehouse: targetWh,
+          unit: nomDetails?.unit || 'шт',
+          pocket_owner: doc.pocket_owner || null
+        }])
+      }
+    }
+
+    const { error: updateErr } = await supabase
+      .from('reception_docs')
+      .update({ status: 'completed', items: completedItems })
+      .eq('id', docId)
+
+    if (updateErr) throw updateErr
+
+    if (doc.task_id || doc.order_id) {
+      const destWh = targetWh === 'production' ? 'procurement' : targetWh === 'operational' ? 'production' : null
+      if (destWh) {
+        let prQuery = supabase.from('purchase_requests').update({ status: 'completed' }).eq('destination_warehouse', destWh)
+        if (doc.task_id) prQuery = prQuery.eq('task_id', doc.task_id)
+        else if (doc.order_id) prQuery = prQuery.eq('order_id', doc.order_id)
+        await prQuery
+      }
+    }
+
+    return { success: true, doc_id: docId, items: completedItems }
+  }
+
   const confirmReception = async (docId, options = {}) => {
     try {
       const result = await confirmedRpc(supabase, 'rpc_confirm_reception_atomic', {
@@ -187,9 +320,16 @@ export function createWarehouseActions({
       for (const table of ['inventory', 'reception_docs', 'purchase_requests']) refreshTable(table)
       return result
     } catch (error) {
-      for (const table of ['inventory', 'reception_docs']) refreshTable(table)
-      alert('Прийомку не підтверджено: ' + (error.message || 'Невідома помилка'))
-      return { success: false, error }
+      console.warn('RPC rpc_confirm_reception_atomic failed, falling back to client-side reception:', error)
+      try {
+        const fallbackResult = await confirmReceptionFallback(docId, options)
+        for (const table of ['inventory', 'reception_docs', 'purchase_requests']) refreshTable(table)
+        return fallbackResult
+      } catch (fallbackError) {
+        for (const table of ['inventory', 'reception_docs']) refreshTable(table)
+        alert('Прийомку не підтверджено: ' + (fallbackError.message || 'Невідома помилка'))
+        return { success: false, error: fallbackError }
+      }
     }
   }
 

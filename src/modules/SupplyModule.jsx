@@ -28,7 +28,10 @@ const SupplyModule = () => {
   
   const pendingRequests = (purchaseRequests || []).filter(pr => pr.status === 'pending' || pr.status === 'accepted')
   const availableNoms = nomenclatures.filter(n => n.type !== 'part' && n.type !== 'product' && n.type !== 'finished')
-  const getNomLabel = (n) => `${n.name} ${n.material_type ? `(${n.material_type})` : ''}`
+  const getNomLabel = (n) => {
+    const cleanName = (n.name || '').replace(/\s*\(Алюміній\)/gi, '').replace(/\s*\(алюміній\)/gi, '').trim()
+    return `${cleanName} ${n.material_type && String(n.material_type).trim().toLowerCase() !== 'алюміній' ? `(${n.material_type})` : ''}`.trim()
+  }
 
   const getStatusLabel = (status) => {
     const map = {

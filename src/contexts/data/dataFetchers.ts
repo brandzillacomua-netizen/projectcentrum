@@ -164,12 +164,29 @@ export function useDataFetchers(state: any) {
 
   const fetchUnifiedNomenclatures = async () => {
     try {
-      const [v1Res, v2Res] = await Promise.all([
+      const [v1Res, v2Res, groupsRes] = await Promise.all([
         supabase.from('nomenclatures').select('*').limit(2000),
-        supabase.from('nomenclatures_v2').select('*').limit(2000)
+        supabase.from('nomenclatures_v2').select('*').limit(2000),
+        supabase.from('nomenclature_catalog_groups').select('*')
       ])
       const v1Data = (v1Res && !v1Res.error && Array.isArray(v1Res.data)) ? v1Res.data : []
       const v2Data = (v2Res && !v2Res.error && Array.isArray(v2Res.data)) ? v2Res.data : []
+      const groups = (groupsRes && !groupsRes.error && Array.isArray(groupsRes.data)) ? groupsRes.data : []
+
+      const groupMap = new Map()
+      groups.forEach(g => groupMap.set(g.id, g))
+
+      const getRootCode = (groupId: string) => {
+         let current = groupMap.get(groupId)
+         while(current) {
+            if (current.code && (current.code.startsWith('HW') || current.code.startsWith('RAW') || current.code.startsWith('PART') || current.code.startsWith('FG'))) {
+               return current.code.split('.')[0]
+            }
+            if (!current.parent_id) break
+            current = groupMap.get(current.parent_id)
+         }
+         return null
+      }
 
       // 1. Load canonical V2 nomenclatures first (Master Catalog)
       const unifiedMap = new Map()
@@ -180,6 +197,13 @@ export function useDataFetchers(state: any) {
       for (const n of v2Data) {
         if (n && n.id) {
           const mapped = mapV2ToStandardNom(n)
+          
+          const rootCode = getRootCode(n.group_id)
+          if (rootCode === 'HW') mapped.type = 'hardware'
+          else if (rootCode === 'RAW') mapped.type = 'raw'
+          else if (rootCode === 'PART' || rootCode === 'PARTS') mapped.type = 'part'
+          else if (rootCode === 'FG') mapped.type = 'product'
+          
           mapped.legacy_ids = [String(n.id)]
           unifiedMap.set(String(n.id), mapped)
           v2ById.set(String(n.id), mapped)
@@ -207,10 +231,6 @@ export function useDataFetchers(state: any) {
           if (!canonicalV2.legacy_ids.includes(legacyIdStr)) {
             canonicalV2.legacy_ids.push(legacyIdStr)
           }
-          if (!canonicalV2.material_type && n.material_type) canonicalV2.material_type = n.material_type
-          if (!canonicalV2.description && n.description) canonicalV2.description = n.description
-          if (!canonicalV2.additional_info && n.additional_info) canonicalV2.additional_info = n.additional_info
-          if (!canonicalV2.units_per_sheet && n.units_per_sheet) canonicalV2.units_per_sheet = n.units_per_sheet
         } else {
           const existingV1 = normName ? v1ByName.get(normName) : null
           if (existingV1) {

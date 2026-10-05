@@ -1,6 +1,7 @@
 import React from 'react'
-import { Truck, X, QrCode, Plus, Package, Send } from 'lucide-react'
+import { Truck, X, QrCode, Plus, Package, Send, ListPlus } from 'lucide-react'
 import { getNomLabel } from '../utils/supplyHelpers'
+import { SupplyMultiSelectorModal } from './SupplyMultiSelectorModal.jsx'
 
 export const SupplyCreateShipmentModal = ({
   showCreate,
@@ -21,6 +22,8 @@ export const SupplyCreateShipmentModal = ({
   isProcessing,
   handleSendToWarehouse
 }) => {
+  const [showMultiSelect, setShowMultiSelect] = React.useState(false)
+
   if (!showCreate) return null
 
   const sendDisabled = isProcessing || !targetWarehouse
@@ -116,16 +119,27 @@ export const SupplyCreateShipmentModal = ({
                 <QrCode size={12} /> СКАНУВАТИ QR
               </button>
             </div>
-            <input
-              list="noms-list"
-              style={{ width: '100%', background: 'var(--card-bg, #0a0a0a)', border: '1px solid var(--border-color, #222)', color: 'var(--text-color, #fff)', padding: '12px 15px', borderRadius: '10px', fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box' }}
-              placeholder="Оберіть товар..."
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-            />
-            <datalist id="noms-list">
-              {availableNoms.map(n => <option key={n.id} value={getNomLabel(n)} />)}
-            </datalist>
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+              <div style={{ flex: 1, position: 'relative' }}>
+                <input
+                  list="noms-list"
+                  style={{ width: '100%', background: 'var(--card-bg, #0a0a0a)', border: '1px solid var(--border-color, #222)', color: 'var(--text-color, #fff)', padding: '12px 15px', borderRadius: '10px', fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box' }}
+                  placeholder="Ввести або відсканувати..."
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                />
+                <datalist id="noms-list">
+                  {availableNoms.map(n => <option key={n.id} value={getNomLabel(n)} />)}
+                </datalist>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowMultiSelect(true)}
+                style={{ height: '42px', padding: '0 15px', background: 'var(--card-bg, #0a0a0a)', border: '1px solid #ff9000', color: '#ff9000', borderRadius: '10px', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                <ListPlus size={16} /> КАТАЛОГ
+              </button>
+            </div>
           </div>
           <div>
             <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: 900, color: 'var(--text-muted, #555)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Кількість</label>
@@ -215,6 +229,14 @@ export const SupplyCreateShipmentModal = ({
           </button>
         )}
       </div>
+
+      <SupplyMultiSelectorModal 
+        show={showMultiSelect}
+        setShow={setShowMultiSelect}
+        availableNoms={availableNoms}
+        draftItems={draftItems}
+        setDraftItems={setDraftItems}
+      />
     </section>
   )
 }

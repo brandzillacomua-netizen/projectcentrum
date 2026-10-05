@@ -74,7 +74,7 @@ export function useShop2CardCreator({ tasks = [], fetchData, refreshTable }) {
           targetTask = tasks.find(t => String(t.order_id) === String(orderId))
         }
 
-        const taskId = isUuid(targetTask?.id) ? targetTask.id : (isUuid(orderId) ? orderId : (isUuid(row.nomId) ? row.nomId : null))
+        const taskId = isUuid(targetTask?.id) ? targetTask.id : null
 
         // Split allocForThisOrder into cards based on requested batchSize
         let orderRemaining = allocForThisOrder
