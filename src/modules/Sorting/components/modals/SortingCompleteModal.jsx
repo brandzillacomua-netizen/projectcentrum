@@ -16,7 +16,8 @@ export default function SortingCompleteModal({
   setScrapCount,
   reworkCount,
   setReworkCount,
-  submitSortingComplete
+  submitSortingComplete,
+  scanError
 }) {
   if (!showCompleteModal || !activeCompletingCard) return null
 
@@ -80,6 +81,13 @@ export default function SortingCompleteModal({
             <span>Разом по картці:</span>
             <span style={{ color: '#fff' }}>{totalQty} шт</span>
           </div>
+
+          {scanError && (
+            <div style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', color: '#ef4444', borderRadius: '10px', padding: '10px 14px', fontSize: '0.72rem', fontWeight: 800, textAlign: 'center' }}>
+              ⚠️ {scanError}
+            </div>
+          )}
+
           <div style={{ display: 'flex', gap: '10px' }}>
             <button onClick={() => setShowCompleteModal(false)} disabled={isProcessing} style={{ flex: 1, background: '#1a1a1f', border: '1px solid rgba(255,255,255,0.03)', color: '#fff', padding: '12px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer' }}>СКАСУВАТИ</button>
             <button onClick={submitSortingComplete} disabled={isProcessing} style={{ flex: 1, background: ACCENT, border: 'none', color: '#000', padding: '12px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>

@@ -115,6 +115,7 @@ export const SortingTerminal: React.FC = () => {
         reworkCount={reworkCount}
         setReworkCount={setReworkCount}
         submitSortingComplete={submitSortingComplete}
+        scanError={scanError}
       />
 
       {/* QR Scanner Modal */}
