@@ -1275,7 +1275,7 @@ const Shop2Module = () => {
                     <p style={{ color: '#8b5cf6', fontSize: '2rem', fontWeight: 800, marginTop: '20px' }}>Цех №2 пишається своїм лідером! 🚀</p>
                     <button
                       onClick={() => setShowVictory(false)}
-                      style={{ marginTop: '50px', background: 'var(--text-strong)', color: 'var(--surface-black)', padding: '15px 40px', borderRadius: '20px', fontWeight: 900, cursor: 'pointer', border: 'none' }}
+                      style={{ marginTop: '50px', background: 'var(--text-strong)', color: '#000', padding: '15px 40px', borderRadius: '20px', fontWeight: 900, cursor: 'pointer', border: 'none' }}
                     >
                       ПРОДОВЖИТИ ПІДКОРЕННЯ СВІТУ
                     </button>
@@ -1663,7 +1663,7 @@ const Shop2Module = () => {
         <div className="print-modal-backdrop" style={{ position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(0,0,0,0.9)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
           {printModalData.isMultiple ? (
             /* MULTIPLE CARDS MODAL */
-            <div className="print-multiple-wrapper" style={{ background: 'var(--text-strong)', color: 'var(--surface-black)', padding: '30px', borderRadius: '32px', maxWidth: '900px', width: '100%', maxHeight: '90vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', boxShadow: '0 30px 60px rgba(0,0,0,0.5)' }}>
+            <div className="print-multiple-wrapper" style={{ background: 'var(--text-strong)', color: '#000', padding: '30px', borderRadius: '32px', maxWidth: '900px', width: '100%', maxHeight: '90vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', boxShadow: '0 30px 60px rgba(0,0,0,0.5)' }}>
               <div className="print-hide" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                 <div>
                   <h3 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 1000 }}>Друк всіх робочих карток цеху</h3>
@@ -1674,7 +1674,7 @@ const Shop2Module = () => {
 
               <div className="print-multiple-grid">
                 {printModalData.cards.map((card, idx) => (
-                  <div key={idx} className="print-card" style={{ background: 'var(--text-strong)', color: 'var(--surface-black)', border: '1px solid #000', borderRadius: '15px', padding: '10px 15px', display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', boxSizing: 'border-box', width: '100%' }}>
+                  <div key={idx} className="print-card" style={{ background: 'var(--text-strong)', color: '#000', border: '1px solid #000', borderRadius: '15px', padding: '10px 15px', display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', boxSizing: 'border-box', width: '100%' }}>
                     <div className="print-layout-container" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', width: '100%', justifyContent: 'space-between', gap: '15px' }}>
                       <div className="print-qr-section" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
                         <QRCodeCanvas
@@ -1721,7 +1721,7 @@ const Shop2Module = () => {
               </button>
             </div>
           ) : (
-            <div className="print-card" style={{ background: 'var(--text-strong)', color: 'var(--surface-black)', padding: '40px', borderRadius: '32px', maxWidth: '500px', width: '100%', textAlign: 'center', boxShadow: '0 30px 60px rgba(0,0,0,0.5)' }}>
+            <div className="print-card" style={{ background: 'var(--text-strong)', color: '#000', padding: '40px', borderRadius: '32px', maxWidth: '500px', width: '100%', textAlign: 'center', boxShadow: '0 30px 60px rgba(0,0,0,0.5)' }}>
               <div className="print-hide" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
                 <div style={{ textAlign: 'left' }}>
                   <div style={{ fontSize: '0.7rem', fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Робоча картка Цех №2</div>

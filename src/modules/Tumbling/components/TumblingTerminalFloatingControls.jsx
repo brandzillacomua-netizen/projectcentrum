@@ -31,7 +31,7 @@ export default function TumblingTerminalFloatingControls({
           disabled={isProcessing}
           style={{ background: 'transparent', border: 'none', color: 'var(--text, #fff)', fontSize: '0.85rem', fontWeight: 700, outline: 'none', width: '100%' }}
         />
-        <button type="submit" disabled={isProcessing} style={{ background: '#06b6d4', color: 'var(--surface-black)', border: 'none', padding: '6px 14px', borderRadius: '16px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+        <button type="submit" disabled={isProcessing} style={{ background: '#06b6d4', color: '#000', border: 'none', padding: '6px 14px', borderRadius: '16px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
           {isProcessing ? <RefreshCw size={12} className="anim-spin" /> : 'ЗНАЙТИ'}
         </button>
       </form>

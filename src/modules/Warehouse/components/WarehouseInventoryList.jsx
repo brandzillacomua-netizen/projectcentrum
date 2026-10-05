@@ -70,7 +70,7 @@ export function WarehouseInventoryList({
                   <td style={{ padding: '12px 16px' }}>
                     {isEditing ? (
                       <div style={{ display: 'flex', gap: '5px' }}>
-                        <button onClick={() => handleSaveInventoryQty(item.id)} disabled={savingInv} style={{ background: '#10b981', border: 'none', color: 'var(--surface-black)', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer' }}><Check size={14} /></button>
+                        <button onClick={() => handleSaveInventoryQty(item.id)} disabled={savingInv} style={{ background: '#10b981', border: 'none', color: '#000', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer' }}><Check size={14} /></button>
                         <button onClick={() => setEditingInvId(null)} style={{ background: 'var(--border-subtle)', border: 'none', color: 'var(--text-strong)', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer' }}><X size={14} /></button>
                       </div>
                     ) : (

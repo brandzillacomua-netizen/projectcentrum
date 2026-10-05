@@ -10,7 +10,8 @@ export const WarehouseHeaderNav = ({
   showReception,
   setShowReception,
   pendingDocsCount,
-  manualIssue
+  manualIssue,
+  setShowPrepModal
 }) => {
   return (
     <nav className="module-nav" style={{ 
@@ -102,6 +103,30 @@ export const WarehouseHeaderNav = ({
                 {pendingDocsCount}
               </span>
             )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowPrepModal(true)}
+            style={{
+              height: '42px',
+              padding: window.innerWidth < 768 ? '0 12px' : '0 16px',
+              borderRadius: '12px',
+              background: 'linear-gradient(135deg, #10b981, #059669)',
+              border: 'none',
+              color: '#fff',
+              fontSize: '0.8rem',
+              fontWeight: 900,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              boxShadow: '0 4px 10px rgba(16, 185, 129, 0.2)'
+            }}
+          >
+            <span className="hide-mobile">НАРЯД НА ПІДГОТОВКУ</span>
+            <span className="mobile-only">НАРЯД</span>
           </button>
 
           <ManualIssueJournalButton onClick={manualIssue.openJournal} compact={window.innerWidth < 900} />

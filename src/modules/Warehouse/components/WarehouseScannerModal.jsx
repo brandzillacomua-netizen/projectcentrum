@@ -103,7 +103,7 @@ export function WarehouseScannerModal({
                     handleCardScan(manualCardInput.trim()) 
                   } 
                 }}
-                style={{ padding: '10px 16px', background: '#ff9000', color: 'var(--surface-black)', border: 'none', borderRadius: '10px', fontWeight: 900, cursor: 'pointer', fontSize: '0.85rem' }}
+                style={{ padding: '10px 16px', background: '#ff9000', color: '#000', border: 'none', borderRadius: '10px', fontWeight: 900, cursor: 'pointer', fontSize: '0.85rem' }}
               >
                 OK
               </button>

@@ -858,7 +858,7 @@ export function ForemanReportModal({
                           setReportOperatorFilter('All')
                         }}
                         style={{
-                          border: 'none', background: bg, color: isSelected ? (stage === 'All' ? 'var(--text-strong)' : 'var(--surface-black)') : color,
+                          border: 'none', background: bg, color: isSelected ? (stage === 'All' ? 'var(--text-strong)' : '#000') : color,
                           padding: '5px 12px', borderRadius: '7px', fontSize: '0.65rem', fontWeight: 900, cursor: 'pointer', transition: 'all 0.15s ease', textTransform: 'uppercase',
                           boxShadow: isSelected && stage !== 'All' ? `0 2px 8px ${bg}44` : 'none'
                         }}

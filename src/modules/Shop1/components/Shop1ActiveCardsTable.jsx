@@ -210,7 +210,7 @@ export function Shop1ActiveCardsTable({
                     </td>
                     <td style={{ padding: '10px 14px', textAlign: 'right' }}>
                       <button onClick={(e) => { e.stopPropagation(); setSelectedCardId && setSelectedCardId(card.id); setSelectedOperator && setSelectedOperator('') }}
-                        style={{ background: '#eab308', border: 'none', color: 'var(--surface-black)', padding: '10px', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        style={{ background: '#eab308', border: 'none', color: '#000', padding: '10px', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                         title="Відкрити">
                         <Eye size={18} />
                       </button>

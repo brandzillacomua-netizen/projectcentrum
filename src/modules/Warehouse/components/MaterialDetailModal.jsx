@@ -160,7 +160,7 @@ export const MaterialDetailModal = ({
             <button
               disabled={isIssuingCard}
               onClick={handleIssueCardMaterials}
-              style={{ flex: 2, padding: '12px', borderRadius: '10px', background: '#ff9000', color: 'var(--surface-black)', border: 'none', fontWeight: 900, cursor: isIssuingCard ? 'not-allowed' : 'pointer', opacity: isIssuingCard ? 0.5 : 1 }}
+              style={{ flex: 2, padding: '12px', borderRadius: '10px', background: '#ff9000', color: '#000', border: 'none', fontWeight: 900, cursor: isIssuingCard ? 'not-allowed' : 'pointer', opacity: isIssuingCard ? 0.5 : 1 }}
             >
               {isIssuingCard ? 'ОБРОБКА...' : 'ВИДАТИ МАТЕРІАЛИ'}
             </button>

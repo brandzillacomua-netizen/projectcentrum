@@ -571,7 +571,7 @@ export const PortalDashboard = ({ chatUnreadCount }) => {
             </div>
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
               {hasModule('director') && (
-                <Link to="/director" style={{ background: '#ff9000', color: 'var(--surface-black)', textDecoration: 'none', padding: '8px 15px', borderRadius: '12px', fontSize: '0.82rem', fontWeight: 900, transition: '0.2s' }}>
+                <Link to="/director" style={{ background: '#ff9000', color: '#000', textDecoration: 'none', padding: '8px 15px', borderRadius: '12px', fontSize: '0.82rem', fontWeight: 900, transition: '0.2s' }}>
                   Кабінет Директора →
                 </Link>
               )}

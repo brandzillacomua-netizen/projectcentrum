@@ -153,7 +153,7 @@ export function ReceptionAcceptanceModal({
           <button type="button" onClick={onClose} disabled={isProcessing} style={{ flex: 1, padding: '12px', borderRadius: '10px', background: 'var(--border-subtle)', color: 'var(--text-strong)', border: 'none', fontWeight: 900, cursor: isProcessing ? 'not-allowed' : 'pointer' }}>
             Скасувати
           </button>
-          <button type="button" onClick={handleConfirm} disabled={isProcessing} style={{ flex: 2, padding: '12px', borderRadius: '10px', background: discrepancyRows.length ? '#ef4444' : '#10b981', color: 'var(--surface-black)', border: 'none', fontWeight: 950, cursor: isProcessing ? 'not-allowed' : 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', opacity: isProcessing ? 0.6 : 1 }}>
+          <button type="button" onClick={handleConfirm} disabled={isProcessing} style={{ flex: 2, padding: '12px', borderRadius: '10px', background: discrepancyRows.length ? '#ef4444' : '#10b981', color: '#000', border: 'none', fontWeight: 950, cursor: isProcessing ? 'not-allowed' : 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', opacity: isProcessing ? 0.6 : 1 }}>
             <CheckCircle2 size={17} /> {isProcessing ? 'Приймаємо...' : (discrepancyRows.length ? 'Прийняти з актом розбіжності' : 'Прийняти без розбіжностей')}
           </button>
         </div>

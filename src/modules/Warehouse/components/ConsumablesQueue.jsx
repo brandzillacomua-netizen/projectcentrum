@@ -281,7 +281,7 @@ export const ConsumablesQueue = ({
                             <button
                               onClick={() => handleSaveConsumableQty(r.id)}
                               disabled={isSaving}
-                              style={{ background: '#10b981', border: 'none', borderRadius: '4px', padding: '3px 6px', cursor: 'pointer', color: 'var(--surface-black)', display: 'flex', alignItems: 'center' }}
+                              style={{ background: '#10b981', border: 'none', borderRadius: '4px', padding: '3px 6px', cursor: 'pointer', color: '#000', display: 'flex', alignItems: 'center' }}
                               title="Зберегти"
                             >
                               {isSaving ? '...' : <Check size={12} />}

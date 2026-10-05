@@ -973,7 +973,7 @@ const SimulatorModule = () => {
               {!isRunning ? (
                 <button 
                   onClick={startSimulation}
-                  style={{ width: '100%', padding: '16px', background: 'linear-gradient(135deg, #ff9000, #ff5500)', border: 'none', borderRadius: '14px', color: 'var(--surface-black)', fontWeight: 1000, fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: '0.2s' }}
+                  style={{ width: '100%', padding: '16px', background: 'linear-gradient(135deg, #ff9000, #ff5500)', border: 'none', borderRadius: '14px', color: '#000', fontWeight: 1000, fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: '0.2s' }}
                 >
                   <Play size={16} fill="#000" /> ЗАПУСТИТИ ЖИВИЙ ТЕСТ
                 </button>

@@ -51,7 +51,7 @@ export const ShiftCalendarView = ({
             </div>
             <div>
               <div className={`user-name ${isMaster ? 'master' : ''}`} style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                {uName} {isMaster && <span style={{ fontSize: '0.6rem', background: '#ff9000', color: 'var(--surface-black)', padding: '1px 4px', borderRadius: '4px', fontWeight: 900 }}>M</span>}
+                {uName} {isMaster && <span style={{ fontSize: '0.6rem', background: '#ff9000', color: '#000', padding: '1px 4px', borderRadius: '4px', fontWeight: 900 }}>M</span>}
               </div>
               <div className="user-position" style={{ fontSize: '0.62rem', fontWeight: 700, textTransform: 'uppercase', marginTop: '2px' }}>{user.position || 'Робітник'}</div>
             </div>

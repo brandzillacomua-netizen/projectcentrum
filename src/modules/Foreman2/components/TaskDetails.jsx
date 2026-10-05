@@ -556,7 +556,7 @@ export default function TaskDetails({ model, nomenclatures = [], allCards, onOpe
           <div style={{ color: 'var(--text-dim)', marginTop: '5px', fontSize: '1.1rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '15px', flexWrap: 'wrap' }}>
             <div>ВИРІБ: <strong style={{ color: '#ef4444' }}>{productNames || '—'}</strong> | {order?.customer || order?.product_name || 'Цех №1'}</div>
             {task.batch_index && (
-              <span style={{ background: '#eab308', color: 'var(--surface-black)', padding: '2px 8px', borderRadius: '6px', fontSize: '0.9rem', fontWeight: 900 }}>
+              <span style={{ background: '#eab308', color: '#000', padding: '2px 8px', borderRadius: '6px', fontSize: '0.9rem', fontWeight: 900 }}>
                 ПАРТІЯ №{task.batch_index}
               </span>
             )}

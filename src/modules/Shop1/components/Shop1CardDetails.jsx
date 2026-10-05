@@ -65,7 +65,7 @@ export function Shop1CardDetails({
 
   const labelStyle = { fontSize: '0.6rem', fontWeight: 900, color: 'var(--text-dim)', textTransform: 'uppercase', marginBottom: '6px', display: 'block' }
   const selectStyle = { width: '100%', background: 'var(--surface-2)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', padding: '12px', borderRadius: '12px', fontSize: '0.9rem', fontWeight: 700 }
-  const btnPrimary = { background: '#eab308', color: 'var(--surface-black)', border: 'none', padding: '15px', borderRadius: '14px', fontSize: '1rem', fontWeight: 1000, cursor: 'pointer' }
+  const btnPrimary = { background: '#eab308', color: '#000', border: 'none', padding: '15px', borderRadius: '14px', fontSize: '1rem', fontWeight: 1000, cursor: 'pointer' }
   const btnGreen = { background: '#10b981', color: '#fff', border: 'none', padding: '15px', borderRadius: '14px', fontSize: '1rem', fontWeight: 1000, cursor: 'pointer' }
 
   return (
@@ -383,7 +383,7 @@ export function Shop1CardDetails({
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '25px', background: '#f59e0b0d', border: '1px solid #f59e0b22', borderRadius: '14px', padding: '12px', flexWrap: 'wrap' }}>
                 <span style={{ fontSize: '0.65rem', color: 'var(--text-dim)', fontWeight: 700 }}>{currentCard.operation}</span>
                 <ArrowRight size={12} color="#f59e0b" />
-                <span style={{ fontSize: '0.6rem', background: '#f59e0b', color: 'var(--surface-black)', fontWeight: 900, padding: '3px 8px', borderRadius: '6px', textTransform: 'uppercase' }}>
+                <span style={{ fontSize: '0.6rem', background: '#f59e0b', color: '#000', fontWeight: 900, padding: '3px 8px', borderRadius: '6px', textTransform: 'uppercase' }}>
                   БУФЕР {currentCard.operation?.toUpperCase()}
                 </span>
                 {!isFinal && (
@@ -399,7 +399,7 @@ export function Shop1CardDetails({
                   onClick={handleResumeCard}
                   disabled={isProcessing}
                   style={{
-                    background: '#10b981', color: 'var(--surface-black)', border: 'none', padding: '20px', width: '100%',
+                    background: '#10b981', color: '#000', border: 'none', padding: '20px', width: '100%',
                     borderRadius: '18px', fontSize: '1.25rem', fontWeight: 1000, cursor: 'pointer',
                     boxShadow: '0 8px 24px rgba(16,185,129,0.25)', display: 'flex', alignItems: 'center',
                     justifyContent: 'center', gap: '10px'

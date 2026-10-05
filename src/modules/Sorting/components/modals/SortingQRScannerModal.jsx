@@ -47,7 +47,7 @@ export default function SortingQRScannerModal({
             <input autoFocus type="text" placeholder="Приклад: 12345" value={manualId} onChange={e => setManualId(e.target.value)}
               style={{ width: '100%', background: 'var(--surface-black)', border: `2px solid rgba(${ACCENT_RGB},0.5)`, color: '#fff', fontSize: '2.5rem', textAlign: 'center', padding: '15px', borderRadius: '16px', fontWeight: 900, fontFamily: 'monospace' }} />
             <div style={{ display: 'flex', gap: '10px' }}>
-              <button type="submit" disabled={!manualId || isProcessing} style={{ flex: 2, background: ACCENT, color: 'var(--surface-black)', border: 'none', padding: '18px', borderRadius: '14px', fontSize: '1.1rem', fontWeight: 900, cursor: 'pointer' }}>ВІДКРИТИ КАРТКУ</button>
+              <button type="submit" disabled={!manualId || isProcessing} style={{ flex: 2, background: ACCENT, color: '#000', border: 'none', padding: '18px', borderRadius: '14px', fontSize: '1.1rem', fontWeight: 900, cursor: 'pointer' }}>ВІДКРИТИ КАРТКУ</button>
               <button type="button" onClick={() => { setShowManualInput(false); setManualId('') }} style={{ flex: 1, background: 'var(--surface-2)', color: 'var(--text-strong)', border: 'none', padding: '15px', borderRadius: '14px', fontSize: '0.85rem', fontWeight: 700, cursor: 'pointer' }}>НАЗАД</button>
             </div>
           </form>

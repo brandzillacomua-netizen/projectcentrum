@@ -167,7 +167,7 @@ export const SupplyStockTab = ({
                             type="button"
                             disabled={savingInv}
                             onClick={() => handleSaveInventoryQty(item.id)}
-                            style={{ background: '#10b981', color: 'var(--surface-black)', border: 'none', borderRadius: '6px', padding: '4px 6px', cursor: 'pointer' }}
+                            style={{ background: '#10b981', color: '#000', border: 'none', borderRadius: '6px', padding: '4px 6px', cursor: 'pointer' }}
                           >
                             <Check size={14} />
                           </button>

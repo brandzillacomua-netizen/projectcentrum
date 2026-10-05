@@ -655,7 +655,7 @@ export const ClientDetailPage = ({
                     >
                       <span>📍 {addr.title || addr.city || `Адреса #${idx + 1}`}</span>
                       {isDef && (
-                        <span style={{ background: '#ff9000', color: 'var(--surface-black)', padding: '1px 5px', borderRadius: '4px', fontSize: '0.6rem', fontWeight: 950 }}>
+                        <span style={{ background: '#ff9000', color: '#000', padding: '1px 5px', borderRadius: '4px', fontSize: '0.6rem', fontWeight: 950 }}>
                           ★ Основна
                         </span>
                       )}

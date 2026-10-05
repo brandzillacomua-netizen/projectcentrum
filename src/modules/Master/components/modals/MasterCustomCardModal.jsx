@@ -145,7 +145,7 @@ export function MasterCustomCardModal({
           <button
             onClick={handleCreateCustomCard}
             disabled={isSubmitting}
-            style={{ flex: 2, padding: '12px', background: '#ff9000', color: 'var(--surface-black)', border: 'none', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', transition: 'all 0.2s' }}
+            style={{ flex: 2, padding: '12px', background: '#ff9000', color: '#000', border: 'none', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', transition: 'all 0.2s' }}
           >
             {isSubmitting ? 'ЗБЕРЕЖЕННЯ...' : 'СТВОРИТИ'}
           </button>

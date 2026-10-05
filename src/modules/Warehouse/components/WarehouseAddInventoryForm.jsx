@@ -26,7 +26,7 @@ export const WarehouseAddInventoryForm = ({
         type="number" placeholder="Кількість" value={newItem.total_qty}
         onChange={e => setNewItem({ ...newItem, total_qty: e.target.value })} required
       />
-      <button type="submit" style={{ background: '#ff9000', color: 'var(--surface-black)', border: 'none', padding: '10px 30px', borderRadius: '8px', fontWeight: 900, cursor: 'pointer' }}>
+      <button type="submit" style={{ background: '#ff9000', color: '#000', border: 'none', padding: '10px 30px', borderRadius: '8px', fontWeight: 900, cursor: 'pointer' }}>
         ДОДАТИ
       </button>
     </form>

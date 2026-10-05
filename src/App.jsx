@@ -112,7 +112,7 @@ const PermissionGuard = ({ id, children }) => {
         <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', maxWidth: '400px', margin: '0 0 20px' }}>
           Доступ до цього модуля обмежено налаштуваннями вашого облікового запису. Зверніться до адміністратора для отримання дозволу.
         </p>
-        <Link to="/" style={{ background: '#ff9000', color: 'var(--surface-black)', textDecoration: 'none', padding: '12px 24px', borderRadius: '12px', fontWeight: 900, fontSize: '0.85rem', textTransform: 'uppercase', transition: '0.2s' }}>
+        <Link to="/" style={{ background: '#ff9000', color: '#000', textDecoration: 'none', padding: '12px 24px', borderRadius: '12px', fontWeight: 900, fontSize: '0.85rem', textTransform: 'uppercase', transition: '0.2s' }}>
           Повернутися на головну
         </Link>
       </div>
@@ -275,7 +275,7 @@ const ProfileModal = ({ isOpen, onClose }) => {
       <div className="glass-panel" style={{ width: '100%', maxWidth: '480px', borderRadius: '24px', background: 'var(--card-bg)', border: '1px solid var(--glass-border)', padding: '28px', color: 'var(--text)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: 'linear-gradient(135deg, #ff9000, #e65100)', color: 'var(--surface-black)', fontWeight: 950, fontSize: '1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: 'linear-gradient(135deg, #ff9000, #e65100)', color: '#000', fontWeight: 950, fontSize: '1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <User size={22} />
             </div>
             <div>
@@ -324,7 +324,7 @@ const ProfileModal = ({ isOpen, onClose }) => {
             <button type="button" onClick={onClose} style={{ flex: 1, padding: '12px', borderRadius: '12px', border: '1px solid var(--glass-border)', background: 'transparent', color: 'var(--text)', fontWeight: 800, cursor: 'pointer' }}>
               Скасувати
             </button>
-            <button type="submit" disabled={isSaving} style={{ flex: 1, padding: '12px', borderRadius: '12px', border: 'none', background: 'linear-gradient(135deg, #ff9000, #e65100)', color: 'var(--surface-black)', fontWeight: 950, cursor: 'pointer' }}>
+            <button type="submit" disabled={isSaving} style={{ flex: 1, padding: '12px', borderRadius: '12px', border: 'none', background: 'linear-gradient(135deg, #ff9000, #e65100)', color: '#000', fontWeight: 950, cursor: 'pointer' }}>
               {isSaving ? 'Збереження...' : 'Зберегти Профіль'}
             </button>
           </div>

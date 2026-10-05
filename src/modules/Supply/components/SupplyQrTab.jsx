@@ -112,7 +112,7 @@ export const SupplyQrTab = ({
               `)
               qrWindow.document.close()
             }}
-            style={{ background: '#ff9000', color: 'var(--surface-black)', border: 'none', padding: '8px 18px', borderRadius: '10px', fontWeight: 900, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem' }}
+            style={{ background: '#ff9000', color: '#000', border: 'none', padding: '8px 18px', borderRadius: '10px', fontWeight: 900, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem' }}
           >
             <Printer size={16} /> ДРУКУВАТИ ОБРАНІ ({selectedQrNomIds.size})
           </button>
@@ -202,7 +202,7 @@ export const SupplyQrTab = ({
                         <button
                           onClick={() => handleSaveQrCode(nom.id, editingQrCodeValue)}
                           disabled={savingQr}
-                          style={{ background: '#10b981', color: 'var(--surface-black)', border: 'none', padding: '6px 12px', borderRadius: '8px', fontSize: '0.75rem', cursor: 'pointer', fontWeight: 900 }}
+                          style={{ background: '#10b981', color: '#000', border: 'none', padding: '6px 12px', borderRadius: '8px', fontSize: '0.75rem', cursor: 'pointer', fontWeight: 900 }}
                         >
                           {savingQr ? '...' : 'ЗБЕРЕГТИ'}
                         </button>

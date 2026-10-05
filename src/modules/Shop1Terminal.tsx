@@ -407,7 +407,7 @@ export const Shop1Terminal: React.FC = () => {
             <button
               onClick={() => setCustomAlert(null)}
               style={{
-                width: '100%', background: '#eab308', color: 'var(--surface-black)',
+                width: '100%', background: '#eab308', color: '#000',
                 border: 'none', padding: '14px', borderRadius: '14px',
                 fontSize: '1rem', fontWeight: 1000, cursor: 'pointer',
                 boxShadow: '0 4px 12px rgba(234,179,8,0.2)'

@@ -21,14 +21,14 @@ export default function PressingTerminalFloatingControls({
           disabled={isProcessing}
           style={{ background: 'transparent', border: 'none', color: 'var(--text, #fff)', fontSize: '0.85rem', fontWeight: 700, outline: 'none', width: '100px' }}
         />
-        <button type="submit" disabled={isProcessing} style={{ background: ACCENT, color: 'var(--surface-black)', border: 'none', padding: '4px 10px', borderRadius: '16px', fontSize: '0.7rem', fontWeight: 900, cursor: 'pointer' }}>
+        <button type="submit" disabled={isProcessing} style={{ background: ACCENT, color: '#000', border: 'none', padding: '4px 10px', borderRadius: '16px', fontSize: '0.7rem', fontWeight: 900, cursor: 'pointer' }}>
           {isProcessing ? <RefreshCw size={10} className="anim-spin" /> : 'ЗНАЙТИ'}
         </button>
       </form>
 
       <button onClick={() => setIsScanning(true)}
         className="hover-lift"
-        style={{ background: ACCENT, border: 'none', color: 'var(--surface-black)', width: '56px', height: '56px', borderRadius: '50%', display: 'flex', justifyContent: 'center', alignItems: 'center', cursor: 'pointer', boxShadow: `0 10px 30px rgba(${ACCENT_RGB},0.4)`, transition: 'all 0.2s', flexShrink: 0 }}
+        style={{ background: ACCENT, border: 'none', color: '#000', width: '56px', height: '56px', borderRadius: '50%', display: 'flex', justifyContent: 'center', alignItems: 'center', cursor: 'pointer', boxShadow: `0 10px 30px rgba(${ACCENT_RGB},0.4)`, transition: 'all 0.2s', flexShrink: 0 }}
       >
         <QrCode size={26} />
       </button>

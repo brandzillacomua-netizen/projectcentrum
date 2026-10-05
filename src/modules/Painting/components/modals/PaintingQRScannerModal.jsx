@@ -70,7 +70,7 @@ export default function PaintingQRScannerModal({
             />
             <div style={{ display: 'flex', gap: '10px' }}>
               <button type="submit" disabled={!manualId || isProcessing}
-                style={{ flex: 2, background: ACCENT, color: 'var(--surface-black)', border: 'none', padding: '18px', borderRadius: '14px', fontSize: '1.1rem', fontWeight: 900, cursor: 'pointer' }}>
+                style={{ flex: 2, background: ACCENT, color: '#000', border: 'none', padding: '18px', borderRadius: '14px', fontSize: '1.1rem', fontWeight: 900, cursor: 'pointer' }}>
                 ВІДКРИТИ КАРТКУ
               </button>
               <button type="button" onClick={() => { setShowManualInput(false); setManualId(''); }}

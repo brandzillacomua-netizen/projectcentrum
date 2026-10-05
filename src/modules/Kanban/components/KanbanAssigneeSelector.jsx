@@ -80,7 +80,7 @@ export const MultiAssigneeSelector = ({ values = [], onAdd, onRemove, systemUser
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '8px' }}>
           {selectedUsers.map(u => (
             <div key={u.login} style={{ display: 'flex', alignItems: 'center', gap: '5px', background: 'rgba(255,144,0,0.08)', border: '1px solid rgba(255,144,0,0.2)', borderRadius: '20px', padding: '3px 8px 3px 4px' }}>
-              <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: '#ff9000', color: 'var(--surface-black)', fontSize: '0.6rem', fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: '#ff9000', color: '#000', fontSize: '0.6rem', fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                 {getInitials(u)}
               </div>
               <span style={{ fontSize: '0.73rem', color: 'var(--text-soft)', fontWeight: 600 }}>{u.last_name} {u.first_name}</span>

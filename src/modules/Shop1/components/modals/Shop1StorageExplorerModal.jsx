@@ -154,7 +154,7 @@ export function Shop1StorageExplorerModal({
             }}
             disabled={isBulkMoving}
             style={{
-              width: '100%', background: '#ef4444', color: 'var(--surface-black)', border: 'none',
+              width: '100%', background: '#ef4444', color: '#000', border: 'none',
               padding: '16px', borderRadius: '14px', fontSize: '0.85rem', fontWeight: 1000,
               cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
               gap: '10px', boxShadow: '0 10px 25px rgba(239, 68, 68, 0.2)'

@@ -754,7 +754,7 @@ const NomenclatureModule = () => {
         </div>
         <div className="tab-switcher-v2" style={{ display: 'flex', marginLeft: 'auto', background: 'var(--surface-1)', padding: '4px', borderRadius: '10px' }}>
            <button onClick={() => setActiveTab('all')} style={{ background: activeTab === 'all' ? 'var(--surface-3)' : 'transparent', border: 'none', color: 'var(--text-strong)', padding: '6px 15px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 800 }}>БАЗА</button>
-           <button onClick={() => setActiveTab('import')} style={{ background: activeTab === 'import' ? '#ff9000' : 'transparent', border: 'none', color: activeTab === 'import' ? 'var(--surface-black)' : '#555', padding: '6px 15px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 800 }}>ІМПОРТ CSV</button>
+           <button onClick={() => setActiveTab('import')} style={{ background: activeTab === 'import' ? '#ff9000' : 'transparent', border: 'none', color: activeTab === 'import' ? '#000' : '#555', padding: '6px 15px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 800 }}>ІМПОРТ CSV</button>
         </div>
       </nav>
 
@@ -942,7 +942,7 @@ const NomenclatureModule = () => {
                 </div>
               )}
 
-              <button type="submit" style={{ width: '100%', padding: '18px', background: isEditing ? '#3b82f6' : '#ff9000', color: 'var(--surface-black)', border: 'none', borderRadius: '16px', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', fontSize: '1rem', marginTop: '10px' }}>
+              <button type="submit" style={{ width: '100%', padding: '18px', background: isEditing ? '#3b82f6' : '#ff9000', color: '#000', border: 'none', borderRadius: '16px', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', fontSize: '1rem', marginTop: '10px' }}>
                 {isEditing ? <Check size={20} /> : <Save size={20} />} {isEditing ? 'ОНОВИТИ ПОЗИЦІЮ' : 'ЗБЕРЕГТИ НОВУ ПОЗИЦІЮ'}
               </button>
             </form>
@@ -976,7 +976,7 @@ const NomenclatureModule = () => {
                      </div>
                    ))}
                 </div>
-                <button onClick={handleSyncBOM} style={{ width: '100%', padding: '12px', background: hasUnsavedChanges ? '#ff9000' : 'var(--surface-3)', color: hasUnsavedChanges ? 'var(--surface-black)' : '#555', border: 'none', borderRadius: '10px', fontWeight: 900, cursor: 'pointer' }} disabled={isSyncing || !hasUnsavedChanges}>
+                <button onClick={handleSyncBOM} style={{ width: '100%', padding: '12px', background: hasUnsavedChanges ? '#ff9000' : 'var(--surface-3)', color: hasUnsavedChanges ? '#000' : '#555', border: 'none', borderRadius: '10px', fontWeight: 900, cursor: 'pointer' }} disabled={isSyncing || !hasUnsavedChanges}>
                   <Save size={16} /> ЗБЕРЕГТИ СКЛАД ВИРОБУ
                 </button>
               </div>

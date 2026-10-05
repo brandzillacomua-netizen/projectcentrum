@@ -152,7 +152,7 @@ export const SupplyCreateShipmentModal = ({
             />
           </div>
           <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-            <button type="button" onClick={addToDraft} style={{ height: '42px', width: '50px', background: '#ff9000', color: 'var(--surface-black)', border: 'none', borderRadius: '10px', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <button type="button" onClick={addToDraft} style={{ height: '42px', width: '50px', background: '#ff9000', color: '#000', border: 'none', borderRadius: '10px', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Plus size={20} />
             </button>
           </div>

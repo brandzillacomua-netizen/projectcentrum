@@ -24,7 +24,7 @@ export const WarehousePendingReceptionBanner = ({
       gap: '15px'
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-        <div style={{ background: '#0ea5e9', padding: '12px', borderRadius: '14px', color: 'var(--surface-black)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ background: '#0ea5e9', padding: '12px', borderRadius: '14px', color: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <Truck size={22} />
         </div>
         <div>
@@ -39,7 +39,7 @@ export const WarehousePendingReceptionBanner = ({
       <button
         onClick={onOpenReception}
         style={{
-          background: '#0ea5e9', color: 'var(--surface-black)', border: 'none',
+          background: '#0ea5e9', color: '#000', border: 'none',
           padding: '12px 24px', borderRadius: '12px', fontWeight: 900,
           fontSize: '0.8rem', cursor: 'pointer', textTransform: 'uppercase',
           boxShadow: '0 4px 12px rgba(14, 165, 233, 0.3)', transition: '0.2s',

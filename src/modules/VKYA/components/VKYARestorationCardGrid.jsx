@@ -41,7 +41,7 @@ export const VKYARestorationCardGrid = ({
                   <td style={{ padding: 10, textAlign: 'right' }}>
                     <button
                       onClick={() => onSelectLegacy(item)}
-                      style={{ background: '#f59e0b', border: 0, color: 'var(--surface-black)', padding: '6px 12px', borderRadius: 8, fontWeight: 900, cursor: 'pointer' }}
+                      style={{ background: '#f59e0b', border: 0, color: '#000', padding: '6px 12px', borderRadius: 8, fontWeight: 900, cursor: 'pointer' }}
                     >
                       Створити карту відновлення
                     </button>

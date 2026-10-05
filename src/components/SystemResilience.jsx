@@ -414,7 +414,7 @@ export function ServiceWorkerUpdateManager() {
       <button
         type="button"
         onClick={activateUpdate}
-        style={{ border: 0, borderRadius: 9, padding: '8px 14px', background: '#ff9000', color: 'var(--surface-black)', cursor: 'pointer', fontWeight: 900 }}
+        style={{ border: 0, borderRadius: 9, padding: '8px 14px', background: '#ff9000', color: '#000', cursor: 'pointer', fontWeight: 900 }}
       >
         ОНОВИТИ
       </button>

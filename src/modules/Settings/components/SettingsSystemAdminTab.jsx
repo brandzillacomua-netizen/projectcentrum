@@ -870,7 +870,7 @@ export function SettingsSystemAdminTab(props) {
               </div>
               <div style={{ display: 'flex', gap: '10px' }}>
                 <button type="button" onClick={() => { setCuttersUploadStatus('idle'); setCuttersFile(null); setCuttersPreviewList([]) }} style={{ background: 'var(--fill-subtle)', border: '1px solid var(--border-subtle)', color: '#aaa', padding: '12px 22px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer' }}>← НАЗАД</button>
-                <button type="button" onClick={executeCuttersUpload} disabled={cuttersPreviewList.length === 0} style={{ background: cuttersPreviewList.length === 0 ? 'var(--surface-3)' : 'linear-gradient(135deg, #ff9000, #ff6a00)', border: 'none', color: cuttersPreviewList.length === 0 ? '#555' : 'var(--surface-black)', padding: '12px 28px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: 900, cursor: cuttersPreviewList.length === 0 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <button type="button" onClick={executeCuttersUpload} disabled={cuttersPreviewList.length === 0} style={{ background: cuttersPreviewList.length === 0 ? 'var(--surface-3)' : 'linear-gradient(135deg, #ff9000, #ff6a00)', border: 'none', color: cuttersPreviewList.length === 0 ? '#555' : '#000', padding: '12px 28px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: 900, cursor: cuttersPreviewList.length === 0 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <Upload size={16} /> ЗАПИСАТИ НА СКЛАД ОПЕРАТИВНИЙ ({cuttersPreviewList.length} фрез)
                 </button>
               </div>
@@ -999,7 +999,7 @@ export function SettingsSystemAdminTab(props) {
               </div>
               <div style={{ display: 'flex', gap: '10px' }}>
                 <button type="button" onClick={() => { setFastenersUploadStatus('idle'); setFastenersFile(null); setFastenersPreviewList([]) }} style={{ background: 'var(--fill-subtle)', border: '1px solid var(--border-subtle)', color: '#aaa', padding: '12px 22px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer' }}>← НАЗАД</button>
-                <button type="button" onClick={executeFastenersUpload} disabled={fastenersPreviewList.length === 0} style={{ background: fastenersPreviewList.length === 0 ? 'var(--surface-3)' : 'linear-gradient(135deg, #ff9000, #ff6a00)', border: 'none', color: fastenersPreviewList.length === 0 ? '#555' : 'var(--surface-black)', padding: '12px 28px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: 900, cursor: fastenersPreviewList.length === 0 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <button type="button" onClick={executeFastenersUpload} disabled={fastenersPreviewList.length === 0} style={{ background: fastenersPreviewList.length === 0 ? 'var(--surface-3)' : 'linear-gradient(135deg, #ff9000, #ff6a00)', border: 'none', color: fastenersPreviewList.length === 0 ? '#555' : '#000', padding: '12px 28px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: 900, cursor: fastenersPreviewList.length === 0 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <Upload size={16} /> ЗАПИСАТИ В СИСТЕМУ ({fastenersPreviewList.length} метизів)
                 </button>
               </div>

@@ -237,7 +237,7 @@ export const ScannerPanel = ({
                     handleCardScan(manualCardInput.trim()) 
                   } 
                 }}
-                style={{ padding: '12px 18px', background: color, color: 'var(--surface-black)', border: 'none', borderRadius: '12px', fontWeight: 1000, cursor: 'pointer', fontSize: '0.85rem' }}
+                style={{ padding: '12px 18px', background: color, color: '#000', border: 'none', borderRadius: '12px', fontWeight: 1000, cursor: 'pointer', fontSize: '0.85rem' }}
               >
                 ОК
               </button>

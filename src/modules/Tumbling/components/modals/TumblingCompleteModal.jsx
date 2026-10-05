@@ -108,7 +108,7 @@ export default function TumblingCompleteModal({
             <button
               onClick={submitTumblingComplete}
               disabled={isProcessing}
-              style={{ flex: 1, background: '#10b981', border: 'none', color: 'var(--surface-black)', padding: '12px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', transition: '0.2s' }}
+              style={{ flex: 1, background: '#10b981', border: 'none', color: '#000', padding: '12px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', transition: '0.2s' }}
             >
               {isProcessing ? <RefreshCw size={14} className="anim-spin" /> : <><CheckCircle size={14} /> ПІДТВЕРДИТИ</>}
             </button>

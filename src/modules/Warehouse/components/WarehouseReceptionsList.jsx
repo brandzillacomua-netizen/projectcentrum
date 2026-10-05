@@ -54,7 +54,7 @@ export function WarehouseReceptionsList({
                 alert('Помилка: ' + e.message)
               }
             }}
-            style={{ marginLeft: '15px', background: '#10b981', color: 'var(--surface-black)', border: 'none', padding: '10px 20px', borderRadius: '10px', fontWeight: 900, cursor: 'pointer' }}
+            style={{ marginLeft: '15px', background: '#10b981', color: '#000', border: 'none', padding: '10px 20px', borderRadius: '10px', fontWeight: 900, cursor: 'pointer' }}
           >
             ПРИЙНЯТИ
           </button>

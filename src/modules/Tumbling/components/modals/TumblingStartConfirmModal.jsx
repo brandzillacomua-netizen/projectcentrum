@@ -70,7 +70,7 @@ export default function TumblingStartConfirmModal({
             <button
               onClick={() => onConfirm(pendingStartCard)}
               disabled={isProcessing}
-              style={{ flex: 2, background: '#06b6d4', border: 'none', color: 'var(--surface-black)', padding: '14px', borderRadius: '14px', fontSize: '0.9rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: '0 4px 16px rgba(6,182,212,0.25)' }}
+              style={{ flex: 2, background: '#06b6d4', border: 'none', color: '#000', padding: '14px', borderRadius: '14px', fontSize: '0.9rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: '0 4px 16px rgba(6,182,212,0.25)' }}
             >
               {isProcessing ? <RefreshCw size={15} className="anim-spin" /> : <><Play size={15} fill="currentColor" /> В РОБОТУ</>}
             </button>

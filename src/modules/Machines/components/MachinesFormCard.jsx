@@ -52,7 +52,7 @@ export function MachinesFormCard({ showAdd, form, setForm, handleSubmit }) {
               <input placeholder="Технічні особливості..." value={form.description} onChange={e => setForm({...form, description: e.target.value})} />
            </div>
         </div>
-        <button type="submit" style={{ background: 'var(--text-strong)', color: 'var(--surface-black)', border: 'none', padding: '20px', borderRadius: '16px', fontWeight: 1000, cursor: 'pointer', fontSize: '1rem', marginTop: '10px' }}>
+        <button type="submit" style={{ background: 'var(--text-strong)', color: '#000', border: 'none', padding: '20px', borderRadius: '16px', fontWeight: 1000, cursor: 'pointer', fontSize: '1rem', marginTop: '10px' }}>
            {form.id ? 'ЗБЕРЕГТИ ЗМІНИ' : 'ЗАРЕЄСТРУВАТИ ВЕРСТАТ'}
         </button>
       </form>

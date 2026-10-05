@@ -570,7 +570,7 @@ export function SettingsUsersTab(props) {
                   </div>
                   <input type="file" accept=".csv,.xlsx,.xls" onChange={handleFileChange} style={{ display: 'none' }} id="csv-file-input" />
                   <div style={{ display: 'flex', gap: '10px' }}>
-                    <label htmlFor="csv-file-input" style={{ background: '#ff9000', color: 'var(--surface-black)', padding: '12px 24px', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', fontSize: '0.85rem' }}>ОБРАТИ ФАЙЛ</label>
+                    <label htmlFor="csv-file-input" style={{ background: '#ff9000', color: '#000', padding: '12px 24px', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', fontSize: '0.85rem' }}>ОБРАТИ ФАЙЛ</label>
                     <button onClick={downloadTemplateExcel} style={{ background: 'var(--fill-subtle)', color: 'var(--text-strong)', border: '1px solid var(--border-subtle)', padding: '12px 20px', borderRadius: '12px', fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem' }}>Скачати шаблон Excel</button>
                   </div>
                 </div>
@@ -633,7 +633,7 @@ export function SettingsUsersTab(props) {
 
                   <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
                     <button onClick={() => setImportStatus('idle')} style={{ background: 'transparent', color: '#aaa', border: '1px solid var(--border-subtle)', padding: '12px 20px', borderRadius: '12px', cursor: 'pointer', fontSize: '0.85rem' }}>Назад до вибору файлу</button>
-                    <button onClick={executeImport} style={{ background: '#ff9000', color: 'var(--surface-black)', border: 'none', padding: '12px 24px', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', fontSize: '0.85rem' }}>ВИКОНАТИ ІМПОРТ ({previewData.filter(r => r.status==='insert'||r.status==='update').length} користувачів)</button>
+                    <button onClick={executeImport} style={{ background: '#ff9000', color: '#000', border: 'none', padding: '12px 24px', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', fontSize: '0.85rem' }}>ВИКОНАТИ ІМПОРТ ({previewData.filter(r => r.status==='insert'||r.status==='update').length} користувачів)</button>
                   </div>
                 </div>
               )}
@@ -647,7 +647,7 @@ export function SettingsUsersTab(props) {
                   </div>
                   <textarea readOnly value={importLog} style={{ width: '100%', height: '240px', background: '#050507', border: '1px solid var(--border-subtle)', borderRadius: '12px', color: '#34d399', fontFamily: 'monospace', padding: '15px', fontSize: '0.75rem', outline: 'none' }} />
                   {importStatus !== 'importing' && (
-                    <button onClick={() => setIsImportModalOpen(false)} style={{ background: '#ff9000', color: 'var(--surface-black)', border: 'none', padding: '12px', borderRadius: '12px', fontWeight: 900, cursor: 'pointer' }}>ЗАКРИТИ ВІКНО</button>
+                    <button onClick={() => setIsImportModalOpen(false)} style={{ background: '#ff9000', color: '#000', border: 'none', padding: '12px', borderRadius: '12px', fontWeight: 900, cursor: 'pointer' }}>ЗАКРИТИ ВІКНО</button>
                   )}
                 </div>
               )}

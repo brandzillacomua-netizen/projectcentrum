@@ -32,6 +32,8 @@ import { WarehouseAddInventoryForm } from './Warehouse/components/WarehouseAddIn
 import { WarehouseInventoryTable } from './Warehouse/components/WarehouseInventoryTable.jsx'
 import { WarehouseFloatingControls } from './Warehouse/components/WarehouseFloatingControls.jsx'
 import { WarehouseDeleteConfirmModal } from './Warehouse/components/modals/WarehouseDeleteConfirmModal.jsx'
+import { usePrepOrder } from '../hooks/usePrepOrder.js'
+import { MasterPrepModal } from './Master/components/modals/MasterPrepModal.jsx'
 
 export const WarehouseModuleV2: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -140,6 +142,13 @@ export const WarehouseModuleV2: React.FC = () => {
   })
 
   const nomenclatures = useStore((state: any) => state.nomenclatures)
+
+  const {
+    showPrepModal, setShowPrepModal,
+    prepQuantities, setPrepQuantities,
+    prepDeadline, setPrepDeadline,
+    handleCreatePrepOrder, isSubmitting: isPrepSubmitting
+  } = usePrepOrder(nomenclatures, fetchData)
 
   // Handlers Hook
   const handlers: any = useWarehouseHandlers({
@@ -302,6 +311,7 @@ export const WarehouseModuleV2: React.FC = () => {
         setShowReception={setShowReception}
         pendingDocsCount={pendingDocs.length}
         manualIssue={manualIssue}
+        setShowPrepModal={setShowPrepModal}
       />
 
       <div className="module-content" style={{ padding: '20px', overflowY: 'auto', flex: 1 }}>
@@ -485,6 +495,19 @@ export const WarehouseModuleV2: React.FC = () => {
       <ReserveAnalysisModal
         item={reserveAnalysisItem}
         onClose={() => setReserveAnalysisItem(null)}
+      />
+
+      <MasterPrepModal 
+        showPrepModal={showPrepModal}
+        setShowPrepModal={setShowPrepModal}
+        nomenclatures={nomenclatures}
+        inventory={inventory}
+        prepQuantities={prepQuantities}
+        setPrepQuantities={setPrepQuantities}
+        prepDeadline={prepDeadline}
+        setPrepDeadline={setPrepDeadline}
+        handleCreatePrepOrder={handleCreatePrepOrder}
+        isSubmitting={isPrepSubmitting}
       />
 
       <style>{`

@@ -112,7 +112,7 @@ const WarehouseInventoryTableRow = React.memo(({
               type="button"
               onClick={() => handleSaveInventoryQty(item.id)}
               disabled={savingInv}
-              style={{ background: '#10b981', border: 'none', borderRadius: '6px', padding: '5px 10px', color: 'var(--surface-black)', fontWeight: 900, cursor: 'pointer' }}
+              style={{ background: '#10b981', border: 'none', borderRadius: '6px', padding: '5px 10px', color: '#000', fontWeight: 900, cursor: 'pointer' }}
             >
               {savingInv ? '...' : <Check size={14} />}
             </button>
@@ -212,7 +212,7 @@ const WarehouseInventoryMobileCard = React.memo(({
                 type="button"
                 onClick={() => handleSaveInventoryQty(item.id)}
                 disabled={savingInv}
-                style={{ flex: 1, background: '#10b981', color: 'var(--surface-black)', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 900, cursor: 'pointer' }}
+                style={{ flex: 1, background: '#10b981', color: '#000', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 900, cursor: 'pointer' }}
               >
                 {savingInv ? '...' : 'ЗБЕРЕГТИ'}
               </button>

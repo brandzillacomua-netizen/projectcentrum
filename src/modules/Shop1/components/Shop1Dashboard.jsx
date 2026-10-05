@@ -61,7 +61,7 @@ export function Shop1Dashboard({
             disabled={isProcessing}
             style={{ background: 'transparent', border: 'none', color: 'var(--text-strong)', fontSize: '0.85rem', fontWeight: 700, outline: 'none', width: '100%' }}
           />
-          <button type="submit" disabled={isProcessing} className="floating-search-btn" style={{ background: '#eab308', color: 'var(--surface-black)', border: 'none', padding: '6px 14px', borderRadius: '16px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+          <button type="submit" disabled={isProcessing} className="floating-search-btn" style={{ background: '#eab308', color: '#000', border: 'none', padding: '6px 14px', borderRadius: '16px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
             {isProcessing ? <RefreshCw size={12} className="anim-spin" /> : 'ЗНАЙТИ'}
           </button>
         </form>
@@ -69,7 +69,7 @@ export function Shop1Dashboard({
         <button onClick={() => setIsScanning(true)}
           className="hover-lift floating-qr-btn"
           style={{
-            background: '#eab308', border: 'none', color: 'var(--surface-black)', width: '64px', height: '64px',
+            background: '#eab308', border: 'none', color: '#000', width: '64px', height: '64px',
             borderRadius: '50%', display: 'flex', justifyContent: 'center', alignItems: 'center',
             cursor: 'pointer', boxShadow: '0 10px 30px rgba(234,179,8,0.4)', transition: 'all 0.2s', flexShrink: 0
           }}>
@@ -186,7 +186,7 @@ export function Shop1Dashboard({
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   {isActive && (
                     <div style={{
-                      background: cardColor, color: 'var(--surface-black)', padding: '2.5px 8px', borderRadius: '6px',
+                      background: cardColor, color: '#000', padding: '2.5px 8px', borderRadius: '6px',
                       fontSize: '0.52rem', fontWeight: 950, letterSpacing: '0.5px'
                     }}>
                       АКТИВНО

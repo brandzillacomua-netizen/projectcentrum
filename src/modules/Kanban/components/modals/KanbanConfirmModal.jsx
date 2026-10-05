@@ -22,7 +22,7 @@ export const KanbanConfirmModal = ({ confirmModal, setConfirmModal }) => {
               confirmModal.onConfirm()
               setConfirmModal(null)
             }}
-            style={{ background: '#ff9000', border: 'none', color: 'var(--surface-black)', padding: '10px 24px', borderRadius: '10px', fontSize: '0.8rem', fontWeight: 900, cursor: 'pointer' }}
+            style={{ background: '#ff9000', border: 'none', color: '#000', padding: '10px 24px', borderRadius: '10px', fontSize: '0.8rem', fontWeight: 900, cursor: 'pointer' }}
           >
             Підтвердити
           </button>

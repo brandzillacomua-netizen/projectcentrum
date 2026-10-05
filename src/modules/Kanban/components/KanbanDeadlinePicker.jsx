@@ -96,7 +96,7 @@ export const DeadlinePicker = ({ value, onChange, label = 'Дедлайн' }) =>
               <button
                 type="button"
                 onClick={() => { apply(localDate, localTime); setOpen(false) }}
-                style={{ flex: 1, background: '#ff9000', border: 'none', color: 'var(--surface-black)', padding: '8px', borderRadius: '8px', fontSize: '0.8rem', fontWeight: 900, cursor: 'pointer' }}
+                style={{ flex: 1, background: '#ff9000', border: 'none', color: '#000', padding: '8px', borderRadius: '8px', fontSize: '0.8rem', fontWeight: 900, cursor: 'pointer' }}
               >
                 Зберегти
               </button>

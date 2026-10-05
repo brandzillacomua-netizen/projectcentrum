@@ -85,7 +85,7 @@ export function WarehouseRequestsList({
                           onChange={e => setEditingQty(prev => ({ ...prev, [r.id]: e.target.value }))}
                           style={{ width: '50px', background: 'var(--surface-black)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', textAlign: 'center', padding: '2px' }}
                         />
-                        <button onClick={() => handleSaveConsumableQty(r.id)} style={{ background: '#10b981', border: 'none', color: 'var(--surface-black)', cursor: 'pointer' }}><Check size={12} /></button>
+                        <button onClick={() => handleSaveConsumableQty(r.id)} style={{ background: '#10b981', border: 'none', color: '#000', cursor: 'pointer' }}><Check size={12} /></button>
                         <button onClick={() => setEditingQty(prev => { const n = { ...prev }; delete n[r.id]; return n })} style={{ background: 'var(--border-subtle)', border: 'none', color: 'var(--text-strong)', cursor: 'pointer' }}><X size={12} /></button>
                       </div>
                     ) : (
@@ -101,7 +101,7 @@ export function WarehouseRequestsList({
             <button
               onClick={() => handleReserveOrder(taskId, orderId, orderNum, reqList)}
               disabled={processingTasks.has(taskId)}
-              style={{ width: '100%', padding: '10px', background: '#ff9000', color: 'var(--surface-black)', border: 'none', borderRadius: '8px', fontWeight: 800, cursor: 'pointer' }}
+              style={{ width: '100%', padding: '10px', background: '#ff9000', color: '#000', border: 'none', borderRadius: '8px', fontWeight: 800, cursor: 'pointer' }}
             >
               {processingTasks.has(taskId) ? 'ОБРОБКА...' : 'ВИДАТИ'}
             </button>

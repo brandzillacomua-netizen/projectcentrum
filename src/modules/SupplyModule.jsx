@@ -86,7 +86,7 @@ const SupplyModule = () => {
            <button 
              onClick={() => setShowCreate(true)} 
              className="hide-mobile"
-             style={{ background: '#ff9000', color: 'var(--surface-black)', border: 'none', padding: '10px 22px', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.85rem' }}
+             style={{ background: '#ff9000', color: '#000', border: 'none', padding: '10px 22px', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.85rem' }}
            >
               <Plus size={20} /> НОВА ПРИЙОМКА
            </button>
@@ -129,7 +129,7 @@ const SupplyModule = () => {
                          <input type="number" style={{ width: '100%', background: 'var(--surface-black)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', padding: '18px', borderRadius: '15px', textAlign: 'center', fontSize: '1.1rem', fontWeight: 700 }} placeholder="0" value={selectedQty} onChange={e => setSelectedQty(e.target.value)} />
                       </div>
                       <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-                         <button onClick={addToDraft} style={{ height: '62px', width: '100%', background: '#ff9000', color: 'var(--surface-black)', border: 'none', borderRadius: '15px', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Plus size={28} /></button>
+                         <button onClick={addToDraft} style={{ height: '62px', width: '100%', background: '#ff9000', color: '#000', border: 'none', borderRadius: '15px', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Plus size={28} /></button>
                       </div>
                    </div>
 

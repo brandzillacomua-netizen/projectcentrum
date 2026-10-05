@@ -57,7 +57,7 @@ export const OperatorProductionOverview = ({
     <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
         <h2 style={{ margin: 0, fontSize: '1.8rem', fontWeight: 950 }}>ЛАНЦЮЖОК ВИРОБНИЦТВА</h2>
-        <button onClick={() => setIsScanning(true)} style={{ background: '#eab308', border: 'none', color: 'var(--surface-black)', padding: '15px 30px', borderRadius: '15px', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
+        <button onClick={() => setIsScanning(true)} style={{ background: '#eab308', border: 'none', color: '#000', padding: '15px 30px', borderRadius: '15px', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
           <Camera size={20} /> ВІДКРИТИ СКАНЕР
         </button>
       </div>
@@ -132,7 +132,7 @@ export const OperatorProductionOverview = ({
                 <td style={{ padding: '12px 15px', color: '#10b981' }}>{formatElapsedTime(card.started_at)}</td>
                 <td style={{ padding: '12px 15px', textAlign: 'right' }}>
                   <button onClick={(e) => { e.stopPropagation(); setSelectedCardId(card.id) }}
-                    style={{ background: '#eab308', border: 'none', color: 'var(--surface-black)', padding: '10px', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    style={{ background: '#eab308', border: 'none', color: '#000', padding: '10px', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                     title="Відкрити">
                     <Eye size={18} />
                   </button>

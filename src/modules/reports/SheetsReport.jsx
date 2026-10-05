@@ -707,7 +707,7 @@ const SheetsReport = ({
             <div style={{ borderTop: '1px solid rgba(120,120,120,0.2)', paddingTop: '15px', display: 'flex', justifyContent: 'flex-end' }}>
               <button
                 onClick={() => setSelectedSheetForReserve(null)}
-                style={{ background: '#10b981', color: 'var(--surface-black)', border: 'none', padding: '10px 24px', borderRadius: '12px', fontWeight: 950, fontSize: '0.85rem', cursor: 'pointer', transition: '0.2s' }}
+                style={{ background: '#10b981', color: '#000', border: 'none', padding: '10px 24px', borderRadius: '12px', fontWeight: 950, fontSize: '0.85rem', cursor: 'pointer', transition: '0.2s' }}
               >
                 ЗАКРИТИ
               </button>

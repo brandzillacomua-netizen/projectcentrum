@@ -33,7 +33,7 @@ export default function PaintingStartConfirmModal({
             <button onClick={onClose} disabled={isProcessing} style={{ flex: 1, background: 'var(--bg, #1a1a1f)', border: '1px solid var(--glass-border, var(--border-subtle))', color: 'var(--text-sub, #aaa)', padding: '12px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer' }}>
               СКАСУВАТИ
             </button>
-            <button onClick={() => startPaintingCard(pendingStartCard)} disabled={isProcessing} style={{ flex: 2, background: ACCENT, border: 'none', color: 'var(--surface-black)', padding: '12px', borderRadius: '12px', fontSize: '0.85rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+            <button onClick={() => startPaintingCard(pendingStartCard)} disabled={isProcessing} style={{ flex: 2, background: ACCENT, border: 'none', color: '#000', padding: '12px', borderRadius: '12px', fontSize: '0.85rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
               {isProcessing ? <RefreshCw size={14} className="anim-spin" /> : <><Play size={14} fill="currentColor" /> ФАРБУВАТИ</>}
             </button>
           </div>

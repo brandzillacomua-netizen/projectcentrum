@@ -120,7 +120,7 @@ export default function TaskQueue({ taskModels, nomenclatures = [], activeId, on
                 <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: state.color, flexShrink: 0 }}>
                   {state.icon}
                   {state.key !== 'idle' && (
-                    <span style={{ fontSize: '0.58rem', fontWeight: 950, color: state.key === 'progress' ? 'var(--surface-black)' : 'var(--text-strong)', background: state.color, borderRadius: '6px', padding: '3px 7px', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                    <span style={{ fontSize: '0.58rem', fontWeight: 950, color: state.key === 'progress' ? '#000' : 'var(--text-strong)', background: state.color, borderRadius: '6px', padding: '3px 7px', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
                       {state.label}
                     </span>
                   )}

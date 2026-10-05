@@ -341,7 +341,7 @@ export const BrakClassificationQueue = React.memo(({
                 </div>
                 <button
                   onClick={() => setRouteReturnDraft(selectedItem)}
-                  style={{ background: '#10b981', color: 'var(--surface-black)', border: 'none', padding: '10px 18px', borderRadius: '12px', fontWeight: 950, fontSize: '0.8rem', cursor: 'pointer' }}
+                  style={{ background: '#10b981', color: '#000', border: 'none', padding: '10px 18px', borderRadius: '12px', fontWeight: 950, fontSize: '0.8rem', cursor: 'pointer' }}
                 >
                   ПОВЕРНУТИ В НАРЯД
                 </button>

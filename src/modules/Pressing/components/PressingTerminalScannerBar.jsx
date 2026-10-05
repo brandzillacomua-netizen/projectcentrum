@@ -14,7 +14,7 @@ export default function PressingTerminalScannerBar({
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', maxWidth: '600px', margin: '0 auto' }}>
         <button
           onClick={() => setIsScanning(true)}
-          style={{ background: ACCENT, color: 'var(--surface-black)', border: 'none', padding: '12px', borderRadius: '16px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 8px 32px rgba(${ACCENT_RGB},0.2)`, transition: '0.2s', flexShrink: 0 }}
+          style={{ background: ACCENT, color: '#000', border: 'none', padding: '12px', borderRadius: '16px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 8px 32px rgba(${ACCENT_RGB},0.2)`, transition: '0.2s', flexShrink: 0 }}
         >
           <Camera size={18} />
         </button>
@@ -28,7 +28,7 @@ export default function PressingTerminalScannerBar({
             disabled={isProcessing}
             style={{ flex: 1, background: 'transparent', border: 'none', color: 'var(--text, #fff)', fontSize: '0.85rem', fontWeight: 700, outline: 'none' }}
           />
-          <button type="submit" disabled={isProcessing} style={{ background: ACCENT, color: 'var(--surface-black)', border: 'none', padding: '6px 12px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer' }}>
+          <button type="submit" disabled={isProcessing} style={{ background: ACCENT, color: '#000', border: 'none', padding: '6px 12px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer' }}>
             {isProcessing ? <RefreshCw size={12} className="anim-spin" /> : 'ВВЕСТИ'}
           </button>
         </form>

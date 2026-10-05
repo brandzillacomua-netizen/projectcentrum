@@ -49,7 +49,7 @@ export function MasterQuickPlanModal({
               handleOpenNaryadModal(quickPlanOrder, tempSets, tempDeadline);
               setQuickPlanOrder(null);
             }}
-            style={{ flex: 2, padding: '12px', background: '#ff9000', border: 'none', color: 'var(--surface-black)', borderRadius: '12px', fontWeight: 950, cursor: 'pointer', fontSize: '0.9rem' }}
+            style={{ flex: 2, padding: '12px', background: '#ff9000', border: 'none', color: '#000', borderRadius: '12px', fontWeight: 950, cursor: 'pointer', fontSize: '0.9rem' }}
           >
             ПЕРЕДАТИ В НАРАД
           </button>

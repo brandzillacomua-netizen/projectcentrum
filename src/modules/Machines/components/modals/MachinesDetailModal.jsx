@@ -65,7 +65,7 @@ export function MachinesDetailModal({
               <button 
                 onClick={() => handlePrintQR(selectedMachine)}
                 style={{ 
-                  background: '#ff9000', color: 'var(--surface-black)', border: 'none', 
+                  background: '#ff9000', color: '#000', border: 'none', 
                   width: '100%', padding: '12px', borderRadius: '12px', 
                   fontWeight: 950, cursor: 'pointer', fontSize: '0.8rem',
                   marginTop: '5px', transition: '0.2s', boxShadow: '0 4px 12px rgba(255,144,0,0.2)'
@@ -89,7 +89,7 @@ export function MachinesDetailModal({
                     return (
                       <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--surface-inset)', border: '1px solid var(--border-subtle)', padding: '15px 20px', borderRadius: '12px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                          <span style={{ background: roleColor, color: 'var(--surface-black)', padding: '4px 10px', borderRadius: '6px', fontSize: '0.7rem', fontWeight: 1000 }}>{label}</span>
+                          <span style={{ background: roleColor, color: '#000', padding: '4px 10px', borderRadius: '6px', fontSize: '0.7rem', fontWeight: 1000 }}>{label}</span>
                           <div style={{ display: 'flex', flexDirection: 'column' }}>
                             <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>Викликав: {c.operator_name || 'Оператор'}</span>
                             <span style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '2px' }}>
@@ -114,7 +114,7 @@ export function MachinesDetailModal({
                               alert('Помилка закриття виклику: ' + err.message)
                             }
                           }}
-                          style={{ background: '#10b981', color: 'var(--surface-black)', border: 'none', padding: '8px 16px', borderRadius: '8px', fontWeight: 900, cursor: 'pointer', fontSize: '0.78rem' }}
+                          style={{ background: '#10b981', color: '#000', border: 'none', padding: '8px 16px', borderRadius: '8px', fontWeight: 900, cursor: 'pointer', fontSize: '0.78rem' }}
                         >
                           ОБРОБЛЕНО
                         </button>
@@ -256,7 +256,7 @@ export function MachinesDetailModal({
                         
                         fetchData('machines');
                       }}
-                      style={{ background: '#10b981', color: 'var(--surface-black)', border: 'none', padding: '12px 25px', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', fontSize: '0.85rem' }}
+                      style={{ background: '#10b981', color: '#000', border: 'none', padding: '12px 25px', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', fontSize: '0.85rem' }}
                     >
                       ✅ ЗАВЕРШИТИ ОБСЛУГОВУВАННЯ
                     </button>

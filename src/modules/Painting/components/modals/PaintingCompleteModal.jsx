@@ -61,7 +61,7 @@ export default function PaintingCompleteModal({
             <button onClick={onClose} disabled={isProcessing} style={{ flex: 1, background: 'var(--bg, #1a1a1f)', border: '1px solid var(--glass-border, var(--border-subtle))', color: 'var(--text, #fff)', padding: '10px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer' }}>
               СКАСУВАТИ
             </button>
-            <button onClick={submitPaintingComplete} disabled={isProcessing} style={{ flex: 1, background: ACCENT, border: 'none', color: 'var(--surface-black)', padding: '10px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+            <button onClick={submitPaintingComplete} disabled={isProcessing} style={{ flex: 1, background: ACCENT, border: 'none', color: '#000', padding: '10px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
               {isProcessing ? <RefreshCw size={12} className="anim-spin" /> : <><CheckCircle size={12} /> ПІДТВЕРДИТИ</>}
             </button>
           </div>

@@ -38,7 +38,7 @@ export const ShortageModal = ({
             onClick={sendPurchaseRequest}
             style={{
               flex: 2, padding: '12px', borderRadius: '12px',
-              background: '#ef4444', color: 'var(--surface-black)', border: 'none',
+              background: '#ef4444', color: '#000', border: 'none',
               fontWeight: 900, cursor: isProcessing ? 'not-allowed' : 'pointer',
               fontSize: '0.8rem', opacity: isProcessing ? 0.5 : 1
             }}

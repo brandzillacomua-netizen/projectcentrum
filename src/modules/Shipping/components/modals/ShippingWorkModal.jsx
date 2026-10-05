@@ -115,7 +115,7 @@ export const ShippingWorkModal = React.memo(({
                         </span>
                         <span className="address-title">{addr.title || addr.city}</span>
                         {addr.isDefault && (
-                          <span style={{ background: '#ff9000', color: 'var(--surface-black)', padding: '1px 5px', borderRadius: '4px', fontSize: '0.58rem', fontWeight: 950 }}>
+                          <span style={{ background: '#ff9000', color: '#000', padding: '1px 5px', borderRadius: '4px', fontSize: '0.58rem', fontWeight: 950 }}>
                             ★ Основна
                           </span>
                         )}

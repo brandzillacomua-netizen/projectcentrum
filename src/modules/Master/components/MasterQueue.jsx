@@ -31,7 +31,7 @@ export function MasterQueue({
           </button>
           <button
             onClick={handleOpenCustomVirtualNaryad}
-            style={{ background: '#ff9000', color: 'var(--surface-black)', border: 'none', padding: '6px 12px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer' }}
+            style={{ background: '#ff9000', color: '#000', border: 'none', padding: '6px 12px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer' }}
           >
             ВЛАСНА РОБОЧА КАРТКА
           </button>
@@ -160,7 +160,7 @@ export function MasterQueue({
                 setTempSets(maxRem);
                 setTempDeadline(order.deadline || '');
               }}
-              style={{ width: '100%', padding: '12px', background: '#ff9000', color: 'var(--surface-black)', border: 'none', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}
+              style={{ width: '100%', padding: '12px', background: '#ff9000', color: '#000', border: 'none', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}
             >
               Сформувати наряд
             </button>

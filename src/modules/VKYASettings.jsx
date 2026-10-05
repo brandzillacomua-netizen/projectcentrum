@@ -77,4 +77,4 @@ export default function VKYASettings() {
   </div>
 }
 
-const tabButton = (active, color) => ({ background: active ? color : 'var(--surface-1)', color: active ? 'var(--surface-inset)' : '#aaa', border: '1px solid var(--border-subtle)', borderRadius: 11, padding: '11px 18px', fontWeight: 1000, cursor: 'pointer' })
+const tabButton = (active, color) => ({ background: active ? color : '#111', color: active ? 'var(--surface-inset)' : '#aaa', border: '1px solid var(--border-subtle)', borderRadius: 11, padding: '11px 18px', fontWeight: 1000, cursor: 'pointer' })

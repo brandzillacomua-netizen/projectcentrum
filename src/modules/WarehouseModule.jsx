@@ -187,7 +187,7 @@ const WarehouseModule = () => {
 
         <div style={{ display: 'flex', gap: '10px', marginBottom: '25px', overflowX: 'auto' }}>
           {tabs.map(tab => (
-            <button key={tab.id} onClick={() => { setActiveTab(tab.id); setNewItem({...newItem, type: tab.id}); }} style={{ background: activeTab === tab.id ? '#ff9000' : 'var(--surface-1)', color: activeTab === tab.id ? 'var(--surface-black)' : '#555', border: '1px solid var(--border-subtle)', padding: '12px 20px', borderRadius: '14px', fontSize: '0.85rem', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', whiteSpace: 'nowrap' }}>
+            <button key={tab.id} onClick={() => { setActiveTab(tab.id); setNewItem({...newItem, type: tab.id}); }} style={{ background: activeTab === tab.id ? '#ff9000' : 'var(--surface-1)', color: activeTab === tab.id ? '#000' : '#555', border: '1px solid var(--border-subtle)', padding: '12px 20px', borderRadius: '14px', fontSize: '0.85rem', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', whiteSpace: 'nowrap' }}>
               {tab.icon} {tab.label}
             </button>
           ))}
@@ -227,7 +227,7 @@ const WarehouseModule = () => {
                           })}
                        </div>
                     </div>
-                    <button onClick={() => apiService.submitConfirmReception(doc.id, confirmReceptionDoc)} style={{ marginLeft: '15px', background: '#10b981', color: 'var(--surface-black)', border: 'none', padding: '10px 20px', borderRadius: '10px', fontWeight: 1000, cursor: 'pointer', fontSize: '0.8rem' }}>ПРИЙНЯТИ</button>
+                    <button onClick={() => apiService.submitConfirmReception(doc.id, confirmReceptionDoc)} style={{ marginLeft: '15px', background: '#10b981', color: '#000', border: 'none', padding: '10px 20px', borderRadius: '10px', fontWeight: 1000, cursor: 'pointer', fontSize: '0.8rem' }}>ПРИЙНЯТИ</button>
                  </div>
                ))}
                {pendingDocs.length === 0 && <p style={{ color: '#333', fontSize: '0.8rem', textAlign: 'center' }}>Немає активних документів на прийомку</p>}
@@ -238,7 +238,7 @@ const WarehouseModule = () => {
             <form onSubmit={(e) => { e.preventDefault(); apiService.submitInventory(newItem, addInventory); setShowAdd(false); }} className="stack-mobile" style={{ display: 'flex', gap: '10px', padding: '15px', background: 'var(--surface-1)', borderRadius: '15px', marginBottom: '20px' }}>
               <input style={{ flex: 2, background: 'var(--surface-black)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', padding: '10px', borderRadius: '8px' }} placeholder="Назва товару..." value={newItem.name} onChange={e => setNewItem({...newItem, name: e.target.value})} required />
               <input style={{ flex: 1, background: 'var(--surface-black)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', padding: '10px', borderRadius: '8px' }} type="number" placeholder="Кількість" value={newItem.total_qty} onChange={e => setNewItem({...newItem, total_qty: e.target.value})} required />
-              <button type="submit" style={{ background: '#ff9000', color: 'var(--surface-black)', border: 'none', padding: '10px 30px', borderRadius: '8px', fontWeight: 900, cursor: 'pointer' }}>ДОДАТИ</button>
+              <button type="submit" style={{ background: '#ff9000', color: '#000', border: 'none', padding: '10px 30px', borderRadius: '8px', fontWeight: 900, cursor: 'pointer' }}>ДОДАТИ</button>
             </form>
           )}
 
@@ -292,7 +292,7 @@ const WarehouseModule = () => {
              </div>
              <div style={{ display: 'flex', gap: '10px' }}>
                 <button onClick={() => setShortages(null)} style={{ flex: 1, padding: '12px', borderRadius: '10px', background: 'var(--surface-3)', color: 'var(--text-strong)', border: 'none', cursor: 'pointer', fontWeight: 800 }}>НАЗАД</button>
-                <button onClick={sendPurchaseRequest} style={{ flex: 2, padding: '12px', borderRadius: '10px', background: '#ef4444', color: 'var(--surface-black)', border: 'none', fontWeight: 900, cursor: 'pointer' }}>ЗАМОВИТИ У ПОСТАЧАЛЬНИКА</button>
+                <button onClick={sendPurchaseRequest} style={{ flex: 2, padding: '12px', borderRadius: '10px', background: '#ef4444', color: '#000', border: 'none', fontWeight: 900, cursor: 'pointer' }}>ЗАМОВИТИ У ПОСТАЧАЛЬНИКА</button>
              </div>
           </div>
         </div>

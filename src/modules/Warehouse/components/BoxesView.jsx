@@ -223,7 +223,7 @@ export const BoxesView = ({
                               <button
                                 disabled={isProcessing || !canSubmit}
                                 onClick={() => handlePrepareBox(boxItem, null)}
-                                style={{ width: '100%', padding: '11px', background: canSubmit ? '#ff9000' : 'var(--surface-2)', color: canSubmit ? 'var(--surface-black)' : '#444', border: 'none', borderRadius: 12, fontWeight: 900, fontSize: '0.78rem', textTransform: 'uppercase', cursor: (isProcessing || !canSubmit) ? 'not-allowed' : 'pointer', transition: 'all 0.2s', marginTop: 4 }}
+                                style={{ width: '100%', padding: '11px', background: canSubmit ? '#ff9000' : 'var(--surface-2)', color: canSubmit ? '#000' : '#444', border: 'none', borderRadius: 12, fontWeight: 900, fontSize: '0.78rem', textTransform: 'uppercase', cursor: (isProcessing || !canSubmit) ? 'not-allowed' : 'pointer', transition: 'all 0.2s', marginTop: 4 }}
                               >
                                 <Package size={14} style={{ display: 'inline', marginRight: 6, verticalAlign: 'middle' }} />
                                 {!canSubmit ? 'Позначте всі матеріали' : 'Завершити комплектацію'}

@@ -44,7 +44,7 @@ export const ChecklistMultiAssigneeSelector = ({ values = [], onChange, systemUs
             {selectedUsers.slice(0, 2).map((u, i) => (
               <div key={u.login} style={{
                 width: '18px', height: '18px', borderRadius: '50%',
-                background: '#ff9000', color: 'var(--surface-black)', fontSize: '0.55rem', fontWeight: 900,
+                background: '#ff9000', color: '#000', fontSize: '0.55rem', fontWeight: 900,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 marginLeft: i > 0 ? '-4px' : 0, flexShrink: 0
               }}>
@@ -104,7 +104,7 @@ export const ChecklistMultiAssigneeSelector = ({ values = [], onChange, systemUs
                     onMouseEnter={e => { if (!sel) e.currentTarget.style.background = '#ff900010' }}
                     onMouseLeave={e => { if (!sel) e.currentTarget.style.background = 'transparent' }}
                   >
-                    <div style={{ width: '18px', height: '18px', borderRadius: '50%', background: sel ? '#ff9000' : 'var(--border-subtle)', color: sel ? 'var(--surface-black)' : '#888', fontSize: '0.55rem', fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <div style={{ width: '18px', height: '18px', borderRadius: '50%', background: sel ? '#ff9000' : 'var(--border-subtle)', color: sel ? '#000' : '#888', fontSize: '0.55rem', fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                       {getInitials(u)}
                     </div>
                     <span style={{ flex: 1 }}>{u.last_name} {u.first_name}</span>
@@ -341,7 +341,7 @@ export const ChecklistEditor = ({ items, onToggle, newItem, setNewItem, onAdd, o
                 setActiveAddId(null)
                 setSubText('')
               }}
-              style={{ background: '#ff9000', border: 'none', color: 'var(--surface-black)', borderRadius: '8px', padding: '6px 12px', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer' }}
+              style={{ background: '#ff9000', border: 'none', color: '#000', borderRadius: '8px', padding: '6px 12px', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer' }}
             >
               Додати
             </button>

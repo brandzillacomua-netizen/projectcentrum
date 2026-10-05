@@ -112,7 +112,7 @@ export const WarehouseReportView = ({
         <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
           <button
             onClick={handleGenerateReport}
-            style={{ background: '#ff9000', color: 'var(--surface-black)', border: 'none', padding: '12px 30px', borderRadius: '10px', fontWeight: 900, cursor: 'pointer', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '8px' }}
+            style={{ background: '#ff9000', color: '#000', border: 'none', padding: '12px 30px', borderRadius: '10px', fontWeight: 900, cursor: 'pointer', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '8px' }}
           >
             <BarChart2 size={18} /> СФОРМУВАТИ ЗВІТ
           </button>

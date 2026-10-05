@@ -118,7 +118,7 @@ export function WarehousePrepBoxes({
                                   <button
                                     disabled={isProcessing || !isAllChecked}
                                     onClick={() => handlePrepareBox(boxItem)}
-                                    style={{ width: '100%', padding: '10px', background: isAllChecked ? '#10b981' : 'var(--surface-3)', color: isAllChecked ? 'var(--surface-black)' : '#555', border: 'none', borderRadius: '8px', fontWeight: 800, cursor: 'pointer' }}
+                                    style={{ width: '100%', padding: '10px', background: isAllChecked ? '#10b981' : 'var(--surface-3)', color: isAllChecked ? '#000' : '#555', border: 'none', borderRadius: '8px', fontWeight: 800, cursor: 'pointer' }}
                                   >
                                     Зібрати бокс
                                   </button>

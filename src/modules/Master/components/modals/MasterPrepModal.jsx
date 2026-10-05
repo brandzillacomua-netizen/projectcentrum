@@ -113,7 +113,7 @@ export function MasterPrepModal({
   const renderQuantityInput = (entry, type, color) => {
     const nomenclature = entry[type]
     if (!nomenclature) {
-      return <div style={{ color: '#333', textAlign: 'center', fontSize: '0.85rem' }}>—</div>
+      return <div style={{ color: 'var(--text-dim)', textAlign: 'center', fontSize: '0.85rem' }}>—</div>
     }
 
     return (
@@ -161,8 +161,14 @@ export function MasterPrepModal({
   ]
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div className="glass-panel" style={{ 
+    <div 
+      onClick={() => setShowPrepModal(false)}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+    >
+      <div 
+        className="glass-panel" 
+        onClick={e => e.stopPropagation()}
+        style={{ 
         background: 'var(--surface-inset)', 
         padding: '30px', 
         borderRadius: '24px', 
@@ -176,9 +182,28 @@ export function MasterPrepModal({
         boxShadow: '0 10px 40px rgba(16,185,129,0.15)',
         overflowY: 'auto'
       }}>
-        <h3 style={{ margin: '0 0 20px', fontSize: '1.4rem', color: '#10b981', fontWeight: 900 }}>НАРЯД НА ПІДГОТОВКУ</h3>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+          <h3 style={{ margin: 0, fontSize: '1.4rem', color: '#10b981', fontWeight: 900 }}>НАРЯД НА ПІДГОТОВКУ</h3>
+          <button 
+            onClick={() => setShowPrepModal(false)}
+            style={{ 
+              background: 'var(--surface-black)', 
+              border: '1px solid var(--border-subtle)', 
+              color: 'var(--text-dim)', 
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '6px',
+              borderRadius: '8px',
+              transition: 'all 0.2s'
+            }}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+        </div>
 
-        <div style={{ display: 'block', fontSize: '0.75rem', color: '#444', fontWeight: 800, textTransform: 'uppercase', marginBottom: '12px' }}>
+        <div style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-dim)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '12px' }}>
           СИРОАВИНА (НЕПІДГОТОВЛЕНА)
         </div>
 
@@ -222,15 +247,15 @@ export function MasterPrepModal({
             })}
           </div>
 
-          <div style={{ flex: '2 1 760px', minWidth: '300px', background: 'var(--surface-inset)', border: '1px solid #1f2937', borderRadius: '16px', padding: '16px', boxSizing: 'border-box' }}>
-            <div style={{ fontSize: '0.75rem', color: '#a1a1aa', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '12px' }}>
+          <div style={{ flex: '2 1 760px', minWidth: '300px', background: 'var(--surface-inset)', border: '1px solid var(--border-subtle)', borderRadius: '16px', padding: '16px', boxSizing: 'border-box' }}>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '12px' }}>
               Наявність листів на складах
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '12px', alignItems: 'start' }}>
               {stockWarehouses.map(warehouse => (
-                <div key={warehouse.key} style={{ background: 'var(--surface-1)', border: '1px solid #202020', borderRadius: '12px', overflow: 'hidden' }}>
-                  <div style={{ padding: '10px 12px', borderBottom: '1px solid #242424', color: warehouse.accent, fontSize: '0.78rem', fontWeight: 950, textTransform: 'uppercase' }}>
+                <div key={warehouse.key} style={{ background: 'var(--surface-1)', border: '1px solid var(--border-subtle)', borderRadius: '12px', overflow: 'hidden' }}>
+                  <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--border-subtle)', color: warehouse.accent, fontSize: '0.78rem', fontWeight: 950, textTransform: 'uppercase' }}>
                     {warehouse.label}
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'minmax(110px, 1.4fr) repeat(3, minmax(58px, 0.7fr))', gap: '6px', padding: '8px 12px 5px', color: 'var(--text-dim)', fontSize: '0.62rem', fontWeight: 900, textTransform: 'uppercase' }}>
@@ -245,29 +270,29 @@ export function MasterPrepModal({
                     const gradeGroups = [
                       { key: 't300', label: 'Т300', accent: '#22c55e', items: stockItems.filter(stock => getSheetGrade(stock.name) === 300) },
                       { key: 't700', label: 'Т700', accent: '#0ea5e9', items: stockItems.filter(stock => getSheetGrade(stock.name) === 700) },
-                      { key: 'other', label: 'Інші', accent: '#a1a1aa', items: stockItems.filter(stock => getSheetGrade(stock.name) === null) }
+                      { key: 'other', label: 'Інші', accent: 'var(--text-muted)', items: stockItems.filter(stock => getSheetGrade(stock.name) === null) }
                     ].filter(group => group.items.length > 0)
                     return (
-                      <div key={preparation.key} style={{ borderTop: '1px solid #242424' }}>
-                        <div style={{ padding: '7px 12px', color: '#a1a1aa', background: 'var(--surface-inset)', fontSize: '0.66rem', fontWeight: 950, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                      <div key={preparation.key} style={{ borderTop: '1px solid var(--border-subtle)' }}>
+                        <div style={{ padding: '7px 12px', color: 'var(--text-muted)', background: 'var(--surface-inset)', fontSize: '0.66rem', fontWeight: 950, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                           {preparation.label}
                         </div>
                         {stockItems.length > 0 ? gradeGroups.map(group => (
-                          <div key={group.key} style={{ borderTop: '1px solid #242424' }}>
-                            <div style={{ padding: '7px 12px', color: group.accent, background: '#101010', fontSize: '0.7rem', fontWeight: 950, letterSpacing: '0.5px' }}>
+                          <div key={group.key} style={{ borderTop: '1px solid var(--border-subtle)' }}>
+                            <div style={{ padding: '7px 12px', color: group.accent, background: 'var(--surface-3)', fontSize: '0.7rem', fontWeight: 950, letterSpacing: '0.5px' }}>
                               {group.label}
                             </div>
                             {group.items.map(stock => (
-                              <div key={stock.id} style={{ display: 'grid', gridTemplateColumns: 'minmax(110px, 1.4fr) repeat(3, minmax(58px, 0.7fr))', gap: '6px', alignItems: 'center', padding: '8px 12px', borderTop: '1px solid #1d1d1d' }}>
+                              <div key={stock.id} style={{ display: 'grid', gridTemplateColumns: 'minmax(110px, 1.4fr) repeat(3, minmax(58px, 0.7fr))', gap: '6px', alignItems: 'center', padding: '8px 12px', borderTop: '1px solid var(--border-subtle)' }}>
                                 <div title={stock.name} style={{ color: 'var(--text-soft)', fontSize: '0.72rem', fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{stock.name}</div>
-                                <div style={{ color: '#f4f4f5', textAlign: 'right', fontSize: '0.82rem', fontWeight: 900 }}>{formatStock(stock.total)}</div>
+                                <div style={{ color: 'var(--text-strong)', textAlign: 'right', fontSize: '0.82rem', fontWeight: 900 }}>{formatStock(stock.total)}</div>
                                 <div style={{ color: '#f59e0b', textAlign: 'right', fontSize: '0.82rem', fontWeight: 900 }}>{formatStock(stock.reserved)}</div>
                                 <div style={{ color: '#22c55e', textAlign: 'right', fontSize: '0.82rem', fontWeight: 950 }}>{formatStock(stock.free)}</div>
                               </div>
                             ))}
                           </div>
                         )) : (
-                          <div style={{ padding: '9px 12px', borderTop: '1px solid #1d1d1d', color: '#444', fontSize: '0.72rem' }}>Немає позицій</div>
+                          <div style={{ padding: '9px 12px', borderTop: '1px solid var(--border-subtle)', color: 'var(--text-dim)', fontSize: '0.72rem' }}>Немає позицій</div>
                         )}
                       </div>
                     )
@@ -279,7 +304,7 @@ export function MasterPrepModal({
         </div>
 
         <div style={{ marginBottom: '30px' }}>
-          <label style={{ display: 'block', fontSize: '0.75rem', color: '#444', fontWeight: 800, textTransform: 'uppercase', marginBottom: '8px' }}>ДЕДЛАЙН</label>
+          <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-dim)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '8px' }}>ДЕДЛАЙН</label>
           <input
             type="date"
             value={prepDeadline ? prepDeadline.split('T')[0] : ''}
@@ -289,7 +314,7 @@ export function MasterPrepModal({
         </div>
 
         <div style={{ display: 'flex', gap: '10px' }}>
-          <button onClick={() => setShowPrepModal(false)} style={{ flex: 1, padding: '12px', background: 'var(--surface-3)', color: '#555', border: 'none', borderRadius: '12px', fontWeight: 800, cursor: 'pointer' }}>СКАСУВАТИ</button>
+          <button onClick={() => setShowPrepModal(false)} style={{ flex: 1, padding: '12px', background: 'var(--surface-3)', color: 'var(--text-muted)', border: 'none', borderRadius: '12px', fontWeight: 800, cursor: 'pointer' }}>СКАСУВАТИ</button>
           <button
             onClick={handleCreatePrepOrder}
             disabled={isSubmitting}

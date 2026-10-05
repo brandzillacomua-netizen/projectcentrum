@@ -183,7 +183,7 @@ export const OrderDetailsModal = ({
               <button onClick={() => handleDeleteClick(selectedOrder.id)} disabled={isSubmitting} className="btn-load-more" style={{ color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.2)', padding: '12px 20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Trash2 size={16} /> ВИДАЛИТИ
               </button>
-              <button onClick={() => handleBatchScheduleInit(selectedOrder)} className="btn-primary-modern" style={{ background: 'linear-gradient(135deg, #ff9000, #e67e00)', color: 'var(--surface-black)', boxShadow: '0 4px 14px rgba(255,144,0,0.3)', padding: '12px 20px', marginTop: 0, display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '900' }}>
+              <button onClick={() => handleBatchScheduleInit(selectedOrder)} className="btn-primary-modern" style={{ background: 'linear-gradient(135deg, #ff9000, #e67e00)', color: '#000', boxShadow: '0 4px 14px rgba(255,144,0,0.3)', padding: '12px 20px', marginTop: 0, display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '900' }}>
                 <Calendar size={16} /> КАЛЕНДАР ПАРТІЙ
               </button>
               <button onClick={() => handleEditInit(selectedOrder)} className="btn-primary-modern" style={{ background: '#3b82f6', color: '#fff', boxShadow: 'none', padding: '12px 20px', marginTop: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>

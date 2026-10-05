@@ -239,7 +239,7 @@ const OrderDetailView = ({
                 <span style={{ margin: '0 10px', color: 'var(--glass-border, rgba(0,0,0,0.1))' }}>|</span>
                 <span style={{ color: 'var(--text-muted, #52525b)' }}>від {dateStr}</span>
                 {task.batch_index && (
-                  <span style={{ marginLeft: '10px', background: '#eab308', color: 'var(--surface-black)', padding: '1px 8px', borderRadius: '5px', fontSize: '0.72rem', fontWeight: 900 }}>ПАРТІЯ #{task.batch_index}</span>
+                  <span style={{ marginLeft: '10px', background: '#eab308', color: '#000', padding: '1px 8px', borderRadius: '5px', fontSize: '0.72rem', fontWeight: 900 }}>ПАРТІЯ #{task.batch_index}</span>
                 )}
               </div>
             </div>

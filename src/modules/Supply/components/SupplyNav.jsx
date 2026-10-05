@@ -36,7 +36,7 @@ export const SupplyNav = ({
             <ArrowLeft size={20} />
           </Link>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{ background: '#ff9000', color: 'var(--surface-black)', padding: '8px', borderRadius: '12px', display: 'flex', alignItems: 'center' }}>
+            <div style={{ background: '#ff9000', color: '#000', padding: '8px', borderRadius: '12px', display: 'flex', alignItems: 'center' }}>
               <Truck size={20} />
             </div>
             <div>
@@ -69,7 +69,7 @@ export const SupplyNav = ({
             >
               <Truck size={16} /> <span>ПРИЙОМКА</span>
               {incomingReceptionCount > 0 && (
-                <span className="badge-count anim-pulse" style={{ background: '#0ea5e9', color: 'var(--surface-black)', borderRadius: '50%', padding: '2px 6px', fontSize: '0.65rem', fontWeight: 900 }}>
+                <span className="badge-count anim-pulse" style={{ background: '#0ea5e9', color: '#000', borderRadius: '50%', padding: '2px 6px', fontSize: '0.65rem', fontWeight: 900 }}>
                   {incomingReceptionCount}
                 </span>
               )}
@@ -87,7 +87,7 @@ export const SupplyNav = ({
                 setShowCreate(true)
               }}
               className="hide-mobile"
-              style={{ background: '#ff9000', color: 'var(--surface-black)', border: 'none', padding: '10px 22px', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.85rem' }}
+              style={{ background: '#ff9000', color: '#000', border: 'none', padding: '10px 22px', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.85rem' }}
             >
               <Plus size={20} /> НОВА ПОСТАВКА
             </button>
@@ -112,7 +112,7 @@ export const SupplyNav = ({
             gap: '15px'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-              <div style={{ background: '#0ea5e9', padding: '12px', borderRadius: '14px', color: 'var(--surface-black)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ background: '#0ea5e9', padding: '12px', borderRadius: '14px', color: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Truck size={22} />
               </div>
               <div>
