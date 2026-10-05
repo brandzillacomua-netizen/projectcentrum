@@ -1,11 +1,23 @@
 -- Migration: Fix Sorting Completion Resilience
--- Fixes rpc_submit_sorting_complete_atomic to use best-effort inventory deduction for semi/wip_bz/bz stock
--- preventing "Insufficient stock" exception from blocking physical work card transitions from Sorting to Shop 2.
+-- Fixes rpc_submit_sorting_complete_atomic to use best-effort inventory deduction for semi/wip_bz/bz stock,
+-- guards against uq_inventory_sgp_nom_finished unique constraint violations during Shop 2 inventory updates,
+-- and ensures mes_private.accounting_receipts table exists / is queried safely.
 
 SET lock_timeout = '3s';
 SET statement_timeout = '10s';
 
 BEGIN;
+
+-- Ensure mes_private schema and accounting_receipts table exist
+CREATE SCHEMA IF NOT EXISTS mes_private;
+CREATE TABLE IF NOT EXISTS mes_private.accounting_receipts (
+  operation text NOT NULL,
+  operation_key text NOT NULL,
+  payload jsonb NOT NULL,
+  result jsonb NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (operation, operation_key)
+);
 
 CREATE OR REPLACE FUNCTION public.rpc_submit_sorting_complete_atomic(
   p_card_id uuid,
@@ -56,13 +68,20 @@ BEGIN
     RAISE EXCEPTION 'Card % not found', p_card_id USING ERRCODE = 'P0002';
   END IF;
 
-  -- Check accounting receipt for idempotency
-  SELECT * INTO v_receipt FROM mes_private.accounting_receipts WHERE operation='sorting' AND operation_key=p_card_id::text;
-  IF FOUND THEN
-    IF v_receipt.payload IS DISTINCT FROM v_payload THEN 
-      RAISE EXCEPTION 'Sorting already completed with different quantities' USING ERRCODE = 'P0001'; 
-    END IF;
-    RETURN v_receipt.result;
+  -- Check accounting receipt for idempotency if table exists
+  IF to_regclass('mes_private.accounting_receipts') IS NOT NULL THEN
+    BEGIN
+      EXECUTE 'SELECT payload, result FROM mes_private.accounting_receipts WHERE operation = $1 AND operation_key = $2'
+        INTO v_receipt USING 'sorting', p_card_id::text;
+      IF v_receipt.result IS NOT NULL THEN
+        IF v_receipt.payload IS DISTINCT FROM v_payload THEN 
+          RAISE EXCEPTION 'Sorting already completed with different quantities' USING ERRCODE = 'P0001'; 
+        END IF;
+        RETURN v_receipt.result;
+      END IF;
+    EXCEPTION WHEN OTHERS THEN
+      NULL;
+    END;
   END IF;
 
   IF v_card.status IN ('completed', 'at-shop2-buffer') THEN
@@ -121,24 +140,62 @@ BEGIN
   END IF;
 
   -- 3. Increase Shop 2 semi_shop2 inventory
+  -- Resilient against uq_inventory_sgp_nom_finished by checking existing SGP or production inventory rows
   IF v_actual_need > 0 AND v_nom_id IS NOT NULL THEN
-    SELECT * INTO v_s2_inv FROM public.inventory WHERE nomenclature_id = v_nom_id AND type = 'semi_shop2' LIMIT 1 FOR UPDATE;
+    SELECT * INTO v_s2_inv FROM public.inventory 
+    WHERE nomenclature_id = v_nom_id 
+      AND (
+        type = 'semi_shop2'
+        OR (warehouse = 'sgp' AND pocket_owner IS NULL AND type IN ('finished', 'bz', 'bz_shop2', 'wip_bz', 'semi', 'semi_shop2', 'part', 'product'))
+      )
+    ORDER BY (CASE WHEN type = 'semi_shop2' THEN 0 ELSE 1 END), updated_at DESC NULLS LAST 
+    LIMIT 1 FOR UPDATE;
+
     IF FOUND THEN
       UPDATE public.inventory SET total_qty = COALESCE(total_qty, 0) + v_actual_need, updated_at = NOW() WHERE id = v_s2_inv.id;
     ELSE
-      INSERT INTO public.inventory (nomenclature_id, name, total_qty, type, unit, reserved_qty, warehouse, updated_at)
-      VALUES (v_nom_id, v_nom_name, v_actual_need, 'semi_shop2', v_unit, 0, 'production', NOW());
+      BEGIN
+        INSERT INTO public.inventory (nomenclature_id, name, total_qty, type, unit, reserved_qty, warehouse, updated_at)
+        VALUES (v_nom_id, v_nom_name, v_actual_need, 'semi_shop2', v_unit, 0, 'production', NOW());
+      EXCEPTION WHEN unique_violation THEN
+        UPDATE public.inventory 
+        SET total_qty = COALESCE(total_qty, 0) + v_actual_need, updated_at = NOW()
+        WHERE nomenclature_id = v_nom_id 
+          AND (
+            (warehouse = 'sgp' AND pocket_owner IS NULL AND type IN ('finished', 'bz', 'bz_shop2', 'wip_bz', 'semi', 'semi_shop2', 'part', 'product'))
+            OR type = 'semi_shop2'
+          );
+      END;
     END IF;
   END IF;
 
   -- 4. Increase Shop 2 bz_shop2 inventory
+  -- Resilient against uq_inventory_sgp_nom_finished
   IF v_actual_bz > 0 AND v_nom_id IS NOT NULL THEN
-    SELECT * INTO v_s2_inv FROM public.inventory WHERE nomenclature_id = v_nom_id AND type = 'bz_shop2' LIMIT 1 FOR UPDATE;
+    SELECT * INTO v_s2_inv FROM public.inventory 
+    WHERE nomenclature_id = v_nom_id 
+      AND (
+        type = 'bz_shop2'
+        OR (warehouse = 'sgp' AND pocket_owner IS NULL AND type IN ('finished', 'bz', 'bz_shop2', 'wip_bz', 'semi', 'semi_shop2', 'part', 'product'))
+      )
+    ORDER BY (CASE WHEN type = 'bz_shop2' THEN 0 ELSE 1 END), updated_at DESC NULLS LAST 
+    LIMIT 1 FOR UPDATE;
+
     IF FOUND THEN
       UPDATE public.inventory SET total_qty = COALESCE(total_qty, 0) + v_actual_bz, updated_at = NOW() WHERE id = v_s2_inv.id;
     ELSE
-      INSERT INTO public.inventory (nomenclature_id, name, total_qty, type, unit, reserved_qty, warehouse, updated_at)
-      VALUES (v_nom_id, v_nom_name, v_actual_bz, 'bz_shop2', v_unit, 0, 'production', NOW());
+      BEGIN
+        INSERT INTO public.inventory (nomenclature_id, name, total_qty, type, unit, reserved_qty, warehouse, updated_at)
+        VALUES (v_nom_id, v_nom_name, v_actual_bz, 'bz_shop2', v_unit, 0, 'production', NOW());
+      EXCEPTION WHEN unique_violation THEN
+        UPDATE public.inventory 
+        SET total_qty = COALESCE(total_qty, 0) + v_actual_bz, updated_at = NOW()
+        WHERE nomenclature_id = v_nom_id 
+          AND (
+            (warehouse = 'sgp' AND pocket_owner IS NULL AND type IN ('finished', 'bz', 'bz_shop2', 'wip_bz', 'semi', 'semi_shop2', 'part', 'product'))
+            OR type = 'bz_shop2'
+          );
+      END;
     END IF;
   END IF;
 
@@ -148,8 +205,12 @@ BEGIN
     IF FOUND THEN
       UPDATE public.inventory SET total_qty = COALESCE(total_qty, 0) + p_scrap_qty, updated_at = NOW() WHERE id = v_scrap_inv.id;
     ELSE
-      INSERT INTO public.inventory (nomenclature_id, name, total_qty, type, unit, reserved_qty, warehouse, updated_at)
-      VALUES (v_nom_id, v_nom_name, p_scrap_qty, 'scrap_ready', v_unit, 0, 'production', NOW());
+      BEGIN
+        INSERT INTO public.inventory (nomenclature_id, name, total_qty, type, unit, reserved_qty, warehouse, updated_at)
+        VALUES (v_nom_id, v_nom_name, p_scrap_qty, 'scrap_ready', v_unit, 0, 'production', NOW());
+      EXCEPTION WHEN unique_violation THEN
+        UPDATE public.inventory SET total_qty = COALESCE(total_qty, 0) + p_scrap_qty, updated_at = NOW() WHERE nomenclature_id = v_nom_id AND type = 'scrap_ready';
+      END;
     END IF;
   END IF;
 
@@ -250,9 +311,15 @@ BEGIN
     'rework_qty', GREATEST(0, p_rework_qty)
   );
 
-  INSERT INTO mes_private.accounting_receipts(operation, operation_key, payload, result) 
-  VALUES ('sorting', p_card_id::text, v_payload, v_result)
-  ON CONFLICT (operation, operation_key) DO UPDATE SET result = EXCLUDED.result;
+  -- Record receipt safely if table exists
+  IF to_regclass('mes_private.accounting_receipts') IS NOT NULL THEN
+    BEGIN
+      EXECUTE 'INSERT INTO mes_private.accounting_receipts(operation, operation_key, payload, result) VALUES ($1, $2, $3, $4) ON CONFLICT (operation, operation_key) DO UPDATE SET result = EXCLUDED.result'
+        USING 'sorting', p_card_id::text, v_payload, v_result;
+    EXCEPTION WHEN OTHERS THEN
+      NULL;
+    END;
+  END IF;
 
   RETURN v_result;
 END;
@@ -261,3 +328,5 @@ $body$;
 GRANT EXECUTE ON FUNCTION public.rpc_submit_sorting_complete_atomic(uuid, numeric, numeric, numeric, text, text) TO authenticated, service_role, anon;
 
 COMMIT;
+
+

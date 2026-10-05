@@ -98,9 +98,8 @@ export const ROUTE_DATA_PROFILES = Object.freeze({
   '/dashboard': ['orders', 'tasks', 'inventory', 'work_cards', 'nomenclatures', 'bom_items', 'work_card_history'],
   '/foreman-dashboard': ['orders', 'tasks', 'inventory', 'work_cards', 'nomenclatures', 'bom_items', 'work_card_scrap_totals', 'work_card_flow_totals'],
   '/manager': ['orders', 'tasks', 'nomenclatures'],
-  // machine_operations (fetched without filters) and purchase_requests are NOT used in the
-  // Warehouse SO module — removing them eliminates the ~10s initial load delay.
-  '/warehouse': ['inventory', 'material_requests', 'nomenclatures', 'reception_docs', 'orders', 'tasks', 'work_cards', 'system_users'],
+  // Warehouse SO module needs machine_operations to correctly compute cutters (boxes).
+  '/warehouse': ['inventory', 'material_requests', 'nomenclatures', 'reception_docs', 'orders', 'tasks', 'work_cards', 'system_users', 'machine_operations'],
   '/warehouse-boxes': ['inventory', 'material_requests', 'nomenclatures', 'orders', 'tasks', 'work_cards', 'machine_operations'],
   '/warehouse-fgp': ['inventory', 'material_requests', 'nomenclatures', 'reception_docs', 'orders', 'tasks', 'work_cards', 'work_card_history', 'system_users'],
   '/cutter-restoration': [],
