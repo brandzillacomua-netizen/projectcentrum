@@ -365,7 +365,7 @@ export function Shop2ActiveCardsList({
           justifyContent: 'center',
           padding: '20px'
         }}>
-          <div style={{
+          <div className="print-modal-content" style={{
             background: '#ffffff',
             color: '#0f172a',
             padding: '28px',
@@ -409,8 +409,9 @@ export function Shop2ActiveCardsList({
             {/* Print Cards Grid */}
             <div className="print-cards-grid" style={{
               display: 'grid',
-              gridTemplateColumns: printModalCards.length > 1 ? 'repeat(auto-fill, minmax(360px, 1fr))' : '1fr',
-              gap: '16px'
+              gridTemplateColumns: 'repeat(auto-fit, 85mm)',
+              gap: '15px',
+              justifyContent: 'center'
             }}>
               {printModalCards.map((card) => {
                 const nom = nomenclatures.find(n => String(n.id) === String(card.nomenclature_id))
@@ -423,48 +424,73 @@ export function Shop2ActiveCardsList({
                     style={{
                       background: '#ffffff',
                       color: '#000000',
-                      border: '2px solid #000000',
-                      borderRadius: '16px',
-                      padding: '16px',
+                      border: '1px solid #000000',
+                      borderRadius: '8px',
+                      padding: '4mm',
                       display: 'flex',
-                      gap: '16px',
+                      gap: '4mm',
                       alignItems: 'center',
-                      boxSizing: 'border-box'
+                      boxSizing: 'border-box',
+                      width: '85mm',
+                      height: '55mm',
+                      overflow: 'hidden',
+                      pageBreakInside: 'avoid'
                     }}
                   >
-                    {/* QR Section */}
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                    {/* Left Panel: QR Code */}
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minWidth: '22mm' }}>
                       <QRCodeSVG
                         value={JSON.stringify({ id: card.id, type: 'work_card_shop2' })}
-                        size={110}
-                        level="H"
-                        includeMargin={true}
+                        size={68}
+                        level="M"
+                        includeMargin={false}
                       />
-                      <div style={{ marginTop: '6px', fontSize: '0.75rem', fontWeight: 950, fontFamily: 'monospace', letterSpacing: '0.5px' }}>
+                      <div style={{ marginTop: '2mm', fontSize: '8px', fontWeight: 950, fontFamily: 'monospace', letterSpacing: '0.5px', color: '#000' }}>
                         #{card.id.slice(-8).toUpperCase()}
                       </div>
                     </div>
 
-                    {/* Info Section */}
-                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      <div style={{ fontSize: '0.65rem', fontWeight: 900, color: '#64748b', textTransform: 'uppercase' }}>
-                        Робоча картка Цех №2
-                      </div>
-                      <div style={{ fontSize: '1rem', fontWeight: 950, color: '#000000' }}>
-                        Наряд: {order?.order_num || 'Без наряду'}
-                      </div>
-                      <div style={{ fontSize: '0.9rem', fontWeight: 900, color: '#000000', lineHeight: 1.2 }}>
-                        {nom?.name || card.name || 'Деталь'}
+                    {/* Right Panel: Info */}
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'space-between' }}>
+                      <div>
+                        <div style={{ fontSize: '7px', fontWeight: 900, color: '#000', textTransform: 'uppercase' }}>
+                          Робоча картка Цех №2
+                        </div>
+                        <div style={{ fontSize: '11px', fontWeight: 950, color: '#000', lineHeight: 1.1, marginTop: '2px' }}>
+                          Наряд: {order?.order_num || 'Без наряду'}
+                        </div>
+                        <div style={{ 
+                          fontSize: '12px', 
+                          fontWeight: 900, 
+                          color: '#000', 
+                          lineHeight: 1.1, 
+                          marginTop: '2px',
+                          display: '-webkit-box',
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: 'vertical',
+                          overflow: 'hidden'
+                        }}>
+                          {nom?.name || card.name || 'Деталь'}
+                        </div>
                       </div>
 
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px', background: '#f8fafc', padding: '8px 10px', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
+                      {/* Operation & Qty Box */}
+                      <div style={{ 
+                        display: 'flex', 
+                        justifyContent: 'space-between', 
+                        alignItems: 'center', 
+                        marginTop: 'auto',
+                        border: '1px solid #000', 
+                        padding: '2mm 3mm', 
+                        borderRadius: '6px'
+                      }}>
                         <div>
-                          <div style={{ fontSize: '0.6rem', fontWeight: 900, color: '#64748b', textTransform: 'uppercase' }}>Етап</div>
-                          <div style={{ fontSize: '0.95rem', fontWeight: 950, color: '#0284c7' }}>{card.operation || 'Пресування'}</div>
+                          <div style={{ fontSize: '6.5px', fontWeight: 900, color: '#000', textTransform: 'uppercase' }}>Етап</div>
+                          <div style={{ fontSize: '10px', fontWeight: 950, color: '#000', marginTop: '1px' }}>{card.operation || 'Пресування'}</div>
                         </div>
                         <div style={{ textAlign: 'right' }}>
-                          <div style={{ fontSize: '0.6rem', fontWeight: 900, color: '#64748b', textTransform: 'uppercase' }}>Кількість</div>
-                          <div style={{ fontSize: '1.1rem', fontWeight: 950, color: '#059669' }}>{card.quantity} шт</div>
+                          <div style={{ fontSize: '6.5px', fontWeight: 900, color: '#000', textTransform: 'uppercase' }}>Кількість</div>
+                          <div style={{ fontSize: '13px', fontWeight: 950, color: '#000', marginTop: '1px', lineHeight: 1 }}>{card.quantity} <span style={{fontSize: '8px'}}>шт</span></div>
                         </div>
                       </div>
                     </div>
@@ -505,6 +531,10 @@ export function Shop2ActiveCardsList({
       {/* Print CSS Rules */}
       <style>{`
         @media print {
+          @page {
+            margin: 10mm;
+            size: A4 portrait;
+          }
           body * {
             visibility: hidden;
           }
@@ -518,13 +548,34 @@ export function Shop2ActiveCardsList({
             width: 100% !important;
             background: #ffffff !important;
             padding: 0 !important;
+            display: block !important;
+          }
+          .print-modal-content {
+            padding: 0 !important;
+            box-shadow: none !important;
+            border-radius: 0 !important;
+            max-width: none !important;
+            width: 100% !important;
+            margin: 0 !important;
+            background: #ffffff !important;
           }
           .print-hide {
             display: none !important;
           }
+          .print-cards-grid {
+            display: grid !important;
+            grid-template-columns: 85mm 85mm !important;
+            gap: 5mm 10mm !important; /* 5mm vertical, 10mm horizontal gap */
+            justify-content: center !important; /* Center on A4 */
+            align-content: start !important;
+            padding: 0 !important;
+            margin: 0 !important;
+          }
           .shop2-print-card {
             page-break-inside: avoid;
-            border: 2px solid #000 !important;
+            border: 1px dashed #000 !important; /* strong dashed line for cutting */
+            margin: 0 !important;
+            box-shadow: none !important;
           }
         }
       `}</style>

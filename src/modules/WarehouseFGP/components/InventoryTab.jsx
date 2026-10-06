@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Pencil, Eye } from 'lucide-react'
+import { Pencil, Eye, Trash2 } from 'lucide-react'
 import { supabase } from '../../../supabase'
 import { useStore } from '../../../store/index.js'
 export function InventoryTab({
@@ -51,8 +51,25 @@ export function InventoryTab({
       setEditingInvKey(null)
     } catch (err) {
       alert(`Помилка оновлення: ${err.message}`)
-    } finally {
       setIsSavingInv(false)
+    }
+  }
+
+  const handleDeleteInventoryItem = async (item) => {
+    if (!isAdmin) return
+    if (!window.confirm(`Ви впевнені, що хочете ВИДАЛИТИ позицію "${item.name}"? Цю дію неможливо скасувати.`)) return
+    
+    try {
+      const idsToDelete = item.rawItems ? item.rawItems.map(r => r.id).filter(Boolean) : [item.id || item.key]
+      if (idsToDelete.length === 0) return
+
+      const { error } = await supabase.from('inventory').delete().in('id', idsToDelete)
+      if (error) throw error
+
+      if (typeof refreshTable === 'function') refreshTable('inventory')
+      if (typeof fetchData === 'function') fetchData(['inventory'])
+    } catch (err) {
+      alert(`Помилка видалення: ${err.message}`)
     }
   }
 
@@ -260,6 +277,34 @@ export function InventoryTab({
                     style={{ background: t.buttonSecondaryBg, color: t.textSecondary, border: `1px solid ${t.buttonSecondaryBorder}`, padding: '6px 10px', borderRadius: '8px', cursor: 'pointer' }}
                   >
                     ✕
+                  </button>
+                </div>
+              ) : isAdmin ? (
+                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteInventoryItem(item)}
+                    style={{ 
+                      background: 'none', 
+                      border: 'none', 
+                      color: '#ef4444', 
+                      cursor: 'pointer', 
+                      padding: '6px',
+                      borderRadius: '8px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      transition: 'all 0.15s ease'
+                    }}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.background = isDark ? 'rgba(239, 68, 68, 0.15)' : '#fee2e2'
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.background = 'none'
+                    }}
+                    title="Видалити позицію"
+                  >
+                    <Trash2 size={16} />
                   </button>
                 </div>
               ) : (
