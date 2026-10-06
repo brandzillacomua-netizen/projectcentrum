@@ -56,6 +56,7 @@ export const CardScrapHistoryModal = ({ card, cardInfo, onClose }) => {
   const cardLabelMatch = String(targetCard.card_info || '').match(/№\s*(\d+(?:\/\d+)?)/)
   const cardSeqLabel = cardLabelMatch ? `№${cardLabelMatch[1]}` : (targetCard.card_sequence ? `№${targetCard.card_sequence}` : `#${cardCode}`)
 
+  const isLight = typeof document !== 'undefined' && document.body.classList.contains('light-theme')
   const totalScrapQty = historyRows.reduce((sum, r) => sum + (Number(r.scrap_qty) || 0), 0)
 
   return (
@@ -65,7 +66,7 @@ export const CardScrapHistoryModal = ({ card, cardInfo, onClose }) => {
         position: 'fixed',
         inset: 0,
         zIndex: 20000,
-        background: 'rgba(0, 0, 0, 0.85)',
+        background: 'rgba(0, 0, 0, 0.75)',
         backdropFilter: 'blur(8px)',
         display: 'flex',
         alignItems: 'center',
@@ -77,11 +78,11 @@ export const CardScrapHistoryModal = ({ card, cardInfo, onClose }) => {
       <div
         onClick={e => e.stopPropagation()}
         style={{
-          background: 'var(--card-bg, #0d0d0d)',
+          background: isLight ? '#ffffff' : 'var(--card-bg, #0d0d0d)',
           borderRadius: '28px',
-          border: '1px solid #f9731650',
+          border: isLight ? '1px solid #f9731635' : '1px solid #f9731650',
           padding: '28px',
-          boxShadow: '0 25px 80px rgba(0,0,0,0.9)',
+          boxShadow: isLight ? '0 25px 80px rgba(0,0,0,0.15)' : '0 25px 80px rgba(0,0,0,0.9)',
           width: '100%',
           maxWidth: '750px',
           maxHeight: '90vh',
@@ -91,16 +92,16 @@ export const CardScrapHistoryModal = ({ card, cardInfo, onClose }) => {
         }}
       >
         {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px', borderBottom: '1px solid var(--border-color, var(--border-subtle))', paddingBottom: '16px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px', borderBottom: isLight ? '1px solid #e2e8f0' : '1px solid var(--border-color, var(--border-subtle))', paddingBottom: '16px' }}>
           <div>
             <div style={{ color: '#f97316', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '6px' }}>
               <ShieldAlert size={15} /> ІСТОРІЯ ПОРЦІЙ БРАКУ ПО КАРТЦІ
             </div>
-            <h3 style={{ margin: '6px 0 0', fontSize: '1.4rem', fontWeight: 950, color: 'var(--text-color, #fff)' }}>
-              Картка {cardSeqLabel} <small style={{ color: 'var(--text-muted, #777)', fontSize: '0.8rem', fontWeight: 800 }}>({cardCode})</small>
+            <h3 style={{ margin: '6px 0 0', fontSize: '1.4rem', fontWeight: 950, color: isLight ? '#0f172a' : 'var(--text-color, #fff)' }}>
+              Картка {cardSeqLabel} <small style={{ color: isLight ? '#64748b' : 'var(--text-muted, #777)', fontSize: '0.8rem', fontWeight: 800 }}>({cardCode})</small>
             </h3>
             {targetCard.card_info && (
-              <div style={{ color: 'var(--text-muted, #666)', fontSize: '0.72rem', marginTop: '4px', fontWeight: 800 }}>
+              <div style={{ color: isLight ? '#64748b' : 'var(--text-muted, #666)', fontSize: '0.72rem', marginTop: '4px', fontWeight: 800 }}>
                 {targetCard.card_info}
               </div>
             )}
@@ -108,9 +109,9 @@ export const CardScrapHistoryModal = ({ card, cardInfo, onClose }) => {
           <button
             onClick={onClose}
             style={{
-              background: 'var(--btn-ghost-bg, #1c1c1c)',
-              border: 'none',
-              color: 'var(--text-muted, #888)',
+              background: isLight ? '#f1f5f9' : 'var(--btn-ghost-bg, #1c1c1c)',
+              border: isLight ? '1px solid #cbd5e1' : 'none',
+              color: isLight ? '#475569' : 'var(--text-muted, #888)',
               cursor: 'pointer',
               width: '36px',
               height: '36px',
@@ -126,35 +127,35 @@ export const CardScrapHistoryModal = ({ card, cardInfo, onClose }) => {
 
         {/* Summary Card */}
         <div style={{
-          background: 'rgba(249, 115, 22, 0.08)',
+          background: isLight ? 'rgba(249, 115, 22, 0.06)' : 'rgba(249, 115, 22, 0.08)',
           border: '1px solid rgba(249, 115, 22, 0.25)',
           borderRadius: '18px',
           padding: '16px 20px',
           marginBottom: '25px',
           display: 'flex',
-          justify: 'space-between',
+          justifyContent: 'space-between',
           alignItems: 'center',
           flexWrap: 'wrap',
           gap: '15px'
         }}>
           <div>
             <div style={{ color: '#f97316', fontWeight: 950, fontSize: '0.85rem' }}>ЗАГАЛЬНИЙ НАКОПИЧЕНИЙ БРАК</div>
-            <div style={{ color: 'var(--text-muted, #888)', fontSize: '0.75rem', marginTop: '3px' }}>
+            <div style={{ color: isLight ? '#64748b' : 'var(--text-muted, #888)', fontSize: '0.75rem', marginTop: '3px' }}>
               Кількість порцій: <strong>{historyRows.length}</strong>
             </div>
           </div>
           <div style={{ fontSize: '1.8rem', fontWeight: 1000, color: '#f97316' }}>
-            {totalScrapQty} <small style={{ fontSize: '0.8rem', color: '#fff', opacity: 0.6 }}>шт</small>
+            {totalScrapQty} <small style={{ fontSize: '0.8rem', color: isLight ? '#475569' : '#fff', opacity: 0.8 }}>шт</small>
           </div>
         </div>
 
         {/* Portions Timeline */}
         {loading ? (
-          <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted, #777)', fontSize: '0.9rem', fontWeight: 850 }}>
+          <div style={{ padding: '40px', textAlign: 'center', color: isLight ? '#64748b' : 'var(--text-muted, #777)', fontSize: '0.9rem', fontWeight: 850 }}>
             Завантаження порцій браку...
           </div>
         ) : historyRows.length === 0 ? (
-          <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted, #555)', background: 'var(--card-bg, #080808)', borderRadius: '16px', border: '1px dashed var(--border-color, #222)' }}>
+          <div style={{ padding: '40px', textAlign: 'center', color: isLight ? '#64748b' : 'var(--text-muted, #555)', background: isLight ? '#f8fafc' : 'var(--card-bg, #080808)', borderRadius: '16px', border: isLight ? '1px dashed #cbd5e1' : '1px dashed var(--border-color, #222)' }}>
             Для цієї картки не знайдено записів про фіксацію браку
           </div>
         ) : (
@@ -184,10 +185,10 @@ export const CardScrapHistoryModal = ({ card, cardInfo, onClose }) => {
                 <div
                   key={row.id || idx}
                   style={{
-                    background: 'var(--card-inner-bg, #111)',
+                    background: isLight ? '#f8fafc' : 'var(--card-inner-bg, #111)',
                     borderRadius: '18px',
                     padding: '18px 20px',
-                    border: '1px solid var(--border-color, var(--border-subtle))',
+                    border: isLight ? '1px solid #e2e8f0' : '1px solid var(--border-color, var(--border-subtle))',
                     display: 'flex',
                     flexDirection: 'column',
                     gap: '10px'
@@ -207,16 +208,16 @@ export const CardScrapHistoryModal = ({ card, cardInfo, onClose }) => {
                         +{row.scrap_qty} шт
                       </span>
                       <div>
-                        <div style={{ fontWeight: 900, fontSize: '0.95rem', color: 'var(--text-color, #fff)' }}>
+                        <div style={{ fontWeight: 900, fontSize: '0.95rem', color: isLight ? '#0f172a' : 'var(--text-color, #fff)' }}>
                           {row.stage_name || 'Операція'}
                         </div>
-                        <div style={{ fontSize: '0.7rem', color: '#8b5cf6', fontWeight: 850, marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <div style={{ fontSize: '0.7rem', color: isLight ? '#6d28d9' : '#8b5cf6', fontWeight: 850, marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                           <User size={12} /> Оператор: {row.operator_name || 'Не вказано'}
                         </div>
                       </div>
                     </div>
 
-                    <div style={{ textAlign: 'right', fontSize: '0.7rem', color: 'var(--text-muted, #777)', fontWeight: 800 }}>
+                    <div style={{ textAlign: 'right', fontSize: '0.7rem', color: isLight ? '#64748b' : 'var(--text-muted, #777)', fontWeight: 800 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'flex-end' }}>
                         <Clock size={12} /> {new Date(row.completed_at || row.created_at).toLocaleString('uk-UA')}
                       </div>
@@ -225,7 +226,7 @@ export const CardScrapHistoryModal = ({ card, cardInfo, onClose }) => {
 
                   {/* Status & Classification Breakdown */}
                   <div style={{
-                    background: 'var(--card-bg, #080808)',
+                    background: isLight ? '#ffffff' : 'var(--card-bg, #080808)',
                     borderRadius: '12px',
                     padding: '10px 14px',
                     fontSize: '0.72rem',
@@ -235,7 +236,7 @@ export const CardScrapHistoryModal = ({ card, cardInfo, onClose }) => {
                     justifyContent: 'space-between',
                     flexWrap: 'wrap',
                     gap: '8px',
-                    border: '1px solid var(--border-color, #222)'
+                    border: isLight ? '1px solid #e2e8f0' : '1px solid var(--border-color, #222)'
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                       {isFullyClassified ? (
@@ -243,14 +244,14 @@ export const CardScrapHistoryModal = ({ card, cardInfo, onClose }) => {
                           <CheckCircle2 size={14} /> Класифіковано ВКЯ
                         </span>
                       ) : (
-                        <span style={{ color: '#eab308', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                        <span style={{ color: isLight ? '#d97706' : '#eab308', display: 'flex', alignItems: 'center', gap: '5px' }}>
                           <Clock size={14} /> Очікує рішення ВКЯ (Карантин)
                         </span>
                       )}
                     </div>
 
                     {catsInfo.length > 0 && (
-                      <div style={{ color: '#38bdf8' }}>
+                      <div style={{ color: isLight ? '#0284c7' : '#38bdf8' }}>
                         {catsInfo.join(' · ')}
                       </div>
                     )}
@@ -266,9 +267,9 @@ export const CardScrapHistoryModal = ({ card, cardInfo, onClose }) => {
           <button
             onClick={onClose}
             style={{
-              background: 'var(--btn-ghost-bg, #222)',
-              border: '1px solid var(--border-color, #333)',
-              color: 'var(--text-color, #fff)',
+              background: isLight ? '#0f172a' : 'var(--btn-ghost-bg, #222)',
+              border: isLight ? '1px solid #0f172a' : '1px solid var(--border-color, #333)',
+              color: '#ffffff',
               padding: '12px 24px',
               borderRadius: '14px',
               fontWeight: 900,
