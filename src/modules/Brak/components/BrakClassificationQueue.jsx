@@ -1,6 +1,7 @@
 import React from 'react'
 import { CheckCircle2, Package, Layers, X, ArrowLeft } from 'lucide-react'
 import { QUALITY_CLASSIFICATION_OPTIONS } from '../../VKYA/quality-hold/qualityHoldModel'
+import { CardScrapHistoryModal } from './modals/CardScrapHistoryModal'
 
 export const BrakClassificationQueue = React.memo(({
   viewingCategory,
@@ -39,6 +40,7 @@ export const BrakClassificationQueue = React.memo(({
   openReworkModal,
   setRouteReturnDraft
 }) => {
+  const [scrapHistoryCard, setScrapHistoryCard] = React.useState(null)
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '40px' }}>
       
@@ -174,17 +176,25 @@ export const BrakClassificationQueue = React.memo(({
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px 12px', marginTop: '5px', fontSize: '0.67rem', fontWeight: 850 }}>
                         <span style={{ color: '#f59e0b' }}>Наряд №{item.naryad_number}</span>
                         <span style={{ color: '#38bdf8' }}>Картка №{item.card_sequence || '—'}</span>
-                        {item.task_card_sequence && item.task_card_sequence !== item.card_sequence && (
-                          <span style={{ color: '#64748b' }}>у наряді №{item.task_card_sequence}</span>
-                        )}
                         <span style={{ color: '#64748b' }} title={item.card_id ? String(item.card_id) : ''}>Системна #{item.card_number}</span>
                         <span style={{ color: 'var(--text-muted, #666)' }}>Отримано: {new Date(item.updated_at).toLocaleDateString('uk-UA')}</span>
                       </div>
                       {item.operator && <div style={{ fontSize: '0.65rem', color: '#8b5cf6', fontWeight: 800, marginTop: '3px' }}>Оператор: {item.operator} · Етап: {item.stage || '—'}</div>}
                     </div>
                   </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: '1.6rem', fontWeight: 1000, color: 'var(--text-color, #fff)' }}>{item.total_qty} <small style={{ fontSize: '0.7rem', opacity: 0.3 }}>шт</small></div>
+                  <div 
+                    onClick={(e) => {
+                      if (item.card_id) {
+                        e.stopPropagation()
+                        setScrapHistoryCard({ id: item.card_id, card_info: `№${item.card_sequence || ''}` })
+                      }
+                    }}
+                    style={{ textAlign: 'right', cursor: item.card_id ? 'pointer' : 'default' }}
+                    title="Натисніть для перегляду всіх порцій браку цієї картки"
+                  >
+                    <div style={{ fontSize: '1.6rem', fontWeight: 1000, color: 'var(--text-color, #fff)' }}>
+                      {item.total_qty} <small style={{ fontSize: '0.75rem', color: '#f97316' }}>шт 🔍</small>
+                    </div>
                     {!isActive && <div style={{ fontSize: '0.55rem', color: '#ef4444', fontWeight: 1000, textTransform: 'uppercase', marginTop: '5px' }}>Натисніть для класифікації</div>}
                   </div>
                 </div>
@@ -485,6 +495,12 @@ export const BrakClassificationQueue = React.memo(({
             </div>
           </div>
         </div>
+      )}
+      {scrapHistoryCard && (
+        <CardScrapHistoryModal
+          card={scrapHistoryCard}
+          onClose={() => setScrapHistoryCard(null)}
+        />
       )}
     </div>
   )

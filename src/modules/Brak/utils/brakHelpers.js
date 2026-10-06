@@ -13,7 +13,7 @@ export const normalizeScrapReasonName = (reason) => {
 }
 
 export const isScrapReadyForQc = (historyRow) => Boolean(
-  historyRow?.is_archived_scrap || String(historyRow?.card_info || '').includes('[ЦЕХ №2]')
+  historyRow && (Number(historyRow.scrap_qty) > 0 || historyRow.is_vkya_return)
 )
 
 export const matchesOperator = (opName, filterVal) => {

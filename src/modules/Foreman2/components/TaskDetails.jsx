@@ -3,6 +3,7 @@ import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Clipboard, Copy
 import { QRCodeSVG } from 'qrcode.react'
 import { formatQty } from '../utils/normalize.js'
 import { getCardSheets } from '../features/shortage/shortageCalculations.js'
+import { CardScrapHistoryModal } from '../../Brak/components/modals/CardScrapHistoryModal.jsx'
 
 const panelStyle = {
   background: 'var(--surface-1)',
@@ -120,10 +121,13 @@ const ScrapMap = ({ title, map, accent }) => {
   )
 }
 
-const WorkCardTile = ({ card, onClick }) => {
+const WorkCardTile = ({ card, onClick, scrapInfo, onOpenScrapHistory }) => {
   const status = getCardStatus(card)
   const isRedo = card?.is_rework || String(card?.card_info || '').includes('[REDO]')
   const cardCode = String(card?.id || '').slice(-8).toUpperCase()
+
+  const scrapQty = scrapInfo?.scrap || Number(card?.scrap_qty) || 0
+  const utilQty = scrapInfo?.util || (card?.status === 'scrapped' ? Number(card?.quantity) : 0)
 
   return (
     <article className="foreman2-card-tile" onClick={onClick} style={{ cursor: onClick ? 'pointer' : 'default', background: 'var(--card-bg, #080808)', border: '1px solid var(--glass-border, #242424)', borderRadius: '10px', padding: '12px', minWidth: 0 }}>
@@ -150,16 +154,60 @@ const WorkCardTile = ({ card, onClick }) => {
             Довипуск
           </span>
         )}
+        {scrapQty > 0 && (
+          <span 
+            onClick={(e) => {
+              if (onOpenScrapHistory) {
+                e.stopPropagation()
+                onOpenScrapHistory(card)
+              }
+            }}
+            title="Натисніть для перегляду всіх порцій браку"
+            style={{ 
+              color: '#fff', background: '#f97316', borderRadius: '6px', 
+              padding: '4px 8px', fontSize: '0.6rem', fontWeight: 950, 
+              textTransform: 'uppercase', cursor: onOpenScrapHistory ? 'pointer' : 'default',
+              boxShadow: '0 2px 8px rgba(249, 115, 22, 0.4)'
+            }}
+          >
+            Брак: {formatQty(scrapQty)} 🔍
+          </span>
+        )}
+        {utilQty > 0 && (
+          <span style={{ color: '#fff', background: '#dc2626', borderRadius: '6px', padding: '4px 8px', fontSize: '0.6rem', fontWeight: 950, textTransform: 'uppercase' }}>
+            Утиль: {formatQty(utilQty)}
+          </span>
+        )}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '12px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '6px', marginTop: '12px' }}>
         <div>
-          <div style={{ color: 'var(--text-muted, #64748b)', fontSize: '0.6rem', fontWeight: 950, textTransform: 'uppercase' }}>Кількість</div>
-          <div style={{ color: 'var(--text, #fff)', fontSize: '1rem', fontWeight: 950 }}>{formatQty(card?.quantity)}</div>
+          <div style={{ color: 'var(--text-muted, #64748b)', fontSize: '0.58rem', fontWeight: 950, textTransform: 'uppercase' }}>Кількість</div>
+          <div style={{ color: 'var(--text, #fff)', fontSize: '0.95rem', fontWeight: 950 }}>{formatQty(card?.quantity)}</div>
         </div>
         <div>
-          <div style={{ color: 'var(--text-muted, #64748b)', fontSize: '0.6rem', fontWeight: 950, textTransform: 'uppercase' }}>Листів</div>
-          <div style={{ color: 'var(--text, #fff)', fontSize: '1rem', fontWeight: 950 }}>{formatQty(card?.actual_sheets || card?.sheets || 0)}</div>
+          <div style={{ color: 'var(--text-muted, #64748b)', fontSize: '0.58rem', fontWeight: 950, textTransform: 'uppercase' }}>Листів</div>
+          <div style={{ color: 'var(--text, #fff)', fontSize: '0.95rem', fontWeight: 950 }}>{formatQty(card?.actual_sheets || card?.sheets || 0)}</div>
+        </div>
+        <div 
+          onClick={(e) => {
+            if (scrapQty > 0 && onOpenScrapHistory) {
+              e.stopPropagation()
+              onOpenScrapHistory(card)
+            }
+          }}
+          style={{ cursor: scrapQty > 0 && onOpenScrapHistory ? 'pointer' : 'default' }}
+        >
+          <div style={{ color: scrapQty > 0 ? '#f97316' : 'var(--text-muted, #64748b)', fontSize: '0.58rem', fontWeight: 950, textTransform: 'uppercase' }}>
+            Брак {scrapQty > 0 ? '🔍' : ''}
+          </div>
+          <div style={{ color: scrapQty > 0 ? '#f97316' : 'var(--text-muted, #64748b)', fontSize: '0.95rem', fontWeight: 950, textDecoration: scrapQty > 0 ? 'underline' : 'none' }}>
+            {formatQty(scrapQty)}
+          </div>
+        </div>
+        <div>
+          <div style={{ color: utilQty > 0 ? '#ef4444' : 'var(--text-muted, #64748b)', fontSize: '0.58rem', fontWeight: 950, textTransform: 'uppercase' }}>Утиль</div>
+          <div style={{ color: utilQty > 0 ? '#ef4444' : 'var(--text-muted, #64748b)', fontSize: '0.95rem', fontWeight: 950 }}>{formatQty(utilQty)}</div>
         </div>
       </div>
 
@@ -200,7 +248,7 @@ const getMachineType = (rawName) => {
   return baseName
 }
 
-const WorkCardsArchive = ({ parts, task, expandedId, onToggle, onOpenReissue, onMachineChange, onPrintCards, isLoading }) => {
+const WorkCardsArchive = ({ parts, task, expandedId, onToggle, onOpenReissue, onMachineChange, onPrintCards, isLoading, cardScrapMap = {}, onOpenScrapHistory }) => {
   const [expandedMachines, setExpandedMachines] = useState({})
 
   const toggleMachine = (machineKey) => {
@@ -403,6 +451,8 @@ const WorkCardsArchive = ({ parts, task, expandedId, onToggle, onOpenReissue, on
                                 <WorkCardTile 
                                   key={card.id} 
                                   card={card} 
+                                  scrapInfo={cardScrapMap[card.id]}
+                                  onOpenScrapHistory={(c) => onOpenScrapHistory && onOpenScrapHistory(c)}
                                   onClick={() => {
                                     if (onPrintCards) {
                                       onPrintCards(part, [{
@@ -448,7 +498,34 @@ export default function TaskDetails({ model, nomenclatures = [], allCards, onOpe
   const [expandedPartId, setExpandedPartId] = useState(null)
   const [expandedArchivePartId, setExpandedArchivePartId] = useState(null)
   const [isCompletingTask, setIsCompletingTask] = useState(false)
+  const [selectedCardForScrapHistory, setSelectedCardForScrapHistory] = useState(null)
   const [rowCapacities, setRowCapacities] = useState({})
+
+  const cardScrapMap = useMemo(() => {
+    const map = {}
+    const rows = model?.scrapRows || []
+    rows.forEach(r => {
+      if (!r.card_id) return
+      const cid = String(r.card_id)
+      const qty = Number(r.scrapQty || r.scrap_qty) || 0
+      if (!map[cid]) map[cid] = { scrap: 0, util: 0 }
+      map[cid].scrap += qty
+      if (r.is_archived_scrap === true) {
+        map[cid].util += qty
+      }
+    })
+    const cards = model?.taskCards || []
+    cards.forEach(c => {
+      if (!c?.id) return
+      const cid = String(c.id)
+      if (c.status === 'scrapped') {
+        if (!map[cid]) map[cid] = { scrap: 0, util: 0 }
+        if (map[cid].util === 0) map[cid].util = Number(c.quantity) || 0
+        if (map[cid].scrap === 0) map[cid].scrap = Number(c.quantity) || 0
+      }
+    })
+    return map
+  }, [model?.scrapRows, model?.taskCards])
 
   if (!model) {
     return (
@@ -760,6 +837,7 @@ export default function TaskDetails({ model, nomenclatures = [], allCards, onOpe
                                 <WorkCardTile 
                                   key={card.id} 
                                   card={card} 
+                                  scrapInfo={cardScrapMap[card.id]}
                                   onClick={() => {
                                     if (onPrintCards) {
                                       onPrintCards(part, [{
@@ -807,8 +885,16 @@ export default function TaskDetails({ model, nomenclatures = [], allCards, onOpe
         onToggle={setExpandedArchivePartId}
         onOpenReissue={onOpenReissue}
         onPrintCards={onPrintCards}
+        cardScrapMap={cardScrapMap}
+        onOpenScrapHistory={(c) => setSelectedCardForScrapHistory(c)}
       />
       {adminCardsPanel}
+      {selectedCardForScrapHistory && (
+        <CardScrapHistoryModal 
+          card={selectedCardForScrapHistory} 
+          onClose={() => setSelectedCardForScrapHistory(null)} 
+        />
+      )}
     </main>
   )
 }

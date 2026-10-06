@@ -14,8 +14,24 @@ import { executeAtomicQcScrap } from '../../../services/atomicQcScrapService.js'
 import { incrementInventoryStock } from '../../../services/inventoryStockService.js'
 import { triggerHapticAudioFeedback } from '../../../services/scannerDebounceGuard.js'
 
-const VKYA_QUEUE_CACHE_KEY = 'VKYA_CLASSIFICATION_QUEUE_V1'
+const VKYA_QUEUE_CACHE_KEY = 'VKYA_CLASSIFICATION_QUEUE_V2'
 const VKYA_REPORT_CACHE_TTL_MS = 30 * 1000
+
+export function extractCardSequence(cardInfo) {
+  if (!cardInfo) return null
+  const cleaned = String(cardInfo)
+    .replace(/Наряд\s*№\s*\S+/gi, '')
+    .replace(/ЦЕХ\s*№\s*\d+/gi, '')
+    .replace(/Цех\s*№\s*\d+/gi, '')
+
+  const matchNo = cleaned.match(/№\s*(\d+(?:\/\d+)?)/i)
+  if (matchNo && matchNo[1]) return matchNo[1]
+
+  const matchRatio = cleaned.match(/(\d+\/\d+)/)
+  if (matchRatio && matchRatio[1]) return matchRatio[1]
+
+  return null
+}
 
 export function useBrakData() {
   const navigate = useNavigate()
@@ -727,7 +743,7 @@ export function useBrakData() {
       if (restoreCache) {
         try {
           cachedQueue = await getIndexedCache(VKYA_QUEUE_CACHE_KEY)
-          if (cachedQueue?.version === 1) {
+          if (cachedQueue?.version === 2) {
             queueCursorRef.current = Number(cachedQueue.cursor) || 0
             queueProjectionRef.current = new Map(
               (cachedQueue.projection || []).map(row => [`${row.source_type}:${row.source_id}`, row])
@@ -782,7 +798,6 @@ export function useBrakData() {
       } else {
         ;[historyResult, restorationReturnsResult] = await Promise.all([
           supabase.from('work_card_history').select('*').gt('scrap_qty', 0)
-            .or('is_archived_scrap.eq.true,card_info.ilike.%[ЦЕХ №2]%')
             .order('created_at', { ascending: false }),
           supabase.from('vkya_reclassification_queue').select('*').eq('status', 'pending').order('created_at', { ascending: false })
         ])
@@ -831,7 +846,7 @@ export function useBrakData() {
         const existingMeta = scrapSourceMetaRef.current
         const missingCardIds = cardIds.filter(id => !existingMeta.cards[String(id)])
         const { data: sourceCardsData } = missingCardIds.length
-          ? await supabase.from('work_cards').select('id,task_id,order_id,created_at').in('id', missingCardIds)
+          ? await supabase.from('work_cards').select('id,task_id,order_id,created_at,card_info').in('id', missingCardIds)
           : { data: [] }
         const sourceCards = [
           ...cardIds.map(id => existingMeta.cards[String(id)]).filter(Boolean),
@@ -868,7 +883,7 @@ export function useBrakData() {
           const pageSize = 1000
           for (let from = 0; ; from += pageSize) {
             const { data: page, error: pageError } = await supabase.from('work_cards')
-              .select('id,task_id,nomenclature_id,created_at').in('task_id', sequenceTaskIds)
+              .select('id,task_id,nomenclature_id,created_at,card_info').in('task_id', sequenceTaskIds)
               .order('created_at', { ascending: true }).order('id', { ascending: true })
               .range(from, from + pageSize - 1)
             if (pageError || !page?.length) break
@@ -893,7 +908,10 @@ export function useBrakData() {
             return result
           }, {})
           Object.values(cardsByNom).forEach(nomCards => {
-            nomCards.forEach((card, index) => { sequences[String(card.id)] = index + 1 })
+            nomCards.forEach((card, index) => {
+              const seqStr = extractCardSequence(card.card_info)
+              sequences[String(card.id)] = seqStr || (index + 1)
+            })
           })
         })
 
@@ -910,7 +928,7 @@ export function useBrakData() {
 
         if (!projectionError && projectionResult) {
           setIndexedCache(VKYA_QUEUE_CACHE_KEY, {
-            version: 1,
+            version: 2,
             cursor: queueCursorRef.current,
             projection: [...queueProjectionRef.current.values()],
             activeScrap,
@@ -1085,7 +1103,12 @@ export function useBrakData() {
           stage: h.stage_name,
           updated_at: h.created_at,
           card_number: h.card_id ? String(h.card_id).slice(-8).toUpperCase() : '—',
-          card_sequence: h.card_id ? scrapSourceMeta.sequences[String(h.card_id)] || null : null,
+          card_sequence: h.card_id ? (
+            extractCardSequence(sourceCard?.card_info)
+            || extractCardSequence(h.card_info)
+            || (scrapSourceMeta.sequences[String(h.card_id)] ? String(scrapSourceMeta.sequences[String(h.card_id)]) : null)
+            || null
+          ) : null,
           task_card_sequence: h.card_id ? scrapSourceMeta.taskSequences?.[String(h.card_id)] || null : null,
           card_id: h.card_id,
           task_id: h.task_id || h.restoration_return_row?.source_task_id || sourceCard?.task_id || null,
