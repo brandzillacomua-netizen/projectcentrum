@@ -201,8 +201,8 @@ export const GlobalUserNav = ({ chatUnreadCount = 0 }) => {
   return (
     <>
       <style>{`
-        /* Hide all navigation back buttons for non-admins (except main sidebar logo) */
-        a[href="/"]:not(.sidebar-brand-link),
+        /* Hide all navigation back buttons for non-admins (except main sidebar logo & sidebar nav links) */
+        a[href="/"]:not(.sidebar-brand-link):not(.sidebar-link-item):not(.sidebar-link),
         .back-link,
         .back-btn-modern,
         .nav-back-link,
@@ -213,8 +213,10 @@ export const GlobalUserNav = ({ chatUnreadCount = 0 }) => {
           display: none !important;
         }
 
-        /* Hide adjacent vertical dividers (separators) next to back buttons */
-        a[href="/"]:not(.sidebar-brand-link) + div {
+        /* Hide adjacent vertical dividers (separators) next to back buttons.
+           Sidebar links are excluded — otherwise the CRM group right after
+           "Головний Дашборд" gets hidden for every non-admin user. */
+        a[href="/"]:not(.sidebar-brand-link):not(.sidebar-link-item):not(.sidebar-link) + div {
           display: none !important;
         }
 

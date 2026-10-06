@@ -130,6 +130,36 @@ export function useDataState() {
 
     finishBootstrap()
 
+    // ── Live access-rights refresh ──
+    // Admin changes to access_rights must reach already-open sessions without re-login.
+    let lastProfileRefresh = 0
+    const refreshProfile = async (force = false) => {
+      const now = Date.now()
+      if (!force && now - lastProfileRefresh < 15000) return
+      lastProfileRefresh = now
+      try {
+        const { data: profile, error } = await prodClient.rpc('rpc_current_user_profile')
+        if (!active || error || !profile?.id) return
+        setCurrentUser((prev: any) => {
+          if (!prev || prev.id !== profile.id) return prev
+          const changed =
+            JSON.stringify(prev.access_rights || {}) !== JSON.stringify(profile.access_rights || {}) ||
+            prev.position !== profile.position ||
+            prev.department !== profile.department
+          if (!changed) return prev
+          const next = { ...prev, ...profile }
+          try { localStorage.setItem('MES_SESSION_USER', JSON.stringify(next)) } catch { /* ignore */ }
+          console.info('[Auth] Права доступу оновлено з БД')
+          return next
+        })
+      } catch { /* network hiccup — retry on next tick */ }
+    }
+    const onFocus = () => { refreshProfile() }
+    const onVisibility = () => { if (document.visibilityState === 'visible') refreshProfile() }
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onVisibility)
+    const profileInterval = setInterval(() => refreshProfile(true), 60000)
+
     const { data: authListener } = prodClient.auth.onAuthStateChange((event) => {
       if (event !== 'SIGNED_OUT' || !active) return
       clearProductionSessionCache()
@@ -139,6 +169,9 @@ export function useDataState() {
 
     return () => {
       active = false
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onVisibility)
+      clearInterval(profileInterval)
       authListener?.subscription?.unsubscribe()
     }
   }, [])
