@@ -265,7 +265,7 @@ export default function AdminCardDeletePanel({
     <section
       style={{
         marginTop: '18px',
-        background: '#101010',
+        background: 'var(--surface-1)',
         border: '1px solid rgba(239,68,68,.35)',
         borderRadius: '10px',
         overflow: 'hidden'
@@ -283,7 +283,7 @@ export default function AdminCardDeletePanel({
         onConfirm={confirmDelete}
       />
 
-      <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+      <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', background: 'var(--surface-1)' }}>
         <ShieldAlert size={18} color="#ef4444" />
         <div style={{ flex: 1, minWidth: '220px' }}>
           <div style={{ color: '#ef4444', fontWeight: 950, letterSpacing: '.5px', textTransform: 'uppercase', fontSize: '.78rem' }}>
@@ -315,9 +315,9 @@ export default function AdminCardDeletePanel({
           onClick={() => setSelectedIds(new Set())}
           disabled={isDeleting || selectedIds.size === 0}
           style={{
-            background: '#151515',
+            background: 'var(--surface-2, #151515)',
             border: '1px solid var(--border-subtle)',
-            color: selectedIds.size === 0 ? '#444' : '#aaa',
+            color: selectedIds.size === 0 ? 'var(--text-dim)' : 'var(--text-strong)',
             borderRadius: '8px',
             padding: '8px 11px',
             fontWeight: 900,
@@ -332,9 +332,9 @@ export default function AdminCardDeletePanel({
           onClick={handleDelete}
           disabled={isDeleting || selectedCards.length === 0}
           style={{
-            background: selectedCards.length === 0 ? 'var(--surface-3)' : '#ef4444',
+            background: selectedCards.length === 0 ? 'var(--surface-3, var(--border-subtle))' : '#ef4444',
             border: 'none',
-            color: selectedCards.length === 0 ? '#555' : '#fff',
+            color: selectedCards.length === 0 ? 'var(--text-dim)' : '#fff',
             borderRadius: '8px',
             padding: '9px 13px',
             fontWeight: 950,
@@ -362,7 +362,7 @@ export default function AdminCardDeletePanel({
         </div>
       )}
 
-      <div style={{ padding: '12px 16px 16px', display: 'grid', gap: '8px' }}>
+      <div style={{ padding: '12px 16px 16px', display: 'grid', gap: '8px', background: 'var(--surface-inset, var(--surface-1))' }}>
         {parts.length === 0 && (
           <div style={{ color: 'var(--text-dim)', fontWeight: 850, fontSize: '.78rem', padding: '10px' }}>
             У цьому наряді поки немає робочих карток.
@@ -373,7 +373,7 @@ export default function AdminCardDeletePanel({
           const safeCount = part.adminSafeCards.length
           const selectedInPart = part.adminCards.filter(card => selectedIds.has(String(card.id))).length
           return (
-            <div key={part.nomId} style={{ border: '1px solid var(--border-subtle)', borderRadius: '8px', background: '#0b0b0b', overflow: 'hidden' }}>
+            <div key={part.nomId} style={{ border: '1px solid var(--border-subtle)', borderRadius: '8px', background: 'var(--card-bg, var(--surface-1))', overflow: 'hidden' }}>
               <div
                 role="button"
                 tabIndex={0}
@@ -398,9 +398,9 @@ export default function AdminCardDeletePanel({
                   textAlign: 'left'
                 }}
               >
-                {isExpanded ? <ChevronDown size={15} color="#777" /> : <ChevronRight size={15} color="#777" />}
+                {isExpanded ? <ChevronDown size={15} color="var(--text-dim, #777)" /> : <ChevronRight size={15} color="var(--text-dim, #777)" />}
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 950, fontSize: '.86rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{part.name}</div>
+                  <div style={{ fontWeight: 950, fontSize: '.86rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--text-strong)' }}>{part.name}</div>
                   <div style={{ color: 'var(--text-dim)', fontSize: '.68rem', fontWeight: 850, marginTop: '2px' }}>
                     карток: {part.adminCards.length} | можна видалити: {safeCount} | вибрано: {selectedInPart}
                   </div>
@@ -415,7 +415,7 @@ export default function AdminCardDeletePanel({
                   style={{
                     background: 'rgba(59,130,246,.1)',
                     border: '1px solid rgba(59,130,246,.3)',
-                    color: safeCount === 0 ? '#444' : '#3b82f6',
+                    color: safeCount === 0 ? 'var(--text-dim)' : '#3b82f6',
                     borderRadius: '7px',
                     padding: '6px 9px',
                     fontWeight: 900,
@@ -433,9 +433,9 @@ export default function AdminCardDeletePanel({
                   }}
                   disabled={isDeleting || selectedInPart === 0}
                   style={{
-                    background: 'var(--surface-1)',
+                    background: 'var(--surface-2, var(--surface-1))',
                     border: '1px solid var(--border-subtle)',
-                    color: selectedInPart === 0 ? '#444' : 'var(--text-muted)',
+                    color: selectedInPart === 0 ? 'var(--text-dim)' : 'var(--text-strong)',
                     borderRadius: '7px',
                     padding: '6px 9px',
                     fontWeight: 900,
@@ -448,7 +448,7 @@ export default function AdminCardDeletePanel({
               </div>
 
               {isExpanded && (
-                <div style={{ borderTop: '1px solid #1b1b1b', padding: '10px 12px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '8px' }}>
+                <div style={{ borderTop: '1px solid var(--border-subtle)', padding: '10px 12px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '8px', background: 'var(--surface-inset, var(--surface-2))' }}>
                   {part.adminCards.map(card => {
                     const safe = isSafeCardToDelete(card)
                     const selected = selectedIds.has(String(card.id))
@@ -458,9 +458,13 @@ export default function AdminCardDeletePanel({
                         onClick={() => toggleCard(card)}
                         title={!safe ? 'Ця картка вже стартувала або завершена, з інтерфейсу не видаляємо.' : 'Вибрати картку для видалення'}
                         style={{
-                          background: selected ? 'rgba(239,68,68,.14)' : '#080808',
-                          border: selected ? '1px solid rgba(239,68,68,.55)' : '1px solid var(--border-subtle)',
-                          color: safe ? '#fff' : '#555',
+                          background: selected 
+                            ? 'rgba(239, 68, 68, 0.12)' 
+                            : 'var(--card-bg, var(--surface-1))',
+                          border: selected 
+                            ? '1px solid rgba(239, 68, 68, 0.55)' 
+                            : '1px solid var(--border-subtle)',
+                          color: safe ? 'var(--text-strong)' : 'var(--text-dim)',
                           borderRadius: '8px',
                           padding: '10px',
                           cursor: !safe || isDeleting ? 'not-allowed' : 'pointer',
@@ -471,8 +475,8 @@ export default function AdminCardDeletePanel({
                         }}
                       >
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          {selected ? <CheckSquare size={16} color="#ef4444" /> : <Square size={16} color={safe ? '#777' : '#333'} />}
-                          <strong style={{ fontSize: '.78rem', flex: 1 }}>Картка {card.card_info || String(card.id).slice(0, 8)}</strong>
+                          {selected ? <CheckSquare size={16} color="#ef4444" /> : <Square size={16} color={safe ? 'var(--text-dim)' : 'var(--border-subtle)'} />}
+                          <strong style={{ fontSize: '.78rem', flex: 1, color: 'var(--text-strong)' }}>Картка {card.card_info || String(card.id).slice(0, 8)}</strong>
                           <button
                             type="button"
                             onClick={(event) => {
@@ -486,8 +490,8 @@ export default function AdminCardDeletePanel({
                               height: 28,
                               borderRadius: '7px',
                               border: '1px solid rgba(239,68,68,.35)',
-                              background: safe ? 'rgba(239,68,68,.12)' : 'var(--surface-1)',
-                              color: safe ? '#ef4444' : '#333',
+                              background: safe ? 'rgba(239,68,68,.12)' : 'var(--surface-2)',
+                              color: safe ? '#ef4444' : 'var(--text-dim)',
                               cursor: !safe || isDeleting ? 'not-allowed' : 'pointer',
                               display: 'flex',
                               alignItems: 'center',

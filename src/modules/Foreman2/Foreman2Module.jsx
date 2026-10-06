@@ -337,7 +337,7 @@ export default function Foreman2Module() {
             machines={machines || []}
             onResolveCall={handleResolveCall}
           />
-          <div className="foreman2-tabs no-print" style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid var(--border-subtle)', background: '#090909', flexShrink: 0, marginTop: activeCalls.length > 0 ? '0' : '0' }}>
+          <div className="foreman2-tabs no-print" style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid var(--border-subtle)', background: 'var(--surface-1)', flexShrink: 0, marginTop: activeCalls.length > 0 ? '0' : '0' }}>
             <button type="button" className="active" style={{ borderBottom: '2px solid #ef4444' }}>
               <ListTodo size={15} /> Робочі наряди
             </button>
