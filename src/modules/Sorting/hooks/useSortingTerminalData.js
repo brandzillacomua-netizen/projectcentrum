@@ -271,55 +271,8 @@ export function useSortingTerminalData() {
       setReworkCount(0)
       alert('✅ ' + goodQty + ' шт відправлено в буфер Цеху №2!')
     } catch (error) {
-      console.error('Sorting completion RPC failed, executing fallback transition:', error)
-      try {
-        const goodQty = total - scrap - rework
-        const op = selectedOperator || activeCompletingCard.operator_name || 'Сортування'
-        const activeShift = selectedShift || activeCompletingCard.shift_name || 'Без зміни'
-        
-        await supabase.from('work_cards').update({
-          status: 'at-shop2-buffer',
-          operation: 'Сортування',
-          quantity: goodQty + rework,
-          used_in_shop2_qty: rework,
-          completed_at: new Date().toISOString()
-        }).eq('id', activeCompletingCard.id)
-
-        if (rework > 0) {
-          await supabase.from('work_cards').insert([{
-            task_id: activeCompletingCard.task_id,
-            order_id: activeCompletingCard.order_id,
-            nomenclature_id: activeCompletingCard.nomenclature_id,
-            operation: 'Доопрацювання',
-            quantity: rework,
-            status: 'new',
-            card_info: `[ЦЕХ №2] Автоматично з Сортування`
-          }]).catch(e => console.warn('Rework card fallback insert issue:', e))
-        }
-
-        await supabase.from('work_card_history').insert([{
-          card_id: activeCompletingCard.id,
-          nomenclature_id: activeCompletingCard.nomenclature_id,
-          stage_name: 'Сортування',
-          operator_name: op,
-          qty_at_start: total,
-          qty_completed: goodQty,
-          scrap_qty: scrap,
-          started_at: activeCompletingCard.started_at || new Date().toISOString(),
-          completed_at: new Date().toISOString(),
-          shift_name: activeShift
-        }]).catch(() => {})
-
-        setShowCompleteModal(false)
-        setActiveCompletingCard(null)
-        setManualId('')
-        setScanError(null)
-        setScrapCount(0)
-        setReworkCount(0)
-        alert('✅ ' + goodQty + ' шт відправлено в буфер Цеху №2!')
-      } catch (fallbackErr) {
-        setScanError('Сортування не підтверджено: ' + (error?.message || fallbackErr?.message || 'Помилка мережі'))
-      }
+      console.error('Sorting completion RPC failed:', error)
+      setScanError('Сортування не підтверджено: ' + (error?.message || 'Помилка мережі'))
     } finally {
       fetchData(['work_cards', 'work_card_history', 'inventory']).catch(() => {})
       setIsProcessing(false)

@@ -101,10 +101,7 @@ BEGIN
   v_total_good := GREATEST(0, p_good_qty);
 
   -- Calculate need vs bz breakdown
-  v_card_bz := COALESCE(v_card.buffer_qty, 0);
-  IF v_card_bz <= 0 THEN
-    v_card_bz := COALESCE((substring(v_card.card_info from '\[BZ:([0-9]+)\]'))::numeric, 0);
-  END IF;
+  v_card_bz := COALESCE((substring(v_card.card_info from '\[BZ:([0-9]+)\]'))::numeric, 0);
 
   v_card_need := COALESCE((substring(v_card.card_info from '\[REQ:([0-9]+)\]'))::numeric, 0);
   IF v_card_need <= 0 THEN
