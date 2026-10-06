@@ -5,12 +5,12 @@ import { Link } from 'react-router-dom'
 export default function Foreman2Layout({ loading, error, onRefresh, onOpenQueue, children }) {
   return (
     <div className="foreman-module" style={{ background: 'var(--surface-inset)', minHeight: '100vh', color: 'var(--text-strong)', display: 'flex', flexDirection: 'column' }}>
-      <header className="module-nav no-print" style={{ flexShrink: 0, padding: '0 20px', height: '70px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--surface-black)', borderBottom: '1px solid var(--border-subtle)' }}>
+      <header className="module-nav no-print" style={{ flexShrink: 0, padding: '0 20px', height: '70px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--surface-1)', borderBottom: '1px solid var(--border-subtle)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
           <Link
             to="/"
             title="На головну"
-            style={{ background: 'var(--surface-1)', border: '1px solid var(--border-subtle)', color: '#aaa', borderRadius: '8px', width: '38px', height: '38px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none', flexShrink: 0 }}
+            style={{ background: 'var(--surface-2, var(--surface-1))', border: '1px solid var(--border-subtle)', color: 'var(--text-muted)', borderRadius: '8px', width: '38px', height: '38px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none', flexShrink: 0 }}
           >
             <ArrowLeft size={18} />
           </Link>
@@ -18,7 +18,7 @@ export default function Foreman2Layout({ loading, error, onRefresh, onOpenQueue,
             onClick={onOpenQueue}
             className="foreman2-mobile-menu"
             title="Черга нарядів"
-            style={{ background: 'var(--surface-1)', border: '1px solid var(--border-subtle)', color: '#aaa', borderRadius: '8px', width: '38px', height: '38px', alignItems: 'center', justifyContent: 'center', display: 'none' }}
+            style={{ background: 'var(--surface-2, var(--surface-1))', border: '1px solid var(--border-subtle)', color: 'var(--text-muted)', borderRadius: '8px', width: '38px', height: '38px', alignItems: 'center', justifyContent: 'center', display: 'none' }}
           >
             <Menu size={18} />
           </button>
@@ -44,7 +44,7 @@ export default function Foreman2Layout({ loading, error, onRefresh, onOpenQueue,
             onClick={onRefresh}
             disabled={loading}
             title="Оновити дані"
-            style={{ width: '38px', height: '38px', borderRadius: '8px', border: '1px solid var(--border-subtle)', background: 'var(--surface-1)', color: loading ? '#555' : '#aaa', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: loading ? 'wait' : 'pointer', flexShrink: 0 }}
+            style={{ width: '38px', height: '38px', borderRadius: '8px', border: '1px solid var(--border-subtle)', background: 'var(--surface-2, var(--surface-1))', color: loading ? 'var(--text-dim)' : 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: loading ? 'wait' : 'pointer', flexShrink: 0 }}
           >
             <RefreshCw size={17} className={loading ? 'foreman2-spin' : ''} />
           </button>
@@ -52,7 +52,7 @@ export default function Foreman2Layout({ loading, error, onRefresh, onOpenQueue,
       </header>
 
       {error && (
-        <div className="no-print" style={{ margin: '12px 15px 0', border: '1px solid rgba(239,68,68,.4)', background: 'rgba(239,68,68,.08)', color: '#fecaca', padding: '10px 12px', borderRadius: '8px', fontSize: '0.78rem', fontWeight: 850 }}>
+        <div className="no-print" style={{ margin: '12px 15px 0', border: '1px solid rgba(239,68,68,.4)', background: 'rgba(239,68,68,.08)', color: '#ef4444', padding: '10px 12px', borderRadius: '8px', fontSize: '0.78rem', fontWeight: 850 }}>
           {error}
         </div>
       )}
@@ -67,9 +67,9 @@ export default function Foreman2Layout({ loading, error, onRefresh, onOpenQueue,
           height: 42px;
           border-radius: 0;
           border: none;
-          border-right: 1px solid #222;
+          border-right: 1px solid var(--border-subtle, #222);
           background: transparent;
-          color: #777;
+          color: var(--text-muted, #777);
           padding: 0 18px;
           font-size: 0.72rem;
           font-weight: 950;
@@ -82,17 +82,17 @@ export default function Foreman2Layout({ loading, error, onRefresh, onOpenQueue,
           cursor: pointer;
         }
         .foreman2-tabs .active {
-          color: #fff;
-          background: #111;
+          color: var(--text-strong, #fff);
+          background: var(--surface-1, #111);
           box-shadow: inset 0 -2px 0 #ef4444;
         }
         .foreman2-part-row:hover {
-          border-color: #333 !important;
-          background: #141414 !important;
+          border-color: var(--border-subtle, #333) !important;
+          background: var(--surface-2, #141414) !important;
         }
         .foreman2-card-tile {
-          background: #080808;
-          border: 1px solid #242424;
+          background: var(--card-bg, var(--surface-1));
+          border: 1px solid var(--border-subtle, #242424);
           border-radius: 10px;
           padding: 12px;
           min-width: 0;

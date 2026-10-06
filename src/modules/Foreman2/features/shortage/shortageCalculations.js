@@ -40,7 +40,21 @@ export const calculatePartShortage = ({
   const plan = asNumber(snapshot.plan, Math.max(0, need - stockBZ))
   const plannedSheets = asNumber(snapshot.sheets) || Math.ceil(plan / unitsPerSheet)
 
-  const nomCards = cards.filter(card => asId(card.task_id) === asId(task.id) && asId(card.nomenclature_id) === nomId)
+  const parseCardSeqNumber = (card) => {
+    if (card?.card_sequence !== undefined && card?.card_sequence !== null && !isNaN(Number(card.card_sequence))) {
+      return Number(card.card_sequence)
+    }
+    const info = String(card?.card_info || '')
+      .replace(/Наряд\s*№\s*\S+/gi, '')
+      .replace(/ЦЕХ\s*№\s*\d+/gi, '')
+      .replace(/Цех\s*№\s*\d+/gi, '')
+    const match = info.match(/(?:№|#)?\s*(\d+)(?:\/(\d+))?/)
+    return match ? parseInt(match[1], 10) : 999999
+  }
+
+  const nomCards = cards
+    .filter(card => asId(card.task_id) === asId(task.id) && asId(card.nomenclature_id) === nomId)
+    .sort((a, b) => parseCardSeqNumber(a) - parseCardSeqNumber(b))
   const productionCards = nomCards.filter(card => !isBufferCard(card))
   
   const flowRows = flowTotalsByTaskNom?.[asId(task.id)]?.[nomId] || []

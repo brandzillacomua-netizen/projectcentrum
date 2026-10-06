@@ -224,7 +224,11 @@ const getCardSeq = (card) => {
   if (card?.card_sequence !== undefined && card?.card_sequence !== null && !isNaN(Number(card.card_sequence))) {
     return Number(card.card_sequence)
   }
-  const match = String(card?.card_info || '').match(/(?:№|#)?\s*(\d+)(?:\/(\d+))?/)
+  const info = String(card?.card_info || '')
+    .replace(/Наряд\s*№\s*\S+/gi, '')
+    .replace(/ЦЕХ\s*№\s*\d+/gi, '')
+    .replace(/Цех\s*№\s*\d+/gi, '')
+  const match = info.match(/(?:№|#)?\s*(\d+)(?:\/(\d+))?/)
   return match ? parseInt(match[1], 10) : 999999
 }
 
@@ -833,7 +837,7 @@ export default function TaskDetails({ model, nomenclatures = [], allCards, onOpe
                           )}
                           {part.cards.length > 0 ? (
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '10px', paddingLeft: '24px' }}>
-                              {part.cards.map(card => (
+                              {[...(part.cards || [])].sort((a, b) => getCardSeq(a) - getCardSeq(b)).map(card => (
                                 <WorkCardTile 
                                   key={card.id} 
                                   card={card} 
