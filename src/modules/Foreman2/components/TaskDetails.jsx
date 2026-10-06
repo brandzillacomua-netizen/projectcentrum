@@ -514,9 +514,18 @@ export default function TaskDetails({ model, nomenclatures = [], allCards, onOpe
       const qty = Number(r.scrapQty || r.scrap_qty) || 0
       if (!map[cid]) map[cid] = { scrap: 0, util: 0 }
       map[cid].scrap += qty
-      if (r.is_archived_scrap === true) {
-        map[cid].util += qty
+
+      let cat4Qty = 0
+      if (r.qc_scrap_comment && r.qc_scrap_comment.includes('SCRAP_CAT:')) {
+        try {
+          const match = r.qc_scrap_comment.match(/\[SCRAP_CAT:([^\]]+)\]/)
+          if (match) {
+            const cats = JSON.parse(match[1])
+            cat4Qty = Number(cats.cat4 || 0)
+          }
+        } catch (e) {}
       }
+      map[cid].util += cat4Qty
     })
     const cards = model?.taskCards || []
     cards.forEach(c => {
