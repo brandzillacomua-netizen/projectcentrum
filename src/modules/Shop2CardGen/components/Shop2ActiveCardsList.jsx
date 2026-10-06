@@ -410,8 +410,9 @@ export function Shop2ActiveCardsList({
             <div className="print-cards-grid" style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fit, 85mm)',
-              gap: '15px',
-              justifyContent: 'center'
+              gap: '16px',
+              justifyContent: 'center',
+              padding: '10px'
             }}>
               {printModalCards.map((card) => {
                 const nom = nomenclatures.find(n => String(n.id) === String(card.nomenclature_id))
@@ -423,74 +424,86 @@ export function Shop2ActiveCardsList({
                     className="shop2-print-card"
                     style={{
                       background: '#ffffff',
-                      color: '#000000',
-                      border: '1px solid #000000',
-                      borderRadius: '8px',
-                      padding: '4mm',
+                      color: '#0f172a',
+                      border: '1.5px solid #cbd5e1',
+                      borderRadius: '16px',
+                      padding: '12px 14px',
                       display: 'flex',
-                      gap: '4mm',
+                      gap: '14px',
                       alignItems: 'center',
                       boxSizing: 'border-box',
                       width: '85mm',
                       height: '55mm',
+                      minWidth: '85mm',
+                      maxWidth: '85mm',
+                      minHeight: '55mm',
+                      maxHeight: '55mm',
                       overflow: 'hidden',
-                      pageBreakInside: 'avoid'
+                      pageBreakInside: 'avoid',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                      position: 'relative'
                     }}
                   >
-                    {/* Left Panel: QR Code */}
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minWidth: '22mm' }}>
+                    {/* Left Panel: QR Code + Hash ID */}
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '68px', flexShrink: 0 }}>
                       <QRCodeSVG
                         value={JSON.stringify({ id: card.id, type: 'work_card_shop2' })}
                         size={68}
                         level="M"
                         includeMargin={false}
                       />
-                      <div style={{ marginTop: '2mm', fontSize: '8px', fontWeight: 950, fontFamily: 'monospace', letterSpacing: '0.5px', color: '#000' }}>
+                      <div style={{ marginTop: '5px', fontSize: '9px', fontWeight: 950, fontFamily: 'monospace', color: '#0f172a', letterSpacing: '0.2px' }}>
                         #{card.id.slice(-8).toUpperCase()}
                       </div>
                     </div>
 
-                    {/* Right Panel: Info */}
-                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'space-between' }}>
-                      <div>
-                        <div style={{ fontSize: '7px', fontWeight: 900, color: '#000', textTransform: 'uppercase' }}>
-                          Робоча картка Цех №2
+                    {/* Right Panel: Card Info */}
+                    <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'space-between' }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: '7.5px', fontWeight: 900, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                          РОБОЧА КАРТКА ЦЕХ №2
                         </div>
-                        <div style={{ fontSize: '11px', fontWeight: 950, color: '#000', lineHeight: 1.1, marginTop: '2px' }}>
+                        <div style={{ fontSize: '13px', fontWeight: 950, color: '#0f172a', lineHeight: 1.2, marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           Наряд: {order?.order_num || 'Без наряду'}
                         </div>
                         <div style={{ 
                           fontSize: '12px', 
-                          fontWeight: 900, 
-                          color: '#000', 
-                          lineHeight: 1.1, 
+                          fontWeight: 950, 
+                          color: '#0f172a', 
+                          lineHeight: 1.25, 
                           marginTop: '2px',
                           display: '-webkit-box',
                           WebkitLineClamp: 2,
                           WebkitBoxOrient: 'vertical',
-                          overflow: 'hidden'
+                          overflow: 'hidden',
+                          wordBreak: 'break-word'
                         }}>
                           {nom?.name || card.name || 'Деталь'}
                         </div>
                       </div>
 
-                      {/* Operation & Qty Box */}
+                      {/* Operation & Qty Box - IDENTICAL TO SCREENSHOT */}
                       <div style={{ 
                         display: 'flex', 
-                        justifyContent: 'space-between', 
+                        justify: 'space-between', 
                         alignItems: 'center', 
-                        marginTop: 'auto',
-                        border: '1px solid #000', 
-                        padding: '2mm 3mm', 
-                        borderRadius: '6px'
+                        background: '#f8fafc', 
+                        border: '1.5px solid #cbd5e1', 
+                        padding: '6px 12px', 
+                        borderRadius: '12px',
+                        boxSizing: 'border-box'
                       }}>
                         <div>
-                          <div style={{ fontSize: '6.5px', fontWeight: 900, color: '#000', textTransform: 'uppercase' }}>Етап</div>
-                          <div style={{ fontSize: '10px', fontWeight: 950, color: '#000', marginTop: '1px' }}>{card.operation || 'Пресування'}</div>
+                          <div style={{ fontSize: '7px', fontWeight: 900, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.3px' }}>ЕТАП</div>
+                          <div style={{ fontSize: '11.5px', fontWeight: 950, color: '#0284c7', marginTop: '1px' }}>
+                            {card.operation || 'Пресування'}
+                          </div>
                         </div>
                         <div style={{ textAlign: 'right' }}>
-                          <div style={{ fontSize: '6.5px', fontWeight: 900, color: '#000', textTransform: 'uppercase' }}>Кількість</div>
-                          <div style={{ fontSize: '13px', fontWeight: 950, color: '#000', marginTop: '1px', lineHeight: 1 }}>{card.quantity} <span style={{fontSize: '8px'}}>шт</span></div>
+                          <div style={{ fontSize: '7px', fontWeight: 900, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.3px' }}>КІЛЬКІСТЬ</div>
+                          <div style={{ fontSize: '14.5px', fontWeight: 950, color: '#059669', marginTop: '1px', lineHeight: 1 }}>
+                            {card.quantity} <span style={{ fontSize: '10px', fontWeight: 900 }}>шт</span>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -532,7 +545,7 @@ export function Shop2ActiveCardsList({
       <style>{`
         @media print {
           @page {
-            margin: 10mm;
+            margin: 8mm;
             size: A4 portrait;
           }
           body * {
@@ -546,6 +559,7 @@ export function Shop2ActiveCardsList({
             left: 0 !important;
             top: 0 !important;
             width: 100% !important;
+            height: auto !important;
             background: #ffffff !important;
             padding: 0 !important;
             display: block !important;
@@ -565,17 +579,35 @@ export function Shop2ActiveCardsList({
           .print-cards-grid {
             display: grid !important;
             grid-template-columns: 85mm 85mm !important;
-            gap: 5mm 10mm !important; /* 5mm vertical, 10mm horizontal gap */
+            gap: 6mm 10mm !important; /* 6mm vertical, 10mm horizontal spacing */
             justify-content: center !important; /* Center on A4 */
             align-content: start !important;
             padding: 0 !important;
             margin: 0 !important;
+            width: 100% !important;
           }
           .shop2-print-card {
-            page-break-inside: avoid;
-            border: 1px dashed #000 !important; /* strong dashed line for cutting */
+            width: 85mm !important;
+            height: 55mm !important;
+            min-width: 85mm !important;
+            max-width: 85mm !important;
+            min-height: 55mm !important;
+            max-height: 55mm !important;
+            box-sizing: border-box !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+            border: 1.5px dashed #000000 !important;
+            border-radius: 12px !important;
             margin: 0 !important;
             box-shadow: none !important;
+            background: #ffffff !important;
+            color: #000000 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          .shop2-print-card * {
+            color: #000000 !important;
+            border-color: #000000 !important;
           }
         }
       `}</style>
