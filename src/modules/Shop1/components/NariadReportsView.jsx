@@ -301,7 +301,7 @@ export const NariadReportsView = ({
             return shop1StageNames.some(name => stage === name || stage.startsWith(name)) || stage.startsWith('Буфер ')
           }
           const isTechnicalHistory = row => ['completed', 'Склад БЗ', 'Склад СГП', 'Склад (БРОНЬ)'].includes(String(row.stage_name || ''))
-          const isShop2History = row => String(row.card_info || '').includes('[ЦЕХ №2]') || (!isShop1History(row) && !isTechnicalHistory(row))
+          const isShop2History = row => String(row.card_info || '').includes('[ЦЕХ №2] Автоматично') || (!isShop1History(row) && !isTechnicalHistory(row))
 
           const buildTimeAnalytics = (rows, defaults = []) => {
             const stageTotals = Object.fromEntries(defaults.map(name => [name, { total: 0, count: 0 }]))

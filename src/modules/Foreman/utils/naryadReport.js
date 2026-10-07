@@ -39,8 +39,15 @@ export const calculateActualSheetsForPart = ({
     const explicitSheets = Number(card.actual_sheets ?? card.actualSheets)
     if (Number.isFinite(explicitSheets) && explicitSheets > 0) return sum + explicitSheets
 
-    const requiredQtyMatch = String(card.card_info || '').match(/\[REQ:(\d+)\]/)
-    const loadedQty = requiredQtyMatch ? qty(requiredQtyMatch[1]) : qty(card.quantity)
+    const info = String(card.card_info || '')
+    const sheetsMatch = info.match(/\[SHEETS:(\d+)\]/i)
+    if (sheetsMatch) return sum + qty(sheetsMatch[1])
+
+    const requiredQtyMatch = info.match(/\[REQ:(\d+)\]/i)
+    const bufferQtyMatch = info.match(/\[BZ:(\d+)\]/i)
+    const loadedQty = requiredQtyMatch || bufferQtyMatch
+      ? qty(requiredQtyMatch?.[1]) + qty(bufferQtyMatch?.[1])
+      : qty(card.quantity)
     return sum + (loadedQty > 0 ? Math.ceil(loadedQty / ups) : 0)
   }, 0)
 }

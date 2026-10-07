@@ -64,7 +64,7 @@ export function useShop1Queue({
     (workCards || []).forEach(c => {
       if (c.status === 'completed' || c.status === 'in-progress' || c.status === 'paused' || c.status === 'at-shop2-buffer') return;
       const info = String(c.card_info || '');
-      if (info.includes('[ЦЕХ №2]') || info.includes('[ЦЕХ 2]')) return;
+      if (info.includes('[ЦЕХ №2] Автоматично') || info.includes('[ЦЕХ 2] Автоматично')) return;
       
       const nom = nomenclatures?.find(n => n.id === c.nomenclature_id);
       if (nom && nom.type && nom.type !== 'part') return;
@@ -97,7 +97,7 @@ export function useShop1Queue({
     (workCards || []).forEach(c => {
       if (c.status === 'completed' || c.status === 'in-progress' || c.status === 'paused' || c.status === 'at-shop2-buffer') return;
       const info = String(c.card_info || '');
-      if (info.includes('[ЦЕХ №2]') || info.includes('[ЦЕХ 2]')) return;
+      if (info.includes('[ЦЕХ №2] Автоматично') || info.includes('[ЦЕХ 2] Автоматично')) return;
       
       const nom = nomenclatures?.find(n => n.id === c.nomenclature_id);
       if (nom && nom.type && ['raw', 'material', 'hardware', 'fastener', 'consumable'].includes(nom.type)) return;
@@ -131,7 +131,7 @@ export function useShop1Queue({
     if (c.status === 'completed' || c.status === 'in-progress' || c.status === 'paused' || c.status === 'at-shop2-buffer') return false;
     
     const info = String(c.card_info || '');
-    if (info.includes('[ЦЕХ №2]') || info.includes('[ЦЕХ 2]')) return false;
+    if (info.includes('[ЦЕХ №2] Автоматично') || info.includes('[ЦЕХ 2] Автоматично')) return false;
 
     const nom = getNom(c);
     if (nom && nom.type && ['raw', 'material', 'hardware', 'fastener', 'consumable'].includes(nom.type)) return false;

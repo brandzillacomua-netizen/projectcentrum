@@ -49,15 +49,26 @@ const fetchHistoryForTasksOrCards = async (taskIds, cardIds) => {
       chunks.push(taskIds.slice(i, i + chunkSize))
     }
     const results = await Promise.all(
-      chunks.map(chunk =>
-        supabase
-          .from('work_card_history')
-          .select(HISTORY_SELECT)
-          .in('task_id', chunk)
-          .order('created_at', { ascending: true })
-          .limit(10000)
-          .then(res => res.data || [])
-      )
+      chunks.map(async (chunk) => {
+        const chunkRows = []
+        const pageSize = 1000
+        for (let from = 0; ; from += pageSize) {
+          const to = from + pageSize - 1
+          const { data, error } = await supabase
+            .from('work_card_history')
+            .select(HISTORY_SELECT)
+            .in('task_id', chunk)
+            .order('created_at', { ascending: true })
+            .range(from, to)
+          if (error) {
+            console.error('History fetch error:', error)
+            break
+          }
+          chunkRows.push(...(data || []))
+          if (!data || data.length < pageSize) break
+        }
+        return chunkRows
+      })
     )
     taskRows = results.flat()
   }
@@ -129,12 +140,35 @@ export function useForeman2Data({ mes }) {
             console.error('syncStuckWorkCards error:', e)
           }
         }
-        const { data: cards, error: cardsError } = await supabase
-          .from('work_cards')
-          .select('*')
-          .in('task_id', taskIds)
-          .limit(10000)
-        if (cardsError) throw cardsError
+        const chunkSize = 50
+        const taskChunks = []
+        for (let i = 0; i < taskIds.length; i += chunkSize) {
+          taskChunks.push(taskIds.slice(i, i + chunkSize))
+        }
+
+        const cardsResult = await Promise.all(
+          taskChunks.map(async (chunk) => {
+            const chunkCards = []
+            const pageSize = 1000
+            for (let from = 0; ; from += pageSize) {
+              const to = from + pageSize - 1
+              const { data, error } = await supabase
+                .from('work_cards')
+                .select('*')
+                .in('task_id', chunk)
+                .order('id', { ascending: true })
+                .range(from, to)
+              if (error) {
+                console.error('Cards fetch error:', error)
+                break
+              }
+              chunkCards.push(...(data || []))
+              if (!data || data.length < pageSize) break
+            }
+            return chunkCards
+          })
+        )
+        const cards = cardsResult.flat()
 
         const cardIds = (cards || []).map(card => card.id)
         const history = cardIds.length > 0 ? await fetchHistoryForTasksOrCards(taskIds, cardIds) : []

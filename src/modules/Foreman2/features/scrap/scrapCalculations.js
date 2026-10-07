@@ -6,9 +6,12 @@ export const countAsProduced = (card) => {
 
 export const isBufferCard = (card) => {
   const info = String(card?.card_info || '').toLowerCase()
-  return info.includes('зі складу сгп')
+  const operation = String(card?.operation || '').trim().toLowerCase()
+  return operation === 'склад бз'
+    || operation === 'склад bz'
+    || operation === 'склад сгп'
+    || info.includes('зі складу')
     || info.includes('bz_reservation')
-    || info.includes('зі складу бз')
 }
 
 export const buildCardIndex = (cards = []) => {

@@ -107,7 +107,7 @@ export const PortalDashboard = ({ chatUnreadCount }) => {
 
       // 3. Exclude Shop 2 specific cards
       const info = String(w.card_info || '');
-      if (info.includes('[ЦЕХ №2]') || info.includes('[ЦЕХ 2]')) return false;
+      if (info.includes('[ЦЕХ №2] Автоматично') || info.includes('[ЦЕХ 2] Автоматично')) return false;
 
       // 4. Exclude raw materials & consumables
       const nom = (nomenclatures || []).find(n => String(n.id) === String(w.nomenclature_id));

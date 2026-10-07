@@ -34,11 +34,15 @@ export function createProductionCardsActions({
     const status = isRework ? 'waiting-materials' : 'new'
     const baseCardInfo = String(cardInfo || '')
     const cardInfoText = `${baseCardInfo}${Number(bufferQty) > 0 && !baseCardInfo.includes('[BZ:') ? ` [BZ:${bufferQty}]` : ''}${isRework && !baseCardInfo.includes('[REDO]') ? ' [REDO]' : ''}`
+    const partNom = nomenclatures.find(n => String(n.id) === String(nomenclatureId))
+    const unitsPerSheet = Math.max(1, Number(partNom?.units_per_sheet) || 1)
+    const actualSheets = Math.ceil((Number(quantity) || 0) / unitsPerSheet)
     const { data: list, error } = await supabase.from('work_cards').insert([{
       task_id: taskId, order_id: orderId, nomenclature_id: nomenclatureId,
       operation: operation || 'Нова', machine, quantity: Number(quantity) || 0,
       estimated_time: Math.round(Number(estimatedTime) || 0), status, is_rework: isRework,
-      card_info: cardInfoText
+      card_info: cardInfoText,
+      actual_sheets: actualSheets
     }]).select()
     if (error) {
       console.error('Error inserting work_card:', error)
@@ -48,10 +52,7 @@ export function createProductionCardsActions({
     await supabase.from('tasks').update({ status: 'in-progress' }).eq('id', taskId)
 
     if (isRework) {
-      const partNom = nomenclatures.find(n => n.id === nomenclatureId)
-      const unitsPerSheet = partNom?.units_per_sheet || 1
-      const sheets = Math.ceil(Number(quantity) / unitsPerSheet)
-      await createDovyпускMaterialRequests(taskId, orderId, partNom, sheets, Number(quantity), machine, data?.id || null)
+      await createDovyпускMaterialRequests(taskId, orderId, partNom, actualSheets, Number(quantity), machine, data?.id || null)
     }
 
     // Only refresh affected tables (work_cards + tasks), not everything
@@ -85,7 +86,8 @@ export function createProductionCardsActions({
         estimated_time: Math.round(Number(c.estimatedTime) || 0),
         status: c.status || 'new',
         is_rework: c.is_rework || false,
-        card_info: `${baseCardInfo}${Number(c.bufferQty) > 0 && !baseCardInfo.includes('[BZ:') ? ` [BZ:${c.bufferQty}]` : ''}`
+        card_info: `${baseCardInfo}${Number(c.bufferQty) > 0 && !baseCardInfo.includes('[BZ:') ? ` [BZ:${c.bufferQty}]` : ''}`,
+        actual_sheets: Math.max(0, Number(c.actualSheets ?? c.sheets) || 0)
       }
     })
 

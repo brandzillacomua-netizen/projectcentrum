@@ -3,19 +3,39 @@ import { countAsProduced, getProducedQty, isBufferCard } from '../scrap/scrapCal
 import { getSnapshotPartEntries } from '../task-loading/taskSelectors.js'
 import { getBestKnownProducedFromFlow } from './flowUtils.js'
 
+export const isVkyaReturnCard = (card) => {
+  const info = String(card?.card_info || '')
+  // Standalone VKYA return cards represent already manufactured details coming
+  // back to the route. Colon-form tags are audit notes appended to an original
+  // cutting card, so they must not turn that original card into a zero-sheet card.
+  return /\[(?:VKYA[\s_]+RETURN|VKYA[\s_]+RESTORED[\s_]+RETURN|VKYA[\s_]+RETURNED[\s_]+TO[\s_]+ROUTE)\]/i.test(info)
+}
+
+export const isZeroSheetCard = (card) => isBufferCard(card) || isVkyaReturnCard(card)
+
 export const getCardSheets = (card, unitsPerSheet) => {
-  const explicit = asNumber(card?.actual_sheets || card?.actualSheets || card?.sheets)
+  if (isZeroSheetCard(card)) return 0
+
+  const explicit = asNumber(card?.actual_sheets ?? card?.actualSheets ?? card?.sheets)
   if (explicit > 0) return explicit
   if (card?.card_info) {
-    const match = String(card.card_info).match(/\[REQ:(\d+)\]/)
-    if (match) {
-      // REQ tag is explicitly present — use it even if 0 (BZ-only card needs 0 sheets to cut)
-      const reqQty = Number(match[1]) || 0
-      return reqQty > 0 ? Math.ceil(reqQty / Math.max(1, asNumber(unitsPerSheet, 1))) : 0
+    const info = String(card.card_info)
+    const sheetsMatch = info.match(/\[SHEETS:(\d+)\]/i)
+    if (sheetsMatch) return asNumber(sheetsMatch[1])
+
+    const reqMatch = info.match(/\[REQ:(\d+)\]/i)
+    const bzMatch = info.match(/\[BZ:(\d+)\]/i)
+    if (reqMatch || bzMatch) {
+      // REQ is only the order demand. BZ is the usable remainder cut from the
+      // same loading, so both quantities are required to reconstruct sheets.
+      const loadedQty = asNumber(reqMatch?.[1]) + asNumber(bzMatch?.[1])
+      return loadedQty > 0
+        ? Math.ceil(loadedQty / Math.max(1, asNumber(unitsPerSheet, 1)))
+        : 0
     }
   }
-  // No REQ tag at all → fall back to quantity
-  const targetQty = asNumber(card?.quantity)
+  // No REQ tag at all → fall back to quantity + scrap_qty_from_history
+  const targetQty = asNumber(card?.quantity) + asNumber(card?.scrap_qty_from_history)
   return Math.ceil(targetQty / Math.max(1, asNumber(unitsPerSheet, 1)))
 }
 
@@ -55,6 +75,10 @@ export const calculatePartShortage = ({
   const nomCards = cards
     .filter(card => asId(card.task_id) === asId(task.id) && asId(card.nomenclature_id) === nomId)
     .sort((a, b) => parseCardSeqNumber(a) - parseCardSeqNumber(b))
+    .map(card => ({
+      ...card,
+      scrap_qty_from_history: asNumber(cardScrapMap?.[asId(card.id)])
+    }))
   const productionCards = nomCards.filter(card => !isBufferCard(card))
   
   const flowRows = flowTotalsByTaskNom?.[asId(task.id)]?.[nomId] || []

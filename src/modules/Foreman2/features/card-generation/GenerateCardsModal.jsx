@@ -3,6 +3,7 @@ import { X, Printer, Loader2 } from 'lucide-react'
 import { calculateCuttersForBatch } from '../../../../utils/cutterCalculator.js'
 import { CutterSelectorRow } from './components/CutterSelectorRow.jsx'
 import { useMES } from '../../../../MESContext.jsx'
+import { getCardSheets } from '../shortage/shortageCalculations.js'
 
 export default function GenerateCardsModal({
   config,
@@ -98,8 +99,7 @@ export default function GenerateCardsModal({
       const cardNom = (nomenclatures || []).find(n => String(n.id) === String(card.nomenclature_id))
       const cardEntry = (taskObj?.plan_snapshot || {})[String(card.nomenclature_id)]
       const unitsPerSheet = Math.max(1, Number(cardNom?.units_per_sheet) || Number(cardEntry?.units_per_sheet) || 1)
-      const cardSheets = Number(card.actualSheets || card.sheets)
-      return sum + (cardSheets > 0 ? cardSheets : Math.ceil((Number(card.quantity) || 0) / unitsPerSheet))
+      return sum + getCardSheets(card, unitsPerSheet)
     }, 0)
 
     const materialRequiresSheets = /(?:т|t)\s*(?:300|700)|лист|sheet/i.test(baseMat)
@@ -120,8 +120,7 @@ export default function GenerateCardsModal({
     if (!part) return 0
     const unitsPerSheet = Math.max(1, Number(part?.unitsPerSheet) || 1)
     return (part?.productionCards || []).reduce((sum, c) => {
-      const cardSheets = Number(c.actualSheets || c.sheets)
-      return sum + (cardSheets > 0 ? cardSheets : Math.ceil((Number(c.quantity) || 0) / unitsPerSheet))
+      return sum + getCardSheets(c, unitsPerSheet)
     }, 0)
   }, [part])
 
@@ -361,7 +360,7 @@ export default function GenerateCardsModal({
                 let currentGlobalSheets = 0
 
                 machineCards.forEach(wc => {
-                  const cardSheets = Math.ceil((Number(wc.quantity) || 0) / unitsPerSheet)
+                  const cardSheets = getCardSheets(wc, unitsPerSheet)
                   const cardStart = currentGlobalSheets
                   const cardEnd = currentGlobalSheets + cardSheets
 

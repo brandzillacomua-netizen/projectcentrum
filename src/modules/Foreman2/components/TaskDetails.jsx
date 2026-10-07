@@ -121,7 +121,7 @@ const ScrapMap = ({ title, map, accent }) => {
   )
 }
 
-const WorkCardTile = ({ card, onClick, scrapInfo, onOpenScrapHistory }) => {
+const WorkCardTile = ({ card, unitsPerSheet, onClick, scrapInfo, onOpenScrapHistory }) => {
   const status = getCardStatus(card)
   const isRedo = card?.is_rework || String(card?.card_info || '').includes('[REDO]')
   const cardCode = String(card?.id || '').slice(-8).toUpperCase()
@@ -187,7 +187,9 @@ const WorkCardTile = ({ card, onClick, scrapInfo, onOpenScrapHistory }) => {
         </div>
         <div>
           <div style={{ color: 'var(--text-muted, #64748b)', fontSize: '0.58rem', fontWeight: 950, textTransform: 'uppercase' }}>Листів</div>
-          <div style={{ color: 'var(--text, #fff)', fontSize: '0.95rem', fontWeight: 950 }}>{formatQty(card?.actual_sheets || card?.sheets || 0)}</div>
+          <div style={{ color: 'var(--text, #fff)', fontSize: '0.95rem', fontWeight: 950 }}>
+            {formatQty(getCardSheets(card, unitsPerSheet))}
+          </div>
         </div>
         <div 
           onClick={(e) => {
@@ -455,6 +457,7 @@ const WorkCardsArchive = ({ parts, task, expandedId, onToggle, onOpenReissue, on
                                 <WorkCardTile 
                                   key={card.id} 
                                   card={card} 
+                                  unitsPerSheet={part.unitsPerSheet}
                                   scrapInfo={cardScrapMap[card.id]}
                                   onOpenScrapHistory={(c) => onOpenScrapHistory && onOpenScrapHistory(c)}
                                   onClick={() => {
@@ -465,7 +468,7 @@ const WorkCardsArchive = ({ parts, task, expandedId, onToggle, onOpenReissue, on
                                         qty: card.quantity,
                                         machine: card.machine || part.machine,
                                         totalLoadings: '—',
-                                        sheetsPerLoading: part.defaultCapacity || 1,
+                                        sheetsPerLoading: getCardSheets(card, part.unitsPerSheet),
                                         estimatedTime: (Number(part.nom?.time_per_unit) || 0) * (Number(card.quantity) || 0) * 60
                                       }])
                                     }
@@ -823,7 +826,7 @@ export default function TaskDetails({ model, nomenclatures = [], allCards, onOpe
                                     qty: c.quantity,
                                     machine: c.machine,
                                     totalLoadings: load.expectedLoads,
-                                    sheetsPerLoading: part.defaultCapacity || 1,
+                                    sheetsPerLoading: getCardSheets(c, part.unitsPerSheet),
                                     estimatedTime: (Number(part.nom?.time_per_unit) || 0) * (Number(c.quantity) || 0) * 60
                                   })))
                                 }
@@ -850,6 +853,7 @@ export default function TaskDetails({ model, nomenclatures = [], allCards, onOpe
                                 <WorkCardTile 
                                   key={card.id} 
                                   card={card} 
+                                  unitsPerSheet={part.unitsPerSheet}
                                   scrapInfo={cardScrapMap[card.id]}
                                   onClick={() => {
                                     if (onPrintCards) {
@@ -859,7 +863,7 @@ export default function TaskDetails({ model, nomenclatures = [], allCards, onOpe
                                         qty: card.quantity,
                                         machine: card.machine || part.machine,
                                         totalLoadings: '—',
-                                         sheetsPerLoading: part.defaultCapacity || 1,
+                                        sheetsPerLoading: getCardSheets(card, part.unitsPerSheet),
                                         estimatedTime: (Number(part.nom?.time_per_unit) || 0) * (Number(card.quantity) || 0) * 60
                                       }])
                                     }

@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { supabase } from '../../../../supabase.js'
 import { apiService } from '../../../../services/apiDispatcher.js'
+import { getCardSheets } from '../shortage/shortageCalculations.js'
 
 export function useCardGeneration({ mes }) {
   const [isGenerating, setIsGenerating] = useState(false)
@@ -96,7 +97,7 @@ export function useCardGeneration({ mes }) {
       try {
         const { data, error } = await supabase
           .from('work_cards')
-          .select('id, is_rework, operation, card_info, quantity, machine')
+          .select('id, is_rework, operation, card_info, quantity, machine, actual_sheets')
           .eq('task_id', task.id)
           .eq('nomenclature_id', nomId)
         if (!error && data) {
@@ -134,20 +135,27 @@ export function useCardGeneration({ mes }) {
       let actualGeneratedSheets = 0
       let actualGeneratedRequiredQty = 0
       activeCardsForSelectedMachine.forEach(c => {
-        const cardQty = Number(c.quantity) || 0
-        actualGeneratedSheets += Math.ceil(cardQty / unitsPerSheet)
+        actualGeneratedSheets += getCardSheets(c, unitsPerSheet)
       })
       activeCards.forEach(c => {
         const cardQty = Number(c.quantity) || 0
         const reqMatch = String(c.card_info || '').match(/\[REQ:(\d+)\]/)
-        actualGeneratedRequiredQty += reqMatch ? (Number(reqMatch[1]) || 0) : cardQty
+        const cardReq = reqMatch ? (Number(reqMatch[1]) || 0) : cardQty
+        actualGeneratedRequiredQty += Math.min(cardReq, cardQty)
       })
 
       let sheetsRemainingForThisSplit = Math.max(0, effectiveSheets - actualGeneratedSheets)
       if (maxSheetsToGenerate !== null && maxSheetsToGenerate !== undefined && Number(maxSheetsToGenerate) > 0) {
         sheetsRemainingForThisSplit = Math.min(sheetsRemainingForThisSplit, Number(maxSheetsToGenerate))
       }
+
+      // The modal can be stale (or another browser can generate concurrently).
+      // Re-check the whole part against the immutable task plan before insert.
       const snapshotEntry = task.plan_snapshot?.[String(nomId)]
+      const plannedSheetsForPart = Number(snapshotEntry?.sheets) || Math.ceil((Number(snapshotEntry?.plan) || Number(part?.plan) || 0) / unitsPerSheet)
+      const generatedSheetsForPart = activeCards.reduce((sum, card) => sum + getCardSheets(card, unitsPerSheet), 0)
+      const remainingSheetsForPart = Math.max(0, plannedSheetsForPart - generatedSheetsForPart)
+      sheetsRemainingForThisSplit = Math.min(sheetsRemainingForThisSplit, remainingSheetsForPart)
       const originalNeed = snapshotEntry?.need || totalToReach || 0
 
       let reqRemainingForThisSplit = isRepair

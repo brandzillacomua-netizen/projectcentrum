@@ -72,7 +72,7 @@ export function Shop1ActiveCardsTable({
                 if (nom && nom.type && nom.type !== 'part') return false
 
                 const info = String(c.card_info || '')
-                if (info.includes('[ЦЕХ №2]') || info.includes('[ЦЕХ 2]')) return false
+                if (info.includes('[ЦЕХ №2] Автоматично') || info.includes('[ЦЕХ 2] Автоматично')) return false
 
                 const isInChain = CHAIN.includes(c.operation) || (c.operation && c.operation.startsWith('Галтовка'))
                 if (!isInChain) return false
