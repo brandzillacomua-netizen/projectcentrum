@@ -16,6 +16,17 @@ function cacheProductionUser(user, storage) {
   storage.removeItem(PROD_SESSION_KEYS.legacyToken)
 }
 
+export async function fetchAuthenticatedProductionProfile(client) {
+  const { data, error } = await client.auth.getSession()
+  const session = data?.session
+
+  if (error || !session?.access_token || !session?.user?.id) return null
+
+  const { data: profile, error: profileError } = await client.rpc('rpc_current_user_profile')
+  if (profileError || !profile?.id) return null
+  return profile
+}
+
 export async function restoreProductionSession(client, storage = localStorage) {
   const { data, error } = await client.auth.getSession()
   const session = data?.session

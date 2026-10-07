@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useLocation } from 'react-router-dom'
 import { supabase, prodClient, isTestEnvironment } from '../../supabase.js'
-import { clearProductionSessionCache, restoreProductionSession } from '../../auth/productionSession.js'
+import { clearProductionSessionCache, fetchAuthenticatedProductionProfile, restoreProductionSession } from '../../auth/productionSession.js'
 import { useStore } from '../../store/index.js'
 import { wsBatcher } from '../../services/wsBatcher.js'
 import { getIndexedCache, setIndexedCache, removeIndexedCache } from '../../services/indexedDbCache.js'
@@ -138,8 +138,10 @@ export function useDataState() {
       if (!force && now - lastProfileRefresh < 15000) return
       lastProfileRefresh = now
       try {
-        const { data: profile, error } = await prodClient.rpc('rpc_current_user_profile')
-        if (!active || error || !profile?.id) return
+        // Do not call the protected RPC from logged-out/background tabs. The
+        // function intentionally has no anon EXECUTE permission.
+        const profile = await fetchAuthenticatedProductionProfile(prodClient)
+        if (!active || !profile?.id) return
         setCurrentUser((prev: any) => {
           if (!prev || prev.id !== profile.id) return prev
           const changed =

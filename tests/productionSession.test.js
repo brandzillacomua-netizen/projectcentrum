@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   clearProductionSessionCache,
+  fetchAuthenticatedProductionProfile,
   restoreProductionSession
 } from '../src/auth/productionSession.js'
 
@@ -47,6 +48,33 @@ describe('production session bootstrap', () => {
     await expect(restoreProductionSession(client)).resolves.toEqual(currentProfile)
     expect(client.rpc).toHaveBeenCalledWith('rpc_current_user_profile')
     expect(JSON.parse(localStorage.getItem('MES_SESSION_USER'))).toEqual(currentProfile)
+  })
+
+  it('does not call the protected profile RPC without an authenticated session', async () => {
+    const client = {
+      auth: { getSession: vi.fn().mockResolvedValue({ data: { session: null }, error: null }) },
+      rpc: vi.fn()
+    }
+
+    await expect(fetchAuthenticatedProductionProfile(client)).resolves.toBeNull()
+    expect(client.rpc).not.toHaveBeenCalled()
+  })
+
+  it('refreshes the profile only when a JWT-backed session exists', async () => {
+    const profile = { id: 'user-1', login: 'admin' }
+    const client = {
+      auth: {
+        getSession: vi.fn().mockResolvedValue({
+          data: { session: { access_token: 'valid-jwt', user: { id: 'auth-user-1' } } },
+          error: null
+        })
+      },
+      rpc: vi.fn().mockResolvedValue({ data: profile, error: null })
+    }
+
+    await expect(fetchAuthenticatedProductionProfile(client)).resolves.toEqual(profile)
+    expect(client.rpc).toHaveBeenCalledTimes(1)
+    expect(client.rpc).toHaveBeenCalledWith('rpc_current_user_profile')
   })
 
   it('rebuilds a missing profile through an authenticated RPC', async () => {
