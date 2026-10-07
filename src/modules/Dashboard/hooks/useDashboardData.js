@@ -122,6 +122,21 @@ export const useDashboardData = () => {
     }
   }
 
+  // Realtime subscription for live TV dashboard
+  useEffect(() => {
+    const channel = supabase
+      .channel('dashboard_v2_realtime_channel')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'work_cards' }, () => { handleRefresh() })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'work_card_history' }, () => { handleRefresh() })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, () => { handleRefresh() })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => { handleRefresh() })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [supabase])
+
   const demandData = useMemo(() => {
     if (!orders || !bomItems) return { globalDemand: {}, productDemand: {} }
 
@@ -391,6 +406,89 @@ export const useDashboardData = () => {
       }
     })
 
+    // Identify Shop 2 tasks
+    const shop2TaskIdsSet = new Set()
+    tasks.forEach(t => {
+      const step = String(t.step || '').toLowerCase()
+      const name = String(t.name || '').toLowerCase()
+      if (step.includes('цех №2') || step.includes('цех 2') || step.includes('пресування') || step.includes('фарбування') || step.includes('маляр') || step.includes('доопрацювання') ||
+          name.includes('цех №2') || name.includes('цех 2') || name.includes('пресування') || name.includes('фарбування') || name.includes('маляр') || name.includes('доопрацювання')) {
+        shop2TaskIdsSet.add(String(t.id))
+      }
+    })
+
+    const isShop2Card = (c) => {
+      if (!c) return false
+      if (shop2TaskIdsSet.has(String(c.task_id))) return true
+      const info = String(c.card_info || '')
+      if (info.includes('[SHOP:2]') || info.includes('[ЦЕХ №2]') || info.includes('[ЦЕХ 2]')) return true
+      const op = String(c.operation || '').toLowerCase()
+      return op.includes('пресув') || op.includes('прес') || op.includes('фарбуван') || op.includes('маляр') || op.includes('доопрац') || op.includes('пакува') || op.includes('сгп')
+    }
+
+    const matchOpName = (c, operation) => {
+      const op = String(c.operation || '').toLowerCase()
+      const info = String(c.card_info || '').toLowerCase()
+      const ops = Array.isArray(operation) ? operation : [operation]
+
+      for (const targetOp of ops) {
+        const target = String(targetOp).toLowerCase()
+
+        if (target === 'розкрій') {
+          if (op.includes('розкрій') || op.includes('різка') || op.includes('laser')) return true
+        } else if (target === 'галтовка') {
+          if (op.includes('галтовка') || op.startsWith('галтовка')) return true
+        } else if (target === 'прийомка') {
+          if (op.includes('прийомка')) return true
+        } else if (target === 'сортування') {
+          if (op.includes('сортування')) return true
+        } else if (target === 'фарбування' || target === 'малярка') {
+          if (op.includes('фарбуван') || op.includes('маляр') || op.includes('paint') || info.includes('фарбуван') || info.includes('маляр')) return true
+          if (isShop2Card(c)) {
+            const isShop1 = op.includes('розкрій') || op.includes('різка') || op.includes('галтовка') || op.includes('прийомка') || op.includes('сортування') || op.includes('склад')
+            const isPress = op.includes('пресув') || op.includes('прес') || info.includes('пресув') || info.includes('прес')
+            const isDoop = op.includes('доопрац') || op.includes('доработ') || info.includes('доопрац')
+            const isPack = op.includes('пакува') || op.includes('сгп') || info.includes('пакува') || info.includes('сгп')
+            if (!isShop1 && !isPress && !isDoop && !isPack) return true
+          }
+        } else if (target === 'пресування') {
+          if (op.includes('пресув') || op.includes('прес') || info.includes('пресув') || info.includes('прес')) return true
+        } else if (target === 'доопрацювання') {
+          if (op.includes('доопрац') || op.includes('доработ') || info.includes('доопрац')) return true
+        } else {
+          if (c.operation === targetOp || op === target) return true
+        }
+      }
+
+      return false
+    }
+
+    const matchStatName = (cStatus, statuses, targetOp = '') => {
+      const stat = String(cStatus || '')
+      const stats = Array.isArray(statuses) ? statuses : [statuses]
+      const targetOpStr = Array.isArray(targetOp) ? targetOp.join(' ') : String(targetOp)
+      const targetOpLower = targetOpStr.toLowerCase()
+      const isShop1Op = targetOpLower.includes('розкрій') || targetOpLower.includes('різка') || targetOpLower.includes('laser')
+
+      for (const targetStat of stats) {
+        if (targetStat === 'new' || targetStat === 'waiting-machines' || targetStat === 'waiting-materials') {
+          if (isShop1Op) {
+            if (['new', 'waiting-machines'].includes(stat)) return true
+          } else {
+            if (['new', 'waiting-machines', 'waiting-materials', 'waiting-cutters', 'waiting-buffer', 'waiting', 'waiting_material', 'waiting-warehouse'].includes(stat)) return true
+          }
+        } else if (targetStat === 'in-progress') {
+          if (['in-progress', 'paused', 'hold', 'in_progress'].includes(stat)) return true
+        } else if (targetStat === 'at-buffer') {
+          if (stat === 'at-buffer') return true
+        } else {
+          if (stat === targetStat) return true
+        }
+      }
+
+      return false
+    }
+
     // Populate rows
     parts.forEach(nom => {
       const parentIds = childToParentsMap[nom.id] ? Array.from(childToParentsMap[nom.id]) : ['other']
@@ -408,9 +506,7 @@ export const useDashboardData = () => {
             if (!isOther && c.task_id && taskParentMap[c.task_id]) {
               if (taskParentMap[c.task_id] !== String(parentId)) return false
             }
-            const matchOp = Array.isArray(operation) ? operation.includes(c.operation) : c.operation === operation
-            const matchStat = Array.isArray(statuses) ? statuses.includes(c.status) : c.status === statuses
-            return matchOp && matchStat
+            return matchOpName(c, operation) && matchStatName(c.status, statuses, operation)
           }).reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
         }
 
@@ -443,24 +539,31 @@ export const useDashboardData = () => {
         const qSortInv = (inventory || []).filter(i => String(i.nomenclature_id) === String(nom.id) && i.type === 'semi_shop2').reduce((sum, i) => sum + (Number(i.total_qty) || 0), 0)
         const qSort = Math.max(qSortCards, qSortInv)
 
-        const qMalWait = getQty(['Фарбування', 'Малярка'], 'new')
+        const qMalWait = getQty(['Фарбування', 'Малярка'], ['new', 'waiting-machines', 'waiting-materials'])
         const qMal = getQty(['Фарбування', 'Малярка'], 'in-progress')
         const qMalBuf = getQty(['Фарбування', 'Малярка'], 'at-buffer')
-        const qPres = getQty('Пресування', ['new', 'in-progress'])
+        const qPresWait = getQty('Пресування', ['new', 'waiting-machines', 'waiting-materials'])
+        const qPres = getQty('Пресування', 'in-progress')
         const qPresBuf = getQty('Пресування', 'at-buffer')
-        const qDoop = getQty('Доопрацювання', ['new', 'in-progress'])
+        const qDoopWait = getQty('Доопрацювання', ['new', 'waiting-machines', 'waiting-materials'])
+        const qDoop = getQty('Доопрацювання', 'in-progress')
         const qDoopBuf = getQty('Доопрацювання', 'at-buffer')
 
         let qSgp = 0
         let qBz = 0
         let qScrap = 0
 
+        const scrapFromHistory = (workCardHistory || [])
+          .filter(h => String(h.nomenclature_id) === String(nom.id) && (!h.task_id || !taskParentMap[h.task_id] || taskParentMap[h.task_id] === String(parentId)))
+          .reduce((sum, h) => sum + (Number(h.scrap_qty) || 0), 0)
+
         if (selectedOrderId) {
           const orderTasks = tasks?.filter(t => t.order_id === selectedOrderId) || []
           const orderTaskIds = orderTasks.map(t => t.id)
-          qScrap = (workCardHistory || [])
+          const orderScrap = (workCardHistory || [])
             .filter(h => String(h.nomenclature_id) === String(nom.id) && h.task_id && orderTaskIds.includes(h.task_id))
             .reduce((sum, h) => sum + (Number(h.scrap_qty) || 0), 0)
+          qScrap = Math.max(orderScrap, scrapFromHistory)
 
           const orderAllTaskCards = orderAllCards.filter(c => String(c.nomenclature_id) === String(nom.id))
           
@@ -493,7 +596,8 @@ export const useDashboardData = () => {
           const bzExcess = Math.max(0, totalPotentialSgp - specificDemand)
           qBz = Math.max(0, completedShop1Qty - qSortCards - totalShop2Qty) + bzExcess
         } else {
-          qScrap = (inventory || []).filter(i => String(i.nomenclature_id) === String(nom.id) && String(i.type).startsWith('scrap')).reduce((sum, i) => sum + (Number(i.total_qty) || 0), 0)
+          const invScrap = (inventory || []).filter(i => String(i.nomenclature_id) === String(nom.id) && String(i.type).startsWith('scrap')).reduce((sum, i) => sum + (Number(i.total_qty) || 0), 0)
+          qScrap = Math.max(invScrap, scrapFromHistory)
 
           const activeOrdersForParent = activeOrders.filter(o => {
             let pId = o.nomenclature_id
@@ -524,7 +628,7 @@ export const useDashboardData = () => {
           }
         }
 
-        const sum = qWhWait + qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriyCards + qSortAct + qSortCards + qMalWait + qMal + qMalBuf + qPres + qPresBuf + qDoop + qDoopBuf + qSgp + (selectedOrderId ? qBz : 0)
+        const sum = qWhWait + qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriyCards + qSortAct + qSortCards + qMalWait + qMal + qMalBuf + qPresWait + qPres + qPresBuf + qDoopWait + qDoop + qDoopBuf + qSgp + qBz + qScrap
 
         const row = {
           id: nom.id + (isOther ? '' : '_' + parentId),
@@ -545,8 +649,10 @@ export const useDashboardData = () => {
           qMalWait,
           qMal,
           qMalBuf,
+          qPresWait,
           qPres,
           qPresBuf,
+          qDoopWait,
           qDoop,
           qDoopBuf,
           qSgp,

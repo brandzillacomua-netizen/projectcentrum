@@ -560,14 +560,93 @@ export const useForemanDashboardData = () => {
           return d * qtyPerProduct
         })()
 
+        const shop2TaskIdsSet = new Set()
+        tasks.forEach(t => {
+          const step = String(t.step || '').toLowerCase()
+          const name = String(t.name || '').toLowerCase()
+          if (step.includes('цех №2') || step.includes('цех 2') || step.includes('пресування') || step.includes('фарбування') || step.includes('маляр') || step.includes('доопрацювання') ||
+              name.includes('цех №2') || name.includes('цех 2') || name.includes('пресування') || name.includes('фарбування') || name.includes('маляр') || name.includes('доопрацювання')) {
+            shop2TaskIdsSet.add(String(t.id))
+          }
+        })
+
+        const isShop2Card = (c) => {
+          if (!c) return false
+          if (shop2TaskIdsSet.has(String(c.task_id))) return true
+          const info = String(c.card_info || '')
+          if (info.includes('[SHOP:2]') || info.includes('[ЦЕХ №2]') || info.includes('[ЦЕХ 2]')) return true
+          const op = String(c.operation || '').toLowerCase()
+          return op.includes('пресув') || op.includes('прес') || op.includes('фарбуван') || op.includes('маляр') || op.includes('доопрац') || op.includes('пакува') || op.includes('сгп')
+        }
+
+        const matchOpName = (c, operation) => {
+          const op = String(c.operation || '').toLowerCase()
+          const info = String(c.card_info || '').toLowerCase()
+          const ops = Array.isArray(operation) ? operation : [operation]
+
+          for (const targetOp of ops) {
+            const target = String(targetOp).toLowerCase()
+
+            if (target === 'розкрій') {
+              if (op.includes('розкрій') || op.includes('різка') || op.includes('laser')) return true
+            } else if (target === 'галтовка') {
+              if (op.includes('галтовка') || op.startsWith('галтовка')) return true
+            } else if (target === 'прийомка') {
+              if (op.includes('прийомка')) return true
+            } else if (target === 'сортування') {
+              if (op.includes('сортування')) return true
+            } else if (target === 'фарбування' || target === 'малярка') {
+              if (op.includes('фарбуван') || op.includes('маляр') || op.includes('paint') || info.includes('фарбуван') || info.includes('маляр')) return true
+              if (isShop2Card(c)) {
+                const isShop1 = op.includes('розкрій') || op.includes('різка') || op.includes('галтовка') || op.includes('прийомка') || op.includes('сортування') || op.includes('склад')
+                const isPress = op.includes('пресув') || op.includes('прес') || info.includes('пресув') || info.includes('прес')
+                const isDoop = op.includes('доопрац') || op.includes('доработ') || info.includes('доопрац')
+                const isPack = op.includes('пакува') || op.includes('сгп') || info.includes('пакува') || info.includes('сгп')
+                if (!isShop1 && !isPress && !isDoop && !isPack) return true
+              }
+            } else if (target === 'пресування') {
+              if (op.includes('пресув') || op.includes('прес') || info.includes('пресув') || info.includes('прес')) return true
+            } else if (target === 'доопрацювання') {
+              if (op.includes('доопрац') || op.includes('доработ') || info.includes('доопрац')) return true
+            } else {
+              if (c.operation === targetOp || op === target) return true
+            }
+          }
+
+          return false
+        }
+
+        const matchStatName = (cStatus, statuses, targetOp = '') => {
+          const stat = String(cStatus || '')
+          const stats = Array.isArray(statuses) ? statuses : [statuses]
+          const targetOpStr = Array.isArray(targetOp) ? targetOp.join(' ') : String(targetOp)
+          const targetOpLower = targetOpStr.toLowerCase()
+          const isShop1Op = targetOpLower.includes('розкрій') || targetOpLower.includes('різка') || targetOpLower.includes('laser')
+
+          for (const targetStat of stats) {
+            if (targetStat === 'new' || targetStat === 'waiting-machines' || targetStat === 'waiting-materials') {
+              if (isShop1Op) {
+                if (['new', 'waiting-machines'].includes(stat)) return true
+              } else {
+                if (['new', 'waiting-machines', 'waiting-materials', 'waiting-cutters', 'waiting-buffer', 'waiting', 'waiting_material', 'waiting-warehouse'].includes(stat)) return true
+              }
+            } else if (targetStat === 'in-progress') {
+              if (['in-progress', 'paused', 'hold', 'in_progress'].includes(stat)) return true
+            } else if (targetStat === 'at-buffer') {
+              if (stat === 'at-buffer') return true
+            } else {
+              if (stat === targetStat) return true
+            }
+          }
+
+          return false
+        }
+
         const getQ = (ops, statuses) => {
-          const opArr = Array.isArray(ops) ? ops : [ops]
-          const stArr = Array.isArray(statuses) ? statuses : [statuses]
           return filteredCards.filter(c => {
             if (String(c.nomenclature_id) !== String(nom.id)) return false
             if (c.task_id && taskParentMap[c.task_id] && taskParentMap[c.task_id] !== parentId) return false
-            const isMatchOp = opArr.some(op => op === 'Галтовка' ? (c.operation === 'Галтовка' || c.operation?.startsWith('Галтовка')) : c.operation === op)
-            return isMatchOp && stArr.includes(c.status)
+            return matchOpName(c, ops) && matchStatName(c.status, statuses, ops)
           }).reduce((s, c) => s + (Number(c.quantity) || 0), 0)
         }
 
@@ -590,13 +669,13 @@ export const useForemanDashboardData = () => {
           return c.status === 'at-shop2-buffer'
         }).reduce((s, c) => s + Math.max(0, (Number(c.quantity) || 0) - (Number(c.used_in_shop2_qty) || 0)), 0)
 
-        const qMalWait = getQ(['Фарбування', 'Малярка'], ['new'])
+        const qMalWait = getQ(['Фарбування', 'Малярка'], ['new', 'waiting-machines', 'waiting-materials'])
         const qMal = getQ(['Фарбування', 'Малярка'], ['in-progress', 'paused', 'hold'])
         const qMalBuf = getQ(['Фарбування', 'Малярка'], ['at-buffer'])
-        const qPresWait = getQ(['Пресування'], ['new'])
+        const qPresWait = getQ(['Пресування'], ['new', 'waiting-machines', 'waiting-materials'])
         const qPres = getQ(['Пресування'], ['in-progress', 'paused', 'hold'])
         const qPresBuf = getQ(['Пресування'], ['at-buffer'])
-        const qDoopWait = getQ(['Доопрацювання'], ['new'])
+        const qDoopWait = getQ(['Доопрацювання'], ['new', 'waiting-machines', 'waiting-materials'])
         const qDoop = getQ(['Доопрацювання'], ['in-progress', 'paused', 'hold'])
         const qDoopBuf = getQ(['Доопрацювання'], ['at-buffer'])
 
@@ -754,13 +833,90 @@ export const useForemanDashboardData = () => {
       return true
     })
 
+    const shop2TaskIdsSet = new Set()
+    tasks.forEach(t => {
+      const step = String(t.step || '').toLowerCase()
+      const name = String(t.name || '').toLowerCase()
+      if (step.includes('цех №2') || step.includes('цех 2') || step.includes('пресування') || step.includes('фарбування') || step.includes('маляр') || step.includes('доопрацювання') ||
+          name.includes('цех №2') || name.includes('цех 2') || name.includes('пресування') || name.includes('фарбування') || name.includes('маляр') || name.includes('доопрацювання')) {
+        shop2TaskIdsSet.add(String(t.id))
+      }
+    })
+
+    const isShop2Card = (c) => {
+      if (!c) return false
+      if (shop2TaskIdsSet.has(String(c.task_id))) return true
+      const info = String(c.card_info || '')
+      if (info.includes('[SHOP:2]') || info.includes('[ЦЕХ №2]') || info.includes('[ЦЕХ 2]')) return true
+      const op = String(c.operation || '').toLowerCase()
+      return op.includes('пресув') || op.includes('прес') || op.includes('фарбуван') || op.includes('маляр') || op.includes('доопрац') || op.includes('пакува') || op.includes('сгп')
+    }
+
+    const matchOpName = (c, operation) => {
+      const op = String(c.operation || '').toLowerCase()
+      const info = String(c.card_info || '').toLowerCase()
+      const ops = Array.isArray(operation) ? operation : [operation]
+
+      for (const targetOp of ops) {
+        const target = String(targetOp).toLowerCase()
+
+        if (target === 'розкрій') {
+          if (op.includes('розкрій') || op.includes('різка') || op.includes('laser')) return true
+        } else if (target === 'галтовка') {
+          if (op.includes('галтовка') || op.startsWith('галтовка')) return true
+        } else if (target === 'прийомка') {
+          if (op.includes('прийомка')) return true
+        } else if (target === 'сортування') {
+          if (op.includes('сортування')) return true
+        } else if (target === 'фарбування' || target === 'малярка') {
+          if (op.includes('фарбуван') || op.includes('маляр') || op.includes('paint') || info.includes('фарбуван') || info.includes('маляр')) return true
+          if (isShop2Card(c)) {
+            const isShop1 = op.includes('розкрій') || op.includes('різка') || op.includes('галтовка') || op.includes('прийомка') || op.includes('сортування') || op.includes('склад')
+            const isPress = op.includes('пресув') || op.includes('прес') || info.includes('пресув') || info.includes('прес')
+            const isDoop = op.includes('доопрац') || op.includes('доработ') || info.includes('доопрац')
+            const isPack = op.includes('пакува') || op.includes('сгп') || info.includes('пакува') || info.includes('сгп')
+            if (!isShop1 && !isPress && !isDoop && !isPack) return true
+          }
+        } else if (target === 'пресування') {
+          if (op.includes('пресув') || op.includes('прес') || info.includes('пресув') || info.includes('прес')) return true
+        } else if (target === 'доопрацювання') {
+          if (op.includes('доопрац') || op.includes('доработ') || info.includes('доопрац')) return true
+        } else {
+          if (c.operation === targetOp || op === target) return true
+        }
+      }
+
+      return false
+    }
+
+    const matchStatName = (cStatus, statuses, targetOp = '') => {
+      const stat = String(cStatus || '')
+      const stats = Array.isArray(statuses) ? statuses : [statuses]
+      const targetOpStr = Array.isArray(targetOp) ? targetOp.join(' ') : String(targetOp)
+      const targetOpLower = targetOpStr.toLowerCase()
+      const isShop1Op = targetOpLower.includes('розкрій') || targetOpLower.includes('різка') || targetOpLower.includes('laser')
+
+      for (const targetStat of stats) {
+        if (targetStat === 'new' || targetStat === 'waiting-machines' || targetStat === 'waiting-materials') {
+          if (isShop1Op) {
+            if (['new', 'waiting-machines'].includes(stat)) return true
+          } else {
+            if (['new', 'waiting-machines', 'waiting-materials', 'waiting-cutters', 'waiting-buffer', 'waiting', 'waiting_material', 'waiting-warehouse'].includes(stat)) return true
+          }
+        } else if (targetStat === 'in-progress') {
+          if (['in-progress', 'paused', 'hold', 'in_progress'].includes(stat)) return true
+        } else if (targetStat === 'at-buffer') {
+          if (stat === 'at-buffer') return true
+        } else {
+          if (stat === targetStat) return true
+        }
+      }
+
+      return false
+    }
+
     const matchOpsAndStatus = (ops, statuses) => {
-      const opArr = Array.isArray(ops) ? ops : [ops]
-      const stArr = Array.isArray(statuses) ? statuses : [statuses]
-      return nomCards.filter(c => {
-        const isMatchOp = opArr.some(op => op === 'Галтовка' ? (c.operation === 'Галтовка' || c.operation?.startsWith('Галтовка')) : c.operation === op)
-        return isMatchOp && stArr.includes(c.status)
-      })
+      return nomCards.filter(c => matchOpName(c, ops) && matchStatName(c.status, statuses, ops))
     }
 
     let matchingCards = []
@@ -773,13 +929,13 @@ export const useForemanDashboardData = () => {
     else if (stageKey === 'qPriy') matchingCards = matchOpsAndStatus(['Прийомка'], ['new', 'in-progress', 'paused', 'hold', 'at-buffer'])
     else if (stageKey === 'qSortAct') matchingCards = matchOpsAndStatus(['Сортування'], ['new', 'in-progress', 'paused', 'hold', 'at-buffer'])
     else if (stageKey === 'qSort') matchingCards = nomCards.filter(c => c.status === 'at-shop2-buffer')
-    else if (stageKey === 'qMalWait') matchingCards = matchOpsAndStatus(['Фарбування', 'Малярка'], ['new'])
+    else if (stageKey === 'qMalWait') matchingCards = matchOpsAndStatus(['Фарбування', 'Малярка'], ['new', 'waiting-machines', 'waiting-materials'])
     else if (stageKey === 'qMal') matchingCards = matchOpsAndStatus(['Фарбування', 'Малярка'], ['in-progress', 'paused', 'hold'])
     else if (stageKey === 'qMalBuf') matchingCards = matchOpsAndStatus(['Фарбування', 'Малярка'], ['at-buffer'])
-    else if (stageKey === 'qPresWait') matchingCards = matchOpsAndStatus(['Пресування'], ['new'])
+    else if (stageKey === 'qPresWait') matchingCards = matchOpsAndStatus(['Пресування'], ['new', 'waiting-machines', 'waiting-materials'])
     else if (stageKey === 'qPres') matchingCards = matchOpsAndStatus(['Пресування'], ['in-progress', 'paused', 'hold'])
     else if (stageKey === 'qPresBuf') matchingCards = matchOpsAndStatus(['Пресування'], ['at-buffer'])
-    else if (stageKey === 'qDoopWait') matchingCards = matchOpsAndStatus(['Доопрацювання'], ['new'])
+    else if (stageKey === 'qDoopWait') matchingCards = matchOpsAndStatus(['Доопрацювання'], ['new', 'waiting-machines', 'waiting-materials'])
     else if (stageKey === 'qDoop') matchingCards = matchOpsAndStatus(['Доопрацювання'], ['in-progress', 'paused', 'hold'])
     else if (stageKey === 'qDoopBuf') matchingCards = matchOpsAndStatus(['Доопрацювання'], ['at-buffer'])
     else if (stageKey === 'qSgp') matchingCards = nomCards.filter(c => ['пакування', 'сгп'].some(o => (c.operation || '').toLowerCase().includes(o)) && c.status === 'completed')

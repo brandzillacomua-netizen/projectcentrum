@@ -1,11 +1,12 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, LayoutDashboard, RefreshCw, Search } from 'lucide-react'
+import { ArrowLeft, LayoutDashboard, RefreshCw, Search, Tv } from 'lucide-react'
 import { useForemanDashboardData } from './ForemanDashboard/hooks/useForemanDashboardData.jsx'
 import WipTable from './ForemanDashboard/components/WipTable'
 import OrderDetailView from './ForemanDashboard/components/OrderDetailView'
 import CellCardsModal from './ForemanDashboard/components/modals/CellCardsModal'
 import InspectCardModal from './ForemanDashboard/components/modals/InspectCardModal'
+import { TvDashboardModal } from './ForemanDashboard/components/TvDashboardModal'
 
 export interface ForemanTask {
   id: string
@@ -61,6 +62,7 @@ export const ForemanDashboardModule: React.FC = () => {
     handleRefresh
   } = useForemanDashboardData()
 
+  const [isTvMode, setIsTvMode] = useState<boolean>(false)
   const selectedTask: ForemanTask | null = selectedTaskId ? relevantTasks.find((t: ForemanTask) => t.id === selectedTaskId) || null : null
   const selectedOrder = selectedTask ? (ordersMap as Record<string, any>)[selectedTask.order_id] : null
 
@@ -107,6 +109,13 @@ export const ForemanDashboardModule: React.FC = () => {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <button
+            onClick={() => setIsTvMode(true)}
+            style={{ background: 'rgba(239,68,68,0.15)', border: '1.5px solid rgba(239,68,68,0.4)', color: '#ef4444', padding: '8px 14px', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', fontWeight: 900, transition: 'all 0.2s' }}
+            title="Відкрити повноекранний високої чіткості режим для Великих ТВ-Екранів та Дисплеїв"
+          >
+            <Tv size={16} /> 📺 ТВ РЕЖИМ
+          </button>
+          <button
             onClick={handleRefresh}
             disabled={isRefreshing}
             style={{ background: 'var(--bg, #09090b)', border: '1px solid var(--glass-border, rgba(0,0,0,0.12))', color: 'var(--text, #f4f4f5)', padding: '8px 14px', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', transition: 'all 0.2s' }}
@@ -114,6 +123,7 @@ export const ForemanDashboardModule: React.FC = () => {
             <RefreshCw size={14} style={{ animation: isRefreshing ? 'spin 1s linear infinite' : 'none' }} />
             Оновити
           </button>
+
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text, #f4f4f5)' }}>{currentUser?.first_name} {currentUser?.last_name}</div>
             <div style={{ fontSize: '0.6rem', color: '#ef4444', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{currentUser?.position}</div>
@@ -291,6 +301,19 @@ export const ForemanDashboardModule: React.FC = () => {
         ordersMap={ordersMap}
         orders={orders}
       />
+
+      {/* ── Fullscreen Big Screen TV Dashboard Modal ────────────────────── */}
+      <TvDashboardModal
+        isOpen={isTvMode}
+        onClose={() => setIsTvMode(false)}
+        overviewGroups={overviewGroups}
+        activeTasks={activeTasks}
+        taskStatusMap={taskStatusMap}
+        handleCellClick={handleCellClick}
+        handleRefresh={handleRefresh}
+        isRefreshing={isRefreshing}
+      />
+
 
       <style>{`
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
