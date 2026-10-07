@@ -97,7 +97,7 @@ export function useCardGeneration({ mes }) {
       try {
         const { data, error } = await supabase
           .from('work_cards')
-          .select('id, is_rework, operation, card_info, quantity, machine, actual_sheets')
+          .select('id, is_rework, operation, card_info, quantity, machine')
           .eq('task_id', task.id)
           .eq('nomenclature_id', nomId)
         if (!error && data) {

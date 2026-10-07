@@ -33,16 +33,15 @@ export function createProductionCardsActions({
 
     const status = isRework ? 'waiting-materials' : 'new'
     const baseCardInfo = String(cardInfo || '')
-    const cardInfoText = `${baseCardInfo}${Number(bufferQty) > 0 && !baseCardInfo.includes('[BZ:') ? ` [BZ:${bufferQty}]` : ''}${isRework && !baseCardInfo.includes('[REDO]') ? ' [REDO]' : ''}`
     const partNom = nomenclatures.find(n => String(n.id) === String(nomenclatureId))
     const unitsPerSheet = Math.max(1, Number(partNom?.units_per_sheet) || 1)
     const actualSheets = Math.ceil((Number(quantity) || 0) / unitsPerSheet)
+    const cardInfoText = `${baseCardInfo}${actualSheets > 0 && !baseCardInfo.includes('[SHEETS:') ? ` [SHEETS:${actualSheets}]` : ''}${Number(bufferQty) > 0 && !baseCardInfo.includes('[BZ:') ? ` [BZ:${bufferQty}]` : ''}${isRework && !baseCardInfo.includes('[REDO]') ? ' [REDO]' : ''}`
     const { data: list, error } = await supabase.from('work_cards').insert([{
       task_id: taskId, order_id: orderId, nomenclature_id: nomenclatureId,
       operation: operation || 'Нова', machine, quantity: Number(quantity) || 0,
       estimated_time: Math.round(Number(estimatedTime) || 0), status, is_rework: isRework,
-      card_info: cardInfoText,
-      actual_sheets: actualSheets
+      card_info: cardInfoText
     }]).select()
     if (error) {
       console.error('Error inserting work_card:', error)
@@ -76,6 +75,8 @@ export function createProductionCardsActions({
 
     const payloads = cardsArray.map(c => {
       const baseCardInfo = String(c.cardInfo || '')
+      const actualSheets = Math.max(0, Number(c.actualSheets ?? c.sheets) || 0)
+      const cardInfoText = `${baseCardInfo}${actualSheets > 0 && !baseCardInfo.includes('[SHEETS:') ? ` [SHEETS:${actualSheets}]` : ''}${Number(c.bufferQty) > 0 && !baseCardInfo.includes('[BZ:') ? ` [BZ:${c.bufferQty}]` : ''}`
       return {
         task_id: taskId,
         order_id: orderId,
@@ -86,8 +87,7 @@ export function createProductionCardsActions({
         estimated_time: Math.round(Number(c.estimatedTime) || 0),
         status: c.status || 'new',
         is_rework: c.is_rework || false,
-        card_info: `${baseCardInfo}${Number(c.bufferQty) > 0 && !baseCardInfo.includes('[BZ:') ? ` [BZ:${c.bufferQty}]` : ''}`,
-        actual_sheets: Math.max(0, Number(c.actualSheets ?? c.sheets) || 0)
+        card_info: cardInfoText
       }
     })
 

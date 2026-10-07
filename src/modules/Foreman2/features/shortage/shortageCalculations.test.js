@@ -10,6 +10,14 @@ test('counts both required and BZ remainder cut from the same loading', () => {
   }, 26), 4)
 })
 
+test('reads the exact sheet count persisted in the card info tag', () => {
+  assert.equal(getCardSheets({
+    operation: 'Розкрій',
+    quantity: 104,
+    card_info: '№37/37 [SHEETS:4] [REQ:0] [BZ:104]'
+  }, 26), 4)
+})
+
 test('VKYA return card consumes zero new sheets', () => {
   assert.equal(getCardSheets({
     operation: 'Буфер Цеху №2',
