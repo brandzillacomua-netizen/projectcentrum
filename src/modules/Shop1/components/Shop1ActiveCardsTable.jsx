@@ -76,8 +76,8 @@ export function Shop1ActiveCardsTable({
 
                 const isInChain = CHAIN.includes(c.operation) || (c.operation && c.operation.startsWith('Галтовка'))
                 if (!isInChain) return false
-                if (c.status !== 'in-progress' && c.status !== 'at-buffer') return false
-                if (activeTableFilter === 'in-progress' && c.status !== 'in-progress') return false
+                if (c.status !== 'in-progress' && c.status !== 'paused' && c.status !== 'hold' && c.status !== 'at-buffer') return false
+                if (activeTableFilter === 'in-progress' && c.status !== 'in-progress' && c.status !== 'paused' && c.status !== 'hold') return false
                 if (activeTableFilter === 'at-buffer' && c.status !== 'at-buffer') return false
 
                 // Filter by manualId search query
@@ -173,12 +173,12 @@ export function Shop1ActiveCardsTable({
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'nowrap' }}>
                         <span style={{
                           fontSize: '0.7rem', fontWeight: 900, textTransform: 'uppercase',
-                          background: (inBuf && card.operation === 'Сортування') ? '#8b5cf618' : inBuf ? '#f59e0b18' : '#3b82f618',
-                          color: (inBuf && card.operation === 'Сортування') ? '#8b5cf6' : inBuf ? '#f59e0b' : '#3b82f6',
+                          background: (inBuf && card.operation === 'Сортування') ? '#8b5cf618' : inBuf ? '#f59e0b18' : (card.status === 'paused' || card.status === 'hold') ? '#ef444418' : '#3b82f618',
+                          color: (inBuf && card.operation === 'Сортування') ? '#8b5cf6' : inBuf ? '#f59e0b' : (card.status === 'paused' || card.status === 'hold') ? '#ef4444' : '#3b82f6',
                           padding: '4px 10px', borderRadius: '6px',
                           whiteSpace: 'nowrap'
                         }}>
-                          {(inBuf && card.operation === 'Сортування') ? '🟣 БУФЕР' : inBuf ? '▣ БУФЕР' : '▶ РОБОТА'}
+                          {(inBuf && card.operation === 'Сортування') ? '🟣 БУФЕР' : inBuf ? '▣ БУФЕР' : card.status === 'paused' ? '⏸ ПАУЗА' : card.status === 'hold' ? '⏹ ЗУПИНЕНО' : '▶ РОБОТА'}
                         </span>
                         {inBuf && card.operation === 'Розкрій' && (() => {
                           const pColors = { 1: '#ef4444', 2: '#3b82f6', 3: '#10b981' }

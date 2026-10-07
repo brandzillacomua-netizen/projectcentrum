@@ -221,7 +221,7 @@ export function useShop1Queue({
       return !nom || !['raw', 'material', 'hardware', 'fastener', 'consumable'].includes(nom.type);
     });
     return {
-      inWork: cards.filter(c => c.status === 'in-progress').reduce((a, c) => a + (c.quantity || 0), 0),
+      inWork: cards.filter(c => c.status === 'in-progress' || c.status === 'paused' || c.status === 'hold').reduce((a, c) => a + (c.quantity || 0), 0),
       inBuffer: cards.filter(c => c.status === 'at-buffer').reduce((a, c) => a + (c.quantity || 0), 0),
       scrap: (workCardHistory || []).filter(h => {
         const matchStage = stage === 'Галтовка' ? h.stage_name?.startsWith('Галтовка') : h.stage_name === stage;

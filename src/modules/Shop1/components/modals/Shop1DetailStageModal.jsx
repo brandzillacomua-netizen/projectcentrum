@@ -59,7 +59,7 @@ export function Shop1DetailStageModal({
               (workCards || []).filter(c => {
                 const matchOp = detailStage === 'Галтовка' ? c.operation?.startsWith('Галтовка') : c.operation === detailStage
                 if (!matchOp) return false
-                if (detailTab === 'work' ? c.status !== 'in-progress' : c.status !== 'at-buffer') return false
+                if (detailTab === 'work' ? (c.status !== 'in-progress' && c.status !== 'paused' && c.status !== 'hold') : c.status !== 'at-buffer') return false
                 const nom = getNom(c)
                 return !nom || nom.type === 'part'
               }).forEach(c => {

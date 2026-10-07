@@ -184,7 +184,7 @@ export function useForeman2Data({ mes }) {
   const allCards = useMemo(() => {
     return uniqueById([...workCards, ...dbCards]).filter(c => {
       // Exclude rework cards that belong to Shop 2 (e.g. from sorting) from Shop 1 calculations
-      if (c.operation === 'Доопрацювання' || String(c.card_info || '').includes('[ЦЕХ №2] Автоматично')) {
+      if (String(c.card_info || '').includes('[ЦЕХ №2] Автоматично')) {
         return false;
       }
       return true;

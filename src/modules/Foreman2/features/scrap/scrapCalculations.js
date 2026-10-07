@@ -5,17 +5,10 @@ export const countAsProduced = (card) => {
 }
 
 export const isBufferCard = (card) => {
-  const op = String(card?.operation || '').toLowerCase().replace(/\s+/g, ' ').trim()
   const info = String(card?.card_info || '').toLowerCase()
-  return op === 'склад бз'
-    || op === 'склад bz'
-    || op.includes('склад бз')
-    || op.includes('склад bz')
-    || op === 'склад сгп'
-    || op.includes('склад сгп')
-    || op.includes('пакування/сгп')
-    || info.includes('зі складу сгп')
+  return info.includes('зі складу сгп')
     || info.includes('bz_reservation')
+    || info.includes('зі складу бз')
 }
 
 export const buildCardIndex = (cards = []) => {

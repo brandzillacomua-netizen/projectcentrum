@@ -644,20 +644,20 @@ export const useForemanDashboardData = () => {
           return isShop1 && (c.status === 'completed' || c.status === 'at-shop2-buffer')
         }).reduce((s, c) => s + (Number(c.quantity) || 0), 0)
 
-        const sgpProduced = Math.max(0, groupProduced - qSort)
-        const producedForSgp = groupProduced > 0 ? sgpProduced : completedShop2Qty
-        const earlyWipQty = qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriy + qSortAct + qMalWait + qMal + qMalBuf + qPresWait + qPres + qPresBuf + qDoopWait + qDoop + qDoopBuf
-        const nonReissueEarlyWip = Math.max(0, flowScrapQty - plannedReserve) > 0 ? 0 : earlyWipQty
-        const qSgp = demandForParent > 0
-          ? Math.min(demandForParent, producedForSgp, Math.max(0, demandForParent - nonReissueEarlyWip))
-          : Math.max(0, producedForSgp)
-
         const totalShop2Qty = filteredCards.filter(c => {
           if (String(c.nomenclature_id) !== String(nom.id)) return false
           if (c.task_id && taskParentMap[c.task_id] && taskParentMap[c.task_id] !== parentId) return false
           const op = (c.operation || '').toLowerCase()
           return ['пресування', 'фарбування', 'малярка', 'доопрацювання', 'пакування', 'сгп'].some(o => op.includes(o))
         }).reduce((s, c) => s + (Number(c.quantity) || 0), 0)
+
+        const sgpProduced = Math.max(0, groupProduced - qSort)
+        const producedForSgp = totalShop2Qty > 0 ? completedShop2Qty : (groupProduced > 0 ? sgpProduced : completedShop2Qty)
+        const earlyWipQty = qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriy + qSortAct + qMalWait + qMal + qMalBuf + qPresWait + qPres + qPresBuf + qDoopWait + qDoop + qDoopBuf
+        const nonReissueEarlyWip = Math.max(0, flowScrapQty - plannedReserve) > 0 ? 0 : earlyWipQty
+        const qSgp = demandForParent > 0
+          ? Math.min(demandForParent, producedForSgp, Math.max(0, demandForParent - nonReissueEarlyWip))
+          : Math.max(0, producedForSgp)
 
         const bzExcess = Math.max(0, totalPotentialSgp - demandForParent)
         const flowBzQty = sumFlowField(flowRowsForThisPart, 'total_bz')
