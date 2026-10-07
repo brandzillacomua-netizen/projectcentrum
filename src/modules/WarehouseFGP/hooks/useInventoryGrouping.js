@@ -6,7 +6,7 @@ export function useInventoryGrouping({
   activeTab,
   nomenclatures,
   searchQuery = '',
-  workCardHistory,
+  receiptRows,
   totalShop2BufferParts
 }) {
   const rawTabItems = useMemo(() => {
@@ -104,9 +104,9 @@ export function useInventoryGrouping({
       }
     })
     counts.shop2_buffer = totalShop2BufferParts
-    counts.registry = (workCardHistory || []).filter(h => h.status === 'completed').length
+    counts.registry = (receiptRows || []).length
     return counts
-  }, [inventory, workCardHistory, totalShop2BufferParts])
+  }, [inventory, receiptRows, totalShop2BufferParts])
 
   return {
     rawTabItems,

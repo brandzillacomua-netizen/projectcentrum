@@ -22,7 +22,8 @@ export function InventoryView({
   newItem,
   setNewItem,
   handleAddInventoryItem,
-  workCardHistory,
+  receiptRows,
+  isReceiptRegistryLoading,
   shop2BufferCards,
   totalShop2BufferParts,
   shop2BufferTaskGroups,
@@ -264,7 +265,8 @@ export function InventoryView({
             isDark={isDark}
             activeTab={activeTab}
             filteredItems={filteredItems}
-            workCardHistory={workCardHistory}
+            receiptRows={receiptRows}
+            isReceiptRegistryLoading={isReceiptRegistryLoading}
             searchQuery={searchQuery}
             isAdmin={isAdmin}
             setReserveAnalysisItem={setReserveAnalysisItem}

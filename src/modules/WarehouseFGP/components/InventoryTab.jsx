@@ -1,13 +1,17 @@
-import React, { useState } from 'react'
-import { Pencil, Eye, Trash2 } from 'lucide-react'
+import React, { useState, useEffect } from 'react'
+import { Pencil, Eye, Trash2, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react'
 import { supabase } from '../../../supabase'
 import { useStore } from '../../../store/index.js'
+import { filterSgpReceiptRegistry } from '../utils/sgpReceiptRegistry.js'
+import { StockCardsAnalysisModal } from './StockCardsAnalysisModal'
+
 export function InventoryTab({
   t,
   isDark,
   activeTab,
   filteredItems,
-  workCardHistory,
+  receiptRows,
+  isReceiptRegistryLoading,
   searchQuery,
   isAdmin,
   setReserveAnalysisItem,
@@ -19,6 +23,14 @@ export function InventoryTab({
   const [editingInvTotal, setEditingInvTotal] = useState('')
   const [editingInvReserved, setEditingInvReserved] = useState('')
   const [isSavingInv, setIsSavingInv] = useState(false)
+
+  const [stockAnalysisItem, setStockAnalysisItem] = useState(null)
+  const [registryPage, setRegistryPage] = useState(1)
+  const [registryPageSize, setRegistryPageSize] = useState(50)
+
+  useEffect(() => {
+    setRegistryPage(1)
+  }, [searchQuery])
 
   const handleSaveInventoryQty = async (item) => {
     if (!item || isSavingInv) return
@@ -74,37 +86,182 @@ export function InventoryTab({
   }
 
   if (activeTab === 'registry') {
+    const visibleReceipts = filterSgpReceiptRegistry(receiptRows, searchQuery)
+    const totalItems = visibleReceipts.length
+    const effectiveSize = registryPageSize === 'all' ? (totalItems || 1) : Number(registryPageSize)
+    const totalPages = Math.max(1, Math.ceil(totalItems / effectiveSize))
+    const safePage = Math.min(registryPage, totalPages)
+    const startIndex = (safePage - 1) * effectiveSize
+    const endIndex = registryPageSize === 'all' ? totalItems : Math.min(startIndex + effectiveSize, totalItems)
+    const displayedReceipts = registryPageSize === 'all' ? visibleReceipts : visibleReceipts.slice(startIndex, endIndex)
+
+    const navBtnStyle = (disabled) => ({
+      background: disabled ? (isDark ? '#1e2433' : '#f1f5f9') : (isDark ? '#1e293b' : '#ffffff'),
+      border: `1.5px solid ${t.tableBorder}`,
+      borderRadius: '8px',
+      padding: '5px 10px',
+      fontSize: '0.8rem',
+      fontWeight: 800,
+      color: disabled ? t.textMuted : t.textPrimary,
+      cursor: disabled ? 'not-allowed' : 'pointer',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '4px',
+      transition: 'all 0.15s ease'
+    })
+
     return (
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead>
-          <tr style={{ background: t.tableHeadBg, borderBottom: `1.5px solid ${t.tableBorder}`, textAlign: 'left', color: t.textSecondary, fontSize: '0.74rem' }}>
-            <th style={{ padding: '14px' }}>ДАТА / ЧАС</th>
-            <th style={{ padding: '14px' }}>КАРТКА</th>
-            <th style={{ padding: '14px' }}>ДЕТАЛЬ</th>
-            <th style={{ padding: '14px', textAlign: 'center' }}>КІЛЬКІСТЬ</th>
-            <th style={{ padding: '14px' }}>ОПЕРАТОР</th>
-          </tr>
-        </thead>
-        <tbody>
-          {(workCardHistory || []).filter(h => h.status === 'completed').slice(0, 50).map(card => (
-            <tr key={card.id} style={{ borderBottom: `1px solid ${t.tableRowBorder}`, fontSize: '0.85rem' }}>
-              <td style={{ padding: '14px', color: t.textSecondary }}>{card.completed_at ? new Date(card.completed_at).toLocaleString('uk-UA') : '—'}</td>
-              <td style={{ padding: '14px', fontWeight: 900, color: isDark ? '#34d399' : '#059669' }}>#{String(card.card_id || card.id).slice(-8).toUpperCase()}</td>
-              <td style={{ padding: '14px', fontWeight: 800, color: t.textPrimary }}>{card.nomenclature_name || card.card_info || 'Готова деталь'}</td>
-              <td style={{ padding: '14px', textAlign: 'center', fontWeight: 900, color: t.textPrimary }}>{card.quantity || 1} шт</td>
-              <td style={{ padding: '14px', color: t.textSecondary }}>{card.operator_name || '—'}</td>
-            </tr>
-          ))}
-          {(workCardHistory || []).filter(h => h.status === 'completed').length === 0 && (
-            <tr><td colSpan={5} style={{ padding: '40px', textAlign: 'center', color: t.textMuted }}>Записів у реєстрі випуску поки немає</td></tr>
-          )}
-        </tbody>
-      </table>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+        <div style={{ overflowX: 'auto', borderRadius: '14px', border: `1.5px solid ${t.tableBorder}` }}>
+          <table style={{ width: '100%', minWidth: '1050px', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ background: t.tableHeadBg, borderBottom: `1.5px solid ${t.tableBorder}`, textAlign: 'left', color: t.textSecondary, fontSize: '0.74rem' }}>
+                <th style={{ padding: '14px' }}>ДАТА / ЧАС</th>
+                <th style={{ padding: '14px' }}>ДЕТАЛЬ</th>
+                <th style={{ padding: '14px', textAlign: 'center' }}>КІЛЬКІСТЬ</th>
+                <th style={{ padding: '14px' }}>ЗВІДКИ НАДІЙШЛО</th>
+                <th style={{ padding: '14px' }}>НАРЯД</th>
+                <th style={{ padding: '14px' }}>КАРТКА</th>
+                <th style={{ padding: '14px' }}>ОПЕРАТОР</th>
+              </tr>
+            </thead>
+            <tbody>
+              {displayedReceipts.map(receipt => (
+                <tr key={receipt.id} style={{ borderBottom: `1px solid ${t.tableRowBorder}`, fontSize: '0.85rem' }}>
+                  <td style={{ padding: '14px', color: t.textSecondary, whiteSpace: 'nowrap' }}>
+                    {receipt.timestamp ? new Date(receipt.timestamp).toLocaleString('uk-UA') : '—'}
+                  </td>
+                  <td style={{ padding: '14px', color: t.textPrimary }}>
+                    <div style={{ fontWeight: 850 }}>{receipt.detailName}</div>
+                    {receipt.detailCode && <div style={{ marginTop: '3px', color: t.textMuted, fontSize: '0.72rem' }}>{receipt.detailCode}</div>}
+                  </td>
+                  <td style={{ padding: '14px', textAlign: 'center' }}>
+                    <span style={{ display: 'inline-flex', padding: '6px 12px', borderRadius: '10px', background: isDark ? 'rgba(16,185,129,0.14)' : '#ecfdf5', border: `1px solid ${isDark ? 'rgba(52,211,153,0.3)' : '#a7f3d0'}`, color: isDark ? '#34d399' : '#047857', fontWeight: 950 }}>
+                      {receipt.quantity.toLocaleString('uk-UA')} шт
+                    </span>
+                  </td>
+                  <td style={{ padding: '14px', color: t.textPrimary, fontWeight: 750 }}>{receipt.source}</td>
+                  <td style={{ padding: '14px', color: t.textPrimary, fontWeight: 850, whiteSpace: 'nowrap' }}>
+                    {receipt.orderNumber ? `№${receipt.orderNumber}${receipt.batchIndex ? `/${receipt.batchIndex}` : ''}` : '—'}
+                  </td>
+                  <td style={{ padding: '14px', fontWeight: 900, color: isDark ? '#34d399' : '#059669', whiteSpace: 'nowrap' }}>
+                    #{String(receipt.cardId || receipt.id).slice(-8).toUpperCase()}
+                  </td>
+                  <td style={{ padding: '14px', color: t.textSecondary }}>{receipt.operatorName}</td>
+                </tr>
+              ))}
+              {displayedReceipts.length === 0 && (
+                <tr><td colSpan={7} style={{ padding: '40px', textAlign: 'center', color: t.textMuted }}>
+                  {isReceiptRegistryLoading ? 'Завантаження надходжень на СГП…' : searchQuery ? 'За цим запитом надходжень не знайдено' : 'Надходжень на СГП поки немає'}
+                </td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* ── REGISTRY PAGINATION CONTROLS ── */}
+        <div style={{
+          display: 'flex',
+          justify: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '12px',
+          padding: '14px 18px',
+          background: t.tableHeadBg,
+          border: `1.5px solid ${t.tableBorder}`,
+          borderRadius: '14px'
+        }}>
+          <div style={{ fontSize: '0.82rem', fontWeight: 800, color: t.textSecondary }}>
+            {totalItems > 0 ? (
+              <>
+                Показано <strong style={{ color: t.textPrimary }}>{startIndex + 1}–{endIndex}</strong> з <strong style={{ color: isDark ? '#34d399' : '#059669' }}>{totalItems.toLocaleString('uk-UA')}</strong> надходжень
+              </>
+            ) : (
+              'Записи відсутні'
+            )}
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', fontWeight: 800, color: t.textSecondary }}>
+              <span>На сторінці:</span>
+              <select
+                value={registryPageSize}
+                onChange={(e) => {
+                  const val = e.target.value === 'all' ? 'all' : Number(e.target.value)
+                  setRegistryPageSize(val)
+                  setRegistryPage(1)
+                }}
+                style={{
+                  background: t.inputBg,
+                  border: `1.5px solid ${t.tableBorder}`,
+                  borderRadius: '8px',
+                  padding: '4px 10px',
+                  fontSize: '0.82rem',
+                  fontWeight: 900,
+                  color: t.inputText,
+                  cursor: 'pointer',
+                  outline: 'none'
+                }}
+              >
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+                <option value={250}>250</option>
+                <option value={500}>500</option>
+                <option value="all">Усі ({totalItems})</option>
+              </select>
+            </div>
+
+            {registryPageSize !== 'all' && totalPages > 1 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <button
+                  onClick={() => setRegistryPage(1)}
+                  disabled={safePage === 1}
+                  style={navBtnStyle(safePage === 1)}
+                  title="Перша сторінка"
+                >
+                  <ChevronsLeft size={16} />
+                </button>
+                <button
+                  onClick={() => setRegistryPage(prev => Math.max(1, prev - 1))}
+                  disabled={safePage === 1}
+                  style={navBtnStyle(safePage === 1)}
+                  title="Попередня сторінка"
+                >
+                  <ChevronLeft size={16} /> Назад
+                </button>
+
+                <span style={{ fontSize: '0.84rem', fontWeight: 900, padding: '0 8px', color: t.textPrimary }}>
+                  {safePage} / {totalPages}
+                </span>
+
+                <button
+                  onClick={() => setRegistryPage(prev => Math.min(totalPages, prev + 1))}
+                  disabled={safePage === totalPages}
+                  style={navBtnStyle(safePage === totalPages)}
+                  title="Наступна сторінка"
+                >
+                  Вперед <ChevronRight size={16} />
+                </button>
+                <button
+                  onClick={() => setRegistryPage(totalPages)}
+                  disabled={safePage === totalPages}
+                  style={navBtnStyle(safePage === totalPages)}
+                  title="Остання сторінка"
+                >
+                  <ChevronsRight size={16} />
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
     )
   }
 
   return (
-    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+    <>
+      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
       <thead>
         <tr style={{ background: t.tableHeadBg, borderBottom: `1.5px solid ${t.tableBorder}`, textAlign: 'left', color: t.textSecondary, fontSize: '0.74rem' }}>
           <th style={{ padding: '14px 16px' }}>НАЙМЕНУВАННЯ ВИРОБУ</th>
@@ -170,21 +327,41 @@ export function InventoryTab({
                   autoFocus
                 />
               ) : (
-                <div style={{
-                  display: 'inline-flex',
-                  alignItems: 'baseline',
-                  gap: '4px',
-                  padding: '6px 14px',
-                  borderRadius: '12px',
-                  background: isDark ? 'rgba(16, 185, 129, 0.12)' : '#ecfdf5',
-                  border: `1px solid ${isDark ? 'rgba(16, 185, 129, 0.25)' : '#a7f3d0'}`,
-                  color: isDark ? '#34d399' : '#047857',
-                  fontWeight: 950,
-                  fontSize: '0.92rem'
-                }}>
+                <button
+                  type="button"
+                  onClick={() => setStockAnalysisItem(item)}
+                  title="Натисніть для перегляду карток випуску, що наповнили цей залишок"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '6px 14px',
+                    borderRadius: '12px',
+                    background: isDark ? 'rgba(16, 185, 129, 0.12)' : '#ecfdf5',
+                    border: `1px solid ${isDark ? 'rgba(16, 185, 129, 0.25)' : '#a7f3d0'}`,
+                    color: isDark ? '#34d399' : '#047857',
+                    fontWeight: 950,
+                    fontSize: '0.92rem',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                    outline: 'none',
+                    boxShadow: isDark ? '0 2px 8px rgba(16, 185, 129, 0.12)' : '0 1px 3px rgba(4, 120, 87, 0.08)'
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.transform = 'translateY(-1px)'
+                    e.currentTarget.style.borderColor = isDark ? '#34d399' : '#059669'
+                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(16, 185, 129, 0.25)'
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.transform = 'none'
+                    e.currentTarget.style.borderColor = isDark ? 'rgba(16, 185, 129, 0.25)' : '#a7f3d0'
+                    e.currentTarget.style.boxShadow = isDark ? '0 2px 8px rgba(16, 185, 129, 0.12)' : '0 1px 3px rgba(4, 120, 87, 0.08)'
+                  }}
+                >
                   <span>{Number(item.total_qty || 0).toLocaleString('uk-UA')}</span>
                   <small style={{ color: isDark ? '#a7f3d0' : '#065f46', opacity: 0.8, fontWeight: 700, fontSize: '0.72rem' }}>{item.unit}</small>
-                </div>
+                  <Eye size={13} style={{ opacity: 0.85, marginLeft: '2px' }} />
+                </button>
               )}
             </td>
             <td style={{ padding: '12px 16px', textAlign: 'center' }}>
@@ -324,5 +501,13 @@ export function InventoryTab({
         )}
       </tbody>
     </table>
+
+    <StockCardsAnalysisModal
+      item={stockAnalysisItem}
+      receiptRows={receiptRows}
+      nomenclatures={nomenclatures}
+      onClose={() => setStockAnalysisItem(null)}
+    />
+    </>
   )
 }

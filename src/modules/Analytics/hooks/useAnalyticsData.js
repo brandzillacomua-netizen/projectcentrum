@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useMES } from '../../../MESContext'
 import { supabase } from '../../../supabase'
 
-const FINAL_STAGES = new Set(['пакування/сгп', 'прийомка', 'склад бз', 'сгп', 'пакування', 'completed'])
+const FINAL_STAGES = new Set(['пакування/сгп', 'прийомка', 'склад бз', 'сгп', 'пакування', 'паквання', 'completed'])
 const ANALYTICS_PERIOD_DAYS = 30
 
 export const useAnalyticsData = () => {

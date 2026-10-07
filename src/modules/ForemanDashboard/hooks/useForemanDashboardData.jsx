@@ -280,7 +280,8 @@ export const useForemanDashboardData = () => {
           }).reduce((s, c) => s + (Number(c.quantity) || 0), 0)
         }
 
-        const qCutWait = getQ(['Розкрій'], ['new', 'waiting-materials', 'waiting-machines'])
+        const qWhWait = nomCards.filter(c => c.operation !== 'Склад БЗ' && c.operation !== 'Склад BZ' && (['waiting-materials', 'waiting_material', 'waiting-warehouse', 'waiting-cutters'].includes(c.status) || c.operation === 'Склад' || c.operation === 'Очікування Склад')).reduce((s, c) => s + (Number(c.quantity) || 0), 0)
+        const qCutWait = getQ(['Розкрій'], ['new', 'waiting-machines'])
         const qCut = getQ(['Розкрій'], ['in-progress', 'paused', 'hold'])
         const qCutBuf = getQ(['Розкрій'], ['at-buffer'])
         const qGalt = getQ(['Галтовка'], ['in-progress'])
@@ -307,7 +308,7 @@ export const useForemanDashboardData = () => {
           ? flowBzQty
           : Math.max(0, groupProduced - qSort - totalShop2Qty) + bzCardsQty
 
-        const sum = qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriy + qSortAct + qSort + qBz
+        const sum = qWhWait + qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriy + qSortAct + qSort + qBz
 
         const snap = snapshot[nid] || {}
         const need = Number(snap.need) || 0
@@ -316,13 +317,11 @@ export const useForemanDashboardData = () => {
         const flowProducedRaw = getBestKnownProducedFromFlow(flowRows)
         const flowScrapQty = sumFlowField(flowRows, 'total_scrap')
         const flowProducedNet = Math.max(0, flowProducedRaw - flowScrapQty + plannedReserve)
-        const earlyWipQty = qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriy + qSortAct
+        const earlyWipQty = qWhWait + qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriy + qSortAct
         const nonReissueEarlyWip = Math.max(0, flowScrapQty - plannedReserve) > 0 ? 0 : earlyWipQty
         const sgpProducedFromCards = Math.max(0, groupProduced - qSort)
-        const sgpForProgress = need > 0
-          ? Math.min(need, sgpProducedFromCards, Math.max(0, need - nonReissueEarlyWip))
-          : sgpProducedFromCards
-        cache[task.id][nid] = groupProduced > 0 ? sgpForProgress : (flowProducedRaw > 0 ? Math.min(need || flowProducedNet, flowProducedNet) : sum)
+        const actualProduced = flowProducedRaw > 0 ? flowProducedNet : (groupProduced > 0 ? sgpProducedFromCards : sum)
+        cache[task.id][nid] = actualProduced
       })
     })
     return cache
@@ -572,7 +571,13 @@ export const useForemanDashboardData = () => {
           }).reduce((s, c) => s + (Number(c.quantity) || 0), 0)
         }
 
-        const qCutWait = getQ(['Розкрій'], ['new', 'waiting-materials', 'waiting-machines'])
+        const qWhWait = filteredCards.filter(c => {
+          if (String(c.nomenclature_id) !== String(nom.id)) return false
+          if (c.task_id && taskParentMap[c.task_id] && taskParentMap[c.task_id] !== parentId) return false
+          if (c.operation === 'Склад БЗ' || c.operation === 'Склад BZ') return false
+          return ['waiting-materials', 'waiting_material', 'waiting-warehouse', 'waiting-cutters'].includes(c.status) || c.operation === 'Склад' || c.operation === 'Очікування Склад'
+        }).reduce((s, c) => s + (Number(c.quantity) || 0), 0)
+        const qCutWait = getQ(['Розкрій'], ['new', 'waiting-machines'])
         const qCut = getQ(['Розкрій'], ['in-progress', 'paused', 'hold'])
         const qCutBuf = getQ(['Розкрій'], ['at-buffer'])
         const qGalt = getQ(['Галтовка'], ['new', 'in-progress', 'paused', 'hold'])
@@ -653,7 +658,7 @@ export const useForemanDashboardData = () => {
 
         const sgpProduced = Math.max(0, groupProduced - qSort)
         const producedForSgp = totalShop2Qty > 0 ? completedShop2Qty : (groupProduced > 0 ? sgpProduced : completedShop2Qty)
-        const earlyWipQty = qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriy + qSortAct + qMalWait + qMal + qMalBuf + qPresWait + qPres + qPresBuf + qDoopWait + qDoop + qDoopBuf
+        const earlyWipQty = qWhWait + qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriy + qSortAct + qMalWait + qMal + qMalBuf + qPresWait + qPres + qPresBuf + qDoopWait + qDoop + qDoopBuf
         const nonReissueEarlyWip = Math.max(0, flowScrapQty - plannedReserve) > 0 ? 0 : earlyWipQty
         const qSgp = demandForParent > 0
           ? Math.min(demandForParent, producedForSgp, Math.max(0, demandForParent - nonReissueEarlyWip))
@@ -702,7 +707,7 @@ export const useForemanDashboardData = () => {
         const qVkyaCalculated = Math.max(0, observedScrap - qScrap - qVkyaReturned)
         const qVkya = Math.max(qVkyaFromCards, qVkyaCalculated)
 
-        const sum = qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriy + qSortAct + qSort + qMalWait + qMal + qMalBuf + qPresWait + qPres + qPresBuf + qDoopWait + qDoop + qDoopBuf + qSgp + qBz + qVkya
+        const sum = qWhWait + qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriy + qSortAct + qSort + qMalWait + qMal + qMalBuf + qPresWait + qPres + qPresBuf + qDoopWait + qDoop + qDoopBuf + qSgp + qBz + qVkya
 
         const matchSearch = !searchQuery ||
           nom.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -717,7 +722,7 @@ export const useForemanDashboardData = () => {
             code: nom.code || '',
             demand: demandForParent,
             qtyPerProduct,
-            qCutWait, qCut, qCutBuf, qGalt, qGaltBuf, qPriy,
+            qWhWait, qCutWait, qCut, qCutBuf, qGalt, qGaltBuf, qPriy,
             qSortAct, qSort, qMalWait, qMal, qMalBuf, qPresWait, qPres,
             qPresBuf, qDoopWait, qDoop, qDoopBuf, qSgp, qBz, qScrap, qVkya, sum
           })
@@ -759,7 +764,8 @@ export const useForemanDashboardData = () => {
     }
 
     let matchingCards = []
-    if (stageKey === 'qCutWait') matchingCards = matchOpsAndStatus(['Розкрій'], ['new', 'waiting-materials', 'waiting-machines'])
+    if (stageKey === 'qWhWait') matchingCards = nomCards.filter(c => c.operation !== 'Склад БЗ' && (['waiting-materials', 'waiting_material', 'waiting-warehouse', 'waiting-cutters'].includes(c.status) || c.operation === 'Склад' || c.operation === 'Очікування Склад'))
+    else if (stageKey === 'qCutWait') matchingCards = matchOpsAndStatus(['Розкрій'], ['new', 'waiting-machines'])
     else if (stageKey === 'qCut') matchingCards = matchOpsAndStatus(['Розкрій'], ['in-progress', 'paused', 'hold'])
     else if (stageKey === 'qCutBuf') matchingCards = matchOpsAndStatus(['Розкрій'], ['at-buffer'])
     else if (stageKey === 'qGalt') matchingCards = matchOpsAndStatus(['Галтовка'], ['new', 'in-progress', 'paused', 'hold'])

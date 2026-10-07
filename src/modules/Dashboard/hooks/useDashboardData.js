@@ -197,7 +197,7 @@ export const useDashboardData = () => {
   const { groupedDashboardData, totals, productTrends } = useMemo(() => {
     const groups = {}
     const trends = {}
-    const totalsAcc = { qCutWait: 0, qCut: 0, qCutBuf: 0, qGalt: 0, qGaltBuf: 0, qPriy: 0, qSortAct: 0, qSort: 0, qMalWait: 0, qMal: 0, qMalBuf: 0, qPres: 0, qPresBuf: 0, qDoop: 0, qDoopBuf: 0, qSgp: 0, qBz: 0, qScrap: 0, sum: 0 }
+    const totalsAcc = { qWhWait: 0, qCutWait: 0, qCut: 0, qCutBuf: 0, qGalt: 0, qGaltBuf: 0, qPriy: 0, qSortAct: 0, qSort: 0, qMalWait: 0, qMal: 0, qMalBuf: 0, qPres: 0, qPresBuf: 0, qDoop: 0, qDoopBuf: 0, qSgp: 0, qBz: 0, qScrap: 0, sum: 0 }
 
     if (!nomenclatures || !bomItems || !orders) return { groupedDashboardData: [], totals: totalsAcc, productTrends: {} }
 
@@ -422,7 +422,13 @@ export const useDashboardData = () => {
           }).reduce((sum, c) => sum + Math.max(0, (Number(c.quantity) || 0) - (Number(c.used_in_shop2_qty) || 0)), 0)
         }
 
-        const qCutWait = getQty(['Розкрій'], 'new')
+        const qWhWait = (filteredWorkCards || []).filter(c => {
+          if (String(c.nomenclature_id) !== String(nom.id)) return false
+          if (!isOther && c.task_id && taskParentMap[c.task_id] && taskParentMap[c.task_id] !== String(parentId)) return false
+          if (c.operation === 'Склад БЗ' || c.operation === 'Склад BZ') return false
+          return ['waiting-materials', 'waiting_material', 'waiting-warehouse', 'waiting-cutters'].includes(c.status) || c.operation === 'Склад' || c.operation === 'Очікування Склад'
+        }).reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
+        const qCutWait = getQty(['Розкрій'], ['new', 'waiting-machines'])
         const qCut = getQty(['Розкрій'], 'in-progress')
         const qCutBuf = getQty(['Розкрій'], 'at-buffer')
         const qGalt = getQty('Галтовка', 'in-progress')
@@ -460,15 +466,10 @@ export const useDashboardData = () => {
           
           const completedShop2Qty = orderAllTaskCards.filter(c => {
             const op = (c.operation || '').toLowerCase()
-            const isShop2 = ['пресування', 'фарбування', 'малярка', 'доопрацювання'].some(o => op.includes(o))
-            return isShop2 && c.status === 'completed'
+            const isCompleted = c.status === 'completed'
+            const isShop2OrPack = ['пресування', 'фарбування', 'малярка', 'доопрацювання', 'пакування', 'сгп'].some(o => op.includes(o))
+            return (isShop2OrPack || isCompleted) && isCompleted
           }).reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
-
-          const taskWithSnapshot = orderTasks.find(t => t.plan_snapshot && t.plan_snapshot[String(nom.id)])
-          const initialStock = taskWithSnapshot ? (Number(taskWithSnapshot.plan_snapshot[String(nom.id)].stock) || 0) : 0
-
-          const totalPotentialSgp = completedShop2Qty + initialStock
-          qSgp = Math.min(specificDemand, totalPotentialSgp)
 
           const completedShop1Qty = orderAllTaskCards.filter(c => {
             const op = (c.operation || '').toLowerCase()
@@ -478,9 +479,15 @@ export const useDashboardData = () => {
             return (isShop1 && isCompleted) || isSgpOrBzCard
           }).reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
 
+          const taskWithSnapshot = orderTasks.find(t => t.plan_snapshot && t.plan_snapshot[String(nom.id)])
+          const initialStock = taskWithSnapshot ? (Number(taskWithSnapshot.plan_snapshot[String(nom.id)].stock) || 0) : 0
+
+          const totalPotentialSgp = Math.max(completedShop2Qty, completedShop1Qty) + initialStock
+          qSgp = totalPotentialSgp
+
           const totalShop2Qty = orderAllTaskCards.filter(c => {
             const op = (c.operation || '').toLowerCase()
-            return ['пресування', 'фарбування', 'малярка', 'доопрацювання'].some(o => op.includes(o))
+            return ['пресування', 'фарбування', 'малярка', 'доопрацювання', 'пакування', 'сгп'].some(o => op.includes(o))
           }).reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
 
           const bzExcess = Math.max(0, totalPotentialSgp - specificDemand)
@@ -496,18 +503,28 @@ export const useDashboardData = () => {
             return String(pId) === String(parentId)
           })
 
+          const cardSgpQty = (filteredWorkCards || []).filter(c => {
+            if (String(c.nomenclature_id) !== String(nom.id)) return false
+            if (!isOther && c.task_id && taskParentMap[c.task_id] && taskParentMap[c.task_id] !== String(parentId)) return false
+            if (c.operation === 'Склад БЗ' || c.operation === 'Склад BZ') return false
+            return c.status === 'completed' || c.status === 'at-shop2-buffer'
+          }).reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
+
           if (activeOrdersForParent.length > 0) {
+            let allocSum = 0
             activeOrdersForParent.forEach(o => {
-              qSgp += orderAllocatedSgp[o.id]?.[nom.id] || 0
+              allocSum += orderAllocatedSgp[o.id]?.[nom.id] || 0
               qBz += orderAllocatedBz[o.id]?.[nom.id] || 0
             })
+            qSgp = Math.max(allocSum, cardSgpQty)
           } else {
-            qSgp = (inventory || []).filter(i => String(i.nomenclature_id) === String(nom.id) && (i.type === 'finished' || i.warehouse === 'sgp' || i.warehouse === 'SGP')).reduce((sum, i) => sum + (Number(i.total_qty) || 0), 0)
+            const invSgp = (inventory || []).filter(i => String(i.nomenclature_id) === String(nom.id) && (i.type === 'finished' || i.warehouse === 'sgp' || i.warehouse === 'SGP')).reduce((sum, i) => sum + (Number(i.total_qty) || 0), 0)
+            qSgp = Math.max(invSgp, cardSgpQty)
             qBz = (inventory || []).filter(i => String(i.nomenclature_id) === String(nom.id) && i.type === 'bz').reduce((sum, i) => sum + (Number(i.total_qty) || 0), 0)
           }
         }
 
-        const sum = qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriyCards + qSortAct + qSortCards + qMalWait + qMal + qMalBuf + qPres + qPresBuf + qDoop + qDoopBuf + qSgp + (selectedOrderId ? qBz : 0)
+        const sum = qWhWait + qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriyCards + qSortAct + qSortCards + qMalWait + qMal + qMalBuf + qPres + qPresBuf + qDoop + qDoopBuf + qSgp + (selectedOrderId ? qBz : 0)
 
         const row = {
           id: nom.id + (isOther ? '' : '_' + parentId),
@@ -516,6 +533,7 @@ export const useDashboardData = () => {
           type: nom.type,
           demand: specificDemand,
           qtyPerProduct,
+          qWhWait,
           qCutWait,
           qCut,
           qCutBuf,
@@ -543,7 +561,7 @@ export const useDashboardData = () => {
             const hasActiveOrder = !isOther && (demandData.productDemand[parentId] || 0) > 0
             if (hasActiveOrder) {
               groups[parentId].rows.push(row)
-              totalsAcc.qCutWait += qCutWait; totalsAcc.qCut += qCut; totalsAcc.qCutBuf += qCutBuf;
+              totalsAcc.qWhWait += qWhWait; totalsAcc.qCutWait += qCutWait; totalsAcc.qCut += qCut; totalsAcc.qCutBuf += qCutBuf;
               totalsAcc.qGalt += qGalt; totalsAcc.qGaltBuf += qGaltBuf; totalsAcc.qPriy += qPriyCards;
               totalsAcc.qSortAct += qSortAct; totalsAcc.qSort += qSortCards; totalsAcc.qMalWait += qMalWait;
               totalsAcc.qMal += qMal; totalsAcc.qMalBuf += qMalBuf; totalsAcc.qPres += qPres;
@@ -552,7 +570,7 @@ export const useDashboardData = () => {
             }
           } else {
             groups[parentId].rows.push(row)
-            totalsAcc.qCutWait += qCutWait; totalsAcc.qCut += qCut; totalsAcc.qCutBuf += qCutBuf;
+            totalsAcc.qWhWait += qWhWait; totalsAcc.qCutWait += qCutWait; totalsAcc.qCut += qCut; totalsAcc.qCutBuf += qCutBuf;
             totalsAcc.qGalt += qGalt; totalsAcc.qGaltBuf += qGaltBuf; totalsAcc.qPriy += qPriyCards;
             totalsAcc.qSortAct += qSortAct; totalsAcc.qSort += qSortCards; totalsAcc.qMalWait += qMalWait;
             totalsAcc.qMal += qMal; totalsAcc.qMalBuf += qMalBuf; totalsAcc.qPres += qPres;
@@ -641,7 +659,7 @@ export const useDashboardData = () => {
         if (selectedOrderId && order.id === selectedOrderId) {
           const orderAllTaskCards = orderAllCards.filter(c => String(c.nomenclature_id) === String(nom.id))
           const completedSgpQty = orderAllTaskCards
-            .filter(c => (c.operation === 'Пакування/СГП' || c.operation === 'Склад СГП') && c.status === 'completed')
+            .filter(c => (['Пакування/СГП', 'Склад СГП', 'Паквання', 'Пакування'].includes(c.operation)) && c.status === 'completed')
             .reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
           const activeQty = orderAllTaskCards.filter(c => {
             if (c.status === 'completed') return false
@@ -753,7 +771,7 @@ export const useDashboardData = () => {
           const orderAllTaskCards = orderAllCards.filter(c => String(c.nomenclature_id) === String(bomEntry.child_id))
 
           const completedSgpQty = orderAllTaskCards
-            .filter(c => (c.operation === 'Пакування/СГП' || c.operation === 'Склад СГП') && c.status === 'completed')
+            .filter(c => (['Пакування/СГП', 'Склад СГП', 'Паквання', 'Пакування'].includes(c.operation)) && c.status === 'completed')
             .reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
 
           const bzAcceptedQty = orderAllTaskCards
@@ -763,7 +781,7 @@ export const useDashboardData = () => {
           const otherWipQty = orderAllTaskCards.filter(c => {
             if (c.status === 'completed') return false
             if (c.operation === 'Склад БЗ') return false
-            if (c.operation === 'Пакування/СГП' || c.operation === 'Склад СГП') return false
+            if (['Пакування/СГП', 'Склад СГП', 'Паквання', 'Пакування'].includes(c.operation)) return false
             if (c.status === 'at-shop2-buffer') return false
             return true
           }).reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
@@ -828,8 +846,9 @@ export const useDashboardData = () => {
   }, [nomenclatures, bomItems, orders, workCards, inventory, demandData, taskParentMap, searchQuery, wipOnly, shippedQuantities, activeOrders, workCardHistory, orderAllCards])
 
   const getGroupTotals = (rows) => {
-    const res = { qCutWait: 0, qCut: 0, qCutBuf: 0, qGalt: 0, qGaltBuf: 0, qPriy: 0, qSortAct: 0, qSort: 0, qMalWait: 0, qMal: 0, qMalBuf: 0, qPres: 0, qPresBuf: 0, qDoop: 0, qDoopBuf: 0, qSgp: 0, qBz: 0, qScrap: 0, sum: 0 }
+    const res = { qWhWait: 0, qCutWait: 0, qCut: 0, qCutBuf: 0, qGalt: 0, qGaltBuf: 0, qPriy: 0, qSortAct: 0, qSort: 0, qMalWait: 0, qMal: 0, qMalBuf: 0, qPres: 0, qPresBuf: 0, qDoop: 0, qDoopBuf: 0, qSgp: 0, qBz: 0, qScrap: 0, sum: 0 }
     rows.forEach(row => {
+      res.qWhWait += row.qWhWait || 0
       res.qCutWait += row.qCutWait
       res.qCut += row.qCut
       res.qCutBuf += row.qCutBuf

@@ -6,6 +6,7 @@ import { supabase } from '../../supabase'
 import { useQualityLossTotals } from '../VKYA/quality-hold/useQualityLossTotals'
 import { useShop2BufferData } from './hooks/useShop2BufferData'
 import { useShop2CardCreator } from './hooks/useShop2CardCreator'
+import { useShop2CompletedCards } from './hooks/useShop2CompletedCards'
 import { Shop2BufferQueueTable } from './components/Shop2BufferQueueTable'
 import { GenerateShop2CardModal } from './components/GenerateShop2CardModal'
 import { DeficitRerunListModal } from './components/DeficitRerunListModal'
@@ -43,6 +44,19 @@ export default function Shop2CardGenModule() {
   const { rows: finalScrapRows, reload: reloadFinalScrap } = useQualityLossTotals(supabase, taskIds)
 
   const {
+    completedCards: shop2CompletedCards,
+    isLoading: isShop2HistoryLoading,
+    reload: reloadShop2History
+  } = useShop2CompletedCards()
+
+  const combinedWorkCards = useMemo(() => {
+    const map = new Map()
+    ;(workCards || []).forEach(c => map.set(String(c.id), c))
+    ;(shop2CompletedCards || []).forEach(c => map.set(String(c.id), c))
+    return [...map.values()]
+  }, [workCards, shop2CompletedCards])
+
+  const {
     bufferRows,
     filteredRows,
     productSections,
@@ -53,7 +67,7 @@ export default function Shop2CardGenModule() {
   } = useShop2BufferData({
     orders,
     tasks,
-    workCards,
+    workCards: combinedWorkCards,
     workCardHistory,
     finalScrapRows,
     inventory,
@@ -162,6 +176,7 @@ export default function Shop2CardGenModule() {
             onClick={() => {
               if (typeof fetchData === 'function') fetchData(['work_cards', 'work_card_history', 'tasks', 'orders', 'inventory']).catch(() => {})
               reloadFinalScrap()
+              reloadShop2History()
             }}
             style={{ background: 'var(--card-bg, #ffffff)', border: '1px solid var(--border, #cbd5e1)', color: 'var(--text-muted, #475569)', padding: '10px 16px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
           >
@@ -293,10 +308,11 @@ export default function Shop2CardGenModule() {
 
       {activeTab === 'history' && (
         <Shop2HistoryCardsList
-          workCards={workCards}
+          workCards={shop2CompletedCards}
           orders={orders}
           nomenclatures={nomenclatures}
           shop2TaskIdsSet={shop2TaskIdsSet}
+          isLoading={isShop2HistoryLoading}
         />
       )}
 

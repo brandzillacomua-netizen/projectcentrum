@@ -122,7 +122,8 @@ const OrderDetailView = ({
         }).reduce((s, c) => s + (Number(c.quantity) || 0), 0)
       }
 
-      const qCutWait = getQFromCards(['Розкрій'], ['new', 'waiting-materials', 'waiting-machines'])
+      const qWhWait = nomCards.filter(c => c.operation !== 'Склад БЗ' && c.operation !== 'Склад BZ' && (['waiting-materials', 'waiting_material', 'waiting-warehouse', 'waiting-cutters'].includes(c.status) || c.operation === 'Склад' || c.operation === 'Очікування Склад')).reduce((s, c) => s + (Number(c.quantity) || 0), 0)
+      const qCutWait = getQFromCards(['Розкрій'], ['new', 'waiting-machines'])
       const qCut = getQFromCards(['Розкрій'], ['in-progress', 'paused', 'hold'])
       const qCutBuf = getQFromCards(['Розкрій'], ['at-buffer'])
       const qGalt = getQFromCards(['Галтовка'], ['new', 'in-progress', 'paused', 'hold'])
@@ -169,7 +170,7 @@ const OrderDetailView = ({
       const netSgpQty = Math.max(0, flowSgpQty - flowScrapQty)
       const sgpProduced = Math.max(0, groupProduced - qSort)
       const producedForSgp = totalShop2Qty > 0 ? completedShop2Qty : (groupProduced > 0 ? sgpProduced : completedShop2Qty)
-      const earlyWipQty = qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriy + qSortAct + qMalWait + qMal + qMalBuf + qPresWait + qPres + qPresBuf + qDoopWait + qDoop + qDoopBuf
+      const earlyWipQty = qWhWait + qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriy + qSortAct + qMalWait + qMal + qMalBuf + qPresWait + qPres + qPresBuf + qDoopWait + qDoop + qDoopBuf
       const nonReissueEarlyWip = Math.max(0, flowScrapQty - plannedReserve) > 0 ? 0 : earlyWipQty
       const qSgp = (snap.need || 0) > 0
         ? Math.min(snap.need || 0, producedForSgp, Math.max(0, (snap.need || 0) - nonReissueEarlyWip))
@@ -197,7 +198,7 @@ const OrderDetailView = ({
       const qVkyaCalculated = Math.max(0, observedScrap - qScrap)
       const qVkya = Math.max(qVkyaFromCards, qVkyaCalculated)
 
-      const sum = qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriy + qSortAct + qSort + qMalWait + qMal + qMalBuf + qPresWait + qPres + qPresBuf + qDoopWait + qDoop + qDoopBuf + qBz + qSgp + qVkya
+      const sum = qWhWait + qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriy + qSortAct + qSort + qMalWait + qMal + qMalBuf + qPresWait + qPres + qPresBuf + qDoopWait + qDoop + qDoopBuf + qBz + qSgp + qVkya
 
       const matchSearch = !searchQuery ||
         nom.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -207,7 +208,7 @@ const OrderDetailView = ({
         parts.push({
           id: nomIdStr, name: nom.name, code: nom.code || '',
           demand: snap.need || 0,
-          qCutWait, qCut, qCutBuf, qGalt, qGaltBuf, qPriy,
+          qWhWait, qCutWait, qCut, qCutBuf, qGalt, qGaltBuf, qPriy,
           qSortAct, qSort, qMalWait, qMal, qMalBuf, qPresWait, qPres,
           qPresBuf, qDoopWait, qDoop, qDoopBuf, qBz, qSgp, qScrap, qVkya, sum
         })

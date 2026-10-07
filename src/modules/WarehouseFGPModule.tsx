@@ -19,6 +19,7 @@ import { useWarehouseRealtime } from './WarehouseFGP/hooks/useWarehouseRealtime.
 import { useShop2Buffer } from './WarehouseFGP/hooks/useShop2Buffer.js'
 import { usePackagingQueue } from './WarehouseFGP/hooks/usePackagingQueue.js'
 import { useInventoryGrouping } from './WarehouseFGP/hooks/useInventoryGrouping.js'
+import { useSgpReceiptRegistry } from './WarehouseFGP/hooks/useSgpReceiptRegistry.js'
 import { exportSgpStockToExcel } from './WarehouseFGP/utils/exportSgpExcel.js'
 import { PackagingQueueTab as PackagingQueueTabRaw } from './WarehouseFGP/components/PackagingQueueTab.jsx'
 import { InventoryView as InventoryViewRaw } from './WarehouseFGP/components/InventoryView.jsx'
@@ -41,7 +42,6 @@ export const WarehouseFGPModule: React.FC = () => {
   const orders = useStore((state: any) => state.orders)
   const tasks = useStore((state: any) => state.tasks)
   const workCards = useStore((state: any) => state.workCards)
-  const workCardHistory = useStore((state: any) => state.workCardHistory)
   const currentUser = useStore((state: any) => state.currentUser)
 
   const { isDark, t } = useWarehouseTheme(theme)
@@ -85,6 +85,11 @@ export const WarehouseFGPModule: React.FC = () => {
   }: any = useShop2Buffer({ tasks, workCards, orders, nomenclatures, searchQuery })
 
   const {
+    receiptRows,
+    isLoading: isReceiptRegistryLoading
+  }: any = useSgpReceiptRegistry({ workCards, tasks, orders, nomenclatures })
+
+  const {
     groupedItems,
     filteredItems,
     tabCounts
@@ -93,7 +98,7 @@ export const WarehouseFGPModule: React.FC = () => {
     activeTab,
     nomenclatures,
     searchQuery,
-    workCardHistory,
+    receiptRows,
     totalShop2BufferParts
   })
 
@@ -407,7 +412,8 @@ export const WarehouseFGPModule: React.FC = () => {
         newItem={newItem}
         setNewItem={setNewItem}
         handleAddInventoryItem={handleAddInventoryItem}
-        workCardHistory={workCardHistory}
+        receiptRows={receiptRows}
+        isReceiptRegistryLoading={isReceiptRegistryLoading}
         shop2BufferCards={shop2BufferCards}
         totalShop2BufferParts={totalShop2BufferParts}
         shop2BufferTaskGroups={shop2BufferTaskGroups}

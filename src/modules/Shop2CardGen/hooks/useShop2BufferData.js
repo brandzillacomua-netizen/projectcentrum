@@ -234,16 +234,12 @@ export function useShop2BufferData({
                        infoLower.includes('сгп') ||
                        infoLower.includes('sgp')
 
-        if (isPack) {
-          // Card has reached or is designated for Packaging / SGP
+        if (card.status === 'completed') {
           partEntry.completedQty += qty
           orderSub.completedQty += qty
         } else if (['new', 'in-progress', 'waiting-cutters', 'waiting-materials', 'waiting-buffer', 'at-buffer'].includes(card.status)) {
           partEntry.inProgressQty += qty
           orderSub.inProgressQty += qty
-        } else if (card.status === 'completed') {
-          partEntry.completedQty += qty
-          orderSub.completedQty += qty
         }
 
         if (scrap > 0) {
@@ -313,7 +309,7 @@ export function useShop2BufferData({
         const subScrap = Number(sub.shop2ScrapQty || 0)
         const subUtil = utilByOrderPart.get(`${partEntry.nomId}|${sub.orderId}`) || 0
         const subCompleted = Number(sub.completedQty || 0)
-        const subNetPack = Math.max(subCompleted, Math.max(0, subUsedShop2 - subInProg - subScrap))
+        const subNetPack = subCompleted
 
         ordersList.push({
           ...sub,
@@ -340,10 +336,7 @@ export function useShop2BufferData({
       const totalScrapShop2 = Number(partEntry.shop2ScrapQty || 0)
       const totalUtilShop2 = ordersList.reduce((sum, order) => sum + Number(order.shop2UtilQty || 0), 0)
       const totalCompletedShop2 = Number(partEntry.completedQty || 0)
-      const netPackagingQty = Math.max(
-        totalCompletedShop2,
-        Math.max(0, totalUsedShop2 - totalInProgShop2 - totalScrapShop2)
-      )
+      const netPackagingQty = totalCompletedShop2
 
       // Total Covered / Pipeline Qty for СУМА (Є / ПОТРЕБА): ВЗЯТО З БЗ + В РОБОТІ (ЦЕХ 1) + ОТРЕДАНО/В РОБОТІ (ЦЕХ 2) - БРАК
       const totalCoveredQty = Math.max(0, stockBzQty + awaitingShop1Qty + partEntry.totalReceived - partEntry.shop2ScrapQty)
@@ -371,6 +364,12 @@ export function useShop2BufferData({
       if (selectedOrderId !== 'all') {
         const hasOrder = row.ordersList.some(o => String(o.orderId) === String(selectedOrderId))
         if (!hasOrder) return false
+      } else {
+        const hasActiveProduction = (row.availableQty > 0) ||
+                                    (row.inProgressQty > 0) ||
+                                    (row.awaitingShop1Qty > 0) ||
+                                    (row.shop2ScrapQty > 0)
+        if (!hasActiveProduction) return false
       }
 
       if (searchTerm) {
