@@ -63,12 +63,8 @@ export function useSgpReceiptRegistry({ workCards, tasks, orders, nomenclatures 
     fetchReceipts()
     const channel = supabase
       .channel('sgp-receipt-registry-realtime')
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'work_card_history',
-        filter: `stage_name=in.(Пакування/СГП,Паквання,Пакування)`
-      }, fetchReceipts)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'work_card_history' }, fetchReceipts)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'work_cards' }, fetchReceipts)
       .subscribe()
 
     return () => {

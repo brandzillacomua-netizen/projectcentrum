@@ -58,6 +58,7 @@ export function useShop2CompletedCards() {
     const channel = supabase
       .channel('shop2-completed-cards-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'work_cards' }, reload)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'work_card_history' }, reload)
       .subscribe()
 
     return () => {
