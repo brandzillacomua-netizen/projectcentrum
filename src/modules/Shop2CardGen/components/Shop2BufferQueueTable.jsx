@@ -1,4 +1,3 @@
-import React from 'react'
 import { Play, Search, Package, ArrowUpDown, Box, AlertTriangle, ShieldCheck } from 'lucide-react'
 
 export function Shop2BufferQueueTable({
@@ -227,6 +226,7 @@ export function Shop2BufferQueueTable({
                       <th style={{ padding: '14px 20px', textAlign: 'center', color: '#0284c7' }}>В РОБОТІ (ЦЕХ 1)</th>
                       <th style={{ padding: '14px 20px', textAlign: 'center' }}>В роботі (Цех 2)</th>
                       <th style={{ padding: '14px 20px', textAlign: 'center' }}>БРАК ЦЕХУ 2</th>
+                      <th style={{ padding: '14px 20px', textAlign: 'center', color: '#b91c1c' }}>УТИЛЬ ЦЕХУ 2</th>
                       <th style={{ padding: '14px 20px', textAlign: 'center' }}>ФАКТИЧНИЙ ВИХІД (СГП / ПАКУВАННЯ)</th>
                       <th style={{ padding: '14px 20px', textAlign: 'center' }}>ВІЛЬНО ДЛЯ РК</th>
                       <th style={{ padding: '14px 20px', textAlign: 'right' }}>Дія</th>
@@ -236,6 +236,7 @@ export function Shop2BufferQueueTable({
                     {sec.rows.map(row => {
                       const canLaunch = row.availableQty > 0
                       const hasScrap = row.shop2ScrapQty > 0
+                      const hasUtil = row.shop2UtilQty > 0
 
                       return (
                         <tr key={row.key} style={{ borderBottom: '1px solid var(--border, #f1f5f9)', transition: 'background 0.2s' }}>
@@ -326,6 +327,24 @@ export function Shop2BufferQueueTable({
                             </span>
                           </td>
 
+                          {/* УТИЛЬ ЦЕХУ 2 — лише остаточна категорія 4 після класифікації ВКЯ */}
+                          <td style={{ padding: '14px 20px', textAlign: 'center' }}>
+                            <span
+                              title="Остаточний утиль після класифікації ВКЯ (категорія 4)"
+                              style={{
+                                color: hasUtil ? '#b91c1c' : 'var(--text-muted, #94a3b8)',
+                                fontWeight: 950,
+                                background: hasUtil ? 'rgba(127, 29, 29, 0.1)' : 'transparent',
+                                border: hasUtil ? '1px solid rgba(185, 28, 28, 0.35)' : 'none',
+                                padding: hasUtil ? '4px 10px' : '0',
+                                borderRadius: '8px',
+                                fontSize: '0.85rem'
+                              }}
+                            >
+                              {row.shop2UtilQty.toLocaleString()} <span style={{ fontSize: '0.65rem' }}>шт</span>
+                            </span>
+                          </td>
+
                           {/* ФАКТИЧНИЙ ВИХІД (ПАКУВАННЯ) */}
                           <td style={{ padding: '14px 20px', textAlign: 'center' }}>
                             <span
@@ -410,6 +429,7 @@ export function Shop2BufferQueueTable({
                 <th style={{ padding: '16px 20px', textAlign: 'center', color: '#0284c7' }}>В РОБОТІ (ЦЕХ 1)</th>
                 <th style={{ padding: '16px 20px', textAlign: 'center' }}>В роботі (Цех 2)</th>
                 <th style={{ padding: '16px 20px', textAlign: 'center' }}>БРАК ЦЕХУ 2</th>
+                <th style={{ padding: '16px 20px', textAlign: 'center', color: '#b91c1c' }}>УТИЛЬ ЦЕХУ 2</th>
                 <th style={{ padding: '16px 20px', textAlign: 'center' }}>ФАКТИЧНИЙ ВИХІД (СГП / ПАКУВАННЯ)</th>
                 <th style={{ padding: '16px 20px', textAlign: 'center' }}>ВІЛЬНО ДЛЯ РК</th>
                 <th style={{ padding: '16px 20px', textAlign: 'right' }}>Дія</th>
@@ -418,7 +438,7 @@ export function Shop2BufferQueueTable({
             <tbody>
               {rows.length === 0 ? (
                 <tr>
-                  <td colSpan="10" style={{ padding: '50px 20px', textAlign: 'center', color: 'var(--text-muted, #64748b)' }}>
+                  <td colSpan="11" style={{ padding: '50px 20px', textAlign: 'center', color: 'var(--text-muted, #64748b)' }}>
                     <Package size={36} style={{ margin: '0 auto 12px', opacity: 0.3 }} />
                     <div>Буфер Цеху №2 порожній або немає деталей за фільтрами.</div>
                   </td>
@@ -427,6 +447,7 @@ export function Shop2BufferQueueTable({
                 rows.map(row => {
                   const canLaunch = row.availableQty > 0
                   const hasScrap = row.shop2ScrapQty > 0
+                  const hasUtil = row.shop2UtilQty > 0
 
                   return (
                     <tr key={row.key} style={{ borderBottom: '1px solid var(--border, #f1f5f9)', transition: 'background 0.2s' }}>
@@ -516,6 +537,24 @@ export function Shop2BufferQueueTable({
                           fontSize: '0.85rem'
                         }}>
                           {row.shop2ScrapQty.toLocaleString()} <span style={{ fontSize: '0.65rem' }}>шт</span>
+                        </span>
+                      </td>
+
+                      {/* УТИЛЬ ЦЕХУ 2 — лише остаточна категорія 4 після класифікації ВКЯ */}
+                      <td style={{ padding: '16px 20px', textAlign: 'center' }}>
+                        <span
+                          title="Остаточний утиль після класифікації ВКЯ (категорія 4)"
+                          style={{
+                            color: hasUtil ? '#b91c1c' : 'var(--text-muted, #94a3b8)',
+                            fontWeight: 950,
+                            background: hasUtil ? 'rgba(127, 29, 29, 0.1)' : 'transparent',
+                            border: hasUtil ? '1px solid rgba(185, 28, 28, 0.35)' : 'none',
+                            padding: hasUtil ? '4px 10px' : '0',
+                            borderRadius: '8px',
+                            fontSize: '0.85rem'
+                          }}
+                        >
+                          {row.shop2UtilQty.toLocaleString()} <span style={{ fontSize: '0.65rem' }}>шт</span>
                         </span>
                       </td>
 

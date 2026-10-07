@@ -1,10 +1,9 @@
-import React, { useState } from 'react'
-import { X, AlertTriangle, Send, ShieldAlert, CheckCircle2 } from 'lucide-react'
+import { useState } from 'react'
+import { X, AlertTriangle, Send, CheckCircle2 } from 'lucide-react'
 import { shop2RerunService } from '../services/shop2RerunService'
 
 export function DeficitRerunListModal({
   deficitRows = [],
-  orders = [],
   onClose,
   onSuccess
 }) {
@@ -24,8 +23,8 @@ export function DeficitRerunListModal({
       const res = await shop2RerunService.createRerunRequest({
         orderId,
         nomenclatureId: row.nomId,
-        qty: row.shop2ScrapQty,
-        reason: 'Авто-запит через дефіцит браку Цеху №2'
+        qty: row.shop2UtilQty,
+        reason: 'Довипуск через остаточний утиль Цеху №2 (класифікація ВКЯ, категорія 4)'
       })
 
       setCompletedKeys(prev => new Set(prev).add(row.key))
@@ -53,15 +52,15 @@ export function DeficitRerunListModal({
         {/* Title */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
           <span style={{ fontSize: '0.8rem', color: '#ef4444', fontWeight: 900, background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', padding: '4px 12px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <AlertTriangle size={15} /> ДЕФІЦИТ ДЕТАЛЕЙ У ЦЕХУ №2
+            <AlertTriangle size={15} /> УТИЛЬ ЦЕХУ №2
           </span>
         </div>
 
         <h2 style={{ fontSize: '1.4rem', fontWeight: 950, margin: '0 0 6px', color: 'var(--text, #0f172a)' }}>
-          Критичні деталі, що потребують Довипуску
+          Деталі з остаточним утилем, що потребують довипуску
         </h2>
         <p style={{ color: 'var(--text-muted, #64748b)', fontSize: '0.85rem', marginBottom: '24px', fontWeight: 600 }}>
-          Через зафіксований брак у Цеху №2 виник дефіцит під закриття нарядів. Створіть дочірній наряд розкрою в 1 клік:
+          Тут показано лише кількість, яку ВКЯ класифікував як остаточний утиль (категорія 4). Брак, що ще очікує класифікації, сюди не потрапляє.
         </p>
 
         {error && (
@@ -97,7 +96,7 @@ export function DeficitRerunListModal({
                   <div style={{ fontSize: '0.75rem', color: 'var(--text-muted, #64748b)', marginTop: '3px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <span>Серія: {row.productFamily}</span>
                     <span>•</span>
-                    <span style={{ color: '#ef4444', fontWeight: 900 }}>Брак Цеху 2: -{row.shop2ScrapQty} шт</span>
+                    <span style={{ color: '#ef4444', fontWeight: 900 }}>Утиль Цеху 2: -{row.shop2UtilQty} шт</span>
                   </div>
                 </div>
 
@@ -126,7 +125,7 @@ export function DeficitRerunListModal({
                       }}
                     >
                       <Send size={14} />
-                      {isSubmitting ? 'Створення...' : `Довипуск ${row.shop2ScrapQty} шт`}
+                      {isSubmitting ? 'Створення...' : `Довипуск ${row.shop2UtilQty} шт`}
                     </button>
                   )}
                 </div>

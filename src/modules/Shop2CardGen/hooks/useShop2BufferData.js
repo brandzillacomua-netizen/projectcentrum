@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { SHOP2_STAGE_NAMES, isShop2Operation, isPackagingOperation } from '../constants/shop2Stages'
 import { resolveCanonicalNomId } from '../../Nomenclature/utils/nomenclatureHelpers'
+import { buildShop2ScrapByCard, buildShop2UtilRows, resolveShop2CardScrap } from '../utils/shop2BufferCalculations'
 
 export const SHOP2_STAGES = SHOP2_STAGE_NAMES
 
@@ -16,6 +17,8 @@ export function useShop2BufferData({
   orders = [],
   tasks = [],
   workCards = [],
+  workCardHistory = [],
+  finalScrapRows = [],
   inventory = [],
   nomenclatures = [],
   bomItems = [],
@@ -65,6 +68,22 @@ export function useShop2BufferData({
 
   const bufferRows = useMemo(() => {
     const partMap = new Map()
+    const historyScrapByCard = buildShop2ScrapByCard(workCardHistory)
+    const utilByOrderPart = new Map()
+
+    ;(finalScrapRows || []).forEach(row => {
+      const sourceCard = workCards.find(card => String(card.id) === String(row.card_id || ''))
+      const belongsToShop2 = shop2TaskIdsSet.has(String(row.task_id || '')) || isShop2WorkCard(sourceCard, shop2TaskIdsSet)
+      if (!belongsToShop2) return
+
+      const canonicalNomId = resolveCanonicalNomId(row.nomenclature_id, nomenclatures) || String(row.nomenclature_id || '')
+      const orderId = String(row.order_id || sourceCard?.order_id || 'no-order')
+      const utilQty = Math.max(0, Number(row.total_scrap) || 0)
+      if (!canonicalNomId || utilQty <= 0) return
+
+      const scopeKey = `${canonicalNomId}|${orderId}`
+      utilByOrderPart.set(scopeKey, (utilByOrderPart.get(scopeKey) || 0) + utilQty)
+    })
 
     const getPartEntry = (nomId, sampleCard = null, orderId = '') => {
       const canonicalNomId = resolveCanonicalNomId(nomId, nomenclatures) || String(nomId || '')
@@ -88,6 +107,7 @@ export function useShop2BufferData({
           inProgressQty: 0,
           completedQty: 0,
           shop2ScrapQty: 0,
+          shop2UtilQty: 0,
           ordersMap: new Map()
         })
       }
@@ -109,6 +129,7 @@ export function useShop2BufferData({
           inProgressQty: 0,
           completedQty: 0,
           shop2ScrapQty: 0,
+          shop2UtilQty: 0,
           availableQty: 0
         })
       }
@@ -178,7 +199,7 @@ export function useShop2BufferData({
       const partEntry = getPartEntry(nomId, card, orderId)
       const orderSub = getOrderSubEntry(partEntry, orderId)
 
-      const scrap = Number(card.scrap_qty || 0)
+      const scrap = resolveShop2CardScrap(card, historyScrapByCard)
 
       if (isSortedOrBuffer) {
         const qty = Number(card.quantity || 0)
@@ -290,6 +311,7 @@ export function useShop2BufferData({
         const subUsedShop2 = Number(sub.usedInShop2Qty || 0)
         const subInProg = Number(sub.inProgressQty || 0)
         const subScrap = Number(sub.shop2ScrapQty || 0)
+        const subUtil = utilByOrderPart.get(`${partEntry.nomId}|${sub.orderId}`) || 0
         const subCompleted = Number(sub.completedQty || 0)
         const subNetPack = Math.max(subCompleted, Math.max(0, subUsedShop2 - subInProg - subScrap))
 
@@ -297,6 +319,7 @@ export function useShop2BufferData({
           ...sub,
           plannedReqQty: reqQty,
           stockBzQty,
+          shop2UtilQty: subUtil,
           availableQty: subAvail,
           netPackagingQty: subNetPack
         })
@@ -315,6 +338,7 @@ export function useShop2BufferData({
       const totalUsedShop2 = Number(partEntry.usedInShop2Qty || 0)
       const totalInProgShop2 = Number(partEntry.inProgressQty || 0)
       const totalScrapShop2 = Number(partEntry.shop2ScrapQty || 0)
+      const totalUtilShop2 = ordersList.reduce((sum, order) => sum + Number(order.shop2UtilQty || 0), 0)
       const totalCompletedShop2 = Number(partEntry.completedQty || 0)
       const netPackagingQty = Math.max(
         totalCompletedShop2,
@@ -331,6 +355,7 @@ export function useShop2BufferData({
         totalOrderRequirement,
         awaitingShop1Qty,
         stockBzQty,
+        shop2UtilQty: totalUtilShop2,
         availableQty,
         netPackagingQty,
         ordersList
@@ -338,7 +363,7 @@ export function useShop2BufferData({
     })
 
     return results
-  }, [workCards, tasks, orders, nomenclatures, bomItems, shop2TaskIdsSet, groupBy])
+  }, [workCards, workCardHistory, finalScrapRows, tasks, orders, nomenclatures, bomItems, shop2TaskIdsSet, groupBy])
 
   // Filtered & Sorted rows
   const filteredRows = useMemo(() => {
@@ -385,6 +410,7 @@ export function useShop2BufferData({
           totalAvailable: 0,
           totalCovered: 0,
           totalScrap: 0,
+          totalUtil: 0,
           totalPackagingYield: 0,
           totalRequirement: 0,
           rows: []
@@ -395,6 +421,7 @@ export function useShop2BufferData({
       sec.totalAvailable += row.availableQty
       sec.totalCovered += (row.totalReceived || 0)
       sec.totalScrap += row.shop2ScrapQty
+      sec.totalUtil += row.shop2UtilQty
       sec.totalPackagingYield += row.netPackagingQty
       sec.totalRequirement += row.totalOrderRequirement
     })
@@ -402,13 +429,13 @@ export function useShop2BufferData({
     return Array.from(sectionsMap.values())
   }, [filteredRows])
 
-  // Deficit Rows where scrap occurred in Shop 2
+  // Only VKYA category 4 is final util and may create a Shop 1 rerun request.
   const deficitRows = useMemo(() => {
-    return bufferRows.filter(r => r.shop2ScrapQty > 0)
+    return buildShop2UtilRows(bufferRows)
   }, [bufferRows])
 
   const totalDeficitQty = useMemo(() => {
-    return deficitRows.reduce((sum, r) => sum + r.shop2ScrapQty, 0)
+    return deficitRows.reduce((sum, row) => sum + row.shop2UtilQty, 0)
   }, [deficitRows])
 
   return {

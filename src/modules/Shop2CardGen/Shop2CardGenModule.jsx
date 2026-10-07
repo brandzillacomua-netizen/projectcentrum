@@ -1,7 +1,9 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, Monitor, RefreshCw, Layers, Clock, Archive, AlertTriangle } from 'lucide-react'
 import { useMES } from '../../MESContext'
+import { supabase } from '../../supabase'
+import { useQualityLossTotals } from '../VKYA/quality-hold/useQualityLossTotals'
 import { useShop2BufferData } from './hooks/useShop2BufferData'
 import { useShop2CardCreator } from './hooks/useShop2CardCreator'
 import { Shop2BufferQueueTable } from './components/Shop2BufferQueueTable'
@@ -15,6 +17,7 @@ export default function Shop2CardGenModule() {
     orders = [],
     tasks = [],
     workCards = [],
+    workCardHistory = [],
     inventory = [],
     nomenclatures = [],
     bomItems = [],
@@ -25,7 +28,7 @@ export default function Shop2CardGenModule() {
 
   useEffect(() => {
     if (typeof fetchData === 'function') {
-      fetchData(['orders', 'tasks', 'inventory', 'nomenclatures', 'bom_items', 'work_cards', 'machines']).catch(() => {})
+      fetchData(['orders', 'tasks', 'inventory', 'nomenclatures', 'bom_items', 'work_cards', 'work_card_history', 'machines']).catch(() => {})
     }
   }, [fetchData])
 
@@ -35,6 +38,9 @@ export default function Shop2CardGenModule() {
   const [groupBy, setGroupBy] = useState('product') // 'product' | 'part' | 'order'
   const [sortBy, setSortBy] = useState('available_desc') // 'available_desc' | 'name_asc' | 'product_asc'
   const [showDeficitModal, setShowDeficitModal] = useState(false)
+
+  const taskIds = useMemo(() => tasks.map(task => task.id).filter(Boolean), [tasks])
+  const { rows: finalScrapRows, reload: reloadFinalScrap } = useQualityLossTotals(supabase, taskIds)
 
   const {
     bufferRows,
@@ -48,6 +54,8 @@ export default function Shop2CardGenModule() {
     orders,
     tasks,
     workCards,
+    workCardHistory,
+    finalScrapRows,
     inventory,
     nomenclatures,
     bomItems,
@@ -152,7 +160,8 @@ export default function Shop2CardGenModule() {
 
           <button
             onClick={() => {
-              if (typeof fetchData === 'function') fetchData(['work_cards', 'tasks', 'orders', 'inventory']).catch(() => {})
+              if (typeof fetchData === 'function') fetchData(['work_cards', 'work_card_history', 'tasks', 'orders', 'inventory']).catch(() => {})
+              reloadFinalScrap()
             }}
             style={{ background: 'var(--card-bg, #ffffff)', border: '1px solid var(--border, #cbd5e1)', color: 'var(--text-muted, #475569)', padding: '10px 16px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
           >
@@ -304,17 +313,17 @@ export default function Shop2CardGenModule() {
         />
       )}
 
-      {/* ── Deficit Rerun List Modal (Triggered by Flashing Red Alert Button) ── */}
       {showDeficitModal && (
         <DeficitRerunListModal
           deficitRows={deficitRows}
-          orders={orders}
           onClose={() => setShowDeficitModal(false)}
           onSuccess={() => {
-            if (typeof fetchData === 'function') fetchData(['work_cards', 'tasks', 'orders']).catch(() => {})
+            if (typeof fetchData === 'function') fetchData(['work_cards', 'work_card_history', 'tasks', 'orders']).catch(() => {})
+            reloadFinalScrap()
           }}
         />
       )}
+
     </div>
   )
 }
