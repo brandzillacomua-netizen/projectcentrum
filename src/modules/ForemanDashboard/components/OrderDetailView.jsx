@@ -125,20 +125,20 @@ const OrderDetailView = ({
       const qCutWait = getQFromCards(['Розкрій'], ['new', 'waiting-materials', 'waiting-machines'])
       const qCut = getQFromCards(['Розкрій'], ['in-progress', 'paused', 'hold'])
       const qCutBuf = getQFromCards(['Розкрій'], ['at-buffer'])
-      const qGalt = getQFromCards(['Галтовка'], ['in-progress'])
+      const qGalt = getQFromCards(['Галтовка'], ['new', 'in-progress', 'paused', 'hold'])
       const qGaltBuf = getQFromCards(['Галтовка'], ['at-buffer'])
-      const qPriy = getQFromCards(['Прийомка'], ['new', 'in-progress', 'at-buffer'])
-      const qSortAct = getQFromCards(['Сортування'], ['new', 'in-progress', 'at-buffer'])
+      const qPriy = getQFromCards(['Прийомка'], ['new', 'in-progress', 'paused', 'hold', 'at-buffer'])
+      const qSortAct = getQFromCards(['Сортування'], ['new', 'in-progress', 'paused', 'hold', 'at-buffer'])
       const qSort = nomCards.filter(c => c.status === 'at-shop2-buffer')
         .reduce((s, c) => s + Math.max(0, (Number(c.quantity) || 0) - (Number(c.used_in_shop2_qty) || 0)), 0)
       const qMalWait = getQFromCards(['Фарбування', 'Малярка'], ['new'])
-      const qMal = getQFromCards(['Фарбування', 'Малярка'], ['in-progress'])
+      const qMal = getQFromCards(['Фарбування', 'Малярка'], ['in-progress', 'paused', 'hold'])
       const qMalBuf = getQFromCards(['Фарбування', 'Малярка'], ['at-buffer'])
       const qPresWait = getQFromCards(['Пресування'], ['new'])
-      const qPres = getQFromCards(['Пресування'], ['in-progress'])
+      const qPres = getQFromCards(['Пресування'], ['in-progress', 'paused', 'hold'])
       const qPresBuf = getQFromCards(['Пресування'], ['at-buffer'])
       const qDoopWait = getQFromCards(['Доопрацювання'], ['new'])
-      const qDoop = getQFromCards(['Доопрацювання'], ['in-progress'])
+      const qDoop = getQFromCards(['Доопрацювання'], ['in-progress', 'paused', 'hold'])
       const qDoopBuf = getQFromCards(['Доопрацювання'], ['at-buffer'])
 
       const groupProduced = nomCards.filter(c => {
@@ -168,7 +168,7 @@ const OrderDetailView = ({
       const flowScrapQty = sumFlowField(flowRowsForThisPart, 'total_scrap')
       const netSgpQty = Math.max(0, flowSgpQty - flowScrapQty)
       const sgpProduced = Math.max(0, groupProduced - qSort)
-      const producedForSgp = groupProduced > 0 ? sgpProduced : netSgpQty
+      const producedForSgp = groupProduced > 0 ? sgpProduced : completedShop2Qty
       const earlyWipQty = qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriy + qSortAct + qMalWait + qMal + qMalBuf + qPresWait + qPres + qPresBuf + qDoopWait + qDoop + qDoopBuf
       const nonReissueEarlyWip = Math.max(0, flowScrapQty - plannedReserve) > 0 ? 0 : earlyWipQty
       const qSgp = (snap.need || 0) > 0
@@ -184,13 +184,20 @@ const OrderDetailView = ({
           : Math.max(0, groupProduced - qSort - totalShop2Qty) + bzExcess)
 
       const cardIdsForThisPart = new Set(nomCards.map(c => c.id))
-      const scrapByScope = allCardsHistory.filter(h =>
+      const scrapFromCache = scrapCache[task.id]?.[nomIdStr] || 0
+      const observedScrapByScope = allCardsHistory.filter(h =>
         String(h.nomenclature_id) === nomIdStr && h.task_id && orderTaskIdSet.has(h.task_id)
       ).reduce((s, h) => s + (Number(h.scrap_qty) || 0), 0)
-      const scrapByCard = allCardsHistory.filter(h => h.card_id && cardIdsForThisPart.has(h.card_id)).reduce((s, h) => s + (Number(h.scrap_qty) || 0), 0)
-      const scrap = scrapByScope || scrapByCard || flowScrapQty
+      const observedScrapByCard = allCardsHistory.filter(h => h.card_id && cardIdsForThisPart.has(h.card_id)).reduce((s, h) => s + (Number(h.scrap_qty) || 0), 0)
+      const observedScrap = observedScrapByScope || observedScrapByCard || flowScrapQty
 
-      const sum = qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriy + qSortAct + qSort + qMalWait + qMal + qMalBuf + qPresWait + qPres + qPresBuf + qDoopWait + qDoop + qDoopBuf + qBz + qSgp
+      const qScrap = scrapFromCache
+
+      const qVkyaFromCards = nomCards.filter(c => c.status === 'hold' || c.status === 'quality-hold' || (c.operation || '').toLowerCase().includes('вкя')).reduce((s, c) => s + (Number(c.quantity) || 0), 0)
+      const qVkyaCalculated = Math.max(0, observedScrap - qScrap)
+      const qVkya = Math.max(qVkyaFromCards, qVkyaCalculated)
+
+      const sum = qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriy + qSortAct + qSort + qMalWait + qMal + qMalBuf + qPresWait + qPres + qPresBuf + qDoopWait + qDoop + qDoopBuf + qBz + qSgp + qVkya
 
       const matchSearch = !searchQuery ||
         nom.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -202,7 +209,7 @@ const OrderDetailView = ({
           demand: snap.need || 0,
           qCutWait, qCut, qCutBuf, qGalt, qGaltBuf, qPriy,
           qSortAct, qSort, qMalWait, qMal, qMalBuf, qPresWait, qPres,
-          qPresBuf, qDoopWait, qDoop, qDoopBuf, qBz, qSgp, qScrap: scrap, sum
+          qPresBuf, qDoopWait, qDoop, qDoopBuf, qBz, qSgp, qScrap, qVkya, sum
         })
       }
     })

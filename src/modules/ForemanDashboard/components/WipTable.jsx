@@ -39,13 +39,14 @@ const WipTable = ({ groupedData, maxHeight = 'calc(100vh - 320px)', emptyText = 
             <th style={TH}>Буфер Доопр.</th>
             <th style={{ ...TH, color: '#10b981', background: 'rgba(16,185,129,0.08)' }}>СГП</th>
             <th style={{ ...TH, color: '#10b981', background: 'rgba(16,185,129,0.08)' }}>БЗ</th>
-            <th style={{ ...TH, color: '#ef4444', background: 'rgba(239,68,68,0.08)', borderRight: 'none' }}>Брак</th>
+            <th style={{ ...TH, color: '#ef4444', background: 'rgba(239,68,68,0.08)' }}>Брак утиль</th>
+            <th style={{ ...TH, color: '#f59e0b', background: 'rgba(245,158,11,0.08)', borderRight: 'none' }}>На ВКЯ</th>
           </tr>
         </thead>
         <tbody>
           {groupedData.length === 0 ? (
             <tr>
-              <td colSpan={22} style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted, #52525b)', fontStyle: 'italic' }}>
+              <td colSpan={23} style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted, #52525b)', fontStyle: 'italic' }}>
                 {emptyText}
               </td>
             </tr>
@@ -56,7 +57,7 @@ const WipTable = ({ groupedData, maxHeight = 'calc(100vh - 320px)', emptyText = 
                 <React.Fragment key={group.id}>
                   {/* Group header */}
                   <tr style={{ background: 'var(--card-bg, #18181b)', borderBottom: '2px solid var(--glass-border, rgba(0,0,0,0.1))' }}>
-                    <td colSpan={22} style={{ padding: '12px 16px', fontWeight: 'bold', color: 'var(--text, #f4f4f5)', position: 'sticky', left: 0, background: 'var(--card-bg, #18181b)', zIndex: 2 }}>
+                    <td colSpan={23} style={{ padding: '12px 16px', fontWeight: 'bold', color: 'var(--text, #f4f4f5)', position: 'sticky', left: 0, background: 'var(--card-bg, #18181b)', zIndex: 2 }}>
                       <span style={{ color: '#ff9000', marginRight: '8px' }}>📦</span>
                       {group.name}{group.code ? ` (${group.code})` : ''}
                       {group.trend && (
@@ -95,7 +96,8 @@ const WipTable = ({ groupedData, maxHeight = 'calc(100vh - 320px)', emptyText = 
                       <td style={TD}>{renderVal(row.qDoopBuf, 'normal', 0, onCellClick ? () => onCellClick(row, 'qDoopBuf', 'Буфер Доопр.', group) : null)}</td>
                       <td style={{ ...TD, background: 'rgba(16,185,129,0.03)' }}>{renderVal(row.qSgp, 'sgp', 0, onCellClick ? () => onCellClick(row, 'qSgp', 'СГП (Пакування)', group) : null)}</td>
                       <td style={{ ...TD, background: 'rgba(16,185,129,0.03)' }}>{renderVal(row.qBz, 'bz', 0, onCellClick ? () => onCellClick(row, 'qBz', 'БЗ (Склад)', group) : null)}</td>
-                      <td style={{ ...TD, background: 'rgba(239,68,68,0.03)', borderRight: 'none' }}>{renderVal(row.qScrap, 'scrap', 0, onCellClick ? () => onCellClick(row, 'qScrap', 'Брак', group) : null)}</td>
+                      <td style={{ ...TD, background: 'rgba(239,68,68,0.03)' }}>{renderVal(row.qScrap, 'scrap', 0, onCellClick ? () => onCellClick(row, 'qScrap', 'Брак утиль', group) : null)}</td>
+                      <td style={{ ...TD, background: 'rgba(245,158,11,0.03)', borderRight: 'none' }}>{renderVal(row.qVkya, 'vkya', 0, onCellClick ? () => onCellClick(row, 'qVkya', 'На ВКЯ (Карантин)', group) : null)}</td>
                     </tr>
                   ))}
 
@@ -122,7 +124,8 @@ const WipTable = ({ groupedData, maxHeight = 'calc(100vh - 320px)', emptyText = 
                     <td style={TD}>{renderVal(gt.qDoopBuf)}</td>
                     <td style={{ ...TD, background: 'rgba(16,185,129,0.08)' }}>{renderVal(gt.qSgp, 'sgp')}</td>
                     <td style={{ ...TD, background: 'rgba(16,185,129,0.08)' }}>{renderVal(gt.qBz, 'bz')}</td>
-                    <td style={{ ...TD, background: 'rgba(239,68,68,0.08)', borderRight: 'none' }}>{renderVal(gt.qScrap, 'scrap')}</td>
+                    <td style={{ ...TD, background: 'rgba(239,68,68,0.08)' }}>{renderVal(gt.qScrap, 'scrap')}</td>
+                    <td style={{ ...TD, background: 'rgba(245,158,11,0.08)', borderRight: 'none' }}>{renderVal(gt.qVkya, 'vkya')}</td>
                   </tr>
                 </React.Fragment>
               )
@@ -156,7 +159,8 @@ const WipTable = ({ groupedData, maxHeight = 'calc(100vh - 320px)', emptyText = 
                 <td style={TD}>{renderVal(gt.qDoopBuf)}</td>
                 <td style={{ ...TD, background: 'rgba(16,185,129,0.12)' }}>{renderVal(gt.qSgp, 'sgp')}</td>
                 <td style={{ ...TD, background: 'rgba(16,185,129,0.12)' }}>{renderVal(gt.qBz, 'bz')}</td>
-                <td style={{ ...TD, background: 'rgba(239,68,68,0.12)', borderRight: 'none' }}>{renderVal(gt.qScrap, 'scrap')}</td>
+                <td style={{ ...TD, background: 'rgba(239,68,68,0.12)' }}>{renderVal(gt.qScrap, 'scrap')}</td>
+                <td style={{ ...TD, background: 'rgba(245,158,11,0.12)', borderRight: 'none' }}>{renderVal(gt.qVkya, 'vkya')}</td>
               </tr>
             )
           })()}

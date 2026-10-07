@@ -28,11 +28,25 @@ export const useForemanDashboardData = () => {
   const qualityLossTaskIds = useMemo(() => tasks.map(task => task.id).filter(Boolean), [tasks])
   const qualityLoss = useQualityLossTotals(supabase, qualityLossTaskIds)
 
-  // ── Load data on mount ──
+  // ── Load data on mount & Realtime subscription ──
   useEffect(() => {
     fetchModuleData('foreman')
     if (typeof fetchData === 'function') {
       fetchData(['orders', 'tasks', 'inventory', 'nomenclatures', 'bom_items', 'work_card_scrap_totals', 'work_card_flow_totals'])
+    }
+
+    const channel = supabase
+      .channel('foreman_dashboard_realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'work_cards' }, () => {
+        handleRefresh()
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, () => {
+        handleRefresh()
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
     }
   }, [])
 
@@ -561,23 +575,24 @@ export const useForemanDashboardData = () => {
         const qCutWait = getQ(['Розкрій'], ['new', 'waiting-materials', 'waiting-machines'])
         const qCut = getQ(['Розкрій'], ['in-progress', 'paused', 'hold'])
         const qCutBuf = getQ(['Розкрій'], ['at-buffer'])
-        const qGalt = getQ(['Галтовка'], ['in-progress'])
+        const qGalt = getQ(['Галтовка'], ['new', 'in-progress', 'paused', 'hold'])
         const qGaltBuf = getQ(['Галтовка'], ['at-buffer'])
-        const qPriy = getQ(['Прийомка'], ['new', 'in-progress', 'at-buffer'])
-        const qSortAct = getQ(['Сортування'], ['new', 'in-progress', 'at-buffer'])
+        const qPriy = getQ(['Прийомка'], ['new', 'in-progress', 'paused', 'hold', 'at-buffer'])
+        const qSortAct = getQ(['Сортування'], ['new', 'in-progress', 'paused', 'hold', 'at-buffer'])
         const qSort = filteredCards.filter(c => {
           if (String(c.nomenclature_id) !== String(nom.id)) return false
+          if (c.task_id && taskParentMap[c.task_id] && taskParentMap[c.task_id] !== parentId) return false
           return c.status === 'at-shop2-buffer'
         }).reduce((s, c) => s + Math.max(0, (Number(c.quantity) || 0) - (Number(c.used_in_shop2_qty) || 0)), 0)
 
         const qMalWait = getQ(['Фарбування', 'Малярка'], ['new'])
-        const qMal = getQ(['Фарбування', 'Малярка'], ['in-progress'])
+        const qMal = getQ(['Фарбування', 'Малярка'], ['in-progress', 'paused', 'hold'])
         const qMalBuf = getQ(['Фарбування', 'Малярка'], ['at-buffer'])
         const qPresWait = getQ(['Пресування'], ['new'])
-        const qPres = getQ(['Пресування'], ['in-progress'])
+        const qPres = getQ(['Пресування'], ['in-progress', 'paused', 'hold'])
         const qPresBuf = getQ(['Пресування'], ['at-buffer'])
         const qDoopWait = getQ(['Доопрацювання'], ['new'])
-        const qDoop = getQ(['Доопрацювання'], ['in-progress'])
+        const qDoop = getQ(['Доопрацювання'], ['in-progress', 'paused', 'hold'])
         const qDoopBuf = getQ(['Доопрацювання'], ['at-buffer'])
 
         let initialStock = 0
@@ -630,7 +645,7 @@ export const useForemanDashboardData = () => {
         }).reduce((s, c) => s + (Number(c.quantity) || 0), 0)
 
         const sgpProduced = Math.max(0, groupProduced - qSort)
-        const producedForSgp = groupProduced > 0 ? sgpProduced : netSgpQty
+        const producedForSgp = groupProduced > 0 ? sgpProduced : completedShop2Qty
         const earlyWipQty = qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriy + qSortAct + qMalWait + qMal + qMalBuf + qPresWait + qPres + qPresBuf + qDoopWait + qDoop + qDoopBuf
         const nonReissueEarlyWip = Math.max(0, flowScrapQty - plannedReserve) > 0 ? 0 : earlyWipQty
         const qSgp = demandForParent > 0
@@ -652,20 +667,42 @@ export const useForemanDashboardData = () => {
             ? Math.max(flowBzQty, Math.max(0, netSgpQty - demandForParent))
             : Math.max(0, groupProduced - qSort - totalShop2Qty) + bzExcess)
 
+        const taskIdsForThisParent = filterTaskIds.filter(tid => !taskParentMap[tid] || taskParentMap[tid] === parentId)
+        let qScrap = 0
+        let qVkyaReturned = 0
+        taskIdsForThisParent.forEach(tid => {
+          const taskScrapMap = scopedScrapCache[tid] || scrapCache[tid]
+          if (taskScrapMap && taskScrapMap[String(nom.id)] !== undefined) {
+            qScrap += Number(taskScrapMap[String(nom.id)]) || 0
+          }
+          if (qualityLoss.returnedIndex?.[tid]?.[String(nom.id)] !== undefined) {
+            qVkyaReturned += Number(qualityLoss.returnedIndex[tid][String(nom.id)]) || 0
+          }
+        })
+
         const cardIdsForThisPart = new Set(filteredCards.filter(c => {
           if (String(c.nomenclature_id) !== String(nom.id)) return false
           if (c.task_id && taskParentMap[c.task_id] && taskParentMap[c.task_id] !== parentId) return false
           return true
         }).map(c => c.id))
-        const qScrapByScope = dashboardHistory.filter(h => {
+        const observedScrapByScope = dashboardHistory.filter(h => {
           if (String(h.nomenclature_id) !== String(nom.id)) return false
           if (!h.task_id || !filterSet.has(h.task_id)) return false
           return !taskParentMap[h.task_id] || taskParentMap[h.task_id] === parentId
         }).reduce((s, h) => s + (Number(h.scrap_qty) || 0), 0)
-        const qScrapByCard = dashboardHistory.filter(h => h.card_id && cardIdsForThisPart.has(h.card_id)).reduce((s, h) => s + (Number(h.scrap_qty) || 0), 0)
-        const qScrap = qScrapByScope || qScrapByCard || flowScrapQty
+        const observedScrapByCard = dashboardHistory.filter(h => h.card_id && cardIdsForThisPart.has(h.card_id)).reduce((s, h) => s + (Number(h.scrap_qty) || 0), 0)
+        const observedScrap = observedScrapByScope || observedScrapByCard || flowScrapQty
 
-        const sum = qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriy + qSortAct + qSort + qMalWait + qMal + qMalBuf + qPresWait + qPres + qPresBuf + qDoopWait + qDoop + qDoopBuf + qSgp + qBz
+        const qVkyaFromCards = filteredCards.filter(c => {
+          if (String(c.nomenclature_id) !== String(nom.id)) return false
+          if (c.task_id && taskParentMap[c.task_id] && taskParentMap[c.task_id] !== parentId) return false
+          return c.status === 'hold' || c.status === 'quality-hold' || (c.operation || '').toLowerCase().includes('вкя')
+        }).reduce((s, c) => s + (Number(c.quantity) || 0), 0)
+
+        const qVkyaCalculated = Math.max(0, observedScrap - qScrap - qVkyaReturned)
+        const qVkya = Math.max(qVkyaFromCards, qVkyaCalculated)
+
+        const sum = qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriy + qSortAct + qSort + qMalWait + qMal + qMalBuf + qPresWait + qPres + qPresBuf + qDoopWait + qDoop + qDoopBuf + qSgp + qBz + qVkya
 
         const matchSearch = !searchQuery ||
           nom.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -682,7 +719,7 @@ export const useForemanDashboardData = () => {
             qtyPerProduct,
             qCutWait, qCut, qCutBuf, qGalt, qGaltBuf, qPriy,
             qSortAct, qSort, qMalWait, qMal, qMalBuf, qPresWait, qPres,
-            qPresBuf, qDoopWait, qDoop, qDoopBuf, qSgp, qBz, qScrap, sum
+            qPresBuf, qDoopWait, qDoop, qDoopBuf, qSgp, qBz, qScrap, qVkya, sum
           })
         }
       })
@@ -725,23 +762,24 @@ export const useForemanDashboardData = () => {
     if (stageKey === 'qCutWait') matchingCards = matchOpsAndStatus(['Розкрій'], ['new', 'waiting-materials', 'waiting-machines'])
     else if (stageKey === 'qCut') matchingCards = matchOpsAndStatus(['Розкрій'], ['in-progress', 'paused', 'hold'])
     else if (stageKey === 'qCutBuf') matchingCards = matchOpsAndStatus(['Розкрій'], ['at-buffer'])
-    else if (stageKey === 'qGalt') matchingCards = matchOpsAndStatus(['Галтовка'], ['in-progress'])
+    else if (stageKey === 'qGalt') matchingCards = matchOpsAndStatus(['Галтовка'], ['new', 'in-progress', 'paused', 'hold'])
     else if (stageKey === 'qGaltBuf') matchingCards = matchOpsAndStatus(['Галтовка'], ['at-buffer'])
-    else if (stageKey === 'qPriy') matchingCards = matchOpsAndStatus(['Прийомка'], ['new', 'in-progress', 'at-buffer'])
-    else if (stageKey === 'qSortAct') matchingCards = matchOpsAndStatus(['Сортування'], ['new', 'in-progress', 'at-buffer'])
+    else if (stageKey === 'qPriy') matchingCards = matchOpsAndStatus(['Прийомка'], ['new', 'in-progress', 'paused', 'hold', 'at-buffer'])
+    else if (stageKey === 'qSortAct') matchingCards = matchOpsAndStatus(['Сортування'], ['new', 'in-progress', 'paused', 'hold', 'at-buffer'])
     else if (stageKey === 'qSort') matchingCards = nomCards.filter(c => c.status === 'at-shop2-buffer')
     else if (stageKey === 'qMalWait') matchingCards = matchOpsAndStatus(['Фарбування', 'Малярка'], ['new'])
-    else if (stageKey === 'qMal') matchingCards = matchOpsAndStatus(['Фарбування', 'Малярка'], ['in-progress'])
+    else if (stageKey === 'qMal') matchingCards = matchOpsAndStatus(['Фарбування', 'Малярка'], ['in-progress', 'paused', 'hold'])
     else if (stageKey === 'qMalBuf') matchingCards = matchOpsAndStatus(['Фарбування', 'Малярка'], ['at-buffer'])
     else if (stageKey === 'qPresWait') matchingCards = matchOpsAndStatus(['Пресування'], ['new'])
-    else if (stageKey === 'qPres') matchingCards = matchOpsAndStatus(['Пресування'], ['in-progress'])
+    else if (stageKey === 'qPres') matchingCards = matchOpsAndStatus(['Пресування'], ['in-progress', 'paused', 'hold'])
     else if (stageKey === 'qPresBuf') matchingCards = matchOpsAndStatus(['Пресування'], ['at-buffer'])
     else if (stageKey === 'qDoopWait') matchingCards = matchOpsAndStatus(['Доопрацювання'], ['new'])
-    else if (stageKey === 'qDoop') matchingCards = matchOpsAndStatus(['Доопрацювання'], ['in-progress'])
+    else if (stageKey === 'qDoop') matchingCards = matchOpsAndStatus(['Доопрацювання'], ['in-progress', 'paused', 'hold'])
     else if (stageKey === 'qDoopBuf') matchingCards = matchOpsAndStatus(['Доопрацювання'], ['at-buffer'])
     else if (stageKey === 'qSgp') matchingCards = nomCards.filter(c => ['пакування', 'сгп'].some(o => (c.operation || '').toLowerCase().includes(o)) && c.status === 'completed')
-    else if (stageKey === 'qBz') matchingCards = nomCards.filter(c => c.operation === 'Склад БЗ')
+    else if (stageKey === 'qBz') matchingCards = nomCards.filter(c => c.operation === 'Склад БЗ' || c.operation === 'Склад BZ')
     else if (stageKey === 'qScrap') matchingCards = nomCards.filter(c => Number(c.scrap_qty || 0) > 0)
+    else if (stageKey === 'qVkya') matchingCards = nomCards.filter(c => c.status === 'hold' || c.status === 'quality-hold' || (c.operation || '').toLowerCase().includes('вкя') || Number(c.scrap_qty || 0) > 0)
     else matchingCards = nomCards
 
     setSelectedCellModal({

@@ -25,6 +25,10 @@ export const renderVal = (val = 0, type = 'normal', demand = 0, onClick = null, 
     color = '#ef4444'
     bg = 'rgba(239,68,68,0.12)'
     border = '1px solid rgba(239,68,68,0.3)'
+  } else if (type === 'vkya') {
+    color = '#f59e0b'
+    bg = 'rgba(245,158,11,0.12)'
+    border = '1px solid rgba(245,158,11,0.3)'
   }
 
   const displayVal = type === 'sum' && demand > 0 ? `${val} / ${demand}` : val
@@ -64,7 +68,7 @@ export const renderVal = (val = 0, type = 'normal', demand = 0, onClick = null, 
 }
 
 export const getGroupTotals = (rows) => {
-  const r = { qCutWait: 0, qCut: 0, qCutBuf: 0, qGalt: 0, qGaltBuf: 0, qPriy: 0, qSortAct: 0, qSort: 0, qMalWait: 0, qMal: 0, qMalBuf: 0, qPresWait: 0, qPres: 0, qPresBuf: 0, qDoopWait: 0, qDoop: 0, qDoopBuf: 0, qSgp: 0, qBz: 0, qScrap: 0, sum: 0 }
+  const r = { qCutWait: 0, qCut: 0, qCutBuf: 0, qGalt: 0, qGaltBuf: 0, qPriy: 0, qSortAct: 0, qSort: 0, qMalWait: 0, qMal: 0, qMalBuf: 0, qPresWait: 0, qPres: 0, qPresBuf: 0, qDoopWait: 0, qDoop: 0, qDoopBuf: 0, qSgp: 0, qBz: 0, qScrap: 0, qVkya: 0, sum: 0 }
   rows.forEach(row => {
     Object.keys(r).forEach(k => { r[k] += row[k] || 0 })
   })
