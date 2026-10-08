@@ -73,8 +73,13 @@ export const NomCreateModal = ({ onClose, onCreated, supabase, refreshTable, pre
   const preparedSheets = useMemo(() => {
     return (items || []).filter(it => {
       if (it.status === 'archived') return false;
+      const nameLower = String(it.name || '').toLowerCase();
+      // Strictly exclude any unprepared sheets, carbon plates, or test sheets
+      if (nameLower.includes('непідготовлений') || nameLower.includes('пластина') || nameLower.startsWith('тест-')) {
+        return false;
+      }
       const isSheetGroup = it.group_id === 'grp_prepared_sheets' || it.group_id === 'cat_sheets' || String(it.code || '').startsWith('RAW.PREP');
-      const isSheetName = String(it.name || '').toLowerCase().includes('лист') && (it.name?.includes('Т300') || it.name?.includes('Т700') || it.name?.includes('Т800'));
+      const isSheetName = nameLower.includes('лист') && (it.name?.includes('Т300') || it.name?.includes('Т700') || it.name?.includes('Т800'));
       return isSheetGroup || isSheetName;
     }).map(it => {
       const name = it.name || '';

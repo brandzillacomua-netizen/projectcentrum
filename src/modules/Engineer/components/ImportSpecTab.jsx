@@ -122,8 +122,8 @@ export function ImportSpecTab() {
 
           if (comp.category === 'structural' && comp.thickness) {
             const thickStr = `${comp.thickness}мм`
-            const rawName = `Лист Т300 (${thickStr}) [Непідготовлений]`
-            const prepName = `Лист Т300 (${thickStr}) [Підготовлений]`
+            const rawName = `Карбонова пластина Т300 500*600 ${thickStr}`
+            const prepName = `Лист Т300 (${thickStr})`
 
             let rawNom = localNoms.find(n => n.name === rawName)
             if (!rawNom) {
@@ -131,11 +131,11 @@ export function ImportSpecTab() {
                 name: rawName,
                 groupId: 'grp_carbon_t300',
                 ruleType: 'carbon',
-                ruleParams: { grade: 'Т300', thickness: comp.thickness, materialType: thickStr }
+                ruleParams: { grade: 'Т300', dimensions: '500*600', thickness: comp.thickness, materialType: thickStr }
               })
               localNoms.push(rawNom)
             }
-            let prepNom = localNoms.find(n => n.name === prepName)
+            let prepNom = localNoms.find(n => n.name === prepName || n.name === `Лист Т300 (${thickStr}) [Підготовлений]`)
             if (!prepNom) {
               prepNom = await saveV2Nomenclature({
                 name: prepName,
