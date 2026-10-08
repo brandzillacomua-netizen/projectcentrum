@@ -54,11 +54,12 @@ export const calculatePartShortage = ({
 }) => {
   const nomId = asId(entry.nomId)
   const snapshot = entry.snapshot || {}
-  const unitsPerSheet = Math.max(1, asNumber(snapshot.units_per_sheet || entry.nom?.units_per_sheet, 1))
+  const liveUnitsPerSheet = asNumber(entry.nom?.units_per_sheet || entry.nom?.unitsPerSheet || entry.nom?.rule_params?.unitsPerSheet)
+  const unitsPerSheet = Math.max(1, liveUnitsPerSheet || asNumber(snapshot.units_per_sheet, 1))
   const need = asNumber(snapshot.need)
   const stockBZ = asNumber(snapshot.stock)
   const plan = asNumber(snapshot.plan, Math.max(0, need - stockBZ))
-  const plannedSheets = asNumber(snapshot.sheets) || Math.ceil(plan / unitsPerSheet)
+  const plannedSheets = Math.ceil(plan / unitsPerSheet)
 
   const parseCardSeqNumber = (card) => {
     if (card?.card_sequence !== undefined && card?.card_sequence !== null && !isNaN(Number(card.card_sequence))) {

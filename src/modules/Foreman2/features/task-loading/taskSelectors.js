@@ -28,15 +28,27 @@ export const getOrderForTask = (task, orders = [], allOrdersMap = {}) => {
 
 export const getSnapshotPartEntries = (task, nomenclatures = []) => {
   const snapshot = task?.plan_snapshot || {}
+  const findNom = (key) => {
+    const normKey = asId(key).toLowerCase()
+    return (nomenclatures || []).find(n => {
+      if (!n) return false
+      if (asId(n.id).toLowerCase() === normKey) return true
+      if (asId(n.code).toLowerCase() === normKey) return true
+      if (asId(n.nomenclature_code).toLowerCase() === normKey) return true
+      if (Array.isArray(n.legacy_ids) && n.legacy_ids.some(leg => asId(leg).toLowerCase() === normKey)) return true
+      return false
+    })
+  }
+
   return Object.entries(snapshot)
     .filter(([key, value]) => {
       if (!value || typeof value !== 'object') return false
       if (key.startsWith('_') || SNAPSHOT_META_KEYS.has(key)) return false
-      const nom = nomenclatures.find(n => asId(n.id) === asId(key))
+      const nom = findNom(key)
       return !nom || nom.type === 'part' || value.type === 'part' || value.need !== undefined
     })
     .map(([nomId, value]) => {
-      const nom = nomenclatures.find(n => asId(n.id) === asId(nomId))
+      const nom = findNom(nomId)
       return {
         nomId: asId(nomId),
         nom,
