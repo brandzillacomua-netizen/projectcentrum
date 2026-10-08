@@ -56,11 +56,25 @@ export function usePrepOrder(nomenclatures, fetchData) {
 
       if (errTask) throw errTask
 
+      const requestsToInsert = itemsToCreate.map(([materialId, qty]) => {
+        const nom = (nomenclatures || []).find(n => String(n.id) === String(materialId))
+        return {
+          task_id: newTask.id,
+          nomenclature_id: materialId,
+          quantity: Number(qty),
+          status: 'pending',
+          inventory_id: null,
+          details: `ЗАПИТ НА ПІДГОТОВКУ (${prepNum}): ${nom?.name || 'Лист'} — ${qty} шт.`
+        }
+      })
+      const { error: reqErr } = await supabase.from('material_requests').insert(requestsToInsert)
+      if (reqErr) throw reqErr
+
       alert(`Наряд ${prepNum} успішно створено!`)
       setPrepQuantities({})
       setShowPrepModal(false)
       setPrepDeadline('')
-      if (fetchData) fetchData(['tasks'])
+      if (fetchData) fetchData(['tasks', 'material_requests'], { force: true })
     } catch (err) {
       console.error(err)
       alert('Помилка при створенні наряду: ' + err.message)

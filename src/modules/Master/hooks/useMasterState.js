@@ -371,6 +371,11 @@ export function useMasterState() {
       setShowPrepModal(false);
       setPrepQuantities({});
       setPrepDeadline('');
+      if (typeof fetchData === 'function') {
+        fetchData(['tasks', 'material_requests'], { force: true });
+      } else if (typeof fetchModuleData === 'function') {
+        fetchModuleData('master');
+      }
     } catch (e) {
       alert('Помилка: ' + e.message);
     } finally {
