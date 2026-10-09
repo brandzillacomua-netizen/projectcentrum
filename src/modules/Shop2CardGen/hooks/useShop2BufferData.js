@@ -3,7 +3,7 @@ import { SHOP2_STAGE_NAMES, isShop2Operation, isPackagingOperation } from '../co
 import { resolveCanonicalNomId } from '../../Nomenclature/utils/nomenclatureHelpers'
 import { buildShop2ScrapByCard, buildShop2UtilRows, resolveShop2CardScrap } from '../utils/shop2BufferCalculations'
 
-export const SHOP2_STAGES = SHOP2_STAGE_NAMES
+export const SHOP2_STAGES = SHOP2_STAGE_NAMES.filter(name => !name.toLowerCase().includes('пакування') && !name.toLowerCase().includes('сгп'))
 
 export function isShop2WorkCard(card, shop2TaskIdsSet = new Set()) {
   if (!card) return false
