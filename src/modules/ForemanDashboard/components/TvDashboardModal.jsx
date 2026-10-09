@@ -10,7 +10,8 @@ export function TvDashboardModal({
   taskStatusMap = {},
   handleCellClick,
   handleRefresh,
-  isRefreshing
+  isRefreshing,
+  qualityLoading
 }) {
   const [autoScroll, setAutoScroll] = useState(true)
   const [currentTime, setCurrentTime] = useState(new Date())
@@ -270,6 +271,7 @@ export function TvDashboardModal({
           maxHeight="none"
           emptyText="Немає активних деталей у системі"
           onCellClick={handleCellClick}
+          qualityLoading={qualityLoading}
         />
       </div>
 

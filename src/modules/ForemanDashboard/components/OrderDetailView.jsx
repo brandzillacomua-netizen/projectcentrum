@@ -1,16 +1,14 @@
-import React, { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { AlertTriangle, RefreshCw, Search } from 'lucide-react'
 import WipTable from './WipTable'
-import { fetchWorkCardHistoryByCardIds, sumFlowField } from '../utils/foremanDashboardHelpers.jsx'
+import { fetchWorkCardHistoryByCardIds } from '../utils/foremanDashboardHelpers.jsx'
 
-const OrderDetailView = ({
+const OrderDetailContent = ({
   task, order, tasks, workCards, allTasksCards, cardsByTaskId, allCardsHistory, flowTotalsRows = [], nomenclatures, bomItems, inventory,
   productionCache, scrapCache, taskStatusMap, taskProgressMap,
-  orderAllCards, isLoadingCards, wipGroups, searchQuery, setSearchQuery, onCellClick
+  orderAllCards, isLoadingCards, wipGroups, searchQuery, setSearchQuery, onCellClick, qualityLoading
 }) => {
-  if (!task || !order) return <div style={{ padding: '20px', color: 'var(--text-muted, #52525b)' }}>Наряд не знайдено...</div>
-
   const status = taskStatusMap[task.id]
   const progress = taskProgressMap[task.id] || { actual: 0, demand: 0 }
   const pct = progress.demand > 0 ? Math.min(100, Math.round((progress.actual / progress.demand) * 100)) : 0
@@ -79,7 +77,7 @@ const OrderDetailView = ({
       const scrap = taskScrap[nomIdStr] || 0
       const plannedReserve = Math.max(0, (sheets * units) + stock - need)
       const shortage = Math.max(0, scrap - plannedReserve)
-      const sgpGap = Math.max(0, need - produced)
+        const sgpGap = Math.max(0, need - stock - produced)
       const qtyPer = progress.demand > 0 ? Math.round(need / progress.demand) : 1
       const potential = qtyPer > 0 ? Math.floor(produced / qtyPer) : 0
 
@@ -224,6 +222,7 @@ const OrderDetailView = ({
         maxHeight="calc(100vh - 420px)"
         emptyText={isLoadingCards ? 'Завантаження деталей наряду...' : 'Немає деталей для відображення. Перевірте план-знімок наряду.'}
         onCellClick={onCellClick}
+        qualityLoading={qualityLoading}
       />
 
       {/* ─── CARD FLOW VISUALIZATION SECTION ─── */}
@@ -263,7 +262,7 @@ const OrderDetailView = ({
                 { key: 'Pressing', label: 'Пресування', ops: ['Пресування'], color: '#eab308' },
                 { key: 'Painting', label: 'Фарбування', ops: ['Фарбування', 'Малярка'], color: '#ec4899' },
                 { key: 'Rework', label: 'Доопрацювання', ops: ['Доопрацювання'], color: '#ef4444' },
-                { key: 'Sgp', label: 'СГП/Пак', ops: ['Пакування', 'Пакування/СГП', 'СГП'], color: '#6366f1' }
+                { key: 'Sgp', label: 'СГП', ops: ['Пакування/СГП', 'СГП'], color: '#6366f1' }
               ]
 
               const stageDurations = {}
@@ -525,6 +524,13 @@ const OrderDetailView = ({
       </div>
     </div>
   )
+}
+
+const OrderDetailView = (props) => {
+  if (!props.task || !props.order) {
+    return <div style={{ padding: '20px', color: 'var(--text-muted, #52525b)' }}>Наряд не знайдено...</div>
+  }
+  return <OrderDetailContent {...props} />
 }
 
 export default OrderDetailView

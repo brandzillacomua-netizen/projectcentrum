@@ -12,6 +12,21 @@ export const QUALITY_CLASSIFICATION_OPTIONS = Object.freeze([
 const id = value => value === null || value === undefined ? '' : String(value)
 const qty = value => Math.max(0, Number(value) || 0)
 
+export const getPendingRecoverableQty = (classifiedQuantity, allocatedQuantity = 0) => (
+  Math.max(0, qty(classifiedQuantity) - qty(allocatedQuantity))
+)
+
+export const getLegacyCategoryOneQuantity = (comment) => {
+  const match = String(comment || '').match(/\[SCRAP_CAT:([^\]]+)\]/)
+  if (!match) return 0
+  try {
+    const categories = JSON.parse(match[1])
+    return qty(categories?.cat1)
+  } catch {
+    return 0
+  }
+}
+
 export const buildQualityLossIndex = (rows = []) => {
   const byTask = {}
   const byCard = {}
@@ -35,6 +50,30 @@ export const buildQualityLossIndex = (rows = []) => {
 
 export const getFinalScrapForTaskPart = (index, taskId, nomenclatureId) => {
   return qty(index?.byTask?.[id(taskId)]?.[id(nomenclatureId)])
+}
+
+export const buildCurrentVkyaIndex = (items = []) => {
+  const byTask = {}
+  items.filter(item => item && item.scope_match !== 'order').forEach(item => {
+    const taskId = id(item.task_id)
+    const nomId = id(item.nomenclature_id)
+    if (!taskId || !nomId) return
+    if (!byTask[taskId]) byTask[taskId] = {}
+    byTask[taskId][nomId] = (byTask[taskId][nomId] || 0) + qty(item.quantity)
+  })
+  return byTask
+}
+
+export const buildCurrentVkyaOrderIndex = (items = []) => {
+  const byOrder = {}
+  items.filter(item => item?.scope_match === 'order').forEach(item => {
+    const orderId = id(item.order_id)
+    const nomId = id(item.nomenclature_id)
+    if (!orderId || !nomId) return
+    if (!byOrder[orderId]) byOrder[orderId] = {}
+    byOrder[orderId][nomId] = (byOrder[orderId][nomId] || 0) + qty(item.quantity)
+  })
+  return byOrder
 }
 
 export const asScrapTotalRows = (rows = []) => rows.map((row, index) => ({

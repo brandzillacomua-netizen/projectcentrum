@@ -1,15 +1,22 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { useMES } from '../../../MESContext'
 import { supabase } from '../../../supabase'
 import { useQualityLossTotals } from '../../VKYA/quality-hold/useQualityLossTotals.js'
 import {
   fetchWorkCardHistoryByCardIds,
   fetchWorkCardsByTaskIds,
-  sumFlowField,
-  getBestKnownProducedFromFlow,
   isVkyaCard,
   resolveCardOrder
 } from '../utils/foremanDashboardHelpers.jsx'
+import {
+  calculateCurrentVkyaQuantity,
+  calculateTerminalMetrics,
+  getConfirmedSgpCardQuantity,
+  getConfirmedSgpFromCards,
+  getConfirmedSgpFromFlow,
+  getForemanTaskScopeKey,
+  isBzReservationCard
+} from '../utils/foremanDashboardMetrics.js'
 
 export const useForemanDashboardData = () => {
   const {
@@ -28,29 +35,62 @@ export const useForemanDashboardData = () => {
   const [orderAllCards, setOrderAllCards] = useState({}) // taskId -> cards[]
   const [loadingCards, setLoadingCards] = useState({})
   const qualityLossTaskIds = useMemo(() => tasks.map(task => task.id).filter(Boolean), [tasks])
-  const qualityLoss = useQualityLossTotals(supabase, qualityLossTaskIds)
+  const qualityLossOrderIds = useMemo(() => tasks.map(task => task.order_id).filter(Boolean), [tasks])
+  const qualityLoss = useQualityLossTotals(supabase, qualityLossTaskIds, { orderIds: qualityLossOrderIds })
+  const sourceRefreshTimerRef = useRef(null)
+  const sourceRefreshPromiseRef = useRef(null)
+
+  const refreshSourceData = useCallback(async () => {
+    if (sourceRefreshPromiseRef.current) return sourceRefreshPromiseRef.current
+
+    const refreshPromise = (async () => {
+      if (typeof fetchModuleData === 'function') {
+        await fetchModuleData('/foreman-dashboard')
+        return
+      }
+      if (typeof fetchData === 'function') {
+        await fetchData(['orders', 'tasks', 'inventory', 'work_cards', 'nomenclatures', 'bom_items', 'work_card_scrap_totals', 'work_card_flow_totals'])
+      }
+    })()
+
+    sourceRefreshPromiseRef.current = refreshPromise
+    try {
+      await refreshPromise
+    } finally {
+      if (sourceRefreshPromiseRef.current === refreshPromise) sourceRefreshPromiseRef.current = null
+    }
+  }, [fetchData, fetchModuleData])
 
   // ── Load data on mount & Realtime subscription ──
   useEffect(() => {
-    fetchModuleData('foreman')
-    if (typeof fetchData === 'function') {
-      fetchData(['orders', 'tasks', 'inventory', 'nomenclatures', 'bom_items', 'work_card_scrap_totals', 'work_card_flow_totals'])
+    refreshSourceData()
+
+    const scheduleSourceRefresh = () => {
+      if (sourceRefreshTimerRef.current) clearTimeout(sourceRefreshTimerRef.current)
+      sourceRefreshTimerRef.current = setTimeout(() => {
+        sourceRefreshTimerRef.current = null
+        refreshSourceData()
+      }, 900)
     }
 
     const channel = supabase
       .channel('foreman_dashboard_realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'work_cards' }, () => {
-        handleRefresh()
+        scheduleSourceRefresh()
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, () => {
-        handleRefresh()
+        scheduleSourceRefresh()
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'work_card_history' }, () => {
+        scheduleSourceRefresh()
       })
       .subscribe()
 
     return () => {
+      if (sourceRefreshTimerRef.current) clearTimeout(sourceRefreshTimerRef.current)
       supabase.removeChannel(channel)
     }
-  }, [])
+  }, [refreshSourceData])
 
   // ── Orders map ──
   const ordersMap = useMemo(() => {
@@ -84,8 +124,9 @@ export const useForemanDashboardData = () => {
   const taskScopeIdsMap = useMemo(() => {
     const map = {}
     tasks.forEach(task => {
+      const scopeKey = getForemanTaskScopeKey(task)
       const scopedIds = tasks
-        .filter(t => String(t.order_id) === String(task.order_id))
+        .filter(t => getForemanTaskScopeKey(t) === scopeKey)
         .map(t => t.id)
         .filter(Boolean)
       map[task.id] = scopedIds.length > 0 ? scopedIds : [task.id]
@@ -98,7 +139,7 @@ export const useForemanDashboardData = () => {
     const primaryTaskMap = new Map()
 
     tasks.forEach(t => {
-      const orderKey = `${t.order_id || 'no_order'}_${t.batch_index || 0}`
+      const orderKey = getForemanTaskScopeKey(t)
       const existing = primaryTaskMap.get(orderKey)
       const stepName = (t.step || '').toLowerCase()
       const isLaser = stepName.includes('розкрій') || stepName.includes('різка') || !t.step
@@ -131,8 +172,7 @@ export const useForemanDashboardData = () => {
       if (hasUnfinishedCards) return true
 
       const hasActiveShop2Task = tasks.some(s2 =>
-        String(s2.order_id) === String(t.order_id) &&
-        s2.batch_index === t.batch_index &&
+        getForemanTaskScopeKey(s2) === getForemanTaskScopeKey(t) &&
         (s2.step?.includes('Пресування') || s2.step?.includes('ЦЕХ №2') || s2.step?.includes('Доопрацювання')) &&
         s2.status !== 'completed'
       )
@@ -167,8 +207,7 @@ export const useForemanDashboardData = () => {
 
       if (t.status !== 'completed') return true
       const hasActiveShop2Task = tasks.some(s2 =>
-        String(s2.order_id) === String(t.order_id) &&
-        s2.batch_index === t.batch_index &&
+        getForemanTaskScopeKey(s2) === getForemanTaskScopeKey(t) &&
         (s2.step?.includes('Пресування') || s2.step?.includes('ЦЕХ №2') || s2.step?.includes('Доопрацювання')) &&
         s2.status !== 'completed'
       )
@@ -238,6 +277,12 @@ export const useForemanDashboardData = () => {
     return Array.from(new Map(sourceRows.filter(Boolean).map((row, index) => [String(row.id || `${row.card_id}-${row.created_at || row.completed_at || index}`), row])).values())
   }, [workCardHistory, allCardsHistory, totalsHistoryRows])
 
+  // Aggregated card totals are authoritative when available. Mixing them with
+  // their underlying history events would count the same defect twice.
+  const observedScrapRows = useMemo(() => (
+    totalsHistoryRows.length > 0 ? totalsHistoryRows : dashboardHistory
+  ), [totalsHistoryRows, dashboardHistory])
+
   const loadAllTasksCards = async (taskList) => {
     if (!taskList || taskList.length === 0) {
       setAllTasksCards([])
@@ -245,12 +290,12 @@ export const useForemanDashboardData = () => {
       return
     }
     try {
-      const orderIds = Array.from(new Set(taskList.map(t => t.order_id).filter(Boolean)))
-      const allTaskIdsForOrders = tasks
-        .filter(t => orderIds.includes(t.order_id))
+      const requestedScopeKeys = new Set(taskList.map(getForemanTaskScopeKey))
+      const scopedTaskIds = tasks
+        .filter(t => requestedScopeKeys.has(getForemanTaskScopeKey(t)))
         .map(t => t.id)
 
-      const taskIds = allTaskIdsForOrders.length > 0 ? allTaskIdsForOrders : taskList.map(t => t.id)
+      const taskIds = scopedTaskIds.length > 0 ? scopedTaskIds : taskList.map(t => t.id)
       const cards = await fetchWorkCardsByTaskIds(taskIds, 'id, task_id, nomenclature_id, status, quantity, operation, used_in_shop2_qty, card_info, created_at')
 
       if (cards) {
@@ -279,7 +324,7 @@ export const useForemanDashboardData = () => {
     if (!selectedTaskId) return
     if (orderAllCards[selectedTaskId]) return // already loaded
     setLoadingCards(prev => ({ ...prev, [selectedTaskId]: true }))
-    fetchWorkCardsByTaskIds([selectedTaskId], '*')
+    fetchWorkCardsByTaskIds(taskScopeIdsMap[selectedTaskId] || [selectedTaskId], '*')
       .then(data => {
         setOrderAllCards(prev => ({ ...prev, [selectedTaskId]: data || [] }))
         setLoadingCards(prev => ({ ...prev, [selectedTaskId]: false }))
@@ -288,7 +333,7 @@ export const useForemanDashboardData = () => {
         console.error(error)
         setLoadingCards(prev => ({ ...prev, [selectedTaskId]: false }))
       })
-  }, [selectedTaskId])
+  }, [selectedTaskId, taskScopeIdsMap])
 
   // ── Index cards by task_id for O(1) lookups ──
   const cardsByTaskId = useMemo(() => {
@@ -314,60 +359,10 @@ export const useForemanDashboardData = () => {
       Object.keys(snapshot).forEach(nid => {
         const nomCards = taskCards.filter(c => String(c.nomenclature_id) === nid)
         const flowRows = scopeIds.flatMap(taskId => flowTotalsByTaskNom[taskId]?.[nid] || [])
-
-        const getQ = (ops, statuses) => {
-          return nomCards.filter(c => {
-            const isMatchOp = ops.some(op => {
-              if (op === 'Галтовка') return c.operation === 'Галтовка' || c.operation?.startsWith('Галтовка')
-              if (op === 'Сортування') return c.operation === 'Сортування' || c.operation?.startsWith('Сортування') || c.operation?.includes('Сортування')
-              return c.operation === op
-            })
-            return isMatchOp && statuses.includes(c.status)
-          }).reduce((s, c) => s + (Number(c.quantity) || 0), 0)
-        }
-
-        const qWhWait = nomCards.filter(c => c.operation !== 'Склад БЗ' && c.operation !== 'Склад BZ' && !isVkyaCard(c) && (['waiting-materials', 'waiting_material', 'waiting-warehouse', 'waiting-cutters'].includes(c.status) || c.operation === 'Склад' || c.operation === 'Очікування Склад')).reduce((s, c) => s + (Number(c.quantity) || 0), 0)
-        const qCutWait = getQ(['Розкрій'], ['new', 'waiting-machines'])
-        const qCut = getQ(['Розкрій'], ['in-progress', 'paused'])
-        const qCutBuf = getQ(['Розкрій'], ['at-buffer'])
-        const qGalt = getQ(['Галтовка'], ['in-progress'])
-        const qGaltBuf = getQ(['Галтовка'], ['at-buffer'])
-        const qPriy = getQ(['Прийомка'], ['new', 'in-progress', 'at-buffer'])
-        const qSortAct = getQ(['Сортування'], ['new', 'in-progress', 'at-buffer'])
-        const qSort = nomCards.filter(c => c.status === 'at-shop2-buffer')
-          .reduce((s, c) => s + Math.max(0, (Number(c.quantity) || 0) - (Number(c.used_in_shop2_qty) || 0)), 0)
-
-        const groupProduced = nomCards.filter(c => {
-          const op = (c.operation || '').toLowerCase()
-          const isShop1 = ['розкрій', 'галтовка', 'прийомка', 'сортування'].some(o => op.includes(o))
-          return isShop1 && (c.status === 'completed' || c.status === 'at-shop2-buffer')
-        }).reduce((s, c) => s + (Number(c.quantity) || 0), 0)
-
-        const totalShop2Qty = nomCards.filter(c => {
-          const op = (c.operation || '').toLowerCase()
-          return ['пресування', 'фарбування', 'малярка', 'доопрацювання', 'пакування', 'сгп'].some(o => op.includes(o))
-        }).reduce((s, c) => s + (Number(c.quantity) || 0), 0)
-
-        const bzCardsQty = nomCards.filter(c => c.operation === 'Склад БЗ').reduce((s, c) => s + (Number(c.quantity) || 0), 0)
-        const flowBzQty = sumFlowField(flowRows, 'total_bz')
-        const qBz = flowRows.length > 0
-          ? flowBzQty
-          : Math.max(0, groupProduced - qSort - totalShop2Qty) + bzCardsQty
-
-        const sum = qWhWait + qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriy + qSortAct + qSort + qBz
-
-        const snap = snapshot[nid] || {}
-        const need = Number(snap.need) || 0
-        const initialStock = Number(snap.stock) || 0
-        const plannedReserve = Math.max(0, ((Number(snap.sheets) || 0) * (Number(snap.units_per_sheet) || 1)) + (Number(snap.stock) || 0) - need)
-        const flowProducedRaw = getBestKnownProducedFromFlow(flowRows)
-        const flowScrapQty = sumFlowField(flowRows, 'total_scrap')
-        const flowProducedNet = Math.max(0, flowProducedRaw - flowScrapQty + plannedReserve)
-        const earlyWipQty = qWhWait + qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriy + qSortAct
-        const nonReissueEarlyWip = Math.max(0, flowScrapQty - plannedReserve) > 0 ? 0 : earlyWipQty
-        const sgpProducedFromCards = Math.max(0, groupProduced - qSort)
-        const actualProduced = flowProducedRaw > 0 ? flowProducedNet : (groupProduced > 0 ? sgpProducedFromCards : sum)
-        cache[task.id][nid] = actualProduced
+        const confirmedFromFlow = getConfirmedSgpFromFlow(flowRows, nomCards)
+        cache[task.id][nid] = confirmedFromFlow > 0
+          ? confirmedFromFlow
+          : getConfirmedSgpFromCards(nomCards)
       })
     })
     return cache
@@ -381,7 +376,7 @@ export const useForemanDashboardData = () => {
     const cardMap = {}
     dashboardCards.forEach(c => { cardMap[c.id] = c })
 
-    dashboardHistory.forEach(h => {
+    observedScrapRows.forEach(h => {
       if (!h.card_id && (!h.task_id || !h.nomenclature_id)) return
       const card = cardMap[h.card_id]
       const tid = h.task_id || card?.task_id
@@ -394,7 +389,8 @@ export const useForemanDashboardData = () => {
         if (!cacheByTask[tid]) cacheByTask[tid] = {}
         cacheByTask[tid][nid] = (cacheByTask[tid][nid] || 0) + scrapQty
       }
-      if (oid) {
+      // Order is only a fallback for legacy rows that have no task link.
+      if (oid && !tid) {
         if (!cacheByOrder[oid]) cacheByOrder[oid] = {}
         cacheByOrder[oid][nid] = (cacheByOrder[oid][nid] || 0) + scrapQty
       }
@@ -402,7 +398,7 @@ export const useForemanDashboardData = () => {
     })
 
     return { byTask: cacheByTask, byOrder: cacheByOrder, byNom: cacheByNom }
-  }, [dashboardHistory, dashboardCards])
+  }, [observedScrapRows, dashboardCards])
 
   // ── Final Scrap cache (Cat 4 Util write-offs) ──
   const finalScrapCache = useMemo(() => {
@@ -451,8 +447,7 @@ export const useForemanDashboardData = () => {
     const map = {}
     relevantTasks.forEach(task => {
       const shop2Tasks = tasks.filter(s2 =>
-        String(s2.order_id) === String(task.order_id) &&
-        s2.batch_index === task.batch_index &&
+        getForemanTaskScopeKey(s2) === getForemanTaskScopeKey(task) &&
         (s2.step?.includes('Пресування') || s2.step?.includes('ЦЕХ №2') || s2.step?.includes('Доопрацювання'))
       )
       const hasActiveShop2Task = shop2Tasks.some(s2 => {
@@ -483,16 +478,17 @@ export const useForemanDashboardData = () => {
         if (!uuidRegex.test(nomIdStr)) return
         const snap = snapshot[nomIdStr]
         if (!snap || snap.need === 0) return
-        const produced = taskProd[nomIdStr] || 0
-        if (produced < snap.need) allDone = false
-
         const need = snap.need || 0
-        const stock = snap.stock || 0
+        const produced = taskProd[nomIdStr] || 0
+        const stock = Number(snap.stock) || 0
+        const fulfilled = produced + stock
+        if (fulfilled < need) allDone = false
+
         const sheets = snap.sheets || 0
         const units = snap.units_per_sheet || 1
         const scrap = taskScrap[nomIdStr] || 0
         const totalBZ = (sheets * units) + stock - need
-        if (produced < need && (totalBZ - scrap) < 0) hasShortage = true
+        if (fulfilled < need && (totalBZ - scrap) < 0) hasShortage = true
       })
 
       const hasActivePipelineCards = taskCards.some(c =>
@@ -551,12 +547,15 @@ export const useForemanDashboardData = () => {
     if (!nomenclatures || !bomItems || !orders) return []
 
     const selectedTasks = tasks.filter(t => filterTaskIds.includes(t.id))
+    const allTaskIdsForOrders = Array.from(new Set(selectedTasks.flatMap(t => taskScopeIdsMap[t.id] || [t.id])))
+    const scopedTaskIdSet = new Set(allTaskIdsForOrders)
+    const allTasksForOrders = tasks.filter(t => scopedTaskIdSet.has(t.id))
     const orderIds = Array.from(new Set(selectedTasks.map(t => t.order_id).filter(Boolean)))
-    const allTasksForOrders = tasks.filter(t => orderIds.includes(t.order_id))
-    const allTaskIdsForOrders = allTasksForOrders.map(t => t.id)
 
     const filterSet = new Set(allTaskIdsForOrders)
-    const filteredCards = dashboardCards.filter(c => (c.task_id && filterSet.has(c.task_id)) || (c.order_id && orderIds.includes(c.order_id)))
+    const filteredCards = dashboardCards.filter(c => c.task_id
+      ? filterSet.has(c.task_id)
+      : (c.order_id && orderIds.includes(c.order_id)))
 
     const parentToChildren = {}
     const childToParents = {}
@@ -624,7 +623,7 @@ export const useForemanDashboardData = () => {
             if (taskParentMap[taskId] !== parentId) return
             const task = tasks.find(t => t.id === taskId)
             if (!task) return
-            const orderKey = `${task.order_id || 'no_order'}_${task.batch_index || 0}`
+            const orderKey = getForemanTaskScopeKey(task)
             if (processedOrderKeys.has(orderKey)) return
             processedOrderKeys.add(orderKey)
             d += Number(task?.planned_sets) || 0
@@ -787,162 +786,83 @@ export const useForemanDashboardData = () => {
         const qDoopBuf = getQ(['Доопрацювання'], ['at-buffer'])
 
         let initialStock = 0
-        let plannedReserve = 0
-        const orderTasks = tasks.filter(t => {
-          if (!t.order_id || !orderIds.includes(t.order_id)) return false
+        const orderTasks = allTasksForOrders.filter(t => {
           const o = ordersMap[t.order_id]
           if (!o) return false
           const oPid = o.nomenclature_id || o.order_items?.[0]?.nomenclature_id
           return String(oPid) === String(parentId)
         })
-        const ordersWithTasks = Array.from(new Set(orderTasks.map(t => t.order_id)))
-        ordersWithTasks.forEach(oid => {
-          const taskWithSnap = orderTasks.find(t => t.order_id === oid && t.plan_snapshot && t.plan_snapshot[String(nom.id)])
+        const processedScopeKeys = Array.from(new Set(orderTasks.map(getForemanTaskScopeKey)))
+        processedScopeKeys.forEach(scopeKey => {
+          const taskWithSnap = orderTasks.find(t => getForemanTaskScopeKey(t) === scopeKey && t.plan_snapshot && t.plan_snapshot[String(nom.id)])
           if (taskWithSnap) {
             const snapEntry = taskWithSnap.plan_snapshot[String(nom.id)] || {}
             const stock = Number(snapEntry.stock) || 0
-            const sheets = Number(snapEntry.sheets) || 0
-            const units = Number(snapEntry.units_per_sheet) || 1
-            const need = Number(snapEntry.need) || 0
             initialStock += stock
-            plannedReserve += Math.max(0, (sheets * units) + stock - need)
           }
         })
 
-        const completedShop2Qty = filteredCards.filter(c => {
+        const sgpTransferCards = filteredCards.filter(c => {
           if (String(c.nomenclature_id) !== String(nom.id)) return false
           const cardParent = getCardParentId(c)
           if (cardParent && String(cardParent) !== String(parentId)) return false
-          if (isVkyaCard(c)) return false
-          const op = (c.operation || '').toLowerCase()
-          const info = (c.card_info || '').toLowerCase()
-          const isGeneric = op === '' || op.includes('цех 2') || op.includes('цех №2') || op.includes('shop 2') || op.includes('shop2')
-          const isPackagingOrSgp = op.includes('пакува') || op.includes('пакван') || op.includes('сгп') || (isGeneric && (info.includes('пакува') || info.includes('сгп')))
-          if (isPackagingOrSgp) return true
-          const hasShop2Keyword = ['пресув', 'прес', 'фарбуван', 'маляр', 'paint', 'доопрац', 'доработ'].some(o => op.includes(o))
-          const hasInfoKeyword = ['пресув', 'прес', 'фарбуван', 'маляр', 'paint', 'доопрац', 'доработ'].some(o => info.includes(o))
-          const isShop2 = hasShop2Keyword || (isShop2Card(c) && (isGeneric || hasInfoKeyword))
-          return isShop2 && c.status === 'completed'
-        }).reduce((s, c) => s + (Number(c.quantity) || 0), 0)
+          return !isVkyaCard(c)
+        })
+        const confirmedSgpCardsQty = getConfirmedSgpFromCards(sgpTransferCards)
 
-        const totalPotentialSgp = completedShop2Qty + initialStock
         const flowRowsForThisPart = flowTotalsRows.filter(row => {
           if (String(row.nomenclature_id) !== String(nom.id)) return false
           if (!row.task_id || !filterSet.has(row.task_id)) return false
           return !taskParentMap[row.task_id] || taskParentMap[row.task_id] === parentId
         })
-        const flowScrapQty = sumFlowField(flowRowsForThisPart, 'total_scrap')
-        const flowSgpQty = sumFlowField(flowRowsForThisPart, 'total_good', ['sgp'])
-        const netSgpQty = Math.max(0, flowSgpQty - flowScrapQty)
-
-        const groupProduced = filteredCards.filter(c => {
-          if (String(c.nomenclature_id) !== String(nom.id)) return false
-          const cardParent = getCardParentId(c)
-          if (cardParent && String(cardParent) !== String(parentId)) return false
-          if (isVkyaCard(c)) return false
-          const op = (c.operation || '').toLowerCase()
-          const isShop1 = ['розкрій', 'галтовка', 'прийомка', 'сортування'].some(o => op.includes(o))
-          return isShop1 && (c.status === 'completed' || c.status === 'at-shop2-buffer')
-        }).reduce((s, c) => s + (Number(c.quantity) || 0), 0)
-
-        const totalShop2Qty = filteredCards.filter(c => {
-          if (String(c.nomenclature_id) !== String(nom.id)) return false
-          const cardParent = getCardParentId(c)
-          if (cardParent && String(cardParent) !== String(parentId)) return false
-          if (isVkyaCard(c)) return false
-          const op = (c.operation || '').toLowerCase()
-          const info = (c.card_info || '').toLowerCase()
-          const isGeneric = op === '' || op.includes('цех 2') || op.includes('цех №2') || op.includes('shop 2') || op.includes('shop2')
-          const hasShop2Keyword = ['пресув', 'прес', 'фарбуван', 'маляр', 'paint', 'доопрац', 'доработ', 'пакува', 'сгп'].some(o => op.includes(o))
-          const hasInfoKeyword = ['пресув', 'прес', 'фарбуван', 'маляр', 'paint', 'доопрац', 'доработ', 'пакува', 'сгп'].some(o => info.includes(o))
-          return hasShop2Keyword || (isShop2Card(c) && (isGeneric || hasInfoKeyword))
-        }).reduce((s, c) => s + (Number(c.quantity) || 0), 0)
-
-        const sgpProduced = Math.max(0, groupProduced - qSort)
-        const producedForSgp = totalShop2Qty > 0 ? completedShop2Qty : (groupProduced > 0 ? sgpProduced : completedShop2Qty)
-        const earlyWipQty = qWhWait + qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriy + qSortAct + qMalWait + qMal + qMalBuf + qPresWait + qPres + qPresBuf + qDoopWait + qDoop + qDoopBuf
-        const nonReissueEarlyWip = Math.max(0, flowScrapQty - plannedReserve) > 0 ? 0 : earlyWipQty
-        
-        const netDemandForProduction = Math.max(0, demandForParent - initialStock)
-        
-        const actualProducedForSgp = Math.max(0, producedForSgp - initialStock)
-        
-        const qSgp = demandForParent > 0
-          ? Math.min(netDemandForProduction, actualProducedForSgp, Math.max(0, netDemandForProduction - nonReissueEarlyWip))
-          : Math.max(0, actualProducedForSgp)
-
-        const bzExcess = Math.max(0, producedForSgp - netDemandForProduction)
-        const flowBzQty = sumFlowField(flowRowsForThisPart, 'total_bz')
-        const qBz = initialStock + (groupProduced > 0
-          ? Math.max(0, sgpProduced - netDemandForProduction)
-          : (flowRowsForThisPart.length > 0
-            ? Math.max(flowBzQty, Math.max(0, netSgpQty - netDemandForProduction))
-            : Math.max(0, groupProduced - qSort - totalShop2Qty) + bzExcess))
-
-        const allTasksForParent = tasks.filter(t => {
-          const o = ordersMap[t.order_id]
-          const pId = o?.nomenclature_id || o?.order_items?.[0]?.nomenclature_id
-          return String(pId) === String(parentId)
-        })
-        const allTaskIdsForParent = Array.from(new Set([
-          ...filterTaskIds.filter(tid => !taskParentMap[tid] || taskParentMap[tid] === parentId),
-          ...allTasksForParent.map(t => t.id)
-        ]))
-        const allOrderIdsForParent = Array.from(new Set(allTasksForParent.map(t => t.order_id).filter(Boolean)))
-
-        let qObservedScrap = 0
+        const flowSgpQty = getConfirmedSgpFromFlow(flowRowsForThisPart, sgpTransferCards)
+        const allTaskIdsForParent = allTaskIdsForOrders.filter(tid => !taskParentMap[tid] || taskParentMap[tid] === parentId)
         let qCat4Scrap = 0
         allTaskIdsForParent.forEach(tid => {
-          if (observedScrapCache.byTask?.[tid]?.[String(nom.id)] !== undefined) {
-            qObservedScrap += Number(observedScrapCache.byTask[tid][String(nom.id)]) || 0
-          }
           if (finalScrapCache[tid]?.[String(nom.id)] !== undefined) {
             qCat4Scrap += Number(finalScrapCache[tid][String(nom.id)]) || 0
           }
         })
-
-        if (qObservedScrap === 0 && allOrderIdsForParent.length > 0) {
-          allOrderIdsForParent.forEach(oid => {
-            if (observedScrapCache.byOrder?.[oid]?.[String(nom.id)] !== undefined) {
-              qObservedScrap += Number(observedScrapCache.byOrder[oid][String(nom.id)]) || 0
-            }
-          })
-        }
-
-        const qScrap = qCat4Scrap > 0 ? qCat4Scrap : flowScrapQty
-
-        const qVkyaFromCards = filteredCards.filter(c => {
-          if (String(c.nomenclature_id) !== String(nom.id)) return false
-          const cardParent = getCardParentId(c)
-          if (!cardParent || String(cardParent) !== String(parentId)) return false
-          return isVkyaCard(c)
-        }).reduce((s, c) => s + (Number(c.quantity) || 0), 0)
-
-        const invScrapQty = (inventory || []).filter(item => {
-          if (String(item.nomenclature_id) !== String(nom.id)) return false
-          const t = String(item.type || '').toLowerCase()
-          const n = String(item.name || '').toLowerCase()
-          return (
-            t === 'quarantine' || t === 'scrap_restoration' || t === 'scrap_cat_1' ||
-            n.includes('карантин') || n.includes('вкя') || n.includes('відновлення')
-          )
-        }).reduce((s, item) => s + (Number(item.total_qty) || 0), 0)
-
-        let returnedVkyaQty = 0
-        let pendingVkyaQty = 0
+        let indexedCurrentVkyaQty = 0
         allTaskIdsForParent.forEach(tid => {
-          if (qualityLoss?.returnedIndex?.[tid]?.[String(nom.id)]) {
-            returnedVkyaQty += Number(qualityLoss.returnedIndex[tid][String(nom.id)]) || 0
-          }
-          const pendingMap = qualityLoss?.pendingVkyaByTask?.[tid] || qualityLoss?.pendingVkyaIndex?.[tid]
+          const pendingMap = qualityLoss?.pendingVkyaByTask?.[tid]
           if (pendingMap && pendingMap[String(nom.id)]) {
-            pendingVkyaQty += Number(pendingMap[String(nom.id)]) || 0
+            indexedCurrentVkyaQty += Number(pendingMap[String(nom.id)]) || 0
           }
         })
+        const orderIdsForParent = new Set(allTasksForOrders
+          .filter(task => taskParentMap[task.id] === parentId)
+          .map(task => String(task.order_id || ''))
+          .filter(Boolean))
+        orderIdsForParent.forEach(orderId => {
+          indexedCurrentVkyaQty += Number(qualityLoss?.pendingVkyaByOrder?.[orderId]?.[String(nom.id)]) || 0
+        })
 
-        const qualityHoldFromFormula = Math.max(0, qObservedScrap - qScrap - returnedVkyaQty)
-        const unclassifiedVkya = Math.max(qVkyaFromCards, qualityHoldFromFormula)
-        const qVkya = unclassifiedVkya + invScrapQty + pendingVkyaQty
+        let observedScrapQty = 0
+        let returnedToRouteQty = 0
+        allTaskIdsForParent.forEach(tid => {
+          observedScrapQty += Number(observedScrapCache.byTask?.[tid]?.[String(nom.id)]) || 0
+          returnedToRouteQty += Number(qualityLoss?.returnedIndex?.[tid]?.[String(nom.id)]) || 0
+        })
+        orderIdsForParent.forEach(orderId => {
+          observedScrapQty += Number(observedScrapCache.byOrder?.[orderId]?.[String(nom.id)]) || 0
+        })
+
+        // All card scrap remains at VKYA while it is in quarantine, category 1,
+        // or restoration. Only final util and an actual return to production
+        // remove it. The detailed VKYA ledger remains a fallback for legacy
+        // records where no card scrap total exists.
+        const currentVkyaQty = observedScrapQty > 0
+          ? calculateCurrentVkyaQuantity({ observedScrapQty, finalScrapQty: qCat4Scrap, returnedToRouteQty })
+          : indexedCurrentVkyaQty
+
+        const { qSgp, qBz, qScrap, qVkya } = calculateTerminalMetrics({
+          initialStock,
+          flowSgpQty,
+          confirmedSgpCardsQty,
+          finalScrapQty: qCat4Scrap,
+          currentVkyaQty
+        })
 
         const sum = qWhWait + qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriy + qSortAct + qSort + qMalWait + qMal + qMalBuf + qPresWait + qPres + qPresBuf + qDoopWait + qDoop + qDoopBuf + qSgp + qBz + qVkya
 
@@ -977,7 +897,7 @@ export const useForemanDashboardData = () => {
     }
     return buildWipGroups([selectedTaskId])
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedTaskId, relevantTasks, activeTasks, dashboardCards, dashboardHistory, flowTotalsRows, inventory, nomenclatures, bomItems, tasks, orders, searchQuery])
+  }, [selectedTaskId, relevantTasks, activeTasks, dashboardCards, dashboardHistory, flowTotalsRows, inventory, nomenclatures, bomItems, tasks, orders, searchQuery, qualityLoss.rows, qualityLoss.returnedRows, qualityLoss.currentVkyaItems])
 
   // ── Handle cell click ──
   const handleCellClick = (row, stageKey, stageName, group) => {
@@ -995,8 +915,14 @@ export const useForemanDashboardData = () => {
       return null
     }
 
+    const modalPrimaryTasks = selectedTaskId
+      ? relevantTasks.filter(t => t.id === selectedTaskId)
+      : relevantTasks
+    const modalTaskIds = new Set(modalPrimaryTasks.flatMap(t => taskScopeIdsMap[t.id] || [t.id]).map(String))
+
     const nomCards = (dashboardCards || []).filter(c => {
       if (String(c.nomenclature_id) !== nomId) return false
+      if (c.task_id && !modalTaskIds.has(String(c.task_id))) return false
       const cardParent = getCardParentId(c)
       if (!cardParent || String(cardParent) !== rowParentId) return false
       return true
@@ -1125,78 +1051,67 @@ export const useForemanDashboardData = () => {
     else if (stageKey === 'qDoopWait') matchingCards = matchOpsAndStatus(['Доопрацювання'], ['new', 'waiting-machines', 'waiting-materials'])
     else if (stageKey === 'qDoop') matchingCards = matchOpsAndStatus(['Доопрацювання'], ['in-progress', 'paused'])
     else if (stageKey === 'qDoopBuf') matchingCards = matchOpsAndStatus(['Доопрацювання'], ['at-buffer'])
-    else if (stageKey === 'qSgp') matchingCards = nomCards.filter(c => !isVkyaCard(c) && (['пакування', 'пакван', 'сгп'].some(o => (c.operation || '').toLowerCase().includes(o)) || c.status === 'completed'))
-    else if (stageKey === 'qBz') matchingCards = nomCards.filter(c => !isVkyaCard(c) && (c.operation === 'Склад БЗ' || c.operation === 'Склад BZ'))
-    else if (stageKey === 'qVkya') {
-      const cardItems = nomCards.filter(c => isVkyaCard(c))
-
-      const allTasksForParent = tasks.filter(t => {
-        const o = ordersMap[t.order_id]
-        const pId = o?.nomenclature_id || o?.order_items?.[0]?.nomenclature_id
-        return String(pId) === String(rowParentId)
-      })
-      const parentTaskIds = new Set(allTasksForParent.map(t => String(t.id)))
-      const parentOrderIds = new Set(allTasksForParent.map(t => String(t.order_id)).filter(Boolean))
-
-      const historyItems = (dashboardHistory || []).filter(h => {
-        const nid = h.nomenclature_id ? String(h.nomenclature_id) : null
-        if (nid !== nomId) return false
-        const tid = h.task_id ? String(h.task_id) : null
-        const oid = h.order_id ? String(h.order_id) : null
-        if (tid && parentTaskIds.has(tid)) return true
-        if (oid && parentOrderIds.has(oid)) return true
-        return (!tid && !oid)
-      }).map(h => {
-        const qtyVal = Number(h.scrap_qty || h.total_scrap || 0)
-        return {
-          id: h.id || `hist-${Math.random()}`,
-          order_id: h.order_id || null,
-          task_id: h.task_id || null,
-          card_number: h.card_number || 'Подія ВКЯ',
-          operation: h.stage_name || h.operation || 'Подія браку ВКЯ',
-          status: 'quality-hold',
-          quantity: qtyVal,
-          card_info: `Оператор: ${h.operator_name || 'Не вказано'} | Етап: ${h.stage_name || 'Невказаний'} | ${h.qc_scrap_comment || 'Зафіксовано брак ВКЯ'}`,
-          created_at: h.created_at || h.completed_at
-        }
-      }).filter(h => h.quantity > 0)
-
-      const invItems = (inventory || []).filter(item => {
-        if (String(item.nomenclature_id) !== nomId) return false
-        const t = String(item.type || '').toLowerCase()
-        const n = String(item.name || '').toLowerCase()
-        return (
-          t === 'quarantine' || t === 'scrap_restoration' || t === 'scrap_cat_1' ||
-          n.includes('карантин') || n.includes('вкя') || n.includes('відновлення')
-        )
-      }).map(item => ({
-        id: item.id || `inv-${Math.random()}`,
+    else if (stageKey === 'qSgp') matchingCards = nomCards.filter(c => {
+      if (isVkyaCard(c) || isBzReservationCard(c) || c.status !== 'completed') return false
+      const op = String(c.operation || '').toLowerCase()
+      const info = String(c.card_info || '').toLowerCase()
+      return op.includes('сгп') || op.includes('пакування/сгп') || info.includes('[пряма передача]')
+    }).map(c => ({ ...c, quantity: getConfirmedSgpCardQuantity(c) }))
+    else if (stageKey === 'qBz') {
+      matchingCards = [{
+        id: `bz-${row.id}`,
+        task_id: selectedTaskId || null,
         order_id: null,
-        task_id: null,
-        card_number: 'Склад ВКЯ',
-        operation: 'Склад ВКЯ / Карантин',
-        status: item.type || 'quarantine',
-        quantity: Number(item.total_qty || 0),
-        card_info: `[Складське зберігання] ${item.name || 'Матеріали ВКЯ'}`,
-        created_at: item.updated_at || item.created_at
-      })).filter(i => i.quantity > 0)
-
-      const cardIds = new Set(cardItems.map(c => String(c.id)))
-      const combined = [...cardItems]
-      historyItems.forEach(h => {
-        if (!cardIds.has(String(h.id))) {
-          combined.push(h)
-          cardIds.add(String(h.id))
+        nomenclature_id: nomId,
+        card_number: 'БЗ плану',
+        operation: 'БЗ, взятий при формуванні наряду',
+        status: 'completed',
+        quantity: row.qBz || 0,
+        card_info: 'Зафіксована стартова кількість із плану наряду'
+      }].filter(item => item.quantity > 0)
+    }
+    else if (stageKey === 'qScrap') {
+      matchingCards = (qualityLoss.rows || []).filter(item =>
+        modalTaskIds.has(String(item.task_id)) &&
+        String(item.nomenclature_id) === nomId
+      ).map(item => ({
+        ...item,
+        id: item.id || `util-${item.task_id}-${item.card_id || nomId}`,
+        quantity: Number(item.total_scrap) || 0,
+        status: 'final-scrap',
+        operation: 'Брак, утиль',
+        card_number: item.card_id || 'Утиль'
+      })).filter(item => item.quantity > 0)
+    }
+    else if (stageKey === 'qVkya') {
+      const indexedItems = (qualityLoss.currentVkyaItems || []).filter(item =>
+        (modalTaskIds.has(String(item.task_id)) || (
+          item.scope_match === 'order' &&
+          modalPrimaryTasks.some(task => String(task.order_id) === String(item.order_id))
+        )) &&
+        String(item.nomenclature_id) === nomId
+      )
+      const sourceRows = (observedScrapRows || []).filter(item =>
+        modalTaskIds.has(String(item.task_id)) &&
+        String(item.nomenclature_id) === nomId &&
+        (Number(item.scrap_qty) || Number(item.total_scrap) || 0) > 0
+      )
+      let remaining = Math.max(0, Number(row.qVkya) || 0)
+      const cardScrapItems = sourceRows.map((item, index) => {
+        const sourceQuantity = Number(item.scrap_qty) || Number(item.total_scrap) || 0
+        const quantity = Math.min(sourceQuantity, remaining)
+        remaining -= quantity
+        return {
+          ...item,
+          id: `vkya-card-scrap-${item.id || item.card_id || index}`,
+          quantity,
+          status: 'quality-hold',
+          operation: 'На ВКЯ',
+          card_number: item.card_number || item.card_id || 'ВКЯ',
+          card_info: 'Брак по виробничій картці, який ще не повернуто у маршрут і не списано в утиль'
         }
-      })
-      invItems.forEach(i => {
-        if (!cardIds.has(String(i.id))) {
-          combined.push(i)
-          cardIds.add(String(i.id))
-        }
-      })
-
-      matchingCards = combined
+      }).filter(item => item.quantity > 0)
+      matchingCards = cardScrapItems.length > 0 ? cardScrapItems : indexedItems
     }
     else matchingCards = nomCards
 
@@ -1214,8 +1129,8 @@ export const useForemanDashboardData = () => {
   const handleRefresh = async () => {
     setIsRefreshing(true)
     try {
-      await fetchData(['orders', 'tasks', 'inventory', 'nomenclatures', 'bom_items', 'work_card_scrap_totals', 'work_card_flow_totals'])
-      await loadAllTasksCards(relevantTasks)
+      await refreshSourceData()
+      await qualityLoss.reload()
       setOrderAllCards({})
     } catch (e) {
       console.error(e)
@@ -1236,6 +1151,7 @@ export const useForemanDashboardData = () => {
     selectedTaskId,
     setSelectedTaskId,
     isRefreshing,
+    qualityLossLoading: qualityLoss.loading,
     searchQuery,
     setSearchQuery,
     expandedBottlenecks,

@@ -10,8 +10,11 @@ import {
   TD_SUM
 } from '../utils/foremanDashboardHelpers.jsx'
 
-const WipTable = ({ groupedData, maxHeight = 'calc(100vh - 320px)', emptyText = 'Немає даних', onCellClick = null }) => {
+const WipTable = ({ groupedData, maxHeight = 'calc(100vh - 320px)', emptyText = 'Немає даних', onCellClick = null, qualityLoading = false }) => {
   const [isFull, setIsFull] = useState(false)
+  const renderQualityValue = (value, type, demand = 0, onClick = null) => qualityLoading
+    ? <span title="Завантаження даних ВКЯ…" style={{ color: '#f59e0b', fontWeight: 900 }}>…</span>
+    : renderVal(value, type, demand, onClick)
 
   const renderTable = (scrollMaxHeight) => (
     <div style={{ borderRadius: '16px', border: '1px solid var(--glass-border, rgba(0,0,0,0.1))', background: 'var(--bg, #09090b)', overflow: 'auto', maxHeight: scrollMaxHeight, width: '100%' }}>
@@ -77,7 +80,7 @@ const WipTable = ({ groupedData, maxHeight = 'calc(100vh - 320px)', emptyText = 
                         {row.name}
                         {row.code && <span style={{ display: 'block', fontSize: '0.68rem', color: 'var(--text-muted, #52525b)', marginTop: '1px' }}>Код: {row.code}</span>}
                       </td>
-                      <td className="wip-col-sum" style={TD_SUM}>{renderVal(row.sum, 'sum', row.demand, onCellClick ? () => onCellClick(row, 'sum', 'Усі етапи (Сума)', group) : null)}</td>
+                      <td className="wip-col-sum" style={TD_SUM}>{renderQualityValue(row.sum, 'sum', row.demand, onCellClick ? () => onCellClick(row, 'sum', 'Усі етапи (Сума)', group) : null)}</td>
                       <td style={TD}>{renderVal(row.qWhWait, 'normal', 0, onCellClick ? () => onCellClick(row, 'qWhWait', 'Очік. Склад', group) : null)}</td>
                       <td style={TD}>{renderVal(row.qCutWait, 'normal', 0, onCellClick ? () => onCellClick(row, 'qCutWait', 'Очік. Розкрій', group) : null)}</td>
                       <td style={TD}>{renderVal(row.qCut, 'normal', 0, onCellClick ? () => onCellClick(row, 'qCut', 'Розкрій', group) : null)}</td>
@@ -96,17 +99,17 @@ const WipTable = ({ groupedData, maxHeight = 'calc(100vh - 320px)', emptyText = 
                       <td style={TD}>{renderVal(row.qDoopWait, 'normal', 0, onCellClick ? () => onCellClick(row, 'qDoopWait', 'Очік. Доопр.', group) : null)}</td>
                       <td style={TD}>{renderVal(row.qDoop, 'normal', 0, onCellClick ? () => onCellClick(row, 'qDoop', 'Доопрацювання', group) : null)}</td>
                       <td style={TD}>{renderVal(row.qDoopBuf, 'normal', 0, onCellClick ? () => onCellClick(row, 'qDoopBuf', 'Буфер Доопр.', group) : null)}</td>
-                      <td style={{ ...TD, background: 'rgba(16,185,129,0.03)' }}>{renderVal(row.qSgp, 'sgp', 0, onCellClick ? () => onCellClick(row, 'qSgp', 'СГП (Пакування)', group) : null)}</td>
+                      <td style={{ ...TD, background: 'rgba(16,185,129,0.03)' }}>{renderVal(row.qSgp, 'sgp', 0, onCellClick ? () => onCellClick(row, 'qSgp', 'Передано на СГП', group) : null)}</td>
                       <td style={{ ...TD, background: 'rgba(16,185,129,0.03)' }}>{renderVal(row.qBz, 'bz', 0, onCellClick ? () => onCellClick(row, 'qBz', 'БЗ (Склад)', group) : null)}</td>
-                      <td style={{ ...TD, background: 'rgba(239,68,68,0.03)' }}>{renderVal(row.qScrap, 'scrap', 0, onCellClick ? () => onCellClick(row, 'qScrap', 'Брак утиль', group) : null)}</td>
-                      <td style={{ ...TD, background: 'rgba(245,158,11,0.03)', borderRight: 'none' }}>{renderVal(row.qVkya, 'vkya', 0, onCellClick ? () => onCellClick(row, 'qVkya', 'На ВКЯ (Карантин)', group) : null)}</td>
+                      <td style={{ ...TD, background: 'rgba(239,68,68,0.03)' }}>{renderQualityValue(row.qScrap, 'scrap', 0, onCellClick ? () => onCellClick(row, 'qScrap', 'Брак утиль', group) : null)}</td>
+                      <td style={{ ...TD, background: 'rgba(245,158,11,0.03)', borderRight: 'none' }}>{renderQualityValue(row.qVkya, 'vkya', 0, onCellClick ? () => onCellClick(row, 'qVkya', 'На ВКЯ', group) : null)}</td>
                     </tr>
                   ))}
 
                   {/* Subtotals */}
                   <tr style={{ background: 'var(--card-bg, #18181b)', fontWeight: 'bold', borderTop: '1px solid var(--glass-border, rgba(0,0,0,0.1))', borderBottom: '1px solid var(--glass-border, rgba(0,0,0,0.1))', color: 'var(--text-muted, #a1a1aa)', fontSize: '0.76rem' }}>
                     <td className="wip-col-nomenclature" style={{ ...TD_STICKY, fontStyle: 'italic', paddingLeft: '28px', color: 'var(--text-muted, #52525b)', background: 'var(--card-bg, #18181b)' }}>Підсумок по виробу:</td>
-                    <td className="wip-col-sum" style={{ ...TD_SUM, background: 'rgba(234, 88, 12, 0.1)' }}>{renderVal(gt.sum, 'sum')}</td>
+                    <td className="wip-col-sum" style={{ ...TD_SUM, background: 'rgba(234, 88, 12, 0.1)' }}>{renderQualityValue(gt.sum, 'sum')}</td>
                     <td style={TD}>{renderVal(gt.qWhWait)}</td>
                     <td style={TD}>{renderVal(gt.qCutWait)}</td>
                     <td style={TD}>{renderVal(gt.qCut)}</td>
@@ -127,8 +130,8 @@ const WipTable = ({ groupedData, maxHeight = 'calc(100vh - 320px)', emptyText = 
                     <td style={TD}>{renderVal(gt.qDoopBuf)}</td>
                     <td style={{ ...TD, background: 'rgba(16,185,129,0.08)' }}>{renderVal(gt.qSgp, 'sgp')}</td>
                     <td style={{ ...TD, background: 'rgba(16,185,129,0.08)' }}>{renderVal(gt.qBz, 'bz')}</td>
-                    <td style={{ ...TD, background: 'rgba(239,68,68,0.08)' }}>{renderVal(gt.qScrap, 'scrap')}</td>
-                    <td style={{ ...TD, background: 'rgba(245,158,11,0.08)', borderRight: 'none' }}>{renderVal(gt.qVkya, 'vkya')}</td>
+                    <td style={{ ...TD, background: 'rgba(239,68,68,0.08)' }}>{renderQualityValue(gt.qScrap, 'scrap')}</td>
+                    <td style={{ ...TD, background: 'rgba(245,158,11,0.08)', borderRight: 'none' }}>{renderQualityValue(gt.qVkya, 'vkya')}</td>
                   </tr>
                 </React.Fragment>
               )
@@ -142,7 +145,7 @@ const WipTable = ({ groupedData, maxHeight = 'calc(100vh - 320px)', emptyText = 
             return (
               <tr style={{ background: 'var(--card-bg, #18181b)', fontWeight: 'bold', borderTop: '2px solid #ff9000', color: 'var(--text, #f4f4f5)', fontSize: '0.8rem' }}>
                 <td className="wip-col-nomenclature" style={{ ...TD_STICKY, textTransform: 'uppercase', letterSpacing: '0.5px', fontSize: '0.72rem', background: 'var(--card-bg, #18181b)' }}>ЗАГАЛЬНИЙ WIP РАЗОМ:</td>
-                <td className="wip-col-sum" style={{ ...TD_SUM, background: 'rgba(234, 88, 12, 0.15)', color: '#ff9000' }}>{renderVal(gt.sum, 'sum')}</td>
+                <td className="wip-col-sum" style={{ ...TD_SUM, background: 'rgba(234, 88, 12, 0.15)', color: '#ff9000' }}>{renderQualityValue(gt.sum, 'sum')}</td>
                 <td style={TD}>{renderVal(gt.qWhWait)}</td>
                 <td style={TD}>{renderVal(gt.qCutWait)}</td>
                 <td style={TD}>{renderVal(gt.qCut)}</td>
@@ -163,8 +166,8 @@ const WipTable = ({ groupedData, maxHeight = 'calc(100vh - 320px)', emptyText = 
                 <td style={TD}>{renderVal(gt.qDoopBuf)}</td>
                 <td style={{ ...TD, background: 'rgba(16,185,129,0.12)' }}>{renderVal(gt.qSgp, 'sgp')}</td>
                 <td style={{ ...TD, background: 'rgba(16,185,129,0.12)' }}>{renderVal(gt.qBz, 'bz')}</td>
-                <td style={{ ...TD, background: 'rgba(239,68,68,0.12)' }}>{renderVal(gt.qScrap, 'scrap')}</td>
-                <td style={{ ...TD, background: 'rgba(245,158,11,0.12)', borderRight: 'none' }}>{renderVal(gt.qVkya, 'vkya')}</td>
+                <td style={{ ...TD, background: 'rgba(239,68,68,0.12)' }}>{renderQualityValue(gt.qScrap, 'scrap')}</td>
+                <td style={{ ...TD, background: 'rgba(245,158,11,0.12)', borderRight: 'none' }}>{renderQualityValue(gt.qVkya, 'vkya')}</td>
               </tr>
             )
           })()}

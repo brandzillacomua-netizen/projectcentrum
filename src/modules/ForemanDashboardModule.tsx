@@ -36,6 +36,7 @@ export const ForemanDashboardModule: React.FC = () => {
     selectedTaskId,
     setSelectedTaskId,
     isRefreshing,
+    qualityLossLoading,
     searchQuery,
     setSearchQuery,
     expandedBottlenecks,
@@ -253,7 +254,7 @@ export const ForemanDashboardModule: React.FC = () => {
             </div>
 
             {/* Overview WIP table */}
-            <WipTable groupedData={overviewGroups} emptyText="Немає активних деталей. Запустіть наряди в Foreman." onCellClick={handleCellClick as any} />
+            <WipTable groupedData={overviewGroups} emptyText="Немає активних деталей. Запустіть наряди в Foreman." onCellClick={handleCellClick as any} qualityLoading={qualityLossLoading} />
           </div>
         ) : (
           /* ═══════════════════ ORDER DETAIL MODE ═══════════════════ */
@@ -279,6 +280,7 @@ export const ForemanDashboardModule: React.FC = () => {
             searchQuery={searchQuery}
             setSearchQuery={setSearchQuery}
             onCellClick={handleCellClick as any}
+            qualityLoading={qualityLossLoading}
           />
         )}
       </div>
@@ -312,6 +314,7 @@ export const ForemanDashboardModule: React.FC = () => {
         handleCellClick={handleCellClick}
         handleRefresh={handleRefresh}
         isRefreshing={isRefreshing}
+        qualityLoading={qualityLossLoading}
       />
 
 
