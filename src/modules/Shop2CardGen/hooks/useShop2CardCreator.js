@@ -89,7 +89,7 @@ export function useShop2CardCreator({ tasks = [], fetchData, refreshTable }) {
             taskId,
             orderId,
             nomenclatureId: row.nomId,
-            operation: stage || 'Пресування',
+            operation: isDirectPack ? 'Склад СГП' : (stage || 'Пресування'),
             machine: machineName,
             quantity: cardQty,
             actualSheets: Math.ceil(cardQty / (row.unitsPerSheet || 1)),

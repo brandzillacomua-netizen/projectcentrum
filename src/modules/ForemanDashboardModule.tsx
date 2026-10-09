@@ -306,9 +306,9 @@ export const ForemanDashboardModule: React.FC = () => {
       <TvDashboardModal
         isOpen={isTvMode}
         onClose={() => setIsTvMode(false)}
-        overviewGroups={overviewGroups}
-        activeTasks={activeTasks}
-        taskStatusMap={taskStatusMap}
+        overviewGroups={overviewGroups as any}
+        activeTasks={activeTasks as any}
+        taskStatusMap={taskStatusMap as any}
         handleCellClick={handleCellClick}
         handleRefresh={handleRefresh}
         isRefreshing={isRefreshing}

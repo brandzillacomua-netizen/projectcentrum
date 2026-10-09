@@ -167,7 +167,7 @@ export const FINAL_PRODUCTION_STAGES = new Set([
   'склад бз',
   'сгп',
   'пакування',
-  'паквання',
+  'пакування',
   'completed'
 ])
 

@@ -48,16 +48,19 @@ export const shop2CardService = {
         cardInfo = `${cardInfo} [BZ:${bz}]`.trim()
       }
 
+      const op = item.operation || 'Пресування'
+      const isPack = isPackagingOperation(op) || isPackagingOperation(cardInfo) || op.toLowerCase().includes('пакува') || op.toLowerCase().includes('сгп')
+
       return {
         task_id: taskId,
         order_id: orderId,
         nomenclature_id: nomenclatureId,
-        operation: item.operation || 'Пресування',
+        operation: isPack ? 'Склад СГП' : op,
         machine: item.machine || 'Не вказано',
         quantity: item.quantity,
         card_info: cardInfo,
-        status: item.status || 'new',
-        completed_at: item.completed_at || null,
+        status: isPack ? 'completed' : (item.status || 'new'),
+        completed_at: isPack ? (item.completed_at || new Date().toISOString()) : (item.completed_at || null),
         is_rework: Boolean(item.is_rework)
       }
     })

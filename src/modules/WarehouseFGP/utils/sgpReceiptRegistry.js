@@ -6,7 +6,7 @@ const rowTimestamp = row => row?.completed_at || row?.created_at || row?.started
 
 export const isSgpReceiptHistory = row => {
   const stage = text(row?.stage_name).toLocaleLowerCase('uk-UA')
-  const isPack = ['пакування/сгп', 'паквання', 'пакування', 'паковка', 'сгп'].some(s => stage.includes(s))
+  const isPack = ['пакування/сгп', 'пакування', 'пакування', 'паковка', 'сгп'].some(s => stage.includes(s))
   return isPack && Number(row?.qty_completed) > 0
 }
 

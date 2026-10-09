@@ -604,6 +604,8 @@ const NomenclatureV2 = () => {
     }
   }
 
+  const [showArchived, setShowArchived] = useState(false)
+
   const handleDeleteItem = async (itemId) => {
     if (!window.confirm('Архівувати цю позицію в каталозі V2.0?')) return
     try {
@@ -619,8 +621,25 @@ const NomenclatureV2 = () => {
     }
   }
 
+  const handleRestoreItem = async (itemId) => {
+    try {
+      const { error } = await supabase
+        .from('nomenclatures_v2')
+        .update({ status: 'active', updated_at: new Date().toISOString() })
+        .eq('id', itemId)
+      if (error) throw error
+      setItems(prev => prev.map(it => it.id === itemId ? { ...it, status: 'active' } : it))
+      showToast('Позицію відновлено з архіву')
+    } catch (err) {
+      alert('Помилка відновлення: ' + err.message)
+    }
+  }
+
   const visibleItems = useMemo(() => {
     let list = items.filter(it => !/^фреза\s+ф\d+/i.test((it.name || '').trim()))
+    if (!showArchived) {
+      list = list.filter(it => it.status !== 'archived')
+    }
     if (selectedGroup) {
       const getChildIds = (pId) => {
         const subs = groups.filter(g => g.parent_id === pId)
@@ -635,7 +654,7 @@ const NomenclatureV2 = () => {
       list = list.filter(it => it.name.toLowerCase().includes(q) || String(it.code).toLowerCase().includes(q))
     }
     return list
-  }, [items, selectedGroup, groups, searchQuery])
+  }, [items, selectedGroup, groups, searchQuery, showArchived])
 
   return (
     <div className="nomenclature-v2-container" style={{ background: 'var(--bg, #f0f2f7)', minHeight: '100vh', color: 'var(--text, #0f172a)', display: 'flex', flexDirection: 'column', fontFamily: 'Inter, system-ui, sans-serif' }}>
@@ -677,9 +696,12 @@ const NomenclatureV2 = () => {
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
           visibleItems={visibleItems}
+          showArchived={showArchived}
+          setShowArchived={setShowArchived}
           handleOpenWizard={handleOpenWizard}
           handleOpenEditItem={handleOpenEditItem}
           handleDeleteItem={handleDeleteItem}
+          handleRestoreItem={handleRestoreItem}
           handleOpenCardModal={handleOpenCardModal}
         />
       </div>

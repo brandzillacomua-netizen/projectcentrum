@@ -10,7 +10,7 @@ const MasterWorkplace = () => {
   const [showAddCard, setShowAddCard] = useState(false)
   const [newCard, setNewCard] = useState({ operation: 'Розкрій', machine: 'LXS-1', estimatedTime: '' })
 
-  const operations = ['Розкрій', 'Галтовка', 'Пресування', 'Фарбування', 'Паквання']
+  const operations = ['Розкрій', 'Галтовка', 'Пресування', 'Фарбування', 'Пакування']
   const machines = ['LXS-1', 'B-200', 'W-Point 1', 'МК-1', 'Збірна лінія', 'Склад СГП']
 
   // Master only sees tasks that are fully ready for production but not entirely completed

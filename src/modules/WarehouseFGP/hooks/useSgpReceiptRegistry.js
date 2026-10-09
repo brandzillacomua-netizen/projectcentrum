@@ -21,7 +21,7 @@ export function useSgpReceiptRegistry({ workCards, tasks, orders, nomenclatures 
         const { data, error } = await supabase
           .from('work_card_history')
           .select('*')
-          .or('stage_name.ilike.%пакування%,stage_name.ilike.%паквання%,stage_name.ilike.%сгп%')
+          .or('stage_name.ilike.%пакування%,stage_name.ilike.%пакування%,stage_name.ilike.%сгп%')
           .gt('qty_completed', 0)
           .order('completed_at', { ascending: false })
           .range(offset, offset + pageSize - 1)

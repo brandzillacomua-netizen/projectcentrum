@@ -29,6 +29,7 @@ const getCardStatus = (card) => {
   if (status === 'in-progress') return { label: 'В роботі', color: '#eab308' }
   if (status === 'paused') return { label: 'Пауза', color: '#a855f7' }
   if (status === 'scrapped') return { label: 'Брак', color: '#ef4444' }
+  if (status === 'quality-hold' || status === 'hold') return { label: 'На ВКЯ', color: '#f59e0b' }
   return { label: status || 'Очікує', color: '#3b82f6' }
 }
 
@@ -218,6 +219,40 @@ const WorkCardTile = ({ card, unitsPerSheet, onClick, scrapInfo, onOpenScrapHist
           {card.card_info}
         </div>
       )}
+
+      {(() => {
+        const stageBreakdown = scrapInfo?.byStage ? Object.entries(scrapInfo.byStage).filter(([_, q]) => q > 0) : []
+        if (stageBreakdown.length === 0) return null
+        return (
+          <div 
+            onClick={(e) => {
+              if (onOpenScrapHistory) {
+                e.stopPropagation()
+                onOpenScrapHistory(card)
+              }
+            }}
+            style={{ 
+              marginTop: '8px', 
+              padding: '6px 8px', 
+              background: 'rgba(249, 115, 22, 0.08)', 
+              border: '1px solid rgba(249, 115, 22, 0.25)', 
+              borderRadius: '8px', 
+              cursor: onOpenScrapHistory ? 'pointer' : 'default'
+            }}
+          >
+            <div style={{ color: '#f97316', fontSize: '0.6rem', fontWeight: 950, textTransform: 'uppercase', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <span>📍</span> Брак за етапами (клацніть для деталей):
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+              {stageBreakdown.map(([stageName, qty]) => (
+                <span key={stageName} style={{ background: 'rgba(249, 115, 22, 0.15)', color: '#f97316', border: '1px solid rgba(249, 115, 22, 0.3)', padding: '2px 6px', borderRadius: '5px', fontSize: '0.65rem', fontWeight: 950 }}>
+                  {stageName}: <strong style={{ color: '#fff' }}>+{formatQty(qty)} шт</strong>
+                </span>
+              ))}
+            </div>
+          </div>
+        )
+      })()}
     </article>
   )
 }
@@ -515,8 +550,11 @@ export default function TaskDetails({ model, nomenclatures = [], allCards, onOpe
       if (!r.card_id) return
       const cid = String(r.card_id)
       const qty = Number(r.scrapQty || r.scrap_qty) || 0
-      if (!map[cid]) map[cid] = { scrap: 0, util: 0 }
+      if (!map[cid]) map[cid] = { scrap: 0, util: 0, byStage: {} }
       map[cid].scrap += qty
+
+      const stage = r.stage_name || 'Брак'
+      map[cid].byStage[stage] = (map[cid].byStage[stage] || 0) + qty
 
       let cat4Qty = 0
       if (r.qc_scrap_comment && r.qc_scrap_comment.includes('SCRAP_CAT:')) {
@@ -535,9 +573,13 @@ export default function TaskDetails({ model, nomenclatures = [], allCards, onOpe
       if (!c?.id) return
       const cid = String(c.id)
       if (c.status === 'scrapped') {
-        if (!map[cid]) map[cid] = { scrap: 0, util: 0 }
+        if (!map[cid]) map[cid] = { scrap: 0, util: 0, byStage: {} }
         if (map[cid].util === 0) map[cid].util = Number(c.quantity) || 0
-        if (map[cid].scrap === 0) map[cid].scrap = Number(c.quantity) || 0
+        if (map[cid].scrap === 0) {
+          map[cid].scrap = Number(c.quantity) || 0
+          const stage = c.operation || 'Брак'
+          map[cid].byStage[stage] = (map[cid].byStage[stage] || 0) + Number(c.quantity)
+        }
       }
     })
     return map

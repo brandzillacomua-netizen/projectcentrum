@@ -212,13 +212,17 @@ export function useShop2TerminalState() {
       const batchIndexText = selectedTask?.batch_index ? `/${selectedTask.batch_index}` : ''
       const orderText = orderNum ? ` Наряд №${orderNum}${batchIndexText}` : ''
 
+      const stageLower = (adminStage || '').toLowerCase()
+      const isPackStage = stageLower.includes('пакува') || stageLower.includes('пакван') || stageLower.includes('сгп')
+
       const payload = {
         task_id: adminTaskId || null,
         order_id: selectedTask?.order_id || null,
         nomenclature_id: adminNomId,
         quantity: finalQty,
-        operation: adminStage,
-        status: 'new',
+        operation: isPackStage ? 'Склад СГП' : adminStage,
+        status: isPackStage ? 'completed' : 'new',
+        completed_at: isPackStage ? new Date().toISOString() : null,
         machine: '—',
         is_rework: false,
         estimated_time: 0,

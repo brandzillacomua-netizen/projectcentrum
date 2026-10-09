@@ -91,135 +91,20 @@ const OrderDetailView = ({
     return list
   }, [task, productionCache, scrapCache, nomenclatures, progress.demand])
 
-  // Per-part detail table from workCards
+  // Per-part detail table directly from wipGroups (buildWipGroups)
   const partDetails = useMemo(() => {
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    const snapshot = task.plan_snapshot || {}
+    if (wipGroups && wipGroups.length > 0) {
+      return wipGroups.flatMap(g => g.rows)
+    }
+    return []
+  }, [wipGroups])
 
-    const orderTasks = tasks.filter(t => t.order_id === task.order_id)
-    const orderTaskIdSet = new Set(orderTasks.map(t => t.id))
-    const allTaskCards = orderTasks.flatMap(t => cardsByTaskId[t.id] || [])
-
-    const parts = []
-    Object.keys(snapshot).filter(k => uuidRegex.test(k)).forEach(nomIdStr => {
-      const snap = snapshot[nomIdStr]
-      if (!snap) return
-      const nom = nomenclatures.find(n => String(n.id) === nomIdStr)
-      if (!nom || nom.type !== 'part') return
-
-      const nomCards = allTaskCards.filter(c => String(c.nomenclature_id) === nomIdStr)
-
-      const getQFromCards = (ops, statuses) => {
-        const opArr = Array.isArray(ops) ? ops : [ops]
-        const stArr = Array.isArray(statuses) ? statuses : [statuses]
-        return nomCards.filter(c => {
-          const isMatchOp = opArr.some(op => {
-            if (op === 'Галтовка') return c.operation === 'Галтовка' || c.operation?.startsWith('Галтовка')
-            if (op === 'Сортування') return c.operation === 'Сортування' || c.operation?.startsWith('Сортування') || c.operation?.includes('Сортування')
-            return c.operation === op
-          })
-          return isMatchOp && stArr.includes(c.status)
-        }).reduce((s, c) => s + (Number(c.quantity) || 0), 0)
-      }
-
-      const qWhWait = nomCards.filter(c => c.operation !== 'Склад БЗ' && c.operation !== 'Склад BZ' && (['waiting-materials', 'waiting_material', 'waiting-warehouse', 'waiting-cutters'].includes(c.status) || c.operation === 'Склад' || c.operation === 'Очікування Склад')).reduce((s, c) => s + (Number(c.quantity) || 0), 0)
-      const qCutWait = getQFromCards(['Розкрій'], ['new', 'waiting-machines'])
-      const qCut = getQFromCards(['Розкрій'], ['in-progress', 'paused', 'hold'])
-      const qCutBuf = getQFromCards(['Розкрій'], ['at-buffer'])
-      const qGalt = getQFromCards(['Галтовка'], ['new', 'in-progress', 'paused', 'hold'])
-      const qGaltBuf = getQFromCards(['Галтовка'], ['at-buffer'])
-      const qPriy = getQFromCards(['Прийомка'], ['new', 'in-progress', 'paused', 'hold', 'at-buffer'])
-      const qSortAct = getQFromCards(['Сортування'], ['new', 'in-progress', 'paused', 'hold', 'at-buffer'])
-      const qSort = nomCards.filter(c => c.status === 'at-shop2-buffer')
-        .reduce((s, c) => s + Math.max(0, (Number(c.quantity) || 0) - (Number(c.used_in_shop2_qty) || 0)), 0)
-      const qMalWait = getQFromCards(['Фарбування', 'Малярка'], ['new'])
-      const qMal = getQFromCards(['Фарбування', 'Малярка'], ['in-progress', 'paused', 'hold'])
-      const qMalBuf = getQFromCards(['Фарбування', 'Малярка'], ['at-buffer'])
-      const qPresWait = getQFromCards(['Пресування'], ['new'])
-      const qPres = getQFromCards(['Пресування'], ['in-progress', 'paused', 'hold'])
-      const qPresBuf = getQFromCards(['Пресування'], ['at-buffer'])
-      const qDoopWait = getQFromCards(['Доопрацювання'], ['new'])
-      const qDoop = getQFromCards(['Доопрацювання'], ['in-progress', 'paused', 'hold'])
-      const qDoopBuf = getQFromCards(['Доопрацювання'], ['at-buffer'])
-
-      const groupProduced = nomCards.filter(c => {
-        const op = (c.operation || '').toLowerCase()
-        const isShop1 = ['розкрій', 'галтовка', 'прийомка', 'сортування'].some(o => op.includes(o))
-        return isShop1 && (c.status === 'completed' || c.status === 'at-shop2-buffer')
-      }).reduce((s, c) => s + (Number(c.quantity) || 0), 0)
-
-      const totalShop2Qty = nomCards.filter(c => {
-        const op = (c.operation || '').toLowerCase()
-        return ['пресування', 'фарбування', 'малярка', 'доопрацювання', 'пакування', 'сгп'].some(o => op.includes(o))
-      }).reduce((s, c) => s + (Number(c.quantity) || 0), 0)
-
-      const completedShop2Qty = nomCards.filter(c => {
-        const op = (c.operation || '').toLowerCase()
-        const isShop2 = ['пресування', 'фарбування', 'малярка', 'доопрацювання', 'пакування', 'сгп'].some(o => op.includes(o))
-        return isShop2 && c.status === 'completed'
-      }).reduce((s, c) => s + (Number(c.quantity) || 0), 0)
-
-      const initialStock = Number(snap.stock) || 0
-      const plannedReserve = Math.max(0, ((Number(snap.sheets) || 0) * (Number(snap.units_per_sheet) || 1)) + initialStock - (snap.need || 0))
-      const totalPotentialSgp = completedShop2Qty + initialStock
-      const flowRowsForThisPart = flowTotalsRows.filter(row =>
-        String(row.nomenclature_id) === nomIdStr && row.task_id && orderTaskIdSet.has(row.task_id)
-      )
-      const flowSgpQty = sumFlowField(flowRowsForThisPart, 'total_good', ['sgp'])
-      const flowScrapQty = sumFlowField(flowRowsForThisPart, 'total_scrap')
-      const netSgpQty = Math.max(0, flowSgpQty - flowScrapQty)
-      const sgpProduced = Math.max(0, groupProduced - qSort)
-      const producedForSgp = totalShop2Qty > 0 ? completedShop2Qty : (groupProduced > 0 ? sgpProduced : completedShop2Qty)
-      const earlyWipQty = qWhWait + qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriy + qSortAct + qMalWait + qMal + qMalBuf + qPresWait + qPres + qPresBuf + qDoopWait + qDoop + qDoopBuf
-      const nonReissueEarlyWip = Math.max(0, flowScrapQty - plannedReserve) > 0 ? 0 : earlyWipQty
-      const qSgp = (snap.need || 0) > 0
-        ? Math.min(snap.need || 0, producedForSgp, Math.max(0, (snap.need || 0) - nonReissueEarlyWip))
-        : Math.max(0, producedForSgp)
-
-      const bzExcess = Math.max(0, totalPotentialSgp - (snap.need || 0))
-      const flowBzQty = sumFlowField(flowRowsForThisPart, 'total_bz')
-      const qBz = groupProduced > 0
-        ? initialStock + Math.max(0, sgpProduced - (snap.need || 0))
-        : (flowRowsForThisPart.length > 0
-          ? initialStock + Math.max(flowBzQty, Math.max(0, netSgpQty - (snap.need || 0)))
-          : Math.max(0, groupProduced - qSort - totalShop2Qty) + bzExcess)
-
-      const cardIdsForThisPart = new Set(nomCards.map(c => c.id))
-      const scrapFromCache = scrapCache[task.id]?.[nomIdStr] || 0
-      const observedScrapByScope = allCardsHistory.filter(h =>
-        String(h.nomenclature_id) === nomIdStr && h.task_id && orderTaskIdSet.has(h.task_id)
-      ).reduce((s, h) => s + (Number(h.scrap_qty) || 0), 0)
-      const observedScrapByCard = allCardsHistory.filter(h => h.card_id && cardIdsForThisPart.has(h.card_id)).reduce((s, h) => s + (Number(h.scrap_qty) || 0), 0)
-      const observedScrap = observedScrapByScope || observedScrapByCard || flowScrapQty
-
-      const qScrap = scrapFromCache
-
-      const qVkyaFromCards = nomCards.filter(c => c.status === 'hold' || c.status === 'quality-hold' || (c.operation || '').toLowerCase().includes('вкя')).reduce((s, c) => s + (Number(c.quantity) || 0), 0)
-      const qVkyaCalculated = Math.max(0, observedScrap - qScrap)
-      const qVkya = Math.max(qVkyaFromCards, qVkyaCalculated)
-
-      const sum = qWhWait + qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriy + qSortAct + qSort + qMalWait + qMal + qMalBuf + qPresWait + qPres + qPresBuf + qDoopWait + qDoop + qDoopBuf + qBz + qSgp + qVkya
-
-      const matchSearch = !searchQuery ||
-        nom.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (nom.code || '').toLowerCase().includes(searchQuery.toLowerCase())
-
-      if (matchSearch) {
-        parts.push({
-          id: nomIdStr, name: nom.name, code: nom.code || '',
-          demand: snap.need || 0,
-          qWhWait, qCutWait, qCut, qCutBuf, qGalt, qGaltBuf, qPriy,
-          qSortAct, qSort, qMalWait, qMal, qMalBuf, qPresWait, qPres,
-          qPresBuf, qDoopWait, qDoop, qDoopBuf, qBz, qSgp, qScrap, qVkya, sum
-        })
-      }
-    })
-    return parts
-  }, [task, orderAllCards, nomenclatures, allCardsHistory, flowTotalsRows, searchQuery, tasks, cardsByTaskId])
-
-  const detailGroup = partDetails.length > 0
-    ? [{ id: 'detail', name: prodNames, code: '', rows: partDetails, trend: { potential: progress.actual, actual: progress.actual, demand: progress.demand } }]
-    : []
+  const detailGroup = useMemo(() => {
+    if (wipGroups && wipGroups.length > 0) {
+      return wipGroups
+    }
+    return []
+  }, [wipGroups])
 
   return (
     <div>
@@ -363,7 +248,8 @@ const OrderDetailView = ({
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
             {partDetails.map(part => {
-              const partCards = orderAllCards.filter(c => String(c.nomenclature_id) === String(part.id))
+              const partNomId = String(part.nomId || part.id.split('_')[0] || part.id)
+              const partCards = orderAllCards.filter(c => String(c.nomenclature_id) === partNomId)
               if (partCards.length === 0) return null
 
               const cardIds = partCards.map(c => c.id)
@@ -555,6 +441,15 @@ const OrderDetailView = ({
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '12px', paddingLeft: '6px' }}>
                               {partCards.map(c => {
                                 const historyRows = cardHistory.filter(h => h.card_id === c.id)
+                                
+                                const scrapHistory = historyRows.filter(h => (Number(h.scrap_qty) || 0) > 0)
+                                let totalScrap = scrapHistory.reduce((sum, h) => sum + (Number(h.scrap_qty) || 0), 0)
+                                if (totalScrap === 0 && (Number(c.scrap_qty) || 0) > 0) {
+                                  totalScrap = Number(c.scrap_qty)
+                                }
+                                
+                                const scrapStages = Array.from(new Set(scrapHistory.map(h => h.stage_name))).filter(Boolean).join(', ')
+
                                 const cDuration = historyRows.reduce((sum, h) => {
                                   if (h.started_at && h.completed_at) {
                                     const diff = new Date(h.completed_at) - new Date(h.started_at)
@@ -575,6 +470,16 @@ const OrderDetailView = ({
                                     <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
                                       <strong style={{ color: '#ff9000', fontFamily: 'monospace' }}>#{c.id.slice(-8).toUpperCase()}</strong>
                                       <span style={{ color: 'var(--text-muted, #888)' }}>К-сть: <strong>{c.quantity || 0} шт</strong></span>
+                                      
+                                      {totalScrap > 0 && (
+                                        <>
+                                          <span style={{ color: 'var(--glass-border, rgba(0,0,0,0.15))' }}>|</span>
+                                          <span style={{ color: '#ef4444', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                            <span>⚠️</span> Брак: {totalScrap} шт {scrapStages ? `(на етапі: ${scrapStages})` : `(на етапі: ${currentOp})`}
+                                          </span>
+                                        </>
+                                      )}
+
                                       <span style={{ color: 'var(--glass-border, rgba(0,0,0,0.15))' }}>|</span>
                                       <span style={{ color: 'var(--text, #f4f4f5)' }}>Етап: <strong>{currentOp}</strong></span>
                                     </div>

@@ -1,6 +1,7 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
 import { Package, Layers } from 'lucide-react'
+import { resolveCardOrder } from '../../utils/foremanDashboardHelpers.jsx'
 
 const CellCardsModal = ({ selectedCellModal, onClose, onInspectCard, tasks = [], ordersMap = {}, orders = [] }) => {
   if (!selectedCellModal) return null
@@ -78,8 +79,7 @@ const CellCardsModal = ({ selectedCellModal, onClose, onInspectCard, tasks = [],
               </thead>
               <tbody>
                 {selectedCellModal.cards.map(c => {
-                  const task = tasks.find(t => String(t.id) === String(c.task_id))
-                  const ord = ordersMap[c.order_id] || (task ? ordersMap[task.order_id] : null) || orders.find(o => String(o.id) === String(c.order_id))
+                  const ord = resolveCardOrder(c, tasks, ordersMap, orders)
                   const orderNumText = ord?.order_num ? `Наряд № ${ord.order_num}` : (c.order_id ? `№ ${String(c.order_id).substring(0, 8)}` : 'Без наряду')
 
                   const infoParts = (c.card_info || '').split(' ')

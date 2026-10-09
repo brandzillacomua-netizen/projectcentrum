@@ -451,7 +451,7 @@ export function useTumblingTerminalData() {
     if (op === 'Галтовка' && card.status === 'at-buffer') return true
     if (op === 'Склад БЗ') return true
 
-    const subsequentStages = ['Прийомка', 'completed', 'Пресування', 'Фарбування', 'Паквання', 'Пакування', 'Сортування', 'Склад СГП', 'Доопрацювання']
+    const subsequentStages = ['Прийомка', 'completed', 'Пресування', 'Фарбування', 'Пакування', 'Пакування', 'Сортування', 'Склад СГП', 'Доопрацювання']
     return subsequentStages.some(stage => op.includes(stage))
   }
 

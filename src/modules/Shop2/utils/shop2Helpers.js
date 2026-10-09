@@ -47,7 +47,27 @@ export const formatMachine = (name) => {
 }
 
 export const matchesStage = (cardOp, stageName) => {
-  const op = (cardOp || '').toLowerCase()
-  const sk = (stageName || '').toLowerCase()
-  return op === sk || op.includes(sk) || sk.includes(op)
+  if (!cardOp || !stageName) return false
+  const op = String(cardOp).toLowerCase().trim()
+  const sk = String(stageName).toLowerCase().trim()
+
+  if (op === sk || op.includes(sk) || sk.includes(op)) return true
+
+  const isOpPaint = op.includes('фарбуван') || op.includes('маляр') || op.includes('paint')
+  const isSkPaint = sk.includes('фарбуван') || sk.includes('маляр') || sk.includes('paint')
+  if (isOpPaint && isSkPaint) return true
+
+  const isOpPress = op.includes('пресув') || op.includes('прес')
+  const isSkPress = sk.includes('пресув') || sk.includes('прес')
+  if (isOpPress && isSkPress) return true
+
+  const isOpDoop = op.includes('доопрац') || op.includes('доработ')
+  const isSkDoop = sk.includes('доопрац') || sk.includes('доработ')
+  if (isOpDoop && isSkDoop) return true
+
+  const isOpPack = op.includes('пакува') || op.includes('сгп') || op.includes('пакван')
+  const isSkPack = sk.includes('пакува') || sk.includes('сгп') || sk.includes('пакван')
+  if (isOpPack && isSkPack) return true
+
+  return false
 }

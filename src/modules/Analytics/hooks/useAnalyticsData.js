@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useMES } from '../../../MESContext'
 import { supabase } from '../../../supabase'
 
-const FINAL_STAGES = new Set(['пакування/сгп', 'прийомка', 'склад бз', 'сгп', 'пакування', 'паквання', 'completed'])
+const FINAL_STAGES = new Set(['пакування/сгп', 'прийомка', 'склад бз', 'сгп', 'пакування', 'пакування', 'completed'])
 const ANALYTICS_PERIOD_DAYS = 30
 
 export const useAnalyticsData = () => {
@@ -131,7 +131,7 @@ export const useAnalyticsData = () => {
       : 0
 
     // 5. Shop Load
-    const steps = ["Розкрій", "Галтовка", "Пресування", "Фарбування", "Паквання"]
+    const steps = ["Розкрій", "Галтовка", "Пресування", "Фарбування", "Пакування"]
     const shopLoad = steps.map(step => {
       const activeInStep = tasks.filter(t => t.status !== 'completed' && t.step?.toLowerCase().includes(step.toLowerCase())).length
       const loadPercent = Math.min(100, Math.max(5, activeInStep * 20)) 

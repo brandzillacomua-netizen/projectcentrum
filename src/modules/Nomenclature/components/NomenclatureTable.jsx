@@ -1,5 +1,5 @@
 import React from 'react'
-import { Search, ChevronRight, ChevronLeft, Package, Plus, Clock, Edit2, Trash2, Barcode } from 'lucide-react'
+import { Search, ChevronRight, ChevronLeft, Package, Plus, Clock, Edit2, Trash2, Barcode, Archive, RotateCcw } from 'lucide-react'
 
 const NomenclatureTableRow = React.memo(({
   item,
@@ -7,6 +7,7 @@ const NomenclatureTableRow = React.memo(({
   itemsMap,
   handleOpenEditItem,
   handleDeleteItem,
+  handleRestoreItem,
   handleOpenCardModal
 }) => {
   const grp = groups.find(g => g.id === item.group_id)
@@ -42,8 +43,10 @@ const NomenclatureTableRow = React.memo(({
     materialDisplay = <span style={{ color: '#0284c7', fontWeight: 700 }}>{item.rule_params?.rawSheet || item.material_type || '—'}</span>
   }
 
+  const isArchived = item.status === 'archived'
+
   return (
-    <tr style={{ borderBottom: '1px solid var(--border-color, #e2e8f0)', transition: 'background 0.2s' }} className="table-row-hover">
+    <tr style={{ borderBottom: '1px solid var(--border-color, #e2e8f0)', transition: 'background 0.2s', opacity: isArchived ? 0.65 : 1 }} className="table-row-hover">
       <td 
         style={{ padding: '16px 20px', fontWeight: 900, color: '#d97706', fontSize: '0.85rem', fontFamily: 'monospace', cursor: 'pointer' }}
         onClick={() => handleOpenCardModal && handleOpenCardModal(item)}
@@ -59,7 +62,14 @@ const NomenclatureTableRow = React.memo(({
         onClick={() => handleOpenCardModal && handleOpenCardModal(item)}
         title="Відкрити картку номенклатури (досьє)"
       >
-        <div>{item.name}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          <span>{item.name}</span>
+          {isArchived && (
+            <span style={{ background: '#fee2e2', color: '#dc2626', border: '1px solid #fecaca', padding: '2px 6px', borderRadius: '5px', fontSize: '0.68rem', fontWeight: 900, letterSpacing: '0.5px' }}>
+              АРХІВ
+            </span>
+          )}
+        </div>
         {item.rule_params?.loadTimings && Object.entries(item.rule_params.loadTimings).some(([_, v]) => v !== '' && v !== null && v !== undefined) && (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '6px' }}>
             {Object.entries(item.rule_params.loadTimings)
@@ -102,13 +112,23 @@ const NomenclatureTableRow = React.memo(({
         >
           <Edit2 size={15} />
         </button>
-        <button 
-          onClick={() => handleDeleteItem(item.id)}
-          style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '8px', color: '#ef4444', cursor: 'pointer', padding: '6px 8px', transition: 'all 0.15s' }}
-          title="Видалити позицію"
-        >
-          <Trash2 size={15} />
-        </button>
+        {isArchived ? (
+          <button 
+            onClick={() => handleRestoreItem && handleRestoreItem(item.id)}
+            style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.35)', borderRadius: '8px', color: '#10b981', cursor: 'pointer', padding: '6px 8px', transition: 'all 0.15s' }}
+            title="Відновити з архіву"
+          >
+            <RotateCcw size={15} />
+          </button>
+        ) : (
+          <button 
+            onClick={() => handleDeleteItem(item.id)}
+            style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '8px', color: '#ef4444', cursor: 'pointer', padding: '6px 8px', transition: 'all 0.15s' }}
+            title="Архівувати позицію"
+          >
+            <Trash2 size={15} />
+          </button>
+        )}
       </td>
     </tr>
   )
@@ -121,9 +141,12 @@ export const NomenclatureTable = ({
   searchQuery,
   setSearchQuery,
   visibleItems,
+  showArchived = false,
+  setShowArchived,
   handleOpenWizard,
   handleOpenEditItem,
   handleDeleteItem,
+  handleRestoreItem,
   handleOpenCardModal
 }) => {
   const itemsMap = React.useMemo(() => {
@@ -135,7 +158,7 @@ export const NomenclatureTable = ({
 
   React.useEffect(() => {
     setCurrentPage(1)
-  }, [searchQuery, selectedGroup])
+  }, [searchQuery, selectedGroup, showArchived])
 
   const totalPages = Math.ceil((visibleItems?.length || 0) / itemsPerPage)
   const paginatedItems = (visibleItems || []).slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
@@ -158,16 +181,42 @@ export const NomenclatureTable = ({
           </h2>
         </div>
 
-        {/* Search */}
-        <div className="nom-v2-search" style={{ position: 'relative', width: '360px' }}>
-          <Search style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted, #64748b)' }} size={18} />
-          <input 
-            type="text"
-            placeholder="Швидкий пошук у V2 за назвою чи кодом..."
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            style={{ width: '100%', background: 'var(--card-bg, #ffffff)', border: '1px solid var(--border-color, #cbd5e1)', borderRadius: '12px', padding: '11px 15px 11px 44px', color: 'var(--text, #0f172a)', fontSize: '0.85rem', outline: 'none' }}
-          />
+        {/* Search & Controls */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          <button
+            onClick={() => setShowArchived && setShowArchived(prev => !prev)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '10px 14px',
+              borderRadius: '12px',
+              fontSize: '0.82rem',
+              fontWeight: 800,
+              cursor: 'pointer',
+              background: showArchived ? 'rgba(239, 68, 68, 0.12)' : 'var(--card-bg, #ffffff)',
+              color: showArchived ? '#ef4444' : 'var(--text-muted, #64748b)',
+              border: showArchived ? '1px solid rgba(239, 68, 68, 0.35)' : '1px solid var(--border-color, #cbd5e1)',
+              transition: 'all 0.2s ease',
+              outline: 'none',
+              whiteSpace: 'nowrap'
+            }}
+            title="Показати або сховати архівні позиції номенклатури"
+          >
+            <Archive size={15} />
+            <span>{showArchived ? 'Сховати архівні' : 'Архівні позиції'}</span>
+          </button>
+
+          <div className="nom-v2-search" style={{ position: 'relative', width: '320px' }}>
+            <Search style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted, #64748b)' }} size={18} />
+            <input 
+              type="text"
+              placeholder="Швидкий пошук у V2..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              style={{ width: '100%', background: 'var(--card-bg, #ffffff)', border: '1px solid var(--border-color, #cbd5e1)', borderRadius: '12px', padding: '11px 15px 11px 44px', color: 'var(--text, #0f172a)', fontSize: '0.85rem', outline: 'none' }}
+            />
+          </div>
         </div>
       </div>
 
@@ -211,6 +260,7 @@ export const NomenclatureTable = ({
                 itemsMap={itemsMap}
                 handleOpenEditItem={handleOpenEditItem}
                 handleDeleteItem={handleDeleteItem}
+                handleRestoreItem={handleRestoreItem}
                 handleOpenCardModal={handleOpenCardModal}
               />
             ))}

@@ -765,7 +765,7 @@ export const useDashboardData = () => {
         if (selectedOrderId && order.id === selectedOrderId) {
           const orderAllTaskCards = orderAllCards.filter(c => String(c.nomenclature_id) === String(nom.id))
           const completedSgpQty = orderAllTaskCards
-            .filter(c => (['Пакування/СГП', 'Склад СГП', 'Паквання', 'Пакування'].includes(c.operation)) && c.status === 'completed')
+            .filter(c => (['Пакування/СГП', 'Склад СГП', 'Пакування', 'Пакування'].includes(c.operation)) && c.status === 'completed')
             .reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
           const activeQty = orderAllTaskCards.filter(c => {
             if (c.status === 'completed') return false
@@ -877,7 +877,7 @@ export const useDashboardData = () => {
           const orderAllTaskCards = orderAllCards.filter(c => String(c.nomenclature_id) === String(bomEntry.child_id))
 
           const completedSgpQty = orderAllTaskCards
-            .filter(c => (['Пакування/СГП', 'Склад СГП', 'Паквання', 'Пакування'].includes(c.operation)) && c.status === 'completed')
+            .filter(c => (['Пакування/СГП', 'Склад СГП', 'Пакування', 'Пакування'].includes(c.operation)) && c.status === 'completed')
             .reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
 
           const bzAcceptedQty = orderAllTaskCards
@@ -887,7 +887,7 @@ export const useDashboardData = () => {
           const otherWipQty = orderAllTaskCards.filter(c => {
             if (c.status === 'completed') return false
             if (c.operation === 'Склад БЗ') return false
-            if (['Пакування/СГП', 'Склад СГП', 'Паквання', 'Пакування'].includes(c.operation)) return false
+            if (['Пакування/СГП', 'Склад СГП', 'Пакування', 'Пакування'].includes(c.operation)) return false
             if (c.status === 'at-shop2-buffer') return false
             return true
           }).reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)

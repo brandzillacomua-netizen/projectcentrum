@@ -19,7 +19,7 @@ const WipTable = ({ groupedData, maxHeight = 'calc(100vh - 320px)', emptyText = 
         <thead>
           <tr style={{ background: 'var(--card-bg, #18181b)', color: 'var(--text-muted, #a1a1aa)', textAlign: 'center', borderBottom: '2px solid var(--glass-border, rgba(0,0,0,0.12))' }}>
             <th className="wip-col-nomenclature" style={TH_STICKY}>Номенклатура</th>
-            <th className="wip-col-sum" style={TH_SUM}>Сума</th>
+            <th className="wip-col-sum" style={TH_SUM} title="Загальний обсяг деталей на всіх етапах виробництва (В роботі + СГП + БЗ + ВКЯ)">Всього WIP</th>
             <th style={TH}>Очік. Склад</th>
             <th style={TH}>Очік. Розкрій</th>
             <th style={TH}>Розкрій</th>

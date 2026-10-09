@@ -144,6 +144,72 @@ export const fetchWorkCardsByTaskIds = async (taskIds = [], columns = '*') => {
 
 export const normalizeStage = (value) => String(value || '').toLowerCase().replace(/\s+/g, '')
 
+export const isVkyaCard = (c) => {
+  if (!c) return false
+  const stat = String(c?.status || '').toLowerCase()
+  const op = String(c?.operation || '').toLowerCase()
+
+  if (['completed', 'delivered', 'archived', 'cancelled'].includes(stat)) return false
+
+  if ([
+    'quality-hold', 'on-hold', 'hold', 'at-vkya', 'in-vkya',
+    'quarantine', 'restoration'
+  ].includes(stat) || stat.includes('vkya') || stat.includes('вкя') || stat.includes('карантин')) {
+    return true
+  }
+
+  if (
+    op.includes('вкя') || op.includes('vkya') || op.includes('карантин') ||
+    op.includes('відновл') || op.includes('rework') || op.includes('restoration') ||
+    op.includes('контроль вкя')
+  ) {
+    return true
+  }
+
+  if (c?.is_archived_scrap === true) return true
+
+  return false
+}
+
+export const resolveCardOrder = (c, tasks = [], ordersMap = {}, orders = []) => {
+  if (!c) return null
+  if (c.order_id && ordersMap[c.order_id]) return ordersMap[c.order_id]
+  if (c.order_id && Array.isArray(orders)) {
+    const found = orders.find(o => String(o.id) === String(c.order_id))
+    if (found) return found
+  }
+  if (c.task_id && Array.isArray(tasks)) {
+    const t = tasks.find(t => String(t.id) === String(c.task_id))
+    if (t?.order_id && ordersMap[t.order_id]) return ordersMap[t.order_id]
+    if (t?.order_id && Array.isArray(orders)) {
+      const found = orders.find(o => String(o.id) === String(t.order_id))
+      if (found) return found
+    }
+  }
+  const info = String(c.card_info || '')
+  if (info && Array.isArray(orders)) {
+    const match = info.match(/Наряд\s*№?\s*([0-9a-z-]+)/i) ||
+                  info.match(/№\s*([0-9a-z-]+)/i) ||
+                  info.match(/\b(\d{6}(?:-\d+)?)\b/)
+    if (match) {
+      const rawNum = match[1].toLowerCase()
+      const baseNum = rawNum.split('-')[0]
+      let found = orders.find(o => String(o.order_num || '').toLowerCase() === rawNum)
+      if (!found) {
+        found = orders.find(o => String(o.order_num || '').toLowerCase() === baseNum)
+      }
+      if (!found) {
+        found = orders.find(o => {
+          const onum = String(o.order_num || '').toLowerCase()
+          return onum && (rawNum.includes(onum) || onum.includes(baseNum))
+        })
+      }
+      if (found) return found
+    }
+  }
+  return null
+}
+
 export const FLOW_STAGE = {
   cut: ['розкрій'],
   tumbling: ['галтовка'],

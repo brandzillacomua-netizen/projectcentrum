@@ -102,7 +102,7 @@ export const MESProvider = ({ children }) => {
   )
   const getFilteredManagers = department => selectFilteredManagerNames(data.systemUsers, department)
   const managers = selectManagerNames(data.systemUsers)
-  const productionStages = ["Підготовка", "Розкрій", "Галтовка", "Пресування", "Фарбування", "Паквання"]
+  const productionStages = ["Підготовка", "Розкрій", "Галтовка", "Пресування", "Фарбування", "Пакування"]
 
   return (
     <MESContext.Provider value={{
