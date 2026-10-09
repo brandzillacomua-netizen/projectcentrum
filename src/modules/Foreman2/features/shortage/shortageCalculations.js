@@ -110,9 +110,13 @@ export const calculatePartShortage = ({
   const totalSheets = productionCards.length > 0 ? Math.max(plannedSheets, actualSheets) : plannedSheets
   const spareFromSheets = (totalSheets * unitsPerSheet) + stockBZ - need
   const observedScrapRaw = asNumber(scrapByNom?.[nomId])
+  const scrapFromCards = nomCards.reduce((sum, card) => {
+    return sum + (asNumber(cardScrapMap?.[asId(card.id)]?.util) || 0)
+  }, 0)
+  const projectionScrap = asNumber(finalScrapByTask?.[asId(task.id)]?.[nomId])
   const scrap = hasFinalScrapProjection
-    ? asNumber(finalScrapByTask?.[asId(task.id)]?.[nomId])
-    : observedScrapRaw
+    ? Math.max(projectionScrap, scrapFromCards)
+    : Math.max(observedScrapRaw, scrapFromCards)
   const shortage = scrap > 0 ? Math.max(0, scrap - Math.max(0, spareFromSheets)) : 0
 
   const returnedFromCardInfo = nomCards.reduce((sum, card) => {

@@ -66,7 +66,40 @@ export async function fetchFinalScrapTotals(supabase, taskIds = [], orderIds = [
     }
     rows.push(...(data || []))
   }
-  return Array.from(new Map(rows.map(r => [String(r.id), r])).values())
+
+  for (const taskChunk of chunk(uniqueTaskIds, 40)) {
+    const { data, error } = await supabase
+      .from('work_card_history')
+      .select('id, card_id, task_id, order_id, nomenclature_id, qc_scrap_comment, created_at, completed_at')
+      .in('task_id', taskChunk)
+      .like('qc_scrap_comment', '%cat4%')
+    if (!error && data) {
+      data.forEach(h => {
+        const match = String(h.qc_scrap_comment || '').match(/\[SCRAP_CAT:([^\]]+)\]/)
+        if (match) {
+          try {
+            const cats = JSON.parse(match[1])
+            const cat4Qty = Number(cats.cat4 || 0)
+            if (cat4Qty > 0) {
+              rows.push({
+                id: `history-cat4-${h.id}`,
+                task_id: h.task_id,
+                order_id: h.order_id,
+                card_id: h.card_id,
+                nomenclature_id: h.nomenclature_id,
+                total_scrap: cat4Qty,
+                first_scrap_at: h.created_at || h.completed_at,
+                last_scrap_at: h.created_at || h.completed_at,
+                updated_at: h.completed_at || h.created_at
+              })
+            }
+          } catch {}
+        }
+      })
+    }
+  }
+
+  return Array.from(new Map(rows.map(r => [`${r.task_id || ''}:${r.card_id || ''}:${r.nomenclature_id || ''}:${r.total_scrap}`, r])).values())
 }
 
 export async function fetchVkyaReturnedTotals(supabase, taskIds = [], orderIds = []) {
