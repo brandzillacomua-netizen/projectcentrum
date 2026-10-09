@@ -51,6 +51,7 @@ export function useBrakData() {
   const [recoverableLotsAvailable, setRecoverableLotsAvailable] = useState(true)
   const { rows: scrapReasonRows, names: scrapReasons } = useScrapReasons()
   const { rows: restorationStages } = useRestorationStages()
+  const [restorationCards, setRestorationCards] = useState([])
 
   const loadRecoverableScrapLots = useCallback(async () => {
     try {
@@ -64,17 +65,37 @@ export function useBrakData() {
     }
   }, [supabase])
 
+  const loadRestorationCards = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('vkya_restoration_cards')
+        .select('*')
+        .neq('status', 'completed')
+        .order('created_at', { ascending: false })
+      if (!error) setRestorationCards(data || [])
+    } catch (err) {
+      setRestorationCards([])
+    }
+  }, [supabase])
+
   useEffect(() => {
-    const initialLoadTimer = setTimeout(loadRecoverableScrapLots, 0)
+    const initialLoadTimer = setTimeout(() => {
+      loadRecoverableScrapLots()
+      loadRestorationCards()
+    }, 0)
     const channel = supabase.channel('vkya-recoverable-scrap-lots-ui')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'vkya_scrap_lot_allocations' }, loadRecoverableScrapLots)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'scrap_classification_categories' }, loadRecoverableScrapLots)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'vkya_restoration_cards' }, () => {
+        loadRecoverableScrapLots()
+        loadRestorationCards()
+      })
       .subscribe()
     return () => {
       clearTimeout(initialLoadTimer)
       supabase.removeChannel(channel)
     }
-  }, [supabase, loadRecoverableScrapLots])
+  }, [supabase, loadRecoverableScrapLots, loadRestorationCards])
 
   const [isScanning, setIsScanning] = useState(false)
   const [scanError, setScanError] = useState(null)
@@ -1164,7 +1185,7 @@ export function useBrakData() {
   const [categoryPage, setCategoryPage] = useState(1)
   const categoryPageSize = 10
 
-  const qualityStatusTotals = buildQualityStatusTotals(inventory || [], readyItems)
+  const qualityStatusTotals = buildQualityStatusTotals(inventory || [], readyItems, restorationCards || [])
 
   const recoverableLotItems = buildRecoverableScrapLotItems(recoverableScrapLots)
   const legacyRecoverableItems = buildLegacyRecoverableInventoryItems(
@@ -1175,9 +1196,31 @@ export function useBrakData() {
     ? [...recoverableLotItems, ...legacyRecoverableItems]
     : legacyRecoverableItems
 
+  const restorationCardItems = useMemo(() => {
+    return (restorationCards || [])
+      .filter(c => c && c.status !== 'completed' && Number(c.quantity) > 0)
+      .map(c => ({
+        id: `rest-card-${c.id}`,
+        inventory_id: c.source_inventory_id || c.id,
+        nomenclature_id: c.nomenclature_id,
+        name: c.nomenclature_name || 'Деталь',
+        unit: c.unit || 'шт',
+        total_qty: Number(c.quantity || 0),
+        type: 'scrap_restoration',
+        stage: c.restoration_stage,
+        operator: c.operator_name || c.created_by_name || '—',
+        naryad_number: c.card_number ? `Карта №${c.card_number}` : '—',
+        updated_at: c.created_at,
+        is_restoration_card: true,
+        restoration_card_row: c
+      }))
+  }, [restorationCards])
+
+  const legacyRestorationItems = (inventory || []).filter(i => i.type === 'scrap_restoration' && (Number(i.total_qty) > 0))
+
   const itemsInCat = viewingCategory 
     ? (viewingCategory === 'restoration'
-        ? (inventory || []).filter(i => i.type === 'scrap_restoration' && (Number(i.total_qty) > 0))
+        ? [...restorationCardItems, ...legacyRestorationItems]
         : viewingCategory === 'brak'
           ? recoverableScrapItems
           : (inventory || []).filter(i => i.type === `scrap_cat_${viewingCategory}` && (Number(i.total_qty) > 0)))

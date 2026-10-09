@@ -18,6 +18,9 @@ export function useShop2BufferData({
   tasks = [],
   workCards = [],
   workCardHistory = [],
+  currentVkyaItems = [],
+  observedScrapRows = [],
+  returnedRows = [],
   finalScrapRows = [],
   inventory = [],
   nomenclatures = [],
@@ -108,6 +111,7 @@ export function useShop2BufferData({
           completedQty: 0,
           shop2ScrapQty: 0,
           shop2UtilQty: 0,
+          shop1VkyaQty: 0,
           ordersMap: new Map()
         })
       }
@@ -130,6 +134,7 @@ export function useShop2BufferData({
           completedQty: 0,
           shop2ScrapQty: 0,
           shop2UtilQty: 0,
+          shop1VkyaQty: 0,
           availableQty: 0
         })
       }
@@ -217,8 +222,25 @@ export function useShop2BufferData({
           orderSub.bzCardQty = (orderSub.bzCardQty || 0) + qty
         } else if (card.status !== 'completed' && card.status !== 'cancelled') {
           const qty = Number(card.quantity || 0)
-          partEntry.shop1WipQty = (partEntry.shop1WipQty || 0) + qty
-          orderSub.shop1WipQty = (orderSub.shop1WipQty || 0) + qty
+          const stat = String(card.status || '').toLowerCase()
+          const opLower = String(card.operation || '').toLowerCase()
+          
+          const isVkya = [
+            'quality-hold', 'on-hold', 'hold', 'at-vkya', 'in-vkya',
+            'quarantine', 'restoration'
+          ].includes(stat) || stat.includes('vkya') || stat.includes('вкя') || stat.includes('карантин') ||
+          opLower.includes('вкя') || opLower.includes('vkya') || opLower.includes('карантин') ||
+          opLower.includes('відновл') || opLower.includes('rework') || opLower.includes('restoration') ||
+          opLower.includes('контроль вкя') || opLower.includes('доробка') || opLower.includes('переробка') ||
+          opLower.includes('брак') || opLower.includes('додатков')
+
+          if (isVkya) {
+            partEntry.shop1VkyaQty = (partEntry.shop1VkyaQty || 0) + qty
+            orderSub.shop1VkyaQty = (orderSub.shop1VkyaQty || 0) + qty
+          } else {
+            partEntry.shop1WipQty = (partEntry.shop1WipQty || 0) + qty
+            orderSub.shop1WipQty = (orderSub.shop1WipQty || 0) + qty
+          }
         }
       } else {
         // Active or Completed Shop 2 Cards
@@ -247,6 +269,117 @@ export function useShop2BufferData({
           orderSub.shop2ScrapQty += scrap
         }
       }
+    })
+
+    // Process current VKYA items (quarantine, restoration) ONLY to include them in Shop 2 scrap quantity
+    ;(currentVkyaItems || []).forEach(item => {
+      let belongsToShop2 = shop2TaskIdsSet.has(String(item.task_id || ''))
+
+      if (!belongsToShop2 && item.original_operation && isShop2Operation(item.original_operation)) {
+        belongsToShop2 = true
+      }
+      
+      if (!belongsToShop2 && item.source_history_id) {
+        const histRow = workCardHistory.find(h => String(h.id) === String(item.source_history_id))
+        if (histRow) {
+          const srcCard = workCards.find(c => String(c.id) === String(histRow.card_id))
+          if (srcCard && isShop2WorkCard(srcCard, shop2TaskIdsSet)) {
+            belongsToShop2 = true
+          }
+        }
+      }
+
+      if (belongsToShop2) {
+        const canonicalNomId = resolveCanonicalNomId(item.nomenclature_id, nomenclatures) || String(item.nomenclature_id || '')
+        const orderId = String(item.order_id || '')
+        const vkyaQty = Math.max(0, Number(item.quantity) || 0)
+        if (!canonicalNomId || vkyaQty <= 0) return
+
+        const partEntry = getPartEntry(canonicalNomId, null, orderId)
+        const orderSub = getOrderSubEntry(partEntry, orderId)
+        
+        partEntry.shop2ScrapQty += vkyaQty
+        orderSub.shop2ScrapQty += vkyaQty
+      }
+    })
+
+    // Shop 1 VKYA = observed card scrap − final util (cat 4) − returned to route.
+    // Same formula as Foreman Dashboard (calculateCurrentVkyaQuantity).
+    const cardById = new Map(workCards.map(c => [String(c.id), c]))
+    const isShop1Row = (row) => {
+      if (shop2TaskIdsSet.has(String(row.task_id || ''))) return false
+      const card = row.card_id ? cardById.get(String(row.card_id)) : null
+      if (card && isShop2WorkCard(card, shop2TaskIdsSet)) return false
+      return true
+    }
+    const shop1VkyaByScope = new Map()
+    const addScope = (row, qty) => {
+      if (!qty || !isShop1Row(row)) return
+      const card = row.card_id ? cardById.get(String(row.card_id)) : null
+      const nomId = resolveCanonicalNomId(row.nomenclature_id || card?.nomenclature_id, nomenclatures) || String(row.nomenclature_id || card?.nomenclature_id || '')
+      if (!nomId) return
+      const orderId = String(row.order_id || card?.order_id || '')
+      const key = `${nomId}|${orderId}`
+      shop1VkyaByScope.set(key, (shop1VkyaByScope.get(key) || 0) + qty)
+    }
+    ;(observedScrapRows || []).forEach(r => addScope(r, Number(r.total_scrap ?? r.scrap_qty) || 0))
+    ;(finalScrapRows || []).forEach(r => addScope(r, -(Number(r.total_scrap ?? r.quantity) || 0)))
+    ;(returnedRows || []).forEach(r => addScope(r, -(Number(r.quantity) || 0)))
+
+    partMap.forEach(partEntry => {
+      let partVkya = 0
+      partEntry.ordersMap.forEach(orderSub => {
+        const mathVkya = Math.max(0, shop1VkyaByScope.get(`${partEntry.nomId}|${orderSub.orderId}`) || 0)
+        const cardVkya = Number(orderSub.shop1VkyaQty || 0)
+        if (mathVkya > cardVkya) {
+          const extra = mathVkya - cardVkya
+          orderSub.shop1VkyaQty = mathVkya
+          // Scrap still sits inside active Shop 1 card quantity — move it out of WIP
+          const wip = Number(orderSub.shop1WipQty || 0)
+          const moved = Math.min(wip, extra)
+          orderSub.shop1WipQty = wip - moved
+          partEntry.shop1WipQty = Math.max(0, Number(partEntry.shop1WipQty || 0) - moved)
+        }
+        partVkya += Number(orderSub.shop1VkyaQty || 0)
+      })
+      partEntry.shop1VkyaQty = Math.max(Number(partEntry.shop1VkyaQty || 0), partVkya)
+    })
+
+    // Legacy fallback: VKYA ledger items for Shop 1 when no card scrap totals exist
+    const historyById = new Map((workCardHistory || []).map(h => [String(h.id), h]))
+    const ledgerShop1ByScope = new Map()
+    ;(currentVkyaItems || []).forEach(item => {
+      let belongsToShop2 = shop2TaskIdsSet.has(String(item.task_id || ''))
+      if (!belongsToShop2 && item.original_operation && isShop2Operation(item.original_operation)) belongsToShop2 = true
+      if (!belongsToShop2 && item.source_history_id) {
+        const histRow = historyById.get(String(item.source_history_id))
+        const srcCard = histRow ? cardById.get(String(histRow.card_id)) : null
+        if (srcCard && isShop2WorkCard(srcCard, shop2TaskIdsSet)) belongsToShop2 = true
+      }
+      if (belongsToShop2) return
+      const nomId = resolveCanonicalNomId(item.nomenclature_id, nomenclatures) || String(item.nomenclature_id || '')
+      const key = `${nomId}|${String(item.order_id || '')}`
+      ledgerShop1ByScope.set(key, (ledgerShop1ByScope.get(key) || 0) + Math.max(0, Number(item.quantity) || 0))
+    })
+    partMap.forEach(partEntry => {
+      let partVkya = 0
+      partEntry.ordersMap.forEach(orderSub => {
+        const key = `${partEntry.nomId}|${orderSub.orderId}`
+        if (!shop1VkyaByScope.has(key)) {
+          const ledgerQty = ledgerShop1ByScope.get(key) || 0
+          const cardVkya = Number(orderSub.shop1VkyaQty || 0)
+          if (ledgerQty > cardVkya) {
+            const extra = ledgerQty - cardVkya
+            orderSub.shop1VkyaQty = ledgerQty
+            const wip = Number(orderSub.shop1WipQty || 0)
+            const moved = Math.min(wip, extra)
+            orderSub.shop1WipQty = wip - moved
+            partEntry.shop1WipQty = Math.max(0, Number(partEntry.shop1WipQty || 0) - moved)
+          }
+        }
+        partVkya += Number(orderSub.shop1VkyaQty || 0)
+      })
+      partEntry.shop1VkyaQty = Math.max(Number(partEntry.shop1VkyaQty || 0), partVkya)
     })
 
     // Calculate final available buffer qty, BOM-based active order requirement & net packaging yield for each part row
@@ -310,6 +443,7 @@ export function useShop2BufferData({
         const subUtil = utilByOrderPart.get(`${partEntry.nomId}|${sub.orderId}`) || 0
         const subCompleted = Number(sub.completedQty || 0)
         const subNetPack = subCompleted
+        const subShop1Vkya = Number(sub.shop1VkyaQty || 0)
 
         ordersList.push({
           ...sub,
@@ -317,7 +451,8 @@ export function useShop2BufferData({
           stockBzQty,
           shop2UtilQty: subUtil,
           availableQty: subAvail,
-          netPackagingQty: subNetPack
+          netPackagingQty: subNetPack,
+          shop1VkyaQty: subShop1Vkya
         })
       })
 
@@ -356,7 +491,7 @@ export function useShop2BufferData({
     })
 
     return results
-  }, [workCards, workCardHistory, finalScrapRows, tasks, orders, nomenclatures, bomItems, shop2TaskIdsSet, groupBy])
+  }, [workCards, workCardHistory, finalScrapRows, observedScrapRows, returnedRows, currentVkyaItems, tasks, orders, nomenclatures, bomItems, shop2TaskIdsSet, groupBy])
 
   // Filtered & Sorted rows
   const filteredRows = useMemo(() => {

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { buildCurrentVkyaIndex, buildCurrentVkyaOrderIndex, buildQualityLossIndex } from './qualityHoldModel.js'
-import { fetchCurrentVkyaItems, fetchFinalScrapTotals, fetchVkyaReturnedTotals } from './qualityHoldService.js'
+import { fetchCurrentVkyaItems, fetchFinalScrapTotals, fetchVkyaReturnedTotals, fetchObservedScrapTotals } from './qualityHoldService.js'
 
 export function useQualityLossTotals(supabase, taskIds = [], { orderIds = [] } = {}) {
   const taskKey = useMemo(() => [...new Set(taskIds.filter(Boolean).map(String))].sort().join('|'), [taskIds])
@@ -8,6 +8,7 @@ export function useQualityLossTotals(supabase, taskIds = [], { orderIds = [] } =
   const [rows, setRows] = useState([])
   const [returnedRows, setReturnedRows] = useState([])
   const [currentVkyaItems, setCurrentVkyaItems] = useState([])
+  const [observedScrapRows, setObservedScrapRows] = useState([])
   const [isAvailable, setIsAvailable] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -26,6 +27,7 @@ export function useQualityLossTotals(supabase, taskIds = [], { orderIds = [] } =
       setRows([])
       setReturnedRows([])
       setCurrentVkyaItems([])
+      setObservedScrapRows([])
       setIsAvailable(true)
       setError(null)
       setLoading(false)
@@ -36,15 +38,17 @@ export function useQualityLossTotals(supabase, taskIds = [], { orderIds = [] } =
 
     if (loadedScopeRef.current !== scopeKey) setLoading(true)
     try {
-      const [nextRows, nextReturned, nextCurrentVkyaItems] = await Promise.all([
-        fetchFinalScrapTotals(supabase, ids),
-        fetchVkyaReturnedTotals(supabase, ids).catch(() => []),
-        fetchCurrentVkyaItems(supabase, ids, scopedOrderIds).catch(() => [])
+      const [nextRows, nextReturned, nextCurrentVkyaItems, nextObserved] = await Promise.all([
+        fetchFinalScrapTotals(supabase, ids, scopedOrderIds),
+        fetchVkyaReturnedTotals(supabase, ids, scopedOrderIds).catch(() => []),
+        fetchCurrentVkyaItems(supabase, ids, scopedOrderIds).catch(() => []),
+        fetchObservedScrapTotals(supabase, ids, scopedOrderIds).catch(() => [])
       ])
       if (requestRef.current !== requestId) return
       setRows(nextRows)
       setReturnedRows(nextReturned)
       setCurrentVkyaItems(nextCurrentVkyaItems)
+      setObservedScrapRows(nextObserved)
       setIsAvailable(true)
       setError(null)
       loadedScopeRef.current = scopeKey
@@ -107,5 +111,5 @@ export function useQualityLossTotals(supabase, taskIds = [], { orderIds = [] } =
   const pendingVkyaByTask = useMemo(() => buildCurrentVkyaIndex(currentVkyaItems), [currentVkyaItems])
   const pendingVkyaByOrder = useMemo(() => buildCurrentVkyaOrderIndex(currentVkyaItems), [currentVkyaItems])
 
-  return { rows, returnedRows, currentVkyaItems, index, returnedIndex, pendingVkyaByTask, pendingVkyaByOrder, isAvailable, loading, error, reload }
+  return { rows, returnedRows, currentVkyaItems, observedScrapRows, index, returnedIndex, pendingVkyaByTask, pendingVkyaByOrder, isAvailable, loading, error, reload }
 }

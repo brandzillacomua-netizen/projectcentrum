@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, Monitor, RefreshCw, Layers, Clock, Archive, AlertTriangle } from 'lucide-react'
 import { useMES } from '../../MESContext'
@@ -27,11 +27,13 @@ export default function Shop2CardGenModule() {
     refreshTable
   } = useMES()
 
+  const fetchDataRef = useRef(fetchData)
+  fetchDataRef.current = fetchData
   useEffect(() => {
-    if (typeof fetchData === 'function') {
-      fetchData(['orders', 'tasks', 'inventory', 'nomenclatures', 'bom_items', 'work_cards', 'work_card_history', 'machines']).catch(() => {})
+    if (typeof fetchDataRef.current === 'function') {
+      fetchDataRef.current(['orders', 'tasks', 'inventory', 'nomenclatures', 'bom_items', 'work_cards', 'work_card_history', 'machines']).catch(() => {})
     }
-  }, [fetchData])
+  }, [])
 
   const [activeTab, setActiveTab] = useState('buffer') // 'buffer' | 'active' | 'history'
   const [searchTerm, setSearchTerm] = useState('')
@@ -41,7 +43,8 @@ export default function Shop2CardGenModule() {
   const [showDeficitModal, setShowDeficitModal] = useState(false)
 
   const taskIds = useMemo(() => tasks.map(task => task.id).filter(Boolean), [tasks])
-  const { rows: finalScrapRows, reload: reloadFinalScrap } = useQualityLossTotals(supabase, taskIds)
+  const orderIds = useMemo(() => orders.map(order => order.id).filter(Boolean), [orders])
+  const { rows: finalScrapRows, returnedRows, currentVkyaItems, observedScrapRows, reload: reloadFinalScrap } = useQualityLossTotals(supabase, taskIds, { orderIds })
 
   const {
     completedCards: shop2CompletedCards,
@@ -69,6 +72,9 @@ export default function Shop2CardGenModule() {
     tasks,
     workCards: combinedWorkCards,
     workCardHistory,
+    currentVkyaItems,
+    observedScrapRows,
+    returnedRows,
     finalScrapRows,
     inventory,
     nomenclatures,

@@ -30,36 +30,50 @@ const fetchAllPages = async (makeQuery, pageSize = 1000) => {
   return rows
 }
 
-export async function fetchFinalScrapTotals(supabase, taskIds = []) {
+export async function fetchFinalScrapTotals(supabase, taskIds = [], orderIds = []) {
   if (isTestEnvironment()) return []
   const uniqueTaskIds = [...new Set(taskIds.filter(Boolean).map(String))]
-  if (uniqueTaskIds.length === 0) return []
+  const uniqueOrderIds = [...new Set(orderIds.filter(Boolean).map(String))]
+  if (uniqueTaskIds.length === 0 && uniqueOrderIds.length === 0) return []
 
   const rows = []
+  const isMissingTable = (err) => (
+    err?.code === 'PGRST205' ||
+    err?.status === 404 ||
+    String(err?.message || '').includes('schema cache') ||
+    String(err?.message || '').includes('Not Found')
+  )
+
   for (const taskChunk of chunk(uniqueTaskIds, 40)) {
     const { data, error } = await supabase
       .from('vkya_final_scrap_totals')
       .select('*')
       .in('task_id', taskChunk)
-    const isMissingTable = (err) => (
-      err?.code === 'PGRST205' ||
-      err?.status === 404 ||
-      String(err?.message || '').includes('schema cache') ||
-      String(err?.message || '').includes('Not Found')
-    )
     if (error) {
       if (isMissingTable(error)) return []
       throw error
     }
     rows.push(...(data || []))
   }
-  return rows
+  for (const orderChunk of chunk(uniqueOrderIds, 40)) {
+    const { data, error } = await supabase
+      .from('vkya_final_scrap_totals')
+      .select('*')
+      .in('order_id', orderChunk)
+    if (error) {
+      if (isMissingTable(error)) return []
+      throw error
+    }
+    rows.push(...(data || []))
+  }
+  return Array.from(new Map(rows.map(r => [String(r.id), r])).values())
 }
 
-export async function fetchVkyaReturnedTotals(supabase, taskIds = []) {
+export async function fetchVkyaReturnedTotals(supabase, taskIds = [], orderIds = []) {
   if (isTestEnvironment()) return []
   const uniqueTaskIds = [...new Set(taskIds.filter(Boolean).map(String))]
-  if (uniqueTaskIds.length === 0) return []
+  const uniqueOrderIds = [...new Set(orderIds.filter(Boolean).map(String))]
+  if (uniqueTaskIds.length === 0 && uniqueOrderIds.length === 0) return []
 
   const isMissingTable = (err) => (
     err?.code === 'PGRST205' ||
@@ -81,7 +95,58 @@ export async function fetchVkyaReturnedTotals(supabase, taskIds = []) {
     }
     rows.push(...(data || []))
   }
-  return rows
+  for (const orderChunk of chunk(uniqueOrderIds, 40)) {
+    const { data, error } = await supabase
+      .from('vkya_quality_resolutions')
+      .select('*')
+      .in('order_id', orderChunk)
+      .eq('disposition', 'returned_to_route')
+    if (error) {
+      if (isMissingTable(error)) return []
+      throw error
+    }
+    rows.push(...(data || []))
+  }
+  return Array.from(new Map(rows.map(r => [String(r.id), r])).values())
+}
+
+export async function fetchObservedScrapTotals(supabase, taskIds = [], orderIds = []) {
+  if (isTestEnvironment()) return []
+  const uniqueTaskIds = [...new Set(taskIds.filter(Boolean).map(String))]
+  const uniqueOrderIds = [...new Set(orderIds.filter(Boolean).map(String))]
+  if (uniqueTaskIds.length === 0 && uniqueOrderIds.length === 0) return []
+
+  const isMissingTable = (err) => (
+    err?.code === 'PGRST205' ||
+    err?.status === 404 ||
+    String(err?.message || '').includes('schema cache') ||
+    String(err?.message || '').includes('Not Found')
+  )
+
+  const rows = []
+  for (const taskChunk of chunk(uniqueTaskIds, 40)) {
+    const { data, error } = await supabase
+      .from('work_card_scrap_totals')
+      .select('*')
+      .in('task_id', taskChunk)
+    if (error) {
+      if (isMissingTable(error)) return []
+      throw error
+    }
+    rows.push(...(data || []))
+  }
+  for (const orderChunk of chunk(uniqueOrderIds, 40)) {
+    const { data, error } = await supabase
+      .from('work_card_scrap_totals')
+      .select('*')
+      .in('order_id', orderChunk)
+    if (error) {
+      if (isMissingTable(error)) return []
+      throw error
+    }
+    rows.push(...(data || []))
+  }
+  return Array.from(new Map(rows.map(r => [String(r.id), r])).values())
 }
 
 export async function fetchCurrentVkyaItems(supabase, taskIds = [], orderIds = []) {
@@ -120,7 +185,9 @@ export async function fetchCurrentVkyaItems(supabase, taskIds = [], orderIds = [
         taskId,
         orderId,
         nomenclatureId: payload.nomenclature_id || null,
-        scopeMatch: getScopeMatch(taskId, orderId)
+        scopeMatch: getScopeMatch(taskId, orderId),
+        historyId: String(row.source_id),
+        sourceStageName: payload.source_stage_name || payload.operation || ''
       }]
     }))
 
@@ -313,7 +380,9 @@ export async function fetchCurrentVkyaItems(supabase, taskIds = [], orderIds = [
       operation: 'Карантин ВКЯ',
       card_number: payload.card_number || 'ВКЯ',
       card_info: payload.qc_scrap_comment || 'Очікує рішення ВКЯ',
-      created_at: payload.created_at || payload.completed_at || null
+      created_at: payload.created_at || payload.completed_at || null,
+      source_history_id: row.source_type === 'history' ? row.source_id : null,
+      original_operation: payload.source_stage_name || payload.operation || ''
     })
   })
 
@@ -342,7 +411,9 @@ export async function fetchCurrentVkyaItems(supabase, taskIds = [], orderIds = [
       operation: 'Брак категорії 1',
       card_number: payload.card_number || 'ВКЯ',
       card_info: 'Очікує передачі на відновлення',
-      created_at: payload.created_at || payload.completed_at || null
+      created_at: payload.created_at || payload.completed_at || null,
+      source_history_id: historyId,
+      original_operation: payload.source_stage_name || payload.operation || ''
     })
   })
 
@@ -367,7 +438,9 @@ export async function fetchCurrentVkyaItems(supabase, taskIds = [], orderIds = [
       operation: 'Брак категорії 1',
       card_number: row.card_sequence || 'ВКЯ',
       card_info: 'Очікує передачі на відновлення',
-      created_at: row.classified_at || null
+      created_at: row.classified_at || null,
+      source_history_id: row.source_history_id || null,
+      original_operation: row.source_stage_name || inheritedScope?.sourceStageName || ''
     })
   })
 
@@ -392,7 +465,9 @@ export async function fetchCurrentVkyaItems(supabase, taskIds = [], orderIds = [
       operation: row.restoration_stage || 'Відновлення ВКЯ',
       card_number: row.id,
       card_info: row.status === 'completed' ? 'Відновлено, очікує повернення у маршрут' : 'Перебуває на відновленні',
-      created_at: row.created_at || row.updated_at || null
+      created_at: row.created_at || row.updated_at || null,
+      source_history_id: row.source_history_id || inheritedScope?.historyId || null,
+      original_operation: row.source_stage_name || inheritedScope?.sourceStageName || ''
     })
   })
 

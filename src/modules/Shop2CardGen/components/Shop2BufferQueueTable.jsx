@@ -198,6 +198,12 @@ export function Shop2BufferQueueTable({
                       </span>
                     )}
 
+                    {sec.totalShop1Vkya > 0 && (
+                      <span style={{ fontSize: '0.78rem', color: '#f59e0b', fontWeight: 900, background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.3)', padding: '4px 12px', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <AlertTriangle size={14} /> На ВКЯ (Цех 1): {sec.totalShop1Vkya.toLocaleString()} шт
+                      </span>
+                    )}
+
                     {sec.totalPackagingYield > 0 && (
                       <span style={{ fontSize: '0.78rem', color: '#059669', fontWeight: 900, background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '4px 12px', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <ShieldCheck size={14} /> Вихід (СГП): {sec.totalPackagingYield.toLocaleString()} шт
@@ -224,6 +230,7 @@ export function Shop2BufferQueueTable({
                       <th style={{ padding: '14px 20px', textAlign: 'center', color: '#d97706' }}>СУМА (Є / ПОТРЕБА)</th>
                       <th style={{ padding: '14px 20px', textAlign: 'center', color: '#eab308' }}>ВЗЯТО З БЗ</th>
                       <th style={{ padding: '14px 20px', textAlign: 'center', color: '#0284c7' }}>В РОБОТІ (ЦЕХ 1)</th>
+                      <th style={{ padding: '14px 20px', textAlign: 'center', color: '#f59e0b' }}>НА ВКЯ (ЦЕХ 1)</th>
                       <th style={{ padding: '14px 20px', textAlign: 'center' }}>В роботі (Цех 2)</th>
                       <th style={{ padding: '14px 20px', textAlign: 'center' }}>БРАК ЦЕХУ 2</th>
                       <th style={{ padding: '14px 20px', textAlign: 'center', color: '#b91c1c' }}>УТИЛЬ ЦЕХУ 2</th>
@@ -303,6 +310,21 @@ export function Shop2BufferQueueTable({
                               fontSize: '0.85rem'
                             }}>
                               {row.awaitingShop1Qty.toLocaleString()} <span style={{ fontSize: '0.65rem' }}>шт</span>
+                            </span>
+                          </td>
+
+                          {/* НА ВКЯ (ЦЕХ 1) */}
+                          <td style={{ padding: '14px 20px', textAlign: 'center' }}>
+                            <span style={{
+                              color: row.shop1VkyaQty > 0 ? '#f59e0b' : 'var(--text-muted, #94a3b8)',
+                              fontWeight: 950,
+                              background: row.shop1VkyaQty > 0 ? 'rgba(245, 158, 11, 0.08)' : 'transparent',
+                              border: row.shop1VkyaQty > 0 ? '1px solid rgba(245, 158, 11, 0.3)' : 'none',
+                              padding: '4px 10px',
+                              borderRadius: '8px',
+                              fontSize: '0.85rem'
+                            }}>
+                              {row.shop1VkyaQty.toLocaleString()} <span style={{ fontSize: '0.65rem' }}>шт</span>
                             </span>
                           </td>
 
@@ -427,6 +449,7 @@ export function Shop2BufferQueueTable({
                 <th style={{ padding: '16px 20px', textAlign: 'center', color: '#d97706' }}>СУМА (Є / ПОТРЕБА)</th>
                 <th style={{ padding: '16px 20px', textAlign: 'center', color: '#eab308' }}>ВЗЯТО З БЗ</th>
                 <th style={{ padding: '16px 20px', textAlign: 'center', color: '#0284c7' }}>В РОБОТІ (ЦЕХ 1)</th>
+                <th style={{ padding: '16px 20px', textAlign: 'center', color: '#f59e0b' }}>НА ВКЯ (ЦЕХ 1)</th>
                 <th style={{ padding: '16px 20px', textAlign: 'center' }}>В роботі (Цех 2)</th>
                 <th style={{ padding: '16px 20px', textAlign: 'center' }}>БРАК ЦЕХУ 2</th>
                 <th style={{ padding: '16px 20px', textAlign: 'center', color: '#b91c1c' }}>УТИЛЬ ЦЕХУ 2</th>
@@ -516,6 +539,21 @@ export function Shop2BufferQueueTable({
                           fontSize: '0.85rem'
                         }}>
                           {row.awaitingShop1Qty.toLocaleString()} <span style={{ fontSize: '0.65rem' }}>шт</span>
+                        </span>
+                      </td>
+
+                      {/* НА ВКЯ (ЦЕХ 1) */}
+                      <td style={{ padding: '16px 20px', textAlign: 'center' }}>
+                        <span style={{
+                          color: row.shop1VkyaQty > 0 ? '#f59e0b' : 'var(--text-muted, #94a3b8)',
+                          fontWeight: 950,
+                          background: row.shop1VkyaQty > 0 ? 'rgba(245, 158, 11, 0.08)' : 'transparent',
+                          border: row.shop1VkyaQty > 0 ? '1px solid rgba(245, 158, 11, 0.3)' : 'none',
+                          padding: '4px 10px',
+                          borderRadius: '8px',
+                          fontSize: '0.85rem'
+                        }}>
+                          {row.shop1VkyaQty.toLocaleString()} <span style={{ fontSize: '0.65rem' }}>шт</span>
                         </span>
                       </td>
 

@@ -83,16 +83,20 @@ export const asScrapTotalRows = (rows = []) => rows.map((row, index) => ({
   is_vkya_final_scrap: true
 }))
 
-export const buildQualityStatusTotals = (inventory = [], quarantineItems = []) => {
+export const buildQualityStatusTotals = (inventory = [], quarantineItems = [], restorationCards = []) => {
   const inventoryTotal = types => inventory
     .filter(item => types.includes(item?.type))
     .reduce((sum, item) => sum + qty(item?.total_qty), 0)
+
+  const activeRestorationQty = (restorationCards || [])
+    .filter(c => c && c.status !== 'completed')
+    .reduce((sum, c) => sum + qty(c.quantity), 0)
 
   return {
     quarantine: quarantineItems.reduce((sum, item) => sum + qty(item?.total_qty), 0),
     recoverableScrap: inventoryTotal(['scrap_cat_1', 'scrap_cat_2', 'scrap_cat_3']),
     finalScrap: inventoryTotal(['scrap_cat_4']),
-    restoration: inventoryTotal(['scrap_restoration'])
+    restoration: inventoryTotal(['scrap_restoration']) + activeRestorationQty
   }
 }
 
