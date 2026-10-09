@@ -18,6 +18,7 @@ export function useShop2BufferData({
   tasks = [],
   workCards = [],
   workCardHistory = [],
+  workCardScrapTotals = [],
   currentVkyaItems = [],
   observedScrapRows = [],
   returnedRows = [],
@@ -322,7 +323,23 @@ export function useShop2BufferData({
       const key = `${nomId}|${orderId}`
       shop1VkyaByScope.set(key, (shop1VkyaByScope.get(key) || 0) + qty)
     }
-    ;(observedScrapRows || []).forEach(r => addScope(r, Number(r.total_scrap ?? r.scrap_qty) || 0))
+
+    const activeObservedScrapRows = (observedScrapRows && observedScrapRows.length > 0)
+      ? observedScrapRows
+      : ((workCardScrapTotals && workCardScrapTotals.length > 0)
+          ? workCardScrapTotals
+          : (workCardHistory || [])
+              .filter(h => Number(h?.scrap_qty) > 0)
+              .map(h => ({
+                card_id: h.card_id,
+                task_id: h.task_id,
+                order_id: h.order_id,
+                nomenclature_id: h.nomenclature_id,
+                total_scrap: Number(h.scrap_qty) || 0
+              }))
+        )
+
+    ;(activeObservedScrapRows || []).forEach(r => addScope(r, Number(r.total_scrap ?? r.scrap_qty) || 0))
     ;(finalScrapRows || []).forEach(r => addScope(r, -(Number(r.total_scrap ?? r.quantity) || 0)))
     ;(returnedRows || []).forEach(r => addScope(r, -(Number(r.quantity) || 0)))
 
@@ -491,7 +508,7 @@ export function useShop2BufferData({
     })
 
     return results
-  }, [workCards, workCardHistory, finalScrapRows, observedScrapRows, returnedRows, currentVkyaItems, tasks, orders, nomenclatures, bomItems, shop2TaskIdsSet, groupBy])
+  }, [workCards, workCardHistory, workCardScrapTotals, finalScrapRows, observedScrapRows, returnedRows, currentVkyaItems, tasks, orders, nomenclatures, bomItems, shop2TaskIdsSet, groupBy])
 
   // Filtered & Sorted rows
   const filteredRows = useMemo(() => {

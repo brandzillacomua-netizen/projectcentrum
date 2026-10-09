@@ -1,21 +1,62 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { buildCurrentVkyaIndex, buildCurrentVkyaOrderIndex, buildQualityLossIndex } from './qualityHoldModel.js'
-import { fetchCurrentVkyaItems, fetchFinalScrapTotals, fetchVkyaReturnedTotals, fetchObservedScrapTotals } from './qualityHoldService.js'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import { getIndexedCache, setIndexedCache } from '../../../services/indexedDbCache.js'
+import {
+  fetchFinalScrapTotals,
+  fetchVkyaReturnedTotals,
+  fetchObservedScrapTotals,
+  fetchCurrentVkyaItems
+} from './qualityHoldService.js'
+import {
+  buildQualityLossIndex,
+  buildCurrentVkyaIndex,
+  buildCurrentVkyaOrderIndex
+} from './qualityHoldModel.js'
+
+const IDB_VKYA_CACHE_KEY = 'VKYA_QUALITY_LOSS_TOTALS_V1'
+const qualityLossCache = new Map()
+
+const loadLocalCache = () => {
+  try {
+    const raw = localStorage.getItem(IDB_VKYA_CACHE_KEY)
+    return raw ? JSON.parse(raw) : null
+  } catch {
+    return null
+  }
+}
 
 export function useQualityLossTotals(supabase, taskIds = [], { orderIds = [] } = {}) {
   const taskKey = useMemo(() => [...new Set(taskIds.filter(Boolean).map(String))].sort().join('|'), [taskIds])
   const orderKey = useMemo(() => [...new Set(orderIds.filter(Boolean).map(String))].sort().join('|'), [orderIds])
-  const [rows, setRows] = useState([])
-  const [returnedRows, setReturnedRows] = useState([])
-  const [currentVkyaItems, setCurrentVkyaItems] = useState([])
-  const [observedScrapRows, setObservedScrapRows] = useState([])
-  const [isAvailable, setIsAvailable] = useState(false)
-  const [loading, setLoading] = useState(false)
+  const scopeKey = `${taskKey}::${orderKey}`
+
+  const cachedData = qualityLossCache.get(scopeKey) || qualityLossCache.get('latest') || loadLocalCache()
+  const [rows, setRows] = useState(() => cachedData?.rows || [])
+  const [returnedRows, setReturnedRows] = useState(() => cachedData?.returnedRows || [])
+  const [currentVkyaItems, setCurrentVkyaItems] = useState(() => cachedData?.currentVkyaItems || [])
+  const [observedScrapRows, setObservedScrapRows] = useState(() => cachedData?.observedScrapRows || [])
+  const [isAvailable, setIsAvailable] = useState(() => Boolean(cachedData))
+  const [loading, setLoading] = useState(() => !cachedData)
   const [error, setError] = useState(null)
   const requestRef = useRef(0)
   const loadedScopeRef = useRef('')
   const inFlightScopesRef = useRef(new Set())
-  const scopeKey = `${taskKey}::${orderKey}`
+
+  useEffect(() => {
+    let cancelled = false
+    if (!cachedData) {
+      getIndexedCache(IDB_VKYA_CACHE_KEY).then(data => {
+        if (cancelled || !data) return
+        qualityLossCache.set('latest', data)
+        setRows(prev => prev.length ? prev : data.rows || [])
+        setReturnedRows(prev => prev.length ? prev : data.returnedRows || [])
+        setCurrentVkyaItems(prev => prev.length ? prev : data.currentVkyaItems || [])
+        setObservedScrapRows(prev => prev.length ? prev : data.observedScrapRows || [])
+        setIsAvailable(true)
+        setLoading(false)
+      }).catch(() => {})
+    }
+    return () => { cancelled = true }
+  }, [cachedData])
 
   const reload = useCallback(async () => {
     if (inFlightScopesRef.current.has(scopeKey)) return
@@ -24,10 +65,12 @@ export function useQualityLossTotals(supabase, taskIds = [], { orderIds = [] } =
     const ids = taskKey ? taskKey.split('|') : []
     const scopedOrderIds = orderKey ? orderKey.split('|') : []
     if (ids.length === 0 && scopedOrderIds.length === 0) {
-      setRows([])
-      setReturnedRows([])
-      setCurrentVkyaItems([])
-      setObservedScrapRows([])
+      if (loadedScopeRef.current) {
+        setRows([])
+        setReturnedRows([])
+        setCurrentVkyaItems([])
+        setObservedScrapRows([])
+      }
       setIsAvailable(true)
       setError(null)
       setLoading(false)
@@ -36,7 +79,10 @@ export function useQualityLossTotals(supabase, taskIds = [], { orderIds = [] } =
       return
     }
 
-    if (loadedScopeRef.current !== scopeKey) setLoading(true)
+    if (!qualityLossCache.has(scopeKey) && loadedScopeRef.current !== scopeKey && !loadLocalCache()) {
+      setLoading(true)
+    }
+
     try {
       const [nextRows, nextReturned, nextCurrentVkyaItems, nextObserved] = await Promise.all([
         fetchFinalScrapTotals(supabase, ids, scopedOrderIds),
@@ -45,6 +91,20 @@ export function useQualityLossTotals(supabase, taskIds = [], { orderIds = [] } =
         fetchObservedScrapTotals(supabase, ids, scopedOrderIds).catch(() => [])
       ])
       if (requestRef.current !== requestId) return
+
+      const payload = {
+        rows: nextRows,
+        returnedRows: nextReturned,
+        currentVkyaItems: nextCurrentVkyaItems,
+        observedScrapRows: nextObserved
+      }
+      qualityLossCache.set(scopeKey, payload)
+      qualityLossCache.set('latest', payload)
+      try {
+        localStorage.setItem(IDB_VKYA_CACHE_KEY, JSON.stringify(payload))
+      } catch {}
+      setIndexedCache(IDB_VKYA_CACHE_KEY, payload).catch(() => {})
+
       setRows(nextRows)
       setReturnedRows(nextReturned)
       setCurrentVkyaItems(nextCurrentVkyaItems)
@@ -87,6 +147,7 @@ export function useQualityLossTotals(supabase, taskIds = [], { orderIds = [] } =
       .on('postgres_changes', { event: '*', schema: 'public', table: 'vkya_classification_queue_projection' }, scheduleReload)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'vkya_restoration_cards' }, scheduleReload)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'vkya_scrap_lot_allocations' }, scheduleReload)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'work_card_scrap_totals' }, scheduleReload)
       .subscribe()
     return () => {
       if (timer) clearTimeout(timer)

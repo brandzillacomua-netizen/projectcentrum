@@ -19,6 +19,7 @@ export default function Shop2CardGenModule() {
     tasks = [],
     workCards = [],
     workCardHistory = [],
+    workCardScrapTotals = [],
     inventory = [],
     nomenclatures = [],
     bomItems = [],
@@ -27,12 +28,11 @@ export default function Shop2CardGenModule() {
     refreshTable
   } = useMES()
 
-  const fetchDataRef = useRef(fetchData)
-  fetchDataRef.current = fetchData
   useEffect(() => {
-    if (typeof fetchDataRef.current === 'function') {
-      fetchDataRef.current(['orders', 'tasks', 'inventory', 'nomenclatures', 'bom_items', 'work_cards', 'work_card_history', 'machines']).catch(() => {})
+    if (typeof fetchData === 'function') {
+      fetchData(['orders', 'tasks', 'inventory', 'nomenclatures', 'bom_items', 'work_cards', 'work_card_history', 'machines', 'work_card_scrap_totals']).catch(() => {})
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const [activeTab, setActiveTab] = useState('buffer') // 'buffer' | 'active' | 'history'
@@ -72,6 +72,7 @@ export default function Shop2CardGenModule() {
     tasks,
     workCards: combinedWorkCards,
     workCardHistory,
+    workCardScrapTotals,
     currentVkyaItems,
     observedScrapRows,
     returnedRows,
