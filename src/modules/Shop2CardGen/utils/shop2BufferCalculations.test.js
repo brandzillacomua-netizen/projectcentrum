@@ -101,3 +101,15 @@ test('active rerun quantity offsets util deficit so already re-issued scrap is n
   ])
 })
 
+test('identifies SGP / Packaging operations correctly for direct transfer', async () => {
+  const { isPackagingOperation } = await import('../constants/shop2Stages.js')
+  assert.equal(isPackagingOperation('Склад СГП (пряма передача)'), true)
+  assert.equal(isPackagingOperation('Склад СГП'), true)
+  assert.equal(isPackagingOperation('Пакування/СГП'), true)
+  assert.equal(isPackagingOperation('Пакування'), true)
+  assert.equal(isPackagingOperation('Фарбування'), false)
+  assert.equal(isPackagingOperation('Пресування'), false)
+  assert.equal(isPackagingOperation('Доопрацювання'), false)
+})
+
+

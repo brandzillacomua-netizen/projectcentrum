@@ -9,7 +9,7 @@ import {
   buildRerunToParentOrderMap
 } from '../utils/shop2BufferCalculations'
 
-export const SHOP2_STAGES = SHOP2_STAGE_NAMES.filter(name => !name.toLowerCase().includes('пакування') && !name.toLowerCase().includes('сгп'))
+export const SHOP2_STAGES = SHOP2_STAGE_NAMES
 
 export function isShop2WorkCard(card, shop2TaskIdsSet = new Set()) {
   if (!card) return false

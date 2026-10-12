@@ -73,8 +73,8 @@ export function GenerateShop2CardModal({
         {/* Orders Breakdown Badge Pool */}
         {row.ordersList && row.ordersList.length > 0 && (
           <div style={{ background: 'var(--input-bg, #060606)', border: '1px solid var(--border, #161616)', borderRadius: '12px', padding: '10px 14px', marginBottom: '20px', display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
-            <span style={{ fontSize: '0.68rem', color: 'var(--text-muted, #666)', fontWeight: 800 }}>📦 НАРАДИ В КУПІ:</span>
-            {row.ordersList.map((o, idx) => (
+            <span style={{ fontSize: '0.68rem', color: 'var(--text-muted, #666)', fontWeight: 800 }}>📦 НАРЯДИ В КУПІ:</span>
+            {(row.ordersList.filter(o => o.availableQty > 0).length > 0 ? row.ordersList.filter(o => o.availableQty > 0) : row.ordersList).map((o, idx) => (
               <span key={idx} style={{ fontSize: '0.7rem', background: 'var(--border, #161616)', color: '#ff9000', padding: '2px 8px', borderRadius: '6px', fontWeight: 800 }}>
                 {o.orderNum} ({o.availableQty} шт)
               </span>

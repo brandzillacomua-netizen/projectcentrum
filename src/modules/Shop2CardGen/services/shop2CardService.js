@@ -1,4 +1,5 @@
 import { supabase } from '../../../supabase'
+import { isPackagingOperation } from '../constants/shop2Stages'
 
 /**
  * Service to handle database operations for Shop 2 Buffer and Work Card Generation
