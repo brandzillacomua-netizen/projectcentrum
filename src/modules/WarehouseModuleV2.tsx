@@ -148,7 +148,7 @@ export const WarehouseModuleV2: React.FC = () => {
     prepQuantities, setPrepQuantities,
     prepDeadline, setPrepDeadline,
     handleCreatePrepOrder, isSubmitting: isPrepSubmitting
-  } = usePrepOrder(nomenclatures, fetchData)
+  } = usePrepOrder(nomenclatures, fetchData, currentUser)
 
   // Handlers Hook
   const handlers: any = useWarehouseHandlers({

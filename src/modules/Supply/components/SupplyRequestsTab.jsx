@@ -25,10 +25,38 @@ export const SupplyRequestsTab = ({
   handleForwardToProcurement,
   expandedPRs,
   setExpandedPRs,
-  normalize
+  normalize,
+  orders = [],
+  tasks = []
 }) => {
   return (
     <section className="requests-col" style={{ gridColumn: '1 / -1', width: '100%' }}>
+      <style>{`
+        .btn-prep-issue,
+        .light-theme .btn-prep-issue,
+        body.light-theme .btn-prep-issue {
+          background: #10b981 !important;
+          background-color: #10b981 !important;
+          color: #ffffff !important;
+          border: none !important;
+        }
+        .btn-prep-issue:hover {
+          background: #059669 !important;
+          background-color: #059669 !important;
+        }
+        .btn-prep-issue-item,
+        .light-theme .btn-prep-issue-item,
+        body.light-theme .btn-prep-issue-item {
+          background: #10b981 !important;
+          background-color: #10b981 !important;
+          color: #ffffff !important;
+          border: none !important;
+        }
+        .btn-prep-issue-item:hover {
+          background: #059669 !important;
+          background-color: #059669 !important;
+        }
+      `}</style>
       {/* SUB TABS FOR MOBILE / TABLET OR QUICK FILTERING */}
       {!isProcurementOnly && (
         <div style={{
@@ -105,9 +133,46 @@ export const SupplyRequestsTab = ({
             </h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
               {groupedPrepRequests.map(group => {
-                const task = group.task
+                const task = group.task || (tasks || []).find(t => t.id === group.taskId)
                 const prepNum = task?.plan_snapshot?._prep_num || `НП-${String(group.taskId).slice(0, 8)}`
                 
+                // Linked order resolution
+                const linkedOrderId = task?.order_id || group.requests.find(r => r.order_id)?.order_id
+                const linkedOrder = (orders || []).find(o => String(o.id) === String(linkedOrderId))
+                const detailsOrderMatch = group.requests
+                  .map(r => r.details)
+                  .find(d => d && /для\s+наряду\s+([^\s)]+)/i.test(d))
+                  ?.match(/для\s+наряду\s+([^\s)]+)/i)?.[1]
+                const orderNumDisplay = linkedOrder?.order_num || detailsOrderMatch
+
+                // Source and purpose resolution
+                const snapshotSource = task?.plan_snapshot?._source
+                const snapshotPurpose = task?.plan_snapshot?._purpose
+                const isProductionOrder = Boolean(orderNumDisplay)
+                const isOperationalReplenishment = !isProductionOrder && (!linkedOrderId || snapshotSource?.includes('Оперативний') || group.requests.some(r => r.target_warehouse === 'operational'))
+
+                // Initiator
+                const initiator = task?.plan_snapshot?._author 
+                  || task?.operator_name 
+                  || (isOperationalReplenishment ? 'Склад Оперативний (СО)' : (isProductionOrder ? 'Автоматично під наряд' : 'Виробництво'))
+
+                // Timestamps
+                const createdAtDate = task?.created_at || group.created_at
+                const createdAtFormatted = createdAtDate ? new Date(createdAtDate).toLocaleString('uk-UA', {
+                  day: '2-digit', month: '2-digit', year: 'numeric',
+                  hour: '2-digit', minute: '2-digit'
+                }) : null
+
+                const deadlineDate = task?.planned_deadline || linkedOrder?.deadline
+                const deadlineFormatted = deadlineDate ? new Date(deadlineDate).toLocaleDateString('uk-UA', {
+                  day: '2-digit', month: '2-digit', year: 'numeric'
+                }) : null
+
+                // Destination
+                const targetWarehouseLabel = (group.requests[0]?.target_warehouse === 'operational' || isOperationalReplenishment)
+                  ? 'Склад Оперативний (СО)'
+                  : 'Цех / Ділянка підготовки'
+
                 const isEnough = group.requests.every(req => {
                   const reqNom = nomenclatures?.find(n => n.id === req.nomenclature_id)
                   const reqName = reqNom?.name || req.details
@@ -130,31 +195,112 @@ export const SupplyRequestsTab = ({
 
                 return (
                   <div key={group.taskId} style={{ background: 'var(--card-bg, #0a0a0a)', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '20px', borderRadius: '18px', display: 'flex', flexDirection: 'column', gap: '15px', boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color, #1c1c1c)', paddingBottom: '12px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <strong style={{ fontSize: '1rem', color: '#10b981' }}>НАРЯД № {prepNum}</strong>
-                        {isSuperAdmin && (
-                          <button
-                            onClick={() => handleDeletePrepRequestGroup(group)}
-                            style={{
-                              background: 'transparent',
-                              border: 'none',
-                              color: '#ef4444',
-                              cursor: 'pointer',
-                              display: 'flex',
+                    {/* ENRICHED INFORMATIVE CARD HEADER */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid var(--border-color, #1c1c1c)', paddingBottom: '14px', flexWrap: 'wrap', gap: '12px' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <strong style={{ fontSize: '1.05rem', color: '#10b981', letterSpacing: '0.5px' }}>НАРЯД № {prepNum}</strong>
+                          {isSuperAdmin && (
+                            <button
+                              onClick={() => handleDeletePrepRequestGroup(group)}
+                              style={{
+                                background: 'transparent',
+                                border: 'none',
+                                color: '#ef4444',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                padding: '2px',
+                                borderRadius: '4px'
+                              }}
+                              title="Видалити запит"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Visual badges for source, purpose, author and target */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                          {isProductionOrder ? (
+                            <span style={{
+                              fontSize: '0.74rem',
+                              fontWeight: 800,
+                              background: 'rgba(59, 130, 246, 0.15)',
+                              color: '#60a5fa',
+                              border: '1px solid rgba(59, 130, 246, 0.35)',
+                              padding: '4px 10px',
+                              borderRadius: '8px',
+                              display: 'inline-flex',
                               alignItems: 'center',
-                              padding: '2px',
-                              borderRadius: '4px'
-                            }}
-                            title="Видалити запит"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        )}
+                              gap: '6px'
+                            }}>
+                              🎯 ПІД НАРЯД: <strong>№ {orderNumDisplay}</strong>
+                              {linkedOrder?.customer && <span style={{ opacity: 0.85 }}>({linkedOrder.customer})</span>}
+                              {linkedOrder?.product_name && <span style={{ opacity: 0.85 }}>• {linkedOrder.product_name}</span>}
+                            </span>
+                          ) : (
+                            <span style={{
+                              fontSize: '0.74rem',
+                              fontWeight: 800,
+                              background: 'rgba(16, 185, 129, 0.15)',
+                              color: '#34d399',
+                              border: '1px solid rgba(16, 185, 129, 0.35)',
+                              padding: '4px 10px',
+                              borderRadius: '8px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px'
+                            }}>
+                              📦 СКЛАД ОПЕРАТИВНИЙ (СО) — ПОПОВНЕННЯ ЗАЛИШКУ
+                            </span>
+                          )}
+
+                          <span style={{
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            background: 'rgba(255, 255, 255, 0.05)',
+                            color: 'var(--text-muted, #9ca3af)',
+                            border: '1px solid var(--border-color, #27272a)',
+                            padding: '4px 10px',
+                            borderRadius: '8px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '5px'
+                          }}>
+                            👤 Ініціатор: <strong style={{ color: 'var(--text-color, #f3f4f6)' }}>{initiator}</strong>
+                          </span>
+
+                          <span style={{
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            background: 'rgba(255, 255, 255, 0.05)',
+                            color: 'var(--text-muted, #9ca3af)',
+                            border: '1px solid var(--border-color, #27272a)',
+                            padding: '4px 10px',
+                            borderRadius: '8px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '5px'
+                          }}>
+                            📍 Отримувач: <strong style={{ color: 'var(--text-color, #f3f4f6)' }}>{targetWarehouseLabel}</strong>
+                          </span>
+                        </div>
                       </div>
-                      <span style={{ fontSize: '0.7rem', color: '#10b981', background: 'rgba(16, 185, 129, 0.1)', padding: '4px 8px', borderRadius: '6px', fontWeight: 800 }}>
-                        ПІДГОТОВКА СИРОВИНИ
-                      </span>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
+                        <span style={{ fontSize: '0.72rem', color: '#10b981', background: 'rgba(16, 185, 129, 0.15)', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '4px 10px', borderRadius: '8px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                          ПІДГОТОВКА СИРОВИНИ
+                        </span>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px', fontSize: '0.72rem', color: 'var(--text-muted, #888)' }}>
+                          {createdAtFormatted && (
+                            <span>🕒 Створено: <strong style={{ color: 'var(--text-color, #d1d5db)' }}>{createdAtFormatted}</strong></span>
+                          )}
+                          {deadlineFormatted && (
+                            <span style={{ color: '#f59e0b', fontWeight: 800 }}>⏳ Дедлайн: {deadlineFormatted}</span>
+                          )}
+                        </div>
+                      </div>
                     </div>
                     
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -174,15 +320,18 @@ export const SupplyRequestsTab = ({
                         const itemEnough = available >= qty
 
                         return (
-                          <div key={req.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--card-inner-bg, #111)', padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--border-color, var(--border-subtle))' }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', textAlign: 'left' }}>
-                              <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-color, #eee)' }}>{reqName}</span>
-                              <div style={{ textTransform: 'uppercase', fontSize: '0.7rem', color: itemEnough ? '#10b981' : '#ef4444', fontWeight: 800 }}>
-                                Потрібно: {qty} шт | Наявні: {available} шт
+                          <div key={req.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--card-inner-bg, #111)', padding: '12px 14px', borderRadius: '12px', border: '1px solid var(--border-color, var(--border-subtle))' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', textAlign: 'left' }}>
+                              <span style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-color, #eee)' }}>{reqName}</span>
+                              <div style={{ textTransform: 'uppercase', fontSize: '0.72rem', color: itemEnough ? '#10b981' : '#ef4444', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span>Потрібно: <strong>{qty} шт</strong></span>
+                                <span>•</span>
+                                <span>Наявні на СВ: <strong>{available} шт</strong></span>
                               </div>
                             </div>
                             {itemEnough && (
                               <button 
+                                className="btn-prep-issue-item"
                                 disabled={processingDocs.has(req.id)}
                                 onClick={async () => {
                                   setProcessingDocs(prev => new Set(prev).add(req.id))
@@ -197,15 +346,17 @@ export const SupplyRequestsTab = ({
                                 }}
                                 style={{
                                   background: '#10b981',
-                                  color: '#000',
+                                  backgroundColor: '#10b981',
+                                  color: '#ffffff',
                                   border: 'none',
-                                  padding: '6px 12px',
+                                  padding: '7px 14px',
                                   borderRadius: '8px',
-                                  fontSize: '0.7rem',
+                                  fontSize: '0.72rem',
                                   fontWeight: 900,
                                   cursor: processingDocs.has(req.id) ? 'not-allowed' : 'pointer',
                                   textTransform: 'uppercase',
-                                  marginLeft: '15px'
+                                  marginLeft: '15px',
+                                  boxShadow: '0 2px 8px rgba(16, 185, 129, 0.3)'
                                 }}
                               >
                                 {processingDocs.has(req.id) ? '...' : 'Видати'}
@@ -218,6 +369,7 @@ export const SupplyRequestsTab = ({
 
                     {isEnough ? (
                       <button 
+                        className="btn-prep-issue"
                         disabled={processingDocs.has(group.taskId)}
                         onClick={async () => {
                           setProcessingDocs(prev => new Set(prev).add(group.taskId))
@@ -233,16 +385,18 @@ export const SupplyRequestsTab = ({
                         }}
                         style={{
                           background: '#10b981',
-                          color: '#000',
+                          backgroundColor: '#10b981',
+                          color: '#ffffff',
                           border: 'none',
-                          padding: '10px 18px',
+                          padding: '11px 20px',
                           borderRadius: '10px',
                           fontWeight: 900,
                           cursor: processingDocs.has(group.taskId) ? 'not-allowed' : 'pointer',
-                          fontSize: '0.8rem',
+                          fontSize: '0.85rem',
                           textTransform: 'uppercase',
                           alignSelf: 'flex-end',
-                          marginTop: '5px'
+                          marginTop: '6px',
+                          boxShadow: '0 4px 14px rgba(16, 185, 129, 0.4)'
                         }}
                       >
                         {processingDocs.has(group.taskId) ? 'ОБРОБКА...' : 'ВИДАТИ НА ПІДГОТОВКУ'}

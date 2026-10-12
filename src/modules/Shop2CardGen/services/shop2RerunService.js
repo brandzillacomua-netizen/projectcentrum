@@ -142,8 +142,7 @@ export const shop2RerunService = {
       }
     }
 
-    // 7. Calculate Cutters
-    const cutterRequests = []
+    // 7. Calculate Cutters (metadata for plan_snapshot)
     const selectedCuttersMap = {}
     const selectedCuttersByName = {}
     const consumablesList = []
@@ -193,17 +192,6 @@ export const shop2RerunService = {
             selectedCuttersByName[cutterNom.name] = cutterInv?.id || resolvedNomId
           }
           consumablesList.push({ name: resolvedCutterName, total: neededQty })
-
-          cutterRequests.push({
-            order_id: newOrder.id,
-            quantity: neededQty,
-            status: 'pending',
-            inventory_id: cutterInv?.id || null,
-            nomenclature_id: resolvedNomId,
-            category: 'cutter',
-            target_warehouse: 'operational',
-            details: `ВИТРАТНІ МАТЕРІАЛИ ДЛЯ ДОВИПУСКУ ${rerunOrderNum}: ${resolvedCutterName} — ${neededQty} од. (для ${partName})`
-          })
         }
       }
     }
@@ -274,62 +262,35 @@ export const shop2RerunService = {
       throw new Error(`Помилка створення задачі довипуску: ${taskErr.message}`)
     }
 
-    // 10. Create Material Requests for Warehouse (Sheets + Cutters)
-    const materialRequestsToInsert = [
-      {
-        order_id: newOrder.id,
-        task_id: newTask.id,
-        quantity: sheets,
-        status: 'pending',
-        inventory_id: sheetInvItem?.id || null,
-        nomenclature_id: sheetNomId,
-        category: 'sheet',
-        target_warehouse: 'operational',
-        details: `СКЛАД ОПЕРАТИВНИЙ: ${sheetNomName} — ${sheets} л. (Для: ${partName}: ${qty}шт)`
-      },
-      ...cutterRequests.map(cr => ({
-        ...cr,
-        task_id: newTask.id
-      }))
-    ]
+    // 10. Create Material Requests for Warehouse (ONLY Sheets at order creation; cutters are requested later during card generation)
+    if (sheets > 0 && sheetNomId) {
+      const materialRequestsToInsert = [
+        {
+          order_id: newOrder.id,
+          task_id: newTask.id,
+          quantity: sheets,
+          status: 'pending',
+          inventory_id: sheetInvItem?.id || null,
+          nomenclature_id: sheetNomId,
+          category: 'sheet',
+          target_warehouse: 'operational',
+          details: `СКЛАД ОПЕРАТИВНИЙ: ${sheetNomName} — ${sheets} л. (Для: ${partName}: ${qty}шт)`
+        }
+      ]
 
-    const { error: reqsErr } = await supabase
-      .from('material_requests')
-      .insert(materialRequestsToInsert)
+      const { error: reqsErr } = await supabase
+        .from('material_requests')
+        .insert(materialRequestsToInsert)
 
-    if (reqsErr) {
-      console.error('[shop2RerunService] Error creating material requests:', reqsErr)
-    }
-
-    // 11. Create Work Card for Cutting Operator
-    const cardInfoText = `[ДОВИПУСК / РЕВАЛІДАЦІЯ] [SHOP:1] [NEED:${qty}]${sheets > 0 ? ` [SHEETS:${sheets}]` : ''} Наряд №${rerunOrderNum} (${reason})`
-
-    const { data: newCard, error: cardErr } = await supabase
-      .from('work_cards')
-      .insert([{
-        task_id: newTask.id,
-        order_id: newOrder.id,
-        nomenclature_id: canonicalNomId,
-        operation: 'Розкрій (Довипуск)',
-        machine: '—',
-        quantity: qty,
-        used_in_shop2_qty: 0,
-        card_info: cardInfoText,
-        status: 'new',
-        is_rework: true
-      }])
-      .select()
-      .single()
-
-    if (cardErr) {
-      console.error('[shop2RerunService] Error creating rerun work card:', cardErr)
-      throw new Error(`Помилка створення картки довипуску: ${cardErr.message}`)
+      if (reqsErr) {
+        console.error('[shop2RerunService] Error creating material requests:', reqsErr)
+      }
     }
 
     return {
       order: newOrder,
       task: newTask,
-      card: newCard,
+      card: null,
       rerunOrderNum
     }
   }

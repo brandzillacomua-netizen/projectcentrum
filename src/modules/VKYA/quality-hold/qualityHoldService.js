@@ -70,7 +70,7 @@ export async function fetchFinalScrapTotals(supabase, taskIds = [], orderIds = [
   for (const taskChunk of chunk(uniqueTaskIds, 40)) {
     const { data, error } = await supabase
       .from('work_card_history')
-      .select('id, card_id, task_id, order_id, nomenclature_id, qc_scrap_comment, created_at, completed_at')
+      .select('id, card_id, task_id, nomenclature_id, qc_scrap_comment, created_at, completed_at')
       .in('task_id', taskChunk)
       .like('qc_scrap_comment', '%cat4%')
     if (!error && data) {
@@ -84,7 +84,7 @@ export async function fetchFinalScrapTotals(supabase, taskIds = [], orderIds = [
               rows.push({
                 id: `history-cat4-${h.id}`,
                 task_id: h.task_id,
-                order_id: h.order_id,
+                order_id: null,
                 card_id: h.card_id,
                 nomenclature_id: h.nomenclature_id,
                 total_scrap: cat4Qty,

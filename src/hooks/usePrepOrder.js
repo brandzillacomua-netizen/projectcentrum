@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase.js'
 
-export function usePrepOrder(nomenclatures, fetchData) {
+export function usePrepOrder(nomenclatures, fetchData, currentUser) {
   const [showPrepModal, setShowPrepModal] = useState(false)
   const [prepQuantities, setPrepQuantities] = useState({})
   const [prepDeadline, setPrepDeadline] = useState('')
@@ -41,7 +41,12 @@ export function usePrepOrder(nomenclatures, fetchData) {
 
       const nextNum = (count || 0) + 1
       const prepNum = `НП${String(nextNum).padStart(6, '0')}`
+      const authorName = currentUser?.full_name || currentUser?.name || currentUser?.login || 'Склад Оперативний (СО)'
       planSnapshot._prep_num = prepNum
+      planSnapshot._source = 'Склад Оперативний (СО)'
+      planSnapshot._purpose = 'Поповнення запасу підготовлених листів'
+      planSnapshot._author = authorName
+      planSnapshot._created_at = new Date().toISOString()
 
       const { data: newTask, error: errTask } = await supabase.from('tasks').insert({
         step: 'Підготовка',
@@ -64,7 +69,8 @@ export function usePrepOrder(nomenclatures, fetchData) {
           quantity: Number(qty),
           status: 'pending',
           inventory_id: null,
-          details: `ЗАПИТ НА ПІДГОТОВКУ (${prepNum}): ${nom?.name || 'Лист'} — ${qty} шт.`
+          target_warehouse: 'operational',
+          details: `ЗАПИТ НА ПІДГОТОВКУ (${prepNum}): ${nom?.name || 'Лист'} — ${qty} шт. [Ініціатор: Склад Оперативний (поповнення запасу)]`
         }
       })
       const { error: reqErr } = await supabase.from('material_requests').insert(requestsToInsert)

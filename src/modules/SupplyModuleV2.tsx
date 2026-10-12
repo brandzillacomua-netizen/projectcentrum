@@ -191,6 +191,8 @@ export const SupplyModuleV2: React.FC<{ isProcurementOnly?: boolean }> = ({ isPr
             expandedPRs={expandedPRs}
             setExpandedPRs={setExpandedPRs}
             normalize={normalize}
+            orders={orders}
+            tasks={tasks}
           />
         )}
 

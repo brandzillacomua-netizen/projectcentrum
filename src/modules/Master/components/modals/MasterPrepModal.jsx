@@ -15,6 +15,34 @@ export function MasterPrepModal({
 }) {
   if (!showPrepModal) return null
 
+  const getRawPlateScore = (n, targetBrand, targetThickness) => {
+    const name = n?.name || ''
+    const lower = name.toLowerCase()
+
+    // Strictly reject preference plates, test plates, and non-standard orientations
+    if (lower.includes('преференція')) return -10000
+    if (lower.includes('тест')) return -5000
+    if (lower.includes('0/45/90')) return -5000
+
+    let score = 0
+    const normThickness = String(targetThickness).replace('.', '[.,]')
+    const exactStandardRegex = new RegExp(`^\\s*карбонова\\s+пластина\\s+(?:т|t)${targetBrand}\\s+500\\*600\\s+${normThickness}\\s*мм\\s*$`, 'i')
+
+    if (exactStandardRegex.test(lower)) {
+      score += 1000
+    } else if (lower.includes('карбонова пластина') && lower.includes('500*600')) {
+      score += 500
+    } else if (lower.includes('карбонова пластина')) {
+      score += 300
+    } else if (lower.includes('непідготовлен')) {
+      score += 100
+    }
+
+    if (lower.includes('1000*600')) score -= 200
+
+    return score
+  }
+
   const thicknessMap = {}
   ;(nomenclatures || []).forEach(n => {
     const itemName = (n.name || '').toLowerCase()
@@ -22,6 +50,7 @@ export function MasterPrepModal({
     if (!isPlateOrSheet) return
     const isUnprepared = itemName.includes('непідготовлен') || itemName.includes('карбонова пластина')
     if (!isUnprepared) return
+    if (itemName.includes('преференція') || itemName.includes('тест')) return
 
     const thickness = extractThicknessNumber(n.name) || 'Інше'
     if (!thicknessMap[thickness]) {
@@ -32,15 +61,21 @@ export function MasterPrepModal({
     const isT700 = itemName.includes('т700') || itemName.includes('t700')
 
     if (isT300) {
-      if (!thicknessMap[thickness].t300 || n.name.includes('Карбонова пластина')) {
+      const currentScore = thicknessMap[thickness].t300 ? getRawPlateScore(thicknessMap[thickness].t300, '300', thickness) : -99999
+      const newScore = getRawPlateScore(n, '300', thickness)
+      if (newScore > currentScore && newScore > 0) {
         thicknessMap[thickness].t300 = n
       }
     } else if (isT700) {
-      if (!thicknessMap[thickness].t700 || n.name.includes('Карбонова пластина')) {
+      const currentScore = thicknessMap[thickness].t700 ? getRawPlateScore(thicknessMap[thickness].t700, '700', thickness) : -99999
+      const newScore = getRawPlateScore(n, '700', thickness)
+      if (newScore > currentScore && newScore > 0) {
         thicknessMap[thickness].t700 = n
       }
     } else {
-      thicknessMap[thickness].other = n
+      if (!thicknessMap[thickness].other) {
+        thicknessMap[thickness].other = n
+      }
     }
   })
 

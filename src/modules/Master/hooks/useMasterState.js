@@ -337,34 +337,20 @@ export function useMasterState() {
 
       const nextNum = (count || 0) + 1;
       const prepNum = `НП${String(nextNum).padStart(6, '0')}`;
-      planSnapshot._prep_num = prepNum;
+      const authorName = currentUser?.full_name || currentUser?.name || currentUser?.login || 'Майстер';
+      Object.assign(planSnapshot, { _prep_num: prepNum, _source: 'Виробництво (Майстер)', _purpose: 'Підготовка сировини', _author: authorName, _created_at: new Date().toISOString() });
 
       const { data: newTask, error: errTask } = await supabase.from('tasks').insert({
-        step: 'Підготовка',
-        status: 'new',
-        machine_name: 'PREP-TERM',
-        planned_sets: totalSheets,
-        planned_deadline: prepDeadline || null,
-        plan_snapshot: planSnapshot,
-        engineer_conf: true,
-        director_conf: true
+        step: 'Підготовка', status: 'new', machine_name: 'PREP-TERM', planned_sets: totalSheets,
+        planned_deadline: prepDeadline || null, plan_snapshot: planSnapshot, engineer_conf: true, director_conf: true
       }).select().single();
-
       if (errTask) throw errTask;
 
-      const requestsToInsert = itemsToCreate.map(([materialId, qty]) => {
-        const nom = nomenclatures.find(n => n.id === materialId)
-        return {
-          task_id: newTask.id,
-          nomenclature_id: materialId,
-          quantity: qty,
-          status: 'pending',
-          inventory_id: null,
-          details: `ЗАПИТ НА ПІДГОТОВКУ (${prepNum}): ${nom?.name} — ${qty} шт.`
-        }
-      })
-
-      const { error: errReq } = await supabase.from('material_requests').insert(requestsToInsert)
+      const requestsToInsert = itemsToCreate.map(([materialId, qty]) => ({
+        task_id: newTask.id, nomenclature_id: materialId, quantity: qty, status: 'pending', inventory_id: null,
+        target_warehouse: 'operational', details: `ЗАПИТ НА ПІДГОТОВКУ (${prepNum}): ${nomenclatures.find(n => n.id === materialId)?.name} — ${qty} шт. [Ініціатор: Майстер]`
+      }));
+      const { error: errReq } = await supabase.from('material_requests').insert(requestsToInsert);
       if (errReq) throw errReq;
 
       alert('Наряди на підготовку успішно створено!');
