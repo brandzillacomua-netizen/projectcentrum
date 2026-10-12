@@ -10,7 +10,7 @@ import {
   findExplicitRawMaterialNom as findExplicitRawNom
 } from './productionShared.js'
 import { findWorkingSheetNom, extractThickness } from '../../modules/Nomenclature/utils/nomenclatureHelpers.js'
-import { deductInventoryAtomic } from '../../services/atomicInventoryService.js'
+import { buildRequestAllocations, consumeCuttingInventoryOnce } from '../../services/atomicInventoryService.js'
 import { resolveCutterOrVirtualType, resolveCutterTypeName, isMachineMatch } from '../../utils/cutterCalculator.js'
 import { isRequestForCard } from '../../utils/materialCardMatching.js'
 
@@ -365,124 +365,6 @@ export function createProductionCardsActions({
       supabase.from('work_cards').update({ ...cardUpdate, cutters_used: Number(cuttersUsed) || 0, card_info: historyCardInfo }).eq('id', cardId)
     ]
 
-    if (isCuttingOp) {
-      // Single route write-off for BOTH sheets and cutters upon Cutting completion:
-      // Releases only THIS card's proportional share of task-level reserved stock, and deducts actual usage from total_qty
-      writePromises.push((async () => {
-        const cardNom = (nomenclatures || []).find(n => String(n.id) === String(card.nomenclature_id))
-        const unitsPerSheet = Number(cardNom?.units_per_sheet) || 1
-        const cardSheets = Math.ceil((Number(card.quantity) || 0) / unitsPerSheet)
-
-        const taskCards = (workCards || []).filter(c => String(c.task_id) === String(card.task_id))
-        const totalTaskCardsCount = Math.max(1, taskCards.length)
-
-        const { data: activeReqs } = await supabase
-          .from('material_requests')
-          .select('*')
-          .or(`card_id.eq.${cardId},and(task_id.eq.${card.task_id},card_id.is.null)`)
-          .neq('status', 'completed')
-
-        if (activeReqs && activeReqs.length > 0) {
-          for (const req of activeReqs) {
-            const nomId = req.nomenclature_id
-            if (!nomId) continue
-
-            const isSheet = String(req.details || '').toLowerCase().includes('лист') ||
-                            (req.category === 'sheet') ||
-                            isRawMaterialNom(nomId, nomenclatures)
-
-            const { data: matchedInv } = await supabase
-              .from('inventory')
-              .select('id')
-              .eq('nomenclature_id', nomId)
-
-            const invItem = (matchedInv || [])[0]
-
-            if (isSheet) {
-              // Write off sheets for THIS card
-              const plannedSheetReserveToRelease = req.card_id === cardId
-                ? Number(req.quantity) || cardSheets
-                : Math.min(cardSheets, Number(req.quantity) || cardSheets)
-
-              if (invItem) {
-                await deductInventoryAtomic(supabase, {
-                  inventoryId: invItem.id,
-                  deductTotal: cardSheets,
-                  releaseReserved: plannedSheetReserveToRelease
-                })
-              }
-
-              // Update task-level reservation
-              const nextReqQty = Math.max(0, (Number(req.quantity) || 0) - plannedSheetReserveToRelease)
-              if (req.card_id === cardId) {
-                await supabase.from('material_requests').update({ status: 'completed', quantity: cardSheets }).eq('id', req.id)
-              } else {
-                if (nextReqQty === 0) {
-                  await supabase.from('material_requests').update({ status: 'completed', quantity: 0 }).eq('id', req.id)
-                } else {
-                  await supabase.from('material_requests').update({ quantity: nextReqQty }).eq('id', req.id)
-                }
-                // Record history row for completed card
-                await supabase.from('material_requests').insert({
-                  order_id: card.order_id,
-                  task_id: card.task_id,
-                  card_id: cardId,
-                  nomenclature_id: nomId,
-                  inventory_id: invItem?.id || req.inventory_id || null,
-                  quantity: cardSheets,
-                  status: 'completed',
-                  details: req.details
-                })
-              }
-            } else {
-              // Write off cutters for THIS card
-              const plannedCutterReserveToRelease = req.card_id === cardId
-                ? Number(req.quantity) || 0
-                : Math.ceil((Number(req.quantity) || 0) / totalTaskCardsCount)
-
-              let actualCutterQtyToDeduct = 0
-              if (cuttersBreakdown && cuttersBreakdown[nomId] !== undefined) {
-                actualCutterQtyToDeduct = Number(cuttersBreakdown[nomId]) || 0
-              } else if (cuttersUsed !== undefined && Number(cuttersUsed) >= 0) {
-                actualCutterQtyToDeduct = Number(cuttersUsed) || 0
-              } else {
-                actualCutterQtyToDeduct = plannedCutterReserveToRelease
-              }
-
-              if (invItem) {
-                await deductInventoryAtomic(supabase, {
-                  inventoryId: invItem.id,
-                  deductTotal: actualCutterQtyToDeduct,
-                  releaseReserved: plannedCutterReserveToRelease
-                })
-              }
-
-              const nextReqQty = Math.max(0, (Number(req.quantity) || 0) - plannedCutterReserveToRelease)
-              if (req.card_id === cardId) {
-                await supabase.from('material_requests').update({ status: 'completed', quantity: actualCutterQtyToDeduct }).eq('id', req.id)
-              } else {
-                if (nextReqQty === 0) {
-                  await supabase.from('material_requests').update({ status: 'completed', quantity: 0 }).eq('id', req.id)
-                } else {
-                  await supabase.from('material_requests').update({ quantity: nextReqQty }).eq('id', req.id)
-                }
-                await supabase.from('material_requests').insert({
-                  order_id: card.order_id,
-                  task_id: card.task_id,
-                  card_id: cardId,
-                  nomenclature_id: nomId,
-                  inventory_id: invItem?.id || req.inventory_id || null,
-                  quantity: actualCutterQtyToDeduct,
-                  status: 'completed',
-                  details: req.details
-                })
-              }
-            }
-          }
-        }
-      })())
-    }
-
     if (totalScrap > 0) {
       // Автоматично відправляємо в 'scrap_ready' на склад для ВКЯ
       const nom = nomenclatures.find(n => n.id === card.nomenclature_id)
@@ -515,10 +397,6 @@ export function createProductionCardsActions({
           })
       )
     }
-
-    const writeResults = await Promise.all(writePromises)
-    const writeError = writeResults.find(result => result?.error)?.error
-    if (writeError) throw writeError
 
     // Increment completed cards count since maintenance for the machine
     if (maintenanceCheckEnabled && card.machine_id) {
@@ -731,6 +609,10 @@ export function createProductionCardsActions({
             }
           }
 
+          if (!sheetInvItem) {
+            throw new Error(`Не знайдено листовий матеріал на СО для картки ${card.id}`)
+          }
+
           if (sheetInvItem) {
             const { data: freshInv } = await supabase.from('inventory').select('*').eq('id', sheetInvItem.id).maybeSingle()
             const currentInv = freshInv || sheetInvItem
@@ -742,28 +624,18 @@ export function createProductionCardsActions({
             let releaseReserved = taskReservedForSheet > 0 ? Math.min(taskReservedForSheet, cardSheets) : cardSheets
             releaseReserved = Math.max(0, Math.min(curReserved, releaseReserved))
 
-            await deductInventoryAtomic(supabase, {
+            await consumeCuttingInventoryOnce(supabase, {
+              cardId: card.id,
+              consumptionKey: `sheet:${currentInv.id}`,
               inventoryId: currentInv.id,
               deductTotal: cardSheets,
-              releaseReserved: releaseReserved
+              releaseReserved,
+              requestAllocations: buildRequestAllocations(sheetRequests, releaseReserved)
             })
-
-            let remainingToDeduct = releaseReserved
-            for (const req of sheetRequests) {
-              if (remainingToDeduct <= 0) break
-              const reqQty = Number(req.quantity) || 0
-              const deductThis = Math.min(reqQty, remainingToDeduct)
-              const nextQty = Math.max(0, reqQty - deductThis)
-              remainingToDeduct -= deductThis
-              if (nextQty === 0) {
-                await supabase.from('material_requests').update({ quantity: 0, status: 'completed' }).eq('id', req.id)
-              } else {
-                await supabase.from('material_requests').update({ quantity: nextQty }).eq('id', req.id)
-              }
-            }
           }
         } catch (sheetErr) {
           console.error('Error deducting sheets in confirmBuffer:', sheetErr)
+          throw sheetErr
         }
       }
 
@@ -776,7 +648,7 @@ export function createProductionCardsActions({
 
         const nom = nomenclatures?.find(n => n.name?.trim().toLowerCase() === cutterName.trim().toLowerCase() && n.type === 'consumable')
           || nomenclatures?.find(n => n.name?.trim().toLowerCase() === cutterName.trim().toLowerCase())
-        if (!nom) continue
+        if (!nom) throw new Error(`Не знайдено номенклатуру фрези «${cutterName}»`)
         cutterUsageItems.push({ nomenclature_id: nom.id, quantity: actualQty })
 
         // 1. Calculate planned rate (cutters per sheet) and card's planned quota
@@ -877,6 +749,10 @@ export function createProductionCardsActions({
           if (invRows && invRows.length > 0) invItem = invRows[0]
         }
 
+        if (!invItem) {
+          throw new Error(`Не знайдено фрезу «${cutterName}» на СО`)
+        }
+
         if (invItem) {
           const { data: freshInv } = await supabase.from('inventory').select('*').eq('id', invItem.id).maybeSingle()
           const currentInv = freshInv || invItem
@@ -887,26 +763,14 @@ export function createProductionCardsActions({
           let releaseReserved = taskReservedForCutter > 0 ? Math.min(taskReservedForCutter, quotaToRelease) : quotaToRelease
           releaseReserved = Math.max(0, Math.min(curReserved, releaseReserved))
 
-          await deductInventoryAtomic(supabase, {
+          await consumeCuttingInventoryOnce(supabase, {
+            cardId: card.id,
+            consumptionKey: `cutter:${nom.id}:${currentInv.id}`,
             inventoryId: currentInv.id,
             deductTotal: actualQty,
-            releaseReserved: releaseReserved
+            releaseReserved,
+            requestAllocations: buildRequestAllocations(cutterRequests, releaseReserved)
           })
-
-          // Update material_requests for this task
-          let remainingToDeductFromReqs = releaseReserved
-          for (const req of cutterRequests) {
-            if (remainingToDeductFromReqs <= 0) break
-            const reqQty = Number(req.quantity) || 0
-            const deductFromThisReq = Math.min(reqQty, remainingToDeductFromReqs)
-            const nextReqQty = Math.max(0, reqQty - deductFromThisReq)
-            remainingToDeductFromReqs -= deductFromThisReq
-            if (nextReqQty === 0) {
-              await supabase.from('material_requests').update({ quantity: 0, status: 'completed' }).eq('id', req.id)
-            } else {
-              await supabase.from('material_requests').update({ quantity: nextReqQty }).eq('id', req.id)
-            }
-          }
 
           // 3. Scenario 3: If excess usage on a Chamfer cutter, add excess to restoration terminal queue
           if (actualQty > cardPlannedQty) {
@@ -949,6 +813,10 @@ export function createProductionCardsActions({
       refreshTable('inventory')
       refreshTable('material_requests')
     }
+
+    const writeResults = await Promise.all(writePromises)
+    const writeError = writeResults.find(result => result?.error)?.error
+    if (writeError) throw writeError
 
     if (isRework || (card.card_info || '').includes('[ADMIN_MANUAL]')) {
       const nom = nomenclatures.find(n => n.id === card.nomenclature_id)

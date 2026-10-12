@@ -9,7 +9,10 @@ import { recordSortingHistoryGuaranteed } from '../../../../services/sortingHist
 import { executeAtomicQcScrap } from '../../../../services/atomicQcScrapService';
 import { incrementInventoryStock } from '../../../../services/inventoryStockService';
 import { executeAtomicCardTransition } from '../../../../services/atomicCardTransitionService';
-import { deductInventoryAtomic } from '../../../../services/atomicInventoryService';
+import {
+  buildRequestAllocations,
+  consumeCuttingInventoryOnce
+} from '../../../../services/atomicInventoryService';
 import { resolveCutterOrVirtualType, resolveCutterTypeName, isMachineMatch } from '../../../../utils/cutterCalculator';
 import { isRequestForCard } from '../../../../utils/materialCardMatching';
 
@@ -223,6 +226,10 @@ export function useShop1CardWorkflow({
       }
     }
 
+    if (!sheetInvItem) {
+      throw new Error(`Не знайдено листовий матеріал на СО для картки ${card.id}`);
+    }
+
     if (sheetInvItem) {
       const { data: freshInv } = await supabase.from('inventory').select('*').eq('id', sheetInvItem.id).maybeSingle();
       const currentInv = freshInv || sheetInvItem;
@@ -234,25 +241,14 @@ export function useShop1CardWorkflow({
       let releaseReserved = taskReservedForSheet > 0 ? Math.min(taskReservedForSheet, cardSheets) : cardSheets;
       releaseReserved = Math.max(0, Math.min(curReserved, releaseReserved));
 
-      await deductInventoryAtomic(supabase, {
+      await consumeCuttingInventoryOnce(supabase, {
+        cardId: card.id,
+        consumptionKey: `sheet:${currentInv.id}`,
         inventoryId: currentInv.id,
         deductTotal: cardSheets,
-        releaseReserved: releaseReserved
+        releaseReserved,
+        requestAllocations: buildRequestAllocations(sheetRequests, releaseReserved)
       });
-
-      let remainingToDeduct = releaseReserved;
-      for (const req of sheetRequests) {
-        if (remainingToDeduct <= 0) break;
-        const reqQty = Number(req.quantity) || 0;
-        const deductThis = Math.min(reqQty, remainingToDeduct);
-        const nextQty = Math.max(0, reqQty - deductThis);
-        remainingToDeduct -= deductThis;
-        if (nextQty === 0) {
-          await supabase.from('material_requests').update({ quantity: 0, status: 'completed' }).eq('id', req.id);
-        } else {
-          await supabase.from('material_requests').update({ quantity: nextQty }).eq('id', req.id);
-        }
-      }
     }
   };
 
@@ -266,7 +262,7 @@ export function useShop1CardWorkflow({
     // Determine card sheets
     const cardNom = nomenclatures?.find(n => String(n.id) === String(card.nomenclature_id));
     const unitsPerSheet = Number(cardNom?.units_per_sheet) || 1;
-    const cardSheets = Number(card.actualSheets || card.sheets) || Math.ceil((Number(card.quantity) || 0) / unitsPerSheet) || 1;
+    const cardSheets = Number(card.actual_sheets || card.actualSheets || card.sheets) || Math.ceil((Number(card.quantity) || 0) / unitsPerSheet) || 1;
 
     // Check if other uncompleted cards remain for this task
     const otherActiveCards = (workCards || []).filter(c =>
@@ -412,7 +408,11 @@ export function useShop1CardWorkflow({
       );
       const taskReservedForCutter = cutterRequests.reduce((sum, r) => sum + (Number(r.quantity) || 0), 0);
 
-      if (opInvItem) {
+      if (actualQty > 0 && !opInvItem) {
+        throw new Error(`Не знайдено фрезу «${cutterName}» на СО`);
+      }
+
+      if (opInvItem && actualQty > 0) {
         const { data: freshInv } = await supabase
           .from('inventory')
           .select('*')
@@ -425,26 +425,14 @@ export function useShop1CardWorkflow({
         let releaseReserved = taskReservedForCutter > 0 ? Math.min(taskReservedForCutter, quotaToRelease) : quotaToRelease;
         releaseReserved = Math.max(0, Math.min(curReserved, releaseReserved));
 
-        await deductInventoryAtomic(supabase, {
+        await consumeCuttingInventoryOnce(supabase, {
+          cardId: card.id,
+          consumptionKey: `cutter:${nom?.id || cutterName}:${currentOpInv.id}`,
           inventoryId: currentOpInv.id,
           deductTotal: actualQty,
-          releaseReserved: releaseReserved
+          releaseReserved,
+          requestAllocations: buildRequestAllocations(cutterRequests, releaseReserved)
         });
-
-        // Update material requests status / quantity
-        let remainingToDeductFromReqs = releaseReserved;
-        for (const req of cutterRequests) {
-          if (remainingToDeductFromReqs <= 0) break;
-          const reqQty = Number(req.quantity) || 0;
-          const deductFromThisReq = Math.min(reqQty, remainingToDeductFromReqs);
-          const nextReqQty = Math.max(0, reqQty - deductFromThisReq);
-          remainingToDeductFromReqs -= deductFromThisReq;
-          if (nextReqQty === 0) {
-            await supabase.from('material_requests').update({ quantity: 0, status: 'completed' }).eq('id', req.id);
-          } else {
-            await supabase.from('material_requests').update({ quantity: nextReqQty }).eq('id', req.id);
-          }
-        }
       }
     }
 
@@ -924,6 +912,13 @@ export function useShop1CardWorkflow({
       const historyCardInfo = (baseCardInfo + breakdownStr + deductionTags).trim();
       const completedAt = new Date().toISOString();
 
+      // Inventory consumption must be confirmed before the card is allowed to
+      // leave Cutting. The server receipt makes this safe to retry.
+      if (isCuttingOperation) {
+        await handleSheetsInventoryDeduction(currentCard);
+        await handleCuttersInventoryDeduction(currentCard, finalCuttersBreakdown);
+      }
+
       const { data: claimedCard, error: claimError } = await supabase
         .from('work_cards')
         .update({
@@ -1021,11 +1016,6 @@ export function useShop1CardWorkflow({
 
       if (scrapCount > 0) {
         promises.push(updateInventoryStock(currentCard.nomenclature_id, scrapCount, 'scrap_ready'));
-      }
-
-      if (isCuttingOperation) {
-        promises.push(handleSheetsInventoryDeduction(currentCard));
-        promises.push(handleCuttersInventoryDeduction(currentCard, finalCuttersBreakdown));
       }
 
       const results = await Promise.all(promises);

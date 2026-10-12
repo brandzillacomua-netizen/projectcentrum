@@ -44,3 +44,57 @@ export async function deductInventoryAtomic(supabase, {
     throw rpcErr;
   }
 }
+
+/**
+ * Idempotent cutting consumption. The database uses cardId + consumptionKey
+ * as a receipt key, so retries and double clicks cannot deduct stock twice.
+ * Material-request reservation balances are updated in the same transaction.
+ */
+export async function consumeCuttingInventoryOnce(supabase, {
+  cardId,
+  consumptionKey,
+  inventoryId,
+  deductTotal = 0,
+  releaseReserved = 0,
+  requestAllocations = []
+}) {
+  if (!supabase || !cardId || !consumptionKey || !inventoryId) {
+    throw new Error('cardId, consumptionKey та inventoryId обов’язкові для списання розкрою')
+  }
+
+  const numDeduct = Number(deductTotal)
+  const numRelease = Number(releaseReserved)
+  if (!Number.isFinite(numDeduct) || !Number.isFinite(numRelease) || numDeduct < 0 || numRelease < 0) {
+    throw new Error('Некоректна кількість списання матеріалів розкрою')
+  }
+
+  const { data, error } = await supabase.rpc('rpc_consume_cutting_inventory_once', {
+    p_card_id: cardId,
+    p_consumption_key: String(consumptionKey),
+    p_inventory_id: inventoryId,
+    p_deduct_total: numDeduct,
+    p_release_reserved: numRelease,
+    p_request_allocations: requestAllocations
+  })
+
+  if (error) throw error
+  if (!data?.success) throw new Error(data?.error || 'Сервер не підтвердив списання матеріалів розкрою')
+  return data
+}
+
+export function buildRequestAllocations(requests = [], quantity = 0) {
+  let remaining = Math.max(0, Number(quantity) || 0)
+  const allocations = []
+
+  for (const request of requests) {
+    if (remaining <= 0) break
+    const available = Math.max(0, Number(request?.quantity) || 0)
+    const allocated = Math.min(available, remaining)
+    if (request?.id && allocated > 0) {
+      allocations.push({ id: request.id, quantity: allocated })
+      remaining -= allocated
+    }
+  }
+
+  return allocations
+}
