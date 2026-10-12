@@ -1,6 +1,13 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { buildShop2ScrapByCard, buildShop2UtilRows, resolveShop2CardScrap } from './shop2BufferCalculations.js'
+import {
+  buildShop2ScrapByCard,
+  buildShop2UtilRows,
+  resolveShop2CardScrap,
+  isRerunOrder,
+  getParentOrderNum,
+  buildRerunToParentOrderMap
+} from './shop2BufferCalculations.js'
 
 test('aggregates painting scrap history by work card', () => {
   const totals = buildShop2ScrapByCard([
@@ -50,3 +57,47 @@ test('unclassified shop 2 scrap is not treated as final util', () => {
 
   assert.deepEqual(rows, [])
 })
+
+test('correctly identifies rerun child orders and parent order numbers', () => {
+  assert.equal(isRerunOrder({ order_num: '261001-5' }), false)
+  assert.equal(isRerunOrder({ order_num: '261001-5-Д1' }), true)
+  assert.equal(isRerunOrder({ order_num: '261001-5-Д2' }), true)
+  assert.equal(isRerunOrder({ order_num: 'TEST', customer: 'Замовник (Довипуск)' }), true)
+
+  assert.equal(getParentOrderNum({ order_num: '261001-5-Д1' }), '261001-5')
+  assert.equal(getParentOrderNum({ order_num: '261001-5' }), '261001-5')
+  assert.equal(getParentOrderNum({ order_num: 'RERUN', accessories: 'Довипуск. Батьківський наряд: 261001-5' }), '261001-5')
+})
+
+test('builds accurate rerun-to-parent order ID mapping', () => {
+  const orders = [
+    { id: 'parent-id', order_num: '261001-5' },
+    { id: 'rerun-1-id', order_num: '261001-5-Д1' },
+    { id: 'rerun-2-id', order_num: '261001-5-Д2' },
+    { id: 'other-id', order_num: '261002-1' }
+  ]
+
+  const map = buildRerunToParentOrderMap(orders)
+  assert.equal(map.get('rerun-1-id'), 'parent-id')
+  assert.equal(map.get('rerun-2-id'), 'parent-id')
+  assert.equal(map.has('parent-id'), false)
+  assert.equal(map.has('other-id'), false)
+})
+
+test('active rerun quantity offsets util deficit so already re-issued scrap is not duplicated', () => {
+  const rows = buildShop2UtilRows([{
+    nomId: 'part-1',
+    nomName: 'F415-ІП27-П-10-38',
+    ordersList: [
+      { orderId: 'order-1', orderNum: '261001-5', shop2UtilQty: 700, activeRerunQty: 700 },
+      { orderId: 'order-2', orderNum: '261002-1', shop2UtilQty: 300, activeRerunQty: 100 }
+    ]
+  }])
+
+  // order-1 is fully covered (700 util - 700 rerun = 0 deficit)
+  // order-2 has 300 - 100 = 200 remaining deficit
+  assert.deepEqual(rows.map(row => [row.orderId, row.shop2UtilQty]), [
+    ['order-2', 200]
+  ])
+})
+

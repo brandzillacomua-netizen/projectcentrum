@@ -23,30 +23,79 @@ export const resolveShop2CardScrap = (card, historyScrapByCard = new Map()) => {
   return Math.max(cardScrap, historyScrap)
 }
 
+export const isRerunOrder = (order) => {
+  if (!order) return false
+  const num = String(order.order_num || '')
+  if (/-Д\d+$/i.test(num) || num.includes('-Д')) return true
+  const cust = String(order.customer || '')
+  if (cust.toLowerCase().includes('довипуск')) return true
+  const acc = String(order.accessories || '')
+  if (acc.toLowerCase().includes('довипуск')) return true
+  return false
+}
+
+export const getParentOrderNum = (order) => {
+  if (!order) return ''
+  const num = String(order.order_num || '').trim()
+  if (num.includes('-Д')) {
+    return num.split('-Д')[0].trim()
+  }
+  const acc = String(order.accessories || '')
+  const match = acc.match(/Батьківський наряд:\s*([^\s,;]+)/i)
+  if (match) return match[1].trim()
+  return num
+}
+
+export const buildRerunToParentOrderMap = (orders = []) => {
+  const map = new Map()
+  const ordersByNum = new Map()
+  ;(orders || []).forEach(o => {
+    if (o?.order_num) {
+      ordersByNum.set(String(o.order_num).trim(), String(o.id))
+    }
+  })
+
+  ;(orders || []).forEach(o => {
+    if (isRerunOrder(o)) {
+      const parentNum = getParentOrderNum(o)
+      if (parentNum && ordersByNum.has(parentNum)) {
+        map.set(String(o.id), ordersByNum.get(parentNum))
+      }
+    }
+  })
+
+  return map
+}
+
 export const buildShop2UtilRows = (bufferRows = []) => {
   const rows = []
 
   ;(bufferRows || []).forEach(row => {
     const orderUtilRows = (row?.ordersList || [])
       .filter(order => asQty(order?.shop2UtilQty) > 0)
-      .map(order => ({
-        ...row,
-        key: `${row.nomId}_${order.orderId || 'no-order'}_shop2-util`,
-        orderId: order.orderId || 'no-order',
-        orderNum: order.orderNum || 'Без наряду',
-        customer: order.customer || '—',
-        productName: order.productName || row.productFamily || '—',
-        shop2UtilQty: asQty(order.shop2UtilQty),
-        ordersList: [order]
-      }))
+      .map(order => {
+        const unrequestedDeficit = Math.max(0, asQty(order.shop2UtilQty) - asQty(order.activeRerunQty))
+        if (unrequestedDeficit <= 0) return null
+        return {
+          ...row,
+          key: `${row.nomId}_${order.orderId || 'no-order'}_shop2-util`,
+          orderId: order.orderId || 'no-order',
+          orderNum: order.orderNum || 'Без наряду',
+          customer: order.customer || '—',
+          productName: order.productName || row.productFamily || '—',
+          shop2UtilQty: unrequestedDeficit,
+          ordersList: [{ ...order, shop2UtilQty: unrequestedDeficit }]
+        }
+      })
+      .filter(Boolean)
 
     if (orderUtilRows.length > 0) {
       rows.push(...orderUtilRows)
       return
     }
 
-    const utilQty = asQty(row?.shop2UtilQty)
-    if (utilQty <= 0) return
+    const unrequestedDeficit = Math.max(0, asQty(row?.shop2UtilQty) - asQty(row?.activeRerunQty))
+    if (unrequestedDeficit <= 0) return
     rows.push({
       ...row,
       key: `${row.nomId}_${row.orderId || 'no-order'}_shop2-util`,
@@ -54,9 +103,10 @@ export const buildShop2UtilRows = (bufferRows = []) => {
       orderNum: 'Без наряду',
       customer: '—',
       productName: row.productFamily || '—',
-      shop2UtilQty: utilQty
+      shop2UtilQty: unrequestedDeficit
     })
   })
 
   return rows
 }
+

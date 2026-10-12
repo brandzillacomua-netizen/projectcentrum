@@ -1,4 +1,5 @@
 import { Play, Search, Package, ArrowUpDown, Box, AlertTriangle, ShieldCheck } from 'lucide-react'
+import { isRerunOrder } from '../utils/shop2BufferCalculations'
 
 export function Shop2BufferQueueTable({
   rows = [],
@@ -142,8 +143,8 @@ export function Shop2BufferQueueTable({
               maxWidth: '280px'
             }}
           >
-            <option value="all">📋 Усі наряди в роботі ({orders.filter(o => o.status !== 'completed' && o.status !== 'shipped' && o.status !== 'cancelled').length})</option>
-            {orders.map(o => {
+            <option value="all">📋 Усі наряди в роботі ({orders.filter(o => !isRerunOrder(o) && o.status !== 'completed' && o.status !== 'shipped' && o.status !== 'cancelled').length})</option>
+            {orders.filter(o => !isRerunOrder(o)).map(o => {
               const isCompleted = o.status === 'completed' || o.status === 'shipped' || o.status === 'cancelled'
               return (
                 <option key={o.id} value={o.id}>
@@ -300,15 +301,18 @@ export function Shop2BufferQueueTable({
 
                           {/* ОЧІКУЄМО З ЦЕХУ 1 */}
                           <td style={{ padding: '14px 20px', textAlign: 'center' }}>
-                            <span style={{
-                              color: row.awaitingShop1Qty > 0 ? '#0284c7' : 'var(--text-muted, #94a3b8)',
-                              fontWeight: 950,
-                              background: row.awaitingShop1Qty > 0 ? 'rgba(2, 132, 199, 0.08)' : 'transparent',
-                              border: row.awaitingShop1Qty > 0 ? '1px solid rgba(2, 132, 199, 0.3)' : 'none',
-                              padding: '4px 10px',
-                              borderRadius: '8px',
-                              fontSize: '0.85rem'
-                            }}>
+                            <span
+                              title={`В роботі (Цех 1): ${row.awaitingShop1Qty.toLocaleString()} шт${row.activeRerunQty > 0 ? `\n• Включно з довипуском: ${row.activeRerunQty.toLocaleString()} шт` : ''}`}
+                              style={{
+                                color: row.awaitingShop1Qty > 0 ? '#0284c7' : 'var(--text-muted, #94a3b8)',
+                                fontWeight: 950,
+                                background: row.awaitingShop1Qty > 0 ? 'rgba(2, 132, 199, 0.08)' : 'transparent',
+                                border: row.awaitingShop1Qty > 0 ? '1px solid rgba(2, 132, 199, 0.3)' : 'none',
+                                padding: '4px 10px',
+                                borderRadius: '8px',
+                                fontSize: '0.85rem'
+                              }}
+                            >
                               {row.awaitingShop1Qty.toLocaleString()} <span style={{ fontSize: '0.65rem' }}>шт</span>
                             </span>
                           </td>
@@ -352,18 +356,26 @@ export function Shop2BufferQueueTable({
                           {/* УТИЛЬ ЦЕХУ 2 — лише остаточна категорія 4 після класифікації ВКЯ */}
                           <td style={{ padding: '14px 20px', textAlign: 'center' }}>
                             <span
-                              title="Остаточний утиль після класифікації ВКЯ (категорія 4)"
+                              title={`Остаточний утиль після класифікації ВКЯ (категорія 4): ${row.shop2UtilQty.toLocaleString()} шт${row.activeRerunQty > 0 ? `\n• Вже у довипуску в Цеху 1: ${row.activeRerunQty.toLocaleString()} шт` : ''}`}
                               style={{
                                 color: hasUtil ? '#b91c1c' : 'var(--text-muted, #94a3b8)',
                                 fontWeight: 950,
                                 background: hasUtil ? 'rgba(127, 29, 29, 0.1)' : 'transparent',
                                 border: hasUtil ? '1px solid rgba(185, 28, 28, 0.35)' : 'none',
-                                padding: hasUtil ? '4px 10px' : '0',
+                                padding: '4px 10px',
                                 borderRadius: '8px',
-                                fontSize: '0.85rem'
+                                fontSize: '0.85rem',
+                                display: 'inline-flex',
+                                flexDirection: 'column',
+                                alignItems: 'center'
                               }}
                             >
-                              {row.shop2UtilQty.toLocaleString()} <span style={{ fontSize: '0.65rem' }}>шт</span>
+                              <span>{row.shop2UtilQty.toLocaleString()} <span style={{ fontSize: '0.65rem' }}>шт</span></span>
+                              {row.activeRerunQty > 0 && (
+                                <span style={{ fontSize: '0.62rem', color: '#059669', fontWeight: 800 }}>
+                                  (у роботі: {row.activeRerunQty.toLocaleString()})
+                                </span>
+                              )}
                             </span>
                           </td>
 
@@ -529,15 +541,18 @@ export function Shop2BufferQueueTable({
 
                       {/* ОЧІКУЄМО З ЦЕХУ 1 */}
                       <td style={{ padding: '16px 20px', textAlign: 'center' }}>
-                        <span style={{
-                          color: row.awaitingShop1Qty > 0 ? '#0284c7' : 'var(--text-muted, #94a3b8)',
-                          fontWeight: 950,
-                          background: row.awaitingShop1Qty > 0 ? 'rgba(2, 132, 199, 0.08)' : 'transparent',
-                          border: row.awaitingShop1Qty > 0 ? '1px solid rgba(2, 132, 199, 0.3)' : 'none',
-                          padding: '4px 10px',
-                          borderRadius: '8px',
-                          fontSize: '0.85rem'
-                        }}>
+                        <span
+                          title={`В роботі (Цех 1): ${row.awaitingShop1Qty.toLocaleString()} шт${row.activeRerunQty > 0 ? `\n• Включно з довипуском: ${row.activeRerunQty.toLocaleString()} шт` : ''}`}
+                          style={{
+                            color: row.awaitingShop1Qty > 0 ? '#0284c7' : 'var(--text-muted, #94a3b8)',
+                            fontWeight: 950,
+                            background: row.awaitingShop1Qty > 0 ? 'rgba(2, 132, 199, 0.08)' : 'transparent',
+                            border: row.awaitingShop1Qty > 0 ? '1px solid rgba(2, 132, 199, 0.3)' : 'none',
+                            padding: '4px 10px',
+                            borderRadius: '8px',
+                            fontSize: '0.85rem'
+                          }}
+                        >
                           {row.awaitingShop1Qty.toLocaleString()} <span style={{ fontSize: '0.65rem' }}>шт</span>
                         </span>
                       </td>
@@ -581,18 +596,26 @@ export function Shop2BufferQueueTable({
                       {/* УТИЛЬ ЦЕХУ 2 — лише остаточна категорія 4 після класифікації ВКЯ */}
                       <td style={{ padding: '16px 20px', textAlign: 'center' }}>
                         <span
-                          title="Остаточний утиль після класифікації ВКЯ (категорія 4)"
+                          title={`Остаточний утиль після класифікації ВКЯ (категорія 4): ${row.shop2UtilQty.toLocaleString()} шт${row.activeRerunQty > 0 ? `\n• Вже у довипуску в Цеху 1: ${row.activeRerunQty.toLocaleString()} шт` : ''}`}
                           style={{
                             color: hasUtil ? '#b91c1c' : 'var(--text-muted, #94a3b8)',
                             fontWeight: 950,
                             background: hasUtil ? 'rgba(127, 29, 29, 0.1)' : 'transparent',
                             border: hasUtil ? '1px solid rgba(185, 28, 28, 0.35)' : 'none',
-                            padding: hasUtil ? '4px 10px' : '0',
+                            padding: '4px 10px',
                             borderRadius: '8px',
-                            fontSize: '0.85rem'
+                            fontSize: '0.85rem',
+                            display: 'inline-flex',
+                            flexDirection: 'column',
+                            alignItems: 'center'
                           }}
                         >
-                          {row.shop2UtilQty.toLocaleString()} <span style={{ fontSize: '0.65rem' }}>шт</span>
+                          <span>{row.shop2UtilQty.toLocaleString()} <span style={{ fontSize: '0.65rem' }}>шт</span></span>
+                          {row.activeRerunQty > 0 && (
+                            <span style={{ fontSize: '0.62rem', color: '#059669', fontWeight: 800 }}>
+                              (у роботі: {row.activeRerunQty.toLocaleString()})
+                            </span>
+                          )}
                         </span>
                       </td>
 

@@ -1,7 +1,13 @@
 import { useMemo } from 'react'
 import { SHOP2_STAGE_NAMES, isShop2Operation, isPackagingOperation } from '../constants/shop2Stages'
 import { resolveCanonicalNomId } from '../../Nomenclature/utils/nomenclatureHelpers'
-import { buildShop2ScrapByCard, buildShop2UtilRows, resolveShop2CardScrap } from '../utils/shop2BufferCalculations'
+import {
+  buildShop2ScrapByCard,
+  buildShop2UtilRows,
+  resolveShop2CardScrap,
+  isRerunOrder,
+  buildRerunToParentOrderMap
+} from '../utils/shop2BufferCalculations'
 
 export const SHOP2_STAGES = SHOP2_STAGE_NAMES.filter(name => !name.toLowerCase().includes('пакування') && !name.toLowerCase().includes('сгп'))
 
@@ -31,6 +37,8 @@ export function useShop2BufferData({
   groupBy = 'product', // 'product' (Sections by Finished Product) | 'part' | 'order'
   sortBy = 'available_desc' // 'available_desc' | 'name_asc' | 'product_asc'
 }) {
+  const rerunToParentMap = useMemo(() => buildRerunToParentOrderMap(orders), [orders])
+
   const shop2TaskIdsSet = useMemo(() => {
     const set = new Set()
     tasks.forEach(t => {
@@ -81,7 +89,8 @@ export function useShop2BufferData({
       if (!belongsToShop2) return
 
       const canonicalNomId = resolveCanonicalNomId(row.nomenclature_id, nomenclatures) || String(row.nomenclature_id || '')
-      const orderId = String(row.order_id || sourceCard?.order_id || 'no-order')
+      const rawOrderId = String(row.order_id || sourceCard?.order_id || 'no-order')
+      const orderId = rerunToParentMap.get(rawOrderId) || rawOrderId
       const utilQty = Math.max(0, Number(row.total_scrap) || 0)
       if (!canonicalNomId || utilQty <= 0) return
 
@@ -143,10 +152,12 @@ export function useShop2BufferData({
     }
 
     // 0. Seed partMap with ALL active orders in work and their required parts
+    // Exclude child rerun orders (довипуски) so they do NOT create independent commercial demand!
     const activeOrders = orders.filter(o => 
       o.status !== 'completed' && 
       o.status !== 'shipped' && 
-      o.status !== 'cancelled'
+      o.status !== 'cancelled' &&
+      !isRerunOrder(o)
     )
 
     activeOrders.forEach(ord => {
@@ -186,29 +197,38 @@ export function useShop2BufferData({
     // Process Work Cards
     workCards.forEach(card => {
       const nomId = String(card.nomenclature_id || '')
-      const orderId = String(card.order_id || '')
+      const rawOrderId = String(card.order_id || '')
       if (!nomId) return
+
+      // Child rerun cards roll up into parent order
+      const effectiveOrderId = rerunToParentMap.get(rawOrderId) || rawOrderId
 
       const status = String(card.status || '')
       const op = String(card.operation || '')
       const isSortedOrBuffer = status === 'at-shop2-buffer'
 
       // Skip cards belonging to completed, shipped or cancelled orders UNLESS they are physical buffer stock
-      if (orderId && !isSortedOrBuffer) {
-        const ord = orders.find(o => String(o.id) === orderId)
+      if (effectiveOrderId && !isSortedOrBuffer) {
+        const ord = orders.find(o => String(o.id) === effectiveOrderId)
         if (ord && (ord.status === 'completed' || ord.status === 'shipped' || ord.status === 'cancelled')) {
           return
         }
       }
 
       const isShop2Card = isShop2WorkCard(card, shop2TaskIdsSet)
-      const partEntry = getPartEntry(nomId, card, orderId)
-      const orderSub = getOrderSubEntry(partEntry, orderId)
+      const partEntry = getPartEntry(nomId, card, effectiveOrderId)
+      const orderSub = getOrderSubEntry(partEntry, effectiveOrderId)
 
       const scrap = resolveShop2CardScrap(card, historyScrapByCard)
+      const isRerunCard = (rawOrderId !== effectiveOrderId) || isRerunOrder(orders.find(o => String(o.id) === rawOrderId))
+      const qty = Number(card.quantity || 0)
+
+      if (isRerunCard && card.status !== 'cancelled') {
+        orderSub.activeRerunQty = (orderSub.activeRerunQty || 0) + qty
+        partEntry.activeRerunQty = (partEntry.activeRerunQty || 0) + qty
+      }
 
       if (isSortedOrBuffer) {
-        const qty = Number(card.quantity || 0)
         const used = Number(card.used_in_shop2_qty || 0)
 
         partEntry.totalReceived += qty
@@ -218,11 +238,9 @@ export function useShop2BufferData({
         orderSub.usedInShop2Qty += used
       } else if (!isShop2Card) {
         if (op === 'Склад БЗ' || op.toLowerCase().includes('склад бз') || op.toLowerCase().includes('склад bz')) {
-          const qty = Number(card.quantity || 0)
           partEntry.bzCardQty = (partEntry.bzCardQty || 0) + qty
           orderSub.bzCardQty = (orderSub.bzCardQty || 0) + qty
         } else if (card.status !== 'completed' && card.status !== 'cancelled') {
-          const qty = Number(card.quantity || 0)
           const stat = String(card.status || '').toLowerCase()
           const opLower = String(card.operation || '').toLowerCase()
           
@@ -245,7 +263,6 @@ export function useShop2BufferData({
         }
       } else {
         // Active or Completed Shop 2 Cards
-        const qty = Number(card.quantity || 0)
         const opLower = String(card.operation || '').toLowerCase()
         const infoLower = String(card.card_info || '').toLowerCase()
         const isPack = isPackagingOperation(card.operation) ||
@@ -292,7 +309,8 @@ export function useShop2BufferData({
 
       if (belongsToShop2) {
         const canonicalNomId = resolveCanonicalNomId(item.nomenclature_id, nomenclatures) || String(item.nomenclature_id || '')
-        const orderId = String(item.order_id || '')
+        const rawOrderId = String(item.order_id || '')
+        const orderId = rerunToParentMap.get(rawOrderId) || rawOrderId
         const vkyaQty = Math.max(0, Number(item.quantity) || 0)
         if (!canonicalNomId || vkyaQty <= 0) return
 
@@ -319,7 +337,8 @@ export function useShop2BufferData({
       const card = row.card_id ? cardById.get(String(row.card_id)) : null
       const nomId = resolveCanonicalNomId(row.nomenclature_id || card?.nomenclature_id, nomenclatures) || String(row.nomenclature_id || card?.nomenclature_id || '')
       if (!nomId) return
-      const orderId = String(row.order_id || card?.order_id || '')
+      const rawOrderId = String(row.order_id || card?.order_id || '')
+      const orderId = rerunToParentMap.get(rawOrderId) || rawOrderId
       const key = `${nomId}|${orderId}`
       shop1VkyaByScope.set(key, (shop1VkyaByScope.get(key) || 0) + qty)
     }
@@ -375,7 +394,9 @@ export function useShop2BufferData({
       }
       if (belongsToShop2) return
       const nomId = resolveCanonicalNomId(item.nomenclature_id, nomenclatures) || String(item.nomenclature_id || '')
-      const key = `${nomId}|${String(item.order_id || '')}`
+      const rawOrderId = String(item.order_id || '')
+      const orderId = rerunToParentMap.get(rawOrderId) || rawOrderId
+      const key = `${nomId}|${orderId}`
       ledgerShop1ByScope.set(key, (ledgerShop1ByScope.get(key) || 0) + Math.max(0, Number(item.quantity) || 0))
     })
     partMap.forEach(partEntry => {
@@ -467,6 +488,7 @@ export function useShop2BufferData({
           plannedReqQty: reqQty,
           stockBzQty,
           shop2UtilQty: subUtil,
+          activeRerunQty: Number(sub.activeRerunQty || 0),
           availableQty: subAvail,
           netPackagingQty: subNetPack,
           shop1VkyaQty: subShop1Vkya
@@ -501,6 +523,7 @@ export function useShop2BufferData({
         awaitingShop1Qty,
         stockBzQty,
         shop2UtilQty: totalUtilShop2,
+        activeRerunQty: Number(partEntry.activeRerunQty || 0),
         availableQty,
         netPackagingQty,
         ordersList
@@ -508,13 +531,14 @@ export function useShop2BufferData({
     })
 
     return results
-  }, [workCards, workCardHistory, workCardScrapTotals, finalScrapRows, observedScrapRows, returnedRows, currentVkyaItems, tasks, orders, nomenclatures, bomItems, shop2TaskIdsSet, groupBy])
+  }, [workCards, workCardHistory, workCardScrapTotals, finalScrapRows, observedScrapRows, returnedRows, currentVkyaItems, tasks, orders, nomenclatures, bomItems, shop2TaskIdsSet, groupBy, rerunToParentMap])
 
   // Filtered & Sorted rows
   const filteredRows = useMemo(() => {
     let list = bufferRows.filter(row => {
       if (selectedOrderId !== 'all') {
-        const hasOrder = row.ordersList.some(o => String(o.orderId) === String(selectedOrderId))
+        const effectiveSelectedOrderId = rerunToParentMap.get(String(selectedOrderId)) || String(selectedOrderId)
+        const hasOrder = row.ordersList.some(o => String(o.orderId) === effectiveSelectedOrderId)
         if (!hasOrder) return false
       } else {
         const hasActiveProduction = (row.availableQty > 0) ||
