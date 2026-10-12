@@ -270,6 +270,7 @@ const getCardSeq = (card) => {
 }
 
 const MACHINE_ALIASES = {
+  'CNC 1200x800 - 1-6 листів (Малий)': 'CNC 12x8',
   'CNC 1200x800 - 4 листи (Малий)': 'CNC 12x8',
   'CNC 1200x800': 'CNC 12x8',
   'CNC 1200x800 (Малий)': 'CNC 12x8',

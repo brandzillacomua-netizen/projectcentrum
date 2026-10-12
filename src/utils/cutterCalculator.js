@@ -152,7 +152,7 @@ export const resolveMachineType = (machineName) => {
   } else if (normMac.includes('дракон') || normMac.includes('60x20') || normMac.includes('6000x2000') || normMac.includes('6000х2000')) {
     return 'CNC 6000x2000 - 4 - 96 листів (Дракон)'
   } else if (normMac.includes('малий') || normMac.includes('12x8') || normMac.includes('1200x800') || normMac.includes('12х8') || normMac.includes('1200х800')) {
-    return 'CNC 1200x800 - 4 листи (Малий)'
+    return 'CNC 1200x800 - 1-6 листів (Малий)'
   } else if (normMac.includes('три головий') || normMac.includes('триголовий') || normMac.includes('3060') || normMac.includes('30x16') || normMac.includes('30х16')) {
     return 'CNC 3060х1600 - 3-36 листів (Три Головий)'
   } else if (normMac.includes('фея') || normMac.includes('фею') || normMac.includes('феі') || normMac.includes('ke xin') || normMac.includes('kexin') || normMac.includes('кексін') || normMac.includes('кексин') || normMac.includes('fea') || normMac.includes('feia') || normMac.includes('feu')) {

@@ -4,7 +4,8 @@ import {
   calculateTerminalMetrics,
   getConfirmedSgpFromCards,
   getConfirmedSgpFromFlow,
-  getForemanTaskScopeKey
+  getForemanTaskScopeKey,
+  isBzReservationCard
 } from '../src/modules/ForemanDashboard/utils/foremanDashboardMetrics.js'
 import { buildCurrentVkyaIndex, buildCurrentVkyaOrderIndex, getLegacyCategoryOneQuantity, getPendingRecoverableQty } from '../src/modules/VKYA/quality-hold/qualityHoldModel.js'
 
@@ -56,6 +57,21 @@ describe('foreman dashboard terminal metrics', () => {
     expect(getConfirmedSgpFromCards([{
       id: 'card-2', status: 'completed', operation: 'Доопрацювання', quantity: 50
     }])).toBe(0)
+  })
+
+  it('keeps a BZ reservation out of SGP totals and card lists', () => {
+    const cards = [{
+      id: 'bz-card',
+      status: 'completed',
+      operation: 'Склад СГП',
+      quantity: 26,
+      card_info: 'СКЛАДУ СГП | [BZ_RESERVATION:reservation-id]'
+    }]
+    const flowRows = [{ card_id: 'bz-card', stage_name: 'СГП', total_good: 26 }]
+
+    expect(isBzReservationCard(cards[0])).toBe(true)
+    expect(getConfirmedSgpFromCards(cards)).toBe(0)
+    expect(getConfirmedSgpFromFlow(flowRows, cards)).toBe(0)
   })
 
   it('adds each current VKYA state once within its task and nomenclature', () => {

@@ -1,7 +1,7 @@
 // ─── Pure helpers ───────────────────────────────────────────────────
 
 export const MACHINE_TYPES = [
-  'CNC 1200x800 - 4 листи (Малий)',
+  'CNC 1200x800 - 1-6 листів (Малий)',
   'CNC 3050(16)х16 - 3-12 листів (швидкісний)',
   'CNC 3060х1600 - 3-36 листів (Три Головий)',
   'CNC 6000x2000 - 4 - 96 листів (Дракон)',
@@ -67,7 +67,7 @@ export const getStandardMachineType = (name) => {
   const normName = name.toLowerCase()
   const directMatch = MACHINE_TYPES.find(t => t.toLowerCase() === normName)
   if (directMatch) return directMatch
-  if (normName.includes('12x8') || normName.includes('1200x800') || normName.includes('малий')) return 'CNC 1200x800 - 4 листи (Малий)'
+  if (normName.includes('12x8') || normName.includes('1200x800') || normName.includes('малий')) return 'CNC 1200x800 - 1-6 листів (Малий)'
   if (normName.includes('16x16') || normName.includes('3050(16)') || normName.includes('швидкісний') || normName.includes('3050x1600') || normName.includes('3050х1600') || normName.includes('3050')) return 'CNC 3050(16)х16 - 3-12 листів (швидкісний)'
   if (normName.includes('30x16') || normName.includes('3060x1600') || normName.includes('3060х1600') || normName.includes('три головий') || normName.includes('триголовий')) return 'CNC 3060х1600 - 3-36 листів (Три Головий)'
   if (normName.includes('60x20') || normName.includes('6000x2000') || normName.includes('дракон')) return 'CNC 6000x2000 - 4 - 96 листів (Дракон)'
@@ -87,7 +87,7 @@ export const findMachineByName = (name, machines) => {
   if (!found) {
     const baseNameLower = baseName.toLowerCase()
     if (baseNameLower.includes('12x8') || baseNameLower.includes('1200x800') || baseNameLower.includes('малий')) {
-      found = { sheet_capacity: 4, name: 'CNC 1200x800 - 4 листи (Малий)' }
+      found = { sheet_capacity: 6, name: 'CNC 1200x800 - 1-6 листів (Малий)' }
     } else if (baseNameLower.includes('16x16') || baseNameLower.includes('3050(16)') || baseNameLower.includes('швидкісний') || baseNameLower.includes('3050x1600') || baseNameLower.includes('3050х1600') || baseNameLower.includes('3050')) {
       found = { sheet_capacity: 12, name: 'CNC 3050(16)х16 - 3-12 листів (швидкісний)' }
     } else if (baseNameLower.includes('30x16') || baseNameLower.includes('3060x1600') || baseNameLower.includes('3060х1600') || baseNameLower.includes('три головий') || baseNameLower.includes('триголовий')) {
@@ -105,8 +105,9 @@ export const findMachineByName = (name, machines) => {
     const isSmallMachine = rawMachineName.includes('1200x800') || rawMachineName.includes('12x8') || rawMachineName.includes('малий')
     const match = searchName.match(/(\d+)\s*-\s*(\d+)\s*лист/i)
     if (isSmallMachine) {
+      result.sheet_capacity = 6
       result.min_capacity = 1
-      result.max_capacity = 4
+      result.max_capacity = 6
     } else if (match) {
       result.min_capacity = parseInt(match[1])
       result.max_capacity = parseInt(match[2])
@@ -118,7 +119,7 @@ export const findMachineByName = (name, machines) => {
       } else {
         const bnl = searchName.toLowerCase()
         if (bnl.includes('12x8') || bnl.includes('1200x800') || bnl.includes('малий')) {
-          result.min_capacity = 1; result.max_capacity = 4
+          result.sheet_capacity = 6; result.min_capacity = 1; result.max_capacity = 6
         } else if (bnl.includes('16x16') || bnl.includes('3050(16)') || bnl.includes('швидкісний') || bnl.includes('3050x1600') || bnl.includes('3050х1600') || bnl.includes('3050')) {
           result.min_capacity = 3; result.max_capacity = 12
         } else if (bnl.includes('30x16') || bnl.includes('3060x1600') || bnl.includes('3060х1600') || bnl.includes('три головий') || bnl.includes('триголовий')) {
@@ -137,7 +138,8 @@ export const findMachineByName = (name, machines) => {
       const bnl = searchName.toLowerCase()
       if (bnl.includes('1200x800') || bnl.includes('малий') || bnl.includes('12x8')) {
         result.min_capacity = 1
-        result.max_capacity = 4
+        result.sheet_capacity = 6
+        result.max_capacity = 6
       }
     }
     return result

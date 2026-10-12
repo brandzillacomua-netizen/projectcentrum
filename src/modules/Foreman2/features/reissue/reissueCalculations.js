@@ -4,10 +4,16 @@ export const findMachineForReissue = (machineName, machines = []) => {
   const raw = String(machineName || '').trim()
   const base = raw.split(' №')[0].trim()
   const direct = machines.find(machine => machine.name === raw || machine.name === base || machine.type === raw || machine.type === base)
-  if (direct) return direct
+  if (direct) {
+    const directName = `${direct.name || ''} ${direct.type || ''}`.toLowerCase()
+    if (directName.includes('1200') || directName.includes('12x8') || directName.includes('мал')) {
+      return { ...direct, sheet_capacity: 6, min_capacity: 1, max_capacity: 6 }
+    }
+    return direct
+  }
 
   const text = raw.toLowerCase()
-  if (text.includes('1200') || text.includes('12x8') || text.includes('мал')) return { name: raw || 'CNC 1200x800', sheet_capacity: 4, min_capacity: 1, max_capacity: 4 }
+  if (text.includes('1200') || text.includes('12x8') || text.includes('мал')) return { name: raw || 'CNC 1200x800', sheet_capacity: 6, min_capacity: 1, max_capacity: 6 }
   if (text.includes('3050') || text.includes('16x16')) return { name: raw || 'CNC 3050', sheet_capacity: 12, min_capacity: 3, max_capacity: 12 }
   if (text.includes('3060') || text.includes('30x16')) return { name: raw || 'CNC 3060', sheet_capacity: 36, min_capacity: 3, max_capacity: 36 }
   if (text.includes('6000') || text.includes('60x20')) return { name: raw || 'CNC 6000', sheet_capacity: 96, min_capacity: 4, max_capacity: 96 }

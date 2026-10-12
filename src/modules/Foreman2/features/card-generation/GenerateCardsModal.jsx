@@ -4,6 +4,7 @@ import { calculateCuttersForBatch } from '../../../../utils/cutterCalculator.js'
 import { CutterSelectorRow } from './components/CutterSelectorRow.jsx'
 import { useMES } from '../../../../MESContext.jsx'
 import { getCardSheets } from '../shortage/shortageCalculations.js'
+import { findMachineByName } from '../../utils/foremanHelpers.js'
 
 export default function GenerateCardsModal({
   config,
@@ -145,9 +146,7 @@ export default function GenerateCardsModal({
   const MACHINE_TYPES = useMemo(() => [...new Set((machines || []).map(m => m.name))], [machines])
 
   const findMachine = (mName) => {
-    if (!mName) return null
-    const baseName = String(mName).split(' №')[0].trim()
-    return (machines || []).find(m => m.name === baseName) || (machines || []).find(m => m.name === mName)
+    return findMachineByName(mName, machines || [])
   }
 
   const isMachineSelected = useMemo(() => {
