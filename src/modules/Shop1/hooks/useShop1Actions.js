@@ -3,6 +3,7 @@ import { useMES } from '../../../MESContext'
 import { translateCyrillic, CHAIN } from './useShop1Data'
 import { deductInventoryAtomic } from '../../../services/atomicInventoryService'
 import { resolveCutterOrVirtualType, resolveCutterTypeName, isMachineMatch } from '../../../utils/cutterCalculator'
+import { isRequestForCard } from '../../../utils/materialCardMatching'
 
 const stripCuttersBreakdown = (value = '') => {
   let info = String(value || '')
@@ -133,7 +134,7 @@ export function useShop1Actions({
 
   const handleSheetsInventoryDeduction = async (card) => {
     if (!card || card.operation !== 'Розкрій') return
-    if (card.card_info && (card.card_info.includes('[SHEETS_DEDUCTED:true]') || card.card_info.includes('[MATERIALS_ISSUED:true]'))) {
+    if (card.card_info && card.card_info.includes('[SHEETS_DEDUCTED:true]')) {
       return
     }
 
@@ -160,16 +161,6 @@ export function useShop1Actions({
     }
     if (!cardSheets || cardSheets <= 0) cardSheets = 1
 
-    // Check if other uncompleted cards remain for this task
-    const otherActiveCards = (workCards || []).filter(c =>
-      String(c.task_id) === String(card.task_id) &&
-      String(c.id) !== String(card.id) &&
-      c.status !== 'completed' &&
-      c.status !== 'scrap' &&
-      c.status !== 'archived'
-    )
-    const isLastCard = otherActiveCards.length === 0
-
     // Fetch fresh material_requests for this task
     let dbTaskRequests = []
     try {
@@ -177,21 +168,24 @@ export function useShop1Actions({
         .from('material_requests')
         .select('*')
         .or(`card_id.eq.${card.id},task_id.eq.${card.task_id}`)
-        .in('status', ['issued', 'pending'])
+        .in('status', ['issued', 'pending', 'reserved', 'approved'])
       dbTaskRequests = reqData || []
     } catch (e) {
       console.warn('Error fetching fresh material_requests in useShop1Actions:', e)
       dbTaskRequests = (requests || []).filter(r =>
         (String(r.card_id) === String(card.id) || String(r.task_id) === String(card.task_id)) &&
-        (r.status === 'issued' || r.status === 'pending')
+        ['issued', 'pending', 'reserved', 'approved'].includes(r.status)
       )
     }
 
-    const sheetRequests = dbTaskRequests.filter(r =>
+    const allSheetRequests = dbTaskRequests.filter(r =>
       r.category === 'sheet' ||
       (r.details || '').toLowerCase().includes('лист') ||
       (nomenclatures || []).find(n => String(n.id) === String(r.nomenclature_id))?.type === 'raw'
     )
+
+    const cardSheetRequests = allSheetRequests.filter(r => isRequestForCard(r, card, task, nomenclatures))
+    const sheetRequests = cardSheetRequests.length > 0 ? cardSheetRequests : allSheetRequests
 
     let targetInventoryId = sheetRequests.find(r => r.inventory_id)?.inventory_id || null
 
@@ -209,9 +203,27 @@ export function useShop1Actions({
     let sheetInvItem = null
     if (targetInventoryId) {
       sheetInvItem = (inventory || []).find(i => String(i.id) === String(targetInventoryId))
+      if (!sheetInvItem) {
+        const { data: invRow } = await supabase.from('inventory').select('*').eq('id', targetInventoryId).maybeSingle()
+        if (invRow) sheetInvItem = invRow
+      }
     }
     if (!sheetInvItem && defaultMatId) {
       sheetInvItem = (inventory || []).find(i => String(i.nomenclature_id) === String(defaultMatId) && (i.warehouse === 'operational' || !i.warehouse))
+      if (!sheetInvItem) {
+        const { data: invRows } = await supabase.from('inventory').select('*').eq('nomenclature_id', defaultMatId).or('warehouse.eq.operational,warehouse.is.null').limit(1)
+        if (invRows && invRows.length > 0) sheetInvItem = invRows[0]
+      }
+    }
+    if (!sheetInvItem) {
+      const reqWithNom = sheetRequests.find(r => r.nomenclature_id)
+      if (reqWithNom) {
+        sheetInvItem = (inventory || []).find(i => String(i.nomenclature_id) === String(reqWithNom.nomenclature_id) && (i.warehouse === 'operational' || !i.warehouse))
+        if (!sheetInvItem) {
+          const { data: invRows } = await supabase.from('inventory').select('*').eq('nomenclature_id', reqWithNom.nomenclature_id).or('warehouse.eq.operational,warehouse.is.null').limit(1)
+          if (invRows && invRows.length > 0) sheetInvItem = invRows[0]
+        }
+      }
     }
     if (!sheetInvItem) {
       const rawSheetName = nom?.rule_params?.rawSheet || ''
@@ -220,31 +232,46 @@ export function useShop1Actions({
           (i.name || '').toLowerCase().includes(rawSheetName.toLowerCase()) &&
           (i.warehouse === 'operational' || !i.warehouse)
         )
+        if (!sheetInvItem) {
+          const { data: invRows } = await supabase.from('inventory').select('*').ilike('name', `%${rawSheetName}%`).or('warehouse.eq.operational,warehouse.is.null').limit(1)
+          if (invRows && invRows.length > 0) sheetInvItem = invRows[0]
+        }
       }
     }
     if (!sheetInvItem) {
-      const opSheets = (inventory || []).filter(i =>
-        (i.name || '').toLowerCase().includes('лист') &&
-        (i.warehouse === 'operational' || !i.warehouse)
-      )
       const thickMatch = (nom?.name || '').match(/[-_](\d+(?:[.,]\d+)?)(?:[-_]|$)/)
+      const isT700 = (nom?.name || '').includes('700')
+      const isT300 = (nom?.name || '').includes('300')
       if (thickMatch) {
         const thickStr = thickMatch[1] + 'мм'
-        sheetInvItem = opSheets.find(i => (i.name || '').toLowerCase().includes(thickStr))
+        let query = supabase.from('inventory').select('*').ilike('name', `%${thickStr}%`).or('warehouse.eq.operational,warehouse.is.null')
+        if (isT700) query = query.ilike('name', '%T700%')
+        else if (isT300) query = query.ilike('name', '%T300%')
+        const { data: matchedSheets } = await query.limit(1)
+        if (matchedSheets && matchedSheets.length > 0) sheetInvItem = matchedSheets[0]
       }
-      if (!sheetInvItem) sheetInvItem = opSheets[0]
+      if (!sheetInvItem) {
+        const opSheets = (inventory || []).filter(i =>
+          (i.name || '').toLowerCase().includes('лист') &&
+          (i.warehouse === 'operational' || !i.warehouse)
+        )
+        if (opSheets.length > 0) sheetInvItem = opSheets[0]
+      }
     }
 
     if (sheetInvItem) {
-      const curReserved = Number(sheetInvItem.reserved_qty) || 0
-      const taskReservedForSheet = sheetRequests.filter(r => r.status === 'issued').reduce((sum, r) => sum + (Number(r.quantity) || 0), 0)
+      const { data: freshInv } = await supabase.from('inventory').select('*').eq('id', sheetInvItem.id).maybeSingle()
+      const currentInv = freshInv || sheetInvItem
+
+      const curReserved = Number(currentInv.reserved_qty) || 0
+      const taskReservedForSheet = sheetRequests.reduce((sum, r) => sum + (Number(r.quantity) || 0), 0)
 
       // Always release only this card's proportional share — last card is no different.
       let releaseReserved = taskReservedForSheet > 0 ? Math.min(taskReservedForSheet, cardSheets) : cardSheets
       releaseReserved = Math.max(0, Math.min(curReserved, releaseReserved))
 
       await deductInventoryAtomic(supabase, {
-        inventoryId: sheetInvItem.id,
+        inventoryId: currentInv.id,
         deductTotal: cardSheets,
         releaseReserved: releaseReserved
       })
@@ -295,13 +322,13 @@ export function useShop1Actions({
         .from('material_requests')
         .select('*')
         .or(`card_id.eq.${card.id},task_id.eq.${card.task_id}`)
-        .in('status', ['issued', 'pending'])
+        .in('status', ['issued', 'pending', 'reserved', 'approved'])
       dbTaskRequests = reqData || []
     } catch (e) {
       console.warn('Error fetching fresh material_requests in useShop1Actions:', e)
       dbTaskRequests = (requests || []).filter(r =>
         (String(r.card_id) === String(card.id) || String(r.task_id) === String(card.task_id)) &&
-        (r.status === 'issued' || r.status === 'pending')
+        ['issued', 'pending', 'reserved', 'approved'].includes(r.status)
       )
     }
 
@@ -317,7 +344,7 @@ export function useShop1Actions({
 
       const normCutter = (cutterName || '').toLowerCase().replace(/[\s-_]/g, '')
 
-      const opInvItem = (inventory || []).find(i =>
+      let opInvItem = (inventory || []).find(i =>
         (i.warehouse === 'operational' || !i.warehouse) &&
         i.warehouse !== 'sgp' && i.warehouse !== 'production' &&
         (
@@ -326,6 +353,25 @@ export function useShop1Actions({
           (i.name || '').toLowerCase().includes(cutterName.toLowerCase())
         )
       )
+
+      if (!opInvItem && nom) {
+        const { data: invRows } = await supabase
+          .from('inventory')
+          .select('*')
+          .eq('nomenclature_id', nom.id)
+          .or('warehouse.eq.operational,warehouse.is.null')
+          .limit(1)
+        if (invRows && invRows.length > 0) opInvItem = invRows[0]
+      }
+      if (!opInvItem) {
+        const { data: invRows } = await supabase
+          .from('inventory')
+          .select('*')
+          .ilike('name', `%${cutterName.trim()}%`)
+          .or('warehouse.eq.operational,warehouse.is.null')
+          .limit(1)
+        if (invRows && invRows.length > 0) opInvItem = invRows[0]
+      }
 
       // 1. Calculate planned rate (cutters per sheet) and card's planned quota
       let qtyPerSheet = null
@@ -402,46 +448,36 @@ export function useShop1Actions({
       const taskReservedForCutter = cutterRequests.reduce((sum, r) => sum + (Number(r.quantity) || 0), 0)
 
       if (opInvItem) {
-        if (isBoxAlreadyPrepared) {
-          const diff = actualQty - 1
-          if (diff > 0) {
-            await deductInventoryAtomic(supabase, {
-              inventoryId: opInvItem.id,
-              deductTotal: diff,
-              releaseReserved: 0
-            })
-          } else if (diff < 0) {
-            await supabase.from('inventory').update({
-              total_qty: (Number(opInvItem.total_qty) || 0) + 1,
-              updated_at: new Date().toISOString()
-            }).eq('id', opInvItem.id)
-          }
-        } else {
-          const curReserved = Number(opInvItem.reserved_qty) || 0
-          // Always release only this card's planned quota — last card is no different.
-          const quotaToRelease = cardPlannedQty
-          let releaseReserved = taskReservedForCutter > 0 ? Math.min(taskReservedForCutter, quotaToRelease) : quotaToRelease
-          releaseReserved = Math.min(curReserved, releaseReserved)
+        const { data: freshInv } = await supabase
+          .from('inventory')
+          .select('*')
+          .eq('id', opInvItem.id)
+          .maybeSingle()
+        const currentOpInv = freshInv || opInvItem
 
-          await deductInventoryAtomic(supabase, {
-            inventoryId: opInvItem.id,
-            deductTotal: actualQty,
-            releaseReserved: releaseReserved
-          })
+        const curReserved = Number(currentOpInv.reserved_qty) || 0
+        const quotaToRelease = cardPlannedQty
+        let releaseReserved = taskReservedForCutter > 0 ? Math.min(taskReservedForCutter, quotaToRelease) : quotaToRelease
+        releaseReserved = Math.max(0, Math.min(curReserved, releaseReserved))
 
-          // Update material requests status / quantity
-          let remainingToDeductFromReqs = releaseReserved
-          for (const req of cutterRequests) {
-            if (remainingToDeductFromReqs <= 0) break
-            const reqQty = Number(req.quantity) || 0
-            const deductFromThisReq = Math.min(reqQty, remainingToDeductFromReqs)
-            const nextReqQty = Math.max(0, reqQty - deductFromThisReq)
-            remainingToDeductFromReqs -= deductFromThisReq
-            if (nextReqQty === 0) {
-              await supabase.from('material_requests').update({ quantity: 0, status: 'completed' }).eq('id', req.id)
-            } else {
-              await supabase.from('material_requests').update({ quantity: nextReqQty }).eq('id', req.id)
-            }
+        await deductInventoryAtomic(supabase, {
+          inventoryId: currentOpInv.id,
+          deductTotal: actualQty,
+          releaseReserved: releaseReserved
+        })
+
+        // Update material requests status / quantity
+        let remainingToDeductFromReqs = releaseReserved
+        for (const req of cutterRequests) {
+          if (remainingToDeductFromReqs <= 0) break
+          const reqQty = Number(req.quantity) || 0
+          const deductFromThisReq = Math.min(reqQty, remainingToDeductFromReqs)
+          const nextReqQty = Math.max(0, reqQty - deductFromThisReq)
+          remainingToDeductFromReqs -= deductFromThisReq
+          if (nextReqQty === 0) {
+            await supabase.from('material_requests').update({ quantity: 0, status: 'completed' }).eq('id', req.id)
+          } else {
+            await supabase.from('material_requests').update({ quantity: nextReqQty }).eq('id', req.id)
           }
         }
       }

@@ -42,7 +42,7 @@ export function useShop1TerminalState() {
 
   // Initial load
   useEffect(() => {
-    fetchData(['work_cards', 'tasks']).catch(error => {
+    fetchData(['work_cards', 'tasks', 'inventory', 'material_requests']).catch(error => {
       console.error('Failed to load Shop 1 cards:', error);
     });
   }, [fetchData]);
