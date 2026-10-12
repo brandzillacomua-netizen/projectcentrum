@@ -139,6 +139,8 @@ export function useSettingsSnapshotCorr({ supabase, refreshTable }) {
     try {
       const taskId = corrSelectedTask.id
       const orderId = corrSelectedTask.order_id
+      const orderNum = corrSelectedTask.order_num || (orderId ? String(orderId) : '???')
+      const batchSuffix = (corrSelectedTask.batch_index && Number(corrSelectedTask.batch_index) > 1) ? ` - Партія ${corrSelectedTask.batch_index}` : ''
       
       const { data: siblingTasks, error: siblingErr } = await supabase
         .from('tasks')
@@ -150,7 +152,7 @@ export function useSettingsSnapshotCorr({ supabase, refreshTable }) {
       const { data: materialRequests, error: matErr } = await supabase
         .from('material_requests')
         .select('*')
-        .eq('task_id', taskId)
+        .or(`task_id.eq.${taskId},order_id.eq.${orderId}`)
         
       if (matErr) throw matErr
 
@@ -160,6 +162,12 @@ export function useSettingsSnapshotCorr({ supabase, refreshTable }) {
         .eq('task_id', taskId)
         
       if (wcErr) throw wcErr
+
+      const partIds = corrSnapshotParts.map(p => p.nomenclature_id)
+      const { data: currentInventory } = await supabase
+        .from('inventory')
+        .select('*')
+        .in('nomenclature_id', partIds)
 
       const dbWrites = []
 
@@ -214,6 +222,7 @@ export function useSettingsSnapshotCorr({ supabase, refreshTable }) {
         )
       }
 
+      // 1. Update operational sheet requests
       corrSnapshotParts.forEach(p => {
         const matchingRequest = (materialRequests || []).find(r => 
           r.details && 
@@ -233,22 +242,113 @@ export function useSettingsSnapshotCorr({ supabase, refreshTable }) {
         }
       })
 
+      // 2. Manage SGP packaging requests and SGP inventory reservations
+      corrSnapshotParts.forEach(p => {
+        const originalPart = corrSelectedTask.plan_snapshot?.[p.nomenclature_id]
+        const oldStock = originalPart ? (Number(originalPart.stock) || 0) : 0
+        const diff = p.stock - oldStock
+
+        const sgpItem = (currentInventory || []).find(i => 
+          String(i.nomenclature_id) === String(p.nomenclature_id) && 
+          (i.warehouse === 'sgp' || i.type === 'finished' || i.type === 'part' || i.type === 'bz')
+        )
+
+        // SGP packaging material request
+        const sgpReq = (materialRequests || []).find(r =>
+          String(r.nomenclature_id) === String(p.nomenclature_id) &&
+          (r.target_warehouse === 'sgp' || r.details?.includes('[PACKAGING_SOURCE:SGP]') || r.details?.includes('КОМПЛЕКТУВАННЯ'))
+        )
+
+        if (p.stock > 0) {
+          if (sgpReq) {
+            dbWrites.push(
+              supabase.from('material_requests').update({
+                quantity: p.stock,
+                status: 'issued',
+                inventory_id: sgpItem?.id || sgpReq.inventory_id || null,
+                details: `ЗАПИТ НА КОМПЛЕКТУВАННЯ (${orderNum}${batchSuffix}) [PACKAGING_SOURCE:SGP]: ${p.name} — ${p.stock} шт.`,
+                updated_at: new Date().toISOString()
+              }).eq('id', sgpReq.id)
+            )
+          } else {
+            dbWrites.push(
+              supabase.from('material_requests').insert([{
+                order_id: orderId,
+                task_id: taskId,
+                nomenclature_id: p.nomenclature_id,
+                quantity: p.stock,
+                status: 'issued',
+                inventory_id: sgpItem?.id || null,
+                category: 'hardware',
+                target_warehouse: 'sgp',
+                details: `ЗАПИТ НА КОМПЛЕКТУВАННЯ (${orderNum}${batchSuffix}) [PACKAGING_SOURCE:SGP]: ${p.name} — ${p.stock} шт.`
+              }])
+            )
+          }
+        } else if (sgpReq) {
+          dbWrites.push(
+            supabase.from('material_requests').delete().eq('id', sgpReq.id)
+          )
+        }
+
+        // SGP Inventory item & reservation
+        if (diff !== 0) {
+          if (sgpItem) {
+            const curReserved = Number(sgpItem.reserved_qty) || 0
+            const newReserved = Math.max(0, curReserved + diff)
+            const curTotal = Number(sgpItem.total_qty) || 0
+            const newTotal = Math.max(curTotal, newReserved)
+            dbWrites.push(
+              supabase.from('inventory').update({
+                warehouse: 'sgp',
+                type: 'finished',
+                total_qty: newTotal,
+                reserved_qty: newReserved,
+                updated_at: new Date().toISOString()
+              }).eq('id', sgpItem.id)
+            )
+          } else if (p.stock > 0) {
+            dbWrites.push(
+              supabase.from('inventory').insert([{
+                nomenclature_id: p.nomenclature_id,
+                name: p.name,
+                unit: 'шт',
+                warehouse: 'sgp',
+                type: 'finished',
+                total_qty: p.stock,
+                reserved_qty: p.stock,
+                updated_at: new Date().toISOString()
+              }])
+            )
+          }
+        }
+      })
+
+      // 3. Work cards for SGP stock
       corrSnapshotParts.forEach(p => {
         const bzCard = (workCardsData || []).find(c => 
           String(c.nomenclature_id) === String(p.nomenclature_id) && 
-          c.card_info && 
-          c.card_info.includes('[ЗІ СКЛАДУ БЗ]')
+          (
+            (c.card_info && (c.card_info.includes('[ЗІ СКЛАДУ БЗ]') || c.card_info.includes('[ЗІ СКЛАДУ СГП]'))) ||
+            c.operation === 'Склад БЗ' ||
+            c.operation === 'Склад СГП'
+          )
         )
         
         if (bzCard) {
           if (p.stock > 0) {
             dbWrites.push(
-              supabase.from('work_cards').update({ quantity: p.stock }).eq('id', bzCard.id)
+              supabase.from('work_cards').update({ 
+                quantity: p.stock,
+                operation: 'Склад СГП',
+                card_info: '[ЗІ СКЛАДУ СГП]'
+              }).eq('id', bzCard.id)
             )
             dbWrites.push(
               supabase.from('work_card_history').update({
                 qty_at_start: p.stock,
-                qty_completed: p.stock
+                qty_completed: p.stock,
+                stage_name: 'Склад СГП'
               }).eq('card_id', bzCard.id)
             )
           } else {
@@ -269,8 +369,8 @@ export function useSettingsSnapshotCorr({ supabase, refreshTable }) {
                 nomenclature_id: p.nomenclature_id,
                 quantity: p.stock,
                 status: 'completed',
-                operation: 'Склад БЗ',
-                card_info: '[ЗІ СКЛАДУ БЗ]'
+                operation: 'Склад СГП',
+                card_info: '[ЗІ СКЛАДУ СГП]'
               }])
               .select()
               .single()
@@ -278,7 +378,7 @@ export function useSettingsSnapshotCorr({ supabase, refreshTable }) {
               await supabase.from('work_card_history').insert([{
                 card_id: insertedCard.id,
                 nomenclature_id: p.nomenclature_id,
-                stage_name: 'Склад БЗ',
+                stage_name: 'Склад СГП',
                 operator_name: 'Склад (БРОНЬ)',
                 qty_at_start: p.stock,
                 qty_completed: p.stock,
@@ -291,60 +391,6 @@ export function useSettingsSnapshotCorr({ supabase, refreshTable }) {
         }
       })
 
-      const partIds = corrSnapshotParts.map(p => p.nomenclature_id)
-      const { data: currentInventory, error: invFetchErr } = await supabase
-        .from('inventory')
-        .select('*')
-        .in('nomenclature_id', partIds)
-        
-      if (!invFetchErr && currentInventory) {
-        corrSnapshotParts.forEach(p => {
-          const originalPart = corrSelectedTask.plan_snapshot?.[p.nomenclature_id]
-          const oldStock = originalPart ? (Number(originalPart.stock) || 0) : 0
-          const diff = p.stock - oldStock
-          
-          if (diff !== 0) {
-            const bzItem = currentInventory.find(i => 
-              String(i.nomenclature_id) === String(p.nomenclature_id) && 
-              i.type === 'bz'
-            )
-            if (bzItem) {
-              dbWrites.push(
-                supabase.from('inventory').update({
-                  total_qty: Math.max(0, (Number(bzItem.total_qty) || 0) - diff),
-                  updated_at: new Date().toISOString()
-                }).eq('id', bzItem.id)
-              )
-            }
-
-            const finishedItem = currentInventory.find(i => 
-              String(i.nomenclature_id) === String(p.nomenclature_id) && 
-              i.type === 'finished'
-            )
-            if (finishedItem) {
-              dbWrites.push(
-                supabase.from('inventory').update({
-                  total_qty: Math.max(0, (Number(finishedItem.total_qty) || 0) + diff),
-                  updated_at: new Date().toISOString()
-                }).eq('id', finishedItem.id)
-              )
-            } else if (diff > 0) {
-              dbWrites.push(
-                supabase.from('inventory').insert([{
-                  nomenclature_id: p.nomenclature_id,
-                  name: p.name,
-                  unit: 'шт',
-                  total_qty: diff,
-                  reserved_qty: 0,
-                  type: 'finished',
-                  updated_at: new Date().toISOString()
-                }])
-              )
-            }
-          }
-        })
-      }
-  
       await Promise.all(dbWrites)
       alert('Зміни успішно збережено та застосовано!')
       
