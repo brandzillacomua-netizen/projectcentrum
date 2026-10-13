@@ -35,7 +35,7 @@ const getCardStatus = (card) => {
 
 const capacityByMachine = (machineName) => {
   const text = String(machineName || '').toLowerCase()
-  if (text.includes('1200') || text.includes('12x8') || text.includes('мал')) return 4
+  if (text.includes('1200') || text.includes('12x8') || text.includes('мал')) return 6
   if (text.includes('3050') || text.includes('16x16')) return 12
   if (text.includes('3060') || text.includes('30x16')) return 36
   if (text.includes('6000') || text.includes('60x20')) return 96
@@ -46,7 +46,7 @@ const capacityByMachine = (machineName) => {
 const capacityRangeByMachine = (machineName) => {
   const maxCapacity = Math.max(1, capacityByMachine(machineName))
   const text = String(machineName || '').toLowerCase()
-  const isVariableSmallMachine = text.includes('1200') || text.includes('12x8') || text.includes('РјР°Р»')
+  const isVariableSmallMachine = text.includes('1200') || text.includes('12x8') || text.includes('мал')
   return {
     defaultCapacity: isVariableSmallMachine ? 1 : maxCapacity,
     maxCapacity

@@ -2,6 +2,10 @@ import { useRef, useState } from 'react'
 import { supabase } from '../../../../supabase.js'
 import { apiService } from '../../../../services/apiDispatcher.js'
 import { getCardSheets } from '../shortage/shortageCalculations.js'
+import {
+  calculateRemainingGenerationSheets,
+  resolvePlannedSheetsForGeneration
+} from './cardGenerationCalculations.js'
 
 export function useCardGeneration({ mes }) {
   const [isGenerating, setIsGenerating] = useState(false)
@@ -151,12 +155,20 @@ export function useCardGeneration({ mes }) {
 
       // The modal can be stale (or another browser can generate concurrently).
       // Re-check the whole part against the immutable task plan before insert.
-      const snapshotEntry = task.plan_snapshot?.[String(nomId)]
-      const plannedSheetsForPart = Number(snapshotEntry?.sheets) || Math.ceil((Number(snapshotEntry?.plan) || Number(part?.plan) || 0) / unitsPerSheet)
+      const { snapshotEntry, plannedSheets: plannedSheetsForPart } = resolvePlannedSheetsForGeneration({
+        task,
+        part,
+        nomenclatureId: nomId,
+        unitsPerSheet,
+        requestedSheets: effectiveSheets
+      })
       const generatedSheetsForPart = activeCards.reduce((sum, card) => sum + getCardSheets(card, unitsPerSheet), 0)
-      const remainingSheetsForPart = Math.max(0, plannedSheetsForPart - generatedSheetsForPart)
+      const remainingSheetsForPart = calculateRemainingGenerationSheets({
+        plannedSheets: plannedSheetsForPart,
+        generatedSheets: generatedSheetsForPart
+      })
       sheetsRemainingForThisSplit = Math.min(sheetsRemainingForThisSplit, remainingSheetsForPart)
-      const originalNeed = snapshotEntry?.need || totalToReach || 0
+      const originalNeed = Number(snapshotEntry?.need) || Number(part?.need) || Number(totalToReach) || 0
 
       let reqRemainingForThisSplit = isRepair
         ? Number(totalToReach) || (effectiveSheets * unitsPerSheet)
@@ -196,6 +208,9 @@ export function useCardGeneration({ mes }) {
       }
 
       if (cardsBatch.length === 0) {
+        if (!isRepair && plannedSheetsForPart > 0 && remainingSheetsForPart <= 0) {
+          throw new Error(`Усі ${plannedSheetsForPart} запланованих листів уже розподілені по картках. Оновіть наряд перед повторною генерацією.`)
+        }
         throw new Error(isRepair ? 'Немає листів для довипуску. Перевірте розрахунок нестачі.' : 'Не вдалося розрахувати листи для генерації. Перевірте планову кількість у наряді.')
       }
 
