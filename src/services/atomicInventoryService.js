@@ -77,7 +77,14 @@ export async function consumeCuttingInventoryOnce(supabase, {
     p_request_allocations: requestAllocations
   })
 
-  if (error) throw error
+  if (error) {
+    const isMissingFunction = error.code === 'PGRST202' ||
+      String(error.message || '').includes('rpc_consume_cutting_inventory_once')
+    if (isMissingFunction) {
+      throw new Error('У production-базі ще не встановлено захищене списання розкрою. Картку не завершено і матеріали не списано. Зверніться до адміністратора для застосування міграції 20261012190000.')
+    }
+    throw error
+  }
   if (!data?.success) throw new Error(data?.error || 'Сервер не підтвердив списання матеріалів розкрою')
   return data
 }

@@ -173,4 +173,6 @@ $consume$;
 revoke all on function public.rpc_consume_cutting_inventory_once(uuid,text,uuid,numeric,numeric,jsonb) from public;
 grant execute on function public.rpc_consume_cutting_inventory_once(uuid,text,uuid,numeric,numeric,jsonb) to authenticated, service_role;
 
+notify pgrst, 'reload schema';
+
 commit;

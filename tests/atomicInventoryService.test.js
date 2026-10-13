@@ -51,4 +51,21 @@ describe('cutting inventory consumption', () => {
       releaseReserved: 4
     })).rejects.toThrow('rejected')
   })
+
+  it('explains a missing production migration without advancing the card', async () => {
+    const supabase = {
+      rpc: async () => ({
+        data: null,
+        error: { code: 'PGRST202', message: 'Could not find rpc_consume_cutting_inventory_once' }
+      })
+    }
+
+    await expect(consumeCuttingInventoryOnce(supabase, {
+      cardId: 'card-1',
+      consumptionKey: 'sheet:stock-1',
+      inventoryId: 'stock-1',
+      deductTotal: 4,
+      releaseReserved: 4
+    })).rejects.toThrow('ще не встановлено захищене списання')
+  })
 })
