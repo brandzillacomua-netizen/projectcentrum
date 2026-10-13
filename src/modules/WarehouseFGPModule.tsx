@@ -86,7 +86,11 @@ export const WarehouseFGPModule: React.FC = () => {
 
   const {
     receiptRows,
-    isLoading: isReceiptRegistryLoading
+    isLoading: isReceiptRegistryLoading,
+    isLoadingMore: isReceiptRegistryLoadingMore,
+    hasMore: receiptRegistryHasMore,
+    loadMore: loadMoreReceipts,
+    totalCount: receiptTotalCount
   }: any = useSgpReceiptRegistry({ workCards, tasks, orders, nomenclatures })
 
   const {
@@ -99,6 +103,7 @@ export const WarehouseFGPModule: React.FC = () => {
     nomenclatures,
     searchQuery,
     receiptRows,
+    receiptTotalCount,
     totalShop2BufferParts
   })
 
@@ -414,6 +419,7 @@ export const WarehouseFGPModule: React.FC = () => {
         handleAddInventoryItem={handleAddInventoryItem}
         receiptRows={receiptRows}
         isReceiptRegistryLoading={isReceiptRegistryLoading}
+        receiptRegistryPaging={{ hasMore: receiptRegistryHasMore, isLoadingMore: isReceiptRegistryLoadingMore, loadMore: loadMoreReceipts, totalCount: receiptTotalCount }}
         shop2BufferCards={shop2BufferCards}
         totalShop2BufferParts={totalShop2BufferParts}
         shop2BufferTaskGroups={shop2BufferTaskGroups}

@@ -12,6 +12,7 @@ export function InventoryTab({
   filteredItems,
   receiptRows,
   isReceiptRegistryLoading,
+  receiptRegistryPaging,
   searchQuery,
   isAdmin,
   setReserveAnalysisItem,
@@ -31,6 +32,15 @@ export function InventoryTab({
   useEffect(() => {
     setRegistryPage(1)
   }, [searchQuery])
+
+  // Якщо дійшли до останньої сторінки реєстру — підвантажуємо наступну порцію задалегідь
+  const registryTotal = activeTab === 'registry' ? filterSgpReceiptRegistry(receiptRows, searchQuery).length : 0
+  useEffect(() => {
+    if (activeTab !== 'registry' || !receiptRegistryPaging?.hasMore || receiptRegistryPaging?.isLoadingMore) return
+    if (registryPageSize === 'all') return
+    const pages = Math.max(1, Math.ceil(registryTotal / Number(registryPageSize)))
+    if (registryPage >= pages) receiptRegistryPaging.loadMore()
+  }, [activeTab, registryPage, registryPageSize, registryTotal, receiptRegistryPaging?.hasMore, receiptRegistryPaging?.isLoadingMore])
 
   const handleSaveInventoryQty = async (item) => {
     if (!item || isSavingInv) return
@@ -162,7 +172,7 @@ export function InventoryTab({
         {/* ── REGISTRY PAGINATION CONTROLS ── */}
         <div style={{
           display: 'flex',
-          justify: 'space-between',
+          justifyContent: 'space-between',
           alignItems: 'center',
           flexWrap: 'wrap',
           gap: '12px',
@@ -174,10 +184,20 @@ export function InventoryTab({
           <div style={{ fontSize: '0.82rem', fontWeight: 800, color: t.textSecondary }}>
             {totalItems > 0 ? (
               <>
-                Показано <strong style={{ color: t.textPrimary }}>{startIndex + 1}–{endIndex}</strong> з <strong style={{ color: isDark ? '#34d399' : '#059669' }}>{totalItems.toLocaleString('uk-UA')}</strong> надходжень
+                Показано <strong style={{ color: t.textPrimary }}>{startIndex + 1}–{endIndex}</strong> з <strong style={{ color: isDark ? '#34d399' : '#059669' }}>{(!searchQuery && receiptRegistryPaging?.totalCount != null ? receiptRegistryPaging.totalCount : totalItems).toLocaleString('uk-UA')}{(searchQuery || receiptRegistryPaging?.totalCount == null) && receiptRegistryPaging?.hasMore ? '+' : ''}</strong> надходжень
               </>
             ) : (
               'Записи відсутні'
+            )}
+            {receiptRegistryPaging?.hasMore && (
+              <button
+                type="button"
+                onClick={() => receiptRegistryPaging.loadMore()}
+                disabled={receiptRegistryPaging.isLoadingMore}
+                style={{ ...navBtnStyle(receiptRegistryPaging.isLoadingMore), display: 'inline-flex', marginLeft: '12px' }}
+              >
+                {receiptRegistryPaging.isLoadingMore ? 'Завантаження…' : 'Завантажити старіші'}
+              </button>
             )}
           </div>
 
