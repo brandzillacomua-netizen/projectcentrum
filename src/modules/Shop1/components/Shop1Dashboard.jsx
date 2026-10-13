@@ -1,6 +1,7 @@
 import React from 'react'
 import { ChevronRight, ClipboardList, Search, RefreshCw, QrCode } from 'lucide-react'
 import { Shop1ActiveCardsTable } from './Shop1ActiveCardsTable'
+import { isLiveSortingCard } from '../../../utils/productionWipParity.js'
 
 export function Shop1Dashboard({
   manualId,
@@ -181,8 +182,9 @@ export function Shop1Dashboard({
           const sortingCards = (workCards || []).filter(c => {
             const nom = getNom(c)
             if (nom && nom.type && nom.type !== 'part') return false
-            return (c.operation === 'Прийомка' || c.operation === 'Сортування') &&
-                   (c.status === 'at-buffer' || c.status === 'in-progress')
+            return (c.operation === 'Прийомка' &&
+                    (c.status === 'at-buffer' || c.status === 'in-progress')) ||
+                   isLiveSortingCard(c)
           })
           const sortingQty = sortingCards.reduce((a, c) => a + (Number(c.quantity) || 0), 0)
           const receptionCards = sortingCards.filter(c => c.operation === 'Прийомка')

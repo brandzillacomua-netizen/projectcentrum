@@ -17,6 +17,12 @@ import {
   getForemanTaskScopeKey,
   isBzReservationCard
 } from '../utils/foremanDashboardMetrics.js'
+import {
+  getShop2BufferRemaining,
+  getUnassignedShop2BufferCards,
+  isLiveSortingCard,
+  mergeCardsPreferLive
+} from '../../../utils/productionWipParity.js'
 
 export const useForemanDashboardData = () => {
   const {
@@ -117,7 +123,7 @@ export const useForemanDashboardData = () => {
   const [loadingAllData, setLoadingAllData] = useState(false)
 
   const dashboardCards = useMemo(() => {
-    return Array.from(new Map([...(workCards || []), ...(allTasksCards || [])].filter(Boolean).map(card => [String(card.id), card])).values())
+    return mergeCardsPreferLive(workCards, allTasksCards)
   }, [workCards, allTasksCards])
 
   // ── Task scope map (task_id -> array of task_ids for the same order) ──
@@ -543,7 +549,7 @@ export const useForemanDashboardData = () => {
   }, [relevantTasks, productionCache, nomenclatures, ordersMap])
 
   // ── Build WIP rows for a given set of tasks ──
-  const buildWipGroups = (filterTaskIds) => {
+  const buildWipGroups = (filterTaskIds, includeUnassignedShop2Buffer = false) => {
     if (!nomenclatures || !bomItems || !orders) return []
 
     const selectedTasks = tasks.filter(t => filterTaskIds.includes(t.id))
@@ -598,6 +604,7 @@ export const useForemanDashboardData = () => {
     })
 
     const groups = {}
+    const assignedShop2BufferCardIds = new Set()
     const productNoms = nomenclatures.filter(n => n.type === 'product')
     productNoms.forEach(prod => {
       if (parentToChildren[String(prod.id)]) {
@@ -766,14 +773,20 @@ export const useForemanDashboardData = () => {
         const qGalt = getQ(['Галтовка'], ['in-progress', 'paused'])
         const qGaltBuf = getQ(['Галтовка'], ['at-buffer'])
         const qPriy = getQ(['Прийомка'], ['new', 'in-progress', 'paused', 'at-buffer'])
-        const qSortAct = getQ(['Сортування'], ['new', 'in-progress', 'paused', 'at-buffer'])
-        const qSort = filteredCards.filter(c => {
+        const qSortAct = filteredCards.filter(c => {
           if (String(c.nomenclature_id) !== String(nom.id)) return false
           const cardParent = getCardParentId(c)
-          if (cardParent && String(cardParent) !== String(parentId)) return false
-          if (isVkyaCard(c)) return false
-          return c.status === 'at-shop2-buffer'
-        }).reduce((s, c) => s + Math.max(0, (Number(c.quantity) || 0) - (Number(c.used_in_shop2_qty) || 0)), 0)
+          if (!cardParent || String(cardParent) !== String(parentId)) return false
+          return !isVkyaCard(c) && isLiveSortingCard(c)
+        }).reduce((s, c) => s + (Number(c.quantity) || 0), 0)
+        const qSortCards = filteredCards.filter(c => {
+          if (String(c.nomenclature_id) !== String(nom.id)) return false
+          const cardParent = getCardParentId(c)
+          if (!cardParent || String(cardParent) !== String(parentId)) return false
+          return getShop2BufferRemaining(c) > 0
+        })
+        qSortCards.forEach(card => assignedShop2BufferCardIds.add(String(card.id)))
+        const qSort = qSortCards.reduce((s, c) => s + getShop2BufferRemaining(c), 0)
 
         const qMalWait = getQ(['Фарбування', 'Малярка'], ['new', 'waiting-machines', 'waiting-materials'])
         const qMal = getQ(['Фарбування', 'Малярка'], ['in-progress', 'paused'])
@@ -887,13 +900,68 @@ export const useForemanDashboardData = () => {
       })
     })
 
-    return Object.values(groups).filter(g => g.rows.length > 0)
+    const resultGroups = Object.values(groups).filter(g => g.rows.length > 0)
+
+    if (includeUnassignedShop2Buffer) {
+      const unassignedByNom = new Map()
+      getUnassignedShop2BufferCards(dashboardCards, assignedShop2BufferCardIds).forEach(card => {
+        const remaining = getShop2BufferRemaining(card)
+        const nomId = String(card.nomenclature_id || '')
+        if (!nomId) return
+        const current = unassignedByNom.get(nomId) || { quantity: 0, cardIds: [] }
+        current.quantity += remaining
+        current.cardIds.push(String(card.id))
+        unassignedByNom.set(nomId, current)
+      })
+
+      const unassignedRows = []
+      unassignedByNom.forEach((entry, nomId) => {
+        const nom = nomenclatures.find(item => String(item.id) === nomId)
+        const name = nom?.name || 'Невідома деталь'
+        const code = nom?.code || ''
+        const matchSearch = !searchQuery ||
+          name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          code.toLowerCase().includes(searchQuery.toLowerCase())
+        if (!matchSearch) return
+
+        unassignedRows.push({
+          id: `${nomId}___unassigned_shop2__`,
+          nomId,
+          parentId: '__unassigned_shop2__',
+          cardIds: entry.cardIds,
+          name,
+          code,
+          demand: 0,
+          qtyPerProduct: 0,
+          qWhWait: 0, qCutWait: 0, qCut: 0, qCutBuf: 0,
+          qGalt: 0, qGaltBuf: 0, qPriy: 0, qSortAct: 0,
+          qSort: entry.quantity,
+          qMalWait: 0, qMal: 0, qMalBuf: 0,
+          qPresWait: 0, qPres: 0, qPresBuf: 0,
+          qDoopWait: 0, qDoop: 0, qDoopBuf: 0,
+          qSgp: 0, qBz: 0, qScrap: 0, qVkya: 0,
+          sum: entry.quantity
+        })
+      })
+
+      if (unassignedRows.length > 0) {
+        resultGroups.push({
+          id: '__unassigned_shop2__',
+          name: 'Буфер Цеху №2 — поза активними нарядами',
+          code: '',
+          rows: unassignedRows,
+          trend: null
+        })
+      }
+    }
+
+    return resultGroups
   }
 
   // ── Overview WIP groups ──
   const overviewGroups = useMemo(() => {
     if (!selectedTaskId) {
-      return buildWipGroups(relevantTasks.map(t => t.id))
+      return buildWipGroups(relevantTasks.map(t => t.id), true)
     }
     return buildWipGroups([selectedTaskId])
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -920,8 +988,10 @@ export const useForemanDashboardData = () => {
       : relevantTasks
     const modalTaskIds = new Set(modalPrimaryTasks.flatMap(t => taskScopeIdsMap[t.id] || [t.id]).map(String))
 
+    const explicitCardIds = new Set((row.cardIds || []).map(String))
     const nomCards = (dashboardCards || []).filter(c => {
       if (String(c.nomenclature_id) !== nomId) return false
+      if (rowParentId === '__unassigned_shop2__') return explicitCardIds.has(String(c.id))
       if (c.task_id && !modalTaskIds.has(String(c.task_id))) return false
       const cardParent = getCardParentId(c)
       if (!cardParent || String(cardParent) !== rowParentId) return false
@@ -1040,8 +1110,10 @@ export const useForemanDashboardData = () => {
     else if (stageKey === 'qGalt') matchingCards = matchOpsAndStatus(['Галтовка'], ['in-progress', 'paused'])
     else if (stageKey === 'qGaltBuf') matchingCards = matchOpsAndStatus(['Галтовка'], ['at-buffer'])
     else if (stageKey === 'qPriy') matchingCards = matchOpsAndStatus(['Прийомка'], ['new', 'in-progress', 'paused', 'at-buffer'])
-    else if (stageKey === 'qSortAct') matchingCards = matchOpsAndStatus(['Сортування'], ['new', 'in-progress', 'paused', 'at-buffer'])
-    else if (stageKey === 'qSort') matchingCards = nomCards.filter(c => !isVkyaCard(c) && c.status === 'at-shop2-buffer')
+    else if (stageKey === 'qSortAct') matchingCards = nomCards.filter(isLiveSortingCard)
+    else if (stageKey === 'qSort') matchingCards = nomCards
+      .filter(c => getShop2BufferRemaining(c) > 0)
+      .map(c => ({ ...c, quantity: getShop2BufferRemaining(c) }))
     else if (stageKey === 'qMalWait') matchingCards = matchOpsAndStatus(['Фарбування', 'Малярка'], ['new', 'waiting-machines', 'waiting-materials'])
     else if (stageKey === 'qMal') matchingCards = matchOpsAndStatus(['Фарбування', 'Малярка'], ['in-progress', 'paused'])
     else if (stageKey === 'qMalBuf') matchingCards = matchOpsAndStatus(['Фарбування', 'Малярка'], ['at-buffer'])

@@ -11,6 +11,7 @@ import { executeAtomicQcScrap } from '../../../services/atomicQcScrapService'
 import { executeAtomicCardTransition } from '../../../services/atomicCardTransitionService'
 import { incrementInventoryStock } from '../../../services/inventoryStockService'
 import { isPackagingOperation } from '../../Shop2CardGen/constants/shop2Stages'
+import { getShop2BufferRemaining } from '../../../utils/productionWipParity.js'
 
 
 export function useShop2TerminalState() {
@@ -631,19 +632,10 @@ export function useShop2TerminalState() {
   }
 
   const calculateTotalBufferParts = useCallback(() => {
-    let totalBufferPartsCount = 0
-    ;(workCards || []).forEach(card => {
-      const status = String(card.status || '')
-      const isSortedOrBuffer = status === 'at-shop2-buffer'
-
-      if (isSortedOrBuffer) {
-        const qty = Number(card.quantity || 0)
-        const used = Number(card.used_in_shop2_qty || 0)
-        totalBufferPartsCount += Math.max(0, qty - used)
-      }
-    })
-
-    return totalBufferPartsCount
+    return (workCards || []).reduce(
+      (total, card) => total + getShop2BufferRemaining(card),
+      0
+    )
   }, [workCards])
 
   return {
