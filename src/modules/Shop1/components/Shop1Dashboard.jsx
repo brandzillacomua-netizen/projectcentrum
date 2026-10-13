@@ -43,14 +43,34 @@ export function Shop1Dashboard({
             flex: 1; box-shadow: none !important; background: #000 !important; border: 1px solid var(--border-subtle) !important;
           }
         }
+        .s1-floating-search {
+          background: rgba(10, 10, 10, 0.95);
+          box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        body.light-theme .s1-floating-search {
+          background: rgba(255, 255, 255, 0.96);
+          border-color: #e2e8f0 !important;
+          box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
+        }
+        body.light-theme .s1-floating-search input { color: #0f172a !important; }
+        body.light-theme .s1-floating-search input::placeholder { color: #94a3b8; }
+        @media (max-width: 600px) {
+          body.light-theme .floating-controls-container {
+            background: rgba(255, 255, 255, 0.96) !important;
+            border-top: 1px solid #e2e8f0; box-shadow: 0 -10px 30px rgba(15, 23, 42, 0.1);
+          }
+          body.light-theme .floating-controls-container form {
+            background: #f8fafc !important; border: 1px solid #e2e8f0 !important;
+          }
+        }
       `}</style>
 
       {/* Floating Controls */}
       <div className="floating-controls-container">
-        <form onSubmit={handleManualEntry} style={{
-          display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(10, 10, 10, 0.95)',
+        <form onSubmit={handleManualEntry} className="s1-floating-search" style={{
+          display: 'flex', alignItems: 'center', gap: '8px',
           border: '1px solid var(--border-subtle)', padding: '10px 14px', borderRadius: '24px',
-          boxShadow: '0 10px 30px rgba(0,0,0,0.5)', backdropFilter: 'blur(10px)'
+          backdropFilter: 'blur(10px)'
         }}>
           <Search size={16} color="#6b7280" />
           <input
