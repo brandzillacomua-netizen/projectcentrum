@@ -13,7 +13,9 @@ export const isSgpReceiptHistory = row => {
 const inferSource = (history, card) => {
   const combined = `${text(history?.card_info)} ${text(card?.card_info)}`
   const shopMatch = combined.match(/\[ЦЕХ\s*№?\s*(\d+)\]/i)
-  const shop = shopMatch ? `Цех №${shopMatch[1]}` : 'Виробництво'
+  const op = text(card?.operation).toLocaleLowerCase('uk-UA')
+  const isShop2Op = ['фарбування', 'пресування', 'пакування', 'збірка'].some(s => op.includes(s)) || /\[SHOP:2\]/i.test(combined)
+  const shop = shopMatch ? `Цех №${shopMatch[1]}` : (isShop2Op ? 'Цех №2' : 'Виробництво')
 
   if (/ПРЯМА ПЕРЕДАЧА/i.test(combined) || /ПРЯМА ПЕРЕДАЧА/i.test(text(history?.operator_name))) {
     return `${shop} • пряма передача`
@@ -73,7 +75,9 @@ export function buildSgpReceiptRegistry({
     })
 
   const rowsFromCompletedCards = workCards
-    .filter(card => card && card.status === 'completed' && !historyCardIds.has(String(card.id)))
+    .filter(card => card && card.status === 'completed' && !historyCardIds.has(String(card.id)) &&
+      !text(card.operation).toLocaleLowerCase('uk-UA').includes('склад бз') &&
+      !text(card.card_info).includes('[ЗІ СКЛАДУ БЗ]'))
     .map(card => {
       const task = tasksById.get(String(card.task_id)) || {}
       const order = ordersById.get(String(card.order_id || task.order_id)) || {}

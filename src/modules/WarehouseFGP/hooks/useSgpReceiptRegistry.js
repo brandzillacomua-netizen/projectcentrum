@@ -35,11 +35,28 @@ export function useSgpReceiptRegistry({ workCards, tasks, orders, nomenclatures 
 
       setReceiptHistory(allHistoryRows)
 
-      const cardIds = [...new Set(allHistoryRows.map(row => row.card_id).filter(Boolean))]
-      if (cardIds.length === 0) {
-        setReceiptCards([])
-        return
+      const CARD_COLS = 'id,task_id,order_id,nomenclature_id,operation,operator_name,card_info,status,quantity,completed_at,updated_at,created_at,is_rework'
+
+      // Completed cards that finished Shop2 and were sent to SGP (store keeps only active cards)
+      const completedCards = []
+      let cOffset = 0
+      while (true) {
+        const { data, error } = await supabase
+          .from('work_cards')
+          .select(CARD_COLS)
+          .eq('status', 'completed')
+          .order('updated_at', { ascending: false })
+          .range(cOffset, cOffset + pageSize - 1)
+        if (error) throw error
+        if (!data || data.length === 0) break
+        completedCards.push(...data)
+        if (data.length < pageSize) break
+        cOffset += pageSize
       }
+
+      const knownIds = new Set(completedCards.map(c => String(c.id)))
+      const cardIds = [...new Set(allHistoryRows.map(row => row.card_id).filter(Boolean))]
+        .filter(id => !knownIds.has(String(id)))
 
       const batches = []
       for (let index = 0; index < cardIds.length; index += 100) {
@@ -47,11 +64,11 @@ export function useSgpReceiptRegistry({ workCards, tasks, orders, nomenclatures 
       }
       const results = await Promise.all(batches.map(ids => supabase
         .from('work_cards')
-        .select('id,task_id,order_id,nomenclature_id,operation,operator_name,card_info')
+        .select(CARD_COLS)
         .in('id', ids)))
       const cardsError = results.find(result => result.error)?.error
       if (cardsError) throw cardsError
-      setReceiptCards(results.flatMap(result => result.data || []))
+      setReceiptCards([...completedCards, ...results.flatMap(result => result.data || [])])
     } catch (error) {
       console.warn('[WarehouseFGP] Не вдалося завантажити реєстр надходжень СГП:', error)
     } finally {
@@ -61,13 +78,19 @@ export function useSgpReceiptRegistry({ workCards, tasks, orders, nomenclatures 
 
   useEffect(() => {
     fetchReceipts()
+    let timer = null
+    const scheduleFetch = () => {
+      clearTimeout(timer)
+      timer = setTimeout(fetchReceipts, 1500)
+    }
     const channel = supabase
       .channel('sgp-receipt-registry-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'work_card_history' }, fetchReceipts)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'work_cards' }, fetchReceipts)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'work_card_history' }, scheduleFetch)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'work_cards' }, scheduleFetch)
       .subscribe()
 
     return () => {
+      clearTimeout(timer)
       supabase.removeChannel(channel)
     }
   }, [fetchReceipts])
