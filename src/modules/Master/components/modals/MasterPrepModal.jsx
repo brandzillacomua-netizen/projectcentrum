@@ -287,13 +287,13 @@ export function MasterPrepModal({
               Наявність листів на складах
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '12px', alignItems: 'start' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))', gap: '12px', alignItems: 'start' }}>
               {stockWarehouses.map(warehouse => (
                 <div key={warehouse.key} style={{ background: 'var(--surface-1)', border: '1px solid var(--border-subtle)', borderRadius: '12px', overflow: 'hidden' }}>
                   <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--border-subtle)', color: warehouse.accent, fontSize: '0.78rem', fontWeight: 950, textTransform: 'uppercase' }}>
                     {warehouse.label}
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'minmax(110px, 1.4fr) repeat(3, minmax(58px, 0.7fr))', gap: '6px', padding: '8px 12px 5px', color: 'var(--text-dim)', fontSize: '0.62rem', fontWeight: 900, textTransform: 'uppercase' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'minmax(180px, 1fr) repeat(3, minmax(52px, 58px))', gap: '6px', padding: '8px 12px 5px', color: 'var(--text-dim)', fontSize: '0.62rem', fontWeight: 900, textTransform: 'uppercase' }}>
                     <div>Стан листа</div>
                     <div style={{ textAlign: 'right' }}>Всього</div>
                     <div style={{ textAlign: 'right' }}>Резерв</div>
@@ -318,8 +318,8 @@ export function MasterPrepModal({
                               {group.label}
                             </div>
                             {group.items.map(stock => (
-                              <div key={stock.id} style={{ display: 'grid', gridTemplateColumns: 'minmax(110px, 1.4fr) repeat(3, minmax(58px, 0.7fr))', gap: '6px', alignItems: 'center', padding: '8px 12px', borderTop: '1px solid var(--border-subtle)' }}>
-                                <div title={stock.name} style={{ color: 'var(--text-soft)', fontSize: '0.72rem', fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{stock.name}</div>
+                              <div key={stock.id} style={{ display: 'grid', gridTemplateColumns: 'minmax(180px, 1fr) repeat(3, minmax(52px, 58px))', gap: '6px', alignItems: 'center', padding: '8px 12px', borderTop: '1px solid var(--border-subtle)' }}>
+                                <div title={stock.name} style={{ color: 'var(--text-soft)', fontSize: '0.74rem', fontWeight: 800, lineHeight: 1.35, wordBreak: 'break-word' }}>{stock.name}</div>
                                 <div style={{ color: 'var(--text-strong)', textAlign: 'right', fontSize: '0.82rem', fontWeight: 900 }}>{formatStock(stock.total)}</div>
                                 <div style={{ color: '#f59e0b', textAlign: 'right', fontSize: '0.82rem', fontWeight: 900 }}>{formatStock(stock.reserved)}</div>
                                 <div style={{ color: '#22c55e', textAlign: 'right', fontSize: '0.82rem', fontWeight: 950 }}>{formatStock(stock.free)}</div>
