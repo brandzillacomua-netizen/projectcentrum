@@ -84,3 +84,65 @@ test('part sheet total ignores VKYA returns and warehouse cards', () => {
   assert.equal(result.actualSheets, 134)
   assert.equal(result.productionCards.length, 2)
 })
+
+test('card with object-shaped cardScrapMap correctly restores sheet count', () => {
+  const result = calculatePartShortage({
+    task: { id: 'task-2' },
+    entry: {
+      nomId: 'nom-2',
+      name: 'Detail 2',
+      nom: { id: 'nom-2', units_per_sheet: 50 },
+      snapshot: { need: 32000, stock: 0, plan: 32000, sheets: 640, units_per_sheet: 50, machine: 'Верстат 1200' }
+    },
+    cards: [
+      {
+        id: 'card-scrapped',
+        task_id: 'task-2',
+        nomenclature_id: 'nom-2',
+        operation: 'Розкрій',
+        quantity: 0,
+        card_info: '№1/160 [REQ:200] [BZ:0]'
+      }
+    ],
+    cardScrapMap: {
+      'card-scrapped': { scrap: 200, util: 200 }
+    },
+    scrapByNom: {},
+    flowTotalsByTaskNom: {}
+  })
+
+  assert.equal(result.actualSheets, 4)
+})
+
+test('actualSheets does not drop below plannedSheets once full card batch is created', () => {
+  const cards = []
+  // 160 cards planned for 640 sheets (4 sheets/card)
+  for (let i = 1; i <= 160; i++) {
+    // Suppose one card had its quantity wiped or tags altered
+    cards.push({
+      id: `card-${i}`,
+      task_id: 'task-3',
+      nomenclature_id: 'nom-3',
+      operation: 'Розкрій',
+      quantity: i === 1 ? 0 : 200,
+      card_info: i === 1 ? '№1/160' : `№${i}/160 [SHEETS:4]`
+    })
+  }
+
+  const result = calculatePartShortage({
+    task: { id: 'task-3' },
+    entry: {
+      nomId: 'nom-3',
+      name: 'Detail 3',
+      nom: { id: 'nom-3', units_per_sheet: 50 },
+      snapshot: { need: 32000, stock: 0, plan: 32000, sheets: 640, units_per_sheet: 50, machine: 'Верстат 1200' }
+    },
+    cards,
+    cardScrapMap: {},
+    scrapByNom: {},
+    flowTotalsByTaskNom: {}
+  })
+
+  assert.equal(result.actualSheets, 640)
+})
+

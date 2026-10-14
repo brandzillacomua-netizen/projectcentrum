@@ -1,0 +1,35 @@
+{
+  "at": "2026-10-14T16:18:12.014Z",
+  "engine": "PGlite PostgreSQL; isolated minimal schema fixture, not production schema parity",
+  "results": [
+    {
+      "name": "deduction rejects shortage and leaves both quantities unchanged",
+      "passed": true
+    },
+    {
+      "name": "deduction rejects negative and NaN parameters",
+      "passed": true
+    },
+    {
+      "name": "valid deduction preserves the deployed response and quantities",
+      "passed": true
+    },
+    {
+      "name": "reservation replay is applied once and changed payload is rejected",
+      "passed": true
+    },
+    {
+      "name": "QC scrap replay posts history and inventory once",
+      "passed": true
+    },
+    {
+      "name": "SGP shortage rolls back source, destination and card",
+      "passed": true
+    },
+    {
+      "name": "sorting exact balance, shortage rollback, successful replay",
+      "passed": false,
+      "error": "Expected values to be strictly equal:\n\n2 !== 1\n"
+    }
+  ]
+}

@@ -3,7 +3,29 @@ import { countAsProduced, getProducedQty, isBufferCard } from '../scrap/scrapCal
 import { getSnapshotPartEntries } from '../task-loading/taskSelectors.js'
 import { getBestKnownProducedFromFlow } from './flowUtils.js'
 
+export const capacityByMachine = (machineName) => {
+  const text = String(machineName || '').toLowerCase()
+  if (text.includes('1200') || text.includes('12x8') || text.includes('мал')) return 6
+  if (text.includes('3050') || text.includes('16x16')) return 12
+  if (text.includes('3060') || text.includes('30x16')) return 36
+  if (text.includes('6000') || text.includes('60x20')) return 96
+  if (text.includes('ke xin')) return 16
+  return 1
+}
+
+export const capacityRangeByMachine = (machineName) => {
+  const maxCapacity = Math.max(1, capacityByMachine(machineName))
+  const text = String(machineName || '').toLowerCase()
+  const isVariableSmallMachine = text.includes('1200') || text.includes('12x8') || text.includes('мал')
+  return {
+    defaultCapacity: isVariableSmallMachine ? 1 : maxCapacity,
+    maxCapacity
+  }
+}
+
 export const isVkyaReturnCard = (card) => {
+  // A cutting card ('Розкрій') was cut from sheet metal and is not a standalone VKYA return card
+  if (card?.operation === 'Розкрій') return false
   const info = String(card?.card_info || '')
   // Standalone VKYA return cards represent already manufactured details coming
   // back to the route. Colon-form tags are audit notes appended to an original
@@ -13,7 +35,7 @@ export const isVkyaReturnCard = (card) => {
 
 export const isZeroSheetCard = (card) => isBufferCard(card) || isVkyaReturnCard(card)
 
-export const getCardSheets = (card, unitsPerSheet) => {
+export const getCardSheets = (card, unitsPerSheet, fallbackCapacity = null) => {
   if (isZeroSheetCard(card)) return 0
 
   const explicit = asNumber(card?.actual_sheets ?? card?.actualSheets ?? card?.sheets)
@@ -21,7 +43,7 @@ export const getCardSheets = (card, unitsPerSheet) => {
   if (card?.card_info) {
     const info = String(card.card_info)
     const sheetsMatch = info.match(/\[SHEETS:(\d+)\]/i)
-    if (sheetsMatch) return asNumber(sheetsMatch[1])
+    if (sheetsMatch && asNumber(sheetsMatch[1]) > 0) return asNumber(sheetsMatch[1])
 
     const reqMatch = info.match(/\[REQ:(\d+)\]/i)
     const bzMatch = info.match(/\[BZ:(\d+)\]/i)
@@ -29,14 +51,35 @@ export const getCardSheets = (card, unitsPerSheet) => {
       // REQ is only the order demand. BZ is the usable remainder cut from the
       // same loading, so both quantities are required to reconstruct sheets.
       const loadedQty = asNumber(reqMatch?.[1]) + asNumber(bzMatch?.[1])
-      return loadedQty > 0
-        ? Math.ceil(loadedQty / Math.max(1, asNumber(unitsPerSheet, 1)))
-        : 0
+      if (loadedQty > 0) {
+        return Math.ceil(loadedQty / Math.max(1, asNumber(unitsPerSheet, 1)))
+      }
     }
   }
-  // No REQ tag at all → fall back to quantity + scrap_qty_from_history
-  const targetQty = asNumber(card?.quantity) + asNumber(card?.scrap_qty_from_history)
-  return Math.ceil(targetQty / Math.max(1, asNumber(unitsPerSheet, 1)))
+  // Fall back to quantity + scrap_qty_from_history
+  const scrapQty = asNumber(card?.scrap_qty_from_history ?? card?.scrap_qty ?? 0)
+  const targetQty = asNumber(card?.quantity) + scrapQty
+  if (targetQty > 0) {
+    return Math.ceil(targetQty / Math.max(1, asNumber(unitsPerSheet, 1)))
+  }
+
+  // If card was completed or scrapped down to 0 quantity, check qty_at_start
+  const startQty = asNumber(card?.qty_at_start ?? card?.initial_qty)
+  if (startQty > 0) {
+    return Math.ceil(startQty / Math.max(1, asNumber(unitsPerSheet, 1)))
+  }
+
+  // If fallback capacity is provided or derivable from machine, use it
+  if (fallbackCapacity && fallbackCapacity > 0) {
+    return fallbackCapacity
+  }
+  const machineCap = capacityRangeByMachine(card?.machine).defaultCapacity
+  if (machineCap > 1) {
+    return machineCap
+  }
+
+  // For any genuine cutting card created for this part, at least 1 sheet was used
+  return 1
 }
 
 export const calculatePartShortage = ({
@@ -73,12 +116,19 @@ export const calculatePartShortage = ({
     return match ? parseInt(match[1], 10) : 999999
   }
 
+  const getScrapFromMap = (entry) => {
+    if (entry && typeof entry === 'object') {
+      return asNumber(entry.scrap ?? entry.util ?? 0)
+    }
+    return asNumber(entry, 0)
+  }
+
   const nomCards = cards
     .filter(card => asId(card.task_id) === asId(task.id) && asId(card.nomenclature_id) === nomId)
     .sort((a, b) => parseCardSeqNumber(a) - parseCardSeqNumber(b))
     .map(card => ({
       ...card,
-      scrap_qty_from_history: asNumber(cardScrapMap?.[asId(card.id)])
+      scrap_qty_from_history: getScrapFromMap(cardScrapMap?.[asId(card.id)])
     }))
   const productionCards = nomCards.filter(card => !isBufferCard(card))
   
@@ -103,9 +153,44 @@ export const calculatePartShortage = ({
     .filter(card => !countAsProduced(card) && isRedoCard(card))
     .reduce((sum, card) => sum + asNumber(card.quantity), 0)
 
-  const actualSheets = productionCards.reduce((sum, card) => {
-    return sum + getCardSheets(card, unitsPerSheet)
+  let maxSeqTotal = 0
+  nomCards.forEach(c => {
+    const info = String(c?.card_info || '')
+    const match = info.match(/(?:№|#)?\s*\d+\s*\/\s*(\d+)/)
+    if (match) {
+      const tot = parseInt(match[1], 10)
+      if (tot > maxSeqTotal) maxSeqTotal = tot
+    }
+  })
+
+  const defaultMachineCap = capacityRangeByMachine(
+    snapshot.machine || snapshot.selected_machine || task.machine_name || productionCards[0]?.machine || ''
+  ).defaultCapacity
+
+  const knownSheetsList = productionCards
+    .map(c => getCardSheets(c, unitsPerSheet, null))
+    .filter(s => s > 0)
+  
+  const inferredCardSheets = (maxSeqTotal > 0 && plannedSheets > 0)
+    ? Math.max(1, Math.round(plannedSheets / maxSeqTotal))
+    : (knownSheetsList.length > 0 ? knownSheetsList[0] : (defaultMachineCap > 0 ? defaultMachineCap : 1))
+
+  const rawActualSheets = productionCards.reduce((sum, card) => {
+    return sum + getCardSheets(card, unitsPerSheet, inferredCardSheets)
   }, 0)
+
+  // Sheets count is cumulative: once a batch of cutting cards is generated, those sheets
+  // have been consumed from raw material stock and can never decrease due to completion,
+  // scrap, or routing changes. If the full quota of cards/loads was generated, actualSheets
+  // must stay at least plannedSheets permanently.
+  const expectedPlannedCards = maxSeqTotal > 0
+    ? maxSeqTotal
+    : ((plannedSheets > 0 && defaultMachineCap > 0) ? Math.ceil(plannedSheets / defaultMachineCap) : 0)
+
+  const hasFullCardCount = expectedPlannedCards > 0 && productionCards.length >= expectedPlannedCards
+  const actualSheets = hasFullCardCount
+    ? Math.max(plannedSheets, rawActualSheets)
+    : rawActualSheets
 
   const totalSheets = productionCards.length > 0 ? Math.max(plannedSheets, actualSheets) : plannedSheets
   const spareFromSheets = (totalSheets * unitsPerSheet) + stockBZ - need

@@ -194,7 +194,7 @@ export function useCardGeneration({ mes }) {
           operation: 'Розкрій',
           machine: selectedMachineName || 'Не вказано',
           estimatedTime: Math.round((Number(resolvedPartNom?.time_per_unit) || 0) * reqInThisLoading * 60),
-          cardInfo: `${prefix}№${currentSeq}${originalNeed > 0 ? ` [NEED:${originalNeed}]` : ''} [REQ:${reqInThisLoading}] [BZ:${bzInThisLoading}]`,
+          cardInfo: `${prefix}№${currentSeq}${originalNeed > 0 ? ` [NEED:${originalNeed}]` : ''} [REQ:${reqInThisLoading}] [BZ:${bzInThisLoading}] [SHEETS:${sheetsInThisLoading}]`,
           quantity: qtyInThisLoading,
           bufferQty: bzInThisLoading,
           actualSheets: sheetsInThisLoading,
