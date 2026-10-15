@@ -532,6 +532,7 @@ export function useShop1CardWorkflow({
       }
       const fullMachineNumber = formatMachineSequence(selectedMachine, machineNumber);
       const targetMachine = fullMachineNumber ? `${selectedMachine} №${fullMachineNumber}`.trim() : (selectedMachine?.trim() || 'Не вказано');
+      let resolvedMachineId = null;
 
       if (startOp === 'Розкрій' && targetMachine && targetMachine !== 'Не вказано') {
         const cleanName = (selectedMachine || '').trim().toLowerCase();
@@ -581,6 +582,7 @@ export function useShop1CardWorkflow({
           }
           return false;
         });
+        resolvedMachineId = matchedMachineObj?.id || null;
 
         if (maintenanceCheckEnabled && matchedMachineObj && (matchedMachineObj.status === 'maintenance_required' || matchedMachineObj.status === 'under_maintenance')) {
           setIsProcessing(false);
@@ -632,6 +634,7 @@ export function useShop1CardWorkflow({
         manager_name: selectedManager || 'Не вказано',
         shift_name: selectedShift,
         machine: targetMachine,
+        machine_id: resolvedMachineId,
         card_info: ((currentCard.card_info || '').replace('[SHOP:1]', '').trim() + ' [SHOP:1]').trim()
       };
 
@@ -672,6 +675,7 @@ export function useShop1CardWorkflow({
 
       const historyData = {
         card_id: currentCard.id,
+        task_id: currentCard.task_id,
         nomenclature_id: currentCard.nomenclature_id,
         stage_name: 'Розкрій (перезмінка)',
         operator_name: currentCard.operator_name || 'Не вказано',
@@ -683,6 +687,7 @@ export function useShop1CardWorkflow({
         shift_name: currentCard.shift_name || 'Без зміни',
         manager_name: currentCard.manager_name,
         machine_name: currentCard.machine,
+        machine_id: currentCard.machine_id,
         card_info: historyCardInfo
       };
 
@@ -739,6 +744,7 @@ export function useShop1CardWorkflow({
 
       const historyData = {
         card_id: currentCard.id,
+        task_id: currentCard.task_id,
         nomenclature_id: currentCard.nomenclature_id,
         stage_name: 'Розкрій',
         operator_name: currentCard.operator_name || 'Не вказано',
@@ -750,6 +756,7 @@ export function useShop1CardWorkflow({
         shift_name: currentCard.shift_name || 'Без зміни',
         manager_name: currentCard.manager_name || 'Не вказано',
         machine_name: currentCard.machine || 'Не вказано',
+        machine_id: currentCard.machine_id,
         card_info: `[PAUSED_WORK_LOG][REASON:${reasonText}]`
       };
 
@@ -809,6 +816,7 @@ export function useShop1CardWorkflow({
 
       const historyData = {
         card_id: currentCard.id,
+        task_id: currentCard.task_id,
         nomenclature_id: currentCard.nomenclature_id,
         stage_name: 'Розкрій (зупинка)',
         operator_name: currentCard.operator_name || 'Не вказано',
@@ -820,6 +828,7 @@ export function useShop1CardWorkflow({
         shift_name: currentCard.shift_name || 'Без зміни',
         manager_name: currentCard.manager_name || 'Не вказано',
         machine_name: currentCard.machine || 'Не вказано',
+        machine_id: currentCard.machine_id,
         card_info: `Причина зупинки: ${reasonText}`
       };
 
@@ -951,6 +960,7 @@ export function useShop1CardWorkflow({
           promises.push(
             supabase.from('work_card_history').insert([{
               card_id: currentCard.id,
+              task_id: currentCard.task_id,
               nomenclature_id: currentCard.nomenclature_id,
               stage_name: currentCard.operation,
               operator_name: op,
@@ -963,6 +973,7 @@ export function useShop1CardWorkflow({
               shift_name: activeShift,
               manager_name: currentCard.manager_name,
               machine_name: currentCard.machine,
+              machine_id: currentCard.machine_id,
               cutters_used: cuttersQty,
               card_info: historyCardInfo
             }])
@@ -976,6 +987,7 @@ export function useShop1CardWorkflow({
         promises.push(
           supabase.from('work_card_history').insert([{
             card_id: currentCard.id,
+            task_id: currentCard.task_id,
             nomenclature_id: currentCard.nomenclature_id,
             stage_name: currentCard.operation,
             operator_name: scrapOperator,
@@ -988,6 +1000,7 @@ export function useShop1CardWorkflow({
             shift_name: scrapShift,
             manager_name: currentCard.manager_name,
             machine_name: currentCard.machine,
+            machine_id: currentCard.machine_id,
             cutters_used: cuttersQty,
             card_info: (historyCardInfo + ' [SCRAP_ASSIGNED]').trim()
           }])
@@ -996,6 +1009,7 @@ export function useShop1CardWorkflow({
         promises.push(
           supabase.from('work_card_history').insert([{
             card_id: currentCard.id,
+            task_id: currentCard.task_id,
             nomenclature_id: currentCard.nomenclature_id,
             stage_name: currentCard.operation,
             operator_name: op,
@@ -1008,6 +1022,7 @@ export function useShop1CardWorkflow({
             shift_name: activeShift,
             manager_name: currentCard.manager_name,
             machine_name: currentCard.machine,
+            machine_id: currentCard.machine_id,
             cutters_used: cuttersQty,
             card_info: historyCardInfo
           }])

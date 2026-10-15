@@ -1,7 +1,8 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import { useMES } from '../../../MESContext.jsx'
 import { apiService } from '../../../services/apiDispatcher.js'
 import { supabase } from '../../../supabase.js'
+import { isCardAssignedToMachine } from '../utils/machineDashboardUtils.js'
 
 export const MACHINE_TYPES = [
   'CNC 1200x800 - 4 листи (Малий)',
@@ -23,19 +24,28 @@ export function useMachinesData() {
   const [isScanning, setIsScanning] = useState(false)
   const [scanError, setScanError] = useState(null)
 
+  const fetchMaintenanceLogs = useCallback(async (machineId) => {
+    if (!machineId) return []
+    const { data, error } = await supabase.from('machine_maintenance_logs')
+      .select('*')
+      .eq('machine_id', machineId)
+      .order('triggered_at', { ascending: false })
+    if (error) throw error
+    return data || []
+  }, [])
+
   useEffect(() => {
-    if (selectedMachineId) {
-      supabase.from('machine_maintenance_logs')
-        .select('*')
-        .eq('machine_id', selectedMachineId)
-        .order('triggered_at', { ascending: false })
-        .then(({ data }) => {
-          if (data) setMaintenanceLogs(data)
-        })
-    } else {
-      setMaintenanceLogs([])
-    }
-  }, [selectedMachineId, machines])
+    let cancelled = false
+    Promise.resolve().then(async () => {
+      try {
+        const logs = await fetchMaintenanceLogs(selectedMachineId)
+        if (!cancelled) setMaintenanceLogs(logs)
+      } catch (error) {
+        console.warn('[Machines] Failed to load maintenance history:', error)
+      }
+    })
+    return () => { cancelled = true }
+  }, [selectedMachineId, machines, fetchMaintenanceLogs])
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000)
@@ -67,7 +77,7 @@ export function useMachinesData() {
           } else {
             setScanError("Невірний QR-код верстата.")
           }
-        } catch (e) {
+        } catch {
           setScanError("Помилка зчитування QR-коду.")
         }
       }).catch(err => {
@@ -83,27 +93,7 @@ export function useMachinesData() {
   }, [isScanning, machines])
 
   const isCardOnMachine = (c, m) => {
-    if (!c || !m) return false;
-    if (c.machine_id === m.id) return true;
-
-    const cardMachineTxt = String(c.machine || '').toLowerCase().trim();
-    if (!cardMachineTxt || cardMachineTxt === 'не вказано') return false;
-
-    const machName = String(m.name || '').toLowerCase().trim();
-    const machInv = String(m.inventory_no || '').toLowerCase().trim();
-    const machSeq = String(m.sequence_number || '').toLowerCase().trim();
-    const machType = String(m.type || '').toLowerCase().trim();
-
-    if (machName && cardMachineTxt === machName) return true;
-    if (machInv && cardMachineTxt === machInv) return true;
-    
-    if (machType && machSeq && cardMachineTxt.includes(machType) && (cardMachineTxt.includes(`№${machSeq}`) || cardMachineTxt.includes(` ${machSeq}`))) return true;
-
-    if (machInv && (cardMachineTxt.includes(`№${machInv}`) || cardMachineTxt.includes(` ${machInv}`))) return true;
-
-    if (machSeq && machType && cardMachineTxt.includes(machType) && cardMachineTxt.endsWith(machSeq)) return true;
-
-    return false;
+    return isCardAssignedToMachine(c, m)
   }
 
   const activeWorkForMachine = (m) => {
@@ -291,43 +281,155 @@ export function useMachinesData() {
 
   const selectedMachine = machines.find(m => m.id === selectedMachineId)
 
+  const getCurrentUserName = () => {
+    const fullName = currentUser
+      ? `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim()
+      : ''
+    return fullName || currentUser?.name || currentUser?.login || 'Співробітник'
+  }
+
+  const refreshMachineData = async () => {
+    if (typeof fetchData === 'function') await fetchData(['machines', 'machine_calls'])
+    const logs = await fetchMaintenanceLogs(selectedMachineId)
+    setMaintenanceLogs(logs)
+  }
+
+  const updateMaintenanceLogWithFallback = async (queryFactory, payload) => {
+    let result = await queryFactory(payload)
+    if (!result.error) return result
+
+    const legacyPayload = { ...payload }
+    delete legacyPayload.maintenance_type
+    delete legacyPayload.machine_head
+    delete legacyPayload.spare_part
+    delete legacyPayload.notes
+    if (Object.keys(legacyPayload).length === Object.keys(payload).length) return result
+    result = await queryFactory(legacyPayload)
+    return result
+  }
+
+  const startMachineMaintenance = async ({ type, machineHead = null, sparePart = null, notes = '' }) => {
+    if (!selectedMachine) throw new Error('Верстат не вибрано')
+    const nowISO = new Date().toISOString()
+    const { error: machineError } = await supabase.from('machines').update({
+      status: 'under_maintenance',
+      maintenance_started_at: nowISO
+    }).eq('id', selectedMachine.id)
+    if (machineError) throw machineError
+
+    const { data: pendingLogs, error: pendingError } = await supabase.from('machine_maintenance_logs')
+      .select('*')
+      .eq('machine_id', selectedMachine.id)
+      .eq('status', 'pending')
+      .order('triggered_at', { ascending: false })
+      .limit(1)
+    if (pendingError) throw pendingError
+
+    const pendingLog = pendingLogs?.[0]
+    const responseSeconds = pendingLog?.triggered_at
+      ? Math.max(0, Math.floor((new Date(nowISO) - new Date(pendingLog.triggered_at)) / 1000))
+      : 0
+    const payload = {
+      status: 'in_progress',
+      started_at: nowISO,
+      response_duration_seconds: responseSeconds,
+      maintenance_type: type,
+      machine_head: machineHead,
+      spare_part: sparePart,
+      notes: String(notes || '').trim() || null
+    }
+
+    const result = pendingLog
+      ? await updateMaintenanceLogWithFallback(
+          values => supabase.from('machine_maintenance_logs').update(values).eq('id', pendingLog.id),
+          payload
+        )
+      : await updateMaintenanceLogWithFallback(
+          values => supabase.from('machine_maintenance_logs').insert([{
+            machine_id: selectedMachine.id,
+            triggered_at: nowISO,
+            ...values
+          }]),
+          payload
+        )
+    if (result.error) throw result.error
+    await refreshMachineData()
+  }
+
+  const completeMachineMaintenance = async () => {
+    if (!selectedMachine) throw new Error('Верстат не вибрано')
+    const nowISO = new Date().toISOString()
+    const { error: machineError } = await supabase.from('machines').update({
+      status: 'working',
+      completed_cards_count_since_maintenance: 0,
+      maintenance_pending_since: null,
+      maintenance_started_at: null
+    }).eq('id', selectedMachine.id)
+    if (machineError) throw machineError
+
+    const { data: activeLogs, error: activeError } = await supabase.from('machine_maintenance_logs')
+      .select('*')
+      .eq('machine_id', selectedMachine.id)
+      .eq('status', 'in_progress')
+      .order('started_at', { ascending: false })
+      .limit(1)
+    if (activeError) throw activeError
+
+    const log = activeLogs?.[0]
+    if (log) {
+      const durationSeconds = log.started_at
+        ? Math.max(0, Math.floor((new Date(nowISO) - new Date(log.started_at)) / 1000))
+        : 0
+      const { error } = await supabase.from('machine_maintenance_logs').update({
+        status: 'completed',
+        completed_at: nowISO,
+        performed_by: getCurrentUserName(),
+        maintenance_duration_seconds: durationSeconds
+      }).eq('id', log.id)
+      if (error) throw error
+    }
+    await refreshMachineData()
+  }
+
   const getHistoryForMachine = (m) => {
     if (!m) return [];
     const mid = String(m.id || '');
 
     const fromHistory = workCardHistory.filter(h => {
-      const hMid = String(h.machine_id || '');
-      if (hMid && hMid === mid) return true;
-      
+      const stage = String(h.stage_name || '').trim().toLowerCase()
+      if (stage && !stage.includes('розкрій')) return false
       const info = String(h.card_info || '');
-      if (info.includes(`[MACHINE_ID:${mid}]`)) return true;
-      if (m.name && info.includes(`[MACHINE_NAME:${m.name}]`)) return true;
+      const taggedId = info.match(/\[MACHINE_ID:([^\]]*)\]/i)?.[1]?.trim()
+      if (taggedId) return taggedId === mid
+      const taggedName = info.match(/\[MACHINE_NAME:([^\]]*)\]/i)?.[1]?.trim()
+      if (taggedName) return isCardOnMachine({ ...h, machine_id: null, machine_name: taggedName }, m)
 
       return isCardOnMachine(h, m);
     });
 
-    const fromWaiting = workCards.filter(c => 
-      c.status === 'waiting-buffer' && String(c.operation || '').trim().toLowerCase() === 'розкрій' && isCardOnMachine(c, m)
-    ).map(c => ({
+    const cuttingCards = workCards.filter(c =>
+      String(c.operation || '').trim().toLowerCase() === 'розкрій' && isCardOnMachine(c, m)
+    )
+    const hasRealOperator = card => {
+      const operator = String(card.operator_name || '').trim().toLowerCase()
+      return Boolean(operator && !['—', '-', 'не вказано', 'невідомо'].includes(operator))
+    }
+    const activeCandidates = cuttingCards
+      .filter(c => c.status === 'in-progress' && c.started_at && hasRealOperator(c))
+      .sort((a, b) => new Date(b.started_at || 0) - new Date(a.started_at || 0))
+    const currentActiveId = activeCandidates[0]?.id
+
+    const fromActive = activeCandidates.map(c => ({
       ...c,
       card_id: c.id,
       qty_completed: c.quantity,
       scrap_qty: 0,
-      is_pending: true
+      is_active: c.id === currentActiveId,
+      is_conflict: c.id !== currentActiveId
     }));
 
-    const fromActive = workCards.filter(c => 
-      (c.status === 'in-progress' || c.status === 'new') && String(c.operation || '').trim().toLowerCase() === 'розкрій' && isCardOnMachine(c, m)
-    ).map(c => ({
-      ...c,
-      card_id: c.id,
-      qty_completed: c.quantity,
-      scrap_qty: 0,
-      is_active: true
-    }));
-
-    return [...fromHistory, ...fromWaiting, ...fromActive].sort((a, b) => 
-      new Date(b.completed_at || b.created_at) - new Date(a.completed_at || a.created_at)
+    return [...fromHistory, ...fromActive].sort((a, b) =>
+      new Date(b.completed_at || b.started_at || b.created_at) - new Date(a.completed_at || a.started_at || a.created_at)
     );
   }
 
@@ -370,9 +472,12 @@ export function useMachinesData() {
     machines,
     loading,
     tasks,
+    orders,
+    workCards,
     nomenclatures,
     currentUser,
     supabase,
+    fetchData,
     showAdd,
     setShowAdd,
     selectedMachineId,
@@ -398,6 +503,8 @@ export function useMachinesData() {
     handleDelete,
     getHistoryForMachine,
     calculateTotalTime,
+    startMachineMaintenance,
+    completeMachineMaintenance,
     formatElapsed,
     formatPlanned
   }

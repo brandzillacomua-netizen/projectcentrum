@@ -8,6 +8,12 @@ import {
   isProductionOnlyMaterial,
   getBestRequestForNomenclature
 } from '../utils/packagingHelpers'
+import {
+  buildPackagingOrderScope,
+  getParentPackagingPlan,
+  getPackagingOrderContext,
+  isOrderInPackagingScope
+} from '../utils/packagingOrderScope'
 
 export function usePackagingData() {
   const location = useLocation()
@@ -148,6 +154,11 @@ export function usePackagingData() {
   const [showBoxSummary, setShowBoxSummary] = useState(false)
   const [showPackerModal, setShowPackerModal] = useState(false)
 
+  const packagingOrderScope = useMemo(() => buildPackagingOrderScope([
+    ...(orders || []),
+    ...Object.values(localOrders || {})
+  ]), [orders, localOrders])
+
   const packersList = useMemo(() => {
     return (systemUsers || []).filter(u => {
       const pos = (u.position || '').toLowerCase()
@@ -208,16 +219,6 @@ export function usePackagingData() {
     } catch (e) { console.error('[Packaging] loadSavedBoxes catch:', e) }
   }, [supabase])
 
-  useEffect(() => {
-    setSelectedNomIds(new Set())
-    setBoxNumbers({})
-    setSavedBoxes([])
-    setShowBoxSummary(false)
-    setCustomQty({})
-    setCustomItems([])
-    if (selectedBatch) loadSavedBoxes(selectedBatch)
-  }, [selectedBatch, loadSavedBoxes])
-
   const batchList = useMemo(() => {
     const relevantTasks = localTasks.filter(t => {
       if (t.plan_snapshot?._metadata?.is_packaged === true) return false
@@ -225,7 +226,9 @@ export function usePackagingData() {
     })
     const batchGroups = {}
     relevantTasks.forEach(task => {
-      const order = localOrders[task.order_id] || orders.find(o => o.id === task.order_id)
+      const orderContext = getPackagingOrderContext(task.order_id, packagingOrderScope)
+      const order = orderContext.parentOrder
+      const effectiveOrderId = orderContext.parentOrderId
       if (!order || order.status === 'deleted' || order.status === 'cancelled' || order.status === 'shipped') return
       if (order.order_num && (order.order_num.startsWith('ВБ') || order.order_num.startsWith('VB'))) return
       if (order.order_num && (order.order_num.startsWith('2608') || order.order_num.startsWith('2609') || order.order_num.startsWith('TEST'))) return
@@ -237,48 +240,68 @@ export function usePackagingData() {
       } catch (e) {}
 
       const hasRealSplitsInDB = localTasks.some(t => 
-        String(t.order_id) === String(order.id) && 
-        t.batch_index && 
+        String(t.order_id) === String(effectiveOrderId) &&
+        t.batch_index &&
         String(t.batch_index).startsWith('П')
       )
 
+      const matchingParentTask = relevantTasks.find(parentTask =>
+        String(parentTask.order_id) === String(effectiveOrderId) &&
+        (!task.batch_index || !parentTask.batch_index || String(parentTask.batch_index) === String(task.batch_index))
+      )
+      const effectiveBatchIndex = task.batch_index || matchingParentTask?.batch_index || ''
+      const parentPlannedSets = getParentPackagingPlan(
+        relevantTasks,
+        effectiveOrderId,
+        effectiveBatchIndex,
+        task
+      )
+      const addTaskToGroup = group => {
+        if (!group.tasks.some(existing => existing.id === task.id)) group.tasks.push(task)
+        if (parentPlannedSets > Number(group.plannedSets || 0)) group.plannedSets = parentPlannedSets
+        group.scopeOrderIds = Array.from(new Set([
+          ...(group.scopeOrderIds || []),
+          ...orderContext.scopeOrderIds
+        ]))
+      }
+
       if (hasRealSplitsInDB) {
         // Окремі фізичні таски в БД (після спліту)
-        const bIdx = task.batch_index || ''
-        const key = bIdx ? `${task.order_id}_${bIdx}` : `${task.order_id}_whole`
+        const bIdx = effectiveBatchIndex
+        const key = bIdx ? `${effectiveOrderId}_${bIdx}` : `${effectiveOrderId}_whole`
         if (!batchGroups[key]) {
           const productNames = order.order_items?.map(it => nomenclatures.find(n => n.id === it.nomenclature_id)?.name).filter(Boolean).join(', ') || '—'
           batchGroups[key] = { 
             key, 
-            orderId: task.order_id, 
+            orderId: effectiveOrderId,
+            scopeOrderIds: orderContext.scopeOrderIds,
             orderNum: order.order_num, 
             customer: order.customer, 
             productNames, 
             batchIndex: bIdx, 
-            plannedSets: task.planned_sets || 0, 
+            plannedSets: parentPlannedSets,
             deadline: task.planned_deadline || order.deadline,
             isPackaged: task.plan_snapshot?._metadata?.is_packaged === true, 
             isSplitTask: true,
             tasks: [] 
           }
         }
-        if (!batchGroups[key].tasks.some(t => t.id === task.id)) {
-          batchGroups[key].tasks.push(task)
-        }
+        addTaskToGroup(batchGroups[key])
       } else if (schedule.length > 1) {
         // Єдиний наряд у БД, але менеджер додав графік партій (потребує розділення)
-        const bIdx = task.batch_index || ''
-        const key = `${task.order_id}_needs_split`
+        const bIdx = effectiveBatchIndex
+        const key = `${effectiveOrderId}_needs_split`
         if (!batchGroups[key]) {
           const productNames = order.order_items?.map(it => nomenclatures.find(n => n.id === it.nomenclature_id)?.name).filter(Boolean).join(', ') || '—'
           batchGroups[key] = {
             key,
-            orderId: task.order_id,
+            orderId: effectiveOrderId,
+            scopeOrderIds: orderContext.scopeOrderIds,
             orderNum: order.order_num,
             customer: order.customer,
             productNames,
             batchIndex: bIdx,
-            plannedSets: task.planned_sets || order.order_items?.reduce((s, it) => s + (Number(it.quantity) || 0), 0) || 0,
+            plannedSets: parentPlannedSets || order.order_items?.reduce((s, it) => s + (Number(it.quantity) || 0), 0) || 0,
             deadline: task.planned_deadline || order.deadline,
             isPackaged: false,
             hasPendingScheduleSplit: true,
@@ -286,35 +309,37 @@ export function usePackagingData() {
             tasks: []
           }
         }
-        if (!batchGroups[key].tasks.some(t => t.id === task.id)) {
-          batchGroups[key].tasks.push(task)
-        }
+        addTaskToGroup(batchGroups[key])
       } else {
         // Звичайний нерозділений наряд
-        const bIdx = task.batch_index || ''
-        const key = bIdx ? `${task.order_id}_${bIdx}` : `${task.order_id}_whole`
+        const bIdx = effectiveBatchIndex
+        const key = bIdx ? `${effectiveOrderId}_${bIdx}` : `${effectiveOrderId}_whole`
         if (!batchGroups[key]) {
           const productNames = order.order_items?.map(it => nomenclatures.find(n => n.id === it.nomenclature_id)?.name).filter(Boolean).join(', ') || '—'
           batchGroups[key] = { 
             key, 
-            orderId: task.order_id, 
+            orderId: effectiveOrderId,
+            scopeOrderIds: orderContext.scopeOrderIds,
             orderNum: order.order_num, 
             customer: order.customer, 
             productNames, 
             batchIndex: bIdx, 
-            plannedSets: task.planned_sets || 0, 
+            plannedSets: parentPlannedSets,
             deadline: task.planned_deadline || order.deadline,
             isPackaged: task.plan_snapshot?._metadata?.is_packaged === true, 
             tasks: [] 
           }
         }
-        if (!batchGroups[key].tasks.some(t => t.id === task.id)) {
-          batchGroups[key].tasks.push(task)
-        }
+        addTaskToGroup(batchGroups[key])
       }
     })
 
     return Object.values(batchGroups).map(batch => {
+      batch.tasks.sort((a, b) => {
+        const aIsParent = String(a.order_id) === String(batch.orderId) ? 1 : 0
+        const bIsParent = String(b.order_id) === String(batch.orderId) ? 1 : 0
+        return bIsParent - aIsParent
+      })
       const batchBOM = []
       const order = localOrders[batch.orderId] || orders.find(o => o.id === batch.orderId)
       const hasSnapshot = batch.tasks.some(t => t.plan_snapshot)
@@ -372,14 +397,14 @@ export function usePackagingData() {
       })
 
       const batchReqs = (requests || []).filter(r => {
-        if (String(r.order_id) !== String(batch.orderId)) return false
+        if (!isOrderInPackagingScope(r.order_id, batch.scopeOrderIds)) return false
         if (!r.details?.includes('ЗАПИТ НА КОМПЛЕКТУВАННЯ')) return false
         const reqNom = nomenclatures.find(n => String(n.id) === String(r.nomenclature_id))
         if (reqNom && isProductionOnlyMaterial(reqNom)) return false
         const taskIdMatch = r.task_id && batch.tasks.some(t => String(t.id) === String(r.task_id))
         const detailsMatch = batch.batchIndex ? r.details?.includes(`/${batch.batchIndex}`) : false
         if (taskIdMatch || detailsMatch) return true
-        const allTasksForOrder = localTasks.filter(t => String(t.order_id) === String(batch.orderId))
+        const allTasksForOrder = localTasks.filter(t => isOrderInPackagingScope(t.order_id, batch.scopeOrderIds))
         if (allTasksForOrder.length <= 1 && r.details?.includes('КОМПЛЕКТУВАННЯ')) return true
         return false
       })
@@ -404,7 +429,7 @@ export function usePackagingData() {
       if (w[a.packStatus] !== w[b.packStatus]) return w[a.packStatus] - w[b.packStatus]
       return b.orderNum.localeCompare(a.orderNum)
     })
-  }, [localTasks, localOrders, orders, requests, bomItems, nomenclatures])
+  }, [localTasks, localOrders, orders, requests, bomItems, nomenclatures, packagingOrderScope])
 
   const activeQueueCount = useMemo(() => {
     return batchList.filter(b => b.packStatus !== 'completed').length
@@ -412,8 +437,25 @@ export function usePackagingData() {
 
   const activeBatchData = useMemo(() => {
     if (!selectedBatch) return null
-    return batchList.find(b => b.key === selectedBatch.key)
+    return batchList.find(b => b.key === selectedBatch.key) ||
+      batchList.find(b =>
+        isOrderInPackagingScope(selectedBatch.orderId, b.scopeOrderIds) &&
+        (!selectedBatch.batchIndex || String(selectedBatch.batchIndex) === String(b.batchIndex || ''))
+      )
   }, [selectedBatch, batchList])
+
+  useEffect(() => {
+    setSelectedNomIds(new Set())
+    setBoxNumbers({})
+    setSavedBoxes([])
+    setShowBoxSummary(false)
+    setCustomQty({})
+    setCustomItems([])
+    if (selectedBatch) {
+      const context = getPackagingOrderContext(selectedBatch.orderId, packagingOrderScope)
+      loadSavedBoxes({ ...selectedBatch, orderId: context.parentOrderId })
+    }
+  }, [selectedBatch, packagingOrderScope, loadSavedBoxes])
 
   // ─── BOM ──────────────────────────────────────────────────────────────────
   const { categorizedBOM } = useMemo(() => {
@@ -520,7 +562,7 @@ export function usePackagingData() {
 
     if (activeBatchData) {
       const relevant = (requests || []).filter(r =>
-        String(r.order_id) === String(activeBatchData.orderId) &&
+        isOrderInPackagingScope(r.order_id, activeBatchData.scopeOrderIds) &&
         r.details?.includes('ЗАПИТ НА КОМПЛЕКТУВАННЯ') &&
         ((activeBatchData.batchIndex && r.details?.includes(`/${activeBatchData.batchIndex}`)) || activeBatchData.tasks.some(t => String(t.id) === String(r.task_id)))
       )
@@ -572,7 +614,7 @@ export function usePackagingData() {
   const { orderRequests, isReadyToFinalize, hasAnyRequests } = useMemo(() => {
     if (!activeBatchData) return { orderRequests: [], completedRequestsCount: 0, isReadyToFinalize: false, hasAnyRequests: false }
     const relevant = (requests || []).filter(r =>
-      String(r.order_id) === String(activeBatchData.orderId) &&
+      isOrderInPackagingScope(r.order_id, activeBatchData.scopeOrderIds) &&
       r.details?.includes('ЗАПИТ НА КОМПЛЕКТУВАННЯ') &&
       !isProductionOnlyMaterial(nomenclatures.find(n => String(n.id) === String(r.nomenclature_id))) &&
       ((activeBatchData.batchIndex && r.details?.includes(`/${activeBatchData.batchIndex}`)) || activeBatchData.tasks.some(t => String(t.id) === String(r.task_id)))
@@ -669,7 +711,7 @@ export function usePackagingData() {
       const activeBOMItems = allBOMItems.filter(item => {
         const isSelected = selectedNomIds.has(item.nom.id)
         const hasReq = (requests || []).some(r =>
-          String(r.order_id) === String(activeBatchData.orderId) &&
+          isOrderInPackagingScope(r.order_id, activeBatchData.scopeOrderIds) &&
           String(r.nomenclature_id) === String(item.nom.id) &&
           r.details?.includes('ЗАПИТ НА КОМПЛЕКТУВАННЯ') &&
           activeBatchData.tasks.some(t => String(t.id) === String(r.task_id)) &&
