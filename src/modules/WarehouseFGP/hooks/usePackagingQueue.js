@@ -1,6 +1,11 @@
 import { useMemo, useState } from 'react'
 import { supabase } from '../../../supabase'
-import { normalizeKey, isHardware } from '../warehouseFgpInventory.js'
+import {
+  getGroupedSgpAvailableStock,
+  getGroupedSgpIssueAllocations,
+  getGroupedSgpIssueRow,
+  isSgpStockRow
+} from '../warehouseFgpInventory.js'
 
 export function usePackagingQueue({
   liveRequests,
@@ -9,6 +14,7 @@ export function usePackagingQueue({
   tasks,
   nomenclatures,
   inventory,
+  groupedInventory,
   requestQueueTab,
   isDark,
   currentUser,
@@ -48,7 +54,6 @@ export function usePackagingQueue({
   const activePackagingRequests = useMemo(() => {
     return allPackagingRequests.filter(r => {
       if (r.status === 'completed' || r.status === 'issued' || r.status === 'cancelled') return false
-      if (r.details?.includes('[PACKAGING_SOURCE:SGP]') || r.details?.includes('[PACKAGING_SOURCE:BZ]')) return false
       return true
     })
   }, [allPackagingRequests])
@@ -149,61 +154,77 @@ export function usePackagingQueue({
       : { label: 'ДЕТАЛЬ СГП', color: '#4338ca', bg: '#e0e7ff', border: '#c7d2fe' }
   }
 
-  const getSgpStock = (req, displayName) => {
-    if (req.nomenclature_id) {
-      const byNom = (inventory || [])
-        .filter(i => String(i.nomenclature_id) === String(req.nomenclature_id))
-        .reduce((sum, i) => sum + (Number(i.total_qty) || 0) - (Number(i.reserved_qty) || 0), 0)
-      if (byNom > 0) return byNom
-    }
-    const cleanDisplayName = normalizeKey(displayName)
-    return (inventory || [])
-      .filter(i => normalizeKey(i.name) === cleanDisplayName)
-      .reduce((sum, i) => sum + (Number(i.total_qty) || 0) - (Number(i.reserved_qty) || 0), 0)
-  }
+  // Use the exact same grouped row as the SGP "Готова продукція" table so the
+  // queue's "На СГП" value is identical to that table's "Вільно" column.
+  const getSgpStock = req => getGroupedSgpAvailableStock(groupedInventory, nomenclatures, req)
 
-  const handleIssueRequest = async (req) => {
-    if (!req || isIssuingReq) return
-    setIsIssuingReq(true)
-    try {
+  const issueRequest = async (req) => {
+    if (!req) throw new Error('Запит не знайдено')
       const issuerName = `${currentUser?.first_name || ''} ${currentUser?.last_name || ''}`.trim() || currentUser?.login || 'Комірник СГП'
+      const groupedIssueRow = getGroupedSgpIssueRow(groupedInventory, nomenclatures, req)
+      const hasLegacyMismatchedId = groupedIssueRow?.nomenclature_id &&
+        String(groupedIssueRow.nomenclature_id) !== String(req.nomenclature_id)
       
       let rpcSuccess = false
-      try {
-        const { data: rpcRes, error: rpcErr } = await supabase.rpc('issue_packaging_request_from_sgp', {
-          p_request_id: req.id,
-          p_issuer_name: issuerName
-        })
-        if (!rpcErr && rpcRes?.success) {
-          rpcSuccess = true
+      let rpcFailureMessage = ''
+      if (!hasLegacyMismatchedId) {
+        try {
+          const { data: rpcRes, error: rpcErr } = await supabase.rpc('issue_packaging_request_from_sgp', {
+            p_request_id: req.id,
+            p_issuer_name: issuerName
+          })
+          if (!rpcErr && rpcRes?.success) {
+            rpcSuccess = true
+          } else {
+            rpcFailureMessage = rpcRes?.message || rpcErr?.message || ''
+          }
+        } catch (e) {
+          rpcFailureMessage = e?.message || String(e)
         }
-      } catch (e) {}
+      }
 
       if (!rpcSuccess) {
         const neededQty = Number(req.quantity) || 0
         const displayName = getItemDisplayName(req)
-        const matchingSgpItem = (inventory || []).find(i => {
-          if (req.nomenclature_id && String(i.nomenclature_id) === String(req.nomenclature_id)) {
-            return i.warehouse === 'sgp' || i.type === 'finished' || i.type === 'bz' || i.type === 'part' || i.type === 'hardware' || isHardware(i)
-          }
-          return false
-        }) || (inventory || []).find(i => normalizeKey(i.name) === normalizeKey(displayName))
-
-        if (matchingSgpItem) {
-          const currentQty = Number(matchingSgpItem.total_qty) || 0
-          const newQty = Math.max(0, currentQty - neededQty)
-          await supabase.from('inventory').update({
-            total_qty: newQty,
-            updated_at: new Date().toISOString()
-          }).eq('id', matchingSgpItem.id)
+        let allocationResult = getGroupedSgpIssueAllocations(groupedInventory, nomenclatures, req, neededQty)
+        if (allocationResult.allocations.length === 0) {
+          const fallbackRows = (inventory || []).filter(item =>
+            String(item.nomenclature_id) === String(req.nomenclature_id) && isSgpStockRow(item)
+          )
+          allocationResult = getGroupedSgpIssueAllocations([
+            { nomenclature_id: req.nomenclature_id, name: displayName, rawItems: fallbackRows }
+          ], [{ id: req.nomenclature_id, name: displayName }], req, neededQty)
         }
 
+        if (allocationResult.allocations.length === 0) throw new Error(rpcFailureMessage || `Не знайдено залишок СГП для «${displayName}»`)
+        const availableQty = allocationResult.availableQty
+        if (availableQty < neededQty) throw new Error(`Недостатньо залишку СГП: доступно ${availableQty} шт, потрібно ${neededQty} шт`)
+
         const dateStr = new Date().toLocaleDateString('uk-UA') + ' ' + new Date().toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' })
-        await supabase.from('material_requests').update({
-          status: 'completed',
-          inventory_id: matchingSgpItem?.id || req.inventory_id || null,
-          details: `${req.details || ''} [ВИДАНО СГП: ${issuerName} ${dateStr}]`
+        const [firstAllocation, ...additionalAllocations] = allocationResult.allocations
+        const issueMarker = `[ВИДАНО СГП: ${issuerName} ${dateStr}]`
+        const updatePromise = supabase.from('material_requests').update({
+          status: 'issued',
+          quantity: firstAllocation.quantity,
+          inventory_id: firstAllocation.inventory.id,
+          details: `${req.details || ''} ${issueMarker}`
         }).eq('id', req.id)
+        const insertPromise = additionalAllocations.length > 0
+          ? supabase.from('material_requests').insert(additionalAllocations.map((allocation, index) => ({
+              order_id: req.order_id,
+              task_id: req.task_id,
+              nomenclature_id: req.nomenclature_id,
+              quantity: allocation.quantity,
+              status: 'issued',
+              inventory_id: allocation.inventory.id,
+              category: req.category || 'packaging',
+              target_warehouse: req.target_warehouse || 'sgp',
+              details: `${req.details || ''} [ЧАСТИНА ${index + 2}/${allocationResult.allocations.length}] ${issueMarker}`
+            })))
+          : Promise.resolve({ error: null })
+        const writeResults = await Promise.all([updatePromise, insertPromise])
+        const writeError = writeResults.find(result => result?.error)?.error
+        if (writeError) throw writeError
       }
 
       if (typeof refreshTable === 'function') {
@@ -214,8 +235,15 @@ export function usePackagingQueue({
         fetchData(['material_requests', 'inventory', 'orders'])
       }
       if (typeof fetchQueueFromDb === 'function') {
-        fetchQueueFromDb()
+        await fetchQueueFromDb()
       }
+  }
+
+  const handleIssueRequest = async (req) => {
+    if (!req || isIssuingReq) return
+    setIsIssuingReq(true)
+    try {
+      await issueRequest(req)
     } catch (err) {
       alert(`Помилка видачі: ${err.message || err}`)
     } finally {
@@ -228,7 +256,7 @@ export function usePackagingQueue({
     setIsIssuingReq(true)
     try {
       for (const req of orderGroup.items) {
-        await handleIssueRequest(req)
+        await issueRequest(req)
       }
       alert(`✅ Всі комплектуючі для наряду №${orderGroup.orderNum} успішно видано з СГП!`)
     } catch (err) {

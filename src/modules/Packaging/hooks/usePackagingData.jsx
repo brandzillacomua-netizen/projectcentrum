@@ -6,7 +6,7 @@ import { useStore } from '../../../store/index.js'
 import {
   isFinishedComponent,
   isProductionOnlyMaterial,
-  getBestRequestForNomenclature
+  getPackagingItemFulfillment
 } from '../utils/packagingHelpers'
 import {
   buildPackagingOrderScope,
@@ -484,6 +484,8 @@ export function usePackagingData() {
                   const snapItem = t.plan_snapshot[nom.id]
                   if (snapItem && typeof snapItem === 'object') {
                     qty = Math.max(qty, Number(snapItem.need) || 0)
+                    if (!map[nom.id]) map[nom.id] = { nom, qty: 0, initialReservedQty: 0, sourceKind: 'sgp' }
+                    map[nom.id].initialReservedQty = Math.max(map[nom.id].initialReservedQty || 0, Number(snapItem.stock) || 0)
                     snapFound = true
                   }
                 }
@@ -496,7 +498,7 @@ export function usePackagingData() {
                 qty = Number(b.quantity_per_parent) * Number(activeBatchData.plannedSets)
               }
               
-              if (!map[nom.id]) map[nom.id] = { nom, qty: 0, sourceKind: isSgp ? 'sgp' : 'operational' }
+              if (!map[nom.id]) map[nom.id] = { nom, qty: 0, initialReservedQty: 0, sourceKind: isSgp ? 'sgp' : 'operational' }
               map[nom.id].qty = Math.max(map[nom.id].qty, qty)
             }
           })
@@ -511,6 +513,8 @@ export function usePackagingData() {
                 const snapItem = t.plan_snapshot[nom.id]
                 if (snapItem && typeof snapItem === 'object') {
                   qty = Math.max(qty, Number(snapItem.need) || 0)
+                  if (!map[nom.id]) map[nom.id] = { nom, qty: 0, initialReservedQty: 0, sourceKind: isFinishedComponent(nom) ? 'sgp' : 'operational' }
+                  map[nom.id].initialReservedQty = Math.max(map[nom.id].initialReservedQty || 0, Number(snapItem.stock) || 0)
                   snapFound = true
                   if (snapItem.is_custom_packaging) isCustomPkg = true
                 }
@@ -519,7 +523,7 @@ export function usePackagingData() {
             if (!snapFound) {
               qty = Number(item.quantity)
             }
-            if (!map[nom.id]) map[nom.id] = { nom, qty: 0, sourceKind: isFinishedComponent(nom) ? 'sgp' : 'operational' }
+            if (!map[nom.id]) map[nom.id] = { nom, qty: 0, initialReservedQty: 0, sourceKind: isFinishedComponent(nom) ? 'sgp' : 'operational' }
             map[nom.id].qty = Math.max(map[nom.id].qty, qty)
             if (isCustomPkg) map[nom.id].isCustom = true
           }
@@ -551,6 +555,7 @@ export function usePackagingData() {
               map[key] = {
                 nom,
                 qty,
+                initialReservedQty: Math.max(0, Number(snapItem.stock) || 0),
                 isCustom: isCustomPackaging,
                 sourceKind: isCustomPackaging && isFinishedComponent(nom) ? 'bz' : (isFinishedComponent(nom) ? 'sgp' : 'operational')
               }
@@ -624,8 +629,8 @@ export function usePackagingData() {
 
     // Order is ready only when all BOM items have been picked/issued
     const allPicked = allBOMItems.length > 0 && allBOMItems.every(item => {
-      const reqRequest = getBestRequestForNomenclature(relevant, item.nom.id)
-      return reqRequest?.status === 'completed' || reqRequest?.status === 'issued'
+      const fulfillment = getPackagingItemFulfillment(relevant, item)
+      return fulfillment.fulfilledQty >= Number(item.qty || 0) && !fulfillment.hasPending
     })
 
     const isReadyToFinalize = allPicked
@@ -637,8 +642,8 @@ export function usePackagingData() {
   const pickedItemsWithoutBox = useMemo(() => {
     if (!isWarehouseConfirmed) return []
     return allBOMItems.filter(item => {
-      const reqRequest = getBestRequestForNomenclature(orderRequests, item.nom.id)
-      const isPicked = reqRequest?.status === 'completed' || reqRequest?.status === 'issued'
+      const fulfillment = getPackagingItemFulfillment(orderRequests, item)
+      const isPicked = fulfillment.fulfilledQty >= Number(item.qty || 0) && !fulfillment.hasPending
       if (!isPicked) return false
       const boxNum = boxNumbers[String(item.nom.id)]
       return !boxNum || !boxNum.trim()
@@ -710,14 +715,15 @@ export function usePackagingData() {
 
       const activeBOMItems = allBOMItems.filter(item => {
         const isSelected = selectedNomIds.has(item.nom.id)
-        const hasReq = (requests || []).some(r =>
+        const itemRequests = (requests || []).filter(r =>
           isOrderInPackagingScope(r.order_id, activeBatchData.scopeOrderIds) &&
           String(r.nomenclature_id) === String(item.nom.id) &&
           r.details?.includes('ЗАПИТ НА КОМПЛЕКТУВАННЯ') &&
           activeBatchData.tasks.some(t => String(t.id) === String(r.task_id)) &&
           ['pending', 'processing', 'completed', 'issued'].includes(r.status)
         )
-        return isSelected && !hasReq
+        const fulfillment = getPackagingItemFulfillment(itemRequests, item)
+        return isSelected && !fulfillment.hasPending && fulfillment.fulfilledQty < Number(item.qty || 0)
       })
 
       if (activeBOMItems.length === 0) {
@@ -726,7 +732,15 @@ export function usePackagingData() {
       }
 
       const itemsToRequest = activeBOMItems.map(r => {
-        const effectiveQty = customQty[String(r.nom.id)] !== undefined ? Number(customQty[String(r.nom.id)]) : r.qty
+        const itemRequests = (requests || []).filter(request =>
+          isOrderInPackagingScope(request.order_id, activeBatchData.scopeOrderIds) &&
+          String(request.nomenclature_id) === String(r.nom.id) &&
+          request.details?.includes('ЗАПИТ НА КОМПЛЕКТУВАННЯ') &&
+          activeBatchData.tasks.some(task => String(task.id) === String(request.task_id))
+        )
+        const fulfillment = getPackagingItemFulfillment(itemRequests, r)
+        const remainingQty = Math.max(0, Number(r.qty || 0) - fulfillment.fulfilledQty)
+        const effectiveQty = customQty[String(r.nom.id)] !== undefined ? Number(customQty[String(r.nom.id)]) : remainingQty
         return {
           nomId: r.nom.id,
           name: r.nom.material_type ? `${r.nom.name} (${r.nom.material_type})` : r.nom.name,
@@ -734,7 +748,7 @@ export function usePackagingData() {
           packagingSource: 'sgp',
           isCustomPackaging: r.isCustom === true
         }
-      })
+      }).filter(item => item.qty > 0)
 
       await submitPickingRequest(activeBatchData.orderId, itemsToRequest, activeBatchData.tasks[0]?.id)
       alert(`✅ Запит на ${itemsToRequest.length} поз. успішно відправлено на склад!`)

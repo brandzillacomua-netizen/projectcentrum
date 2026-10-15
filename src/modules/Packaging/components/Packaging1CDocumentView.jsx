@@ -5,6 +5,7 @@ import {
 } from 'lucide-react'
 import { PackagingBomList } from './PackagingBomList.jsx'
 import { PackagingBoxSummary } from './PackagingBoxSummary.jsx'
+import { getPackagingItemFulfillment } from '../utils/packagingHelpers'
 
 export const Packaging1CDocumentView = ({
   activeBatchData,
@@ -55,10 +56,9 @@ export const Packaging1CDocumentView = ({
   const activeSelectedSet = selectedNomIds || excludedNomIds || new Set()
   const selectedItemsCount = (allBOMItems || []).filter(item => {
     const isSelected = activeSelectedSet.has(item.nom.id)
-    const reqRequest = (orderRequests || []).find(r => String(r.nomenclature_id) === String(item.nom.id))
-    const isPicked = reqRequest?.status === 'completed' || reqRequest?.status === 'issued'
-    const isPending = reqRequest?.status === 'pending'
-    return isSelected && !isPicked && !isPending
+    const fulfillment = getPackagingItemFulfillment(orderRequests, item)
+    const isFullyPicked = fulfillment.fulfilledQty >= Number(item.qty || 0)
+    return isSelected && !isFullyPicked && !fulfillment.hasPending
   }).length
 
   const hasAnyBoxNumber = Object.values(boxNumbers).some(v => v?.trim())

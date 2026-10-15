@@ -1,6 +1,7 @@
 import { confirmedRpc } from '../services/confirmedRpc.js'
 import { supabase } from '../supabase'
 import { getRequestSheetSpec, inventoryMatchesRequest } from '../modules/Warehouse/utils/materialInventoryMatching.js'
+import { resolveCanonicalNomId } from '../modules/Nomenclature/utils/nomenclatureHelpers.js'
 import { isRequestForCard } from '../utils/materialCardMatching.js'
 
 /**
@@ -790,20 +791,23 @@ export function createWarehouseActions({
     const requestsToInsert = []
 
     for (const item of requiredItems) {
-      const nomId = item.nomId || item.nomenclature_id
+      const rawNomId = item.nomId || item.nomenclature_id
+      // Packaging and SGP must reference the same logical nomenclature even
+      // when an older task still contains a legacy V1 id.
+      const nomId = resolveCanonicalNomId(rawNomId, nomenclatures) || rawNomId
       const neededQty = Number(item.qty) || 0
       const sourceCode = item.packagingSource === 'bz' ? 'BZ' : item.packagingSource === 'operational' ? 'SO' : 'SGP'
       const sourceMarker = `[PACKAGING_SOURCE:${sourceCode}]`
       const customMarker = item.isCustomPackaging ? ' [PACKAGING_CUSTOM]' : ''
-      const isAutoIssued = sourceCode === 'SGP' || sourceCode === 'BZ'
-
       requestsToInsert.push({
         order_id: orderId,
         task_id: taskId,
         nomenclature_id: nomId,
         quantity: neededQty,
-        status: isAutoIssued ? 'issued' : 'pending',
+        status: 'pending',
         inventory_id: null,
+        category: 'packaging',
+        target_warehouse: sourceCode === 'SO' ? 'operational' : 'sgp',
         details: `ЗАПИТ НА КОМПЛЕКТУВАННЯ (${order?.order_num || ''}${batchSuffix}) ${sourceMarker}${customMarker}: ${item.name} — ${neededQty} шт.`
       })
     }
@@ -820,18 +824,6 @@ export function createWarehouseActions({
 
   const syncStuckWorkCards = async (taskIds = null) => {
     try {
-      // Auto-issue any pending SGP packaging requests (since SGP stock is reserved during order creation)
-      const { data: sgpFixData } = await supabase
-        .from('material_requests')
-        .update({ status: 'issued' })
-        .or('details.ilike.%[PACKAGING_SOURCE:SGP]%,details.ilike.%[PACKAGING_SOURCE:BZ]%')
-        .eq('status', 'pending')
-        .select('id')
-
-      if (sgpFixData && sgpFixData.length > 0) {
-        refreshTable('material_requests')
-      }
-
       let query = supabase.from('work_cards').select('*').in('status', ['waiting-materials', 'waiting-cutters'])
       if (taskIds && taskIds.length > 0) {
         query = query.in('task_id', taskIds)

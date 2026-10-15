@@ -951,10 +951,10 @@ export function createProductionCardsActions({
             const ov = customPartBZOverrides[partId]
             if (typeof ov === 'number' || (!isNaN(ov) && ov !== true && ov !== false && ov !== '')) {
               requestedQtyForBZ = Math.max(0, Number(ov))
-            } else if (Boolean(ov)) {
+            } else if (ov) {
               requestedQtyForBZ = requestedQty * (Number(part.qtyPer) || 1)
             }
-          } else if (Boolean(customUseStockBZ)) {
+          } else if (customUseStockBZ) {
             requestedQtyForBZ = requestedQty * (Number(part.qtyPer) || 1)
           }
 
@@ -1004,10 +1004,10 @@ export function createProductionCardsActions({
             if (typeof ov === 'number' || (!isNaN(ov) && ov !== true && ov !== false && ov !== '')) {
               const targetQty = Math.max(0, Number(ov))
               usedFromStock = Math.min(targetQty, totalNeeded, allocatedRemaining)
-            } else if (Boolean(ov)) {
+            } else if (ov) {
               usedFromStock = Math.min(totalNeeded, allocatedRemaining)
             }
-          } else if (Boolean(customUseStockBZ)) {
+          } else if (customUseStockBZ) {
             usedFromStock = Math.min(totalNeeded, allocatedRemaining)
           }
 
@@ -1408,16 +1408,35 @@ export function createProductionCardsActions({
       const batchSuffix = (tData?.batch_index && Number(tData.batch_index) > 1) ? ` - Партія ${tData.batch_index}` : ''
       const orderNum = order?.order_num || (orderId ? String(orderId) : '???')
 
+      const allocatedNomIds = [...new Set(bzStockDeductions
+        .map(allocation => allocation.nomenclature_id)
+        .filter(Boolean))]
+      let freshSgpInventory = []
+      if (allocatedNomIds.length > 0) {
+        const { data: freshRows, error: freshRowsError } = await supabase
+          .from('inventory')
+          .select('id,nomenclature_id,total_qty,reserved_qty,type,warehouse,pocket_owner')
+          .in('nomenclature_id', allocatedNomIds)
+        if (freshRowsError) throw freshRowsError
+        freshSgpInventory = freshRows || []
+      }
+
       const sgpRequestsToInsert = bzStockDeductions
         .filter(alloc => Number(alloc.quantity) > 0)
         .map(alloc => {
           const partNom = (nomenclatures || []).find(n => String(n.id) === String(alloc.nomenclature_id))
           const partName = partNom?.name || 'Деталь'
-          const sgpInv = (inventory || []).find(i =>
-            String(i.nomenclature_id) === String(alloc.nomenclature_id) &&
-            (i.warehouse === 'sgp' || i.type === 'finished' || i.type === 'bz') &&
-            (!i.pocket_owner || i.pocket_owner === 'Не вказано')
-          )
+          const sgpInv = freshSgpInventory
+            .filter(i =>
+              String(i.nomenclature_id) === String(alloc.nomenclature_id) &&
+              ['finished', 'part', 'product', 'bz', 'bz_shop2', 'wip_bz', 'semi', 'semi_shop2'].includes(String(i.type || '').toLowerCase()) &&
+              (!i.pocket_owner || i.pocket_owner === 'Не вказано')
+            )
+            .sort((a, b) => {
+              const availableA = (Number(a.total_qty) || 0) - (Number(a.reserved_qty) || 0)
+              const availableB = (Number(b.total_qty) || 0) - (Number(b.reserved_qty) || 0)
+              return availableB - availableA
+            })[0]
           return {
             order_id: validOrderId,
             task_id: tData.id,
@@ -1427,7 +1446,7 @@ export function createProductionCardsActions({
             nomenclature_id: alloc.nomenclature_id,
             category: 'hardware',
             target_warehouse: 'sgp',
-            details: `ЗАПИТ НА КОМПЛЕКТУВАННЯ (${orderNum}${batchSuffix}) [PACKAGING_SOURCE:SGP]: ${partName} — ${alloc.quantity} шт.`
+            details: `ЗАПИТ НА КОМПЛЕКТУВАННЯ (${orderNum}${batchSuffix}) [PACKAGING_SOURCE:SGP] [AUTO_SGP_RESERVATION]: ${partName} — ${alloc.quantity} шт.`
           }
         })
 

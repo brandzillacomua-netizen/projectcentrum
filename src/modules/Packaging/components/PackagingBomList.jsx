@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react'
 import { Plus, CheckCircle2, Trash2, Hash, Layers, Wrench, FileArchive, Package, Box, AlertCircle } from 'lucide-react'
-import { getBoxColor, getBestRequestForNomenclature } from '../utils/packagingHelpers'
+import { getBoxColor, getPackagingItemFulfillment } from '../utils/packagingHelpers'
 
 export const PackagingBomList = ({
   categorizedBOM,
@@ -40,11 +40,11 @@ export const PackagingBomList = ({
   // ─── Всі елементи, які можна відзначати/знімати (ще не видані повністю і не в обробці) ───
   const getCategoryToggleableItems = (catItems) => {
     return catItems.filter(item => {
-      const reqRequest = getBestRequestForNomenclature(orderRequests, item.nom.id)
-      const sgpIssuedQty = (reqRequest && (reqRequest.status === 'completed' || reqRequest.status === 'issued')) ? (reqRequest.quantity || 0) : 0
+      const fulfillment = getPackagingItemFulfillment(orderRequests, item)
+      const sgpIssuedQty = fulfillment.fulfilledQty
       const totalPlanQty = customQty[String(item.nom.id)] !== undefined ? customQty[String(item.nom.id)] : item.qty
       const isFullyIssued = totalPlanQty > 0 && sgpIssuedQty >= totalPlanQty
-      const isPending = reqRequest?.status === 'pending' || reqRequest?.status === 'processing'
+      const isPending = fulfillment.hasPending
       return !activeBatchData.isPackaged && !isFullyIssued && !isPending
     })
   }
@@ -53,11 +53,11 @@ export const PackagingBomList = ({
     const list = []
     Object.values(categorizedBOM).forEach(cat => {
       cat.items.forEach(item => {
-        const reqRequest = getBestRequestForNomenclature(orderRequests, item.nom.id)
-        const sgpIssuedQty = (reqRequest && (reqRequest.status === 'completed' || reqRequest.status === 'issued')) ? (reqRequest.quantity || 0) : 0
+        const fulfillment = getPackagingItemFulfillment(orderRequests, item)
+        const sgpIssuedQty = fulfillment.fulfilledQty
         const totalPlanQty = customQty[String(item.nom.id)] !== undefined ? customQty[String(item.nom.id)] : item.qty
         const isFullyIssued = totalPlanQty > 0 && sgpIssuedQty >= totalPlanQty
-        const isPending = reqRequest?.status === 'pending' || reqRequest?.status === 'processing'
+        const isPending = fulfillment.hasPending
         const canToggle = !activeBatchData.isPackaged && !isFullyIssued && !isPending
         if (canToggle) {
           list.push(item)
@@ -278,13 +278,13 @@ export const PackagingBomList = ({
                   ) : (
                     cat.items.map((item) => {
                       globalIndex += 1
-                      const reqRequest = getBestRequestForNomenclature(orderRequests, item.nom.id)
-                      const sgpIssuedQty = (reqRequest && (reqRequest.status === 'completed' || reqRequest.status === 'issued')) ? (reqRequest.quantity || 0) : 0
+                      const fulfillment = getPackagingItemFulfillment(orderRequests, item)
+                      const sgpIssuedQty = fulfillment.fulfilledQty
                       const totalPlanQty = item.qty
                       const remainingQty = Math.max(0, totalPlanQty - sgpIssuedQty)
                       const isFullyIssued = totalPlanQty > 0 && sgpIssuedQty >= totalPlanQty
                       const isPartiallyIssued = sgpIssuedQty > 0 && sgpIssuedQty < totalPlanQty
-                      const isPending = reqRequest?.status === 'pending' || reqRequest?.status === 'processing'
+                      const isPending = fulfillment.hasPending
                       const isChecked = activeSelectedSet.has(item.nom.id)
                       const canToggle = !activeBatchData.isPackaged && !isFullyIssued && !isPending
                       const effectiveQty = customQty[String(item.nom.id)] !== undefined ? Number(customQty[String(item.nom.id)]) : remainingQty
@@ -596,7 +596,7 @@ export const PackagingBomList = ({
 
                           {/* 7. ДІЇ (ВИДАЛИТИ КАСТОМНУ ПОЗИЦІЮ) */}
                           <td style={{ padding: '9px 8px', textAlign: 'center' }}>
-                            {item.isCustom && !isPicked && !activeBatchData.isPackaged ? (
+                            {item.isCustom && sgpIssuedQty === 0 && !isPending && !activeBatchData.isPackaged ? (
                               <button
                                 type="button"
                                 onClick={e => {

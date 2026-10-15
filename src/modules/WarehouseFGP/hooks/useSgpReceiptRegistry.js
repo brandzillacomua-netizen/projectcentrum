@@ -24,12 +24,8 @@ export function useSgpReceiptRegistry({ workCards, tasks, orders, nomenclatures 
 
   // Точна загальна кількість з бази (без завантаження рядків)
   const fetchTotalCount = useCallback(async () => {
-    const { data, error } = await supabase.rpc('count_sgp_receipts')
-    if (!error && data != null) {
-      setTotalCount(Number(data))
-      return
-    }
-    // Fallback, якщо міграція ще не застосована: наближено (можливий перетин)
+    // Use direct count queries until count_sgp_receipts is deployed everywhere.
+    // Calling a missing RPC produces a noisy 404 on every refresh.
     const [h, c] = await Promise.all([
       supabase.from('work_card_history').select('id', { count: 'exact', head: true }).or(HISTORY_FILTER).gt('qty_completed', 0),
       supabase.from('work_cards').select('id', { count: 'exact', head: true }).eq('status', 'completed').not('operation', 'ilike', '%склад бз%').not('operation', 'ilike', '%сгп%').not('operation', 'ilike', '%пакування/сгп%')

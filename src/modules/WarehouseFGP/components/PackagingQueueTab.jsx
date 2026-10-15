@@ -487,7 +487,8 @@ export function PackagingQueueTab({
             const badge = getItemCategoryBadge(req, displayName)
             const sgpStock = getSgpStock(req, displayName)
             const neededQty = Number(req.quantity) || 0
-            const hasEnough = sgpStock >= neededQty
+            const isAlreadyIssued = req.status === 'completed' || req.status === 'issued'
+            const hasEnough = isAlreadyIssued || sgpStock >= neededQty
             return { req, displayName, badge, sgpStock, neededQty, hasEnough }
           })
           const totalOrderItems = itemsWithStock.length
@@ -625,7 +626,8 @@ export function PackagingQueueTab({
                     <button
                       type="button"
                       onClick={() => handleIssueAllForOrder(group)}
-                      disabled={isIssuingReq}
+                      disabled={isIssuingReq || hasShortage}
+                      title={hasShortage ? 'Спочатку потрібно забезпечити повний залишок усіх позицій наряду' : 'Видати та зарезервувати всі позиції наряду'}
                       style={{
                         background: '#10b981',
                         color: '#ffffff',
@@ -634,7 +636,8 @@ export function PackagingQueueTab({
                         padding: '9px 18px',
                         fontSize: '0.82rem',
                         fontWeight: 1000,
-                        cursor: isIssuingReq ? 'not-allowed' : 'pointer',
+                        cursor: isIssuingReq || hasShortage ? 'not-allowed' : 'pointer',
+                        opacity: hasShortage ? 0.55 : 1,
                         display: 'flex',
                         alignItems: 'center',
                         gap: '8px',
@@ -806,7 +809,8 @@ export function PackagingQueueTab({
                                   <button
                                     type="button"
                                     onClick={() => handleIssueRequest(req)}
-                                    disabled={isIssuingReq}
+                                    disabled={isIssuingReq || !hasEnough}
+                                    title={!hasEnough ? `Недостатньо залишку: бракує ${neededQty - sgpStock} шт` : 'Видати та зарезервувати позицію'}
                                     style={{
                                       background: t.issueBtnBg,
                                       color: t.issueBtnText,
@@ -815,7 +819,8 @@ export function PackagingQueueTab({
                                       padding: '6px 14px',
                                       fontSize: '0.78rem',
                                       fontWeight: 900,
-                                      cursor: isIssuingReq ? 'not-allowed' : 'pointer',
+                                      cursor: isIssuingReq || !hasEnough ? 'not-allowed' : 'pointer',
+                                      opacity: !hasEnough ? 0.55 : 1,
                                       display: 'inline-flex',
                                       alignItems: 'center',
                                       gap: '5px',

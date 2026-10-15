@@ -130,6 +130,7 @@ export const WarehouseFGPModule: React.FC = () => {
     tasks,
     nomenclatures,
     inventory,
+    groupedInventory: groupedItems,
     requestQueueTab,
     isDark,
     currentUser,

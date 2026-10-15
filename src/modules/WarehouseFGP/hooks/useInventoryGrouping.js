@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
-import { isHardware, normalizeKey } from '../warehouseFgpInventory.js'
+import { resolveCanonicalNomId } from '../../Nomenclature/utils/nomenclatureHelpers.js'
+import { isHardware, isSgpStockRow, normalizeKey } from '../warehouseFgpInventory.js'
 
 export function useInventoryGrouping({
   inventory,
@@ -24,12 +25,7 @@ export function useInventoryGrouping({
         if (item.warehouse !== 'sgp' && (Number(item.total_qty) || 0) <= 0 && (Number(item.reserved_qty) || 0) <= 0) {
           return false
         }
-        return !isHardware(item) && (
-          type === 'finished' || type === 'part' || type === 'product' ||
-          type === 'bz' || type === 'bz_shop2' || type === 'wip_bz' ||
-          type === 'semi' || type === 'semi_shop2' ||
-          nameLower.includes('бз') || nameLower.includes('буфер')
-        )
+        return isSgpStockRow(item)
       }
       if (activeTab === 'scrap') {
         return !isHardware(item) && (type === 'scrap' || type === 'scrap_ready' || type.startsWith('scrap_cat_') || (type !== 'finished' && (nameLower.includes('брак') || nameLower.includes('карантин'))))
@@ -42,17 +38,12 @@ export function useInventoryGrouping({
   const groupedItems = useMemo(() => {
     const map = new Map()
 
-    // Map normalized name to canonical nomenclature id for resilient grouping
-    const nomNameToId = new Map()
-    ;(nomenclatures || []).forEach(n => {
-      const norm = normalizeKey(n.name)
-      if (norm && !nomNameToId.has(norm)) nomNameToId.set(norm, String(n.id))
-    })
-
     rawTabItems.forEach(item => {
       const cleanName = (item.name || '').trim()
       const normName = normalizeKey(cleanName)
-      const canonicalNomId = nomNameToId.get(normName) || (item.nomenclature_id ? String(item.nomenclature_id) : null)
+      const canonicalNomId = item.nomenclature_id
+        ? resolveCanonicalNomId(item.nomenclature_id, nomenclatures)
+        : null
       const key = canonicalNomId ? `nom_${canonicalNomId}` : `name_${normName}`
 
       if (!map.has(key)) {
@@ -89,16 +80,10 @@ export function useInventoryGrouping({
     const counts = { finished: 0, hardware: 0, shop2_buffer: 0, scrap: 0, registry: 0 }
     ;(inventory || []).forEach(item => {
       const type = item.type || ''
-      const nameLower = (item.name || '').toLowerCase()
       const q = Number(item.total_qty) || 0
       if (isHardware(item)) {
         counts.hardware += q
-      } else if (
-        type === 'finished' || type === 'part' || type === 'product' ||
-        type === 'bz' || type === 'bz_shop2' || type === 'wip_bz' ||
-        type === 'semi' || type === 'semi_shop2' ||
-        nameLower.includes('бз') || nameLower.includes('буфер')
-      ) {
+      } else if (isSgpStockRow(item)) {
         counts.finished += q
       } else if (type === 'scrap' || type === 'scrap_ready' || type.startsWith('scrap_cat_')) {
         counts.scrap += q

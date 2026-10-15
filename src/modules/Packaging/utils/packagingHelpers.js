@@ -57,3 +57,29 @@ export function getBestRequestForNomenclature(requests, nomenclatureId) {
     .filter(request => String(request.nomenclature_id) === String(nomenclatureId))
     .sort((a, b) => (REQUEST_STATUS_PRIORITY[b.status] || 0) - (REQUEST_STATUS_PRIORITY[a.status] || 0))[0]
 }
+
+export function getRequestFulfillmentForNomenclature(requests, nomenclatureId) {
+  const matchingRequests = (requests || []).filter(
+    request => String(request.nomenclature_id) === String(nomenclatureId)
+  )
+
+  return {
+    requests: matchingRequests,
+    issuedQty: matchingRequests
+      .filter(request => request.status === 'issued' || request.status === 'completed')
+      .reduce((sum, request) => sum + (Number(request.quantity) || 0), 0),
+    hasPending: matchingRequests.some(
+      request => request.status === 'pending' || request.status === 'processing'
+    )
+  }
+}
+
+export function getPackagingItemFulfillment(requests, item) {
+  const requestFulfillment = getRequestFulfillmentForNomenclature(requests, item?.nom?.id)
+  const initialReservedQty = Math.max(0, Number(item?.initialReservedQty) || 0)
+  return {
+    ...requestFulfillment,
+    initialReservedQty,
+    fulfilledQty: initialReservedQty + requestFulfillment.issuedQty
+  }
+}
