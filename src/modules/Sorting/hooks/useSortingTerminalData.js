@@ -1,5 +1,5 @@
 import { confirmedRpc } from '../../../services/confirmedRpc.js'
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useMES } from '../../../MESContext'
 import { useStore } from '../../../store/index.js'
 import { supabase } from '../../../supabase'
@@ -7,6 +7,10 @@ import { recordSortingHistoryGuaranteed } from '../../../services/sortingHistory
 import scannerDebounceGuard, { triggerHapticAudioFeedback } from '../../../services/scannerDebounceGuard'
 import { executeAtomicCardTransition } from '../../../services/atomicCardTransitionService'
 import { incrementInventoryStock } from '../../../services/inventoryStockService'
+import {
+  applySortingCompletionToCards,
+  canCompleteSortingCard
+} from '../utils/sortingTerminalState.js'
 
 
 
@@ -50,6 +54,7 @@ export function useSortingTerminalData() {
 
   const [pendingStartCard, setPendingStartCard] = useState(null)
   const [filterMode, setFilterMode] = useState('all')
+  const completionInFlightRef = useRef(new Set())
 
   // Tick clock
   useEffect(() => {
@@ -233,6 +238,11 @@ export function useSortingTerminalData() {
   }
 
   const openCompleteModal = (card) => {
+    if (!canCompleteSortingCard(card) || completionInFlightRef.current.has(String(card?.id))) {
+      setScanError('Цю картку вже передано або її стан змінився. Оновлюю список…')
+      fetchData(['work_cards']).catch(() => {})
+      return
+    }
     setActiveCompletingCard(card)
     setFinishedCount(card.quantity || 0)
     setScrapCount(0)
@@ -244,6 +254,15 @@ export function useSortingTerminalData() {
   // Full Shop2 handoff — same logic as Shop1Terminal.handleSortToShop2
   const submitSortingComplete = async () => {
     if (!activeCompletingCard || isProcessing) return
+    const cardId = String(activeCompletingCard.id)
+    if (completionInFlightRef.current.has(cardId)) return
+    if (!canCompleteSortingCard(activeCompletingCard)) {
+      setShowCompleteModal(false)
+      setActiveCompletingCard(null)
+      setScanError('Цю картку вже передано в буфер Цеху №2.')
+      fetchData(['work_cards']).catch(() => {})
+      return
+    }
     const total = Number(activeCompletingCard.quantity)
     const scrap = Number(scrapCount)
     const rework = Number(reworkCount)
@@ -251,11 +270,12 @@ export function useSortingTerminalData() {
       setScanError('Брак і доопрацювання не можуть перевищувати кількість картки.')
       return
     }
+    completionInFlightRef.current.add(cardId)
     setIsProcessing(true)
     setScanError(null)
     try {
       const goodQty = total - scrap - rework
-      await confirmedRpc(supabase, 'rpc_submit_sorting_complete_atomic', {
+      const result = await confirmedRpc(supabase, 'rpc_submit_sorting_complete_atomic', {
         p_card_id: activeCompletingCard.id,
         p_good_qty: goodQty,
         p_scrap_qty: scrap,
@@ -263,18 +283,34 @@ export function useSortingTerminalData() {
         p_operator_name: selectedOperator || activeCompletingCard.operator_name || 'Сортування',
         p_shift_name: selectedShift || activeCompletingCard.shift_name || 'Без зміни'
       })
+      const completedAt = new Date().toISOString()
+      useStore.setState(state => ({
+        workCards: applySortingCompletionToCards(state.workCards, {
+          cardId,
+          goodQty,
+          reworkQty: rework,
+          completedAt
+        })
+      }))
       setShowCompleteModal(false)
       setActiveCompletingCard(null)
       setManualId('')
       setScanError(null)
       setScrapCount(0)
       setReworkCount(0)
-      alert('✅ ' + goodQty + ' шт відправлено в буфер Цеху №2!')
+      try {
+        await fetchData(['work_cards', 'work_card_history', 'inventory'])
+      } catch (refreshError) {
+        console.warn('Sorting completed, but background refresh failed:', refreshError)
+      }
+      alert(result?.already_sorted
+        ? 'ℹ️ Цю картку вже було передано в буфер Цеху №2.'
+        : '✅ ' + goodQty + ' шт відправлено в буфер Цеху №2!')
     } catch (error) {
       console.error('Sorting completion RPC failed:', error)
       setScanError('Сортування не підтверджено: ' + (error?.message || 'Помилка мережі'))
     } finally {
-      fetchData(['work_cards', 'work_card_history', 'inventory']).catch(() => {})
+      completionInFlightRef.current.delete(cardId)
       setIsProcessing(false)
     }
   }
