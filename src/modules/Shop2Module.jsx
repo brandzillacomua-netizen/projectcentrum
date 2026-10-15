@@ -171,8 +171,10 @@ const Shop2Module = () => {
   useEffect(() => {
     fetchData(['tasks', 'orders', 'work_cards', 'inventory'])
     const interval = setInterval(() => {
-      fetchData(['tasks', 'orders', 'work_cards', 'inventory'])
-    }, 10000)
+      if (document.visibilityState === 'visible') {
+        fetchData(['tasks', 'orders', 'work_cards', 'inventory'])
+      }
+    }, 2 * 60 * 1000)
     return () => clearInterval(interval)
   }, [fetchData])
 

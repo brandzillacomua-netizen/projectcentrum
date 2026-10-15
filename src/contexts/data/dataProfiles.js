@@ -43,11 +43,11 @@ export const TARGET_REFRESH_TTL_BY_TABLE = Object.freeze({
   // Operational tables — kept live by realtime subscriptions.
   // TTL prevents redundant full refetches when navigating between modules
   // (e.g. SGP → SO). 30s is plenty; realtime delivers changes instantly.
-  material_requests:  30 * 1000,  // 30 s
-  inventory:          30 * 1000,  // 30 s
-  tasks:              30 * 1000,  // 30 s
-  work_cards:         30 * 1000,  // 30 s
-  orders:             60 * 1000,  // 60 s
+  material_requests: 2 * 60 * 1000,  // 2 min; realtime pings deliver normal changes
+  inventory:         2 * 60 * 1000,
+  tasks:             2 * 60 * 1000,
+  work_cards:        2 * 60 * 1000,
+  orders:            2 * 60 * 1000,
   reception_docs:     60 * 1000,  // 60 s
   purchase_requests:  60 * 1000,  // 60 s
   work_card_history:  60 * 1000,  // 60 s
