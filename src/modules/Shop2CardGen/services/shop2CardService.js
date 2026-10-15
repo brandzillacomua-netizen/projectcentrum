@@ -35,7 +35,7 @@ export const shop2CardService = {
    * Submit batch creation of Shop 2 work cards and deduct quantity from source buffer cards
    * Uses atomic PostgreSQL RPC transaction with fallback
    */
-  async createShop2CardsBatch({ taskId, orderId, nomenclatureId, cardsBatch, userId = null }) {
+  async createShop2CardsBatch({ taskId, orderId, nomenclatureId, cardsBatch, userId = null, sourceOrderIds = [], sourceNomenclatureIds = [] }) {
     if (!cardsBatch || cardsBatch.length === 0) return []
 
     const insertPayloads = cardsBatch.map(item => {
@@ -75,7 +75,10 @@ export const shop2CardService = {
         p_nomenclature_id: nomenclatureId,
         p_cards_payload: insertPayloads,
         p_total_qty_to_deduct: totalQtyToDeduct,
-        p_user_id: userId || 'Майстер Цеху №2'
+        p_user_id: userId || 'Майстер Цеху №2',
+        // Scope parity with UI: rerun (-Д) child orders + legacy nomenclature IDs
+        p_source_order_ids: sourceOrderIds.length > 0 ? sourceOrderIds : null,
+        p_source_nomenclature_ids: sourceNomenclatureIds.length > 0 ? sourceNomenclatureIds : null
       })
 
       if (!rpcErr && rpcRes?.success) {
@@ -116,7 +119,7 @@ export const shop2CardService = {
 
     // 2. Deduct from source buffer cards (update used_in_shop2_qty)
     if (totalQtyToDeduct > 0) {
-      await this.deductFromSourceBufferCards({ orderId, nomenclatureId, totalQtyToDeduct })
+      await this.deductFromSourceBufferCards({ orderId, nomenclatureId, totalQtyToDeduct, legacyIds: sourceNomenclatureIds, sourceOrderIds })
     }
 
     return (data || []).map(c => {
@@ -154,7 +157,7 @@ export const shop2CardService = {
   /**
    * Deduct buffer quantity from matching Shop 1 source buffer cards
    */
-  async deductFromSourceBufferCards({ orderId, nomenclatureId, totalQtyToDeduct, legacyIds = [] }) {
+  async deductFromSourceBufferCards({ orderId, nomenclatureId, totalQtyToDeduct, legacyIds = [], sourceOrderIds = [] }) {
     try {
       let searchIds = Array.from(new Set([nomenclatureId, ...(legacyIds || [])].filter(Boolean)))
       if (searchIds.length === 1 && nomenclatureId) {
@@ -176,8 +179,9 @@ export const shop2CardService = {
       if (error || !sourceCards) return
 
       // Filter buffer cards: matching order or shared buffer (null order_id)
+      const allowedOrders = new Set([orderId, ...(sourceOrderIds || [])].filter(Boolean).map(String))
       const bufferCards = sourceCards
-        .filter(c => (c.status === 'at-shop2-buffer' || c.is_rework) && (!orderId || c.order_id === orderId || !c.order_id))
+        .filter(c => (c.status === 'at-shop2-buffer' || c.is_rework) && (allowedOrders.size === 0 || !c.order_id || allowedOrders.has(String(c.order_id))))
         .sort((a, b) => {
           if (orderId) {
             if (a.order_id === orderId && b.order_id !== orderId) return -1

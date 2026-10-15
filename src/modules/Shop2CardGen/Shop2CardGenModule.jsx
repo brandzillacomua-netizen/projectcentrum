@@ -96,6 +96,8 @@ export default function Shop2CardGenModule() {
     handleGenerateCards
   } = useShop2CardCreator({
     tasks,
+    orders,
+    nomenclatures,
     fetchData,
     refreshTable
   })

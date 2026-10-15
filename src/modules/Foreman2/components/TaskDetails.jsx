@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react'
 import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Clipboard, Copy, Factory, Layers, PackageCheck, Printer, Wrench, Clock } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import { formatQty } from '../utils/normalize.js'
-import { getCardSheets } from '../features/shortage/shortageCalculations.js'
+import { calculateGeneratedSheetTotal, getCardSheets } from '../features/shortage/shortageCalculations.js'
 import { CardScrapHistoryModal } from '../../Brak/components/modals/CardScrapHistoryModal.jsx'
 
 const panelStyle = {
@@ -78,41 +78,8 @@ const getLoadProgress = (part, rowCapacityOverride) => {
 
   const plannedSheets = Number(part.plannedSheets) || 0
 
-  let maxSeqTotal = 0
-  baseCards.forEach(c => {
-    const info = String(c?.card_info || '')
-    const match = info.match(/(?:№|#)?\s*\d+\s*\/\s*(\d+)/)
-    if (match) {
-      const tot = parseInt(match[1], 10)
-      if (tot > maxSeqTotal) maxSeqTotal = tot
-    }
-  })
-
-  const knownSheetsList = baseCards
-    .map(c => getCardSheets(c, unitsPerSheet, null))
-    .filter(s => s > 0)
-  
-  const inferredCardSheets = (maxSeqTotal > 0 && plannedSheets > 0)
-    ? Math.max(1, Math.round(plannedSheets / maxSeqTotal))
-    : (knownSheetsList.length > 0 ? knownSheetsList[0] : machineCapacity)
-
-  let generatedSheetsCalc = 0
-  baseCards.forEach(c => {
-    generatedSheetsCalc += getCardSheets(c, unitsPerSheet, inferredCardSheets)
-  })
-
-  // Cumulative sheets used: once generated, those sheets are consumed and cannot decrease
-  const effectiveGenerated = Math.max(generatedSheetsCalc, Number(part.actualSheets) || 0)
-  
-  const expectedPlannedCards = maxSeqTotal > 0
-    ? maxSeqTotal
-    : (plannedSheets > 0 && machineCapacity > 0 ? Math.ceil(plannedSheets / machineCapacity) : 0)
-
-  const isFullyGenerated = (plannedSheets > 0 && effectiveGenerated >= plannedSheets) ||
-    (expectedPlannedCards > 0 && baseCards.length >= expectedPlannedCards)
-
-  const finalGeneratedSheets = isFullyGenerated ? Math.max(plannedSheets, effectiveGenerated) : effectiveGenerated
-  const remainingSheetsCalc = isFullyGenerated ? 0 : Math.max(0, plannedSheets - finalGeneratedSheets)
+  const generatedSheetsCalc = calculateGeneratedSheetTotal(baseCards, unitsPerSheet, plannedSheets)
+  const remainingSheetsCalc = Math.max(0, plannedSheets - generatedSheetsCalc)
 
   const baseLoads = part.machine ? (baseCards.length + Math.ceil(remainingSheetsCalc / machineCapacity)) : (plannedSheets || 0)
   const expectedLoads = (part.plan === 0 && (part.cards || []).some(c => c.operation === 'Склад БЗ')) ? 1 : baseLoads
@@ -120,7 +87,7 @@ const getLoadProgress = (part, rowCapacityOverride) => {
   return {
     loaded: baseCards.length,
     expectedLoads,
-    generatedSheets: finalGeneratedSheets,
+    generatedSheets: generatedSheetsCalc,
     remainingSheets: remainingSheetsCalc,
     loadCapacity: machineCapacity
   }

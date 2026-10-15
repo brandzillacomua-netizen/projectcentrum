@@ -1,8 +1,46 @@
 import { useState } from 'react'
 import { shop2CardService } from '../services/shop2CardService'
 import { isPackagingOperation } from '../constants/shop2Stages'
+import { buildRerunToParentOrderMap } from '../utils/shop2BufferCalculations'
+import { resolveCanonicalNomId } from '../../Nomenclature/utils/nomenclatureHelpers'
 
-export function useShop2CardCreator({ tasks = [], fetchData, refreshTable }) {
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/**
+ * All nomenclature IDs that the buffer table folds into `canonicalId`
+ * (legacy V1 IDs + any catalog row resolving to it). Must mirror useShop2BufferData.
+ */
+export function collectSourceNomenclatureIds(canonicalId, nomenclatures = []) {
+  const ids = new Set()
+  const canon = String(canonicalId || '')
+  ;(nomenclatures || []).forEach(n => {
+    if (!n) return
+    if (String(n.id) === canon) {
+      ;(Array.isArray(n.legacy_ids) ? n.legacy_ids : []).forEach(id => ids.add(String(id)))
+      if (n.legacy_id) ids.add(String(n.legacy_id))
+    } else if (resolveCanonicalNomId(n.id, nomenclatures) === canon) {
+      ids.add(String(n.id))
+    }
+  })
+  ids.delete(canon)
+  return [...ids].filter(id => UUID_RE.test(id))
+}
+
+/**
+ * Parent order + its rerun (-Д) child orders — the buffer table rolls child
+ * buffer cards into the parent pool, so the server must deduct from them too.
+ */
+export function collectSourceOrderIds(orderId, orders = []) {
+  if (!orderId) return []
+  const rerunMap = buildRerunToParentOrderMap(orders)
+  const ids = [String(orderId)]
+  rerunMap.forEach((parentId, childId) => {
+    if (String(parentId) === String(orderId)) ids.push(String(childId))
+  })
+  return ids.filter(id => UUID_RE.test(id))
+}
+
+export function useShop2CardCreator({ tasks = [], orders = [], nomenclatures = [], fetchData, refreshTable }) {
   const [selectedRow, setSelectedRow] = useState(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -125,12 +163,16 @@ export function useShop2CardCreator({ tasks = [], fetchData, refreshTable }) {
         insertGroups.get(key).cardsBatch.push(c)
       })
 
+      const sourceNomenclatureIds = collectSourceNomenclatureIds(row.nomId, nomenclatures)
+
       for (const group of insertGroups.values()) {
         await shop2CardService.createShop2CardsBatch({
           taskId: group.taskId,
           orderId: group.orderId,
           nomenclatureId: group.nomenclatureId,
-          cardsBatch: group.cardsBatch
+          cardsBatch: group.cardsBatch,
+          sourceOrderIds: collectSourceOrderIds(group.orderId, orders),
+          sourceNomenclatureIds
         })
       }
 

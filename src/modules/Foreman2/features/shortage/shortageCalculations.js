@@ -35,7 +35,7 @@ export const isVkyaReturnCard = (card) => {
 
 export const isZeroSheetCard = (card) => isBufferCard(card) || isVkyaReturnCard(card)
 
-export const getCardSheets = (card, unitsPerSheet, fallbackCapacity = null) => {
+const getRecordedCardSheets = (card, unitsPerSheet) => {
   if (isZeroSheetCard(card)) return 0
 
   const explicit = asNumber(card?.actual_sheets ?? card?.actualSheets ?? card?.sheets)
@@ -69,6 +69,15 @@ export const getCardSheets = (card, unitsPerSheet, fallbackCapacity = null) => {
     return Math.ceil(startQty / Math.max(1, asNumber(unitsPerSheet, 1)))
   }
 
+  return 0
+}
+
+export const getCardSheets = (card, unitsPerSheet, fallbackCapacity = null) => {
+  if (isZeroSheetCard(card)) return 0
+
+  const recordedSheets = getRecordedCardSheets(card, unitsPerSheet)
+  if (recordedSheets > 0) return recordedSheets
+
   // If fallback capacity is provided or derivable from machine, use it
   if (fallbackCapacity && fallbackCapacity > 0) {
     return fallbackCapacity
@@ -80,6 +89,36 @@ export const getCardSheets = (card, unitsPerSheet, fallbackCapacity = null) => {
 
   // For any genuine cutting card created for this part, at least 1 sheet was used
   return 1
+}
+
+const getCardSequenceTotal = cards => (cards || []).reduce((maxTotal, card) => {
+  const match = String(card?.card_info || '').match(/(?:№|#)?\s*\d+\s*\/\s*(\d+)/)
+  return match ? Math.max(maxTotal, parseInt(match[1], 10) || 0) : maxTotal
+}, 0)
+
+export const calculateGeneratedSheetTotal = (cards, unitsPerSheet, plannedSheets = 0) => {
+  const sourceCards = (cards || []).filter(card => !isZeroSheetCard(card))
+  const knownSheets = sourceCards
+    .map(card => getRecordedCardSheets(card, unitsPerSheet))
+    .filter(value => value > 0)
+
+  // Missing legacy data is estimated from real neighbouring cards first. The
+  // sequence denominator (№30/30) describes a generated batch, not the whole
+  // sheet plan, so it may only be used when no card has a recorded sheet count.
+  const sortedKnownSheets = [...knownSheets].sort((a, b) => a - b)
+  const typicalKnownSheets = sortedKnownSheets.length > 0
+    ? sortedKnownSheets[Math.floor(sortedKnownSheets.length / 2)]
+    : 0
+  const sequenceTotal = getCardSequenceTotal(sourceCards)
+  const fallbackSheets = typicalKnownSheets || (
+    sequenceTotal > 0 && asNumber(plannedSheets) > 0
+      ? Math.max(1, Math.round(asNumber(plannedSheets) / sequenceTotal))
+      : 1
+  )
+
+  return sourceCards.reduce((sum, card) => (
+    sum + getCardSheets(card, unitsPerSheet, fallbackSheets)
+  ), 0)
 }
 
 export const calculatePartShortage = ({
@@ -153,44 +192,7 @@ export const calculatePartShortage = ({
     .filter(card => !countAsProduced(card) && isRedoCard(card))
     .reduce((sum, card) => sum + asNumber(card.quantity), 0)
 
-  let maxSeqTotal = 0
-  nomCards.forEach(c => {
-    const info = String(c?.card_info || '')
-    const match = info.match(/(?:№|#)?\s*\d+\s*\/\s*(\d+)/)
-    if (match) {
-      const tot = parseInt(match[1], 10)
-      if (tot > maxSeqTotal) maxSeqTotal = tot
-    }
-  })
-
-  const defaultMachineCap = capacityRangeByMachine(
-    snapshot.machine || snapshot.selected_machine || task.machine_name || productionCards[0]?.machine || ''
-  ).defaultCapacity
-
-  const knownSheetsList = productionCards
-    .map(c => getCardSheets(c, unitsPerSheet, null))
-    .filter(s => s > 0)
-  
-  const inferredCardSheets = (maxSeqTotal > 0 && plannedSheets > 0)
-    ? Math.max(1, Math.round(plannedSheets / maxSeqTotal))
-    : (knownSheetsList.length > 0 ? knownSheetsList[0] : (defaultMachineCap > 0 ? defaultMachineCap : 1))
-
-  const rawActualSheets = productionCards.reduce((sum, card) => {
-    return sum + getCardSheets(card, unitsPerSheet, inferredCardSheets)
-  }, 0)
-
-  // Sheets count is cumulative: once a batch of cutting cards is generated, those sheets
-  // have been consumed from raw material stock and can never decrease due to completion,
-  // scrap, or routing changes. If the full quota of cards/loads was generated, actualSheets
-  // must stay at least plannedSheets permanently.
-  const expectedPlannedCards = maxSeqTotal > 0
-    ? maxSeqTotal
-    : ((plannedSheets > 0 && defaultMachineCap > 0) ? Math.ceil(plannedSheets / defaultMachineCap) : 0)
-
-  const hasFullCardCount = expectedPlannedCards > 0 && productionCards.length >= expectedPlannedCards
-  const actualSheets = hasFullCardCount
-    ? Math.max(plannedSheets, rawActualSheets)
-    : rawActualSheets
+  const actualSheets = calculateGeneratedSheetTotal(productionCards, unitsPerSheet, plannedSheets)
 
   const totalSheets = productionCards.length > 0 ? Math.max(plannedSheets, actualSheets) : plannedSheets
   const spareFromSheets = (totalSheets * unitsPerSheet) + stockBZ - need
