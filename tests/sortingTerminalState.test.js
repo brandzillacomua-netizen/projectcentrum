@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   applySortingCompletionToCards,
+  buildSortingStatusReconciliation,
   canCompleteSortingCard
 } from '../src/modules/Sorting/utils/sortingTerminalState.js'
 
@@ -46,5 +47,21 @@ describe('Sorting terminal completion state', () => {
 
     expect(updated[1]).toEqual(cards[1])
     expect(updated[0].quantity).toBe(54)
+  })
+
+  it('repairs only the stale card status from an already confirmed accounting result', () => {
+    expect(buildSortingStatusReconciliation({
+      result: { success: true, good_qty: 72, rework_qty: 0 },
+      fallbackGoodQty: 0,
+      fallbackReworkQty: 0,
+      completedAt: '2026-10-15T12:00:00.000Z'
+    })).toEqual({
+      status: 'at-shop2-buffer',
+      operation: 'Сортування',
+      quantity: 72,
+      used_in_shop2_qty: 0,
+      completed_at: '2026-10-15T12:00:00.000Z',
+      updated_at: '2026-10-15T12:00:00.000Z'
+    })
   })
 })

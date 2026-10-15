@@ -9,6 +9,7 @@ import { executeAtomicCardTransition } from '../../../services/atomicCardTransit
 import { incrementInventoryStock } from '../../../services/inventoryStockService'
 import {
   applySortingCompletionToCards,
+  buildSortingStatusReconciliation,
   canCompleteSortingCard
 } from '../utils/sortingTerminalState.js'
 
@@ -54,6 +55,7 @@ export function useSortingTerminalData() {
 
   const [pendingStartCard, setPendingStartCard] = useState(null)
   const [filterMode, setFilterMode] = useState('all')
+  const [completedCardIds, setCompletedCardIds] = useState(() => new Set())
   const completionInFlightRef = useRef(new Set())
 
   // Tick clock
@@ -283,13 +285,51 @@ export function useSortingTerminalData() {
         p_operator_name: selectedOperator || activeCompletingCard.operator_name || 'Сортування',
         p_shift_name: selectedShift || activeCompletingCard.shift_name || 'Без зміни'
       })
+      let { data: confirmedCard, error: confirmationError } = await supabase
+        .from('work_cards')
+        .select('id, status, operation, quantity, used_in_shop2_qty, completed_at')
+        .eq('id', activeCompletingCard.id)
+        .maybeSingle()
+      if (confirmationError) throw confirmationError
+
+      // An idempotent RPC replay can return an older accounting receipt while a
+      // legacy/stale card row still says "in-progress". Accounting must NOT run
+      // twice; reconcile only the card state from the already confirmed result.
+      if (confirmedCard?.status === 'in-progress' && confirmedCard?.operation === 'Сортування') {
+        const reconciliation = buildSortingStatusReconciliation({
+          result,
+          fallbackGoodQty: goodQty,
+          fallbackReworkQty: rework,
+          completedAt: new Date().toISOString()
+        })
+        const { data: repairedCard, error: repairError } = await supabase
+          .from('work_cards')
+          .update(reconciliation)
+          .eq('id', activeCompletingCard.id)
+          .eq('status', 'in-progress')
+          .eq('operation', 'Сортування')
+          .select('id, status, operation, quantity, used_in_shop2_qty, completed_at')
+          .maybeSingle()
+        if (repairError) throw repairError
+        if (repairedCard) confirmedCard = repairedCard
+      }
+
+      if (!confirmedCard || confirmedCard.status !== 'at-shop2-buffer') {
+        throw new Error('Облік підтверджено, але не вдалося відновити статус картки. Повторне списання заблоковано; зверніться до адміністратора.')
+      }
+
       const completedAt = new Date().toISOString()
+      setCompletedCardIds(previous => {
+        const next = new Set(previous)
+        next.add(cardId)
+        return next
+      })
       useStore.setState(state => ({
         workCards: applySortingCompletionToCards(state.workCards, {
           cardId,
-          goodQty,
-          reworkQty: rework,
-          completedAt
+          goodQty: Math.max(0, Number(confirmedCard.quantity) - Number(confirmedCard.used_in_shop2_qty || 0)),
+          reworkQty: Number(confirmedCard.used_in_shop2_qty) || 0,
+          completedAt: confirmedCard.completed_at || completedAt
         })
       }))
       setShowCompleteModal(false)
@@ -299,7 +339,7 @@ export function useSortingTerminalData() {
       setScrapCount(0)
       setReworkCount(0)
       try {
-        await fetchData(['work_cards', 'work_card_history', 'inventory'])
+        await fetchData(['work_cards', 'work_card_history', 'inventory'], { force: true })
       } catch (refreshError) {
         console.warn('Sorting completed, but background refresh failed:', refreshError)
       }
@@ -334,16 +374,16 @@ export function useSortingTerminalData() {
   // Картки в очікуванні: at-buffer/Сортування або at-buffer/Прийомка
   const waitingCards = useMemo(() => {
     return workCards
-      .filter(c => c.status === 'at-buffer' && (c.operation === 'Сортування' || c.operation === 'Прийомка'))
+      .filter(c => !completedCardIds.has(String(c.id)) && c.status === 'at-buffer' && (c.operation === 'Сортування' || c.operation === 'Прийомка'))
       .sort((a, b) => new Date(a.completed_at || 0) - new Date(b.completed_at || 0))
-  }, [workCards])
+  }, [workCards, completedCardIds])
 
   // Картки в роботі: in-progress/Сортування
   const inWorkCards = useMemo(() => {
     return workCards
-      .filter(c => c.status === 'in-progress' && c.operation === 'Сортування')
+      .filter(c => !completedCardIds.has(String(c.id)) && c.status === 'in-progress' && c.operation === 'Сортування')
       .sort((a, b) => new Date(a.started_at || 0) - new Date(b.started_at || 0))
-  }, [workCards])
+  }, [workCards, completedCardIds])
 
   const displayedCards = useMemo(() => {
     const list = []
