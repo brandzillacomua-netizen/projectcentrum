@@ -93,7 +93,7 @@ export default function Foreman2Module() {
     setCustomAlert: () => {} // we can plug in custom alerts later if needed
   })
 
-  const cardGen = useCardGeneration({ mes })
+  const cardGen = useCardGeneration({ mes, onDataChanged: refreshForeman2 })
   const adminCardDelete = useAdminCardDelete({
     currentUser: currentUser,
     fetchData: mes.fetchData,

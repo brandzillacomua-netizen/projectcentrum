@@ -216,7 +216,11 @@ export function useForeman2Data({ mes }) {
   }, [relevantTasks, orders, orderCache])
 
   const allCards = useMemo(() => {
-    return uniqueById([...workCards, ...dbCards]).filter(c => {
+    // dbCards contains the complete archive (including completed cards), while
+    // workCards contains the newest realtime version of active cards. Keep the
+    // archive as the base and let the live store win for matching IDs; the old
+    // order did the opposite and could leave Foreman showing stale sheet tags.
+    return uniqueById([...dbCards, ...workCards]).filter(c => {
       // Exclude rework cards that belong to Shop 2 (e.g. from sorting) from Shop 1 calculations
       if (String(c.card_info || '').includes('[ЦЕХ №2] Автоматично')) {
         return false;

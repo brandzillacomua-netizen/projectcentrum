@@ -1,13 +1,13 @@
 import { useRef, useState } from 'react'
 import { supabase } from '../../../../supabase.js'
 import { apiService } from '../../../../services/apiDispatcher.js'
-import { getCardSheets } from '../shortage/shortageCalculations.js'
+import { calculateGeneratedSheetTotal, getCardSheets, isZeroSheetCard } from '../shortage/shortageCalculations.js'
 import {
   calculateRemainingGenerationSheets,
   resolvePlannedSheetsForGeneration
 } from './cardGenerationCalculations.js'
 
-export function useCardGeneration({ mes }) {
+export function useCardGeneration({ mes, onDataChanged }) {
   const [isGenerating, setIsGenerating] = useState(false)
   const [genModalConfig, setGenModalConfig] = useState(null)
   const [printQueue, setPrintQueue] = useState(null)
@@ -101,11 +101,15 @@ export function useCardGeneration({ mes }) {
       try {
         const { data, error } = await supabase
           .from('work_cards')
-          .select('id, is_rework, operation, card_info, quantity, machine')
+          .select('*')
           .eq('task_id', task.id)
           .eq('nomenclature_id', nomId)
         if (!error && data) {
-          dbCardsForRenumber = data.filter(c => !c.is_rework && c.operation !== 'Склад БЗ')
+          dbCardsForRenumber = data.filter(c => (
+            !c.is_rework
+            && !String(c.card_info || '').includes('[REDO]')
+            && !isZeroSheetCard(c)
+          ))
         }
       } catch (err) {
         console.error("Error fetching existing work cards:", err)
@@ -162,7 +166,14 @@ export function useCardGeneration({ mes }) {
         unitsPerSheet,
         requestedSheets: effectiveSheets
       })
-      const generatedSheetsForPart = activeCards.reduce((sum, card) => sum + getCardSheets(card, unitsPerSheet), 0)
+      // Use exactly the same legacy-card reconstruction as the Foreman counter.
+      // A per-card getCardSheets() sum used a different fallback for old cards,
+      // which allowed the dialog to say 572 while the row still showed 558.
+      const generatedSheetsForPart = calculateGeneratedSheetTotal(
+        activeCards,
+        unitsPerSheet,
+        plannedSheetsForPart
+      )
       const remainingSheetsForPart = calculateRemainingGenerationSheets({
         plannedSheets: plannedSheetsForPart,
         generatedSheets: generatedSheetsForPart
@@ -209,7 +220,34 @@ export function useCardGeneration({ mes }) {
 
       if (cardsBatch.length === 0) {
         if (!isRepair && plannedSheetsForPart > 0 && remainingSheetsForPart <= 0) {
-          throw new Error(`Усі ${plannedSheetsForPart} запланованих листів уже розподілені по картках. Оновіть наряд перед повторною генерацією.`)
+          const displayedSheets = Number(part?.actualSheets) || 0
+          const sequenceCounts = new Map()
+          activeCards.forEach(card => {
+            const match = String(card?.card_info || '').match(/(?:№|#)?\s*(\d+)\s*\/\s*\d+/)
+            if (!match) return
+            sequenceCounts.set(match[1], (sequenceCounts.get(match[1]) || 0) + 1)
+          })
+          const duplicateSequences = [...sequenceCounts.entries()]
+            .filter(([, cardCount]) => cardCount > 1)
+            .map(([sequence]) => sequence)
+
+          if (typeof onDataChanged === 'function') {
+            try {
+              await onDataChanged()
+            } catch (refreshError) {
+              console.warn('[CARD_GEN] Foreman refresh after sheet audit failed:', refreshError)
+            }
+          }
+
+          const staleNote = displayedSheets !== generatedSheetsForPart
+            ? ` На екрані було ${displayedSheets}; дані наряду вже оновлено.`
+            : ''
+          const duplicateNote = duplicateSequences.length > 0
+            ? ` Виявлено повторні номери карток: ${duplicateSequences.slice(0, 10).join(', ')}${duplicateSequences.length > 10 ? '…' : ''}.`
+            : ''
+          throw new Error(
+            `Свіжа перевірка БД: ${activeCards.length} карток розподіляють ${generatedSheetsForPart} з ${plannedSheetsForPart} листів.${staleNote}${duplicateNote}`
+          )
         }
         throw new Error(isRepair ? 'Немає листів для довипуску. Перевірте розрахунок нестачі.' : 'Не вдалося розрахувати листи для генерації. Перевірте планову кількість у наряді.')
       }
@@ -246,6 +284,9 @@ export function useCardGeneration({ mes }) {
 
       if (createdCards && createdCards.length > 0) {
         fetchData(['work_cards', 'tasks', 'material_requests']).catch(() => {})
+        if (typeof onDataChanged === 'function') {
+          onDataChanged().catch(error => console.warn('[CARD_GEN] Foreman refresh failed:', error))
+        }
 
         if (typeof onCardsGenerated === 'function') {
           onCardsGenerated({

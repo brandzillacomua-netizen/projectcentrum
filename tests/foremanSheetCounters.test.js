@@ -3,6 +3,7 @@ import {
   calculateGeneratedSheetTotal,
   calculatePartShortage
 } from '../src/modules/Foreman2/features/shortage/shortageCalculations.js'
+import { calculateRemainingGenerationSheets } from '../src/modules/Foreman2/features/card-generation/cardGenerationCalculations.js'
 
 const createSixSheetCards = () => Array.from({ length: 30 }, (_, index) => ({
   id: `card-${index + 1}`,
@@ -55,5 +56,22 @@ describe('Foreman sheet counters', () => {
     }
 
     expect(calculateGeneratedSheetTotal(cards, 14, 715)).toBe(180)
+  })
+
+  it('gives the counter and generator the same 558 of 572 result', () => {
+    const cards = Array.from({ length: 140 }, (_, index) => ({
+      id: `legacy-${index + 1}`,
+      operation: 'Розкрій',
+      quantity: index === 139 ? 28 : 56,
+      card_info: `№${index + 1}/140 [SHEETS:${index === 139 ? 2 : 4}]`
+    }))
+
+    const generatedSheets = calculateGeneratedSheetTotal(cards, 14, 572)
+
+    expect(generatedSheets).toBe(558)
+    expect(calculateRemainingGenerationSheets({
+      plannedSheets: 572,
+      generatedSheets
+    })).toBe(14)
   })
 })
