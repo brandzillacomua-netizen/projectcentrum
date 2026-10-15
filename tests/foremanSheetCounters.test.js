@@ -74,4 +74,31 @@ describe('Foreman sheet counters', () => {
       generatedSheets
     })).toBe(14)
   })
+
+  it('does not count automatic Shop 2 cards as additional cutting sheets', () => {
+    const cuttingCards = Array.from({ length: 140 }, (_, index) => ({
+      id: `cutting-${index + 1}`,
+      operation: 'Розкрій',
+      quantity: index === 139 ? 28 : 56,
+      card_info: `№${index + 1}/140 [SHEETS:${index === 139 ? 2 : 4}]`
+    }))
+    const shop2Cards = Array.from({ length: 39 }, (_, index) => ({
+      id: `shop2-${index + 1}`,
+      operation: 'Фарбування',
+      quantity: 42,
+      card_info: `[ЦЕХ №2] Автоматично [SHEETS:3] [SOURCE_CARD:cutting-${index + 1}]`
+    }))
+
+    const generatedSheets = calculateGeneratedSheetTotal(
+      [...cuttingCards, ...shop2Cards],
+      14,
+      572
+    )
+
+    expect(generatedSheets).toBe(558)
+    expect(calculateRemainingGenerationSheets({
+      plannedSheets: 572,
+      generatedSheets
+    })).toBe(14)
+  })
 })

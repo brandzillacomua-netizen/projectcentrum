@@ -33,7 +33,13 @@ export const isVkyaReturnCard = (card) => {
   return /\[(?:VKYA[\s_]+RETURN|VKYA[\s_]+RESTORED[\s_]+RETURN|VKYA[\s_]+RETURNED[\s_]+TO[\s_]+ROUTE)\]/i.test(info)
 }
 
-export const isZeroSheetCard = (card) => isBufferCard(card) || isVkyaReturnCard(card)
+export const isShop2AutoCard = (card) => (
+  String(card?.card_info || '').includes('[ЦЕХ №2] Автоматично')
+)
+
+export const isZeroSheetCard = (card) => (
+  isBufferCard(card) || isVkyaReturnCard(card) || isShop2AutoCard(card)
+)
 
 const getRecordedCardSheets = (card, unitsPerSheet) => {
   if (isZeroSheetCard(card)) return 0

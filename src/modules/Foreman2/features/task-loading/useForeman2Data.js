@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../../../supabase.js'
 import { asId, uniqueById } from '../../utils/normalize.js'
 import { buildScrapModel, summarizeScrap } from '../scrap/scrapCalculations.js'
-import { calculateTaskParts, summarizeTaskState } from '../shortage/shortageCalculations.js'
+import { calculateTaskParts, isShop2AutoCard, summarizeTaskState } from '../shortage/shortageCalculations.js'
 import { getOrderForTask, getTaskDisplayName, isRelevantForemanTask } from './taskSelectors.js'
 import { useQualityLossTotals } from '../../../VKYA/quality-hold/useQualityLossTotals.js'
 
@@ -222,7 +222,7 @@ export function useForeman2Data({ mes }) {
     // order did the opposite and could leave Foreman showing stale sheet tags.
     return uniqueById([...dbCards, ...workCards]).filter(c => {
       // Exclude rework cards that belong to Shop 2 (e.g. from sorting) from Shop 1 calculations
-      if (String(c.card_info || '').includes('[ЦЕХ №2] Автоматично')) {
+      if (isShop2AutoCard(c)) {
         return false;
       }
       return true;

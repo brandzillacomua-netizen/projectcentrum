@@ -42,6 +42,14 @@ test('warehouse cards consume zero new sheets', () => {
   }, 26), 0)
 })
 
+test('automatic Shop 2 cards consume zero new sheets', () => {
+  assert.equal(getCardSheets({
+    operation: 'Фарбування',
+    quantity: 42,
+    card_info: '[ЦЕХ №2] Автоматично [SHEETS:3] [SOURCE_CARD:cut-card]'
+  }, 14), 0)
+})
+
 test('audit return tag appended to an original cutting card keeps its sheets', () => {
   assert.equal(getCardSheets({
     operation: 'Розкрій',
