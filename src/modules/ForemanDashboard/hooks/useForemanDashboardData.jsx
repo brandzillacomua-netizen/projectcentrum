@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
+import { filterCommercialDashboardTasks } from '../utils/foremanDashboardOrderScope.js'
 import { useMES } from '../../../MESContext'
 import { supabase } from '../../../supabase'
 import { useQualityLossTotals } from '../../VKYA/quality-hold/useQualityLossTotals.js'
@@ -141,7 +142,7 @@ export const useForemanDashboardData = () => {
   }, [tasks])
 
   // ── relevantTasks ──
-  const relevantTasks = useMemo(() => {
+  const relevantTasksWithTechnicalReruns = useMemo(() => {
     const primaryTaskMap = new Map()
 
     tasks.forEach(t => {
@@ -197,6 +198,20 @@ export const useForemanDashboardData = () => {
       return new Date(b.created_at) - new Date(a.created_at)
     })
   }, [tasks, dashboardCards, taskScopeIdsMap])
+
+  // Д1/Д2/ДN are technical reruns for Shop 2 scrap. They remain available
+  // to Shop 1 for order/card creation, but never become dashboard orders and
+  // never add their planned_sets to the commercial demand denominator.
+  const relevantTasks = useMemo(
+    () => filterCommercialDashboardTasks(relevantTasksWithTechnicalReruns, ordersMap),
+    [relevantTasksWithTechnicalReruns, ordersMap]
+  )
+
+  useEffect(() => {
+    if (selectedTaskId && !relevantTasks.some(task => task.id === selectedTaskId)) {
+      setSelectedTaskId(null)
+    }
+  }, [selectedTaskId, relevantTasks])
 
   // ── Active (non-completed) tasks ──
   const activeTasks = useMemo(() => {
