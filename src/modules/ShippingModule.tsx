@@ -84,7 +84,8 @@ export const ShippingModule: React.FC = () => {
     handleGenerateNpTTNSubmit,
     packingSlip,
     setPackingSlip,
-    handleViewPackingSlip
+    handleViewPackingSlip,
+    handleRepairShippedBatch
   }: any = useShippingData()
 
   const [visibleReadyCount, setVisibleReadyCount] = React.useState(15)
@@ -239,6 +240,8 @@ export const ShippingModule: React.FC = () => {
                       key={`${batch.orderId}_${batch.batchIndex}`}
                       batch={batch}
                       onViewPackingSlip={handleViewPackingSlip}
+                      onRepairReservations={handleRepairShippedBatch}
+                      isRepairing={isProcessing}
                     />
                   ))}
 

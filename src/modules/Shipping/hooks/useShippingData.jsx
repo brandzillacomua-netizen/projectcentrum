@@ -1,6 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { useMES } from '../../../MESContext'
-import { claimNextPackingSlipNumber } from '../../../services/fulfillmentQueueService'
 import { 
   getNpApiKey, searchNpCities, fetchNpWarehouses, 
   fetchSenderDetails, createOrGetRecipient, generateNpTTN,
@@ -12,7 +11,7 @@ export function useShippingData() {
   const {
     orders, tasks, nomenclatures, supabase,
     fetchData, currentUser, systemUsers, customers,
-    deductIssuedMaterialsForTask, loading
+    loading
   } = useMES()
 
   const isLoading = useMemo(() => {
@@ -384,6 +383,7 @@ export function useShippingData() {
         shippingType: meta.shipping_type || '',
         batchColor: meta.batch_color || '',
         packingSlipNumber: meta.packing_slip_number || null,
+        batchTasks: taskList,
       }
     })
   }, [tasks, orderMap, nomMap])
@@ -652,47 +652,30 @@ export function useShippingData() {
     try {
       setIsProcessing(true)
 
-      // 1. Списуємо матеріали зі складу
-      for (const t of batch.batchTasks) {
-        await deductIssuedMaterialsForTask(t.id, { packagingOnly: true })
+      const shippingMetadata = {
+        is_shipped: true,
+        shipped_at: new Date().toISOString(),
+        shipped_by: workerName,
+        shipped_by_id: worker?.id,
+        shipping_type: shippingType,
+        shipping_date: shippingDate,
+        ttn_number: ttnNumber.trim().toUpperCase(),
+        batch_color: batchColor,
+        batch_color_label: colorObj?.label || batchColor,
+        batch_color_hex: colorObj?.hex || '#888'
       }
 
-      // 1.5. Визначаємо наступний номер пакувального листа
-      const slipNumberResult = await claimNextPackingSlipNumber(supabase)
-      if (slipNumberResult.error || !slipNumberResult.data) {
-        throw slipNumberResult.error || new Error('Failed to reserve the next packing-slip number')
-      }
-      const nextSlipNumber = slipNumberResult.data
-
-      // 2. Оновлюємо метадані в завданнях
-      for (const t of batch.batchTasks) {
-        const newSnapshot = {
-          ...(t.plan_snapshot || {}),
-          _metadata: {
-            ...(t.plan_snapshot?._metadata || {}),
-            is_shipped: true,
-            shipped_at: new Date().toISOString(),
-            shipped_by: workerName,
-            shipped_by_id: worker?.id,
-            shipping_type: shippingType,
-            shipping_date: shippingDate,
-            ttn_number: ttnNumber.trim().toUpperCase(),
-            batch_color: batchColor,
-            batch_color_label: colorObj?.label || batchColor,
-            batch_color_hex: colorObj?.hex || '#888',
-            packing_slip_number: nextSlipNumber,
-          }
-        }
-        await supabase.from('tasks').update({ plan_snapshot: newSnapshot }).eq('id', t.id).throwOnError()
-      }
-
-      // 3. Якщо всі партії відвантажені → статус замовлення = shipped
-      const { data: siblingTasks, error: siblingError } = await supabase
-        .from('tasks').select('plan_snapshot').eq('order_id', batch.orderId)
-      if (siblingError) throw siblingError
-      const allShipped = Boolean(siblingTasks?.length) && siblingTasks.every(st => st.plan_snapshot?._metadata?.is_shipped === true)
-      if (allShipped) {
-        await supabase.from('orders').update({ status: 'shipped' }).eq('id', batch.orderId).throwOnError()
+      // Inventory deduction, reservation release, task metadata and order status
+      // are one transaction. There is intentionally no partial client fallback.
+      const { data: shipmentResult, error: shipmentError } = await supabase.rpc('complete_packaging_shipment', {
+        p_order_id: batch.orderId,
+        p_task_ids: batch.batchTasks.map(t => t.id),
+        p_shipping_metadata: shippingMetadata
+      })
+      if (shipmentError) throw shipmentError
+      const nextSlipNumber = Number(shipmentResult?.packing_slip_number)
+      if (!Number.isFinite(nextSlipNumber)) {
+        throw new Error('База не повернула номер пакувального листа')
       }
 
       await fetchData(['tasks', 'orders'])
@@ -773,7 +756,7 @@ export function useShippingData() {
     } finally {
       setIsProcessing(false)
     }
-  }, [workModal, canFinish, selectedWorkerId, batchColor, deductIssuedMaterialsForTask, supabase, shippingType, shippingDate, ttnNumber, fetchData, orders, nomenclatures, boxes])
+  }, [workModal, canFinish, selectedWorkerId, batchColor, supabase, shippingType, shippingDate, ttnNumber, fetchData, orders, nomenclatures, boxes])
 
   // ─── Перегляд існуючого пакувального листа ───────────────────────────────
   const handleViewPackingSlip = useCallback(async (batch) => {
@@ -890,6 +873,26 @@ export function useShippingData() {
     }
   }, [supabase, nomenclatures, orders])
 
+  const handleRepairShippedBatch = useCallback(async (batch) => {
+    if (!batch?.orderId || !batch?.batchTasks?.length || isProcessing) return
+    try {
+      setIsProcessing(true)
+      const { data, error } = await supabase.rpc('complete_packaging_shipment', {
+        p_order_id: batch.orderId,
+        p_task_ids: batch.batchTasks.map(task => task.id),
+        p_shipping_metadata: {}
+      })
+      if (error) throw error
+      await fetchData(['tasks', 'orders', 'material_requests', 'inventory'])
+      alert(`Резерви синхронізовано. Завершено запитів: ${Number(data?.completed_requests) || 0}, списано: ${Number(data?.deducted_qty) || 0} шт.`)
+    } catch (error) {
+      console.error('[Shipping] reservation repair error:', error)
+      alert(`Не вдалося синхронізувати резерви: ${error.message || error}`)
+    } finally {
+      setIsProcessing(false)
+    }
+  }, [fetchData, isProcessing, supabase])
+
   return {
     currentUser,
     isLoading,
@@ -958,6 +961,7 @@ export function useShippingData() {
     handleGenerateNpTTNSubmit,
     packingSlip,
     setPackingSlip,
-    handleViewPackingSlip
+    handleViewPackingSlip,
+    handleRepairShippedBatch
   }
 }

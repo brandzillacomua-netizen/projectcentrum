@@ -731,11 +731,12 @@ export function createWarehouseActions({
 
   const deductIssuedMaterialsForTask = async (taskId, options = {}) => {
     try {
-      const { data: issuedReqs } = await supabase
+      const { data: issuedReqs, error: requestsError } = await supabase
         .from('material_requests')
         .select('id, inventory_id, quantity, details')
         .eq('task_id', taskId)
         .eq('status', 'issued')
+      if (requestsError) throw requestsError
 
       const requestsToDeduct = (issuedReqs || []).filter(req => {
         if (!options.packagingOnly) return true
@@ -760,10 +761,11 @@ export function createWarehouseActions({
       if (ids.length === 0) return
 
       // Single batch SELECT instead of N individual selects
-      const { data: items } = await supabase
+      const { data: items, error: inventoryError } = await supabase
         .from('inventory')
         .select('*')
         .in('id', ids)
+      if (inventoryError) throw inventoryError
 
       if (!items || items.length === 0) return
 
@@ -774,12 +776,15 @@ export function createWarehouseActions({
         reserved_qty: Math.max(0, (Number(item.reserved_qty) || 0) - (deductionMap[item.id] || 0))
       }))
 
-      await Promise.all([
+      const writeResults = await Promise.all([
         supabase.from('inventory').upsert(updates),
         supabase.from('material_requests').update({ status: 'completed' }).in('id', requestsToDeduct.map(req => req.id))
       ])
+      const writeError = writeResults.find(result => result?.error)?.error
+      if (writeError) throw writeError
     } catch (e) {
       console.error('Error deducting materials for task:', e)
+      throw e
     }
   }
 

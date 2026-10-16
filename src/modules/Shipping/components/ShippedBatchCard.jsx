@@ -1,8 +1,8 @@
 import React from 'react'
-import { Package, Printer } from 'lucide-react'
+import { Package, Printer, RefreshCw } from 'lucide-react'
 import { PALLET_COLORS } from '../utils/shippingHelpers'
 
-export const ShippedBatchCard = React.memo(({ batch, onViewPackingSlip, handleViewPackingSlip }) => {
+export const ShippedBatchCard = React.memo(({ batch, onViewPackingSlip, handleViewPackingSlip, onRepairReservations, isRepairing }) => {
   const handleView = onViewPackingSlip || handleViewPackingSlip
   const colorObj = PALLET_COLORS.find(c => c.id === batch.batchColor)
   return (
@@ -56,14 +56,24 @@ export const ShippedBatchCard = React.memo(({ batch, onViewPackingSlip, handleVi
             </span>
           )}
         </div>
-        <button
-          onClick={() => handleView && handleView(batch)}
-          style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(255,144,0,0.1)', border: '1px solid rgba(255,144,0,0.2)', color: '#ff9000', borderRadius: '8px', padding: '5px 10px', fontSize: '0.65rem', fontWeight: 800, cursor: 'pointer', transition: '0.2s' }}
-          onMouseEnter={e => { e.currentTarget.style.background = '#ff9000'; e.currentTarget.style.color = '#000' }}
-          onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,144,0,0.1)'; e.currentTarget.style.color = '#ff9000' }}
-        >
-          <Printer size={12} /> Лист {batch.packingSlipNumber ? `№${batch.packingSlipNumber}` : ''}
-        </button>
+        <div style={{ display: 'flex', gap: '6px' }}>
+          <button
+            onClick={() => onRepairReservations?.(batch)}
+            disabled={isRepairing}
+            title="Завершити завислі складські резерви цього відвантаження"
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.25)', color: '#10b981', borderRadius: '8px', padding: '5px 10px', fontSize: '0.65rem', fontWeight: 800, cursor: isRepairing ? 'wait' : 'pointer' }}
+          >
+            <RefreshCw size={12} /> Резерви
+          </button>
+          <button
+            onClick={() => handleView && handleView(batch)}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(255,144,0,0.1)', border: '1px solid rgba(255,144,0,0.2)', color: '#ff9000', borderRadius: '8px', padding: '5px 10px', fontSize: '0.65rem', fontWeight: 800, cursor: 'pointer', transition: '0.2s' }}
+            onMouseEnter={e => { e.currentTarget.style.background = '#ff9000'; e.currentTarget.style.color = '#000' }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,144,0,0.1)'; e.currentTarget.style.color = '#ff9000' }}
+          >
+            <Printer size={12} /> Лист {batch.packingSlipNumber ? `№${batch.packingSlipNumber}` : ''}
+          </button>
+        </div>
       </div>
     </div>
   )

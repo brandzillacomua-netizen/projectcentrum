@@ -15,6 +15,10 @@ export default function TumblingCompleteModal({
 }) {
   if (!showCompleteModal || !activeCompletingCard) return null
 
+  const startedAtMs = activeCompletingCard?.started_at ? new Date(activeCompletingCard.started_at).getTime() : 0
+  const elapsedSec = startedAtMs ? Math.max(0, Math.floor((Date.now() - startedAtMs) / 1000)) : null
+  const isSuspiciouslyFast = elapsedSec !== null && elapsedSec < 30
+
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '20px', backdropFilter: 'blur(8px)' }}>
       <div style={{ background: 'var(--card-bg, #0e0e11)', width: '100%', maxWidth: '420px', maxHeight: 'calc(100vh - 40px)', borderRadius: '28px', border: '1px solid rgba(16,185,129,0.2)', overflowY: 'auto', boxShadow: '0 20px 50px rgba(0,0,0,0.5)' }}>
@@ -42,6 +46,16 @@ export default function TumblingCompleteModal({
 
         {/* Content Form */}
         <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+
+          {/* Warning banner if too fast */}
+          {isSuspiciouslyFast && (
+            <div style={{ background: 'rgba(239, 68, 68, 0.12)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '12px', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ fontSize: '1.1rem' }}>⚠️</span>
+              <div style={{ fontSize: '0.72rem', color: '#fca5a5', fontWeight: 700, lineHeight: 1.35 }}>
+                Етап тривав лише <strong>{elapsedSec} сек</strong>. Переконайтеся, що обробка дійсно фізично виконана перед підтвердженням!
+              </div>
+            </div>
+          )}
 
           {/* Nomenclature Detail Info */}
           <div style={{ background: 'var(--bg, var(--border-subtle))', border: '1px solid var(--glass-border, var(--border-subtle))', padding: '12px 16px', borderRadius: '12px' }}>

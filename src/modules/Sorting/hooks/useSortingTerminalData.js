@@ -35,6 +35,7 @@ export function useSortingTerminalData() {
 
   const workCards = useStore(state => state.workCards)
   const nomenclatures = useStore(state => state.nomenclatures)
+  const orders = useStore(state => state.orders)
 
   const [currentTime, setCurrentTime] = useState(new Date())
   const [selectedShift, setSelectedShift] = useState('')
@@ -81,6 +82,7 @@ export function useSortingTerminalData() {
   }, [currentUser, getFilteredOperators])
 
   const getNom = (card) => nomenclatures.find(n => n.id === card?.nomenclature_id)
+  const getOrder = (card) => (orders || []).find(o => String(o.id) === String(card?.order_id))
 
   const handleCardActionById = async (id) => {
     setIsProcessing(true)
@@ -97,8 +99,8 @@ export function useSortingTerminalData() {
         return
       }
 
-      // СОРТУВАННЯ очікує картки з at-buffer/Сортування або at-buffer/Прийомка
-      const isWaiting = card.status === 'at-buffer' && (card.operation === 'Сортування' || card.operation === 'Прийомка')
+      // СОРТУВАННЯ очікує картки виключно з at-buffer/Сортування (після завершення прийомки)
+      const isWaiting = card.status === 'at-buffer' && card.operation === 'Сортування'
       const isInWork = card.status === 'in-progress' && card.operation === 'Сортування'
 
       if (isWaiting) {
@@ -200,7 +202,7 @@ export function useSortingTerminalData() {
 
       const historyData = {
         nomenclature_id: card.nomenclature_id,
-        stage_name: card.operation === 'Прийомка' ? 'Буфер Галтовки' : 'Буфер Сортування',
+        stage_name: 'Буфер Сортування',
         operator_name: card.operator_name || 'Команда',
         qty_at_start: card.quantity || 0,
         qty_completed: card.quantity || 0,
@@ -371,10 +373,10 @@ export function useSortingTerminalData() {
     return [h, m, s].map(v => String(v).padStart(2, '0')).join(':')
   }
 
-  // Картки в очікуванні: at-buffer/Сортування або at-buffer/Прийомка
+  // Картки в очікуванні: виключно at-buffer/Сортування
   const waitingCards = useMemo(() => {
     return workCards
-      .filter(c => !completedCardIds.has(String(c.id)) && c.status === 'at-buffer' && (c.operation === 'Сортування' || c.operation === 'Прийомка'))
+      .filter(c => !completedCardIds.has(String(c.id)) && c.status === 'at-buffer' && c.operation === 'Сортування')
       .sort((a, b) => new Date(a.completed_at || 0) - new Date(b.completed_at || 0))
   }, [workCards, completedCardIds])
 
@@ -424,6 +426,7 @@ export function useSortingTerminalData() {
     filterMode,
     setFilterMode,
     getNom,
+    getOrder,
     handleCardActionById,
     startSortingCard,
     openCompleteModal,

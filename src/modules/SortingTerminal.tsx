@@ -38,6 +38,7 @@ export const SortingTerminal: React.FC = () => {
     filterMode,
     setFilterMode,
     getNom,
+    getOrder,
     startSortingCard,
     openCompleteModal,
     submitSortingComplete,
@@ -84,6 +85,7 @@ export const SortingTerminal: React.FC = () => {
           <SortingTerminalCardList
             displayedCards={displayedCards}
             getNom={getNom}
+            getOrder={getOrder}
             formatDuration={formatDuration}
             isProcessing={isProcessing}
             setPendingStartCard={setPendingStartCard}

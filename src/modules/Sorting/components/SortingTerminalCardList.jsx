@@ -7,6 +7,7 @@ const ACCENT_RGB = '52,211,153'
 export default function SortingTerminalCardList({
   displayedCards,
   getNom,
+  getOrder,
   formatDuration,
   isProcessing,
   setPendingStartCard,
@@ -25,6 +26,8 @@ export default function SortingTerminalCardList({
     <div className="terminal-card-list custom-scroll" style={{ flex: 1, padding: '20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px' }}>
       {displayedCards.map(card => {
         const nom = getNom(card)
+        const order = getOrder ? getOrder(card) : null
+        const orderNum = order?.order_num || (card.card_info || '').match(/Наряд\s*№?([^\s\]]+)/)?.[1]
         const isWaiting = card.type === 'waiting'
         const timeStr = isWaiting
           ? (card.completed_at ? formatDuration(card.completed_at) : '—')
@@ -38,6 +41,11 @@ export default function SortingTerminalCardList({
                 <span style={{ fontSize: '0.62rem', color: '#ff9000', fontWeight: 900, textTransform: 'uppercase' }}>
                   Картка #{card.id.slice(-8).toUpperCase()}
                 </span>
+                {orderNum ? (
+                  <span style={{ background: 'rgba(56,189,248,0.15)', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.3)', padding: '2px 6px', borderRadius: '6px', fontSize: '0.6rem', fontWeight: 950 }}>
+                    Наряд №{orderNum}
+                  </span>
+                ) : null}
                 {(() => {
                   const seqMatch = (card.card_info || '').match(/(\d+\/\d+)/)
                   return seqMatch ? (
