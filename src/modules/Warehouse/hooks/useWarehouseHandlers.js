@@ -117,20 +117,22 @@ export const useWarehouseHandlers = ({
       for (const cutter of cutters) {
         const qtyToDeduct = cutter.qty
 
-        const { data: existingReq } = await supabaseClient
+        const { data: existingReq, error: existingReqError } = await supabaseClient
           .from('material_requests')
           .select('*')
           .eq('card_id', card.id)
           .eq('nomenclature_id', cutter.nomenclature_id)
           .maybeSingle()
+        if (existingReqError) throw existingReqError
 
         if (existingReq) {
-          await supabaseClient.from('material_requests')
+          const { error: updateRequestError } = await supabaseClient.from('material_requests')
             .update({ quantity: qtyToDeduct, status: 'issued' })
             .eq('id', existingReq.id)
+          if (updateRequestError) throw updateRequestError
         } else {
           const cardLabel = card.card_info?.split(' ')[0] || `№${card.id.substring(0, 8)}`
-          await supabaseClient.from('material_requests').insert({
+          const { error: insertRequestError } = await supabaseClient.from('material_requests').insert({
             order_id: card.order_id,
             task_id: card.task_id,
             card_id: card.id,
@@ -139,6 +141,7 @@ export const useWarehouseHandlers = ({
             status: 'issued',
             details: `СКЛАД ОПЕРАТИВНИЙ (Картка ${cardLabel}) (ОБРАНО ВРУЧНУ): ${cutter.name} — ${qtyToDeduct} шт.`
           })
+          if (insertRequestError) throw insertRequestError
         }
       }
 
@@ -164,10 +167,18 @@ export const useWarehouseHandlers = ({
 
       if (cardUpdateErr) throw cardUpdateErr
 
-      alert('Бокс фрез успішно укомплектовано з зарезервованих фрез!')
+      let refreshFailed = false
       if (typeof fetchData === 'function') {
-        fetchData(['inventory', 'material_requests', 'work_cards'])
+        try {
+          await fetchData(['inventory', 'material_requests', 'work_cards'])
+        } catch (refreshError) {
+          console.error('[WarehouseBoxes] Failed to refresh after box preparation:', refreshError)
+          refreshFailed = true
+        }
       }
+      alert(refreshFailed
+        ? 'Бокс укомплектовано, але список не оновився. Натисніть «Оновити».'
+        : 'Бокс фрез успішно укомплектовано з зарезервованих фрез!')
     } catch (err) {
       alert('Помилка підготовки боксу: ' + err.message)
     } finally {
@@ -180,14 +191,27 @@ export const useWarehouseHandlers = ({
     if (!boxItem?.card?.id) return
     setIsProcessing(true)
     try {
-      const { error } = await supabaseClient
-        .from('work_cards')
-        .update({ is_box_issued: true })
-        .eq('id', boxItem.card.id)
+      const { error } = await supabaseClient.rpc('issue_warehouse_box', {
+        p_card_id: boxItem.card.id,
+        p_requests: []
+      })
       if (error) throw error
-      if (typeof fetchData === 'function') fetchData(['work_cards'])
+      let refreshFailed = false
+      if (typeof fetchData === 'function') {
+        try {
+          await fetchData(['material_requests', 'work_cards'])
+        } catch (refreshError) {
+          console.error('[WarehouseBoxes] Failed to refresh after box issue:', refreshError)
+          refreshFailed = true
+        }
+      }
+      alert(refreshFailed
+        ? 'Бокс видано, але список не оновився. Натисніть «Оновити».'
+        : 'Бокс успішно видано!')
+      return true
     } catch (err) {
       alert('Помилка видачі боксу: ' + err.message)
+      return false
     } finally {
       setIsProcessing(false)
     }
@@ -241,6 +265,14 @@ export const useWarehouseHandlers = ({
       }
 
       if (!reqs || reqs.length === 0) {
+        const isPreparedBox = Boolean(
+          card.is_box_prepared || String(card.card_info || '').includes('[BOX_PREPARED:true]')
+        )
+        if (isPreparedBox && card.box_number) {
+          setScannedCard(card)
+          setScannedRequests([])
+          return
+        }
         alert('Для цієї картки немає зареєстрованих запитів на матеріали.')
         return
       }
@@ -497,83 +529,57 @@ export const useWarehouseHandlers = ({
     setIsProcessing(true)
     try {
       const pendingReqs = scannedRequests.filter(r => r.status === 'pending' || r.status === 'issued')
-      
-      for (const req of pendingReqs) {
-        const inventoryFilters = []
-        if (isUuid(req.inventory_id)) inventoryFilters.push(`id.eq.${req.inventory_id.trim()}`)
-        if (isUuid(req.nomenclature_id)) inventoryFilters.push(`nomenclature_id.eq.${req.nomenclature_id.trim()}`)
+      if (!scannedCard?.id) throw new Error('Не визначено виробничу картку.')
 
-        let matchedInventory = []
-        if (inventoryFilters.length > 0) {
-          const { data, error: invErr } = await supabaseClient
-            .from('inventory')
-            .select('*')
-            .or(inventoryFilters.join(','))
-
-          if (invErr) throw invErr
-          matchedInventory = data || []
-        }
-
-        const invItem = (matchedInventory || []).find(i => i.warehouse === 'operational' || !i.warehouse) 
-          || (matchedInventory || [])[0]
-
-        const qtyToDeduct = Number(req.displayQty ?? req.quantity ?? 0) || 0
-
-        if (req.isSheet) {
-          // Keep sheet reservation active; write-off will happen upon cutting completion
-          if (req.status === 'pending') {
-            await supabaseClient.from('material_requests')
-              .update({ status: 'issued' })
-              .eq('id', req.id)
+      const requestPayload = pendingReqs.map(req => {
+        if (req.isSynthetic) {
+          const quantity = Number(req.displayQty ?? req.quantity ?? 0) || 0
+          if (!isUuid(req.nomenclature_id) || quantity <= 0) {
+            throw new Error(`Некоректна синтетична заявка: ${req.details || req.id || 'без назви'}`)
           }
-        } else {
-          if (req.isSynthetic) {
-            await supabaseClient.from('material_requests').insert({
-              order_id: req.order_id,
-              task_id: req.task_id,
-              card_id: req.card_id,
-              nomenclature_id: req.nomenclature_id,
-              inventory_id: invItem?.id || req.inventory_id || null,
-              quantity: qtyToDeduct,
-              status: 'issued',
-              details: req.details
-            })
-          } else {
-            await supabaseClient.from('material_requests')
-              .update({ status: 'issued' })
-              .eq('id', req.id)
-          }
-        }
-      }
-
-      if (scannedCard) {
-        const nextCardInfo = `${scannedCard.card_info || ''} [MATERIALS_ISSUED:true]`.trim()
-        const { data: pendingReqs } = await supabaseClient
-          .from('material_requests')
-          .select('id')
-          .eq('card_id', scannedCard.id)
-          .eq('status', 'pending')
-
-        const updatePayload = { card_info: nextCardInfo }
-        if (!pendingReqs || pendingReqs.length === 0) {
-          if (scannedCard.status === 'waiting-cutters' || scannedCard.status === 'waiting-materials') {
-            updatePayload.status = 'new'
+          return {
+            is_synthetic: true,
+            nomenclature_id: req.nomenclature_id,
+            inventory_id: isUuid(req.inventory_id) ? req.inventory_id : null,
+            quantity,
+            details: req.details || null
           }
         }
 
-        await supabaseClient
-          .from('work_cards')
-          .update(updatePayload)
-          .eq('id', scannedCard.id)
-      }
+        if (!isUuid(req.id)) {
+          throw new Error(`Некоректний ID заявки: ${req.id || 'відсутній'}`)
+        }
+        return { id: req.id, is_synthetic: false }
+      })
 
-      alert('Матеріали та фрези успішно видано під наряд!')
+      const { data: issueResult, error: issueError } = await supabaseClient.rpc('issue_warehouse_box', {
+        p_card_id: scannedCard.id,
+        p_requests: requestPayload
+      })
+      if (issueError) throw issueError
+      if (!issueResult?.ok) throw new Error('База даних не підтвердила видачу боксу.')
+
       setScannedCard(null)
       setScannedRequests([])
       setIsScanning(false)
-      if (typeof fetchData === 'function') fetchData(['inventory', 'material_requests', 'work_cards'])
+      let refreshFailed = false
+      if (typeof fetchData === 'function') {
+        try {
+          await fetchData(['inventory', 'material_requests', 'work_cards'])
+        } catch (refreshError) {
+          console.error('[WarehouseBoxes] Failed to refresh after card issue:', refreshError)
+          refreshFailed = true
+        }
+      }
+      alert(issueResult.already_issued
+        ? 'Цей бокс уже був виданий раніше.'
+        : refreshFailed
+          ? 'Бокс видано, але список не оновився. Натисніть «Оновити».'
+          : 'Бокс, матеріали та фрези успішно видано!')
+      return true
     } catch (err) {
       alert('Помилка видачі: ' + err.message)
+      return false
     } finally {
       setIsProcessing(false)
     }

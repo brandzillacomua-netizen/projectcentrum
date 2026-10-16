@@ -356,38 +356,9 @@ export const useWarehouseComputed = ({
         return getIndex(a) - getIndex(b)
       })
 
-      // Allocate the completed sheets to the items
-      let remainingCompleted = group.totalCompletedSheets
-      group.items.forEach(item => {
-        const isPersistentIssued = (item.card.card_info || '').includes('[MATERIALS_ISSUED:true]')
-        if (isPersistentIssued) {
-          item.isIssued = true
-          return
-        }
-
-        const hasPendingSheetsForTask = (requests || []).some(r => 
-          String(r.task_id) === String(item.card.task_id) && 
-          (r.status === 'pending' || r.status === 'issued') && 
-          isSheetRequest(r) && 
-          isSheetMatchingPart(r, item.activeMaterialName, item.nom)
-        )
-
-        if (!hasPendingSheetsForTask) {
-          // If the task has no pending/issued sheets for this material, then all cards of this material are fully issued
-          item.isIssued = item.isPrepared
-        } else if (remainingCompleted >= item.cardSheets) {
-          item.isIssued = item.isPrepared
-          remainingCompleted -= item.cardSheets
-        } else {
-          // Check if there is a card-specific completed sheet request
-          const hasCardSpecificCompleted = (requests || []).some(r => 
-            String(r.card_id) === String(item.card.id) && 
-            r.status === 'completed' && 
-            isSheetRequest(r)
-          )
-          item.isIssued = item.isPrepared && hasCardSpecificCompleted
-        }
-      })
+      // Physical box issuance is deliberately not inferred from material request
+      // statuses. Only work_cards.is_box_issued (or the legacy BOX_ISSUED marker)
+      // may move a box into the issued state.
     })
 
     return list

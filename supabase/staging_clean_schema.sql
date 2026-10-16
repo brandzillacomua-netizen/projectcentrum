@@ -136,6 +136,8 @@ CREATE TABLE IF NOT EXISTS public.work_cards (
   status text DEFAULT 'created',
   box_number text,
   is_box_prepared boolean NOT NULL DEFAULT false,
+  is_box_issued boolean NOT NULL DEFAULT false,
+  box_issued_at timestamptz,
   card_info text,
   metadata jsonb DEFAULT '{}'::jsonb,
   created_at timestamptz DEFAULT now(),
@@ -144,6 +146,7 @@ CREATE TABLE IF NOT EXISTS public.work_cards (
 
 CREATE INDEX IF NOT EXISTS idx_work_cards_task_id ON public.work_cards(task_id);
 CREATE INDEX IF NOT EXISTS idx_work_cards_is_box_prepared ON public.work_cards(is_box_prepared);
+CREATE INDEX IF NOT EXISTS idx_work_cards_is_box_issued ON public.work_cards(is_box_issued) WHERE is_box_issued = true;
 CREATE INDEX IF NOT EXISTS idx_work_cards_status ON public.work_cards(status);
 
 -- 8. Історія переходів карток (Work Card History)

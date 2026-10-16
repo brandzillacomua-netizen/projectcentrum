@@ -175,7 +175,9 @@ CREATE TABLE IF NOT EXISTS public.work_cards (
   "used_in_shop2_qty" bigint,
   "galt_priority" bigint,
   "box_number" text,
-  "is_box_prepared" boolean
+  "is_box_prepared" boolean,
+  "is_box_issued" boolean NOT NULL DEFAULT false,
+  "box_issued_at" timestamptz
 );
 
 ALTER TABLE public.work_cards ENABLE ROW LEVEL SECURITY;

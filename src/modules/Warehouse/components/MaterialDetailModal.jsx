@@ -12,21 +12,21 @@ export const MaterialDetailModal = ({
 }) => {
   if (!scannedCard) return null
 
-  const isFullyIssued = scannedRequests.length > 0 && scannedRequests.every(r => r.status === 'completed')
+  const isBoxIssued = Boolean(
+    scannedCard.is_box_issued || String(scannedCard.card_info || '').includes('[BOX_ISSUED:true]')
+  )
   const cardNom = nomenclatures.find(n => String(n.id) === String(scannedCard.nomenclature_id))
   const cardNomName = cardNom
     ? (cardNom.name + (cardNom.material_type ? ` (${cardNom.material_type})` : ''))
     : (scannedCard.name || 'Номенклатура не вказана')
 
-  // Calculate last issue time based on updated_at/created_at of completed requests
-  const completedRequests = scannedRequests.filter(r => r.status === 'completed')
+  // The physical issue timestamp belongs to the box, not to individual material requests.
   let formattedIssueTime = ''
-  if (completedRequests.length > 0) {
-    const times = completedRequests.map(r => new Date(r.updated_at || r.created_at).getTime()).filter(t => !isNaN(t))
-    if (times.length > 0) {
-      const maxTime = new Date(Math.max(...times))
+  if (scannedCard.box_issued_at) {
+    const issuedAt = new Date(scannedCard.box_issued_at)
+    if (!Number.isNaN(issuedAt.getTime())) {
       const pad = (n) => String(n).padStart(2, '0')
-      formattedIssueTime = `${pad(maxTime.getDate())}.${pad(maxTime.getMonth() + 1)}.${maxTime.getFullYear()} ${pad(maxTime.getHours())}:${pad(maxTime.getMinutes())}`
+      formattedIssueTime = `${pad(issuedAt.getDate())}.${pad(issuedAt.getMonth() + 1)}.${issuedAt.getFullYear()} ${pad(issuedAt.getHours())}:${pad(issuedAt.getMinutes())}`
     }
   }
 
@@ -37,7 +37,7 @@ export const MaterialDetailModal = ({
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <span style={{ color: '#ff9000', fontWeight: 900, fontSize: '0.95rem' }}>ДЕТАЛІ МАТЕРІАЛІВ КАРТКИ</span>
-              {isFullyIssued && (
+              {isBoxIssued && (
                 <span style={{ 
                   background: 'rgba(16, 185, 129, 0.15)', 
                   color: '#10b981', 
@@ -61,10 +61,10 @@ export const MaterialDetailModal = ({
         {/* Physical Box Location / Issued Indicator */}
         {scannedCard.box_number && (
           <div style={{
-            background: isFullyIssued 
+            background: isBoxIssued
               ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(5, 150, 105, 0.05))'
               : 'linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(37, 99, 235, 0.05))',
-            borderBottom: isFullyIssued
+            borderBottom: isBoxIssued
               ? '1px solid rgba(16, 185, 129, 0.25)'
               : '1px solid rgba(59, 130, 246, 0.25)',
             padding: '15px 25px',
@@ -72,19 +72,19 @@ export const MaterialDetailModal = ({
             alignItems: 'center',
             gap: '12px'
           }}>
-            <span style={{ fontSize: '1.8rem' }}>{isFullyIssued ? '📦' : '📍'}</span>
+            <span style={{ fontSize: '1.8rem' }}>{isBoxIssued ? '📦' : '📍'}</span>
             <div>
               <div style={{ 
                 fontSize: '0.62rem', 
-                color: isFullyIssued ? '#10b981' : '#3b82f6', 
+                color: isBoxIssued ? '#10b981' : '#3b82f6',
                 fontWeight: 900, 
                 textTransform: 'uppercase', 
                 letterSpacing: '0.05em' 
               }}>
-                {isFullyIssued ? 'БОКС ВИДАНО' : 'ЛОКАЦІЯ МАТЕРІАЛІВ НА СКЛАДІ'}
+                {isBoxIssued ? 'БОКС ВИДАНО' : 'ЛОКАЦІЯ МАТЕРІАЛІВ НА СКЛАДІ'}
               </div>
               <div style={{ fontSize: '1.25rem', fontWeight: 1000, color: 'var(--text-strong)', marginTop: '2px' }}>
-                БОКС №{scannedCard.box_number} {isFullyIssued && formattedIssueTime && `(в ${formattedIssueTime})`}
+                БОКС №{scannedCard.box_number} {isBoxIssued && formattedIssueTime && `(в ${formattedIssueTime})`}
               </div>
             </div>
           </div>
@@ -109,7 +109,7 @@ export const MaterialDetailModal = ({
               <span>Матеріали: Склад оперативний</span>
             </div>
           </div>
-          {isFullyIssued && (
+          {isBoxIssued && (
             <div style={{
               background: 'rgba(16, 185, 129, 0.12)',
               border: '1px solid rgba(16, 185, 129, 0.35)',
@@ -129,7 +129,7 @@ export const MaterialDetailModal = ({
             const itemName = nom
               ? (nom.name + (nom.material_type ? ` (${nom.material_type})` : ''))
               : (req.details || req.name || `Матеріал ${idx + 1}`)
-            const isPending = req.status === 'pending' || req.status === 'issued'
+            const isPending = !isBoxIssued && (req.status === 'pending' || req.status === 'issued')
             const requiredQty = req.displayQty ?? Number(req.quantity)
 
             return (
@@ -156,13 +156,13 @@ export const MaterialDetailModal = ({
           >
             Закрити
           </button>
-          {!isFullyIssued && scannedRequests.some(r => r.status === 'pending' || r.status === 'issued') && (
+          {!isBoxIssued && (
             <button
               disabled={isIssuingCard}
               onClick={handleIssueCardMaterials}
               style={{ flex: 2, padding: '12px', borderRadius: '10px', background: '#ff9000', color: '#000', border: 'none', fontWeight: 900, cursor: isIssuingCard ? 'not-allowed' : 'pointer', opacity: isIssuingCard ? 0.5 : 1 }}
             >
-              {isIssuingCard ? 'ОБРОБКА...' : 'ВИДАТИ МАТЕРІАЛИ'}
+              {isIssuingCard ? 'ОБРОБКА...' : 'ВИДАТИ БОКС І МАТЕРІАЛИ'}
             </button>
           )}
         </div>
