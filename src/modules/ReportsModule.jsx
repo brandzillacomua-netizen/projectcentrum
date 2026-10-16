@@ -22,6 +22,8 @@ const ReportsModule = () => {
     nomenclatures,
     receptionDocs,
     requests,
+    workCards,
+    machines,
     activeTab,
     setActiveTab,
     scrapReportSubTab,
@@ -190,6 +192,8 @@ const ReportsModule = () => {
             workCardHistory={workCardHistory}
             requests={requests}
             inventory={inventory}
+            workCards={workCards}
+            machines={machines}
             startDate={startDate}
             endDate={endDate}
             searchQuery={searchQuery}

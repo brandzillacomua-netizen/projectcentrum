@@ -29,6 +29,8 @@ export function useReportsModuleData() {
     nomenclatures,
     receptionDocs,
     requests,
+    workCards,
+    machines = [],
     normalize
   } = useMES()
 
@@ -136,7 +138,7 @@ export function useReportsModuleData() {
     const cached = historyRangeCacheRef.current.get(cacheKey)
     if (cached && Date.now() - cached.savedAt < REPORT_CACHE_TTL_MS) return cached.rows
 
-    const columns = 'id,card_id,nomenclature_id,operator_name,shift_name,stage_name,qty_completed,scrap_qty,qc_scrap_comment,completed_at,created_at,card_info'
+    const columns = 'id,card_id,task_id,nomenclature_id,operator_name,shift_name,stage_name,qty_completed,scrap_qty,qc_scrap_comment,completed_at,created_at,card_info,machine,machine_id,machine_name'
     const pageSize = 1000
     const rows = []
 
@@ -430,6 +432,8 @@ export function useReportsModuleData() {
     nomenclatures,
     receptionDocs,
     requests,
+    workCards,
+    machines,
     activeTab,
     setActiveTab: handleSetActiveTab,
     scrapReportSubTab,
