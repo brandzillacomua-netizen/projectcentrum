@@ -13,6 +13,7 @@ import { executeAtomicCardTransition } from '../../../services/atomicCardTransit
 import { incrementInventoryStock } from '../../../services/inventoryStockService'
 import { isPackagingOperation } from '../../Shop2CardGen/constants/shop2Stages'
 import { parseMachineQRId } from '../../../utils/machineQrUtils.js'
+import { getShop2BufferRemaining } from '../../../utils/productionWipParity.js'
 
 
 export function useShop2TerminalState() {
