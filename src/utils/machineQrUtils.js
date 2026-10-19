@@ -10,6 +10,6 @@ export function parseMachineQRId(rawText) {
 
   // A machine QR must explicitly contain /machines/<id>, machines/<id>, or CENTRUM_MACHINE_<id>
   // Bare UUIDs are ALWAYS work cards or standard records, never machine QRs!
-  const match = clean.match(/(?:(?:\/|\b)machines\/|(?:\/|\b)machine\/|^CENTRUM_MACHINE_)([a-f0-9-]{36})/i)
+  const match = clean.match(/(?:(?:\/|\b)machines\/|(?:\/|\b)machine\/|^CENTRUM_MACHINE_)([a-zA-Z0-9-]{1,64})(?:[\/?#]|$)/i)
   return match ? match[1] : null
 }

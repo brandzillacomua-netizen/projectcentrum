@@ -69,6 +69,7 @@ export const ScannerPanel = ({
   const fixVideoStyles = useCallback(() => {
     const videoEl = document.querySelector('#warehouse-reader video')
     if (videoEl) {
+      videoEl.setAttribute('autoplay', 'true')
       videoEl.setAttribute('playsinline', 'true')
       videoEl.setAttribute('webkit-playsinline', 'true')
       videoEl.setAttribute('muted', 'true')
@@ -127,9 +128,8 @@ export const ScannerPanel = ({
       el.innerHTML = ''
 
       const qr = new Html5Qrcode('warehouse-reader', {
-        formatsToSupport: [0, 5, 3, 9], // 0: QR_CODE, 5: CODE_128, 3: CODE_39, 9: EAN_13 (cuts CPU decode time by 75%)
         experimentalFeatures: {
-          useBarCodeDetectorIfSupported: true // Native hardware acceleration
+          useBarCodeDetectorIfSupported: true // Native hardware acceleration on Android
         },
         verbose: false
       })
@@ -139,7 +139,11 @@ export const ScannerPanel = ({
         if (scanHandledRef.current) return
         scanHandledRef.current = true
 
-        triggerHapticAudioFeedback(true)
+        try {
+          triggerHapticAudioFeedback(true)
+        } catch (audioErr) {
+          console.warn('[ScannerPanel] Audio/haptic feedback error:', audioErr)
+        }
 
         let cardId = String(decodedText || '').trim()
         if (cardId.startsWith('CENTRUM_CARD_')) {
@@ -156,24 +160,22 @@ export const ScannerPanel = ({
           }
         } catch (err) {
           console.error('[ScannerPanel] Card scan handler error:', err)
-          triggerHapticAudioFeedback(false)
+          try {
+            triggerHapticAudioFeedback(false)
+          } catch {}
           setLocalError(err?.message || String(err))
           scanHandledRef.current = false
         }
       }
 
-      // Fast, responsive 720p stream with 85% viewfinder coverage for instant scan detection
+      // Optimized for mobile iOS Safari & Android:
+      // - 12 fps: eliminates iOS Safari JS CPU lockup while maintaining instant detection
+      // - Native portrait videoConstraints: eliminates 90-degree frame rotation on iOS Safari
+      // - Full frame decode without qrbox crop: immune to object-fit: cover coordinate mismatch
       const config = {
-        fps: 25,
-        qrbox: (viewfinderWidth, viewfinderHeight) => {
-          const minEdge = Math.min(viewfinderWidth || 300, viewfinderHeight || 300)
-          const size = Math.max(200, Math.floor(minEdge * 0.85))
-          return { width: size, height: size }
-        },
+        fps: 12,
         videoConstraints: {
-          facingMode: 'environment',
-          width: { ideal: 1280, max: 1920 },
-          height: { ideal: 720, max: 1080 }
+          facingMode: { ideal: 'environment' }
         }
       }
 
