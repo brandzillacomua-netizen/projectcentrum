@@ -577,6 +577,411 @@ const MachinesModule = () => {
             justify-content: space-between;
           }
         }
+
+        /* ── LIGHT THEME ADAPTATION FOR MACHINE DOSSIER & CALLS ── */
+        .light-theme .machine-dossier-overlay,
+        body.light-theme .machine-dossier-overlay {
+          background: rgba(15, 23, 42, 0.45) !important;
+          backdrop-filter: blur(8px) !important;
+        }
+
+        .light-theme .machine-dossier,
+        body.light-theme .machine-dossier {
+          background: #ffffff !important;
+          border: 1px solid #cbd5e1 !important;
+          box-shadow: 0 25px 70px rgba(15, 23, 42, 0.18) !important;
+          color: #0f172a !important;
+        }
+
+        .light-theme .machine-dossier-header,
+        body.light-theme .machine-dossier-header {
+          background: #f8fafc !important;
+          border-bottom: 1px solid #e2e8f0 !important;
+        }
+
+        .light-theme .machine-title-block h2,
+        body.light-theme .machine-title-block h2 {
+          color: #0f172a !important;
+        }
+
+        .light-theme .machine-title-block p,
+        body.light-theme .machine-title-block p {
+          color: #64748b !important;
+        }
+
+        .light-theme .machine-action,
+        body.light-theme .machine-action {
+          background: #ffffff !important;
+          border: 1px solid #cbd5e1 !important;
+          color: #334155 !important;
+        }
+
+        .light-theme .machine-action:hover,
+        body.light-theme .machine-action:hover {
+          background: #f1f5f9 !important;
+          border-color: #94a3b8 !important;
+          color: #0f172a !important;
+        }
+
+        .light-theme .machine-action.maintenance,
+        body.light-theme .machine-action.maintenance {
+          background: #ff9000 !important;
+          color: #000000 !important;
+          border-color: #ff9000 !important;
+        }
+
+        .light-theme .machine-action.secondary,
+        body.light-theme .machine-action.secondary {
+          background: #f1f5f9 !important;
+          border: 1px solid #cbd5e1 !important;
+          color: #0f172a !important;
+        }
+
+        .light-theme .machine-dossier-close,
+        body.light-theme .machine-dossier-close {
+          background: #f1f5f9 !important;
+          border: 1px solid #cbd5e1 !important;
+          color: #475569 !important;
+        }
+
+        .light-theme .machine-dossier-close:hover,
+        body.light-theme .machine-dossier-close:hover {
+          background: #e2e8f0 !important;
+          color: #0f172a !important;
+        }
+
+        .light-theme .machine-kpis,
+        body.light-theme .machine-kpis {
+          background: #f8fafc !important;
+          border-bottom: 1px solid #e2e8f0 !important;
+        }
+
+        .light-theme .machine-kpis > div,
+        body.light-theme .machine-kpis > div {
+          background: #ffffff !important;
+          border: 1px solid #e2e8f0 !important;
+          color: #64748b !important;
+          box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05) !important;
+        }
+
+        .light-theme .machine-kpis strong,
+        body.light-theme .machine-kpis strong {
+          color: #0f172a !important;
+        }
+
+        .light-theme .machine-dossier-tabs,
+        body.light-theme .machine-dossier-tabs {
+          background: #f8fafc !important;
+          border-bottom: 1px solid #e2e8f0 !important;
+        }
+
+        .light-theme .machine-dossier-tabs button,
+        body.light-theme .machine-dossier-tabs button {
+          color: #64748b !important;
+        }
+
+        .light-theme .machine-dossier-tabs button.active,
+        body.light-theme .machine-dossier-tabs button.active {
+          color: #ea580c !important;
+          border-bottom-color: #ea580c !important;
+        }
+
+        .light-theme .machine-dossier-tabs span,
+        body.light-theme .machine-dossier-tabs span {
+          background: #e2e8f0 !important;
+          color: #334155 !important;
+        }
+
+        .light-theme .machine-dossier-content,
+        body.light-theme .machine-dossier-content {
+          background: #f8fafc !important;
+        }
+
+        .light-theme .machine-panel,
+        body.light-theme .machine-panel {
+          background: #ffffff !important;
+          border: 1px solid #e2e8f0 !important;
+          box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04) !important;
+        }
+
+        .light-theme .machine-panel-title,
+        body.light-theme .machine-panel-title {
+          color: #0f172a !important;
+        }
+
+        .light-theme .machine-quick-calls-panel,
+        body.light-theme .machine-quick-calls-panel {
+          background: #ffffff !important;
+          border: 1px solid #e2e8f0 !important;
+        }
+
+        .light-theme .machine-quick-calls-header,
+        body.light-theme .machine-quick-calls-header {
+          border-bottom: 1px solid #f1f5f9 !important;
+        }
+
+        .light-theme .machine-quick-calls-operator,
+        body.light-theme .machine-quick-calls-operator {
+          color: #475569 !important;
+        }
+
+        .light-theme .machine-quick-calls-operator input,
+        body.light-theme .machine-quick-calls-operator input {
+          background: #f8fafc !important;
+          border: 1px solid #cbd5e1 !important;
+          color: #0f172a !important;
+        }
+
+        .light-theme .machine-quick-calls-operator input:focus,
+        body.light-theme .machine-quick-calls-operator input:focus {
+          border-color: #ea580c !important;
+          background: #ffffff !important;
+        }
+
+        .light-theme .machine-call-card,
+        body.light-theme .machine-call-card {
+          background: #f8fafc !important;
+          border: 1px solid #e2e8f0 !important;
+        }
+
+        .light-theme .machine-call-card.master,
+        body.light-theme .machine-call-card.master {
+          border-left: 3px solid #ea580c !important;
+        }
+
+        .light-theme .machine-call-card.engineer,
+        body.light-theme .machine-call-card.engineer {
+          border-left: 3px solid #8b5cf6 !important;
+        }
+
+        .light-theme .machine-call-card.quality,
+        body.light-theme .machine-call-card.quality {
+          border-left: 3px solid #ef4444 !important;
+        }
+
+        .light-theme .machine-call-card.master.is-active,
+        body.light-theme .machine-call-card.master.is-active {
+          background: #fff7ed !important;
+          border-color: #fdba74 !important;
+          box-shadow: 0 4px 14px rgba(249, 115, 22, 0.12) !important;
+        }
+
+        .light-theme .machine-call-card.engineer.is-active,
+        body.light-theme .machine-call-card.engineer.is-active {
+          background: #f5f3ff !important;
+          border-color: #c4b5fd !important;
+          box-shadow: 0 4px 14px rgba(139, 92, 246, 0.12) !important;
+        }
+
+        .light-theme .machine-call-card.quality.is-active,
+        body.light-theme .machine-call-card.quality.is-active {
+          background: #fef2f2 !important;
+          border-color: #fca5a5 !important;
+          box-shadow: 0 4px 14px rgba(239, 68, 68, 0.12) !important;
+        }
+
+        .light-theme .call-card-title,
+        body.light-theme .call-card-title {
+          color: #0f172a !important;
+        }
+
+        .light-theme .call-card-sub,
+        body.light-theme .call-card-sub {
+          color: #64748b !important;
+        }
+
+        .light-theme .call-select,
+        body.light-theme .call-select {
+          background: #ffffff !important;
+          border: 1px solid #cbd5e1 !important;
+          color: #0f172a !important;
+        }
+
+        .light-theme .call-select:focus,
+        body.light-theme .call-select:focus {
+          border-color: #ea580c !important;
+        }
+
+        .light-theme .call-card-active-info,
+        body.light-theme .call-card-active-info {
+          background: #ffffff !important;
+          border: 1px solid #e2e8f0 !important;
+        }
+
+        .light-theme .call-active-time,
+        body.light-theme .call-active-time {
+          color: #64748b !important;
+        }
+
+        .light-theme .call-active-by,
+        body.light-theme .call-active-by {
+          color: #334155 !important;
+        }
+
+        .light-theme .call-active-by strong,
+        body.light-theme .call-active-by strong {
+          color: #0f172a !important;
+        }
+
+        .light-theme .machine-info-panel dl div,
+        body.light-theme .machine-info-panel dl div {
+          border-bottom: 1px solid #f1f5f9 !important;
+        }
+
+        .light-theme .machine-info-panel dt,
+        body.light-theme .machine-info-panel dt {
+          color: #64748b !important;
+        }
+
+        .light-theme .machine-info-panel dd,
+        body.light-theme .machine-info-panel dd {
+          color: #0f172a !important;
+        }
+
+        .light-theme .machine-info-panel p,
+        body.light-theme .machine-info-panel p {
+          color: #64748b !important;
+        }
+
+        .light-theme .machine-maintenance-form,
+        body.light-theme .machine-maintenance-form {
+          background: #fff7ed !important;
+          border: 1px solid #fed7aa !important;
+        }
+
+        .light-theme .machine-maintenance-form h3,
+        body.light-theme .machine-maintenance-form h3 {
+          color: #0f172a !important;
+        }
+
+        .light-theme .machine-maintenance-form label,
+        body.light-theme .machine-maintenance-form label {
+          color: #64748b !important;
+        }
+
+        .light-theme .machine-maintenance-form select,
+        .light-theme .machine-maintenance-form input,
+        body.light-theme .machine-maintenance-form select,
+        body.light-theme .machine-maintenance-form input {
+          background: #ffffff !important;
+          border: 1px solid #cbd5e1 !important;
+          color: #0f172a !important;
+        }
+
+        .light-theme .machine-dossier-table-wrap,
+        body.light-theme .machine-dossier-table-wrap {
+          background: #ffffff !important;
+          border: 1px solid #e2e8f0 !important;
+        }
+
+        .light-theme .machine-dossier-table th,
+        body.light-theme .machine-dossier-table th {
+          background: #f8fafc !important;
+          color: #475569 !important;
+          border-bottom: 1px solid #e2e8f0 !important;
+        }
+
+        .light-theme .machine-dossier-table td,
+        body.light-theme .machine-dossier-table td {
+          background: #ffffff !important;
+          color: #334155 !important;
+          border-top: 1px solid #f1f5f9 !important;
+        }
+
+        .light-theme .machine-dossier-table td small,
+        body.light-theme .machine-dossier-table td small {
+          color: #94a3b8 !important;
+        }
+
+        .light-theme .machine-dossier-table .strong,
+        body.light-theme .machine-dossier-table .strong {
+          color: #0f172a !important;
+        }
+
+        .light-theme .machine-detail-name,
+        body.light-theme .machine-detail-name {
+          color: #0f172a !important;
+        }
+
+        .light-theme .machine-operators-cell div,
+        body.light-theme .machine-operators-cell div {
+          color: #1e293b !important;
+        }
+
+        .light-theme .machine-operators-cell div span,
+        body.light-theme .machine-operators-cell div span {
+          background: #f1f5f9 !important;
+          color: #ea580c !important;
+        }
+
+        .light-theme .machine-operators-cell em,
+        body.light-theme .machine-operators-cell em {
+          color: #94a3b8 !important;
+        }
+
+        .light-theme .machine-empty,
+        body.light-theme .machine-empty {
+          color: #94a3b8 !important;
+        }
+
+        .light-theme .machine-history-toolbar label,
+        body.light-theme .machine-history-toolbar label {
+          background: #ffffff !important;
+          border: 1px solid #cbd5e1 !important;
+          color: #64748b !important;
+        }
+
+        .light-theme .machine-history-toolbar input,
+        body.light-theme .machine-history-toolbar input {
+          color: #0f172a !important;
+        }
+
+        .light-theme .machine-pagination,
+        body.light-theme .machine-pagination {
+          color: #64748b !important;
+        }
+
+        .light-theme .machine-pagination-summary select,
+        body.light-theme .machine-pagination-summary select {
+          background: #ffffff !important;
+          border: 1px solid #cbd5e1 !important;
+          color: #0f172a !important;
+        }
+
+        .light-theme .machine-pagination-pages button,
+        body.light-theme .machine-pagination-pages button {
+          background: #ffffff !important;
+          border: 1px solid #cbd5e1 !important;
+          color: #334155 !important;
+        }
+
+        .light-theme .machine-pagination-pages button.active,
+        body.light-theme .machine-pagination-pages button.active {
+          background: #ff9000 !important;
+          color: #000000 !important;
+          border-color: #ff9000 !important;
+        }
+
+        .light-theme .machine-calls-panel,
+        body.light-theme .machine-calls-panel {
+          background: #ffffff !important;
+          border: 1px solid #fee2e2 !important;
+        }
+
+        .light-theme .machine-call-row,
+        body.light-theme .machine-call-row {
+          border-top: 1px solid #f1f5f9 !important;
+        }
+
+        .light-theme .machine-call-row strong,
+        body.light-theme .machine-call-row strong {
+          color: #dc2626 !important;
+        }
+
+        .light-theme .machine-call-row small,
+        body.light-theme .machine-call-row small {
+          color: #64748b !important;
+        }
       `}} />
     </div>
   )

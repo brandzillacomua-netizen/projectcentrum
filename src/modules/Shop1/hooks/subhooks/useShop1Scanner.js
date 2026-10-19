@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import scannerDebounceGuard, { triggerHapticAudioFeedback } from '../../../../services/scannerDebounceGuard';
 import {
   cyrillicToLatinMap,
@@ -20,6 +21,7 @@ export function useShop1Scanner({
   onMachineCallTrigger,
   showAlert
 }) {
+  const navigate = useNavigate();
   const [isScanning, setIsScanning] = useState(false);
   const [manualId, setManualId] = useState('');
   const [showManualInput, setShowManualInput] = useState(false);
@@ -28,32 +30,17 @@ export function useShop1Scanner({
 
   const handleMachineQRScan = async (text) => {
     const cleanText = translateCyrillic(text);
-    const match = String(cleanText || '').match(/\/machines\/([a-f0-9-]+)(?:\/call)?/i);
+    const match = String(cleanText || '').match(/(?:machines\/|^)([a-f0-9-]{36})/i) ||
+                  String(cleanText || '').match(/\/machines\/([a-f0-9-]+)/i);
     if (match) {
       const machineId = match[1];
       try {
-        const { data: mData, error } = await supabase
-          .from('machines')
-          .select('*')
-          .eq('id', machineId)
-          .maybeSingle();
-
-        if (mData && typeof onMachineCallTrigger === 'function') {
-          onMachineCallTrigger({
-            id: mData.id,
-            name: mData.name,
-            type: mData.type,
-            sequence_number: mData.sequence_number,
-            floor: mData.floor,
-            inventory_no: mData.inventory_no
-          });
-        } else if (!mData) {
-          alert('Верстат з таким ID не знайдено в базі.');
-        }
+        sessionStorage.setItem('machine_return_route', '/shop1');
+        navigate(`/machines/${machineId}`);
+        return true;
       } catch (err) {
-        console.error(err);
+        console.error('Error navigating to machine card:', err);
       }
-      return true;
     }
     return false;
   };

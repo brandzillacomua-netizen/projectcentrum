@@ -1,5 +1,6 @@
 import React from 'react'
-import { X, AlertTriangle } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { X, AlertTriangle, Wrench } from 'lucide-react'
 
 export function Shop1MachineCallModal({
   machineCallModal,
@@ -16,6 +17,8 @@ export function Shop1MachineCallModal({
   callEngineers,
   callQCs
 }) {
+  const navigate = useNavigate()
+  if (!machineCallModal) return null
   return (
     <div style={{
       position: 'fixed',
@@ -56,7 +59,7 @@ export function Shop1MachineCallModal({
           <X size={24} />
         </button>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '25px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '20px' }}>
           <div style={{ background: '#ef444415', padding: '12px', borderRadius: '16px', color: '#ef4444' }}>
             <AlertTriangle size={32} />
           </div>
@@ -71,6 +74,36 @@ export function Shop1MachineCallModal({
             </p>
           </div>
         </div>
+
+        {/* Quick jump to full machine dossier & maintenance */}
+        <button
+          type="button"
+          onClick={() => {
+            setMachineCallModal(null)
+            sessionStorage.setItem('machine_return_route', '/shop1')
+            navigate(`/machines/${machineCallModal.id}`)
+          }}
+          style={{
+            background: 'rgba(255, 144, 0, 0.12)',
+            border: '1.5px solid #ff9000',
+            color: '#ff9000',
+            padding: '13px 16px',
+            borderRadius: '14px',
+            fontSize: '0.95rem',
+            fontWeight: 900,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '8px',
+            width: '100%',
+            marginBottom: '18px',
+            transition: 'all 0.2s'
+          }}
+        >
+          <Wrench size={18} />
+          <span>ВІДКРИТИ КАРТКУ ТА ОБСЛУГОВУВАННЯ →</span>
+        </button>
 
         {machineCallSuccess ? (
           <div style={{

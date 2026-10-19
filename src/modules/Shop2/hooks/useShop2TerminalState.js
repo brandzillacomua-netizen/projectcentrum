@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useScrapReasons } from '../../../hooks/useScrapReasons'
 import { useMES } from '../../../MESContext'
 import { useStore } from '../../../store/index.js'
@@ -15,6 +16,7 @@ import { getShop2BufferRemaining } from '../../../utils/productionWipParity.js'
 
 
 export function useShop2TerminalState() {
+  const navigate = useNavigate()
   const { names: scrapReasons } = useScrapReasons()
   const { startWorkCard, confirmBuffer, fetchData, refreshTable, getFilteredOperators, getFilteredManagers, handoverToSGP, operators, managers } = useMES()
 
@@ -113,27 +115,17 @@ export function useShop2TerminalState() {
 
   const handleMachineQRScan = async (text) => {
     const cleanText = translateCyrillic(text)
-    const match = String(cleanText || '').match(/\/machines\/([a-f0-9-]+)(?:\/call)?/i)
+    const match = String(cleanText || '').match(/(?:machines\/|^)([a-f0-9-]{36})/i) ||
+                  String(cleanText || '').match(/\/machines\/([a-f0-9-]+)/i)
     if (match) {
       const machineId = match[1]
       try {
-        const { data: mData, error } = await supabase.from('machines').select('*').eq('id', machineId).maybeSingle()
-        if (mData) {
-          setMachineCallModal({
-            id: mData.id,
-            name: mData.name,
-            type: mData.type,
-            sequence_number: mData.sequence_number,
-            floor: mData.floor,
-            inventory_no: mData.inventory_no
-          })
-        } else {
-          alert('Верстат з таким ID не знайдено в базі.')
-        }
+        sessionStorage.setItem('machine_return_route', '/shop2-terminal')
+        navigate(`/machines/${machineId}`)
+        return true
       } catch (err) {
-        console.error(err)
+        console.error('Error navigating to machine card from Shop2:', err)
       }
-      return true
     }
     return false
   }

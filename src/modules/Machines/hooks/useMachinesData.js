@@ -39,7 +39,11 @@ export function useMachinesData() {
         navigate(`/machines/${id}`)
       }
     } else {
-      if (location.pathname !== '/machines') {
+      const returnRoute = sessionStorage.getItem('machine_return_route')
+      if (returnRoute) {
+        sessionStorage.removeItem('machine_return_route')
+        navigate(returnRoute)
+      } else if (location.pathname !== '/machines') {
         navigate('/machines')
       }
     }
