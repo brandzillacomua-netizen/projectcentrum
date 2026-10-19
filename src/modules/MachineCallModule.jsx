@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import { Cpu, AlertTriangle, Check, PhoneCall, Hammer, ShieldAlert } from 'lucide-react'
+import { useMES } from '../MESContext.jsx'
 import {
   createMachineCall,
   fetchPublicMachineCallContext,
@@ -9,7 +10,15 @@ import {
 
 const MachineCallModule = () => {
   const { id } = useParams()
+  const navigate = useNavigate()
+  const { currentUser } = useMES()
   const [machine, setMachine] = useState(null)
+
+  useEffect(() => {
+    if (currentUser && id) {
+      navigate(`/machines/${id}`, { replace: true })
+    }
+  }, [currentUser, id, navigate])
   const [loading, setLoading] = useState(true)
   const [activeCalls, setActiveCalls] = useState([])
   const [operatorName, setOperatorName] = useState('')
@@ -339,6 +348,27 @@ const MachineCallModule = () => {
             </div>
           </div>
         )}
+
+        <div style={{ marginTop: '25px', textAlign: 'center' }}>
+          <Link
+            to={`/machines/${id}`}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              color: '#ff9000',
+              textDecoration: 'none',
+              fontSize: '0.78rem',
+              fontWeight: 800,
+              background: 'rgba(255, 144, 0, 0.08)',
+              padding: '8px 14px',
+              borderRadius: '8px',
+              border: '1px solid rgba(255, 144, 0, 0.2)'
+            }}
+          >
+            Відкрити повну картку верстата (ТО, наряди, стан) →
+          </Link>
+        </div>
       </div>
 
       <style dangerouslySetInnerHTML={{ __html: `

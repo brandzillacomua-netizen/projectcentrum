@@ -151,6 +151,9 @@ export const normalizeRoutePath = (pathname = '') => String(pathname).toLowerCas
 
 export const getRouteDataTables = (pathname = '') => {
   const normalized = normalizeRoutePath(pathname)
+  if (/^\/machines\/[^/]+$/.test(normalized)) {
+    return [...new Set(ROUTE_DATA_PROFILES['/machines'] || [])]
+  }
   return [...new Set(ROUTE_DATA_PROFILES[normalized] || [])]
 }
 

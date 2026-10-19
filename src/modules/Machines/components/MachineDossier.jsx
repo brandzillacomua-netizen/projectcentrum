@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import {
   Activity,
   AlertTriangle,
@@ -7,11 +7,14 @@ import {
   ChevronRight,
   Clock3,
   Cpu,
+  Hammer,
   History,
   PackageOpen,
+  PhoneCall,
   Printer,
   Search,
   Settings2,
+  ShieldAlert,
   Wrench,
   X
 } from 'lucide-react'
@@ -23,6 +26,10 @@ import {
   MACHINE_SPARE_PARTS,
   MAINTENANCE_TYPES
 } from '../utils/machineDashboardUtils.js'
+import {
+  createMachineCall,
+  fetchPublicMachineCallContext
+} from '../../../services/machineCallService.js'
 
 const formatDateTime = value => value
   ? new Date(value).toLocaleString('uk-UA', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
@@ -48,9 +55,10 @@ export function MachineDossier({
   selectedMachineId,
   setSelectedMachineId,
   selectedMachine,
-  activeCallsForMachine,
+  activeCallsForMachine = [],
   currentUser,
   supabase,
+  fetchData,
   maintenanceLogs,
   orders,
   tasks,
@@ -74,6 +82,79 @@ export function MachineDossier({
   const [actionNotice, setActionNotice] = useState('')
   const [historyPage, setHistoryPage] = useState(1)
   const [historyPageSize, setHistoryPageSize] = useState(20)
+
+  // ── CALL PERSONS STATE ──────────────────────────────────────
+  const [callUsers, setCallUsers] = useState([])
+  const [operatorName, setOperatorName] = useState(() => {
+    return currentUser?.name || currentUser?.first_name
+      ? `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim()
+      : (currentUser?.login || '')
+  })
+  const [selectedMasterId, setSelectedMasterId] = useState('')
+  const [selectedEngineerId, setSelectedEngineerId] = useState('')
+  const [selectedQualityId, setSelectedQualityId] = useState('')
+  const [isCalling, setIsCalling] = useState(false)
+  const [callNotice, setCallNotice] = useState('')
+
+  useEffect(() => {
+    if (!selectedMachine?.id) return
+    let active = true
+    fetchPublicMachineCallContext(selectedMachine.id).then(ctx => {
+      if (active && ctx?.users) {
+        setCallUsers(ctx.users)
+      }
+    }).catch(err => {
+      console.warn('[MachineDossier] Failed to load call context users:', err)
+    })
+    return () => { active = false }
+  }, [selectedMachine?.id])
+
+  const masters = useMemo(() => callUsers.filter(u => u.call_roles?.includes('master')), [callUsers])
+  const engineers = useMemo(() => callUsers.filter(u => u.call_roles?.includes('engineer')), [callUsers])
+  const qualities = useMemo(() => callUsers.filter(u => u.call_roles?.includes('quality')), [callUsers])
+
+  const activeMasterCall = useMemo(() => (
+    (activeCallsForMachine || []).find(c => c.called_role === 'master')
+  ), [activeCallsForMachine])
+
+  const activeEngineerCall = useMemo(() => (
+    (activeCallsForMachine || []).find(c => c.called_role === 'engineer')
+  ), [activeCallsForMachine])
+
+  const activeQualityCall = useMemo(() => (
+    (activeCallsForMachine || []).find(c => c.called_role === 'quality' || c.called_role === 'qc')
+  ), [activeCallsForMachine])
+
+  const handleTriggerCall = async (role) => {
+    if (isCalling || !selectedMachine?.id) return
+    setIsCalling(true)
+    setActionError('')
+    setCallNotice('')
+
+    if (navigator.vibrate) navigator.vibrate(100)
+
+    let employeeId = null
+    if (role === 'master') employeeId = selectedMasterId || null
+    else if (role === 'engineer') employeeId = selectedEngineerId || null
+    else if (role === 'quality') employeeId = selectedQualityId || null
+
+    try {
+      await createMachineCall({
+        machineId: selectedMachine.id,
+        role,
+        operatorName: operatorName.trim() || currentUser?.name || currentUser?.login || 'Оператор',
+        employeeId
+      })
+      const roleLabel = role === 'master' ? 'Майстра' : role === 'engineer' ? 'Інженера' : 'ВКЯ'
+      setCallNotice(`Виклик ${roleLabel} надіслано в чергу!`)
+      setTimeout(() => setCallNotice(''), 4500)
+      if (typeof fetchData === 'function') fetchData(['machine_calls'])
+    } catch (err) {
+      setActionError(`Помилка виклику: ${err.message}`)
+    } finally {
+      setIsCalling(false)
+    }
+  }
 
   const history = useMemo(() => (
     buildUniqueMachineCardHistory(selectedMachine ? getHistoryForMachine(selectedMachine) : [])
@@ -122,6 +203,9 @@ export function MachineDossier({
         resolved_by: resolverName
       }).eq('id', call.id)
       if (error) throw error
+      setCallNotice('Виклик позначено як оброблений.')
+      setTimeout(() => setCallNotice(''), 3000)
+      if (typeof fetchData === 'function') fetchData(['machine_calls'])
     } catch (error) {
       setActionError(`Не вдалося закрити виклик: ${error.message}`)
     }
@@ -311,6 +395,198 @@ export function MachineDossier({
         <div className="machine-dossier-content">
           {tab === 'overview' && (
             <div className="machine-overview-grid">
+              {/* ── 3 CALL BUTTONS PANEL ── */}
+              <div className="machine-panel machine-quick-calls-panel">
+                <div className="machine-quick-calls-header">
+                  <div className="machine-panel-title">
+                    <PhoneCall size={18} color="#ff9000" />
+                    <span>Швидкий виклик персоналу</span>
+                  </div>
+                  <div className="machine-quick-calls-operator">
+                    <label>Ім'я оператора:</label>
+                    <input
+                      type="text"
+                      value={operatorName}
+                      onChange={e => setOperatorName(e.target.value)}
+                      placeholder="Вкажіть ім'я..."
+                    />
+                  </div>
+                </div>
+
+                {callNotice && (
+                  <div className="machine-dossier-notice" style={{ marginTop: '10px' }}>
+                    <CheckCircle2 size={16} /> {callNotice}
+                  </div>
+                )}
+
+                <div className="machine-call-cards-grid">
+                  {/* 1. MASTER */}
+                  <div className={`machine-call-card master ${activeMasterCall ? 'is-active' : ''}`}>
+                    <div className="call-card-header">
+                      <div className="call-card-icon master"><PhoneCall size={20} /></div>
+                      <div className="call-card-meta">
+                        <div className="call-card-title">МАЙСТЕР</div>
+                        <div className="call-card-sub">Зміна / бригадир</div>
+                      </div>
+                      {activeMasterCall && (
+                        <span className="call-badge active-master">
+                          <span className="pulse-dot" /> В ЧЕРЗІ
+                        </span>
+                      )}
+                    </div>
+
+                    {activeMasterCall ? (
+                      <div className="call-card-active-info">
+                        <div className="call-active-time">
+                          Надіслано: {formatDateTime(activeMasterCall.created_at)}
+                        </div>
+                        <div className="call-active-by">
+                          Оператор: <strong>{activeMasterCall.operator_name || 'Оператор'}</strong>
+                        </div>
+                        <button
+                          className="call-resolve-btn master"
+                          onClick={() => handleResolveCall(activeMasterCall)}
+                        >
+                          <CheckCircle2 size={15} /> Оброблено
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="call-card-action-block">
+                        <select
+                          value={selectedMasterId}
+                          onChange={e => setSelectedMasterId(e.target.value)}
+                          className="call-select master"
+                        >
+                          <option value="">-- Всі майстри (Загальний) --</option>
+                          {masters.map(u => (
+                            <option key={u.id} value={u.id}>
+                              {u.first_name || ''} {u.last_name || ''} {u.position ? `(${u.position})` : ''}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          className="call-trigger-btn master"
+                          disabled={isCalling}
+                          onClick={() => handleTriggerCall('master')}
+                        >
+                          <PhoneCall size={16} /> Викликати майстра
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 2. ENGINEER */}
+                  <div className={`machine-call-card engineer ${activeEngineerCall ? 'is-active' : ''}`}>
+                    <div className="call-card-header">
+                      <div className="call-card-icon engineer"><Hammer size={20} /></div>
+                      <div className="call-card-meta">
+                        <div className="call-card-title">ІНЖЕНЕР</div>
+                        <div className="call-card-sub">Налагодження / ремонт</div>
+                      </div>
+                      {activeEngineerCall && (
+                        <span className="call-badge active-engineer">
+                          <span className="pulse-dot" /> В ЧЕРЗІ
+                        </span>
+                      )}
+                    </div>
+
+                    {activeEngineerCall ? (
+                      <div className="call-card-active-info">
+                        <div className="call-active-time">
+                          Надіслано: {formatDateTime(activeEngineerCall.created_at)}
+                        </div>
+                        <div className="call-active-by">
+                          Оператор: <strong>{activeEngineerCall.operator_name || 'Оператор'}</strong>
+                        </div>
+                        <button
+                          className="call-resolve-btn engineer"
+                          onClick={() => handleResolveCall(activeEngineerCall)}
+                        >
+                          <CheckCircle2 size={15} /> Оброблено
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="call-card-action-block">
+                        <select
+                          value={selectedEngineerId}
+                          onChange={e => setSelectedEngineerId(e.target.value)}
+                          className="call-select engineer"
+                        >
+                          <option value="">-- Всі інженери (Загальний) --</option>
+                          {engineers.map(u => (
+                            <option key={u.id} value={u.id}>
+                              {u.first_name || ''} {u.last_name || ''} {u.position ? `(${u.position})` : ''}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          className="call-trigger-btn engineer"
+                          disabled={isCalling}
+                          onClick={() => handleTriggerCall('engineer')}
+                        >
+                          <Hammer size={16} /> Викликати інженера
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 3. QUALITY CONTROL */}
+                  <div className={`machine-call-card quality ${activeQualityCall ? 'is-active' : ''}`}>
+                    <div className="call-card-header">
+                      <div className="call-card-icon quality"><ShieldAlert size={20} /></div>
+                      <div className="call-card-meta">
+                        <div className="call-card-title">ВКЯ</div>
+                        <div className="call-card-sub">Контроль якості / брак</div>
+                      </div>
+                      {activeQualityCall && (
+                        <span className="call-badge active-quality">
+                          <span className="pulse-dot" /> В ЧЕРЗІ
+                        </span>
+                      )}
+                    </div>
+
+                    {activeQualityCall ? (
+                      <div className="call-card-active-info">
+                        <div className="call-active-time">
+                          Надіслано: {formatDateTime(activeQualityCall.created_at)}
+                        </div>
+                        <div className="call-active-by">
+                          Оператор: <strong>{activeQualityCall.operator_name || 'Оператор'}</strong>
+                        </div>
+                        <button
+                          className="call-resolve-btn quality"
+                          onClick={() => handleResolveCall(activeQualityCall)}
+                        >
+                          <CheckCircle2 size={15} /> Оброблено
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="call-card-action-block">
+                        <select
+                          value={selectedQualityId}
+                          onChange={e => setSelectedQualityId(e.target.value)}
+                          className="call-select quality"
+                        >
+                          <option value="">-- Всі фахівці ВКЯ (Загальний) --</option>
+                          {qualities.map(u => (
+                            <option key={u.id} value={u.id}>
+                              {u.first_name || ''} {u.last_name || ''} {u.position ? `(${u.position})` : ''}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          className="call-trigger-btn quality"
+                          disabled={isCalling}
+                          onClick={() => handleTriggerCall('quality')}
+                        >
+                          <ShieldAlert size={16} /> Викликати ВКЯ
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               <div className="machine-panel current-work">
                 <div className="machine-panel-title"><Activity size={18} /> Зараз на верстаті</div>
                 {currentRows.length ? renderCardRows(currentRows) : <div className="machine-empty-state"><CheckCircle2 size={28} /> Верстат зараз вільний</div>}

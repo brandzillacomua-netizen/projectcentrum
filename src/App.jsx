@@ -99,6 +99,13 @@ const PermissionGuard = ({ id, children }) => {
   // Allow public call route
   if (id === 'public_call') return <ModuleErrorBoundary moduleName={id}>{children}</ModuleErrorBoundary>
 
+  // Allow viewing machine card (/machines/:id) for any production staff
+  if (id === 'machines' && location.pathname.startsWith('/machines/')) {
+    const rights = currentUser?.access_rights || {}
+    const isProductionUser = rights.machines || rights.operator || rights.shop1 || rights.shop2 || rights.master || rights.foreman || rights.engineer || rights.brak || Boolean(currentUser?.position)
+    if (isProductionUser) return <ModuleErrorBoundary moduleName={id}>{children}</ModuleErrorBoundary>
+  }
+
   const availableModules = getAvailableModules(currentUser, 0)
   const hasAccess = availableModules.some(m => m.id === id)
 
@@ -900,6 +907,7 @@ const AppContent = () => {
           <Route path="/nomenclature-v2" element={<PermissionGuard id="nomenclature_v2"><NomenclatureV2 /></PermissionGuard>} />
           <Route path="/economy" element={<PermissionGuard id="economy"><EconomyModule /></PermissionGuard>} />
           <Route path="/machines" element={<PermissionGuard id="machines"><MachinesModule /></PermissionGuard>} />
+          <Route path="/machines/:id" element={<PermissionGuard id="machines"><MachinesModule /></PermissionGuard>} />
           <Route path="/machines/:id/call" element={<PermissionGuard id="public_call"><MachineCallModule /></PermissionGuard>} />
           <Route path="/analytics" element={<PermissionGuard id="analytics"><AnalyticsModule /></PermissionGuard>} />
           <Route path="/brak" element={<PermissionGuard id="brak"><BrakModule /></PermissionGuard>} />

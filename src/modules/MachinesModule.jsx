@@ -17,6 +17,7 @@ const MachinesModule = () => {
     nomenclatures,
     currentUser,
     supabase,
+    fetchData,
     showAdd,
     setShowAdd,
     selectedMachineId,
@@ -101,6 +102,7 @@ const MachinesModule = () => {
         activeCallsForMachine={activeCallsForMachine}
         currentUser={currentUser}
         supabase={supabase}
+        fetchData={fetchData}
         maintenanceLogs={maintenanceLogs}
         orders={orders || []}
         tasks={tasks || []}
@@ -311,6 +313,270 @@ const MachinesModule = () => {
         @keyframes zoomIn { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
         @keyframes slideDown { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         .anim-slide-down { animation: slideDown 0.3s ease-out; }
+
+        /* ── 3 QUICK CALL BUTTONS PANEL & CARDS ── */
+        .machine-quick-calls-panel {
+          grid-column: 1 / -1;
+          background: #0d0d0d;
+          border: 1px solid #202020;
+          border-radius: 14px;
+          padding: 14px 18px;
+        }
+        .machine-quick-calls-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          flex-wrap: wrap;
+          gap: 12px;
+          margin-bottom: 12px;
+          padding-bottom: 10px;
+          border-bottom: 1px solid #1a1a1a;
+        }
+        .machine-quick-calls-header .machine-panel-title {
+          margin-bottom: 0;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: .8rem;
+          font-weight: 1000;
+          letter-spacing: .03em;
+        }
+        .machine-quick-calls-operator {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: .72rem;
+          color: #888;
+          font-weight: 800;
+        }
+        .machine-quick-calls-operator input {
+          background: #050505;
+          border: 1px solid #282828;
+          border-radius: 8px;
+          padding: 5px 10px;
+          font-size: .75rem;
+          color: #eee;
+          outline: none;
+          min-width: 150px;
+          transition: border-color 0.2s;
+        }
+        .machine-quick-calls-operator input:focus {
+          border-color: #ff9000;
+        }
+        .machine-call-cards-grid {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 12px;
+        }
+        .machine-call-card {
+          background: #080808;
+          border: 1px solid #222;
+          border-radius: 12px;
+          padding: 14px;
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+          transition: all 0.25s ease;
+        }
+        .machine-call-card.master { border-left: 3px solid #ff9000; }
+        .machine-call-card.engineer { border-left: 3px solid #8b5cf6; }
+        .machine-call-card.quality { border-left: 3px solid #ef4444; }
+
+        .machine-call-card.master.is-active {
+          border-color: #ff9000;
+          background: rgba(255, 144, 0, 0.05);
+          box-shadow: 0 0 16px rgba(255, 144, 0, 0.15);
+        }
+        .machine-call-card.engineer.is-active {
+          border-color: #8b5cf6;
+          background: rgba(139, 92, 246, 0.05);
+          box-shadow: 0 0 16px rgba(139, 92, 246, 0.15);
+        }
+        .machine-call-card.quality.is-active {
+          border-color: #ef4444;
+          background: rgba(239, 68, 68, 0.05);
+          box-shadow: 0 0 16px rgba(239, 68, 68, 0.15);
+        }
+
+        .call-card-header {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+        .call-card-icon {
+          width: 38px;
+          height: 38px;
+          border-radius: 10px;
+          display: grid;
+          place-items: center;
+          flex-shrink: 0;
+        }
+        .call-card-icon.master { background: rgba(255, 144, 0, 0.12); color: #ff9000; border: 1px solid rgba(255, 144, 0, 0.25); }
+        .call-card-icon.engineer { background: rgba(139, 92, 246, 0.12); color: #8b5cf6; border: 1px solid rgba(139, 92, 246, 0.25); }
+        .call-card-icon.quality { background: rgba(239, 68, 68, 0.12); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.25); }
+
+        .call-card-meta {
+          flex: 1;
+          min-width: 0;
+        }
+        .call-card-title {
+          font-size: .88rem;
+          font-weight: 1000;
+          letter-spacing: .04em;
+          color: #eee;
+        }
+        .call-card-sub {
+          font-size: .65rem;
+          color: #777;
+          font-weight: 700;
+          margin-top: 1px;
+        }
+
+        .call-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 5px;
+          padding: 3px 8px;
+          border-radius: 6px;
+          font-size: .62rem;
+          font-weight: 1000;
+          letter-spacing: .04em;
+        }
+        .call-badge.active-master { background: rgba(255, 144, 0, 0.15); color: #ff9000; border: 1px solid rgba(255, 144, 0, 0.4); }
+        .call-badge.active-engineer { background: rgba(139, 92, 246, 0.15); color: #8b5cf6; border: 1px solid rgba(139, 92, 246, 0.4); }
+        .call-badge.active-quality { background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.4); }
+
+        .pulse-dot {
+          width: 6px;
+          height: 6px;
+          border-radius: 50%;
+          background: currentColor;
+          animation: pulseRed 1.2s infinite ease-in-out;
+        }
+
+        .call-card-active-info {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+          padding: 8px 10px;
+          background: rgba(0, 0, 0, 0.35);
+          border-radius: 8px;
+          border: 1px solid #1e1e1e;
+        }
+        .call-active-time {
+          font-size: .66rem;
+          color: #888;
+        }
+        .call-active-by {
+          font-size: .68rem;
+          color: #ddd;
+        }
+        .call-active-by strong {
+          color: #fff;
+        }
+        .call-resolve-btn {
+          margin-top: 4px;
+          border: 0;
+          border-radius: 8px;
+          background: #10b981;
+          color: #04130c;
+          padding: 8px 12px;
+          font-size: .72rem;
+          font-weight: 1000;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+          transition: all 0.2s;
+        }
+        .call-resolve-btn:hover {
+          background: #34d399;
+          transform: translateY(-1px);
+        }
+
+        .call-card-action-block {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+        .call-select {
+          width: 100%;
+          background: #050505;
+          border: 1px solid #282828;
+          border-radius: 8px;
+          padding: 7px 10px;
+          font-size: .72rem;
+          color: #ddd;
+          outline: none;
+          transition: border-color 0.2s;
+        }
+        .call-select:focus {
+          border-color: #ff9000;
+        }
+        .call-trigger-btn {
+          width: 100%;
+          border: 0;
+          border-radius: 8px;
+          padding: 9px 12px;
+          font-size: .74rem;
+          font-weight: 1000;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 7px;
+          transition: all 0.2s;
+          text-transform: uppercase;
+          letter-spacing: .02em;
+        }
+        .call-trigger-btn.master {
+          background: #ff9000;
+          color: #000;
+          box-shadow: 0 2px 8px rgba(255, 144, 0, 0.2);
+        }
+        .call-trigger-btn.master:hover:not(:disabled) {
+          background: #ffa726;
+          box-shadow: 0 4px 14px rgba(255, 144, 0, 0.35);
+          transform: translateY(-1px);
+        }
+        .call-trigger-btn.engineer {
+          background: #8b5cf6;
+          color: #fff;
+          box-shadow: 0 2px 8px rgba(139, 92, 246, 0.2);
+        }
+        .call-trigger-btn.engineer:hover:not(:disabled) {
+          background: #a78bfa;
+          box-shadow: 0 4px 14px rgba(139, 92, 246, 0.35);
+          transform: translateY(-1px);
+        }
+        .call-trigger-btn.quality {
+          background: #ef4444;
+          color: #fff;
+          box-shadow: 0 2px 8px rgba(239, 68, 68, 0.2);
+        }
+        .call-trigger-btn.quality:hover:not(:disabled) {
+          background: #f87171;
+          box-shadow: 0 4px 14px rgba(239, 68, 68, 0.35);
+          transform: translateY(-1px);
+        }
+        .call-trigger-btn:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+
+        @media (max-width: 900px) {
+          .machine-call-cards-grid {
+            grid-template-columns: 1fr;
+          }
+          .machine-quick-calls-header {
+            flex-direction: column;
+            align-items: stretch;
+          }
+          .machine-quick-calls-operator {
+            justify-content: space-between;
+          }
+        }
       `}} />
     </div>
   )

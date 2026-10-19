@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useCallback } from 'react'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useMES } from '../../../MESContext.jsx'
 import { apiService } from '../../../services/apiDispatcher.js'
 import { supabase } from '../../../supabase.js'
@@ -13,12 +14,36 @@ export const MACHINE_TYPES = [
 ]
 
 export function useMachinesData() {
+  const { id: urlMachineId } = useParams()
+  const navigate = useNavigate()
+  const location = useLocation()
   const { machines, addMachine, updateMachine, deleteMachine, workCards, workCardHistory, nomenclatures, orders, tasks, loading, machineCalls, currentUser, fetchData } = useMES()
   const [showAdd, setShowAdd] = useState(false)
-  const [selectedMachineId, setSelectedMachineId] = useState(null)
+  const [selectedMachineId, setSelectedMachineId] = useState(urlMachineId || null)
   const [selectedType, setSelectedType] = useState(null)
   const [form, setForm] = useState({ id: null, name: '', type: MACHINE_TYPES[0], capacity: '1', sequence_number: '', inventory_no: '', floor: '', description: '', status: 'idle' })
   const [currentTime, setCurrentTime] = useState(new Date())
+
+  useEffect(() => {
+    if (urlMachineId && String(urlMachineId) !== String(selectedMachineId)) {
+      setSelectedMachineId(urlMachineId)
+    } else if (!urlMachineId && location.pathname === '/machines' && selectedMachineId) {
+      setSelectedMachineId(null)
+    }
+  }, [urlMachineId, location.pathname, selectedMachineId])
+
+  const handleSelectMachine = useCallback((id) => {
+    setSelectedMachineId(id)
+    if (id) {
+      if (location.pathname !== `/machines/${id}`) {
+        navigate(`/machines/${id}`)
+      }
+    } else {
+      if (location.pathname !== '/machines') {
+        navigate('/machines')
+      }
+    }
+  }, [navigate, location.pathname])
   
   const [maintenanceLogs, setMaintenanceLogs] = useState([])
   const [isScanning, setIsScanning] = useState(false)
@@ -106,13 +131,13 @@ export function useMachinesData() {
   }, [machineCalls, selectedMachineId])
 
   const handlePrintQR = (machine) => {
-    const callUrl = `${window.location.origin}/machines/${machine.id}/call`
-    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&color=000000&bgcolor=ffffff&data=${encodeURIComponent(callUrl)}`
+    const machineUrl = `${window.location.origin}/machines/${machine.id}`
+    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&color=000000&bgcolor=ffffff&data=${encodeURIComponent(machineUrl)}`
     const printWindow = window.open('', '_blank', 'width=600,height=650')
     printWindow.document.write(`
       <html>
         <head>
-          <title>Друк QR-коду - ${machine.name}</title>
+          <title>Картка верстата - QR-код - ${machine.name}</title>
           <style>
             html, body {
               margin: 0;
@@ -198,10 +223,14 @@ export function useMachinesData() {
             </div>
             <img class="qr-image" src="${qrUrl}" alt="QR Code" />
             <div class="instructions">
-              ЗКСАНУЙТЕ ДЛЯ ВИКЛИКУ:<br/>
+              ЗСКАНУЙТЕ ДЛЯ КАРТКИ ВЕРСТАТА:<br/>
+              <span>ОБСЛУГОВУВАННЯ</span>
               <span>МАЙСТЕР</span>
               <span>ІНЖЕНЕР</span>
               <span>ВКЯ</span>
+              <div style="font-size: 0.82rem; font-weight: 600; color: #555; margin-top: 8px; text-transform: none;">
+                Початок ТО, виклик персоналу та моніторинг роботи
+              </div>
             </div>
           </div>
           <script>
@@ -279,7 +308,7 @@ export function useMachinesData() {
     }
   }
 
-  const selectedMachine = machines.find(m => m.id === selectedMachineId)
+  const selectedMachine = machines.find(m => String(m.id) === String(selectedMachineId))
 
   const getCurrentUserName = () => {
     const fullName = currentUser
@@ -481,7 +510,7 @@ export function useMachinesData() {
     showAdd,
     setShowAdd,
     selectedMachineId,
-    setSelectedMachineId,
+    setSelectedMachineId: handleSelectMachine,
     selectedType,
     setSelectedType,
     form,

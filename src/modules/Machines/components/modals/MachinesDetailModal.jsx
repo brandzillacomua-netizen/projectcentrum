@@ -57,7 +57,7 @@ export function MachinesDetailModal({
               <label>QR-КОД ДЛЯ ВИКЛИКУ</label>
               <div style={{ background: '#ffffff', border: '1px solid var(--border-subtle)', borderRadius: '16px', padding: '15px', display: 'inline-block', margin: '10px 0' }}>
                 <img 
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&color=000000&bgcolor=ffffff&data=${encodeURIComponent(`${window.location.origin}/machines/${selectedMachine.id}/call`)}`} 
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&color=000000&bgcolor=ffffff&data=${encodeURIComponent(`${window.location.origin}/machines/${selectedMachine.id}`)}`} 
                   alt="QR Code" 
                   style={{ width: '150px', height: '150px', display: 'block' }} 
                 />

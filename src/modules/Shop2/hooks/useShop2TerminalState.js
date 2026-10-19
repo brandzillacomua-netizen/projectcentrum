@@ -113,7 +113,7 @@ export function useShop2TerminalState() {
 
   const handleMachineQRScan = async (text) => {
     const cleanText = translateCyrillic(text)
-    const match = String(cleanText || '').match(/\/machines\/([a-f0-9-]+)\/call/i)
+    const match = String(cleanText || '').match(/\/machines\/([a-f0-9-]+)(?:\/call)?/i)
     if (match) {
       const machineId = match[1]
       try {
