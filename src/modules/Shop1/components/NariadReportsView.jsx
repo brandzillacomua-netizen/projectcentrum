@@ -1,70 +1,16 @@
 import React from 'react'
 import { Search, RotateCcw, Clock } from 'lucide-react'
-
-const getCutterDiameterForReport = (name = '') => {
-  const lower = String(name || '').toLowerCase().replace(/,/g, '.')
-  const direct = lower.match(/ф\s*([0-9]+(?:\.[0-9]+)?)/)
-  if (direct) return parseFloat(direct[1])
-  const bySize = lower.match(/(?:кукурудза|двопера|однопера|спіральна|торцева|шарова|радіусна)?\s*([0-9][0-9.]*)(?:\s*[×xх])/)
-  return bySize ? parseFloat(bySize[1]) : null
-}
-
-const buildPlannedCuttersFromSnapshot = ({ task, snapshot, nomenclatures = [], machineOperations = [], inventory = [] }) => {
-  const planSnapshot = snapshot || task?.plan_snapshot || {}
-  const selectedCutters = planSnapshot.selectedCutters || {}
-  const result = {}
-
-  const resolveDisplayName = genericName => {
-    const selectedInvId = selectedCutters[genericName] || selectedCutters[String(genericName || '').toLowerCase()]
-    const selectedInv = (inventory || []).find(inv => String(inv.id) === String(selectedInvId))
-    const selectedNom = selectedInv ? (nomenclatures || []).find(n => String(n.id) === String(selectedInv.nomenclature_id)) : null
-    return selectedNom?.name || selectedInv?.name || genericName || 'Фреза'
-  }
-
-  Object.entries(planSnapshot).forEach(([partId, part]) => {
-    if (partId.startsWith('_') || ['materialSummary', 'arrivals', 'arrival_doc_id', 'arrival_doc', 'nomenclatures', 'selectedCutters', 'consumables'].includes(partId)) return
-    if (!part || typeof part !== 'object') return
-
-    const partNomId = part.id || partId
-    const override = part.cutter_override || '2'
-    const splits = Array.isArray(part.splits) ? part.splits : []
-    const sheetGroups = splits.length > 0
-      ? splits.map(split => ({ machine: split.machine || part.selected_machine || task?.machine_name, sheets: Number(split.sheets) || 0 }))
-      : [{
-          machine: part.selected_machine || task?.machine_name,
-          sheets: part.sheets_t300 !== undefined || part.sheets_t700 !== undefined
-            ? (Number(part.sheets_t300) || 0) + (Number(part.sheets_t700) || 0)
-            : Number(part.sheets) || 0
-        }]
-
-    sheetGroups.forEach(group => {
-      if (!group.machine || group.sheets <= 0) return
-      const opData = (machineOperations || []).find(op => String(op.nomenclature_id) === String(partNomId) && (op.machine_type === group.machine || op.machine_id === group.machine))
-      if (!opData?.side2_cut_ops) return
-
-      opData.side2_cut_ops
-        .filter(op => op.startsWith('__CUTTER__Reference:') || op.startsWith('__CUTTER__:'))
-        .forEach(op => {
-          const [, cutterNomId, qtyPerSheetRaw] = op.split(':')
-          const qtyPerSheet = parseFloat(qtyPerSheetRaw) || 0
-          if (!cutterNomId || qtyPerSheet <= 0) return
-
-          const cutterNom = (nomenclatures || []).find(n => String(n.id) === String(cutterNomId))
-          let cutterName = cutterNom?.name?.trim() || ''
-          if (!cutterName || cutterName.toLowerCase() === 'фреза') return
-
-          const diameter = getCutterDiameterForReport(cutterName)
-          if (override !== '1.5' && diameter && Math.abs(diameter - 1.5) < 0.01) return
-          if (override === '1.5' && diameter && Math.abs(diameter - 2) < 0.01) cutterName = 'Фреза ф1.5'
-
-          const displayName = resolveDisplayName(cutterName)
-          result[displayName] = (result[displayName] || 0) + Math.ceil(group.sheets * qtyPerSheet)
-        })
-    })
-  })
-
-  return result
-}
+import {
+  buildRequestedCuttersBreakdown,
+  resolveActualCutterToRequested
+} from '../../Foreman/utils/cutterReport.js'
+import {
+  buildCuttingTimeSummary,
+  getHistoryRowDurationSeconds,
+  isCuttingStageRow,
+  isCuttingStopRow,
+  isCuttingWorkRow
+} from '../../Foreman/utils/cuttingTimeReport.js'
 
 const statusMeta = (s) => {
   const map = {
@@ -106,7 +52,7 @@ export const NariadReportsView = ({
   setNariadDetailModal,
   nomenclatures,
   inventory,
-  machineOperations
+  machineOperations: _machineOperations
 }) => {
   const selectedTask = filteredTasks.find(t => t.id === selectedNariadTaskId)
   const selectedOrder = selectedTask ? (selectedTask._catalogOrder || allOrdersMap[selectedTask.order_id]) : null
@@ -227,44 +173,11 @@ export const NariadReportsView = ({
           const rd = nariadReportData
           const snapshot = rd.planSnapshot || selectedTask.plan_snapshot
 
-          const cutterRequests = (rd.materialRequests || []).filter(r => {
-            const name = r.nomenclature?.name?.toLowerCase() || ''
-            return name.includes('фреза') || (r.details || '').toLowerCase().includes('фреза')
-          })
-          const getReqQty = r => {
-            const declaredQty = Number((r.details || '').match(/[—-]\s*(\d+(?:[.,]\d+)?)/)?.[1]?.replace(',', '.') || 0)
-            return declaredQty || Number(r.quantity) || 0
-          }
-          const snapshotCutters = Array.isArray(snapshot?.consumables)
-            ? snapshot.consumables.filter(item => String(item?.name || '').toLowerCase().includes('фреза'))
-            : []
-          const resolveSnapshotCutterName = item => {
-            const selectedCutters = snapshot?.selectedCutters || {}
-            const selectedInvId = selectedCutters[item.name] || selectedCutters[String(item.name || '').toLowerCase()]
-            const selectedInv = (inventory || []).find(inv => String(inv.id) === String(selectedInvId))
-            const selectedNom = selectedInv ? (nomenclatures || []).find(n => String(n.id) === String(selectedInv.nomenclature_id)) : null
-            return selectedNom?.name || selectedInv?.name || item.name || 'Фреза'
-          }
-          let plannedCuttersBreakdown = buildPlannedCuttersFromSnapshot({
-            task: selectedTask,
-            snapshot,
-            nomenclatures,
-            machineOperations,
-            inventory
-          })
-          if (Object.keys(plannedCuttersBreakdown).length === 0) {
-            plannedCuttersBreakdown = snapshotCutters.length > 0
-              ? snapshotCutters.reduce((result, item) => {
-                const name = resolveSnapshotCutterName(item)
-                result[name] = (result[name] || 0) + (Number(item.total) || 0)
-                return result
-              }, {})
-              : cutterRequests.reduce((result, request) => {
-                const name = request.nomenclature?.name || 'Фреза'
-                result[name] = (result[name] || 0) + getReqQty(request)
-                return result
-              }, {})
-          }
+          const plannedCuttersBreakdown = buildRequestedCuttersBreakdown(
+            rd.materialRequests || [],
+            inventory,
+            nomenclatures
+          )
           const totalPlannedCutters = Object.values(plannedCuttersBreakdown).reduce((s, qty) => s + (Number(qty) || 0), 0)
           const actualCuttersBreakdown = {}
           const cuttingHistoryRows = rd.historyRows.filter(row => String(row.stage_name || '').trim().startsWith('Розкрій'))
@@ -282,16 +195,22 @@ export const NariadReportsView = ({
                 if (end !== -1) {
                   try {
                     Object.entries(JSON.parse(info.slice(start, end + 1))).forEach(([cutterName, qty]) => {
-                      actualCuttersBreakdown[cutterName] = (actualCuttersBreakdown[cutterName] || 0) + (Number(qty) || 0)
+                      const requestedName = resolveActualCutterToRequested(cutterName, Object.keys(plannedCuttersBreakdown))
+                      if (!requestedName) return
+                      actualCuttersBreakdown[requestedName] = (actualCuttersBreakdown[requestedName] || 0) + (Number(qty) || 0)
                     })
-                  } catch(e){}
+                  } catch(_e){}
                 }
               }
             } else if (Number(row.cutters_used) > 0) {
-              actualCuttersBreakdown['Фреза'] = (actualCuttersBreakdown['Фреза'] || 0) + Number(row.cutters_used)
+              const requestedNames = Object.keys(plannedCuttersBreakdown)
+              if (requestedNames.length === 1) {
+                actualCuttersBreakdown[requestedNames[0]] = (actualCuttersBreakdown[requestedNames[0]] || 0) + Number(row.cutters_used)
+              }
             }
           })
           const totalActualCutters = Object.values(actualCuttersBreakdown).reduce((s, v) => s + v, 0)
+          const cuttingTimeSummary = buildCuttingTimeSummary(rd.historyRows || [])
           let totalScrap = rd.historyRows.reduce((s, r) => s + (Number(r.scrap_qty) || 0), 0)
 
           const shop1StageNames = ['Розкрій', 'Галтовка', 'Прийомка', 'Сортування']
@@ -315,7 +234,7 @@ export const NariadReportsView = ({
               if (completed && (!last || completed > last)) last = completed
               if (!started || !completed) return
               const stage = String(row.stage_name || 'Без назви')
-              if (stage === 'Розкрій (зупинка)') return
+              if (isCuttingStageRow(row)) return
               const seconds = Math.max(0, Math.round((completed - started) / 1000))
               const target = stage.startsWith('Буфер ') ? bufferTotals : stageTotals
               if (!target[stage]) target[stage] = { total: 0, count: 0 }
@@ -331,6 +250,20 @@ export const NariadReportsView = ({
               cards: new Set(rows.map(row => row.card_id).filter(Boolean)).size || 1
             }
           }
+          const shop1Time = buildTimeAnalytics(rd.historyRows.filter(isShop1History), shop1StageNames)
+          shop1Time.stageTotals['Розкрій'] = { total: cuttingTimeSummary.totalSeconds, count: cuttingTimeSummary.sessionCount }
+          shop1Time.active += cuttingTimeSummary.totalSeconds
+          const shop2Time = buildTimeAnalytics(rd.historyRows.filter(isShop2History), shop2DefaultStages)
+          const availableStageFilters = [
+            'All',
+            'Цех №1',
+            'Цех №2',
+            ...new Set(
+              rd.historyRows
+                .map(row => isCuttingStageRow(row) ? 'Розкрій' : String(row.stage_name || '').trim())
+                .filter(stage => stage && !['completed', 'Склад БЗ', 'Склад СГП', 'Склад (БРОНЬ)'].includes(stage))
+            )
+          ]
           const renderTimeAnalytics = (title, stats, color, subtitle) => (
             <div className="nariad-analytics-box" style={{ borderRadius: '20px', padding: '20px 18px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color, fontSize: '0.72rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '15px' }}>
@@ -387,6 +320,7 @@ export const NariadReportsView = ({
             if (nariadStageFilter === 'All') return true
             if (nariadStageFilter === 'Цех №1') return isShop1History(row)
             if (nariadStageFilter === 'Цех №2') return isShop2History(row)
+            if (nariadStageFilter === 'Розкрій') return isCuttingStageRow(row)
             if (nariadStageFilter === 'Галтовка') return row.stage_name?.startsWith('Галтовка')
             if (nariadStageFilter === 'Прийомка') return row.stage_name === 'Прийомка' || row.stage_name === 'completed'
             return row.stage_name === nariadStageFilter
@@ -539,6 +473,15 @@ export const NariadReportsView = ({
                 </div>
 
                 <div style={{ overflowX: 'auto' }}>
+                  {nariadStageFilter === 'Розкрій' && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center', padding: '10px', borderBottom: '1px solid var(--border-subtle)', background: '#3b82f60a', fontSize: '0.64rem' }}>
+                      <span>Активний час: <strong style={{ color: '#3b82f6' }}>{formatDurHMS(cuttingTimeSummary.totalSeconds)}</strong></span>
+                      <span>Карток: <strong>{cuttingTimeSummary.cardCount}</strong></span>
+                      <span>Сесій: <strong>{cuttingTimeSummary.sessionCount}</strong></span>
+                      <span>Перезмінок: <strong>{cuttingTimeSummary.handoverCount}</strong></span>
+                      <span style={{ color: '#f59e0b' }}>Зупинки не входять в активний час</span>
+                    </div>
+                  )}
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.7rem' }}>
                     <thead>
                       <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
@@ -553,12 +496,13 @@ export const NariadReportsView = ({
                         const rowCard = (rd.taskCards || []).find(card => String(card.id) === String(row.card_id))
                         const sequenceMatch = String(row.card_info || rowCard?.card_info || '').match(/(?:^|\D)(\d+)\s*\/\s*(\d+)(?:\D|$)/)
                         const sequenceLabel = sequenceMatch ? `${sequenceMatch[1]}/${sequenceMatch[2]}` : `ID ${String(row.card_id || '').slice(-8).toUpperCase()}`
-                        const dur = row.started_at && row.completed_at
-                          ? Math.max(0, Math.round((new Date(row.completed_at) - new Date(row.started_at)) / 1000))
-                          : null
+                        const dur = getHistoryRowDurationSeconds(row)
+                        const cuttingCardTime = cuttingTimeSummary.byCard[String(row.card_id || 'unknown')]
+                        const isLastCuttingWorkRow = isCuttingWorkRow(row) && cuttingCardTime?.lastRow === row
+                        const isCuttingStop = isCuttingStopRow(row)
                         const plannedSec = nom?.time_per_unit ? Math.round(Number(nom.time_per_unit) * (Number(row.qty_completed) || 0)) : null
                         const isGalt = row.stage_name?.startsWith('Галтовка')
-                        const stageClr = isShop2History(row) ? '#8b5cf6' : isGalt ? '#eab308' : row.stage_name === 'Прийомка' ? '#10b981' : row.stage_name === 'Сортування' ? '#14b8a6' : '#3b82f6'
+                        const stageClr = isCuttingStop ? '#f59e0b' : isShop2History(row) ? '#8b5cf6' : isGalt ? '#eab308' : row.stage_name === 'Прийомка' ? '#10b981' : row.stage_name === 'Сортування' ? '#14b8a6' : '#3b82f6'
                         const hasScrap = Number(row.scrap_qty) > 0
                         const fmt = (iso) => iso ? new Date(iso).toLocaleString('uk-UA', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }) : '—'
                         return (
@@ -569,7 +513,15 @@ export const NariadReportsView = ({
                             </td>
                             <td style={{ padding: '8px 10px', color: 'var(--text-dim)', whiteSpace: 'nowrap' }}><div>{fmt(row.started_at)}</div><div style={{ marginTop: '2px' }}>{fmt(row.completed_at)}</div></td>
                             <td style={{ padding: '8px 10px', color: '#777', fontWeight: 800, whiteSpace: 'nowrap' }}>{plannedSec ? formatDurHMS(plannedSec) : '—'}</td>
-                            <td style={{ padding: '8px 10px', color: dur !== null ? '#3b82f6' : '#333', fontWeight: 800, whiteSpace: 'nowrap' }}>{dur !== null ? formatDurHMS(dur) : '—'}</td>
+                            <td style={{ padding: '8px 10px', color: isCuttingStop ? '#f59e0b' : dur > 0 ? '#3b82f6' : '#333', fontWeight: 800, whiteSpace: 'nowrap' }}>
+                              <div>{dur > 0 ? formatDurHMS(dur) : '—'}</div>
+                              {isCuttingStop && <div style={{ fontSize: '0.54rem', marginTop: '2px' }}>зупинка · не входить</div>}
+                              {isLastCuttingWorkRow && cuttingCardTime.sessionCount > 1 && (
+                                <div style={{ color: '#10b981', fontSize: '0.54rem', marginTop: '2px' }}>
+                                  Разом: {formatDurHMS(cuttingCardTime.totalSeconds)} · {cuttingCardTime.sessionCount} сес.
+                                </div>
+                              )}
+                            </td>
                             <td style={{ padding: '8px 10px' }}>
                               <span style={{ background: `${stageClr}15`, color: stageClr, padding: '2px 7px', borderRadius: '5px', fontSize: '0.6rem', fontWeight: 900 }}>
                                 {row.stage_name || '—'}

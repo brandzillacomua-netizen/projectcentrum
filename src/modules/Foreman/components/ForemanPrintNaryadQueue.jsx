@@ -1,6 +1,7 @@
 import React from 'react'
 import { X } from 'lucide-react'
 import { getCustomerCode } from '../../../utils/customerCodeUtils.js'
+import { buildRequestedCuttersBreakdown } from '../utils/cutterReport.js'
 
 export default function ForemanPrintNaryadQueue({
   printNaryadQueue,
@@ -8,7 +9,6 @@ export default function ForemanPrintNaryadQueue({
   nomenclatures,
   inventory,
   getBOMParts, // function or helper dependency
-  getRequestQty,
   getMaterialName // if used or fallback
 }) {
   if (!printNaryadQueue) return null
@@ -116,17 +116,7 @@ export default function ForemanPrintNaryadQueue({
   }
 
   // Consumables summary
-  const cuttersSummary = {}
-  materialRequests.forEach(r => {
-    let displayName = r.nomenclature?.name || ''
-    if (!displayName && r.details) {
-      const match = r.details.match(/:\s*(фреза[^--]+)(?:[--]|$)/i)
-      displayName = match ? match[1].trim() : r.details
-    }
-    if (displayName.toLowerCase().includes('фреза')) {
-      cuttersSummary[displayName] = (cuttersSummary[displayName] || 0) + getRequestQty(r)
-    }
-  })
+  const cuttersSummary = buildRequestedCuttersBreakdown(materialRequests, inventory, nomenclatures)
 
   const formatDate = (dateStr) => {
     if (!dateStr) return '-'

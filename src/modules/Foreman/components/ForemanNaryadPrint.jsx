@@ -1,14 +1,14 @@
 import React from 'react'
 import { X } from 'lucide-react'
 import { getCustomerCode } from '../../../utils/customerCodeUtils.js'
+import { buildRequestedCuttersBreakdown } from '../utils/cutterReport.js'
 
 export function ForemanNaryadPrint({
   printNaryadQueue,
   setPrintNaryadQueue,
   nomenclatures,
   getBOMParts,
-  inventory,
-  getRequestQty
+  inventory
 }) {
   if (!printNaryadQueue) return null
 
@@ -115,17 +115,7 @@ export function ForemanNaryadPrint({
   }
 
   // Consumables summary
-  const cuttersSummary = {}
-  materialRequests.forEach(r => {
-    let displayName = r.nomenclature?.name || ''
-    if (!displayName && r.details) {
-      const match = r.details.match(/:\s*(Фреза[^-—]+)(?:[-—]|$)/i)
-      displayName = match ? match[1].trim() : r.details
-    }
-    if (displayName.toLowerCase().includes('фреза')) {
-      cuttersSummary[displayName] = (cuttersSummary[displayName] || 0) + getRequestQty(r)
-    }
-  })
+  const cuttersSummary = buildRequestedCuttersBreakdown(materialRequests, inventory, nomenclatures)
 
   const formatDate = (dateStr) => {
     if (!dateStr) return '—'

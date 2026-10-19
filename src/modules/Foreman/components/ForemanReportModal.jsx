@@ -1,9 +1,27 @@
-import React from 'react'
 import { X, Loader2, Clock, Printer, RefreshCw, CheckCircle2, AlertTriangle } from 'lucide-react'
 import { getScrapBreakdown } from '../utils/foremanHelpers'
 import { buildNaryadScrapSummary, calculateActualSheetsForPart, scopeReportCards } from '../utils/naryadReport'
+import {
+  buildRequestedCuttersBreakdown,
+  resolveActualCutterToRequested
+} from '../utils/cutterReport.js'
+import {
+  buildCuttingTimeSummary,
+  getHistoryRowDurationSeconds,
+  isCuttingStageRow,
+  isCuttingStopRow,
+  isCuttingWorkRow
+} from '../utils/cuttingTimeReport.js'
+import { buildScrapDetailGroups, buildUtilDetailGroups } from '../utils/scrapDetailReport.js'
 
 const isCuttingHistoryRow = row => String(row.stage_name || '').trim().startsWith('Розкрій')
+
+const matchesHistoryStage = (row, stageFilter) => {
+  if (stageFilter === 'All') return true
+  if (stageFilter === 'Прийомка') return row.stage_name === 'Прийомка' || row.stage_name === 'completed'
+  if (stageFilter === 'Розкрій') return isCuttingStageRow(row)
+  return row.stage_name === stageFilter
+}
 
 const parseCuttersBreakdown = (cardInfo = '') => {
   const info = String(cardInfo || '')
@@ -71,77 +89,84 @@ const parseSheetMaterialFromRequest = (request) => {
   }
 }
 
-const getCutterDiameter = (name = '') => {
-  const lower = String(name || '').toLowerCase().replace(/,/g, '.')
-  const direct = lower.match(/ф\s*([0-9]+(?:\.[0-9]+)?)/)
-  if (direct) return parseFloat(direct[1])
-  const bySize = lower.match(/(?:кукурудза|двопера|однопера|спіральна|торцева|шарова|радіусна)?\s*([0-9][0-9.]*)(?:\s*[×xх])/)
-  return bySize ? parseFloat(bySize[1]) : null
+const formatDetailDate = value => {
+  if (!value) return '—'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '—'
+  return date.toLocaleString('uk-UA', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
 }
 
-const buildPlannedCuttersFromSnapshot = ({ task, nomenclatures = [], machineOperations = [], inventory = [] }) => {
-  const snapshot = task?.plan_snapshot || {}
-  const selectedCutters = snapshot.selectedCutters || {}
-  const result = {}
+function ScrapDetailAccordion({ groups, mode = 'scrap' }) {
+  const isUtil = mode === 'util'
+  const accent = isUtil ? '#f97316' : '#ef4444'
+  const total = groups.reduce((sum, group) => sum + (Number(group.qty) || 0), 0)
 
-  const resolveDisplayName = genericName => {
-    const selectedInvId = selectedCutters[genericName] || selectedCutters[String(genericName || '').toLowerCase()]
-    const selectedInv = (inventory || []).find(inv => String(inv.id) === String(selectedInvId))
-    const selectedNom = selectedInv ? (nomenclatures || []).find(n => String(n.id) === String(selectedInv.nomenclature_id)) : null
-    return selectedNom?.name || selectedInv?.name || genericName || 'Фреза'
-  }
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingRight: '30px', flexWrap: 'wrap', gap: '10px' }}>
+        <div>
+          <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px', color: accent }}>
+            <AlertTriangle size={20} /> {isUtil ? 'Деталізація утилю' : 'Деталізація браку за позиціями'}
+          </h3>
+          <div style={{ marginTop: '5px', color: 'var(--text-muted)', fontSize: '0.68rem', fontWeight: 700 }}>
+            Позицій: {groups.length} · Натисніть на позицію, щоб переглянути картки
+          </div>
+        </div>
+        <div style={{ background: `${accent}18`, border: `1px solid ${accent}4d`, color: accent, padding: '4px 12px', borderRadius: '8px', fontWeight: 900, fontSize: '0.85rem' }}>
+          {isUtil ? 'Всього утилю' : 'Всього браку'}: {total} шт
+        </div>
+      </div>
 
-  Object.entries(snapshot).forEach(([partId, part]) => {
-    if (partId.startsWith('_') || ['materialSummary', 'arrivals', 'arrival_doc_id', 'arrival_doc', 'nomenclatures', 'selectedCutters', 'consumables'].includes(partId)) return
-    if (!part || typeof part !== 'object') return
+      {groups.length === 0 ? (
+        <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-dim)' }}>
+          {isUtil ? 'Записів утилю для цього наряду немає' : 'Бракованих деталей немає'}
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {groups.map(group => {
+            const cardCount = new Set(group.entries.map(entry => entry.cardId).filter(Boolean)).size || group.entries.length
+            return (
+              <details key={group.id} style={{ background: 'var(--surface-1)', border: '1px solid var(--border-subtle)', borderRadius: '12px', overflow: 'hidden' }}>
+                <summary style={{ listStyle: 'none', cursor: 'pointer', padding: '13px 15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '14px' }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontWeight: 900, color: 'var(--text-strong)', fontSize: '0.82rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{group.name}</div>
+                    <div style={{ fontSize: '0.64rem', color: 'var(--text-dim)', marginTop: '3px' }}>{group.code} · Карток/джерел: {cardCount}</div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+                    <strong style={{ color: accent, fontSize: '1rem' }}>{group.qty} шт</strong>
+                    <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>▾</span>
+                  </div>
+                </summary>
 
-    const partNomId = part.id || partId
-    const override = part.cutter_override || '2'
-    const splits = Array.isArray(part.splits) ? part.splits : []
-    const sheetGroups = splits.length > 0
-      ? splits.map(split => ({ machine: split.machine || part.selected_machine || task?.machine_name, sheets: Number(split.sheets) || 0 }))
-      : [{
-          machine: part.selected_machine || task?.machine_name,
-          sheets: part.sheets_t300 !== undefined || part.sheets_t700 !== undefined
-            ? (Number(part.sheets_t300) || 0) + (Number(part.sheets_t700) || 0)
-            : Number(part.sheets) || 0
-        }]
-
-    sheetGroups.forEach(group => {
-      if (!group.machine || group.sheets <= 0) return
-
-      const opData = (machineOperations || []).find(op => {
-        if (String(op.nomenclature_id) !== String(partNomId)) return false
-        return op.machine_type === group.machine || op.machine_id === group.machine
-      })
-      if (!opData?.side2_cut_ops) return
-
-      opData.side2_cut_ops
-        .filter(op => op.startsWith('__CUTTER__Reference:') || op.startsWith('__CUTTER__:'))
-        .forEach(op => {
-          const [, cutterNomId, qtyPerSheetRaw] = op.split(':')
-          const qtyPerSheet = parseFloat(qtyPerSheetRaw) || 0
-          if (!cutterNomId || qtyPerSheet <= 0) return
-
-          let cutterNom = (nomenclatures || []).find(n => String(n.id) === String(cutterNomId))
-          if (!cutterNom) return
-
-          let cutterName = cutterNom.name?.trim() || ''
-          if (!cutterName || cutterName.toLowerCase() === 'фреза') return
-
-          const diameter = getCutterDiameter(cutterName)
-          if (override !== '1.5' && diameter && Math.abs(diameter - 1.5) < 0.01) return
-          if (override === '1.5' && diameter && Math.abs(diameter - 2) < 0.01) {
-            cutterName = 'Фреза ф1.5'
-          }
-
-          const displayName = resolveDisplayName(cutterName)
-          result[displayName] = (result[displayName] || 0) + Math.ceil(group.sheets * qtyPerSheet)
-        })
-    })
-  })
-
-  return result
+                <div style={{ borderTop: '1px solid var(--border-subtle)', padding: '8px 12px 12px', display: 'flex', flexDirection: 'column', gap: '7px' }}>
+                  {group.entries.map(entry => (
+                    <div key={entry.id} style={{ background: 'var(--surface-2)', border: '1px solid var(--border-subtle)', borderRadius: '9px', padding: '9px 11px', display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'center' }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-strong)', fontWeight: 900 }}>{entry.cardLabel}</div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px 12px', marginTop: '4px', color: 'var(--text-muted)', fontSize: '0.61rem' }}>
+                          <span>Етап: <strong>{entry.stage}</strong></span>
+                          <span>Оператор: <strong>{entry.operator}</strong></span>
+                          {entry.shift !== '—' && <span>Зміна: <strong>{entry.shift}</strong></span>}
+                          {entry.machine !== '—' && <span>Верстат: <strong>{entry.machine}</strong></span>}
+                          <span>Дата: <strong>{formatDetailDate(entry.completedAt)}</strong></span>
+                        </div>
+                      </div>
+                      <strong style={{ color: accent, fontSize: '0.88rem', whiteSpace: 'nowrap' }}>{entry.qty} шт</strong>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
 }
 
 export function ForemanReportModal({
@@ -166,10 +191,8 @@ export function ForemanReportModal({
   allOrdersMap,
   bomItems,
   nomenclatures,
-  machineOperations,
   inventory,
-  workCards,
-  getRequestQty
+  workCards
 }) {
   if (!showReportModal) return null
 
@@ -437,31 +460,11 @@ export function ForemanReportModal({
             returned: totalReturnedScrap
           } = scrapSummary
 
-          let plannedCuttersBreakdown = {}
-          const snapshotCutters = Array.isArray(currentTask?.plan_snapshot?.consumables)
-            ? currentTask.plan_snapshot.consumables.filter(item => String(item?.name || '').toLowerCase().includes('фреза'))
-            : []
-          const resolveSnapshotCutterName = item => {
-            const selectedCutters = currentTask?.plan_snapshot?.selectedCutters || {}
-            const selectedInvId = selectedCutters[item.name] || selectedCutters[String(item.name || '').toLowerCase()]
-            const selectedInv = (inventory || []).find(inv => String(inv.id) === String(selectedInvId))
-            const selectedNom = selectedInv ? (nomenclatures || []).find(n => String(n.id) === String(selectedInv.nomenclature_id)) : null
-            return selectedNom?.name || selectedInv?.name || item.name || 'Фреза'
-          }
-
-          if (snapshotCutters.length > 0) {
-            snapshotCutters.forEach(item => {
-              const name = resolveSnapshotCutterName(item)
-              plannedCuttersBreakdown[name] = (plannedCuttersBreakdown[name] || 0) + (Number(item.total) || 0)
-            })
-          } else {
-            plannedCuttersBreakdown = buildPlannedCuttersFromSnapshot({
-              task: currentTask,
-              nomenclatures,
-              machineOperations,
-              inventory
-            })
-          }
+          const plannedCuttersBreakdown = buildRequestedCuttersBreakdown(
+            reportData.materialRequests || [],
+            inventory,
+            nomenclatures
+          )
 
           const totalPlannedCutters = Object.values(plannedCuttersBreakdown).reduce((sum, qty) => sum + (Number(qty) || 0), 0)
 
@@ -471,35 +474,22 @@ export function ForemanReportModal({
             const parsed = parseCuttersBreakdown(row.card_info)
             if (parsed) {
               Object.entries(parsed).forEach(([cutterName, qty]) => {
-                actualCuttersBreakdown[cutterName] = (actualCuttersBreakdown[cutterName] || 0) + (Number(qty) || 0)
+                const requestedName = resolveActualCutterToRequested(cutterName, Object.keys(plannedCuttersBreakdown))
+                if (!requestedName) return
+                actualCuttersBreakdown[requestedName] = (actualCuttersBreakdown[requestedName] || 0) + (Number(qty) || 0)
               })
             } else if (Number(row.cutters_used) > 0) {
               const plannedNames = Object.keys(plannedCuttersBreakdown)
               if (plannedNames.length === 1) {
                 const name = plannedNames[0]
                 actualCuttersBreakdown[name] = (actualCuttersBreakdown[name] || 0) + Number(row.cutters_used)
-              } else if (plannedNames.length > 1) {
-                const name = 'Фреза (без деталей)'
-                actualCuttersBreakdown[name] = (actualCuttersBreakdown[name] || 0) + Number(row.cutters_used)
-              } else {
-                const name = 'Фреза'
-                actualCuttersBreakdown[name] = (actualCuttersBreakdown[name] || 0) + Number(row.cutters_used)
               }
             }
           })
 
-          const totalActualCutters = Object.keys(actualCuttersBreakdown).length > 0
-            ? Object.values(actualCuttersBreakdown).reduce((sum, val) => sum + val, 0)
-            : cuttingHistoryRows.reduce((sum, row) => sum + (Number(row.cutters_used) || 0), 0)
+          const totalActualCutters = Object.values(actualCuttersBreakdown).reduce((sum, val) => sum + val, 0)
 
-          const totalActualMs = reportData.historyRows.reduce((sum, row) => {
-            if (row.started_at && row.completed_at && (row.stage_name === 'Розкрій' || row.stage_name === 'Розкрій (перезмінка)')) {
-              const diff = new Date(row.completed_at) - new Date(row.started_at)
-              return sum + (diff > 0 ? diff : 0)
-            }
-            return sum
-          }, 0)
-          const totalActualSeconds = Math.round(totalActualMs / 1000)
+          const cuttingTimeSummary = buildCuttingTimeSummary(reportData.historyRows || [])
 
           const formatDurationHMS = (totalSeconds) => {
             if (totalSeconds === null || totalSeconds === undefined || totalSeconds < 0) return '—'
@@ -691,10 +681,16 @@ export function ForemanReportModal({
                     </div>
 
                     <div style={{ paddingLeft: '10px', marginTop: '4px', borderLeft: '2px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: totalUtilScrap > 0 ? '#ef4444' : 'var(--text-dim)', fontWeight: 800 }}>
+                      <button
+                        type="button"
+                        onClick={() => totalUtilScrap > 0 && setReportDetailModal('util')}
+                        disabled={totalUtilScrap <= 0}
+                        title={totalUtilScrap > 0 ? 'Відкрити деталізацію утилю по позиціях і картках' : 'Утилю немає'}
+                        style={{ display: 'inline-flex', alignSelf: 'flex-start', alignItems: 'center', gap: '8px', background: 'transparent', border: 'none', borderBottom: totalUtilScrap > 0 ? '1px dashed #ef4444' : 'none', padding: 0, fontSize: '0.72rem', color: totalUtilScrap > 0 ? '#ef4444' : 'var(--text-dim)', fontWeight: 800, cursor: totalUtilScrap > 0 ? 'pointer' : 'default' }}
+                      >
                         <span>Утиль:</span>
                         <span>{totalUtilScrap} шт</span>
-                      </div>
+                      </button>
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: totalToRestoreScrap > 0 ? '#818cf8' : 'var(--text-dim)', fontWeight: 800 }}>
                         <span>Брак (відновлення):</span>
                         <span>{totalToRestoreScrap} шт</span>
@@ -715,7 +711,7 @@ export function ForemanReportModal({
               {(() => {
                 const timeStats = {
                   totalShop1: 0,
-                  stages: { 'Розкрій': { total: 0, count: 0 }, 'Галтовка': { total: 0, count: 0 }, 'Прийомка': { total: 0, count: 0 }, 'Сортування': { total: 0, count: 0 } },
+                  stages: { 'Розкрій': { total: cuttingTimeSummary.totalSeconds, count: cuttingTimeSummary.sessionCount }, 'Галтовка': { total: 0, count: 0 }, 'Прийомка': { total: 0, count: 0 }, 'Сортування': { total: 0, count: 0 } },
                   buffers: { 'Буфер Розкрою': { total: 0, count: 0 }, 'Буфер Галтовки': { total: 0, count: 0 }, 'Буфер Прийомки': { total: 0, count: 0 }, 'Буфер Сортування': { total: 0, count: 0 } }
                 }
 
@@ -731,6 +727,8 @@ export function ForemanReportModal({
                     const cTime = new Date(row.completed_at)
                     if (!lastCompleted || cTime > lastCompleted) lastCompleted = cTime
                   }
+
+                  if (isCuttingStageRow(row)) return
 
                   if (row.started_at && row.completed_at) {
                     const diff = new Date(row.completed_at) - new Date(row.started_at)
@@ -957,14 +955,7 @@ export function ForemanReportModal({
                       {(() => {
                         const uniqueOps = []
                         ;(reportData.historyRows || []).forEach(row => {
-                          let stageMatch = false
-                          if (reportStageFilter === 'All') stageMatch = true
-                          else if (reportStageFilter === 'Прийомка') {
-                            stageMatch = row.stage_name === 'Прийомка' || row.stage_name === 'completed'
-                          } else {
-                            stageMatch = row.stage_name === reportStageFilter
-                          }
-                          if (!stageMatch) return
+                          if (!matchesHistoryStage(row, reportStageFilter)) return
 
                           if (row.operator_name && !uniqueOps.includes(row.operator_name)) {
                             uniqueOps.push(row.operator_name)
@@ -983,14 +974,7 @@ export function ForemanReportModal({
 
               {(() => {
                 let processedRows = (reportData.historyRows || []).filter(row => {
-                  let stageMatch = false
-                  if (reportStageFilter === 'All') stageMatch = true
-                  else if (reportStageFilter === 'Прийомка') {
-                    stageMatch = row.stage_name === 'Прийомка' || row.stage_name === 'completed'
-                  } else {
-                    stageMatch = row.stage_name === reportStageFilter
-                  }
-                  if (!stageMatch) return false
+                  if (!matchesHistoryStage(row, reportStageFilter)) return false
 
                   if (reportNomFilter !== 'All' && String(row.nomenclature_id) !== String(reportNomFilter)) {
                     return false
@@ -1035,6 +1019,15 @@ export function ForemanReportModal({
 
                 return (
                   <div style={{ background: 'var(--surface-1)', borderRadius: '18px', overflowX: 'auto', border: '1px solid var(--border-subtle)' }}>
+                    {reportStageFilter === 'Розкрій' && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '14px', alignItems: 'center', padding: '11px 15px', borderBottom: '1px solid var(--border-subtle)', background: '#3b82f60a', fontSize: '0.7rem' }}>
+                        <span>Активний час розкрою: <strong style={{ color: '#3b82f6' }}>{formatDurationHMS(cuttingTimeSummary.totalSeconds)}</strong></span>
+                        <span>Карток: <strong>{cuttingTimeSummary.cardCount}</strong></span>
+                        <span>Робочих сесій: <strong>{cuttingTimeSummary.sessionCount}</strong></span>
+                        <span>Перезмінок: <strong>{cuttingTimeSummary.handoverCount}</strong></span>
+                        <span style={{ color: '#f59e0b' }}>Зупинки показані окремо й не входять в активний час</span>
+                      </div>
+                    )}
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', textAlign: 'left', minWidth: '850px' }}>
                       <thead>
                         <tr style={{ background: 'var(--surface-2)', color: '#888', textTransform: 'uppercase', fontSize: '0.6rem', fontWeight: 900, borderBottom: '1px solid var(--border-subtle)' }}>
@@ -1062,12 +1055,11 @@ export function ForemanReportModal({
                           const planSec = card?.estimated_time || 0
                           const planStr = planSec > 0 ? formatDurationHMS(planSec) : '—'
 
-                          let actualSeconds = 0
-                          if (row.started_at && row.completed_at) {
-                            const diff = new Date(row.completed_at) - new Date(row.started_at)
-                            actualSeconds = Math.max(0, Math.round(diff / 1000))
-                          }
+                          const actualSeconds = getHistoryRowDurationSeconds(row)
                           const factStr = actualSeconds > 0 ? formatDurationHMS(actualSeconds) : '—'
+                          const cuttingCardTime = cuttingTimeSummary.byCard[String(row.card_id || 'unknown')]
+                          const isLastCuttingWorkRow = isCuttingWorkRow(row) && cuttingCardTime?.lastRow === row
+                          const isCuttingStop = isCuttingStopRow(row)
 
                           const nom = nomenclatures.find(n => n.id === row.nomenclature_id)
                           const seqMatch = (row.card_info || card?.card_info || '').match(/(\d+\/\d+)/)
@@ -1078,7 +1070,7 @@ export function ForemanReportModal({
                           const isReceptionStage = stageName === 'Прийомка' || stageName === 'completed'
                           const stageKind = isBufferStage
                             ? 'buffer'
-                            : stageName === 'Розкрій'
+                            : isCuttingStageRow(row)
                               ? 'cutting'
                               : stageName === 'Галтовка'
                                 ? 'tumbling'
@@ -1097,13 +1089,23 @@ export function ForemanReportModal({
                                 <div style={{ color: 'var(--text-muted)', fontWeight: 700, marginTop: '2px' }}>{completedTime}</div>
                               </td>
                               <td style={{ padding: '12px 15px', textAlign: 'center', color: 'var(--text-strong)', fontWeight: 700 }}>{planStr}</td>
-                              <td style={{ padding: '12px 15px', textAlign: 'center', color: '#3b82f6', fontWeight: 700 }}>{factStr}</td>
+                              <td style={{ padding: '12px 15px', textAlign: 'center', color: isCuttingStop ? '#f59e0b' : '#3b82f6', fontWeight: 700 }}>
+                                <div>{factStr}</div>
+                                {isCuttingStop && (
+                                  <div style={{ fontSize: '0.58rem', marginTop: '3px', whiteSpace: 'nowrap' }}>зупинка · не входить</div>
+                                )}
+                                {isLastCuttingWorkRow && cuttingCardTime.sessionCount > 1 && (
+                                  <div style={{ fontSize: '0.58rem', color: '#10b981', marginTop: '3px', whiteSpace: 'nowrap' }}>
+                                    Разом: {formatDurationHMS(cuttingCardTime.totalSeconds)} · {cuttingCardTime.sessionCount} сес.
+                                  </div>
+                                )}
+                              </td>
                               <td style={{ padding: '12px 15px' }}>
                                 <span
                                   className={`stage-badge stage-${stageKind}`}
                                   style={{
-                                    background: isBufferStage ? '#a78bfa1e' : stageName === 'Розкрій' ? '#3b82f61a' : stageName === 'Галтовка' ? '#eab3081a' : isReceptionStage ? '#10b9811a' : '#14b8a61a',
-                                    color: isBufferStage ? '#a78bfa' : stageName === 'Розкрій' ? '#3b82f6' : stageName === 'Галтовка' ? '#eab308' : isReceptionStage ? '#10b981' : '#14b8a6',
+                                    background: isBufferStage ? '#a78bfa1e' : isCuttingStop ? '#f59e0b1a' : isCuttingStageRow(row) ? '#3b82f61a' : stageName === 'Галтовка' ? '#eab3081a' : isReceptionStage ? '#10b9811a' : '#14b8a61a',
+                                    color: isBufferStage ? '#a78bfa' : isCuttingStop ? '#f59e0b' : isCuttingStageRow(row) ? '#3b82f6' : stageName === 'Галтовка' ? '#eab308' : isReceptionStage ? '#10b981' : '#14b8a6',
                                     padding: '4px 8px',
                                     borderRadius: '6px',
                                     fontWeight: 900,
@@ -1328,62 +1330,36 @@ export function ForemanReportModal({
             })() : (() => {
               const scrapRows = (reportData?.scrapDetailRows || reportData?.historyRows || [])
                 .filter(h => (Number(h.scrap_qty ?? h.scrapQty) || 0) > 0)
+              const detailCards = reportData?.taskCards || reportData?.cards || []
+              const detailLegacyBreakdown = getScrapBreakdown(detailCards, reportData?.historyRows || [], detailCards)
+              const calculatedDetailScrapSummary = buildNaryadScrapSummary({
+                cards: detailCards,
+                historyRows: reportData?.historyRows || [],
+                finalScrapRows: reportData?.finalScrapRows || [],
+                returnedRows: reportData?.returnedRows || [],
+                taskId: reportData?.taskId || reportTaskId,
+                orderId: reportData?.orderId,
+                hasFinalScrapProjection: reportData?.hasFinalScrapProjection === true,
+                legacyBreakdown: detailLegacyBreakdown
+              })
+              // Деталізація повинна використовувати той самий зафіксований підсумок,
+              // що й картка звіту, а не повторно трактувати весь брак як утиль.
+              const detailScrapSummary = reportData?.scrapSummary || calculatedDetailScrapSummary
+              const groups = reportDetailModal === 'util'
+                ? buildUtilDetailGroups({
+                    finalScrapRows: reportData?.finalScrapRows || [],
+                    historyRows: reportData?.historyRows || [],
+                    cards: detailCards,
+                    nomenclatures,
+                    expectedTotal: detailScrapSummary.util
+                  })
+                : buildScrapDetailGroups({
+                    rows: scrapRows,
+                    cards: detailCards,
+                    nomenclatures
+                  })
 
-              const items = scrapRows.map(row => {
-                const nom = nomenclatures.find(n => String(n.id) === String(row.nomenclature_id))
-                const dateStr = row.completed_at
-                  ? new Date(row.completed_at).toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' }) + ' ' + new Date(row.completed_at).toLocaleDateString('uk-UA', { day: '2-digit', month: '2-digit' })
-                  : '—'
-                return {
-                  name: nom?.name || 'Невідома деталь',
-                  code: nom?.nomenclature_code || 'БЕЗ КОДУ',
-                  stage: row.stage_name === 'completed' ? 'Прийомка' : (String(row.stage_name || '').trim() || 'Не вказано'),
-                  qty: Number(row.scrap_qty ?? row.scrapQty) || 0,
-                  operator: row.operator_name || '—',
-                  shift: row.shift_name || '—',
-                  machine: row.machine_name || '—',
-                  time: dateStr
-                }
-              }).sort((a, b) => b.qty - a.qty)
-
-              const totalScrapSum = items.reduce((sum, item) => sum + (Number(item.qty) || 0), 0)
-
-              return (
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingRight: '30px', flexWrap: 'wrap', gap: '10px' }}>
-                    <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px', color: '#ef4444' }}>
-                      <AlertTriangle size={20} /> Деталізація браку за етапами
-                    </h3>
-                    <div style={{ background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#ef4444', padding: '4px 12px', borderRadius: '8px', fontWeight: 900, fontSize: '0.85rem' }}>
-                      Всього браку: {totalScrapSum} шт
-                    </div>
-                  </div>
-                  {items.length === 0 ? (
-                    <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-dim)' }}>Бракованих деталей немає</div>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                      {items.map((item, idx) => (
-                        <div key={idx} style={{ background: 'var(--surface-1)', border: '1px solid var(--border-subtle)', borderRadius: '12px', padding: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <div style={{ display: 'flex', flexDirection: 'column', flex: 1, marginRight: '15px' }}>
-                            <div style={{ fontWeight: 800, color: 'var(--text-strong)', fontSize: '0.8rem' }}>{item.name}</div>
-                            <div style={{ fontSize: '0.65rem', color: 'var(--text-dim)', marginTop: '2px' }}>{item.code}</div>
-                            <div style={{ display: 'flex', gap: '10px', marginTop: '6px', fontSize: '0.65rem', color: 'var(--text-muted)', flexWrap: 'wrap' }}>
-                              <span>Етап: <strong style={{ color: 'var(--text-muted)' }}>{item.stage}</strong></span>
-                              {item.machine && item.machine !== '—' && (
-                                <span>Верстат: <strong style={{ color: 'var(--text-muted)' }}>{item.machine}</strong></span>
-                              )}
-                              <span>Оператор: <strong style={{ color: 'var(--text-muted)' }}>{item.operator}</strong></span>
-                            </div>
-                          </div>
-                          <div style={{ color: '#ef4444', fontWeight: 900, fontSize: '1rem', whiteSpace: 'nowrap' }}>
-                            {item.qty} шт
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )
+              return <ScrapDetailAccordion groups={groups} mode={reportDetailModal === 'util' ? 'util' : 'scrap'} />
             })()}
           </div>
         </div>
