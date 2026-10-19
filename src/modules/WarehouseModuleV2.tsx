@@ -188,7 +188,6 @@ export const WarehouseModuleV2: React.FC = () => {
     editingQty,
     savingQty,
     editingInvTotal,
-    editingInvReserved,
     savingInv,
     scannedRequests,
     shortages,
@@ -291,15 +290,11 @@ export const WarehouseModuleV2: React.FC = () => {
 
   const getItemReservedQty = (item: any): number => {
     if (!item) return 0
-    const dbReserved = Number(item.reserved_qty) || 0
-    const approvedQty = (requests || [])
-      .filter((r: any) => 
-        (r.status === 'approved' || r.status === 'reserved' || r.status === 'issued') &&
-        ((r.inventory_id && String(r.inventory_id) === String(item.id)) ||
-         (!r.inventory_id && r.nomenclature_id && String(r.nomenclature_id) === String(item.nomenclature_id)))
-      )
-      .reduce((sum: number, r: any) => sum + (Number(r.quantity) || 0), 0)
-    return Math.max(dbReserved, approvedQty)
+    // inventory.reserved_qty is the authoritative, transactionally maintained
+    // balance. Do not inflate it with historical/legacy requests matched only
+    // by nomenclature_id: those requests may belong to another stock row or to
+    // cutting cards whose reservation has already been released.
+    return Number(item.reserved_qty) || 0
   }
 
   return (

@@ -13,6 +13,7 @@ import { findWorkingSheetNom, extractThickness } from '../../modules/Nomenclatur
 import { buildRequestAllocations, consumeCuttingInventoryOnce } from '../../services/atomicInventoryService.js'
 import { resolveCutterOrVirtualType, resolveCutterTypeName, isMachineMatch } from '../../utils/cutterCalculator.js'
 import { isRequestForCard } from '../../utils/materialCardMatching.js'
+import { selectIssuedRequestsForInventory, sumRequestQuantity } from '../../services/reservationLedger.js'
 
 export function createProductionCardsActions({
   orders, tasks, inventory, nomenclatures, bomItems, workCards,
@@ -723,7 +724,6 @@ export function createProductionCardsActions({
           (nom && String(r.nomenclature_id) === String(nom.id)) ||
           (r.details || '').toLowerCase().includes(cutterName.toLowerCase())
         )
-        const taskReservedForCutter = cutterRequests.reduce((sum, r) => sum + (Number(r.quantity) || 0), 0)
 
         // 2. Adjust inventory total_qty and reserved_qty proportionally
         let invItem = inventory?.find(i => {
@@ -757,6 +757,12 @@ export function createProductionCardsActions({
           const { data: freshInv } = await supabase.from('inventory').select('*').eq('id', invItem.id).maybeSingle()
           const currentInv = freshInv || invItem
 
+          // Only requests bound to this physical stock row contribute to its
+          // reserve. A same-nomenclature request may belong to another row and
+          // must never be released from this one.
+          const inventoryCutterRequests = selectIssuedRequestsForInventory(cutterRequests, currentInv.id)
+          const taskReservedForCutter = sumRequestQuantity(inventoryCutterRequests)
+
           const curReserved = Number(currentInv.reserved_qty) || 0
           // Always release only this card's planned quota — last card is no different.
           const quotaToRelease = cardPlannedQty
@@ -769,7 +775,7 @@ export function createProductionCardsActions({
             inventoryId: currentInv.id,
             deductTotal: actualQty,
             releaseReserved,
-            requestAllocations: buildRequestAllocations(cutterRequests, releaseReserved)
+            requestAllocations: buildRequestAllocations(inventoryCutterRequests, releaseReserved)
           })
 
           // 3. Scenario 3: If excess usage on a Chamfer cutter, add excess to restoration terminal queue

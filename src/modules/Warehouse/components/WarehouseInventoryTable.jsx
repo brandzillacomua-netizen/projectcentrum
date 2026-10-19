@@ -10,7 +10,6 @@ const WarehouseInventoryTableRow = React.memo(({
   setEditingInvId,
   editingInvTotal,
   setEditingInvTotal,
-  editingInvReserved,
   setEditingInvReserved,
   savingInv,
   getItemReservedQty,
@@ -22,7 +21,7 @@ const WarehouseInventoryTableRow = React.memo(({
   const reservedQty = getItemReservedQty(item)
   const displayTotalQty = isEditing ? (Number(editingInvTotal) || 0) : Math.max(Number(item.total_qty) || 0, reservedQty)
   const availableQty = isEditing
-    ? (Number(editingInvTotal) || 0) - (Number(editingInvReserved) || 0)
+    ? (Number(editingInvTotal) || 0) - (Number(item.reserved_qty) || 0)
     : Math.max(0, displayTotalQty - reservedQty)
 
   const nomenclatures = useStore(state => state.nomenclatures) || []
@@ -101,13 +100,7 @@ const WarehouseInventoryTableRow = React.memo(({
       <td style={{ padding: '15px', textAlign: 'center', color: reservedQty > 0 ? '#3b82f6' : '#222', fontWeight: 800 }}>
         {isEditing ? (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-            <input
-              type="number"
-              value={editingInvReserved}
-              onChange={e => setEditingInvReserved(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') handleSaveInventoryQty(item.id) }}
-              style={{ width: '80px', background: 'var(--surface-black)', border: '1px solid #3b82f6', color: 'var(--text-strong)', textAlign: 'center', borderRadius: '6px', padding: '4px' }}
-            />
+            <span title="Резерв рахується автоматично за виданими заявками">{Number(item.reserved_qty) || 0}</span>
             <button
               type="button"
               onClick={() => handleSaveInventoryQty(item.id)}
@@ -146,12 +139,10 @@ const WarehouseInventoryMobileCard = React.memo(({
   setEditingInvId,
   editingInvTotal,
   setEditingInvTotal,
-  editingInvReserved,
   setEditingInvReserved,
   savingInv,
   handleSaveInventoryQty,
-  setReserveAnalysisItem,
-  currentUser
+  setReserveAnalysisItem
 }) => {
   const isEditing = editingInvId === item.id
 
@@ -200,12 +191,9 @@ const WarehouseInventoryMobileCard = React.memo(({
             </div>
             <div>
               <label style={{ fontSize: '0.65rem', color: 'var(--text-dim)', display: 'block', marginBottom: '4px' }}>РЕЗЕРВ</label>
-              <input
-                type="number"
-                value={editingInvReserved}
-                onChange={e => setEditingInvReserved(e.target.value)}
-                style={{ width: '100%', background: 'var(--surface-black)', border: '1px solid #3b82f6', color: 'var(--text-strong)', borderRadius: '6px', padding: '8px', boxSizing: 'border-box' }}
-              />
+              <div style={{ width: '100%', background: 'var(--surface-black)', border: '1px solid #3b82f6', color: 'var(--text-strong)', borderRadius: '6px', padding: '8px', boxSizing: 'border-box' }} title="Резерв рахується автоматично за виданими заявками">
+                {Number(item.reserved_qty) || 0} (автоматично)
+              </div>
             </div>
             <div style={{ display: 'flex', gap: '10px', marginTop: '5px' }}>
               <button

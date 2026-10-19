@@ -1,9 +1,14 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { Layers, X, RefreshCw } from 'lucide-react'
 import { useMES } from '../../../MESContext'
 import { useStore } from '../../../store/index.js'
 import { supabase } from '../../../supabase'
+import {
+  requestBelongsToOpenWork,
+  selectIssuedRequestsForInventory,
+  sumRequestQuantity
+} from '../../../services/reservationLedger.js'
 
 export const ReserveAnalysisModal = ({
   item,
@@ -18,6 +23,70 @@ export const ReserveAnalysisModal = ({
   const isLight = theme === 'light' || (typeof document !== 'undefined' && document.body.classList.contains('light-theme'))
   const [isSyncing, setIsSyncing] = useState(false)
   const [bzReservations, setBzReservations] = useState([])
+  const [liveIssuedRequests, setLiveIssuedRequests] = useState(null)
+  const [liveDbReserved, setLiveDbReserved] = useState(null)
+  const [ledgerLoading, setLedgerLoading] = useState(false)
+  const [ledgerError, setLedgerError] = useState('')
+
+  const warehouseKey = String(item?.warehouse || '').toLowerCase().trim()
+  const usesIssuedRequestLedger = Boolean(item?.id) && (
+    warehouseKey === 'operational' ||
+    warehouseKey === 'склад оперативний' ||
+    item?.type === 'consumable' ||
+    item?.type === 'raw'
+  )
+
+  useEffect(() => {
+    let alive = true
+    if (!item?.id || !usesIssuedRequestLedger) {
+      return () => { alive = false }
+    }
+
+    const loadLedger = async () => {
+      setLedgerLoading(true)
+      setLedgerError('')
+      try {
+        const fetchAllIssuedRequests = async () => {
+          const pageSize = 1000
+          const rows = []
+          for (let from = 0; ; from += pageSize) {
+            const { data, error } = await supabase
+              .from('material_requests')
+              .select('*')
+              .eq('inventory_id', item.id)
+              .eq('status', 'issued')
+              .order('created_at', { ascending: false })
+              .range(from, from + pageSize - 1)
+            if (error) throw error
+            rows.push(...(data || []))
+            if (!data || data.length < pageSize) return rows
+          }
+        }
+
+        const [issuedRequests, inventoryResult] = await Promise.all([
+          fetchAllIssuedRequests(),
+          supabase
+            .from('inventory')
+            .select('reserved_qty')
+            .eq('id', item.id)
+            .maybeSingle()
+        ])
+        if (!alive) return
+        if (inventoryResult.error) throw inventoryResult.error
+        setLiveIssuedRequests(issuedRequests)
+        setLiveDbReserved(Number(inventoryResult.data?.reserved_qty) || 0)
+      } catch (error) {
+        if (!alive) return
+        setLiveIssuedRequests([])
+        setLedgerError(error?.message || 'Не вдалося прочитати актуальний резерв із БД')
+      } finally {
+        if (alive) setLedgerLoading(false)
+      }
+    }
+    loadLedger()
+
+    return () => { alive = false }
+  }, [item?.id, usesIssuedRequestLedger])
 
   useEffect(() => {
     if (!item?.nomenclature_id) return
@@ -41,11 +110,16 @@ export const ReserveAnalysisModal = ({
   const safeTasks = Array.isArray(tasks) ? tasks : (tasks && typeof tasks === 'object' ? Object.values(tasks) : [])
   const safeNomenclatures = Array.isArray(nomenclatures) ? nomenclatures : (nomenclatures && typeof nomenclatures === 'object' ? Object.values(nomenclatures) : [])
 
-  // Find all requests matching this inventory item or nomenclature with status 'approved', 'reserved', 'issued' or 'pending'
-  const matchedRequests = safeRequests.filter(r => 
-    r && (String(r.inventory_id) === String(item.id) || (r.nomenclature_id && String(r.nomenclature_id) === String(item.nomenclature_id))) && 
-    (r.status === 'approved' || r.status === 'reserved' || r.status === 'issued' || r.status === 'pending')
-  )
+  // Operational stock has one authoritative ledger: issued requests bound to
+  // this exact inventory row. Nomenclature-only matching caused completed and
+  // foreign reservations to be counted again.
+  const ledgerRequests = Array.isArray(liveIssuedRequests) ? liveIssuedRequests : []
+  const matchedRequests = usesIssuedRequestLedger
+    ? selectIssuedRequestsForInventory(ledgerRequests, item.id, safeTasks, safeOrders)
+    : selectIssuedRequestsForInventory(safeRequests, item.id, safeTasks, safeOrders)
+  const staleIssuedRequests = usesIssuedRequestLedger
+    ? ledgerRequests.filter(request => !requestBelongsToOpenWork(request, safeTasks, safeOrders))
+    : []
 
   const reserveDetails = (Array.isArray(matchedRequests) ? matchedRequests : []).map(req => {
     let orderNum = '—'
@@ -129,12 +203,14 @@ export const ReserveAnalysisModal = ({
     }
   })
 
-  // Include active unstarted preparation tasks for production warehouse
-  safeTasks.filter(t => t && t.step === 'Підготовка' && t.status === 'pending' && t.warehouse_conf === 'true').forEach(t => {
+  // Legacy non-operational views may still have reservations represented by
+  // preparation/BZ/task snapshots. Never mix those projections into the
+  // authoritative operational inventory ledger.
+  if (!usesIssuedRequestLedger) safeTasks.filter(t => t && t.step === 'Підготовка' && t.status === 'pending' && t.warehouse_conf === 'true').forEach(t => {
     if (t.plan_snapshot) {
       let snapshot = t.plan_snapshot
       if (typeof snapshot === 'string') {
-        try { snapshot = JSON.parse(snapshot) } catch (e) { snapshot = {} }
+        try { snapshot = JSON.parse(snapshot) } catch { snapshot = {} }
       }
       if (snapshot && typeof snapshot === 'object' && !Array.isArray(snapshot)) {
         Object.values(snapshot).forEach(part => {
@@ -162,7 +238,7 @@ export const ReserveAnalysisModal = ({
   })
 
   // Include BZ reservations from database (only active, allocated reservations for existing tasks/orders)
-  bzReservations.filter(res => res && res.status === 'allocated').forEach(res => {
+  if (!usesIssuedRequestLedger) bzReservations.filter(res => res && res.status === 'allocated').forEach(res => {
     const qty = Number(res.allocated_qty || 0)
     if (qty > 0) {
       const task = res.task_id ? safeTasks.find(t => String(t.id) === String(res.task_id)) : null
@@ -189,10 +265,10 @@ export const ReserveAnalysisModal = ({
   })
 
   // Include tasks where plan_snapshot recorded stock deduction for this part
-  safeTasks.filter(t => t && t.status !== 'completed' && t.status !== 'cancelled').forEach(t => {
+  if (!usesIssuedRequestLedger) safeTasks.filter(t => t && t.status !== 'completed' && t.status !== 'cancelled').forEach(t => {
     let snapshot = t.plan_snapshot
     if (typeof snapshot === 'string') {
-      try { snapshot = JSON.parse(snapshot) } catch (e) { snapshot = {} }
+      try { snapshot = JSON.parse(snapshot) } catch { snapshot = {} }
     }
     if (snapshot && typeof snapshot === 'object' && !Array.isArray(snapshot)) {
       const partKey = String(item.nomenclature_id || '')
@@ -215,21 +291,31 @@ export const ReserveAnalysisModal = ({
     }
   })
 
-  const totalCalculated = reserveDetails.reduce((sum, d) => sum + d.quantity, 0)
-  const dbReserved = Number(item.reserved_qty) || 0
+  const totalCalculated = sumRequestQuantity(reserveDetails)
+  const dbReserved = usesIssuedRequestLedger && liveDbReserved !== null
+    ? liveDbReserved
+    : (Number(item.reserved_qty) || 0)
   const hasMismatch = totalCalculated !== dbReserved
 
   const handleSync = async () => {
     if (isSyncing) return
     setIsSyncing(true)
     try {
+      if (usesIssuedRequestLedger && staleIssuedRequests.length > 0) {
+        const { error: staleError } = await supabase
+          .from('material_requests')
+          .update({ status: 'completed' })
+          .in('id', staleIssuedRequests.map(request => request.id))
+        if (staleError) throw staleError
+      }
+
       const { error } = await supabase
         .from('inventory')
         .update({ reserved_qty: totalCalculated })
         .eq('id', item.id)
       
       if (error) throw error
-      alert('Резерв успішно синхронізовано з реальними накладними!')
+      alert('Резерв синхронізовано з актуальними виданими заявками!')
       if (typeof refreshTable === 'function') {
         refreshTable('inventory')
       }
@@ -249,12 +335,6 @@ export const ReserveAnalysisModal = ({
         .update({ status: 'cancelled' })
         .eq('id', reqId)
       if (reqErr) throw reqErr
-
-      const newReserved = Math.max(0, (Number(item.reserved_qty) || 0) - qty)
-      await supabase
-        .from('inventory')
-        .update({ reserved_qty: newReserved })
-        .eq('id', item.id)
 
       alert('Запит успішно скасовано, резерв звільнено!')
       if (typeof refreshTable === 'function') {
@@ -293,6 +373,16 @@ export const ReserveAnalysisModal = ({
 
         {/* Content */}
         <div style={{ flex: 1, overflowY: 'auto', marginBottom: '20px', paddingRight: '5px' }}>
+          {usesIssuedRequestLedger && ledgerLoading && (
+            <div style={{ textAlign: 'center', padding: '16px', color: isLight ? '#64748b' : '#94a3b8' }}>
+              Звіряємо актуальний резерв із БД…
+            </div>
+          )}
+          {usesIssuedRequestLedger && ledgerError && (
+            <div style={{ marginBottom: '12px', padding: '10px 12px', borderRadius: '10px', background: isLight ? '#fef2f2' : 'rgba(239,68,68,0.12)', color: '#ef4444', fontWeight: 700 }}>
+              {ledgerError}. Дані не змінено.
+            </div>
+          )}
           {reserveDetails.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '40px 20px', color: isLight ? '#64748b' : '#94a3b8', background: isLight ? '#f8fafc' : '#161924', border: `1px dashed ${isLight ? '#cbd5e1' : '#2a3245'}`, borderRadius: '16px' }}>
               Не знайдено активних запитів резервування в системі.
@@ -397,7 +487,7 @@ export const ReserveAnalysisModal = ({
               {hasMismatch && (
                 <button
                   onClick={handleSync}
-                  disabled={isSyncing}
+                  disabled={isSyncing || (usesIssuedRequestLedger && (ledgerLoading || Boolean(ledgerError)))}
                   style={{
                     background: isLight ? '#fef2f2' : 'rgba(239, 68, 68, 0.12)',
                     border: `1px solid ${isLight ? '#fecaca' : 'rgba(239, 68, 68, 0.3)'}`,
@@ -406,12 +496,12 @@ export const ReserveAnalysisModal = ({
                     borderRadius: '6px',
                     fontSize: '0.68rem',
                     fontWeight: 900,
-                    cursor: isSyncing ? 'not-allowed' : 'pointer',
+                    cursor: (isSyncing || (usesIssuedRequestLedger && (ledgerLoading || ledgerError))) ? 'not-allowed' : 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '4px'
                   }}
-                  title="Синхронізувати число резерву в БД з реальними накладними"
+                  title="Синхронізувати резерв із виданими заявками цього складського рядка"
                 >
                   <RefreshCw size={10} className={isSyncing ? 'animate-spin' : ''} />
                   <span>Виправити лічильник</span>

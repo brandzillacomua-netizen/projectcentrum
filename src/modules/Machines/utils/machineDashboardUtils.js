@@ -9,6 +9,62 @@ export const MACHINE_HEADS = ['1 Голова', '2 Голова', '3 Голов�
 
 export const MACHINE_SPARE_PARTS = []
 
+export function parseMaintenanceLog(rawLog) {
+  if (!rawLog) return rawLog
+
+  let maintenance_type = rawLog.maintenance_type || null
+  let machine_head = rawLog.machine_head || null
+  let spare_part = rawLog.spare_part || null
+  let notes = rawLog.notes || null
+  let performed_by = rawLog.performed_by || ''
+
+  const rawPerformed = String(performed_by || '')
+
+  if (rawPerformed.includes('[TYPE:')) {
+    const typeMatch = rawPerformed.match(/\[TYPE:([^\]]*)\]/i)
+    if (typeMatch && !maintenance_type) maintenance_type = typeMatch[1].trim()
+
+    const headMatch = rawPerformed.match(/\[HEAD:([^\]]*)\]/i)
+    if (headMatch && !machine_head) machine_head = headMatch[1].trim()
+
+    const spareMatch = rawPerformed.match(/\[SPARE:([^\]]*)\]/i)
+    if (spareMatch && !spare_part) spare_part = spareMatch[1].trim()
+
+    const notesMatch = rawPerformed.match(/\[NOTES:([^\]]*)\]/i)
+    if (notesMatch && !notes) notes = notesMatch[1].trim()
+
+    performed_by = rawPerformed
+      .replace(/\[TYPE:[^\]]*\]/gi, '')
+      .replace(/\[HEAD:[^\]]*\]/gi, '')
+      .replace(/\[SPARE:[^\]]*\]/gi, '')
+      .replace(/\[NOTES:[^\]]*\]/gi, '')
+      .trim()
+  } else if (rawPerformed.startsWith('{') && rawPerformed.endsWith('}')) {
+    try {
+      const parsed = JSON.parse(rawPerformed)
+      if (parsed.type && !maintenance_type) maintenance_type = parsed.type
+      if (parsed.head && !machine_head) machine_head = parsed.head
+      if (parsed.spare && !spare_part) spare_part = parsed.spare
+      if (parsed.notes && !notes) notes = parsed.notes
+      if (parsed.user) performed_by = parsed.user
+    } catch {}
+  }
+
+  // If no maintenance_type was stored, default to 'Очищення робочої поверхні'
+  if (!maintenance_type) {
+    maintenance_type = 'Очищення робочої поверхні'
+  }
+
+  return {
+    ...rawLog,
+    maintenance_type,
+    machine_head,
+    spare_part,
+    notes,
+    performed_by: performed_by || '—'
+  }
+}
+
 export const isFairyMachine = machine => {
   const text = `${machine?.name || ''} ${machine?.type || ''}`.toLowerCase()
   return text.includes('фея') || text.includes('ke xin') || text.includes('ke-xin')

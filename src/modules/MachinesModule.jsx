@@ -5,6 +5,7 @@ import { MachinesTypesGrid } from './Machines/components/MachinesTypesGrid.jsx'
 import { MachinesGrid } from './Machines/components/MachinesGrid.jsx'
 import { MachineDossier } from './Machines/components/MachineDossier.jsx'
 import { MachinesQrScanModal } from './Machines/components/modals/MachinesQrScanModal.jsx'
+import { MachinesGlobalMaintenanceModal } from './Machines/components/modals/MachinesGlobalMaintenanceModal.jsx'
 import { useMachinesData } from './Machines/hooks/useMachinesData.js'
 
 const MachinesModule = () => {
@@ -28,6 +29,11 @@ const MachinesModule = () => {
     setForm,
     currentTime,
     maintenanceLogs,
+    showGlobalMaintenance,
+    setShowGlobalMaintenance,
+    globalMaintenanceLogs,
+    loadingGlobalLogs,
+    fetchGlobalMaintenanceLogs,
     isScanning,
     setIsScanning,
     scanError,
@@ -59,6 +65,7 @@ const MachinesModule = () => {
             showAdd={showAdd}
             setShowAdd={setShowAdd}
             setForm={setForm}
+            onOpenGlobalMaintenance={() => setShowGlobalMaintenance(true)}
           />
 
           <MachinesFormCard
@@ -120,6 +127,16 @@ const MachinesModule = () => {
         setIsScanning={setIsScanning}
         scanError={scanError}
         setScanError={setScanError}
+      />
+
+      <MachinesGlobalMaintenanceModal
+        isOpen={showGlobalMaintenance}
+        onClose={() => setShowGlobalMaintenance(false)}
+        logs={globalMaintenanceLogs}
+        machines={machines}
+        loading={loadingGlobalLogs}
+        onRefresh={fetchGlobalMaintenanceLogs}
+        onSelectMachine={setSelectedMachineId}
       />
 
       <style dangerouslySetInnerHTML={{ __html: `

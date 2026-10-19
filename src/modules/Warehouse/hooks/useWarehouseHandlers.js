@@ -42,7 +42,6 @@ export const useWarehouseHandlers = ({
   editingQty,
   savingQty,
   editingInvTotal,
-  editingInvReserved,
   savingInv,
   scannedRequests,
   shortages,
@@ -713,8 +712,7 @@ export const useWarehouseHandlers = ({
 
   const handleSaveInventoryQty = async (itemId) => {
     const totalVal = parseFloat(editingInvTotal)
-    const reservedVal = parseFloat(editingInvReserved)
-    if (isNaN(totalVal) || totalVal < 0 || isNaN(reservedVal) || reservedVal < 0) {
+    if (isNaN(totalVal) || totalVal < 0) {
       alert('Будь ласка, введіть коректні числа (>= 0)')
       return
     }
@@ -722,7 +720,6 @@ export const useWarehouseHandlers = ({
     try {
       await supabaseClient.from('inventory').update({
         total_qty: totalVal,
-        reserved_qty: reservedVal,
         updated_at: new Date().toISOString()
       }).eq('id', itemId)
       if (typeof fetchData === 'function') fetchData(['inventory'])

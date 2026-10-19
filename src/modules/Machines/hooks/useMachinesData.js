@@ -3,7 +3,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useMES } from '../../../MESContext.jsx'
 import { apiService } from '../../../services/apiDispatcher.js'
 import { supabase } from '../../../supabase.js'
-import { isCardAssignedToMachine } from '../utils/machineDashboardUtils.js'
+import { isCardAssignedToMachine, parseMaintenanceLog } from '../utils/machineDashboardUtils.js'
 import { parseMachineQRId } from '../../../utils/machineQrUtils.js'
 
 export const MACHINE_TYPES = [
@@ -53,6 +53,9 @@ export function useMachinesData() {
   const [maintenanceLogs, setMaintenanceLogs] = useState([])
   const [isScanning, setIsScanning] = useState(false)
   const [scanError, setScanError] = useState(null)
+  const [showGlobalMaintenance, setShowGlobalMaintenance] = useState(false)
+  const [globalMaintenanceLogs, setGlobalMaintenanceLogs] = useState([])
+  const [loadingGlobalLogs, setLoadingGlobalLogs] = useState(false)
 
   const fetchMaintenanceLogs = useCallback(async (machineId) => {
     if (!machineId) return []
@@ -61,8 +64,31 @@ export function useMachinesData() {
       .eq('machine_id', machineId)
       .order('triggered_at', { ascending: false })
     if (error) throw error
-    return data || []
+    return (data || []).map(parseMaintenanceLog)
   }, [])
+
+  const fetchGlobalMaintenanceLogs = useCallback(async () => {
+    setLoadingGlobalLogs(true)
+    try {
+      const { data, error } = await supabase
+        .from('machine_maintenance_logs')
+        .select('*')
+        .order('triggered_at', { ascending: false })
+        .limit(1000)
+      if (error) throw error
+      setGlobalMaintenanceLogs((data || []).map(parseMaintenanceLog))
+    } catch (err) {
+      console.warn('[Machines] Failed to load global maintenance logs:', err)
+    } finally {
+      setLoadingGlobalLogs(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (showGlobalMaintenance) {
+      fetchGlobalMaintenanceLogs()
+    }
+  }, [showGlobalMaintenance, fetchGlobalMaintenanceLogs])
 
   useEffect(() => {
     let cancelled = false
@@ -365,30 +391,33 @@ export function useMachinesData() {
     const responseSeconds = pendingLog?.triggered_at
       ? Math.max(0, Math.floor((new Date(nowISO) - new Date(pendingLog.triggered_at)) / 1000))
       : 0
+
+    // Encode metadata into performed_by so it is guaranteed to persist in Supabase DB without schema error
+    const chosenType = type || 'Очищення робочої поверхні'
+    let metaTag = `[TYPE:${chosenType}]`
+    if (machineHead) metaTag += `[HEAD:${machineHead}]`
+    if (sparePart) metaTag += `[SPARE:${sparePart}]`
+    if (notes) metaTag += `[NOTES:${String(notes).replace(/[\[\]]/g, '')}]`
+
     const payload = {
       status: 'in_progress',
       started_at: nowISO,
       response_duration_seconds: responseSeconds,
-      maintenance_type: type,
-      machine_head: machineHead,
-      spare_part: sparePart,
-      notes: String(notes || '').trim() || null
+      performed_by: metaTag
     }
 
-    const result = pendingLog
-      ? await updateMaintenanceLogWithFallback(
-          values => supabase.from('machine_maintenance_logs').update(values).eq('id', pendingLog.id),
-          payload
-        )
-      : await updateMaintenanceLogWithFallback(
-          values => supabase.from('machine_maintenance_logs').insert([{
-            machine_id: selectedMachine.id,
-            triggered_at: nowISO,
-            ...values
-          }]),
-          payload
-        )
-    if (result.error) throw result.error
+    if (pendingLog) {
+      const { error } = await supabase.from('machine_maintenance_logs').update(payload).eq('id', pendingLog.id)
+      if (error) throw error
+    } else {
+      const { error } = await supabase.from('machine_maintenance_logs').insert([{
+        machine_id: selectedMachine.id,
+        triggered_at: nowISO,
+        ...payload
+      }])
+      if (error) throw error
+    }
+
     await refreshMachineData()
   }
 
@@ -416,10 +445,17 @@ export function useMachinesData() {
       const durationSeconds = log.started_at
         ? Math.max(0, Math.floor((new Date(nowISO) - new Date(log.started_at)) / 1000))
         : 0
+
+      // Extract existing meta tags [TYPE:...][HEAD:...][SPARE:...][NOTES:...]
+      const currentMeta = String(log.performed_by || '')
+      const tags = (currentMeta.match(/\[(TYPE|HEAD|SPARE|NOTES):[^\]]*\]/gi) || []).join('')
+      const userName = getCurrentUserName()
+      const finalPerformedBy = tags ? `${userName} ${tags}`.trim() : userName
+
       const { error } = await supabase.from('machine_maintenance_logs').update({
         status: 'completed',
         completed_at: nowISO,
-        performed_by: getCurrentUserName(),
+        performed_by: finalPerformedBy,
         maintenance_duration_seconds: durationSeconds
       }).eq('id', log.id)
       if (error) throw error
@@ -524,6 +560,11 @@ export function useMachinesData() {
     setForm,
     currentTime,
     maintenanceLogs,
+    showGlobalMaintenance,
+    setShowGlobalMaintenance,
+    globalMaintenanceLogs,
+    loadingGlobalLogs,
+    fetchGlobalMaintenanceLogs,
     isScanning,
     setIsScanning,
     scanError,
