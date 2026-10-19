@@ -310,28 +310,32 @@ export function MachineDossier({
     <div className="machine-dossier-overlay" onClick={() => setSelectedMachineId(null)}>
       <section className="machine-dossier" onClick={event => event.stopPropagation()}>
         <header className="machine-dossier-header">
-          <div className="machine-title-block">
-            <div className="machine-dossier-icon"><Cpu size={26} /></div>
-            <div>
-              <div className="machine-eyebrow">КАРТКА ВЕРСТАТА</div>
-              <h2>{selectedMachine.name}</h2>
-              <p>Пор. №{selectedMachine.sequence_number || '—'} · Інв. {selectedMachine.inventory_no || '—'} · {selectedMachine.floor || '—'} поверх</p>
+          <div className="machine-header-main">
+            <div className="machine-title-block">
+              <div className="machine-dossier-icon"><Cpu size={28} /></div>
+              <div className="machine-title-info">
+                <div className="machine-eyebrow">ВІДСКАНОВАНО ВЕРСТАТ</div>
+                <h2>{selectedMachine.name}</h2>
+                <div className="machine-meta-chips">
+                  <span className="machine-chip accent">№{selectedMachine.sequence_number || '—'}</span>
+                  {selectedMachine.type && <span className="machine-chip">{selectedMachine.type}</span>}
+                  {selectedMachine.inventory_no && <span className="machine-chip">Інв. {selectedMachine.inventory_no}</span>}
+                  <span className="machine-chip">{selectedMachine.floor ? `${selectedMachine.floor} поверх` : 'Цех №1'}</span>
+                </div>
+              </div>
             </div>
           </div>
+
           <div className="machine-header-actions">
             <div className="machine-status-pill" style={{ color: status.color, borderColor: `${status.color}55`, background: `${status.color}12` }}>
               <span style={{ background: status.color }} />{status.label}
             </div>
-            <button className="machine-action secondary" onClick={() => handlePrintQR(selectedMachine)}><Printer size={16} /> QR-код</button>
-            <button className="machine-action maintenance" onClick={() => {
-              if (selectedMachine.status === 'under_maintenance') {
-                setMaintenanceOpen(false)
-                setTab('maintenance')
-              } else {
-                setMaintenanceOpen(value => !value)
-              }
-            }}><Wrench size={16} /> {selectedMachine.status === 'under_maintenance' ? 'Обслуговується' : 'Обслуговування'}</button>
-            <button className="machine-dossier-close" onClick={() => setSelectedMachineId(null)}><X size={22} /></button>
+            <button className="machine-action secondary" title="Друкувати QR-код" onClick={() => handlePrintQR(selectedMachine)}>
+              <Printer size={16} /> <span className="hide-on-mobile">QR-код</span>
+            </button>
+            <button className="machine-dossier-close" onClick={() => setSelectedMachineId(null)} title="Закрити картку та повернутися">
+              <X size={22} />
+            </button>
           </div>
         </header>
 
@@ -346,46 +350,6 @@ export function MachineDossier({
         {actionError && <div className="machine-dossier-error">{actionError}</div>}
         {actionNotice && <div className="machine-dossier-notice">{actionNotice}</div>}
 
-        {maintenanceOpen && (
-          <div className="machine-maintenance-form">
-            <div>
-              <div className="machine-section-label">НОВА РОБОТА З ОБСЛУГОВУВАННЯ</div>
-              <h3>Що потрібно зробити?</h3>
-            </div>
-            <label>
-              Тип роботи
-              <select value={maintenanceType} onChange={event => { setMaintenanceType(event.target.value); setActionError('') }}>
-                {MAINTENANCE_TYPES.map(type => <option key={type} value={type}>{type}</option>)}
-              </select>
-            </label>
-            {requiresHead && (
-              <label>
-                Голова верстата ФЕЯ
-                <select value={machineHead} onChange={event => setMachineHead(event.target.value)}>
-                  <option value="">Оберіть голову</option>
-                  {MACHINE_HEADS.map(head => <option key={head} value={head}>{head}</option>)}
-                </select>
-              </label>
-            )}
-            {requiresSpare && (
-              <label>
-                Запчастина
-                <select value={sparePart} onChange={event => setSparePart(event.target.value)} disabled={MACHINE_SPARE_PARTS.length === 0}>
-                  <option value="">{MACHINE_SPARE_PARTS.length ? 'Оберіть запчастину' : 'Перелік запчастин буде додано'}</option>
-                  {MACHINE_SPARE_PARTS.map(part => <option key={part} value={part}>{part}</option>)}
-                </select>
-              </label>
-            )}
-            <label className="machine-maintenance-notes">
-              Коментар
-              <input value={notes} onChange={event => setNotes(event.target.value)} placeholder="Необов’язково" />
-            </label>
-            <button className="machine-action maintenance primary" disabled={isSaving || (requiresSpare && MACHINE_SPARE_PARTS.length === 0)} onClick={handleStartMaintenance}>
-              <Wrench size={17} /> {isSaving ? 'Збереження…' : 'Почати обслуговування'}
-            </button>
-          </div>
-        )}
-
         <nav className="machine-dossier-tabs">
           <button className={tab === 'overview' ? 'active' : ''} onClick={() => setTab('overview')}>Огляд</button>
           <button className={tab === 'history' ? 'active' : ''} onClick={() => setTab('history')}>Історія <span>{completedHistory.length}</span></button>
@@ -395,7 +359,129 @@ export function MachineDossier({
         <div className="machine-dossier-content">
           {tab === 'overview' && (
             <div className="machine-overview-grid">
-              {/* ── 3 CALL BUTTONS PANEL ── */}
+              {/* ── 1. MAINTENANCE ACTION PANEL (Moved here above calls) ── */}
+              <div className="machine-panel machine-maintenance-action-panel">
+                <div className="machine-maintenance-panel-header">
+                  <div className="machine-panel-title">
+                    <Wrench size={19} color="#ff9000" />
+                    <span>Технічне обслуговування (ТО)</span>
+                  </div>
+                  <div className={`machine-maintenance-status-badge ${selectedMachine.status === 'under_maintenance' ? 'is-busy' : 'is-idle'}`}>
+                    {selectedMachine.status === 'under_maintenance' ? '⚠️ НА ОБСЛУГОВУВАННІ' : '✅ ДОСТУПНИЙ ДО РОБОТИ'}
+                  </div>
+                </div>
+
+                {selectedMachine.status === 'under_maintenance' ? (
+                  <div className="machine-maintenance-active-banner anim-slide-down">
+                    <div className="machine-maintenance-active-desc">
+                      <strong>Верстат заблоковано для роботи</strong>
+                      <p>Зараз тривають сервісні або ремонтні роботи. Запуск нових карток тимчасово зупинено. Після завершення робіт натисніть кнопку нижче.</p>
+                    </div>
+                    <button
+                      className="machine-action success full-width-action-btn"
+                      disabled={isSaving}
+                      onClick={handleCompleteMaintenance}
+                    >
+                      <CheckCircle2 size={18} />
+                      <span>{isSaving ? 'Завершення…' : 'ЗАВЕРШИТИ ТО ТА ПОВЕРНУТИ В РОБОТУ'}</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="machine-maintenance-idle-box">
+                    <div className="machine-maintenance-meta-row">
+                      <div className="machine-maintenance-meta-item">
+                        Після останнього сервісу: <strong>{selectedMachine.completed_cards_count_since_maintenance || 0} карток</strong>
+                      </div>
+                      <button
+                        type="button"
+                        className="machine-link-btn"
+                        onClick={() => setTab('maintenance')}
+                      >
+                        Журнал ТО ({maintenanceLogs.length}) →
+                      </button>
+                    </div>
+
+                    {!maintenanceOpen ? (
+                      <button
+                        type="button"
+                        className="machine-action maintenance full-width-action-btn"
+                        onClick={() => { setMaintenanceOpen(true); setActionError('') }}
+                      >
+                        <Wrench size={18} />
+                        <span>ПОЧАТИ ОБСЛУГОВУВАННЯ ВЕРСТАТА</span>
+                      </button>
+                    ) : (
+                      <div className="machine-maintenance-inline-form anim-slide-down">
+                        <div className="machine-form-header">
+                          <div className="machine-section-label">ПАРАМЕТРИ НОВОГО ТО</div>
+                          <button
+                            type="button"
+                            className="machine-close-inline-btn"
+                            onClick={() => setMaintenanceOpen(false)}
+                            title="Скасувати"
+                          >
+                            <X size={16} />
+                          </button>
+                        </div>
+
+                        <div className="machine-form-grid">
+                          <label>
+                            <span>Тип роботи:</span>
+                            <select value={maintenanceType} onChange={event => { setMaintenanceType(event.target.value); setActionError('') }}>
+                              {MAINTENANCE_TYPES.map(type => <option key={type} value={type}>{type}</option>)}
+                            </select>
+                          </label>
+
+                          {requiresHead && (
+                            <label>
+                              <span>Голова верстата ФЕЯ:</span>
+                              <select value={machineHead} onChange={event => setMachineHead(event.target.value)}>
+                                <option value="">Оберіть голову</option>
+                                {MACHINE_HEADS.map(head => <option key={head} value={head}>{head}</option>)}
+                              </select>
+                            </label>
+                          )}
+
+                          {requiresSpare && (
+                            <label>
+                              <span>Запчастина:</span>
+                              <select value={sparePart} onChange={event => setSparePart(event.target.value)} disabled={MACHINE_SPARE_PARTS.length === 0}>
+                                <option value="">{MACHINE_SPARE_PARTS.length ? 'Оберіть запчастину' : 'Перелік запчастин буде додано'}</option>
+                                {MACHINE_SPARE_PARTS.map(part => <option key={part} value={part}>{part}</option>)}
+                              </select>
+                            </label>
+                          )}
+
+                          <label className="machine-form-full-width">
+                            <span>Коментар:</span>
+                            <input value={notes} onChange={event => setNotes(event.target.value)} placeholder="Опис робіт або дефекту (необов’язково)" />
+                          </label>
+                        </div>
+
+                        <div className="machine-form-footer">
+                          <button
+                            type="button"
+                            className="machine-action maintenance primary"
+                            disabled={isSaving || (requiresSpare && MACHINE_SPARE_PARTS.length === 0)}
+                            onClick={handleStartMaintenance}
+                          >
+                            <Wrench size={17} /> {isSaving ? 'Збереження…' : 'Підтвердити та почати ТО'}
+                          </button>
+                          <button
+                            type="button"
+                            className="machine-action secondary"
+                            onClick={() => setMaintenanceOpen(false)}
+                          >
+                            Скасувати
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* ── 2. QUICK CALL BUTTONS PANEL ── */}
               <div className="machine-panel machine-quick-calls-panel">
                 <div className="machine-quick-calls-header">
                   <div className="machine-panel-title">

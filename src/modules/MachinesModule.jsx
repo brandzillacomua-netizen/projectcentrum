@@ -201,24 +201,30 @@ const MachinesModule = () => {
         .history-table-wrapper th { padding: 15px 20px; font-size: 0.7rem; color: #333; text-transform: uppercase; font-weight: 1000; background: #000; }
         .history-table-wrapper td { padding: 15px 20px; border-bottom: 1px solid #111; font-size: 0.85rem; }
 
-        .machine-dossier-overlay { position: fixed; inset: 0; z-index: 10050; background: rgba(0,0,0,.82); backdrop-filter: blur(10px); padding: 12px; display: flex; align-items: center; justify-content: center; }
+        .machine-dossier-overlay { position: fixed; inset: 0; z-index: 100050 !important; background: rgba(0,0,0,.82); backdrop-filter: blur(10px); padding: 12px; display: flex; align-items: center; justify-content: center; }
         .machine-dossier { width: min(1480px, 100%); height: min(920px, calc(100dvh - 24px)); background: #090909; border: 1px solid #252525; border-radius: 24px; box-shadow: 0 32px 100px rgba(0,0,0,.75); display: flex; flex-direction: column; overflow: hidden; }
-        .machine-dossier-header { flex: 0 0 auto; padding: 18px 22px; border-bottom: 1px solid #202020; background: #050505; display: flex; align-items: center; justify-content: space-between; gap: 18px; }
+        .machine-dossier-header { flex: 0 0 auto; padding: 16px 22px; border-bottom: 1px solid #202020; background: #050505; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+        .machine-header-main { display: flex; align-items: center; gap: 14px; min-width: 0; flex: 1; }
+        .machine-title-info { min-width: 0; display: flex; flex-direction: column; }
         .machine-title-block, .machine-header-actions, .machine-kpis > div, .machine-panel-title, .machine-maintenance-heading, .machine-history-toolbar { display: flex; align-items: center; }
-        .machine-title-block { gap: 14px; min-width: 0; }
+        .machine-title-block { gap: 14px; min-width: 0; width: 100%; }
         .machine-dossier-icon { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; flex: 0 0 auto; background: rgba(255,144,0,.1); border: 1px solid rgba(255,144,0,.25); color: #ff9000; }
-        .machine-eyebrow, .machine-section-label { color: #ff9000; font-size: .58rem; font-weight: 1000; letter-spacing: .14em; }
-        .machine-title-block h2 { margin: 3px 0; font-size: clamp(1.2rem, 2vw, 1.75rem); line-height: 1; }
+        .machine-eyebrow, .machine-section-label { color: #ff9000; font-size: .62rem; font-weight: 1000; letter-spacing: .12em; }
+        .machine-title-block h2 { margin: 2px 0 4px 0; font-size: clamp(1.25rem, 2.2vw, 1.8rem); line-height: 1.15; font-weight: 950; color: #fff; }
+        .machine-meta-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+        .machine-chip { display: inline-flex; align-items: center; padding: 3px 8px; border-radius: 6px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); font-size: 0.68rem; font-weight: 850; color: #ccc; }
+        .machine-chip.accent { background: rgba(255,144,0,0.15); border-color: rgba(255,144,0,0.4); color: #ff9000; font-weight: 950; }
         .machine-title-block p { margin: 0; color: #737373; font-size: .72rem; font-weight: 750; }
-        .machine-header-actions { gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
-        .machine-status-pill { border: 1px solid; border-radius: 999px; padding: 8px 11px; display: flex; align-items: center; gap: 7px; font-size: .68rem; font-weight: 950; text-transform: uppercase; white-space: nowrap; }
+        .machine-header-actions { gap: 8px; flex-wrap: wrap; justify-content: flex-end; align-items: center; }
+        .machine-status-pill { border: 1px solid; border-radius: 999px; padding: 7px 12px; display: flex; align-items: center; gap: 7px; font-size: .68rem; font-weight: 950; text-transform: uppercase; white-space: nowrap; }
         .machine-status-pill span { width: 7px; height: 7px; border-radius: 50%; box-shadow: 0 0 10px currentColor; }
         .machine-action { min-height: 36px; border: 1px solid #292929; border-radius: 10px; padding: 8px 12px; color: #ddd; background: #121212; display: inline-flex; align-items: center; justify-content: center; gap: 7px; font-size: .68rem; font-weight: 950; cursor: pointer; }
         .machine-action:hover { border-color: #555; }
         .machine-action.maintenance { color: #111; background: #ff9000; border-color: #ff9000; }
         .machine-action.success { color: #04130c; background: #10b981; border-color: #10b981; }
         .machine-action:disabled { opacity: .5; cursor: not-allowed; }
-        .machine-dossier-close { width: 38px; height: 38px; border: 1px solid #292929; border-radius: 11px; background: #151515; color: #aaa; display: grid; place-items: center; cursor: pointer; }
+        .machine-dossier-close { width: 38px; height: 38px; border: 1px solid #292929; border-radius: 11px; background: #151515; color: #aaa; display: grid; place-items: center; cursor: pointer; transition: 0.2s; }
+        .machine-dossier-close:hover { color: #fff; border-color: #666; background: #252525; }
         .machine-kpis { flex: 0 0 auto; padding: 12px 22px; display: grid; grid-template-columns: repeat(5, minmax(130px, 1fr)); gap: 9px; border-bottom: 1px solid #1b1b1b; }
         .machine-kpis > div { gap: 10px; background: #101010; border: 1px solid #202020; border-radius: 12px; padding: 10px 12px; color: #666; }
         .machine-kpis span { display: flex; flex-direction: column; gap: 3px; font-size: .56rem; text-transform: uppercase; font-weight: 900; }
@@ -279,15 +285,15 @@ const MachinesModule = () => {
         .machine-page-slot i { color: #555; font-style: normal; }
 
         @media (max-width: 900px) {
-          .machine-dossier-overlay { padding: 0; }
+          .machine-dossier-overlay { padding: 0 !important; z-index: 100050 !important; }
           .machine-dossier { height: 100dvh; width: 100%; border-radius: 0; border: 0; }
-          .machine-dossier-header { align-items: flex-start; padding: 14px; }
-          .machine-header-actions { max-width: 46%; }
-          .machine-status-pill { width: 100%; justify-content: center; }
-          .machine-action.secondary { display: none; }
+          .machine-dossier-header { flex-direction: column; align-items: stretch; padding: 14px 16px; gap: 12px; }
+          .machine-header-main { width: 100%; justify-content: space-between; }
+          .machine-header-actions { width: 100%; justify-content: space-between; flex-direction: row; }
+          .machine-status-pill { flex: 1; justify-content: center; }
+          .machine-action.secondary { display: inline-flex; }
           .machine-kpis { grid-template-columns: repeat(2, 1fr); padding: 10px 14px; }
           .machine-kpis > div:last-child { grid-column: span 2; }
-          .machine-maintenance-form { margin: 10px 14px 0; grid-template-columns: 1fr; max-height: 45dvh; overflow: auto; }
           .machine-dossier-tabs { padding-left: 14px; }
           .machine-dossier-content { padding: 12px 14px 18px; }
           .machine-overview-grid { grid-template-columns: 1fr; }
@@ -296,23 +302,187 @@ const MachinesModule = () => {
           .machine-history-toolbar label { min-width: 0; width: 100%; }
           .machine-pagination { align-items: stretch; flex-direction: column; }
           .machine-pagination-pages { justify-content: center; flex-wrap: wrap; }
+          .machine-call-cards-grid { grid-template-columns: 1fr !important; }
         }
 
         @media (max-width: 560px) {
-          .machine-title-block p, .machine-dossier-icon { display: none; }
-          .machine-title-block h2 { font-size: 1rem; }
-          .machine-header-actions { max-width: 58%; }
-          .machine-action.maintenance { padding: 7px 9px; font-size: .58rem; }
+          .machine-title-block { gap: 10px; }
+          .machine-dossier-icon { width: 40px; height: 40px; }
+          .machine-title-block h2 { font-size: 1.15rem; }
+          .machine-chip { font-size: 0.62rem; padding: 2px 6px; }
           .machine-kpis { display: flex; overflow-x: auto; }
-          .machine-kpis > div { min-width: 145px; }
+          .machine-kpis > div { min-width: 140px; }
           .machine-dossier-tabs { overflow-x: auto; }
           .machine-dossier-tabs button { white-space: nowrap; }
+          .hide-on-mobile { display: none; }
         }
         
         @keyframes pulseRed { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
         @keyframes zoomIn { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
         @keyframes slideDown { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         .anim-slide-down { animation: slideDown 0.3s ease-out; }
+
+        /* ── MAINTENANCE ACTION PANEL (ABOVE QUICK CALLS) ── */
+        .machine-maintenance-action-panel {
+          grid-column: 1 / -1;
+          background: #0d0d0d;
+          border: 1px solid #202020;
+          border-radius: 14px;
+          padding: 16px 18px;
+          margin-bottom: 2px;
+        }
+        .machine-maintenance-panel-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          flex-wrap: wrap;
+          gap: 12px;
+          margin-bottom: 12px;
+          padding-bottom: 10px;
+          border-bottom: 1px solid #1a1a1a;
+        }
+        .machine-maintenance-status-badge {
+          display: inline-flex;
+          align-items: center;
+          padding: 5px 12px;
+          border-radius: 999px;
+          font-size: 0.7rem;
+          font-weight: 950;
+          letter-spacing: 0.04em;
+        }
+        .machine-maintenance-status-badge.is-idle {
+          color: #10b981;
+          background: rgba(16,185,129,0.1);
+          border: 1px solid rgba(16,185,129,0.3);
+        }
+        .machine-maintenance-status-badge.is-busy {
+          color: #ef4444;
+          background: rgba(239,68,68,0.1);
+          border: 1px solid rgba(239,68,68,0.3);
+          animation: pulseRed 2s infinite;
+        }
+        .machine-maintenance-active-banner {
+          background: rgba(239,68,68,0.06);
+          border: 1.5px solid rgba(239,68,68,0.25);
+          border-radius: 12px;
+          padding: 16px;
+          display: flex;
+          flex-direction: column;
+          gap: 14px;
+        }
+        .machine-maintenance-active-desc strong {
+          color: #ef4444;
+          font-size: 0.95rem;
+          display: block;
+          margin-bottom: 4px;
+        }
+        .machine-maintenance-active-desc p {
+          margin: 0;
+          color: #aaa;
+          font-size: 0.82rem;
+          line-height: 1.45;
+        }
+        .machine-maintenance-idle-box {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+        .machine-maintenance-meta-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          flex-wrap: wrap;
+          gap: 8px;
+          color: #888;
+          font-size: 0.78rem;
+          font-weight: 750;
+        }
+        .machine-maintenance-meta-item strong {
+          color: #eee;
+        }
+        .machine-link-btn {
+          background: none;
+          border: none;
+          color: #ff9000;
+          cursor: pointer;
+          font-size: 0.75rem;
+          font-weight: 900;
+          padding: 4px 6px;
+        }
+        .machine-link-btn:hover {
+          text-decoration: underline;
+        }
+        .full-width-action-btn {
+          width: 100%;
+          min-height: 48px;
+          font-size: 0.92rem !important;
+          font-weight: 950 !important;
+          border-radius: 12px !important;
+          letter-spacing: 0.03em;
+        }
+        .machine-maintenance-inline-form {
+          background: rgba(255,144,0,0.04);
+          border: 1px solid rgba(255,144,0,0.25);
+          border-radius: 12px;
+          padding: 16px;
+          margin-top: 6px;
+        }
+        .machine-form-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 12px;
+        }
+        .machine-close-inline-btn {
+          background: none;
+          border: none;
+          color: #888;
+          cursor: pointer;
+          padding: 4px;
+        }
+        .machine-close-inline-btn:hover {
+          color: #eee;
+        }
+        .machine-form-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+          gap: 12px;
+          align-items: end;
+        }
+        .machine-form-grid label {
+          display: flex;
+          flex-direction: column;
+          gap: 5px;
+          font-size: 0.68rem;
+          font-weight: 900;
+          text-transform: uppercase;
+          color: #888;
+        }
+        .machine-form-grid select, .machine-form-grid input {
+          width: 100%;
+          height: 40px;
+          padding: 0 12px;
+          border-radius: 10px;
+          background: #080808;
+          border: 1px solid #282828;
+          color: #eee;
+          font-size: 0.85rem;
+          outline: none;
+          box-sizing: border-box;
+        }
+        .machine-form-grid select:focus, .machine-form-grid input:focus {
+          border-color: #ff9000;
+        }
+        .machine-form-full-width {
+          grid-column: 1 / -1;
+        }
+        .machine-form-footer {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          margin-top: 14px;
+          flex-wrap: wrap;
+        }
 
         /* ── 3 QUICK CALL BUTTONS PANEL & CARDS ── */
         .machine-quick-calls-panel {
@@ -706,6 +876,77 @@ const MachinesModule = () => {
 
         .light-theme .machine-panel-title,
         body.light-theme .machine-panel-title {
+          color: #0f172a !important;
+        }
+
+        .light-theme .machine-chip,
+        body.light-theme .machine-chip {
+          background: #f1f5f9 !important;
+          border: 1px solid #cbd5e1 !important;
+          color: #334155 !important;
+        }
+
+        .light-theme .machine-chip.accent,
+        body.light-theme .machine-chip.accent {
+          background: rgba(255, 144, 0, 0.15) !important;
+          border-color: #f59e0b !important;
+          color: #b45309 !important;
+        }
+
+        .light-theme .machine-maintenance-action-panel,
+        body.light-theme .machine-maintenance-action-panel {
+          background: #ffffff !important;
+          border: 1px solid #e2e8f0 !important;
+          box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04) !important;
+        }
+
+        .light-theme .machine-maintenance-panel-header,
+        body.light-theme .machine-maintenance-panel-header {
+          border-bottom: 1px solid #f1f5f9 !important;
+        }
+
+        .light-theme .machine-maintenance-active-desc strong,
+        body.light-theme .machine-maintenance-active-desc strong {
+          color: #dc2626 !important;
+        }
+
+        .light-theme .machine-maintenance-active-desc p,
+        body.light-theme .machine-maintenance-active-desc p {
+          color: #64748b !important;
+        }
+
+        .light-theme .machine-maintenance-meta-row,
+        body.light-theme .machine-maintenance-meta-row {
+          color: #64748b !important;
+        }
+
+        .light-theme .machine-maintenance-meta-item strong,
+        body.light-theme .machine-maintenance-meta-item strong {
+          color: #0f172a !important;
+        }
+
+        .light-theme .machine-maintenance-inline-form,
+        body.light-theme .machine-maintenance-inline-form {
+          background: #fffbeb !important;
+          border: 1px solid #fef08a !important;
+        }
+
+        .light-theme .machine-close-inline-btn,
+        body.light-theme .machine-close-inline-btn {
+          color: #64748b !important;
+        }
+
+        .light-theme .machine-form-grid label,
+        body.light-theme .machine-form-grid label {
+          color: #475569 !important;
+        }
+
+        .light-theme .machine-form-grid select,
+        body.light-theme .machine-form-grid select,
+        .light-theme .machine-form-grid input,
+        body.light-theme .machine-form-grid input {
+          background: #ffffff !important;
+          border: 1px solid #cbd5e1 !important;
           color: #0f172a !important;
         }
 
