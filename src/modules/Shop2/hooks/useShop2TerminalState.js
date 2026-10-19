@@ -12,7 +12,7 @@ import { executeAtomicQcScrap } from '../../../services/atomicQcScrapService'
 import { executeAtomicCardTransition } from '../../../services/atomicCardTransitionService'
 import { incrementInventoryStock } from '../../../services/inventoryStockService'
 import { isPackagingOperation } from '../../Shop2CardGen/constants/shop2Stages'
-import { getShop2BufferRemaining } from '../../../utils/productionWipParity.js'
+import { parseMachineQRId } from '../../../utils/machineQrUtils.js'
 
 
 export function useShop2TerminalState() {
@@ -114,11 +114,8 @@ export function useShop2TerminalState() {
   const [machineCallSuccess, setMachineCallSuccess] = useState('')
 
   const handleMachineQRScan = async (text) => {
-    const cleanText = translateCyrillic(text)
-    const match = String(cleanText || '').match(/(?:machines\/|^)([a-f0-9-]{36})/i) ||
-                  String(cleanText || '').match(/\/machines\/([a-f0-9-]+)/i)
-    if (match) {
-      const machineId = match[1]
+    const machineId = parseMachineQRId(text)
+    if (machineId) {
       try {
         sessionStorage.setItem('machine_return_route', '/shop2-terminal')
         navigate(`/machines/${machineId}`)

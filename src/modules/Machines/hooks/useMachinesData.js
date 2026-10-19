@@ -4,6 +4,7 @@ import { useMES } from '../../../MESContext.jsx'
 import { apiService } from '../../../services/apiDispatcher.js'
 import { supabase } from '../../../supabase.js'
 import { isCardAssignedToMachine } from '../utils/machineDashboardUtils.js'
+import { parseMachineQRId } from '../../../utils/machineQrUtils.js'
 
 export const MACHINE_TYPES = [
   'CNC 1200x800 - 4 листи (Малий)',
@@ -84,17 +85,19 @@ export function useMachinesData() {
   useEffect(() => {
     let html5QrCode = null
     if (isScanning && window.Html5Qrcode) {
-      html5QrCode = new window.Html5Qrcode("machine-qr-reader")
-      const config = { fps: 15, qrbox: { width: 260, height: 260 } }
+      html5QrCode = new window.Html5Qrcode("machine-qr-reader", {
+        experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+        verbose: false
+      })
+      const config = { fps: 20, qrbox: { width: 260, height: 260 } }
       const stopAndClose = async () => {
         if (html5QrCode && html5QrCode.isScanning) await html5QrCode.stop().catch(() => { })
         setIsScanning(false)
       }
-      html5QrCode.start({ facingMode: "environment" }, config, async (decodedText) => {
+      html5QrCode.start({ facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } }, config, async (decodedText) => {
         try {
-          const match = String(decodedText || '').match(/\/machines\/([a-f0-9-]+)/i)
-          if (match) {
-            const machineId = match[1]
+          const machineId = parseMachineQRId(decodedText)
+          if (machineId) {
             const foundMach = (machines || []).find(m => String(m.id).trim() === machineId.trim())
             if (foundMach) {
               setSelectedMachineId(foundMach.id)
@@ -104,7 +107,7 @@ export function useMachinesData() {
               setScanError("Верстат не знайдено в базі даних.")
             }
           } else {
-            setScanError("Невірний QR-код верстата.")
+            setScanError("Невірний QR-код верстата. Скануйте лише QR-код обладнання.")
           }
         } catch {
           setScanError("Помилка зчитування QR-коду.")

@@ -107,29 +107,31 @@ export const Shop1Terminal: React.FC = () => {
         {/* Mobile Drawer */}
         {isDrawerOpen && <div className="drawer-backdrop" onClick={() => setIsDrawerOpen(false)} />}
         <div className={`side-drawer ${isDrawerOpen ? 'open' : ''}`}>
-          <Shop1QueueList
-            queueCards={queueCards}
-            queueFilter={queueFilter}
-            setQueueFilter={setQueueFilter}
-            queueSectionFilter={queueSectionFilter}
-            setQueueSectionFilter={setQueueSectionFilter}
-            selectedTaskFilter={selectedTaskFilter}
-            setSelectedTaskFilter={setSelectedTaskFilter}
-            selectedNomFilter={selectedNomFilter}
-            setSelectedNomFilter={setSelectedNomFilter}
-            queueTasksOptions={queueTasksOptions}
-            queueNomOptions={queueNomOptions}
-            selectedCardId={selectedCardId}
-            setSelectedCardId={setSelectedCardId}
-            setSelectedOperator={setSelectedOperator}
-            setIsDrawerOpen={setIsDrawerOpen}
-            setManualId={setManualId}
-            setIsScanning={setIsScanning}
-            getNom={getNom}
-            orders={orders}
-            CHAIN={CHAIN}
-            isMobile={true}
-          />
+          {isDrawerOpen && (
+            <Shop1QueueList
+              queueCards={queueCards}
+              queueFilter={queueFilter}
+              setQueueFilter={setQueueFilter}
+              queueSectionFilter={queueSectionFilter}
+              setQueueSectionFilter={setQueueSectionFilter}
+              selectedTaskFilter={selectedTaskFilter}
+              setSelectedTaskFilter={setSelectedTaskFilter}
+              selectedNomFilter={selectedNomFilter}
+              setSelectedNomFilter={setSelectedNomFilter}
+              queueTasksOptions={queueTasksOptions}
+              queueNomOptions={queueNomOptions}
+              selectedCardId={selectedCardId}
+              setSelectedCardId={setSelectedCardId}
+              setSelectedOperator={setSelectedOperator}
+              setIsDrawerOpen={setIsDrawerOpen}
+              setManualId={setManualId}
+              setIsScanning={setIsScanning}
+              getNom={getNom}
+              orders={orders}
+              CHAIN={CHAIN}
+              isMobile={true}
+            />
+          )}
         </div>
 
         {/* Main Content */}

@@ -4,6 +4,7 @@ import { supabase } from '../../../supabase'
 import { createMachineCall } from '../../../services/machineCallService'
 import { isMachineMatch } from '../../../utils/cutterCalculator'
 import scannerDebounceGuard, { triggerHapticAudioFeedback } from '../../../services/scannerDebounceGuard'
+import { parseMachineQRId } from '../../../utils/machineQrUtils.js'
 
 
 export const cyrillicToLatinMap = {
@@ -84,11 +85,8 @@ export const useOperatorTerminalData = ({
   const callQCs = (systemUsers || []).filter(u => u.access_rights?.brak || (u.position && (u.position.toLowerCase().includes('вкя') || u.position.toLowerCase().includes('якост'))))
 
   const handleMachineQRScan = async (text) => {
-    const cleanText = translateCyrillic(text)
-    const match = String(cleanText || '').match(/(?:machines\/|^)([a-f0-9-]{36})/i) ||
-                  String(cleanText || '').match(/\/machines\/([a-f0-9-]+)/i)
-    if (match) {
-      const machineId = match[1]
+    const machineId = parseMachineQRId(text)
+    if (machineId) {
       try {
         sessionStorage.setItem('machine_return_route', '/operator')
         navigate(`/machines/${machineId}`)

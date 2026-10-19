@@ -7,6 +7,7 @@ import {
   CHAIN
 } from '../../utils/shop1Helpers';
 import { getPendingRequestsForCard } from '../../../../utils/materialCardMatching.js';
+import { parseMachineQRId } from '../../../../utils/machineQrUtils.js';
 
 export function useShop1Scanner({
   workCards,
@@ -29,11 +30,8 @@ export function useShop1Scanner({
   const [isSyncing, setIsSyncing] = useState(false);
 
   const handleMachineQRScan = async (text) => {
-    const cleanText = translateCyrillic(text);
-    const match = String(cleanText || '').match(/(?:machines\/|^)([a-f0-9-]{36})/i) ||
-                  String(cleanText || '').match(/\/machines\/([a-f0-9-]+)/i);
-    if (match) {
-      const machineId = match[1];
+    const machineId = parseMachineQRId(text);
+    if (machineId) {
       try {
         sessionStorage.setItem('machine_return_route', '/shop1');
         navigate(`/machines/${machineId}`);
