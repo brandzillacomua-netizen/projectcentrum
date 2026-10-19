@@ -94,7 +94,7 @@ export function useMachinesData() {
         if (html5QrCode && html5QrCode.isScanning) await html5QrCode.stop().catch(() => { })
         setIsScanning(false)
       }
-      html5QrCode.start({ facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } }, config, async (decodedText) => {
+      html5QrCode.start({ facingMode: "environment" }, config, async (decodedText) => {
         try {
           const machineId = parseMachineQRId(decodedText)
           if (machineId) {
