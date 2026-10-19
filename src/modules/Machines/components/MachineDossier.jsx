@@ -66,6 +66,7 @@ export function MachineDossier({
   nomenclatures,
   calculateTotalTime,
   handlePrintQR,
+  onOpenBatchQrPrint,
   getHistoryForMachine,
   startMachineMaintenance,
   completeMachineMaintenance
@@ -330,7 +331,17 @@ export function MachineDossier({
             <div className="machine-status-pill" style={{ color: status.color, borderColor: `${status.color}55`, background: `${status.color}12` }}>
               <span style={{ background: status.color }} />{status.label}
             </div>
-            <button className="machine-action secondary" title="Друкувати QR-код" onClick={() => handlePrintQR(selectedMachine)}>
+            <button
+              className="machine-action secondary"
+              title="Друкувати QR-код"
+              onClick={() => {
+                if (onOpenBatchQrPrint) {
+                  onOpenBatchQrPrint(selectedMachine)
+                } else {
+                  handlePrintQR(selectedMachine)
+                }
+              }}
+            >
               <Printer size={16} /> <span className="hide-on-mobile">QR-код</span>
             </button>
             <button className="machine-dossier-close" onClick={() => setSelectedMachineId(null)} title="Закрити картку та повернутися">

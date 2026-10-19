@@ -1,3 +1,4 @@
+import React, { useState } from 'react'
 import { MachinesNavbar } from './Machines/components/MachinesNavbar.jsx'
 import { MachinesHeaderBar } from './Machines/components/MachinesHeaderBar.jsx'
 import { MachinesFormCard } from './Machines/components/MachinesFormCard.jsx'
@@ -6,6 +7,7 @@ import { MachinesGrid } from './Machines/components/MachinesGrid.jsx'
 import { MachineDossier } from './Machines/components/MachineDossier.jsx'
 import { MachinesQrScanModal } from './Machines/components/modals/MachinesQrScanModal.jsx'
 import { MachinesGlobalMaintenanceModal } from './Machines/components/modals/MachinesGlobalMaintenanceModal.jsx'
+import { MachinesBatchQrPrintModal } from './Machines/components/modals/MachinesBatchQrPrintModal.jsx'
 import { useMachinesData } from './Machines/hooks/useMachinesData.js'
 
 const MachinesModule = () => {
@@ -54,6 +56,14 @@ const MachinesModule = () => {
     formatPlanned
   } = useMachinesData()
 
+  const [showBatchQrPrint, setShowBatchQrPrint] = useState(false)
+  const [batchQrPrintMachine, setBatchQrPrintMachine] = useState(null)
+
+  const handleOpenBatchQrPrint = (machine = null) => {
+    setBatchQrPrintMachine(machine)
+    setShowBatchQrPrint(true)
+  }
+
   return (
     <div className="machines-module-v3" style={{ background: 'var(--surface-inset)', minHeight: '100vh', color: 'var(--text-strong)', display: 'flex', flexDirection: 'column' }}>
       <MachinesNavbar stats={stats} />
@@ -66,6 +76,7 @@ const MachinesModule = () => {
             setShowAdd={setShowAdd}
             setForm={setForm}
             onOpenGlobalMaintenance={() => setShowGlobalMaintenance(true)}
+            onOpenBatchQrPrint={() => handleOpenBatchQrPrint(null)}
           />
 
           <MachinesFormCard
@@ -117,6 +128,7 @@ const MachinesModule = () => {
         nomenclatures={nomenclatures || []}
         calculateTotalTime={calculateTotalTime}
         handlePrintQR={handlePrintQR}
+        onOpenBatchQrPrint={handleOpenBatchQrPrint}
         getHistoryForMachine={getHistoryForMachine}
         startMachineMaintenance={startMachineMaintenance}
         completeMachineMaintenance={completeMachineMaintenance}
@@ -137,6 +149,16 @@ const MachinesModule = () => {
         loading={loadingGlobalLogs}
         onRefresh={fetchGlobalMaintenanceLogs}
         onSelectMachine={setSelectedMachineId}
+      />
+
+      <MachinesBatchQrPrintModal
+        isOpen={showBatchQrPrint}
+        onClose={() => {
+          setShowBatchQrPrint(false)
+          setBatchQrPrintMachine(null)
+        }}
+        machines={machines}
+        initialSelectedId={batchQrPrintMachine?.id || null}
       />
 
       <style dangerouslySetInnerHTML={{ __html: `

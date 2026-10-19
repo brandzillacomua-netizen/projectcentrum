@@ -1,8 +1,8 @@
 import React from 'react'
-import { Camera, Plus, X, Wrench } from 'lucide-react'
+import { Camera, Plus, X, Wrench, Printer } from 'lucide-react'
 import { MACHINE_TYPES } from '../hooks/useMachinesData.js'
 
-export function MachinesHeaderBar({ setIsScanning, showAdd, setShowAdd, setForm, onOpenGlobalMaintenance }) {
+export function MachinesHeaderBar({ setIsScanning, showAdd, setShowAdd, setForm, onOpenGlobalMaintenance, onOpenBatchQrPrint }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '40px' }}>
       <div>
@@ -11,11 +11,26 @@ export function MachinesHeaderBar({ setIsScanning, showAdd, setShowAdd, setForm,
       </div>
       <div style={{ display: 'flex', gap: '15px' }}>
         <button 
+          onClick={onOpenBatchQrPrint}
+          style={{ 
+            background: 'rgba(255, 144, 0, 0.12)', 
+            color: '#ff9000', 
+            border: '1px solid rgba(255, 144, 0, 0.35)', padding: '14px 22px', borderRadius: '14px', 
+            fontWeight: 950, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px',
+            transition: '0.2s',
+            boxShadow: '0 4px 15px rgba(255,144,0,0.08)'
+          }}
+          title="Друк QR-кодів верстатів (по 6, 8 або 4 на аркуш А4)"
+        >
+          <Printer size={20} />
+          ДРУК QR
+        </button>
+        <button 
           onClick={onOpenGlobalMaintenance}
           style={{ 
             background: 'rgba(255, 144, 0, 0.12)', 
             color: '#ff9000', 
-            border: '1px solid rgba(255, 144, 0, 0.35)', padding: '14px 24px', borderRadius: '14px', 
+            border: '1px solid rgba(255, 144, 0, 0.35)', padding: '14px 22px', borderRadius: '14px', 
             fontWeight: 950, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px',
             transition: '0.2s',
             boxShadow: '0 4px 15px rgba(255,144,0,0.08)'
