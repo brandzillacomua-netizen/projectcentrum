@@ -187,6 +187,10 @@ export function useSortingTerminalData() {
       setScanError('⚠️ Будь ласка, спочатку оберіть зміну вгорі екрану!')
       return
     }
+    if (!selectedOperator) {
+      setScanError('⚠️ Оберіть оператора сортування перед початком роботи.')
+      return
+    }
     setIsProcessing(true)
     try {
       const now = new Date().toISOString()
@@ -196,7 +200,7 @@ export function useSortingTerminalData() {
         status: 'in-progress',
         operation: 'Сортування',
         started_at: now,
-        operator_name: selectedOperator || card.operator_name || 'Команда',
+        operator_name: selectedOperator,
         shift_name: selectedShift
       }
 
@@ -267,6 +271,11 @@ export function useSortingTerminalData() {
       fetchData(['work_cards']).catch(() => {})
       return
     }
+    const responsibleOperator = String(activeCompletingCard.operator_name || selectedOperator || '').trim()
+    if (!responsibleOperator || responsibleOperator === 'Команда' || responsibleOperator === 'Сортування') {
+      setScanError('Не визначено оператора сортування. Закрийте форму, оберіть оператора та повторно відкрийте картку.')
+      return
+    }
     const total = Number(activeCompletingCard.quantity)
     const scrap = Number(scrapCount)
     const rework = Number(reworkCount)
@@ -284,7 +293,7 @@ export function useSortingTerminalData() {
         p_good_qty: goodQty,
         p_scrap_qty: scrap,
         p_rework_qty: rework,
-        p_operator_name: selectedOperator || activeCompletingCard.operator_name || 'Сортування',
+        p_operator_name: responsibleOperator,
         p_shift_name: selectedShift || activeCompletingCard.shift_name || 'Без зміни'
       })
       let { data: confirmedCard, error: confirmationError } = await supabase

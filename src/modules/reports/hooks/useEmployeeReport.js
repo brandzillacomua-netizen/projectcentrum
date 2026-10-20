@@ -236,6 +236,10 @@ export function isNonProductionEntity(name, user = null, systemUsers = []) {
   return res
 }
 
+export function isConfirmedResponsibleClassification(classification) {
+  return String(classification?.notes || '').includes('[VKYA_RESPONSIBLE_OPERATOR_CONFIRMED]')
+}
+
 /**
  * Infer department & position for team/brigade names when not a single systemUser.
  */
@@ -338,24 +342,36 @@ export function buildClassificationOnlyEvents({
   filterByDate = () => true,
   selectedShiftFilter = 'all'
 } = {}) {
-  if (selectedShiftFilter !== 'all') return []
-
-  const historyIds = new Set(historyRows.map(row => String(row.id)))
+  const historyById = new Map(historyRows.map(row => [String(row.id), row]))
   const events = new Map()
 
   classifications.forEach(classification => {
     if (classification.id && processedClassificationIds.has(String(classification.id))) return
 
     const sourceId = classification.source_history_id ? String(classification.source_history_id) : null
+    const sourceHistory = sourceId ? historyById.get(sourceId) : null
+    const hasConfirmedResponsible = isConfirmedResponsibleClassification(classification)
     // If the source row is present, its filters decide whether it belongs in the report.
-    if (sourceId && historyIds.has(sourceId)) return
-    if (!filterByDate(classification.classified_at, classification.created_at)) return
+    if (sourceHistory && !hasConfirmedResponsible) return
+    if (sourceHistory) {
+      if (!filterByDate(sourceHistory.completed_at, sourceHistory.created_at)) return
+      if (selectedShiftFilter !== 'all' && sourceHistory.shift_name !== selectedShiftFilter) return
+    } else {
+      if (selectedShiftFilter !== 'all') return
+      if (!filterByDate(classification.classified_at, classification.created_at)) return
+    }
 
-    const key = sourceId || `classification-${classification.id}`
+    const responsibleKey = hasConfirmedResponsible
+      ? String(classification.source_operator_name || 'Команда').trim().toLowerCase()
+      : ''
+    const key = hasConfirmedResponsible
+      ? `${sourceId || classification.id}|responsible:${responsibleKey}`
+      : (sourceId || `classification-${classification.id}`)
     if (!events.has(key)) {
       events.set(key, {
         key,
         sample: classification,
+        sourceHistory,
         classificationQty: 0,
         cat1: 0,
         cat2: 0,
@@ -401,10 +417,20 @@ export function useEmployeeReport({
   const employeeStats = useMemo(() => {
     // Pre-index classifications by source_history_id
     const classificationsByHistoryId = new Map()
+    const confirmedAssignedQtyByHistoryId = new Map()
 
     scrapClassificationsList.forEach(c => {
       if (c.source_history_id) {
         const hid = String(c.source_history_id)
+        if (isConfirmedResponsibleClassification(c)) {
+          const categorizedQty = (c.scrap_classification_categories || []).reduce(
+            (sum, category) => sum + (Number(category.quantity) || 0),
+            0
+          )
+          const assignedQty = Math.max(Number(c.quantity) || 0, categorizedQty)
+          confirmedAssignedQtyByHistoryId.set(hid, (confirmedAssignedQtyByHistoryId.get(hid) || 0) + assignedQty)
+          return
+        }
         if (!classificationsByHistoryId.has(hid)) {
           classificationsByHistoryId.set(hid, [])
         }
@@ -534,7 +560,9 @@ export function useEmployeeReport({
       const isNonProd = isNonProductionEntity(rawOp, user, systemUsers)
 
       const qtyProduced = Number(h.qty_completed) || 0
-      const qtyScrap = Number(h.scrap_qty) || 0
+      const originalQtyScrap = Number(h.scrap_qty) || 0
+      const confirmedAssignedQty = confirmedAssignedQtyByHistoryId.get(String(h.id)) || 0
+      const qtyScrap = Math.max(0, originalQtyScrap - confirmedAssignedQty)
 
       // Skip non-manufacturing operations without scrap (warehouse bookings, completed markers, buffers, admin moves)
       if (qtyScrap <= 0 && (isTechStage || isNonProd)) return
@@ -679,6 +707,7 @@ export function useEmployeeReport({
 
     classificationOnlyEvents.forEach(event => {
       const c = event.sample
+      const sourceHistory = event.sourceHistory
       const sourceOperator = String(c.source_operator_name || '').trim()
       let targetOperator = sourceOperator || 'Команда'
       const user = findSystemUser(sourceOperator, systemUsers)
@@ -704,13 +733,15 @@ export function useEmployeeReport({
       const nom = c.nomenclature_id ? nomMap.get(String(c.nomenclature_id)) : null
       empStat.history.push({
         id: event.key,
-        date: c.classified_at || c.created_at,
-        stage: c.source_stage_name || 'Контроль ВКЯ (виявлено)',
-        shift: '—',
+        date: sourceHistory?.completed_at || sourceHistory?.created_at || c.classified_at || c.created_at,
+        stage: isConfirmedResponsibleClassification(c)
+          ? `${c.source_stage_name || sourceHistory?.stage_name || 'Контроль ВКЯ'} (відповідального обрано ВКЯ)`
+          : (c.source_stage_name || 'Контроль ВКЯ (виявлено)'),
+        shift: sourceHistory?.shift_name || '—',
         nomenclatureName: nom?.name || 'Невідома деталь',
         nomenclatureCode: nom?.code || null,
         orderNum: c.order_number || 'Класифікація ВКЯ без історії',
-        machine: '—',
+        machine: c.source_machine_name || sourceHistory?.machine_name || '—',
         produced: 0,
         scrap: event.total,
         rework: cRework,

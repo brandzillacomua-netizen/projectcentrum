@@ -13,6 +13,7 @@ import { reportDateBoundaryIso, normalizeScrapReasonName, isScrapReadyForQc, mat
 import { executeAtomicQcScrap } from '../../../services/atomicQcScrapService.js'
 import { incrementInventoryStock } from '../../../services/inventoryStockService.js'
 import { triggerHapticAudioFeedback } from '../../../services/scannerDebounceGuard.js'
+import { buildShop1OperatorCandidates } from '../utils/operatorAttribution.js'
 
 const VKYA_QUEUE_CACHE_KEY = 'VKYA_CLASSIFICATION_QUEUE_V2'
 const VKYA_REPORT_CACHE_TTL_MS = 30 * 1000
@@ -107,6 +108,55 @@ export function useBrakData() {
   const [qcCustomReason, setQcCustomReason] = useState('')
   const [qcCardOperators, setQcCardOperators] = useState([])
   const [qcResponsibleOperator, setQcResponsibleOperator] = useState('')
+  const [classificationOperatorOptions, setClassificationOperatorOptions] = useState([])
+  const [classificationResponsibleOperator, setClassificationResponsibleOperator] = useState('')
+  const [classificationOperatorsLoading, setClassificationOperatorsLoading] = useState(false)
+  const [classificationOperatorsError, setClassificationOperatorsError] = useState('')
+  const selectedClassificationItemId = selectedItem?.id
+  const selectedClassificationCardId = selectedItem?.card_id
+
+  useEffect(() => {
+    let cancelled = false
+
+    const loadClassificationOperators = async () => {
+      setClassificationOperatorOptions([])
+      setClassificationResponsibleOperator('')
+      setClassificationOperatorsError('')
+
+      if (!selectedClassificationItemId) return
+      if (!selectedClassificationCardId) {
+        setClassificationOperatorsError('Для цього запису відсутній зв’язок із виробничою карткою.')
+        return
+      }
+
+      setClassificationOperatorsLoading(true)
+      try {
+        const { data, error } = await supabase
+          .from('work_card_history')
+          .select('operator_name,stage_name,shift_name,created_at,completed_at')
+          .eq('card_id', selectedClassificationCardId)
+          .order('created_at', { ascending: true })
+        if (error) throw error
+        if (cancelled) return
+
+        const candidates = buildShop1OperatorCandidates(data || [], systemUsers || [])
+        setClassificationOperatorOptions(candidates)
+        setClassificationResponsibleOperator(candidates.length === 1 ? candidates[0].name : '')
+        if (candidates.length === 0) {
+          setClassificationOperatorsError('В історії картки не знайдено жодного персонального оператора Цеху №1 від розкрою до сортування.')
+        }
+      } catch (error) {
+        if (cancelled) return
+        console.error('Failed to load responsible operators for VKYA classification:', error)
+        setClassificationOperatorsError(`Не вдалося завантажити операторів картки: ${error?.message || 'невідома помилка'}`)
+      } finally {
+        if (!cancelled) setClassificationOperatorsLoading(false)
+      }
+    }
+
+    loadClassificationOperators()
+    return () => { cancelled = true }
+  }, [selectedClassificationItemId, selectedClassificationCardId, supabase, systemUsers])
 
   // QC Reports Modal States
   const [showReportPage, setShowReportPage] = useState(false)
@@ -523,19 +573,12 @@ export function useBrakData() {
 
       const { data: operatorHistory, error: operatorHistoryError } = await supabase
         .from('work_card_history')
-        .select('operator_name,stage_name')
+        .select('operator_name,stage_name,shift_name,created_at,completed_at')
         .eq('card_id', foundCard.id)
         .order('created_at', { ascending: true })
       if (operatorHistoryError) throw operatorHistoryError
 
-      const operators = [...new Set([
-        foundCard.operator_name,
-        ...(operatorHistory || [])
-          .filter(row => row.stage_name !== 'Контроль ВКЯ')
-          .map(row => row.operator_name)
-      ]
-        .map(name => String(name || '').trim())
-        .filter(name => name && !name.toLowerCase().startsWith('вкя') && name !== 'Не вказано'))]
+      const operators = buildShop1OperatorCandidates(operatorHistory || [], systemUsers || []).map(candidate => candidate.name)
 
       setScannedCard(foundCard)
       setQcCardOperators(operators)
@@ -601,19 +644,12 @@ export function useBrakData() {
             triggerHapticAudioFeedback(true)
             const { data: operatorHistory, error: operatorHistoryError } = await supabase
               .from('work_card_history')
-              .select('operator_name,stage_name')
+              .select('operator_name,stage_name,shift_name,created_at,completed_at')
               .eq('card_id', foundCard.id)
               .order('created_at', { ascending: true })
             if (operatorHistoryError) throw operatorHistoryError
 
-            const operators = [...new Set([
-              foundCard.operator_name,
-              ...(operatorHistory || [])
-                .filter(row => row.stage_name !== 'Контроль ВКЯ')
-                .map(row => row.operator_name)
-            ]
-              .map(name => String(name || '').trim())
-              .filter(name => name && !name.toLowerCase().startsWith('вкя') && name !== 'Не вказано'))]
+            const operators = buildShop1OperatorCandidates(operatorHistory || [], systemUsers || []).map(candidate => candidate.name)
 
             setScannedCard(foundCard)
             setQcCardOperators(operators)
@@ -632,7 +668,7 @@ export function useBrakData() {
         html5QrCode.stop().catch(() => {})
       }
     }
-  }, [isScanning, workCards, supabase])
+  }, [isScanning, workCards, supabase, systemUsers])
 
   const updateInventoryStock = async (nomId, qty, type = 'scrap_ready') => {
     if (!nomId || qty <= 0) return
@@ -1251,6 +1287,20 @@ export function useBrakData() {
 
   const handleBulkClassify = async () => {
     if (!selectedItem || totalDistributed <= 0) return
+    if (classificationOperatorsLoading) {
+      alert('Зачекайте, поки система завантажить операторів цієї картки.')
+      return
+    }
+    if (!classificationResponsibleOperator) {
+      alert(classificationOperatorOptions.length > 1
+        ? 'Оберіть оператора, відповідального за цей брак.'
+        : 'Не знайдено персонального оператора Цеху №1. Класифікацію не збережено.')
+      return
+    }
+    if (!classificationOperatorOptions.some(candidate => candidate.name === classificationResponsibleOperator)) {
+      alert('Обраний оператор відсутній в історії цієї картки. Оновіть форму та повторіть вибір.')
+      return
+    }
     if (totalDistributed > Number(selectedItem.total_qty)) {
       alert('Розподілено більше ніж є в наявності!')
       return
@@ -1291,28 +1341,12 @@ export function useBrakData() {
 
         const userName = currentUser ? `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() : 'Інспектор ВКЯ'
 
-        let targetOperator = selectedItem.history_row.operator_name || null
-        const sourceStage = String(selectedItem.stage || '').trim().toLowerCase()
-        const assignToCuttingOperator = sourceStage === 'сортування'
-          || sourceStage === 'прийомка'
-          || sourceStage.startsWith('галтовка')
-        if (assignToCuttingOperator && selectedItem.card_id) {
-          const { data: cuttingHistory } = await supabase
-            .from('work_card_history')
-            .select('operator_name')
-            .eq('card_id', selectedItem.card_id)
-            .eq('stage_name', 'Розкрій')
-            .order('completed_at', { ascending: false })
-            .limit(1)
-
-          if (String(cuttingHistory?.[0]?.operator_name || '').trim()) {
-            targetOperator = String(cuttingHistory[0].operator_name).trim()
-          }
-        }
+        const targetOperator = classificationResponsibleOperator
 
         const restorationOriginHistoryId = selectedItem.history_row.restoration_return_row?.source_history_id
         const classificationNotes = [
           selectedItem.history_row.qc_scrap_comment || null,
+          '[VKYA_RESPONSIBLE_OPERATOR_CONFIRMED]',
           restorationOriginHistoryId ? `[VKYA_ORIGIN_HISTORY:${restorationOriginHistoryId}]` : null
         ].filter(Boolean).join(' ')
 
@@ -1596,6 +1630,11 @@ export function useBrakData() {
     qcCardOperators,
     qcResponsibleOperator,
     setQcResponsibleOperator,
+    classificationOperatorOptions,
+    classificationResponsibleOperator,
+    setClassificationResponsibleOperator,
+    classificationOperatorsLoading,
+    classificationOperatorsError,
     showReportPage,
     setShowReportPage,
     scrapReportSubTab,

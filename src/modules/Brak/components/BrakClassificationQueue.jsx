@@ -21,6 +21,11 @@ export const BrakClassificationQueue = React.memo(({
   categoryTotalPages,
   selectedItem,
   setSelectedItem,
+  classificationOperatorOptions = [],
+  classificationResponsibleOperator = '',
+  setClassificationResponsibleOperator,
+  classificationOperatorsLoading = false,
+  classificationOperatorsError = '',
   nomenclatures = [],
   distribution,
   updateCategoryQty,
@@ -358,6 +363,43 @@ export const BrakClassificationQueue = React.memo(({
               </div>
             )}
 
+            <div style={{ background: '#2563eb10', border: '1px solid #2563eb45', borderRadius: '18px', padding: '18px 20px', marginBottom: '25px' }}>
+              <div style={{ color: '#60a5fa', fontWeight: 950, fontSize: '0.72rem', marginBottom: '9px' }}>ВІДПОВІДАЛЬНИЙ ЗА БРАК</div>
+              {classificationOperatorsLoading ? (
+                <div style={{ color: 'var(--text-muted, #888)', fontSize: '0.75rem', fontWeight: 800 }}>Завантаження операторів картки…</div>
+              ) : classificationOperatorOptions.length === 1 ? (
+                <div style={{ color: 'var(--text-color, #fff)', fontSize: '0.9rem', fontWeight: 900 }}>
+                  {classificationOperatorOptions[0].name}
+                  <div style={{ color: 'var(--text-muted, #777)', fontSize: '0.64rem', fontWeight: 700, marginTop: '4px' }}>
+                    Єдиний персональний оператор картки — обрано автоматично
+                    {classificationOperatorOptions[0].stages.length > 0 ? ` · ${classificationOperatorOptions[0].stages.join(', ')}` : ''}
+                  </div>
+                </div>
+              ) : classificationOperatorOptions.length > 1 ? (
+                <>
+                  <select
+                    value={classificationResponsibleOperator}
+                    onChange={event => setClassificationResponsibleOperator(event.target.value)}
+                    style={{ width: '100%', padding: '12px 14px', borderRadius: '12px', border: `1px solid ${classificationResponsibleOperator ? '#10b98166' : '#ef444466'}`, background: 'var(--card-inner-bg, #000)', color: 'var(--text-color, #fff)', fontSize: '0.85rem', fontWeight: 850, boxSizing: 'border-box', outline: 'none' }}
+                  >
+                    <option value="">— Оберіть оператора, відповідального за брак —</option>
+                    {classificationOperatorOptions.map(candidate => (
+                      <option key={candidate.name} value={candidate.name}>
+                        {candidate.name}{candidate.stages.length ? ` — ${candidate.stages.join(', ')}` : ''}{candidate.shifts.length ? ` · ${candidate.shifts.join(', ')}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <div style={{ color: 'var(--text-muted, #777)', fontSize: '0.64rem', fontWeight: 700, marginTop: '7px' }}>
+                    У картці працювали кілька операторів. ВКЯ має обрати відповідального перед збереженням.
+                  </div>
+                </>
+              ) : (
+                <div style={{ color: '#ef4444', fontSize: '0.72rem', fontWeight: 850 }}>
+                  {classificationOperatorsError || 'Персональних операторів Цеху №1 у цій картці не знайдено. Класифікацію зберегти неможливо.'}
+                </div>
+              )}
+            </div>
+
             <div style={{ background: 'var(--border-subtle)', borderRadius: '20px', padding: '25px', marginBottom: '25px', border: '1px solid var(--border-color, var(--border-subtle))' }}>
               <div style={{ fontSize: '0.65rem', color: 'var(--text-muted, #777)', fontWeight: 950, textTransform: 'uppercase', marginBottom: '15px' }}>РОЗПОДІЛ ЗА КАТЕГОРІЯМИ</div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
@@ -480,9 +522,9 @@ export const BrakClassificationQueue = React.memo(({
 
             <div style={{ display: 'flex', gap: '10px' }}>
               <button 
-                disabled={isProcessing || remainingInBatch < 0 || !isReasonDistributionValid}
+                disabled={isProcessing || classificationOperatorsLoading || !classificationResponsibleOperator || remainingInBatch < 0 || !isReasonDistributionValid}
                 onClick={handleBulkClassify}
-                style={{ flex: 2, background: '#8b5cf6', color: '#fff', border: 'none', padding: '20px', borderRadius: '18px', fontSize: '1.1rem', fontWeight: 1000, cursor: isReasonDistributionValid ? 'pointer' : 'not-allowed', opacity: (remainingInBatch < 0 || !isReasonDistributionValid) ? 0.3 : 1 }}
+                style={{ flex: 2, background: '#8b5cf6', color: '#fff', border: 'none', padding: '20px', borderRadius: '18px', fontSize: '1.1rem', fontWeight: 1000, cursor: isReasonDistributionValid && classificationResponsibleOperator ? 'pointer' : 'not-allowed', opacity: (classificationOperatorsLoading || !classificationResponsibleOperator || remainingInBatch < 0 || !isReasonDistributionValid) ? 0.3 : 1 }}
               >
                 {isProcessing ? 'ОБРОБКА...' : 'ПІДТВЕРДИТИ РОЗПОДІЛ'}
               </button>

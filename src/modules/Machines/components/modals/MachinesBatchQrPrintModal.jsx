@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import {
   X,
   Printer,
@@ -24,7 +25,7 @@ const LAYOUT_OPTIONS = [
     cols: 2,
     rows: 3,
     cardWidthMm: 92,
-    cardHeightMm: 86,
+    cardHeightMm: 84,
     qrSize: 52,
     description: 'Збалансований розмір: чіткий QR 52мм, зручно читати з 0.5м'
   },
@@ -36,7 +37,7 @@ const LAYOUT_OPTIONS = [
     cols: 2,
     rows: 4,
     cardWidthMm: 92,
-    cardHeightMm: 64,
+    cardHeightMm: 62,
     qrSize: 42,
     description: 'Максимальна економія паперу (61 верстат = лише 8 аркушів)'
   },
@@ -48,7 +49,7 @@ const LAYOUT_OPTIONS = [
     cols: 2,
     rows: 2,
     cardWidthMm: 92,
-    cardHeightMm: 132,
+    cardHeightMm: 126,
     qrSize: 68,
     description: 'Збільшений розмір для монтажу на каркас або стіну'
   },
@@ -60,7 +61,7 @@ const LAYOUT_OPTIONS = [
     cols: 1,
     rows: 1,
     cardWidthMm: 184,
-    cardHeightMm: 260,
+    cardHeightMm: 255,
     qrSize: 140,
     description: 'Великий плакат на повний лист А4'
   }
@@ -263,9 +264,10 @@ export function MachinesBatchQrPrintModal({
             }
             .print-page {
               width: 198mm;
-              height: 281mm;
-              max-height: 281mm;
+              min-height: 0;
+              height: auto;
               margin: 0 auto;
+              padding: 0 0 4mm 0;
               page-break-after: always;
               break-after: page;
               page-break-inside: avoid;
@@ -286,22 +288,23 @@ export function MachinesBatchQrPrintModal({
               gap: 5mm 6mm;
             }
             .grid-6_per_page {
-              grid-template-columns: repeat(2, 94mm);
-              grid-auto-rows: 86mm;
+              grid-template-columns: repeat(2, 92mm);
+              grid-auto-rows: 84mm;
+              gap: 5mm 6mm;
             }
             .grid-8_per_page {
-              grid-template-columns: repeat(2, 94mm);
-              grid-auto-rows: 64mm;
-              gap: 4mm 6mm;
+              grid-template-columns: repeat(2, 92mm);
+              grid-auto-rows: 62mm;
+              gap: 3.5mm 6mm;
             }
             .grid-4_per_page {
-              grid-template-columns: repeat(2, 94mm);
-              grid-auto-rows: 132mm;
-              gap: 8mm 6mm;
+              grid-template-columns: repeat(2, 92mm);
+              grid-auto-rows: 126mm;
+              gap: 6mm 6mm;
             }
             .grid-1_per_page {
-              grid-template-columns: 190mm;
-              grid-auto-rows: 260mm;
+              grid-template-columns: 184mm;
+              grid-auto-rows: 255mm;
             }
             .print-card {
               border-radius: 10px;
@@ -690,26 +693,29 @@ export function MachinesBatchQrPrintModal({
         )}
       </div>
 
-      {/* PRINT-ONLY CONTAINER (Rendered natively into DOM for window.print()) */}
-      <div className="machines-batch-print-portal print-only">
-        {pages.map((pageMachines, pageIdx) => (
-          <div key={pageIdx} className="print-a4-page">
-            <div className={`print-cards-grid grid-${layoutId}`}>
-              {pageMachines.map(machine => (
-                <MachineCardRender
-                  key={machine.id}
-                  machine={machine}
-                  layout={currentLayout}
-                  borderStyle={borderStyle}
-                />
-              ))}
+      {/* PRINT-ONLY CONTAINER ATTACHED TO BODY (Enables clean native browser pagination for window.print()) */}
+      {typeof document !== 'undefined' && createPortal(
+        <div id="machines-batch-print-root" className="print-only">
+          {pages.map((pageMachines, pageIdx) => (
+            <div key={pageIdx} className="print-a4-page">
+              <div className={`print-cards-grid grid-${layoutId}`}>
+                {pageMachines.map(machine => (
+                  <MachineCardRender
+                    key={machine.id}
+                    machine={machine}
+                    layout={currentLayout}
+                    borderStyle={borderStyle}
+                  />
+                ))}
+              </div>
+              <div className="print-page-number">
+                Аркуш {pageIdx + 1} з {totalPages} • CENTRUM ERP • Система моніторингу обладнання
+              </div>
             </div>
-            <div className="print-page-number">
-              Аркуш {pageIdx + 1} з {totalPages} • CENTRUM ERP • Система моніторингу обладнання
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>,
+        document.body
+      )}
 
       {/* STYLES & PRINT MEDIA CSS */}
       <style>{`
@@ -1205,18 +1211,18 @@ export function MachinesBatchQrPrintModal({
 
         .grid-6_per_page {
           grid-template-columns: repeat(2, 92mm);
-          grid-auto-rows: 86mm;
-          gap: 6mm 8mm;
+          grid-auto-rows: 84mm;
+          gap: 5mm 6mm;
         }
         .grid-8_per_page {
           grid-template-columns: repeat(2, 92mm);
-          grid-auto-rows: 64mm;
-          gap: 4mm 8mm;
+          grid-auto-rows: 62mm;
+          gap: 3.5mm 6mm;
         }
         .grid-4_per_page {
           grid-template-columns: repeat(2, 92mm);
-          grid-auto-rows: 132mm;
-          gap: 8mm 8mm;
+          grid-auto-rows: 126mm;
+          gap: 6mm 6mm;
         }
         .grid-1_per_page {
           grid-template-columns: 184mm;
@@ -1424,6 +1430,10 @@ export function MachinesBatchQrPrintModal({
           }
 
           /* Hide all application chrome and elements outside the print portal */
+          body > *:not(#machines-batch-print-root) {
+            display: none !important;
+          }
+
           html, body {
             background: #ffffff !important;
             color: #000000 !important;
@@ -1431,48 +1441,53 @@ export function MachinesBatchQrPrintModal({
             padding: 0 !important;
             width: 100% !important;
             height: auto !important;
+            min-height: 0 !important;
+            overflow: visible !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
 
-          body * {
-            visibility: hidden !important;
-          }
-
-          .machines-batch-print-portal,
-          .machines-batch-print-portal * {
-            visibility: visible !important;
-          }
-
-          .machines-batch-print-portal {
-            position: absolute !important;
-            top: 0 !important;
-            left: 0 !important;
-            width: 198mm !important;
-            background: #ffffff !important;
+          #machines-batch-print-root {
             display: block !important;
+            position: static !important;
+            float: none !important;
+            width: 100% !important;
+            max-width: 198mm !important;
+            margin: 0 auto !important;
             padding: 0 !important;
-            margin: 0 !important;
-            z-index: 999999 !important;
+            background: #ffffff !important;
+            overflow: visible !important;
           }
 
           .print-a4-page {
-            width: 198mm !important;
-            height: 281mm !important;
-            max-height: 281mm !important;
+            width: 100% !important;
+            max-width: 198mm !important;
+            min-height: 0 !important;
+            height: auto !important;
             margin: 0 auto !important;
-            page-break-after: always !important;
-            break-after: page !important;
-            page-break-inside: avoid !important;
-            break-inside: avoid !important;
+            padding: 0 0 4mm 0 !important;
             box-sizing: border-box !important;
             display: flex !important;
             flex-direction: column !important;
             justify-content: space-between !important;
+            page-break-after: always !important;
+            break-after: page !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
             overflow: hidden !important;
           }
 
           .print-a4-page:last-child {
             page-break-after: auto !important;
             break-after: auto !important;
+          }
+
+          .print-cards-grid {
+            display: grid !important;
+            justify-content: center !important;
+            align-content: start !important;
+            box-sizing: border-box !important;
+            width: 100% !important;
           }
 
           .print-page-number {
@@ -1482,6 +1497,7 @@ export function MachinesBatchQrPrintModal({
             color: #888 !important;
             border-top: 1px solid #ddd !important;
             padding-top: 2mm !important;
+            margin-top: 2mm !important;
           }
 
           .preview-machine-card {
@@ -1502,11 +1518,6 @@ export function MachinesBatchQrPrintModal({
           .render-seq-badge {
             background: #000000 !important;
             color: #ffffff !important;
-          }
-          .render-action-badge {
-            background: #f5f5f5 !important;
-            color: #000000 !important;
-            border: 1px solid #000000 !important;
           }
 
           .print-hide {

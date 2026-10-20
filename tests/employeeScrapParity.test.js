@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildClassificationOnlyEvents, matchesOperator } from '../src/modules/reports/hooks/useEmployeeReport.js'
+import { buildClassificationOnlyEvents, isConfirmedResponsibleClassification, matchesOperator } from '../src/modules/reports/hooks/useEmployeeReport.js'
 
 describe('employee scrap classification parity', () => {
   const inRange = () => true
@@ -44,6 +44,40 @@ describe('employee scrap classification parity', () => {
     })
 
     expect(events).toEqual([])
+  })
+
+  it('attributes a new confirmed classification separately even when source history is loaded', () => {
+    const classification = {
+      id: 'classification-confirmed',
+      source_history_id: 'history-in-range',
+      source_operator_name: 'Петренко Іван',
+      notes: '[VKYA_RESPONSIBLE_OPERATOR_CONFIRMED]',
+      quantity: 4,
+      scrap_classification_categories: [{ category: 4, quantity: 4 }]
+    }
+    const events = buildClassificationOnlyEvents({
+      historyRows: [{ id: 'history-in-range', shift_name: 'Зміна 1', completed_at: '2026-10-20T08:00:00Z' }],
+      filterByDate: inRange,
+      classifications: [classification]
+    })
+
+    expect(isConfirmedResponsibleClassification(classification)).toBe(true)
+    expect(events).toHaveLength(1)
+    expect(events[0]).toMatchObject({ total: 4, cat4: 4 })
+  })
+
+  it('keeps a confirmed classification inside its source shift', () => {
+    const base = {
+      id: 'classification-confirmed-shift',
+      source_history_id: 'history-shift',
+      source_operator_name: 'Коваль Андрій',
+      notes: '[VKYA_RESPONSIBLE_OPERATOR_CONFIRMED]',
+      quantity: 2
+    }
+    const historyRows = [{ id: 'history-shift', shift_name: 'Зміна 2', completed_at: '2026-10-20T08:00:00Z' }]
+
+    expect(buildClassificationOnlyEvents({ classifications: [base], historyRows, filterByDate: inRange, selectedShiftFilter: 'Зміна 1' })).toEqual([])
+    expect(buildClassificationOnlyEvents({ classifications: [base], historyRows, filterByDate: inRange, selectedShiftFilter: 'Зміна 2' })).toHaveLength(1)
   })
 })
 

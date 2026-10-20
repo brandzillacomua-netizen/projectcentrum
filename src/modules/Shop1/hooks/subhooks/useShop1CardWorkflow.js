@@ -1274,13 +1274,18 @@ export function useShop1CardWorkflow({
 
   const handleSortToShop2 = async () => {
     if (!currentCard) return;
+    const responsibleSortingOperator = String(selectedOperator || currentCard.operator_name || '').trim();
+    if (!responsibleSortingOperator || responsibleSortingOperator === 'Команда' || responsibleSortingOperator === 'Сортування') {
+      alert('Оберіть конкретного оператора сортування перед завершенням картки.');
+      return;
+    }
     if (inFlightRef.current) return;
     inFlightRef.current = true;
     setIsProcessing(true);
     try {
       if (!await verifyCardBeforeMasterScrap()) return;
       const goodQty = Math.max(0, (currentCard.quantity || 0) - scrapCount - reworkCount);
-      const op = selectedOperator || currentCard.operator_name || 'Сортування';
+      const op = responsibleSortingOperator;
       const activeShift = selectedShift || currentCard.shift_name || 'Без зміни';
 
       const generateUUID = () => {

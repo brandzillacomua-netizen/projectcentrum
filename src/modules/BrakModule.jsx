@@ -60,6 +60,11 @@ export default function BrakModule() {
     qcCardOperators,
     qcResponsibleOperator,
     setQcResponsibleOperator,
+    classificationOperatorOptions,
+    classificationResponsibleOperator,
+    setClassificationResponsibleOperator,
+    classificationOperatorsLoading,
+    classificationOperatorsError,
     showReportPage,
     setShowReportPage,
     scrapReportSubTab,
@@ -196,6 +201,11 @@ export default function BrakModule() {
           categoryTotalPages={categoryTotalPages}
           selectedItem={selectedItem}
           setSelectedItem={setSelectedItem}
+          classificationOperatorOptions={classificationOperatorOptions}
+          classificationResponsibleOperator={classificationResponsibleOperator}
+          setClassificationResponsibleOperator={setClassificationResponsibleOperator}
+          classificationOperatorsLoading={classificationOperatorsLoading}
+          classificationOperatorsError={classificationOperatorsError}
           nomenclatures={nomenclatures}
           distribution={distribution}
           updateCategoryQty={updateCategoryQty}
