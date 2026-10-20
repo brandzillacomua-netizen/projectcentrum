@@ -16,6 +16,7 @@ import {
   Filter,
   X
 } from 'lucide-react'
+import { EmployeeMultiSelect } from './EmployeeMultiSelect'
 
 export const ReportsHeader = ({
   activeTab,
@@ -138,17 +139,11 @@ export const ReportsHeader = ({
                   <option value="Без зміни">Без зміни</option>
                 </select>
 
-                <select
-                  className="reports-filter-select"
-                  value={selectedEmployeeFilter}
-                  onChange={e => setSelectedEmployeeFilter(e.target.value)}
-                  style={{ maxWidth: '200px' }}
-                >
-                  <option value="all">-- Всі працівники --</option>
-                  {uniqueOperators.map(op => (
-                    <option key={op} value={op}>{op}</option>
-                  ))}
-                </select>
+                <EmployeeMultiSelect
+                  selected={selectedEmployeeFilter}
+                  onChange={setSelectedEmployeeFilter}
+                  options={uniqueOperators}
+                />
 
                 <div className="period-picker-container">
                   <div

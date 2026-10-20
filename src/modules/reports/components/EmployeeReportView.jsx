@@ -240,11 +240,22 @@ export const EmployeeReportView = ({
       </div>
 
       {/* ── ACTIVE FILTER BAR NOTICE (IF TOP DROPDOWN APPLIED) ── */}
-      {selectedEmployeeFilter && selectedEmployeeFilter !== 'all' && (
+      {Boolean(
+        Array.isArray(selectedEmployeeFilter)
+          ? selectedEmployeeFilter.length > 0 && !selectedEmployeeFilter.includes('all')
+          : (selectedEmployeeFilter && selectedEmployeeFilter !== 'all')
+      ) && (
         <div className="emp-active-filter-banner">
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Users size={16} color="#ff9000" />
-            <span>Фільтр за обраним працівником: <strong style={{ color: '#ff9000' }}>{selectedEmployeeFilter}</strong></span>
+            <span>
+              {Array.isArray(selectedEmployeeFilter) && selectedEmployeeFilter.length > 1
+                ? `Фільтр за обраними працівниками (${selectedEmployeeFilter.length}): `
+                : 'Фільтр за обраним працівником: '}
+              <strong style={{ color: '#ff9000' }}>
+                {Array.isArray(selectedEmployeeFilter) ? selectedEmployeeFilter.join(', ') : selectedEmployeeFilter}
+              </strong>
+            </span>
           </div>
           <button
             onClick={() => setSelectedEmployeeFilter && setSelectedEmployeeFilter('all')}

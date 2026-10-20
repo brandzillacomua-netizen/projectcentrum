@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildClassificationOnlyEvents } from '../src/modules/reports/hooks/useEmployeeReport.js'
+import { buildClassificationOnlyEvents, matchesOperator } from '../src/modules/reports/hooks/useEmployeeReport.js'
 
 describe('employee scrap classification parity', () => {
   const inRange = () => true
@@ -46,3 +46,25 @@ describe('employee scrap classification parity', () => {
     expect(events).toEqual([])
   })
 })
+
+describe('matchesOperator multi-select', () => {
+  it('returns true when filter is "all", null, or empty array', () => {
+    expect(matchesOperator('Арендач С.', 'all')).toBe(true)
+    expect(matchesOperator('Арендач С.', null)).toBe(true)
+    expect(matchesOperator('Арендач С.', [])).toBe(true)
+    expect(matchesOperator('Арендач С.', ['all'])).toBe(true)
+  })
+
+  it('matches single operator as string or inside an array', () => {
+    expect(matchesOperator('Арендач С.', 'Арендач С.')).toBe(true)
+    expect(matchesOperator('Арендач С.', ['Арендач С.'])).toBe(true)
+    expect(matchesOperator('Арендач С.', ['Бабайлов О.', 'Арендач С.'])).toBe(true)
+    expect(matchesOperator('Лука О.', ['Бабайлов О.', 'Арендач С.'])).toBe(false)
+  })
+
+  it('matches regardless of name token order', () => {
+    expect(matchesOperator('Назар Когут', ['Когут Назар'])).toBe(true)
+    expect(matchesOperator('Когут Назар', ['Когут Назар', 'Бабайлов О.'])).toBe(true)
+  })
+})
+

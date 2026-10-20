@@ -6,6 +6,10 @@ import { useMemo } from 'react'
  */
 export const matchesOperator = (opName, filterVal) => {
   if (!filterVal || filterVal === 'all') return true
+  if (Array.isArray(filterVal)) {
+    if (filterVal.length === 0 || filterVal.includes('all')) return true
+    return filterVal.some(f => matchesOperator(opName, f))
+  }
   if (!opName) return false
 
   const clean = (str) => str.toLowerCase().replace(/\s+/g, ' ').trim()
@@ -742,7 +746,11 @@ export function useEmployeeReport({
         // Exclude completely inactive employees unless matching a search
         if (s.operations === 0 && s.scrap === 0 && !searchQuery) return false
 
-        if (selectedEmployeeFilter && selectedEmployeeFilter !== 'all') {
+        const isEmployeeFiltered = Array.isArray(selectedEmployeeFilter)
+          ? selectedEmployeeFilter.length > 0 && !selectedEmployeeFilter.includes('all')
+          : (selectedEmployeeFilter && selectedEmployeeFilter !== 'all')
+
+        if (isEmployeeFiltered) {
           if (!matchesOperator(s.name, selectedEmployeeFilter) && !matchesOperator(s.rawName, selectedEmployeeFilter)) {
             return false
           }

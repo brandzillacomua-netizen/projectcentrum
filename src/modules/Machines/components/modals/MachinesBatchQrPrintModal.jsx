@@ -210,27 +210,16 @@ export function MachinesBatchQrPrintModal({
                 <span class="card-name">${m.name || 'ВЕРСТАТ'}</span>
                 ${m.sequence_number ? `<span class="card-seq">№${m.sequence_number}</span>` : ''}
               </div>
-              <div class="card-type-row">
-                ${m.type ? `<span class="card-type">${m.type}</span>` : ''}
-                <span class="card-floor">${m.floor ? m.floor + ' поверх' : 'Цех №1'}</span>
-              </div>
+              ${m.type ? `
+                <div class="card-type-row">
+                  <span class="card-type">${m.type}</span>
+                </div>
+              ` : ''}
             </div>
 
             <div class="card-body">
               <div class="card-qr-box">
                 <img src="${qrImgUrl}" alt="QR" class="card-qr-img" />
-              </div>
-              <div class="card-info-box">
-                <div class="card-call-title">ЗСКАНУЙТЕ ДЛЯ ДІЙ:</div>
-                <div class="card-badges-grid">
-                  <span class="action-badge badge-to">🔧 ТО</span>
-                  <span class="action-badge badge-master">📞 МАЙСТЕР</span>
-                  <span class="action-badge badge-eng">🛠️ ІНЖЕНЕР</span>
-                  <span class="action-badge badge-qc">🛡️ ВКЯ</span>
-                </div>
-                <div class="card-call-desc">
-                  Початок ТО • Виклик персоналу • Моніторинг
-                </div>
               </div>
             </div>
           </div>
@@ -373,7 +362,7 @@ export function MachinesBatchQrPrintModal({
             .card-body {
               display: flex;
               align-items: center;
-              gap: 8px;
+              justify-content: center;
               flex: 1;
             }
             .card-qr-box {
@@ -1302,7 +1291,7 @@ export function MachinesBatchQrPrintModal({
         .render-body {
           display: flex;
           align-items: center;
-          gap: 8px;
+          justify-content: center;
           flex: 1;
         }
         .render-qr-box {
@@ -1569,13 +1558,14 @@ function MachineCardRender({ machine, layout, borderStyle }) {
             </span>
           )}
         </div>
-        <div className="render-sub-line">
-          <span>{machine.type || 'Обладнання'}</span>
-          <span>{machine.floor ? `${machine.floor} поверх` : 'Цех №1'}</span>
-        </div>
+        {machine.type && (
+          <div className="render-sub-line">
+            <span>{machine.type}</span>
+          </div>
+        )}
       </div>
 
-      {/* Body with QR + Action Badges */}
+      {/* Body with QR */}
       <div className="render-body">
         <div className="render-qr-box">
           <QRCodeSVG
@@ -1584,19 +1574,6 @@ function MachineCardRender({ machine, layout, borderStyle }) {
             level="M"
             includeMargin={false}
           />
-        </div>
-
-        <div className="render-info-box">
-          <div className="render-call-title">ЗСКАНУЙТЕ ДЛЯ ДІЙ:</div>
-          <div className="render-badges-grid">
-            <span className="render-action-badge">🔧 ТО</span>
-            <span className="render-action-badge">📞 МАЙСТЕР</span>
-            <span className="render-action-badge">🛠️ ІНЖЕНЕР</span>
-            <span className="render-action-badge">🛡️ ВКЯ</span>
-          </div>
-          <div className="render-call-desc">
-            Початок ТО • Виклик • Моніторинг
-          </div>
         </div>
       </div>
     </div>
