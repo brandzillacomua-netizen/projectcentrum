@@ -164,7 +164,15 @@ const ReportsModule = () => {
         )
       
       case 'employees':
-        return <EmployeeReportView employeeStats={employeeStats} />
+        return (
+          <EmployeeReportView
+            employeeStats={employeeStats}
+            selectedEmployeeFilter={selectedEmployeeFilter}
+            setSelectedEmployeeFilter={setSelectedEmployeeFilter}
+            startDate={startDate}
+            endDate={endDate}
+          />
+        )
 
       case 'scrap':
         return (

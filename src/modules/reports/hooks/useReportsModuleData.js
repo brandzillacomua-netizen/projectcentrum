@@ -3,7 +3,7 @@ import { supabase } from '../../../supabase'
 import { fetchArchiveTasksPaged, ARCHIVE_PAGE_SIZE } from '../../../services/archiveService.js'
 import { useMES } from '../../../MESContext'
 import { useWarehouseReport } from './useWarehouseReport'
-import { useEmployeeReport } from './useEmployeeReport'
+import { useEmployeeReport, isNonProductionEntity, isTechnicalHistoryStage } from './useEmployeeReport'
 import { useScrapReport } from './useScrapReport'
 import { useSuppliesReport } from './useSuppliesReport'
 import { useCuttersReport } from './useCuttersReport'
@@ -124,14 +124,21 @@ export function useReportsModuleData() {
   const uniqueOperators = useMemo(() => {
     const ops = new Set()
     workCardHistory.forEach(h => {
-      if (h.operator_name) ops.add(h.operator_name.trim())
+      if (!isTechnicalHistoryStage(h.stage_name) && h.operator_name) {
+        const trimmed = h.operator_name.trim()
+        if (!isNonProductionEntity(trimmed, null, systemUsers)) {
+          ops.add(trimmed)
+        }
+      }
     })
     systemUsers.forEach(u => {
-      const lastFirst = `${u.last_name || ''} ${u.first_name || ''}`.trim()
-      const firstLast = `${u.first_name || ''} ${u.last_name || ''}`.trim()
-      if (lastFirst) ops.add(lastFirst)
-      else if (firstLast) ops.add(firstLast)
-      else if (u.login) ops.add(u.login)
+      if (!isNonProductionEntity(u.login, u, systemUsers)) {
+        const lastFirst = `${u.last_name || ''} ${u.first_name || ''}`.trim()
+        const firstLast = `${u.first_name || ''} ${u.last_name || ''}`.trim()
+        if (lastFirst) ops.add(lastFirst)
+        else if (firstLast) ops.add(firstLast)
+        else if (u.login) ops.add(u.login)
+      }
     })
     return Array.from(ops).filter(Boolean).sort((a, b) => a.localeCompare(b, 'uk-UA'))
   }, [systemUsers, workCardHistory])
@@ -349,6 +356,7 @@ export function useReportsModuleData() {
     nomenclatures,
     tasks,
     orders,
+    workCards,
     filterByDate,
     selectedShiftFilter,
     selectedEmployeeFilter,

@@ -27,6 +27,7 @@ import {
   TYPE_LABELS
 } from '../utils/engineerHelpers.jsx'
 import { BomRow } from './BomRow'
+import { NomCreateModal } from './NomCreateModal'
 import { generateNextV2Code } from '../../../utils/codeGenerator'
 
 export function SpecBuilderTab() {
