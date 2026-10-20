@@ -91,10 +91,15 @@ export const exportReportToExcel = async ({
   } else if (activeTab === 'employees') {
     const rows = (employeeStats || []).map(e => ({
       'Працівник': e.name,
+      'Цех': e.department || '—',
+      'Посада': e.position || '—',
+      'Операцій': e.operations,
       'Виготовлено (од)': e.produced,
-      'Брак (од)': e.scrap,
-      'Відсоток браку (%)': `${e.scrapPercent}%`,
-      'Відпрацьовано годин': e.hours || '—'
+      'Загальний брак (од)': e.scrap,
+      'Відновлюваний (Кат. 1–2)': e.rework,
+      'Карантин (Кат. 3 / ВКЯ)': e.quarantine,
+      'Утиль (Кат. 4)': e.util,
+      'Ефективність (%)': `${e.efficiency}%`
     }))
     workbookData = { 'Звіт Працівники': rows }
   } else if (activeTab === 'warehouse') {

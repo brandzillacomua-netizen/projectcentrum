@@ -1,4 +1,4 @@
-import React from 'react'
+import { useState } from 'react'
 import { Check, X } from 'lucide-react'
 
 export const MaterialDetailModal = ({
@@ -10,7 +10,14 @@ export const MaterialDetailModal = ({
   isIssuingCard,
   handleIssueCardMaterials
 }) => {
+  const [boxNumbers, setBoxNumbers] = useState({})
+
   if (!scannedCard) return null
+
+  const boxNumber = boxNumbers[scannedCard.id] !== undefined
+    ? boxNumbers[scannedCard.id]
+    : String(scannedCard.box_number || '')
+  const hasBoxNumber = String(scannedCard.box_number || '').trim().length > 0
 
   const isBoxIssued = Boolean(
     scannedCard.is_box_issued || String(scannedCard.card_info || '').includes('[BOX_ISSUED:true]')
@@ -59,7 +66,7 @@ export const MaterialDetailModal = ({
         </div>
 
         {/* Physical Box Location / Issued Indicator */}
-        {scannedCard.box_number && (
+        {hasBoxNumber && (
           <div style={{
             background: isBoxIssued
               ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(5, 150, 105, 0.05))'
@@ -91,6 +98,23 @@ export const MaterialDetailModal = ({
         )}
 
         <div style={{ padding: '25px', display: 'flex', flexDirection: 'column', gap: '15px', maxHeight: '450px', overflowY: 'auto' }}>
+          {!isBoxIssued && !hasBoxNumber && (
+            <div style={{ background: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.35)', borderRadius: '14px', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '7px' }}>
+              <label style={{ fontSize: '0.67rem', color: '#f59e0b', fontWeight: 900 }}>
+                ЦЕЙ БОКС БУВ ЗІБРАНИЙ БЕЗ НОМЕРА
+              </label>
+              <input
+                type="text"
+                value={boxNumber}
+                onChange={event => setBoxNumbers(previous => ({ ...previous, [scannedCard.id]: event.target.value }))}
+                placeholder="Введіть або відскануйте номер фізичного боксу"
+                autoFocus
+                style={{ background: 'var(--surface-inset)', border: boxNumber.trim() ? '1px solid #f59e0b' : '1px solid var(--border-subtle)', borderRadius: '10px', padding: '11px 13px', color: 'var(--text-strong)', fontSize: '0.82rem', fontWeight: 900, outline: 'none' }}
+              />
+              <span style={{ color: 'var(--text-muted)', fontSize: '0.65rem' }}>Номер буде збережено в картці під час видачі.</span>
+            </div>
+          )}
+
           <div style={{
             background: '#090909',
             border: '1px solid var(--border-subtle)',
@@ -158,11 +182,11 @@ export const MaterialDetailModal = ({
           </button>
           {!isBoxIssued && (
             <button
-              disabled={isIssuingCard}
-              onClick={handleIssueCardMaterials}
-              style={{ flex: 2, padding: '12px', borderRadius: '10px', background: '#ff9000', color: '#000', border: 'none', fontWeight: 900, cursor: isIssuingCard ? 'not-allowed' : 'pointer', opacity: isIssuingCard ? 0.5 : 1 }}
+              disabled={isIssuingCard || (!hasBoxNumber && !boxNumber.trim())}
+              onClick={() => handleIssueCardMaterials(boxNumber.trim())}
+              style={{ flex: 2, padding: '12px', borderRadius: '10px', background: '#ff9000', color: '#000', border: 'none', fontWeight: 900, cursor: (isIssuingCard || (!hasBoxNumber && !boxNumber.trim())) ? 'not-allowed' : 'pointer', opacity: (isIssuingCard || (!hasBoxNumber && !boxNumber.trim())) ? 0.5 : 1 }}
             >
-              {isIssuingCard ? 'ОБРОБКА...' : 'ВИДАТИ БОКС І МАТЕРІАЛИ'}
+              {isIssuingCard ? 'ОБРОБКА...' : !hasBoxNumber && !boxNumber.trim() ? 'ВКАЖІТЬ НОМЕР БОКСУ' : 'ВИДАТИ БОКС І МАТЕРІАЛИ'}
             </button>
           )}
         </div>

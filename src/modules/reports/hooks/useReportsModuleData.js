@@ -123,14 +123,17 @@ export function useReportsModuleData() {
 
   const uniqueOperators = useMemo(() => {
     const ops = new Set()
-    systemUsers.forEach(u => {
-      const fullName = `${u.first_name || ''} ${u.last_name || ''}`.trim()
-      if (fullName) ops.add(fullName)
-    })
     workCardHistory.forEach(h => {
-      if (h.operator_name) ops.add(h.operator_name)
+      if (h.operator_name) ops.add(h.operator_name.trim())
     })
-    return Array.from(ops).filter(Boolean).sort()
+    systemUsers.forEach(u => {
+      const lastFirst = `${u.last_name || ''} ${u.first_name || ''}`.trim()
+      const firstLast = `${u.first_name || ''} ${u.last_name || ''}`.trim()
+      if (lastFirst) ops.add(lastFirst)
+      else if (firstLast) ops.add(firstLast)
+      else if (u.login) ops.add(u.login)
+    })
+    return Array.from(ops).filter(Boolean).sort((a, b) => a.localeCompare(b, 'uk-UA'))
   }, [systemUsers, workCardHistory])
 
   const fetchReportHistoryRange = async (startIso, endExclusiveIso) => {
@@ -341,6 +344,11 @@ export function useReportsModuleData() {
   const { employeeStats } = useEmployeeReport({
     systemUsers,
     workCardHistory,
+    scrapClassificationsList,
+    scrapReasonsDb,
+    nomenclatures,
+    tasks,
+    orders,
     filterByDate,
     selectedShiftFilter,
     selectedEmployeeFilter,

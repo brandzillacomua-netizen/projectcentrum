@@ -289,6 +289,8 @@ export function useWarehouseBoxesData() {
     checkedSheets,
     setCheckedSheets,
     expandedGroups,
+    boxNumberState,
+    setBoxNumberState,
     isMobile,
     handlers,
     manualIssue,

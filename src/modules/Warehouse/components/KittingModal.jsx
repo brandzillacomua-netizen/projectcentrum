@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { X, Package } from 'lucide-react'
 
 export const KittingModal = ({
@@ -9,20 +9,24 @@ export const KittingModal = ({
   handlePrepareBox,
   isProcessing
 }) => {
+  const [boxNumbers, setBoxNumbers] = useState({})
+
   if (!kittingBoxItem) return null
 
-  const { card, cutters, activeMaterialName, cardSheets, nom } = kittingBoxItem
+  const { card, cutters, nom } = kittingBoxItem
   const cardId = card.id
+  const boxNumber = boxNumbers[cardId] !== undefined ? boxNumbers[cardId] : String(card.box_number || '')
   const cardNum = card.card_info?.split(' ')[0] || `№${cardId.substring(0, 8)}`
   const cardNomName = nom?.name || card.name || 'Номенклатура не вказана'
 
   // Verify all cutters are checked
   const isAllCuttersChecked = cutters.every(c => checkedCutters[cardId]?.[c.nomenclature_id])
-  const canSubmit = isAllCuttersChecked
+  const canSubmit = isAllCuttersChecked && boxNumber.trim().length > 0
 
   const handleSubmit = async () => {
     if (!canSubmit) return
-    await handlePrepareBox(kittingBoxItem, null)
+    const prepared = await handlePrepareBox(kittingBoxItem, boxNumber.trim())
+    if (prepared === false) return
     setKittingBoxItem(null)
   }
 
@@ -74,6 +78,18 @@ export const KittingModal = ({
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <label style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 800 }}>
+              НОМЕР / ШТРИХ-КОД ФІЗИЧНОГО БОКСУ
+            </label>
+            <input
+              type="text"
+              value={boxNumber}
+              onChange={event => setBoxNumbers(previous => ({ ...previous, [cardId]: event.target.value }))}
+              placeholder="Введіть або відскануйте номер боксу"
+              autoFocus
+              style={{ background: 'var(--surface-inset)', border: boxNumber.trim() ? '1px solid #ff9000' : '1px solid var(--border-subtle)', borderRadius: '10px', padding: '11px 14px', color: 'var(--text-strong)', fontSize: '0.82rem', fontWeight: 900, outline: 'none' }}
+            />
+
             <label style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 800 }}>
               СПИСОК НАПОВНЕННЯ БОКСУ (ПОЗНАЧТЕ ВСЕ)
             </label>
@@ -147,7 +163,7 @@ export const KittingModal = ({
             }}
           >
             <Package size={16} /> 
-            {isProcessing ? 'ОБРОБКА...' : 'ЗАВЕРШИТИ ЗБІРКУ'}
+            {isProcessing ? 'ОБРОБКА...' : !boxNumber.trim() ? 'ВКАЖІТЬ НОМЕР БОКСУ' : 'ЗАВЕРШИТИ ЗБІРКУ'}
           </button>
         </div>
 

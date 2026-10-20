@@ -17,6 +17,7 @@ export const BoxesView = ({
   isProcessing
 }) => {
   const [checkedSheets, setCheckedSheets] = useState({})
+  const [boxNumbers, setBoxNumbers] = useState({})
   const [selectedOrder, setSelectedOrder] = useState('all')
 
   // ── Unique naряds for the filter dropdown ──────────────────────────
@@ -166,7 +167,8 @@ export const BoxesView = ({
                         const cardNum = boxItem.card.card_info?.split(' ')[0] || `#${cardId.slice(0,6)}`
                         const isAllChecked = boxItem.cutters.every(c => checkedCutters[cardId]?.[c.nomenclature_id])
                         const isSheetChecked = !!checkedSheets[cardId] || boxItem.isPrepared || boxItem.isIssued
-                        const canSubmit = isAllChecked && isSheetChecked
+                        const currentBoxNumber = boxNumbers[cardId] !== undefined ? boxNumbers[cardId] : (boxItem.card.box_number || '')
+                        const canSubmit = currentBoxNumber.trim().length > 0 && isAllChecked && isSheetChecked
 
                         return (
                           <div key={cardId} style={{ background: 'var(--surface-1)', borderRadius: 18, padding: 16, display: 'flex', flexDirection: 'column', gap: 12, border: `1px solid ${boxItem.isIssued ? '#10b98133' : boxItem.isPrepared ? '#3b82f633' : '#ff900022'}` }}>
@@ -188,6 +190,14 @@ export const BoxesView = ({
 
                             {!boxItem.isPrepared && !boxItem.isIssued && (
                               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                <label style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--text-muted)' }}>НОМЕР / ШТРИХ-КОД ФІЗИЧНОГО БОКСУ:</label>
+                                <input
+                                  type="text"
+                                  value={currentBoxNumber}
+                                  onChange={event => setBoxNumbers(previous => ({ ...previous, [cardId]: event.target.value }))}
+                                  placeholder="Введіть або відскануйте номер"
+                                  style={{ background: 'var(--surface-inset)', border: currentBoxNumber.trim() ? '1px solid #ff9000' : '1px solid var(--border-subtle)', borderRadius: 10, padding: '9px 12px', color: 'var(--text-strong)', fontSize: '0.78rem', fontWeight: 900, outline: 'none' }}
+                                />
                                 <div style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--text-muted)', marginBottom: 2 }}>НАПОВНЕННЯ БОКСУ:</div>
                                 <div
                                   onClick={() => setCheckedSheets(prev => ({ ...prev, [cardId]: !prev[cardId] }))}
@@ -222,11 +232,11 @@ export const BoxesView = ({
                             {!boxItem.isPrepared && !boxItem.isIssued && (
                               <button
                                 disabled={isProcessing || !canSubmit}
-                                onClick={() => handlePrepareBox(boxItem, null)}
+                                onClick={() => handlePrepareBox(boxItem, currentBoxNumber)}
                                 style={{ width: '100%', padding: '11px', background: canSubmit ? '#ff9000' : 'var(--surface-2)', color: canSubmit ? '#000' : '#444', border: 'none', borderRadius: 12, fontWeight: 900, fontSize: '0.78rem', textTransform: 'uppercase', cursor: (isProcessing || !canSubmit) ? 'not-allowed' : 'pointer', transition: 'all 0.2s', marginTop: 4 }}
                               >
                                 <Package size={14} style={{ display: 'inline', marginRight: 6, verticalAlign: 'middle' }} />
-                                {!canSubmit ? 'Позначте всі матеріали' : 'Завершити комплектацію'}
+                                {!currentBoxNumber.trim() ? 'Вкажіть номер боксу' : !canSubmit ? 'Позначте всі матеріали' : `Завершити комплектацію №${currentBoxNumber.trim()}`}
                               </button>
                             )}
                             {boxItem.isPrepared && !boxItem.isIssued && (

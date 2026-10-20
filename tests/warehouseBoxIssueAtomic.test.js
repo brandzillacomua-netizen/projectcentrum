@@ -17,6 +17,10 @@ const modal = readFileSync(
   new URL('../src/modules/Warehouse/components/MaterialDetailModal.jsx', import.meta.url),
   'utf8'
 )
+const boxesModule = readFileSync(
+  new URL('../src/modules/WarehouseBoxesModule.tsx', import.meta.url),
+  'utf8'
+)
 
 describe('atomic warehouse box issue flow', () => {
   it('persists the physical issue state and material requests in one RPC transaction', () => {
@@ -51,5 +55,15 @@ describe('atomic warehouse box issue flow', () => {
     expect(modal).toContain('const isBoxIssued = Boolean(')
     expect(modal).not.toContain('const isFullyIssued')
     expect(modal).toContain('{!isBoxIssued && (')
+  })
+
+  it('requires a physical box number during preparation and repairs legacy prepared boxes before issue', () => {
+    expect(handler).toContain("throw new Error('Вкажіть або відскануйте номер фізичного боксу.')")
+    expect(handler).toContain('await persistMissingBoxNumber(scannedCard, boxNumber || scannedCard.box_number)')
+    expect(handler).toContain('box_number: targetBox')
+    expect(modal).toContain('ЦЕЙ БОКС БУВ ЗІБРАНИЙ БЕЗ НОМЕРА')
+    expect(modal).toContain('handleIssueCardMaterials(boxNumber.trim())')
+    expect(boxesModule).toContain('currentBoxNumber.trim().length > 0 && isAllChecked && isSheetChecked')
+    expect(boxesModule).toContain('handlers.handlePrepareBox(boxItem, currentBoxNumber)')
   })
 })

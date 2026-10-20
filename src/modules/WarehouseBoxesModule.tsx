@@ -38,6 +38,8 @@ export const WarehouseBoxesModule: React.FC = () => {
     checkedSheets,
     setCheckedSheets,
     expandedGroups,
+    boxNumberState,
+    setBoxNumberState,
     isMobile,
     handlers,
     manualIssue,
@@ -382,7 +384,10 @@ export const WarehouseBoxesModule: React.FC = () => {
                           const cardId = boxItem.card.id
                           const isAllChecked = boxItem.cutters.every((c: any) => checkedCutters[cardId]?.[c.nomenclature_id])
                           const isSheetChecked = !!checkedSheets[cardId] || boxItem.isPrepared
-                          const canSubmit = isAllChecked && isSheetChecked
+                          const currentBoxNumber = boxNumberState[cardId] !== undefined
+                            ? boxNumberState[cardId]
+                            : (boxItem.card.box_number || '')
+                          const canSubmit = currentBoxNumber.trim().length > 0 && isAllChecked && isSheetChecked
 
                           return (
                             <div
@@ -429,6 +434,19 @@ export const WarehouseBoxesModule: React.FC = () => {
                                 <div style={{ fontSize: '0.78rem', color: 'var(--text-soft)', fontWeight: 700, marginTop: '2px', wordBreak: 'break-all', whiteSpace: 'normal' }}>
                                   {boxItem.partName}
                                 </div>
+                              </div>
+
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                <label style={{ fontSize: '0.6rem', color: 'var(--text-muted)', fontWeight: 800 }}>НОМЕР / ШТРИХ-КОД ФІЗИЧНОГО БОКСУ:</label>
+                                <input
+                                  type="text"
+                                  inputMode="text"
+                                  placeholder="Введіть або відскануйте номер боксу"
+                                  value={currentBoxNumber}
+                                  disabled={boxItem.isPrepared}
+                                  onChange={event => setBoxNumberState((previous: any) => ({ ...previous, [cardId]: event.target.value }))}
+                                  style={{ background: 'var(--surface-inset)', border: currentBoxNumber.trim() ? '1px solid #ff9000' : '1px solid var(--border-subtle)', borderRadius: '9px', padding: '9px 12px', color: 'var(--text-strong)', fontSize: '0.78rem', fontWeight: 900, outline: 'none', boxSizing: 'border-box', width: '100%' }}
+                                />
                               </div>
 
                               {/* Machine and sheets count */}
@@ -521,7 +539,7 @@ export const WarehouseBoxesModule: React.FC = () => {
                               {!boxItem.isPrepared && (
                                 <button
                                   disabled={isProcessing || !canSubmit}
-                                  onClick={() => handlers.handlePrepareBox(boxItem, null)}
+                                  onClick={() => handlers.handlePrepareBox(boxItem, currentBoxNumber)}
                                   style={{
                                     width: '100%',
                                     padding: '10px',
@@ -536,9 +554,11 @@ export const WarehouseBoxesModule: React.FC = () => {
                                     marginTop: '2px'
                                   }}
                                 >
-                                  {!isAllChecked || !isSheetChecked 
+                                  {!currentBoxNumber.trim()
+                                    ? 'Вкажіть номер боксу'
+                                    : !isAllChecked || !isSheetChecked
                                     ? 'Позначте вміст' 
-                                    : `Завершити комплектацію боксу`
+                                    : `Завершити комплектацію боксу №${currentBoxNumber.trim()}`
                                   }
                                 </button>
                               )}

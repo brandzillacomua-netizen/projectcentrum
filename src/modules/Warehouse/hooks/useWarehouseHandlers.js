@@ -78,40 +78,50 @@ export const useWarehouseHandlers = ({
     })
   }
 
+  const validateBoxNumber = async (card, value) => {
+    const targetBox = String(value || '').trim()
+    if (!targetBox) {
+      throw new Error('Вкажіть або відскануйте номер фізичного боксу.')
+    }
+
+    const { data: duplicates, error: duplicateError } = await supabaseClient
+      .from('work_cards')
+      .select('id, card_info, nomenclature_id')
+      .eq('box_number', targetBox)
+      .neq('id', card.id)
+      .neq('status', 'completed')
+      .neq('status', 'at-buffer')
+      .in('operation', ['Розкрій', 'Підготовка'])
+      .limit(1)
+
+    if (duplicateError) throw duplicateError
+    if (duplicates?.length) {
+      const duplicate = duplicates[0]
+      const duplicateNom = (nomenclatures || []).find(n => String(n.id) === String(duplicate.nomenclature_id))
+      const duplicateLabel = duplicate.card_info?.split(' ')[0] || `#${String(duplicate.id).substring(0, 8)}`
+      throw new Error(`Бокс №${targetBox} вже присвоєно активній картці ${duplicateLabel} (${duplicateNom?.name || 'Деталь'}).`)
+    }
+
+    return targetBox
+  }
+
+  const persistMissingBoxNumber = async (card, value) => {
+    const targetBox = await validateBoxNumber(card, value || card.box_number)
+    if (String(card.box_number || '').trim() !== targetBox) {
+      const { error } = await supabaseClient
+        .from('work_cards')
+        .update({ box_number: targetBox })
+        .eq('id', card.id)
+      if (error) throw error
+    }
+    return targetBox
+  }
+
   const handlePrepareBox = async (boxItem, boxNumber = null) => {
     setIsProcessing(true)
     try {
       const { card, cutters } = boxItem
-      const targetBox = boxNumber ? String(boxNumber).trim() : (card.box_number ? String(card.box_number).trim() : null)
-
-      if (targetBox) {
-        // Check for active duplicates (only those currently in Cutting/Prep phase and not in buffer)
-        const { data: duplicates, error: dupErr } = await supabaseClient
-          .from('work_cards')
-          .select('id, card_info, nomenclature_id')
-          .eq('box_number', targetBox)
-          .neq('id', card.id)
-          .neq('status', 'completed')
-          .neq('status', 'at-buffer')
-          .in('operation', ['Розкрій', 'Підготовка'])
-          .limit(1)
-
-        if (dupErr) throw dupErr
-
-        if (duplicates && duplicates.length > 0) {
-          const dup = duplicates[0]
-          let dupName = 'Деталь'
-          if (nomenclatures && nomenclatures.length > 0) {
-            const foundNom = nomenclatures.find(n => String(n.id) === String(dup.nomenclature_id))
-            if (foundNom) dupName = foundNom.name
-          }
-          const dupLabel = dup.card_info?.split(' ')[0] || `картці #${dup.id.substring(0, 8)}`
-          
-          alert(`⚠️ Помилка: Бокс №${targetBox} вже присвоєно іншій активній картці ${dupLabel} (${dupName})!\nБудь ласка, оберіть інший вільний бокс.`)
-          setIsProcessing(false)
-          return false
-        }
-      }
+      const targetBox = await validateBoxNumber(card, boxNumber || card.box_number)
 
       for (const cutter of cutters) {
         const qtyToDeduct = cutter.qty
@@ -145,7 +155,7 @@ export const useWarehouseHandlers = ({
       }
 
       const updatePayload = { 
-        box_number: boxNumber ? String(boxNumber) : card.box_number,
+        box_number: targetBox,
         is_box_prepared: true
       }
       if (card.card_info && card.card_info.includes('[BOX_PREPARED:true]')) {
@@ -178,8 +188,10 @@ export const useWarehouseHandlers = ({
       alert(refreshFailed
         ? 'Бокс укомплектовано, але список не оновився. Натисніть «Оновити».'
         : 'Бокс фрез успішно укомплектовано з зарезервованих фрез!')
+      return true
     } catch (err) {
       alert('Помилка підготовки боксу: ' + err.message)
+      return false
     } finally {
       setIsProcessing(false)
     }
@@ -190,6 +202,12 @@ export const useWarehouseHandlers = ({
     if (!boxItem?.card?.id) return
     setIsProcessing(true)
     try {
+      let boxNumber = String(boxItem.card.box_number || '').trim()
+      if (!boxNumber) {
+        boxNumber = String(window.prompt('Вкажіть або відскануйте номер фізичного боксу перед видачею:', '') || '').trim()
+      }
+      await persistMissingBoxNumber(boxItem.card, boxNumber)
+
       const { error } = await supabaseClient.rpc('issue_warehouse_box', {
         p_card_id: boxItem.card.id,
         p_requests: []
@@ -523,12 +541,13 @@ export const useWarehouseHandlers = ({
     }
   }
 
-  const handleIssueCardMaterials = async () => {
+  const handleIssueCardMaterials = async (boxNumber = null) => {
     if (isProcessing) return
     setIsProcessing(true)
     try {
       const pendingReqs = scannedRequests.filter(r => r.status === 'pending' || r.status === 'issued')
       if (!scannedCard?.id) throw new Error('Не визначено виробничу картку.')
+      await persistMissingBoxNumber(scannedCard, boxNumber || scannedCard.box_number)
 
       const requestPayload = pendingReqs.map(req => {
         if (req.isSynthetic) {
