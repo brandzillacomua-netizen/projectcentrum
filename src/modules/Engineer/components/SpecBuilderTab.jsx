@@ -121,6 +121,7 @@ export function SpecBuilderTab() {
   const [catalogFolder, setCatalogFolder] = useState('all')
   const [collapsedFolders, setCollapsedFolders] = useState({})
   const [showNomCreate, setShowNomCreate] = useState(false)
+  const [nomCreateConfig, setNomCreateConfig] = useState(null)
   const [showParentCreate, setShowParentCreate] = useState(false)
   const [dossierParentId, setDossierParentId] = useState(null)
   
@@ -154,7 +155,7 @@ export function SpecBuilderTab() {
   }
 
   useEffect(() => {
-    const isModalOpen = !!activeInlinePart || !!showNomCreate || !!showParentCreate
+    const isModalOpen = !!activeInlinePart || !!showNomCreate || !!showParentCreate || !!nomCreateConfig
     if (isModalOpen) {
       document.body.style.overflow = 'hidden'
     } else {
@@ -534,15 +535,29 @@ export function SpecBuilderTab() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      {showNomCreate && (
+      {(showNomCreate || nomCreateConfig) && (
         <NomCreateModal 
           supabase={supabase} 
           refreshTable={refreshTable} 
-          onClose={() => setShowNomCreate(false)} 
+          prefilledName={nomCreateConfig?.prefilledName || ''}
+          initialGroupId={nomCreateConfig?.initialGroupId || 'cat_fg'}
+          initialRuleType={nomCreateConfig?.initialRuleType || 'full_frame'}
+          initialPrefixChoice={nomCreateConfig?.initialPrefixChoice || null}
+          onClose={() => {
+            setShowNomCreate(false)
+            setNomCreateConfig(null)
+          }} 
           onCreated={(newNom) => {
+            const isParentTarget = nomCreateConfig?.isParentTarget
+            setShowNomCreate(false)
+            setNomCreateConfig(null)
             if (newNom) {
-              if ((newNom.type === 'product' || newNom.type === 'assembly') && !parentId) {
+              if (isParentTarget || (newNom.type === 'product' || newNom.type === 'assembly') || !parentId) {
                 setParentId(newNom.id)
+                setPendingParent(null)
+                setParentSearch('')
+                setShowParentDrop(false)
+                setRows([])
               } else if (viewMode === 'editor') {
                 const isDuplicate = rows.some(r => r.nomId && String(r.nomId) === String(newNom.id))
                 if (!isDuplicate) {
@@ -802,14 +817,13 @@ export function SpecBuilderTab() {
                         <button
                           onMouseDown={(e) => {
                             e.preventDefault();
-                            setPendingParent({
-                              name: parentSearch.trim(),
-                              type: 'product',
-                              material_type: null
+                            setNomCreateConfig({
+                              isParentTarget: true,
+                              prefilledName: parentSearch.trim(),
+                              initialGroupId: 'cat_fg',
+                              initialRuleType: 'full_frame',
+                              initialPrefixChoice: 'Комплект карбонової рами'
                             });
-                            setParentId('temp-new');
-                            setParentSearch('');
-                            setRows([]);
                             setShowParentDrop(false);
                           }}
                           style={{ padding: '6px 12px', background: 'rgba(245,158,11,0.15)', border: '1px solid #f59e0b40', color: '#f59e0b', borderRadius: '6px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700 }}
@@ -819,14 +833,13 @@ export function SpecBuilderTab() {
                         <button
                           onMouseDown={(e) => {
                             e.preventDefault();
-                            setPendingParent({
-                              name: parentSearch.trim(),
-                              type: 'assembly',
-                              material_type: null
+                            setNomCreateConfig({
+                              isParentTarget: true,
+                              prefilledName: parentSearch.trim(),
+                              initialGroupId: 'cat_fg',
+                              initialRuleType: 'full_frame',
+                              initialPrefixChoice: 'Складова рами'
                             });
-                            setParentId('temp-new');
-                            setParentSearch('');
-                            setRows([]);
                             setShowParentDrop(false);
                           }}
                           style={{ padding: '6px 12px', background: 'rgba(167,139,250,0.15)', border: '1px solid #a78bfa40', color: '#a78bfa', borderRadius: '6px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700 }}
@@ -854,14 +867,13 @@ export function SpecBuilderTab() {
                         <button
                           onMouseDown={(e) => {
                             e.preventDefault();
-                            setPendingParent({
-                              name: parentSearch.trim(),
-                              type: 'product',
-                              material_type: null
+                            setNomCreateConfig({
+                              isParentTarget: true,
+                              prefilledName: parentSearch.trim(),
+                              initialGroupId: 'cat_fg',
+                              initialRuleType: 'full_frame',
+                              initialPrefixChoice: 'Комплект карбонової рами'
                             });
-                            setParentId('temp-new');
-                            setParentSearch('');
-                            setRows([]);
                             setShowParentDrop(false);
                           }}
                           style={{ padding: '4px 10px', background: 'transparent', border: 'none', color: '#f59e0b', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700 }}
@@ -882,14 +894,14 @@ export function SpecBuilderTab() {
                   onChange={(e) => {
                     const val = e.target.value
                     if (val === 'product' || val === 'assembly') {
-                      setPendingParent({
-                        name: parentSearch.trim(),
-                        type: val,
-                        material_type: null
-                      })
-                      setParentId('temp-new')
-                      setParentSearch('')
-                      setRows([])
+                      setNomCreateConfig({
+                        isParentTarget: true,
+                        prefilledName: parentSearch.trim(),
+                        initialGroupId: 'cat_fg',
+                        initialRuleType: 'full_frame',
+                        initialPrefixChoice: val === 'assembly' ? 'Складова рами' : 'Комплект карбонової рами'
+                      });
+                      setShowParentDrop(false);
                     }
                   }}
                   value=""

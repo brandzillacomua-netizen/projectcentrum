@@ -327,6 +327,59 @@ export function resolveResponsibleOperator(item, cardOperatorsMap = new Map(), w
   return 'Команда'
 }
 
+export function buildClassificationOnlyEvents({
+  classifications = [],
+  historyRows = [],
+  processedClassificationIds = new Set(),
+  filterByDate = () => true,
+  selectedShiftFilter = 'all'
+} = {}) {
+  if (selectedShiftFilter !== 'all') return []
+
+  const historyIds = new Set(historyRows.map(row => String(row.id)))
+  const events = new Map()
+
+  classifications.forEach(classification => {
+    if (classification.id && processedClassificationIds.has(String(classification.id))) return
+
+    const sourceId = classification.source_history_id ? String(classification.source_history_id) : null
+    // If the source row is present, its filters decide whether it belongs in the report.
+    if (sourceId && historyIds.has(sourceId)) return
+    if (!filterByDate(classification.classified_at, classification.created_at)) return
+
+    const key = sourceId || `classification-${classification.id}`
+    if (!events.has(key)) {
+      events.set(key, {
+        key,
+        sample: classification,
+        classificationQty: 0,
+        cat1: 0,
+        cat2: 0,
+        cat3: 0,
+        cat4: 0
+      })
+    }
+
+    const event = events.get(key)
+    event.classificationQty += Math.max(0, Number(classification.quantity) || 0)
+    ;(classification.scrap_classification_categories || []).forEach(category => {
+      const categoryKey = `cat${Number(category.category)}`
+      if (categoryKey in event) {
+        event[categoryKey] += Math.max(0, Number(category.quantity) || 0)
+      }
+    })
+  })
+
+  return [...events.values()].map(event => {
+    const classifiedQty = event.cat1 + event.cat2 + event.cat3 + event.cat4
+    return {
+      ...event,
+      total: Math.max(event.classificationQty, classifiedQty),
+      unclassified: Math.max(0, event.classificationQty - classifiedQty)
+    }
+  })
+}
+
 export function useEmployeeReport({
   systemUsers = [],
   workCardHistory = [],
@@ -344,7 +397,6 @@ export function useEmployeeReport({
   const employeeStats = useMemo(() => {
     // Pre-index classifications by source_history_id
     const classificationsByHistoryId = new Map()
-    const directClassificationsByOperator = new Map()
 
     scrapClassificationsList.forEach(c => {
       if (c.source_history_id) {
@@ -353,12 +405,6 @@ export function useEmployeeReport({
           classificationsByHistoryId.set(hid, [])
         }
         classificationsByHistoryId.get(hid).push(c)
-      } else if (c.source_operator_name) {
-        const opKey = String(c.source_operator_name).trim()
-        if (!directClassificationsByOperator.has(opKey)) {
-          directClassificationsByOperator.set(opKey, [])
-        }
-        directClassificationsByOperator.get(opKey).push(c)
       }
     })
 
@@ -472,6 +518,7 @@ export function useEmployeeReport({
     }
 
     // Process Work Card History
+    const processedClassificationIds = new Set()
     workCardHistory.forEach(h => {
       // Date and shift filter
       if (!filterByDate(h.completed_at, h.created_at)) return
@@ -522,6 +569,7 @@ export function useEmployeeReport({
 
       if (linkedClasses && linkedClasses.length > 0) {
         linkedClasses.forEach(c => {
+          if (c.id) processedClassificationIds.add(String(c.id))
           if (Array.isArray(c.scrap_classification_categories)) {
             c.scrap_classification_categories.forEach(catItem => {
               const catNum = Number(catItem.category)
@@ -614,66 +662,57 @@ export function useEmployeeReport({
       })
     })
 
-    // Process Direct Classifications that were not tied to a work_card_history row
-    directClassificationsByOperator.forEach((classes, opName) => {
-      classes.forEach(c => {
-        if (!filterByDate(c.classified_at, c.created_at)) return
+    // Include classifications whose original history row is outside the loaded range
+    // or no longer available. The scrap tab already counts these events, so the
+    // employee report must attribute the same quantity instead of silently losing it.
+    const classificationOnlyEvents = buildClassificationOnlyEvents({
+      classifications: scrapClassificationsList,
+      historyRows: workCardHistory,
+      processedClassificationIds,
+      filterByDate,
+      selectedShiftFilter
+    })
 
-        let targetOperator = opName
-        const user = findSystemUser(opName, systemUsers)
-        if (isNonProductionEntity(opName, user, systemUsers)) {
-          targetOperator = resolveResponsibleOperator(c, cardOperatorsMap, workCardsMap, systemUsers)
-        }
+    classificationOnlyEvents.forEach(event => {
+      const c = event.sample
+      const sourceOperator = String(c.source_operator_name || '').trim()
+      let targetOperator = sourceOperator || 'Команда'
+      const user = findSystemUser(sourceOperator, systemUsers)
+      if (!sourceOperator || isNonProductionEntity(sourceOperator, user, systemUsers)) {
+        targetOperator = resolveResponsibleOperator(c, cardOperatorsMap, workCardsMap, systemUsers)
+      }
 
-        const empStat = getOrCreateStat(targetOperator)
-        let cCat1 = 0
-        let cCat2 = 0
-        let cCat3 = 0
-        let cCat4 = 0
+      const empStat = getOrCreateStat(targetOperator)
+      const cRework = event.cat1 + event.cat2
+      const cQuarantine = event.cat3 + event.unclassified
+      const cUtil = event.cat4
 
-        if (Array.isArray(c.scrap_classification_categories)) {
-          c.scrap_classification_categories.forEach(catItem => {
-            const catNum = Number(catItem.category)
-            const catQty = Number(catItem.quantity) || 0
-            if (catNum === 1) cCat1 += catQty
-            else if (catNum === 2) cCat2 += catQty
-            else if (catNum === 3) cCat3 += catQty
-            else if (catNum === 4) cCat4 += catQty
-          })
-        }
+      empStat.scrap += event.total
+      empStat.cat1 += event.cat1
+      empStat.cat2 += event.cat2
+      empStat.cat3 += event.cat3
+      empStat.cat4 += event.cat4
+      empStat.unclassified += event.unclassified
+      empStat.rework += cRework
+      empStat.quarantine += cQuarantine
+      empStat.util += cUtil
 
-        const cTotal = cCat1 + cCat2 + cCat3 + cCat4 || Number(c.quantity) || 0
-        const cRework = cCat1 + cCat2
-        const cQuarantine = cCat3
-        const cUtil = cCat4
-
-        empStat.scrap += cTotal
-        empStat.cat1 += cCat1
-        empStat.cat2 += cCat2
-        empStat.cat3 += cCat3
-        empStat.cat4 += cCat4
-        empStat.rework += cRework
-        empStat.quarantine += cQuarantine
-        empStat.util += cUtil
-
-        const nom = c.nomenclature_id ? nomMap.get(String(c.nomenclature_id)) : null
-
-        empStat.history.push({
-          id: `class-${c.id}`,
-          date: c.classified_at || c.created_at,
-          stage: c.source_stage_name || 'Контроль ВКЯ (виявлено)',
-          shift: '—',
-          nomenclatureName: nom?.name || 'Невідома деталь',
-          nomenclatureCode: nom?.code || null,
-          orderNum: c.order_number || 'Пряма рекламація ВКЯ',
-          machine: '—',
-          produced: 0,
-          scrap: cTotal,
-          rework: cRework,
-          quarantine: cQuarantine,
-          util: cUtil,
-          reason: c.reason || c.comment || 'Класифікація ВКЯ'
-        })
+      const nom = c.nomenclature_id ? nomMap.get(String(c.nomenclature_id)) : null
+      empStat.history.push({
+        id: event.key,
+        date: c.classified_at || c.created_at,
+        stage: c.source_stage_name || 'Контроль ВКЯ (виявлено)',
+        shift: '—',
+        nomenclatureName: nom?.name || 'Невідома деталь',
+        nomenclatureCode: nom?.code || null,
+        orderNum: c.order_number || 'Класифікація ВКЯ без історії',
+        machine: '—',
+        produced: 0,
+        scrap: event.total,
+        rework: cRework,
+        quarantine: cQuarantine,
+        util: cUtil,
+        reason: c.reason || c.comment || 'Класифікація ВКЯ'
       })
     })
 

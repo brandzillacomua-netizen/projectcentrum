@@ -11,13 +11,22 @@ import { generateNextV2Code } from '../../../utils/codeGenerator'
 import { mapV2ToStandardNom } from '../utils/engineerHelpers.jsx'
 import { NomenclatureWizardModal } from '../../Nomenclature/components/NomenclatureWizardModal'
 
-export const NomCreateModal = ({ onClose, onCreated, supabase, refreshTable, prefilledName = '' }) => {
+export const NomCreateModal = ({ 
+  onClose, 
+  onCreated, 
+  supabase, 
+  refreshTable, 
+  prefilledName = '',
+  initialGroupId = 'cat_fg',
+  initialRuleType = 'full_frame',
+  initialPrefixChoice = null
+}) => {
   const [groups, setGroups] = useState(DEFAULT_ERP_GROUPS)
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
 
   const [wizardGroup, setWizardGroup] = useState(null)
-  const [wizardRuleType, setWizardRuleType] = useState('generic')
+  const [wizardRuleType, setWizardRuleType] = useState(initialRuleType || 'full_frame')
   const DEFAULT_LOAD_TIMINGS = { '2': '', '4': '', '8': '', '16': '', '32': '', '64': '' }
 
   const [wizardParams, setWizardParams] = useState({
@@ -27,6 +36,7 @@ export const NomCreateModal = ({ onClose, onCreated, supabase, refreshTable, pre
     specialType: '', din: 'DIN 934', thickness: '1',
     grade: 'Т300', dimensions: '500*600', extra: '',
     projType: 'SERIAL', projNum: '', name: prefilledName || '',
+    prefixChoice: initialPrefixChoice || (initialRuleType === 'element_kit' ? 'Комплект карбонових елементів' : (initialPrefixChoice || 'Комплект карбонової рами')),
     customName: prefilledName || '', unit: 'шт',
     sheetGrade: 'Т300', sheetThickness: '3', unitsPerSheet: 24,
     default_material_id: '',
@@ -99,12 +109,34 @@ export const NomCreateModal = ({ onClose, onCreated, supabase, refreshTable, pre
   }, [items])
 
   useEffect(() => {
-    if (groups.length > 0 && !wizardGroup) {
-      const defaultG = groups.find(g => g.id === 'grp_carbon_t300') || groups.find(g => g.id === 'grp_carbon_sheets') || groups[0]
-      setWizardGroup(defaultG)
-      setWizardRuleType(defaultG?.rule_type || 'carbon')
+    if (prefilledName) {
+      setWizardParams(prev => ({
+        ...prev,
+        name: prefilledName,
+        customName: prefilledName,
+        ...(initialPrefixChoice ? { prefixChoice: initialPrefixChoice } : {})
+      }))
     }
-  }, [groups, wizardGroup])
+  }, [prefilledName, initialPrefixChoice])
+
+  useEffect(() => {
+    if (groups.length > 0 && !wizardGroup) {
+      let defaultG = null
+      if (initialGroupId) {
+        defaultG = groups.find(g => g.id === initialGroupId || g.code === initialGroupId)
+      }
+      if (!defaultG && initialRuleType) {
+        defaultG = groups.find(g => g.rule_type === initialRuleType)
+      }
+      if (!defaultG) {
+        defaultG = groups.find(g => g.id === 'cat_fg') || groups.find(g => g.id === 'grp_production_frames') || groups.find(g => g.id === 'grp_carbon_t300') || groups[0]
+      }
+      if (defaultG) {
+        setWizardGroup(defaultG)
+        setWizardRuleType(initialRuleType || defaultG?.rule_type || 'full_frame')
+      }
+    }
+  }, [groups, wizardGroup, initialGroupId, initialRuleType])
 
   const generatedName = useMemo(() => {
     return generateStandardName(wizardRuleType, wizardParams)
@@ -154,12 +186,13 @@ export const NomCreateModal = ({ onClose, onCreated, supabase, refreshTable, pre
     try {
       const codeStr = await generateNextV2Code(supabase, items)
 
+      const isAssembly = (wizardRuleType === 'assembly' || wizardGroup?.id === 'grp_assemblies' || wizardParams.prefixChoice === 'Складова рами' || wizardParams.prefixChoice === 'Вузол')
       const inferredType = (wizardRuleType === 'frame_part' || wizardGroup?.id === 'cat_parts' || wizardGroup?.id === 'grp_frame_parts')
         ? 'part'
-        : (wizardRuleType === 'full_frame' || wizardRuleType === 'element_kit' || wizardGroup?.id === 'grp_production_frames' || wizardGroup?.id === 'grp_test_samples' || wizardGroup?.id === 'cat_fg')
-          ? 'product'
-          : (wizardRuleType === 'assembly' || wizardGroup?.id === 'grp_assemblies')
-            ? 'assembly'
+        : isAssembly
+          ? 'assembly'
+          : (wizardRuleType === 'full_frame' || wizardRuleType === 'element_kit' || wizardGroup?.id === 'grp_production_frames' || wizardGroup?.id === 'grp_test_samples' || wizardGroup?.id === 'cat_fg')
+            ? 'product'
             : (wizardRuleType === 'screw' || wizardRuleType === 'screw_black' || wizardRuleType === 'screw_silver' || wizardRuleType === 'nut' || wizardRuleType === 'press_nut' || wizardRuleType === 'standoff' || wizardGroup?.id?.startsWith('cat_hw'))
               ? 'hardware'
               : 'consumable'
@@ -219,7 +252,7 @@ export const NomCreateModal = ({ onClose, onCreated, supabase, refreshTable, pre
     extras: ['(преференція)', '(0/45/90)']
   }
 
-  const prefixList = ['Комплект карбонової рами', 'Комплект карбонових елементів', 'Набір деталей рами']
+  const prefixList = ['Комплект карбонової рами', 'Комплект карбонових елементів', 'Складова рами', 'Вузол', 'Набір деталей рами']
 
   return (
     <NomenclatureWizardModal
