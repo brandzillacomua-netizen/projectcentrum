@@ -470,6 +470,12 @@ export const mapV2ToStandardNom = (v) => {
 
   const cleanName = (v.name || '').replace(/\s*\(Алюміній\)/gi, '').replace(/\s*\(алюміній\)/gi, '').trim();
 
+  const qrCodeVal = v.qr_code || v.barcode || v.code || '';
+  let addInfo = v.additional_info || v.rule_params?.additionalInfo || '';
+  if (!addInfo && qrCodeVal) {
+    addInfo = `[QR: ${qrCodeVal}]`;
+  }
+
   return {
     ...v,
     id: v.id,
@@ -483,7 +489,9 @@ export const mapV2ToStandardNom = (v) => {
     material_type: rawMaterial,
     material: rawMaterial,
     characteristic: v.characteristic || v.rule_params?.characteristic || v.rule_params?.cutter_type_id || null,
-    additional_info: v.additional_info || v.rule_params?.additionalInfo || '',
+    additional_info: addInfo,
+    barcode: v.barcode || '',
+    qr_code: v.qr_code || qrCodeVal,
     category: v.category || (String(v.group_id || '').startsWith('grp_carbon') || String(v.group_id || '').startsWith('cat_raw') ? 'Сировина' : 'Загальна')
   };
 };

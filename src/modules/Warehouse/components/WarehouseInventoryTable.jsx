@@ -1,5 +1,5 @@
 import React from 'react'
-import { Pencil, Trash2, Check, X } from 'lucide-react'
+import { Pencil, Trash2, Check, X, PackageMinus } from 'lucide-react'
 import { WarehouseNomenclatureLink } from './WarehouseNomenclatureLink'
 import { useStore } from '../../../store/index.js'
 const WarehouseInventoryTableRow = React.memo(({
@@ -15,7 +15,8 @@ const WarehouseInventoryTableRow = React.memo(({
   getItemReservedQty,
   handleSaveInventoryQty,
   handleDeleteInventoryItem,
-  setReserveAnalysisItem
+  setReserveAnalysisItem,
+  manualIssue
 }) => {
   const isEditing = editingInvId === item.id
   const reservedQty = getItemReservedQty(item)
@@ -54,6 +55,14 @@ const WarehouseInventoryTableRow = React.memo(({
           })()}
           {isAdmin && !isEditing && (
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+              <button
+                type="button"
+                onClick={() => manualIssue?.openIssue(linkedNom || { id: item.nomenclature_id, name: item.name, unit: item.unit })}
+                style={{ background: 'transparent', border: 'none', color: '#f59e0b', cursor: 'pointer', display: 'inline-flex', padding: '4px' }}
+                title="Ручна видача зі складу"
+              >
+                <PackageMinus size={13} />
+              </button>
               <button
                 type="button"
                 onClick={() => {
@@ -142,7 +151,8 @@ const WarehouseInventoryMobileCard = React.memo(({
   setEditingInvReserved,
   savingInv,
   handleSaveInventoryQty,
-  setReserveAnalysisItem
+  setReserveAnalysisItem,
+  manualIssue
 }) => {
   const isEditing = editingInvId === item.id
 
@@ -163,17 +173,28 @@ const WarehouseInventoryMobileCard = React.memo(({
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={{ fontSize: '0.7rem', color: '#444' }}>{item.unit}</span>
           {!isEditing && (
-            <button
-              type="button"
-              onClick={() => {
-                setEditingInvId(item.id)
-                setEditingInvTotal(String(item.total_qty || 0))
-                setEditingInvReserved(String(item.reserved_qty || 0))
-              }}
-              style={{ background: 'transparent', border: 'none', color: '#555', cursor: 'pointer', padding: '4px' }}
-            >
-              <Pencil size={12} />
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <button
+                type="button"
+                onClick={() => manualIssue?.openIssue(linkedNom || { id: item.nomenclature_id, name: item.name, unit: item.unit })}
+                style={{ background: 'transparent', border: 'none', color: '#f59e0b', cursor: 'pointer', padding: '4px' }}
+                title="Ручна видача"
+              >
+                <PackageMinus size={14} />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingInvId(item.id)
+                  setEditingInvTotal(String(item.total_qty || 0))
+                  setEditingInvReserved(String(item.reserved_qty || 0))
+                }}
+                style={{ background: 'transparent', border: 'none', color: '#555', cursor: 'pointer', padding: '4px' }}
+                title="Редагувати"
+              >
+                <Pencil size={12} />
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -258,7 +279,8 @@ export const WarehouseInventoryTable = ({
   handleSaveInventoryQty,
   handleDeleteInventoryItem,
   setReserveAnalysisItem,
-  currentUser
+  currentUser,
+  manualIssue
 }) => {
   if (activeTab === 'registry' || activeTab === 'boxes') return null
 
@@ -301,6 +323,7 @@ export const WarehouseInventoryTable = ({
                   handleSaveInventoryQty={handleSaveInventoryQty}
                   handleDeleteInventoryItem={handleDeleteInventoryItem}
                   setReserveAnalysisItem={setReserveAnalysisItem}
+                  manualIssue={manualIssue}
                 />
               ))
             )}
@@ -324,6 +347,7 @@ export const WarehouseInventoryTable = ({
             handleSaveInventoryQty={handleSaveInventoryQty}
             setReserveAnalysisItem={setReserveAnalysisItem}
             currentUser={currentUser}
+            manualIssue={manualIssue}
           />
         ))}
       </div>

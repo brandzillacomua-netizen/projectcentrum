@@ -440,6 +440,7 @@ export const WarehouseModuleV2: React.FC = () => {
             handleDeleteInventoryItem={handleDeleteInventoryItem}
             setReserveAnalysisItem={setReserveAnalysisItem}
             currentUser={currentUser}
+            manualIssue={manualIssue}
           />
 
           {activeTab === 'boxes' && (

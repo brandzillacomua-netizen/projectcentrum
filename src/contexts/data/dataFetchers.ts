@@ -231,6 +231,15 @@ export function useDataFetchers(state: any) {
           if (!canonicalV2.legacy_ids.includes(legacyIdStr)) {
             canonicalV2.legacy_ids.push(legacyIdStr)
           }
+          if (n.additional_info) {
+            if (!canonicalV2.additional_info) {
+              canonicalV2.additional_info = n.additional_info
+            } else if (!canonicalV2.additional_info.includes('[QR:') && n.additional_info.includes('[QR:')) {
+              canonicalV2.additional_info = `${canonicalV2.additional_info} ${n.additional_info}`.trim()
+            }
+          }
+          if (!canonicalV2.barcode && n.barcode) canonicalV2.barcode = n.barcode
+          if (!canonicalV2.qr_code && n.qr_code) canonicalV2.qr_code = n.qr_code
         } else {
           const existingV1 = normName ? v1ByName.get(normName) : null
           if (existingV1) {
