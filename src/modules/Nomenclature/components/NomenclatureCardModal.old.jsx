@@ -194,16 +194,38 @@ export const NomenclatureCardModal = ({
     const fetchInventory = async () => {
       setLoadingInventory(true)
       try {
-        // Query by nomenclature_id or fallback by name
-        let query = supabase.from('inventory').select('*')
-        if (item.id) {
-          query = query.or(`nomenclature_id.eq.${item.id},name.eq.${item.name}`)
-        } else {
-          query = query.eq('name', item.name)
+        const idsToQuery = [
+          item.id,
+          item.nomenclature_id,
+          ...(Array.isArray(item.legacy_ids) ? item.legacy_ids : [])
+        ].filter(Boolean).map(String)
+
+        const uniqueIds = [...new Set(idsToQuery)]
+
+        const queries = []
+        if (uniqueIds.length > 0) {
+          queries.push(supabase.from('inventory').select('*').in('nomenclature_id', uniqueIds))
         }
-        const { data, error } = await query
-        if (error) throw error
-        setInventoryBalances(data || [])
+        if (item.name) {
+          queries.push(supabase.from('inventory').select('*').eq('name', item.name))
+        }
+
+        const results = await Promise.all(queries)
+        const map = new Map()
+        results.forEach(res => {
+          if (!res.error && Array.isArray(res.data)) {
+            res.data.forEach(r => map.set(r.id, r))
+          }
+        })
+
+        const whOrder = { operational: 1, production: 2, pocket: 3, sgp: 4, shop1: 5, shop2: 6, scrap: 7 }
+        const sorted = Array.from(map.values()).sort((a, b) => {
+          const ordA = whOrder[a.warehouse] || 99
+          const ordB = whOrder[b.warehouse] || 99
+          return ordA - ordB
+        })
+
+        setInventoryBalances(sorted)
       } catch (err) {
         console.warn('[NomenclatureCard] Error loading inventory:', err)
         setInventoryBalances([])
@@ -1542,14 +1564,22 @@ export const NomenclatureCardModal = ({
                       {inventoryBalances.map(row => (
                         <tr key={row.id} style={{ borderBottom: '1px solid var(--border-color, #f1f5f9)' }}>
                           <td style={{ padding: '12px 20px', fontWeight: 800 }}>
-                            {row.warehouse === 'sgp' ? '🏬 СГП (Готова продукція)' : 
-                             row.warehouse === 'shop1' ? '🏭 Цех 1 (Фрезерування)' : 
+                            {row.warehouse === 'operational' ? '📦 Склад оперативний (СО)' :
+                             row.warehouse === 'production' ? '🏭 Склад виробництва (СВ)' :
+                             row.warehouse === 'sgp' ? '🏬 СГП (Готова продукція)' : 
+                             row.warehouse === 'shop1' ? '⚙️ Цех 1 (Фрезерування)' : 
                              row.warehouse === 'shop2' ? '🔧 Цех 2 (Складання)' : 
-                             (row.warehouse || 'Склад')}
+                             row.warehouse === 'pocket' ? '👝 Кишеня станка / цех' : 
+                             row.warehouse === 'scrap' ? '♻️ Склад брухту' : 
+                             (row.warehouse ? `📦 ${row.warehouse}` : 'Склад')}
                             {row.location ? ` / ${row.location}` : ''}
                           </td>
                           <td style={{ padding: '12px 20px', color: 'var(--text-muted, #64748b)' }}>
-                            {row.type || '—'}
+                            {row.type === 'raw' ? 'Сировина / Витратні' :
+                             row.type === 'semi' ? 'Напівфабрикат' :
+                             row.type === 'part' ? 'Деталь' :
+                             row.type === 'finished' ? 'Готова продукція' :
+                             (row.type || '—')}
                           </td>
                           <td style={{ padding: '12px 20px', textAlign: 'right', fontWeight: 800 }}>
                             {row.total_qty || 0}
