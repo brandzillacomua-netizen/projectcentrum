@@ -526,6 +526,11 @@ export const NariadReportsView = ({
                               <span style={{ background: `${stageClr}15`, color: stageClr, padding: '2px 7px', borderRadius: '5px', fontSize: '0.6rem', fontWeight: 900 }}>
                                 {row.stage_name || '—'}
                               </span>
+                              {row.card_info?.includes('[LAST_OP:') && (
+                                <div style={{ fontSize: '0.58rem', color: '#f59e0b', marginTop: '3px', fontWeight: 800 }}>
+                                  📍 {row.card_info.match(/\[LAST_OP:([^\]]+)\]/)?.[1]}
+                                </div>
+                              )}
                             </td>
                             <td style={{ padding: '8px 10px', color: 'var(--text-dim)', fontWeight: 700 }}>
                               <div>{row.operator_name || '—'}</div>

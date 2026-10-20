@@ -665,13 +665,21 @@ export function useShop1CardWorkflow({
     }
   };
 
-  const handleShiftChange = async () => {
+  const handleShiftChange = async (details = null) => {
     if (!currentCard || !shiftChangeOperator || !shiftChangeShift) return;
     setIsProcessing(true);
     try {
       const now = new Date().toISOString();
-      const shiftChangeInfo = `[REPLACED_BY:${shiftChangeOperator} (${shiftChangeShift})]`;
-      const historyCardInfo = ((currentCard.card_info || '') + ' ' + shiftChangeInfo).trim();
+      const opParts = [];
+      if (details?.side) opParts.push(`Сторона: ${details.side}`);
+      if (details?.operation) opParts.push(`Операція: ${details.operation}`);
+      if (details?.sheet) opParts.push(`Листи: ${details.sheet}`);
+      const opDetailsStr = opParts.join(' • ');
+      const opTag = opDetailsStr ? ` [LAST_OP:${opDetailsStr}]` : '';
+
+      const shiftChangeInfo = `[REPLACED_BY:${shiftChangeOperator} (${shiftChangeShift})]${opTag}`;
+      const baseCleanCardInfo = (currentCard.card_info || '').replace(/\[LAST_OP:[^\]]+\]/g, '').trim();
+      const historyCardInfo = (baseCleanCardInfo + ' ' + shiftChangeInfo).trim();
 
       const historyData = {
         card_id: currentCard.id,
@@ -692,7 +700,7 @@ export function useShop1CardWorkflow({
       };
 
       const originalStart = currentCard.card_info?.match(/\[ORIGINAL_START:([^\]]+)\]/)?.[1] || currentCard.started_at || now;
-      const updatedCardInfo = ((currentCard.card_info || '').replace(/\[ORIGINAL_START:[^\]]+\]/g, '').trim() + ` [ORIGINAL_START:${originalStart}]`).trim();
+      const updatedCardInfo = ((baseCleanCardInfo.replace(/\[ORIGINAL_START:[^\]]+\]/g, '').trim() + ` [ORIGINAL_START:${originalStart}]`).trim() + (opTag ? ` ${opTag}` : '')).trim();
 
       const cardUpdate = {
         operator_name: shiftChangeOperator,

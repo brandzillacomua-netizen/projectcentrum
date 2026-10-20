@@ -81,6 +81,21 @@ export const MachineMonitorView = ({ machineMonitorList }) => {
                 </span>
                 <span>{activeCard?.shift_name || 'Без зміни'}</span>
               </div>
+              {activeCard?.card_info?.includes('[LAST_OP:') && (
+                <div style={{
+                  marginTop: '8px',
+                  paddingTop: '6px',
+                  borderTop: '1px solid var(--border-subtle)',
+                  fontSize: '0.62rem',
+                  color: '#f59e0b',
+                  fontWeight: 800,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap'
+                }}>
+                  📍 {activeCard.card_info.match(/\[LAST_OP:([^\]]+)\]/)?.[1]}
+                </div>
+              )}
             </div>
           )
         })}

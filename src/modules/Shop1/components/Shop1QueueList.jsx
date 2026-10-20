@@ -62,6 +62,19 @@ const Shop1QueueCard = React.memo(({
         <strong style={{ fontSize: '0.95rem', fontWeight: 950, letterSpacing: '-0.01em', lineHeight: '1.2' }}>
           {nom?.name || 'Деталь'}
         </strong>
+        {card.card_info?.includes('[LAST_OP:') && (
+          <div style={{
+            fontSize: '0.62rem',
+            color: active ? '#78350f' : '#f59e0b',
+            fontWeight: 800,
+            marginTop: '4px',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap'
+          }}>
+            📍 {card.card_info.match(/\[LAST_OP:([^\]]+)\]/)?.[1]}
+          </div>
+        )}
       </div>
 
       {/* Нижня частина: Кількість та Статус */}

@@ -338,6 +338,35 @@ export function Shop1CardDetails({
                 </div>
               </div>
 
+              {currentCard.card_info?.includes('[LAST_OP:') && (() => {
+                const lastOp = currentCard.card_info?.match(/\[LAST_OP:([^\]]+)\]/)?.[1]
+                if (!lastOp) return null
+                return (
+                  <div style={{
+                    margin: '10px auto 0',
+                    maxWidth: '380px',
+                    background: 'rgba(245, 158, 11, 0.08)',
+                    border: '1px solid rgba(245, 158, 11, 0.28)',
+                    borderRadius: '12px',
+                    padding: '8px 12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    textAlign: 'left'
+                  }}>
+                    <span style={{ fontSize: '0.9rem', flexShrink: 0 }}>📍</span>
+                    <div>
+                      <div style={{ fontSize: '0.55rem', color: '#f59e0b', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        Зупинилися при перезмінці
+                      </div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-strong)', fontWeight: 800, marginTop: '2px' }}>
+                        {lastOp}
+                      </div>
+                    </div>
+                  </div>
+                )
+              })()}
+
               {currentCard.operation === 'Розкрій' && (() => {
                 const stageRunStart = currentCard.card_info?.match(/\[ORIGINAL_START:([^\]]+)\]/)?.[1]
                   || currentCard.started_at
@@ -368,6 +397,11 @@ export function Shop1CardDetails({
                         <div style={{ textAlign: 'left' }}>
                           <span style={{ fontSize: '0.75rem', color: '#a1a1aa', fontWeight: 700 }}>#{i + 1} {h.operator_name}</span>
                           <span style={{ fontSize: '0.6rem', color: '#52525b', fontWeight: 700, marginLeft: '8px' }}>{h.shift_name}</span>
+                          {h.card_info?.includes('[LAST_OP:') && (
+                            <div style={{ fontSize: '0.62rem', color: '#f59e0b', marginTop: '2px', fontWeight: 700 }}>
+                              📍 {h.card_info?.match(/\[LAST_OP:([^\]]+)\]/)?.[1]}
+                            </div>
+                          )}
                         </div>
                         <span style={{ fontSize: '0.75rem', color: '#71717a', fontWeight: 800, fontFamily: 'monospace' }}>
                           {formatMsToDuration(h.started_at, h.completed_at)}
