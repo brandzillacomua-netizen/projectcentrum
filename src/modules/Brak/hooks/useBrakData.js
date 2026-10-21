@@ -112,18 +112,35 @@ export function useBrakData() {
   const [classificationResponsibleOperator, setClassificationResponsibleOperator] = useState('')
   const [classificationOperatorsLoading, setClassificationOperatorsLoading] = useState(false)
   const [classificationOperatorsError, setClassificationOperatorsError] = useState('')
+  const systemUsersRef = useRef(systemUsers)
+  systemUsersRef.current = systemUsers
   const selectedClassificationItemId = selectedItem?.id
   const selectedClassificationCardId = selectedItem?.card_id
+  const prevClassificationItemIdRef = useRef(null)
 
   useEffect(() => {
     let cancelled = false
+
+    if (!selectedClassificationItemId) {
+      prevClassificationItemIdRef.current = null
+      setClassificationOperatorOptions([])
+      setClassificationResponsibleOperator('')
+      setClassificationOperatorsError('')
+      setClassificationOperatorsLoading(false)
+      return
+    }
+
+    // Do not reload or wipe operators if the same item is already open
+    if (prevClassificationItemIdRef.current === selectedClassificationItemId) {
+      return
+    }
+    prevClassificationItemIdRef.current = selectedClassificationItemId
 
     const loadClassificationOperators = async () => {
       setClassificationOperatorOptions([])
       setClassificationResponsibleOperator('')
       setClassificationOperatorsError('')
 
-      if (!selectedClassificationItemId) return
       if (!selectedClassificationCardId) {
         setClassificationOperatorsError('Для цього запису відсутній зв’язок із виробничою карткою.')
         return
@@ -139,9 +156,12 @@ export function useBrakData() {
         if (error) throw error
         if (cancelled) return
 
-        const candidates = buildShop1OperatorCandidates(data || [], systemUsers || [])
+        const candidates = buildShop1OperatorCandidates(data || [], systemUsersRef.current || [])
         setClassificationOperatorOptions(candidates)
-        setClassificationResponsibleOperator(candidates.length === 1 ? candidates[0].name : '')
+        setClassificationResponsibleOperator(prev => {
+          if (prev && candidates.some(c => c.name === prev)) return prev
+          return candidates.length === 1 ? candidates[0].name : ''
+        })
         if (candidates.length === 0) {
           setClassificationOperatorsError('В історії картки не знайдено жодного персонального оператора Цеху №1 від розкрою до сортування.')
         }
@@ -156,7 +176,7 @@ export function useBrakData() {
 
     loadClassificationOperators()
     return () => { cancelled = true }
-  }, [selectedClassificationItemId, selectedClassificationCardId, supabase, systemUsers])
+  }, [selectedClassificationItemId, selectedClassificationCardId, supabase])
 
   // QC Reports Modal States
   const [showReportPage, setShowReportPage] = useState(false)
@@ -827,6 +847,7 @@ export function useBrakData() {
 
       if (!projectionError && projectionResult) {
         const changes = Array.isArray(projectionResult.changes) ? projectionResult.changes : []
+        const hasExistingProjection = queueProjectionRef.current.size > 0
         const projection = new Map(queueProjectionRef.current)
         changes.forEach(change => {
           const key = `${change.source_type}:${change.source_id}`
@@ -837,6 +858,8 @@ export function useBrakData() {
         queueProjectionRef.current = projection
         queueCursorRef.current = Number(projectionResult.cursor) || queueCursorRef.current || 0
 
+        // If projection was already loaded in memory or cache, and there are NO new changes: exit early!
+        if (hasExistingProjection && changes.length === 0) return
         if (!projectionChanged && cachedQueue) return
 
         const projectionRows = [...projection.values()]
@@ -1043,10 +1066,16 @@ export function useBrakData() {
     }
   }, [currentUser?.id])
 
+  const prevSelectedItemKeyRef = useRef(null)
+
   useEffect(() => {
-    setDistribution({ 1: 0, 4: 0 })
-    setReasonAllocations([{ reason: '', qty: 0 }])
-  }, [selectedItem])
+    const currentKey = selectedItem ? `${selectedItem.id}_${selectedItem.card_id}` : null
+    if (prevSelectedItemKeyRef.current !== currentKey) {
+      prevSelectedItemKeyRef.current = currentKey
+      setDistribution({ 1: 0, 4: 0 })
+      setReasonAllocations([{ reason: '', qty: 0 }])
+    }
+  }, [selectedItem?.id, selectedItem?.card_id])
 
   const totalDistributed = Object.values(distribution).reduce((a, b) => a + b, 0)
   const totalReasonAllocated = reasonAllocations.reduce((sum, item) => sum + (Number(item.qty) || 0), 0)
