@@ -17,11 +17,17 @@ export default function SortingCompleteModal({
   reworkCount,
   setReworkCount,
   submitSortingComplete,
-  scanError
+  scanError,
+  selectedOperator,
+  setSelectedOperator,
+  operators = []
 }) {
   if (!showCompleteModal || !activeCompletingCard) return null
 
   const totalQty = activeCompletingCard.quantity || 0
+  const cardOp = activeCompletingCard.operator_name
+  const isCardOpValid = cardOp && cardOp !== 'Команда' && cardOp !== 'Сортування'
+  const effectiveOperator = selectedOperator || (isCardOpValid ? cardOp : '')
 
   return (
     <div className="terminal-modal-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '20px', backdropFilter: 'blur(8px)' }}>
@@ -39,6 +45,32 @@ export default function SortingCompleteModal({
           <div style={{ background: 'var(--border-subtle)', border: '1px solid var(--border-subtle)', padding: '12px 16px', borderRadius: '12px' }}>
             <div style={{ fontSize: '0.55rem', color: 'var(--text-dim)', fontWeight: 900, textTransform: 'uppercase', marginBottom: '4px' }}>Деталь</div>
             <div style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-strong)' }}>{getNom(activeCompletingCard)?.name || 'Невказана деталь'}</div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <label style={{ fontSize: '0.65rem', color: 'var(--text-dim)', fontWeight: 900, textTransform: 'uppercase' }}>
+              Сортувальник <span style={{ color: '#ef4444' }}>*</span>
+            </label>
+            <select
+              value={effectiveOperator}
+              onChange={e => setSelectedOperator && setSelectedOperator(e.target.value)}
+              style={{
+                background: 'var(--surface-2)',
+                border: effectiveOperator ? `1px solid rgba(${ACCENT_RGB},0.4)` : '1px solid #ef4444',
+                color: 'var(--text-strong)',
+                padding: '10px 14px',
+                borderRadius: '12px',
+                fontSize: '0.85rem',
+                fontWeight: 800,
+                outline: 'none',
+                cursor: 'pointer'
+              }}
+            >
+              <option value="">— Оберіть сортувальника —</option>
+              {operators.map(op => (
+                <option key={op} value={op}>{op}</option>
+              ))}
+            </select>
           </div>
           {/* OK and Scrap inputs */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
@@ -89,8 +121,25 @@ export default function SortingCompleteModal({
           )}
 
           <div style={{ display: 'flex', gap: '10px' }}>
-            <button onClick={() => setShowCompleteModal(false)} disabled={isProcessing} style={{ flex: 1, background: '#1a1a1f', border: '1px solid var(--border-subtle)', color: '#fff', padding: '12px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer' }}>СКАСУВАТИ</button>
-            <button onClick={submitSortingComplete} disabled={isProcessing} style={{ flex: 1, background: ACCENT, border: 'none', color: '#000', padding: '12px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+            <button
+              onClick={() => submitSortingComplete(effectiveOperator)}
+              disabled={isProcessing || !effectiveOperator}
+              style={{
+                flex: 1,
+                background: effectiveOperator ? ACCENT : '#333',
+                border: 'none',
+                color: effectiveOperator ? '#000' : '#888',
+                padding: '12px',
+                borderRadius: '12px',
+                fontSize: '0.75rem',
+                fontWeight: 900,
+                cursor: effectiveOperator ? 'pointer' : 'not-allowed',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px'
+              }}
+            >
               {isProcessing ? <RefreshCw size={14} className="anim-spin" /> : <><CheckCircle size={14} /> ПЕРЕДАТИ В ЦЕХ №2</>}
             </button>
           </div>

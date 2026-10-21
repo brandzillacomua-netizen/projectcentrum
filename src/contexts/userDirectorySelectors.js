@@ -67,10 +67,10 @@ export const selectFilteredOperatorNames = (systemUsers, department, shift, stag
     } else if (stageLower === 'прийомка') {
       list = filterReceptionOperators(users, shift, department)
     } else if (stageLower === 'сортування') {
-      const departmentUsers = users.filter(user => matchesShift(user, shift) && user.department === 'Сортування')
+      const departmentUsers = users.filter(user => matchesShift(user, shift) && (user.department === 'Сортування' || user.department === 'Цех №1'))
       list = mergeUniqueUsers(
-        list.filter(user => includesPositionMarker(user, ['сортув', 'сортувал', 'працівник'])),
-        departmentUsers
+        list.filter(user => includesPositionMarker(user, ['сортув', 'сортувал', 'працівник', 'оператор'])),
+        departmentUsers.filter(user => includesPositionMarker(user, ['сортув', 'сортувал', 'працівник', 'оператор']))
       )
     } else if (stageLower === 'доопрацювання') {
       const departmentUsers = users.filter(user => (

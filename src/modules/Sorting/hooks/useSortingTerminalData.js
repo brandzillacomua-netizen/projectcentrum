@@ -31,7 +31,7 @@ export const translateCyrillic = (str) => {
 }
 
 export function useSortingTerminalData() {
-  const { getFilteredOperators, fetchData, currentUser } = useMES()
+  const { getFilteredOperators, fetchData, currentUser, formatUserName } = useMES()
 
   const workCards = useStore(state => state.workCards)
   const nomenclatures = useStore(state => state.nomenclatures)
@@ -40,6 +40,10 @@ export function useSortingTerminalData() {
   const [currentTime, setCurrentTime] = useState(new Date())
   const [selectedShift, setSelectedShift] = useState('')
   const [selectedOperator, setSelectedOperator] = useState('')
+
+  const operators = useMemo(() => {
+    return getFilteredOperators('Цех №1', selectedShift, 'Сортування')
+  }, [getFilteredOperators, selectedShift])
 
   const [manualId, setManualId] = useState('')
   const [scanError, setScanError] = useState(null)
@@ -68,18 +72,17 @@ export function useSortingTerminalData() {
   // Auto-select user
   useEffect(() => {
     if (currentUser) {
-      setSelectedShift(currentUser.shift || 'Без зміни')
-      const fullName = [currentUser.first_name, currentUser.last_name].filter(Boolean).join(' ')
-      const displayName = fullName || currentUser.login || ''
-      const nameWithPosition = currentUser.position ? `${displayName} (${currentUser.position})` : displayName
-      const allowedOps = getFilteredOperators('Цех №1', currentUser.shift || 'Без зміни', 'Сортування')
-      if (allowedOps.includes(nameWithPosition)) {
-        setSelectedOperator(nameWithPosition)
-      } else {
-        setSelectedOperator('')
+      const shift = currentUser.shift || 'Без зміни'
+      setSelectedShift(shift)
+      const displayName = formatUserName ? formatUserName(currentUser) : [currentUser.last_name, currentUser.first_name].filter(Boolean).join(' ')
+      const allowedOps = getFilteredOperators('Цех №1', shift, 'Сортування')
+      if (allowedOps.includes(displayName)) {
+        setSelectedOperator(displayName)
+      } else if (allowedOps.length === 1) {
+        setSelectedOperator(allowedOps[0])
       }
     }
-  }, [currentUser, getFilteredOperators])
+  }, [currentUser, getFilteredOperators, formatUserName])
 
   const getNom = (card) => nomenclatures.find(n => n.id === card?.nomenclature_id)
   const getOrder = (card) => (orders || []).find(o => String(o.id) === String(card?.order_id))
@@ -182,12 +185,13 @@ export function useSortingTerminalData() {
     return () => { if (html5QrCode && html5QrCode.isScanning) html5QrCode.stop().catch(() => {}) }
   }, [isScanning, workCards])
 
-  const startSortingCard = async (card) => {
+  const startSortingCard = async (card, overrideOperator = null) => {
+    const operatorToUse = (overrideOperator || selectedOperator || '').trim()
     if (!selectedShift) {
       setScanError('⚠️ Будь ласка, спочатку оберіть зміну вгорі екрану!')
       return
     }
-    if (!selectedOperator) {
+    if (!operatorToUse) {
       setScanError('⚠️ Оберіть оператора сортування перед початком роботи.')
       return
     }
@@ -200,7 +204,7 @@ export function useSortingTerminalData() {
         status: 'in-progress',
         operation: 'Сортування',
         started_at: now,
-        operator_name: selectedOperator,
+        operator_name: operatorToUse,
         shift_name: selectedShift
       }
 
@@ -259,8 +263,7 @@ export function useSortingTerminalData() {
     setShowCompleteModal(true)
   }
 
-  // Full Shop2 handoff — same logic as Shop1Terminal.handleSortToShop2
-  const submitSortingComplete = async () => {
+  const submitSortingComplete = async (overrideOperator = null) => {
     if (!activeCompletingCard || isProcessing) return
     const cardId = String(activeCompletingCard.id)
     if (completionInFlightRef.current.has(cardId)) return
@@ -271,9 +274,9 @@ export function useSortingTerminalData() {
       fetchData(['work_cards']).catch(() => {})
       return
     }
-    const responsibleOperator = String(activeCompletingCard.operator_name || selectedOperator || '').trim()
+    const responsibleOperator = String(overrideOperator || activeCompletingCard.operator_name || selectedOperator || '').trim()
     if (!responsibleOperator || responsibleOperator === 'Команда' || responsibleOperator === 'Сортування') {
-      setScanError('Не визначено оператора сортування. Закрийте форму, оберіть оператора та повторно відкрийте картку.')
+      setScanError('Не визначено оператора сортування. Будь ласка, оберіть оператора.')
       return
     }
     const total = Number(activeCompletingCard.quantity)
@@ -412,6 +415,8 @@ export function useSortingTerminalData() {
     selectedShift,
     setSelectedShift,
     selectedOperator,
+    setSelectedOperator,
+    operators,
     manualId,
     setManualId,
     scanError,

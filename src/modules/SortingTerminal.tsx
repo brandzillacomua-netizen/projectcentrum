@@ -15,6 +15,9 @@ export const SortingTerminal: React.FC = () => {
     currentTime,
     selectedShift,
     setSelectedShift,
+    selectedOperator,
+    setSelectedOperator,
+    operators,
     manualId,
     setManualId,
     scanError,
@@ -56,6 +59,9 @@ export const SortingTerminal: React.FC = () => {
       <SortingTerminalHeader
         selectedShift={selectedShift}
         setSelectedShift={setSelectedShift}
+        selectedOperator={selectedOperator}
+        setSelectedOperator={setSelectedOperator}
+        operators={operators}
         currentTime={currentTime}
       />
 
@@ -101,6 +107,10 @@ export const SortingTerminal: React.FC = () => {
         isProcessing={isProcessing}
         startSortingCard={startSortingCard}
         getNom={getNom}
+        selectedOperator={selectedOperator}
+        setSelectedOperator={setSelectedOperator}
+        operators={operators}
+        scanError={scanError}
       />
 
       {/* COMPLETE MODAL */}
@@ -118,6 +128,9 @@ export const SortingTerminal: React.FC = () => {
         setReworkCount={setReworkCount}
         submitSortingComplete={submitSortingComplete}
         scanError={scanError}
+        selectedOperator={selectedOperator}
+        setSelectedOperator={setSelectedOperator}
+        operators={operators}
       />
 
       {/* QR Scanner Modal */}

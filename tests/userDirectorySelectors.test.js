@@ -41,6 +41,9 @@ describe('user directory selectors', () => {
     expect(selectFilteredOperatorNames(users, null, 'Зміна 2', 'Сортування')).toEqual([
       'Дяченко Анна'
     ])
+    expect(selectFilteredOperatorNames(users, 'Цех №1', 'Зміна 1', 'Сортування')).toEqual([
+      'Гнатюк Максим'
+    ])
     expect(selectFilteredOperatorNames(users, 'Цех №1', 'Зміна 1', 'Підготовка')).toEqual([])
     expect(selectFilteredOperatorNames(users, null, 'Зміна 1', 'Підготовка')).toEqual([
       'Жук Леся'

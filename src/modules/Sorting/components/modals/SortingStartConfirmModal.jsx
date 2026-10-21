@@ -9,7 +9,11 @@ export default function SortingStartConfirmModal({
   setPendingStartCard,
   isProcessing,
   startSortingCard,
-  getNom
+  getNom,
+  selectedOperator,
+  setSelectedOperator,
+  operators = [],
+  scanError
 }) {
   if (!pendingStartCard) return null
 
@@ -28,14 +32,62 @@ export default function SortingStartConfirmModal({
             <div style={{ fontSize: '1rem', fontWeight: 900, color: 'var(--text-strong)', marginTop: '6px' }}>{getNom(pendingStartCard)?.name || 'Деталь'}</div>
             <div style={{ fontSize: '0.75rem', color: '#6b7280', fontWeight: 700, marginTop: '4px' }}>К-сть: <strong style={{ color: 'var(--text-strong)' }}>{pendingStartCard.quantity} шт</strong></div>
           </div>
-          <p style={{ margin: 0, fontSize: '0.82rem', color: '#9ca3af', fontWeight: 600, textAlign: 'center' }}>
-            Підтвердіть що картка переходить у <strong style={{ color: 'var(--text-strong)' }}>Сортування</strong>.
-          </p>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <label style={{ fontSize: '0.65rem', color: 'var(--text-dim)', fontWeight: 900, textTransform: 'uppercase' }}>
+              Сортувальник <span style={{ color: '#ef4444' }}>*</span>
+            </label>
+            <select
+              value={selectedOperator}
+              onChange={e => setSelectedOperator && setSelectedOperator(e.target.value)}
+              style={{
+                background: 'var(--surface-2)',
+                border: selectedOperator ? `1px solid rgba(${ACCENT_RGB},0.4)` : '1px solid #ef4444',
+                color: 'var(--text-strong)',
+                padding: '10px 14px',
+                borderRadius: '12px',
+                fontSize: '0.85rem',
+                fontWeight: 800,
+                outline: 'none',
+                cursor: 'pointer'
+              }}
+            >
+              <option value="">— Оберіть сортувальника —</option>
+              {operators.map(op => (
+                <option key={op} value={op}>{op}</option>
+              ))}
+            </select>
+          </div>
+
+          {scanError && (
+            <div style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', color: '#ef4444', borderRadius: '10px', padding: '10px 14px', fontSize: '0.72rem', fontWeight: 800, textAlign: 'center' }}>
+              ⚠️ {scanError}
+            </div>
+          )}
+
           <div style={{ display: 'flex', gap: '10px' }}>
             <button onClick={() => setPendingStartCard(null)} disabled={isProcessing} style={{ flex: 1, background: '#1a1a1f', border: '1px solid var(--border-subtle)', color: '#aaa', padding: '14px', borderRadius: '14px', fontSize: '0.8rem', fontWeight: 900, cursor: 'pointer' }}>
               СКАСУВАТИ
             </button>
-            <button onClick={() => startSortingCard(pendingStartCard)} disabled={isProcessing} style={{ flex: 2, background: ACCENT, border: 'none', color: '#000', padding: '14px', borderRadius: '14px', fontSize: '0.9rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+            <button
+              onClick={() => startSortingCard(pendingStartCard, selectedOperator)}
+              disabled={isProcessing || !selectedOperator}
+              style={{
+                flex: 2,
+                background: selectedOperator ? ACCENT : '#333',
+                border: 'none',
+                color: selectedOperator ? '#000' : '#888',
+                padding: '14px',
+                borderRadius: '14px',
+                fontSize: '0.9rem',
+                fontWeight: 900,
+                cursor: selectedOperator ? 'pointer' : 'not-allowed',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px'
+              }}
+            >
               {isProcessing ? <RefreshCw size={15} className="anim-spin" /> : <><Play size={15} fill="currentColor" /> СОРТУВАТИ</>}
             </button>
           </div>
