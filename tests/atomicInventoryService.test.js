@@ -68,4 +68,24 @@ describe('cutting inventory consumption', () => {
       releaseReserved: 4
     })).rejects.toThrow('ще не встановлено захищене списання')
   })
+
+  it('replays gracefully when consumption was already recorded with different quantity', async () => {
+    const supabase = {
+      rpc: async () => ({
+        data: null,
+        error: { message: 'Cutting consumption retry has different quantities for card card-1 and key cutter:nom-1:inv-1' }
+      })
+    }
+
+    const res = await consumeCuttingInventoryOnce(supabase, {
+      cardId: 'card-1',
+      consumptionKey: 'cutter:nom-1:inv-1',
+      inventoryId: 'inv-1',
+      deductTotal: 12,
+      releaseReserved: 4
+    })
+
+    expect(res.success).toBe(true)
+    expect(res.replayed).toBe(true)
+  })
 })

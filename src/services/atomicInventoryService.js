@@ -83,6 +83,10 @@ export async function consumeCuttingInventoryOnce(supabase, {
     if (isMissingFunction) {
       throw new Error('У production-базі ще не встановлено захищене списання розкрою. Картку не завершено і матеріали не списано. Зверніться до адміністратора для застосування міграції 20261012190000.')
     }
+    if (String(error.message || '').includes('Cutting consumption retry has different quantities')) {
+      console.warn(`[consumeCuttingInventoryOnce] Card ${cardId} key ${consumptionKey} was already consumed in previous run (${error.message}). Replaying existing receipt.`)
+      return { success: true, replayed: true, warning: error.message }
+    }
     throw error
   }
   if (!data?.success) throw new Error(data?.error || 'Сервер не підтвердив списання матеріалів розкрою')
