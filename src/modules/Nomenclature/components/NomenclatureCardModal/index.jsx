@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { 
   X, Barcode, QrCode, Printer, Copy, Check, Package, Clock, 
   Cpu, Layers, Boxes, FileText, ExternalLink, Edit3, Save, 
@@ -7,6 +7,7 @@ import {
 import { QRCodeSVG } from 'qrcode.react'
 import JsBarcode from 'jsbarcode'
 import { supabase } from '../../../../supabase'
+import { buildFlattenedGroupOptions } from '../../utils/nomenclatureHelpers'
 
 const KNOWN_CUTTER_TYPES = {
   '1ba4c09f-2fcf-4fc8-957d-80fca75d371a': { name: 'Фреза ф3', code: 'CUT-F3', type: 'Фреза ф3 кінцева' },
@@ -26,11 +27,120 @@ const KNOWN_CUTTER_TYPES = {
 export const NomenclatureCardModal = ({
   isOpen,
   onClose,
-  item,
+  item: initialItem,
   groups = [],
   itemsMap = new Map(),
   onItemUpdated
 }) => {
+  const [currentItem, setCurrentItem] = useState(initialItem)
+  useEffect(() => {
+    setCurrentItem(initialItem)
+  }, [initialItem])
+  const item = currentItem || initialItem
+
+  // Edit Modal State
+  const [isEditOpen, setIsEditOpen] = useState(false)
+  const [editForm, setEditForm] = useState({
+    name: '',
+    group_id: '',
+    unit: 'шт',
+    default_material_id: '',
+    unitsPerSheet: '',
+    description: ''
+  })
+  const [savingEdit, setSavingEdit] = useState(false)
+  const [saveSuccessMsg, setSaveSuccessMsg] = useState('')
+
+  const flattenedGroups = useMemo(() => {
+    return buildFlattenedGroupOptions(groups || [])
+  }, [groups])
+
+  const rawMaterials = useMemo(() => {
+    if (!itemsMap || !itemsMap.values) return []
+    return Array.from(itemsMap.values()).filter(it => 
+      it && (it.type === 'raw' || String(it.group_id || '').includes('raw') || String(it.name || '').toLowerCase().includes('лист') || String(it.name || '').toLowerCase().includes('пластина'))
+    )
+  }, [itemsMap])
+
+  const handleOpenEdit = () => {
+    if (!item) return
+    setEditForm({
+      name: item.name || '',
+      group_id: item.group_id || '',
+      unit: item.unit || 'шт',
+      default_material_id: item.default_material_id || item.rule_params?.default_material_id || '',
+      unitsPerSheet: item.units_per_sheet || item.rule_params?.unitsPerSheet || '',
+      description: item.description || item.rule_params?.description || item.additional_info || ''
+    })
+    setIsEditOpen(true)
+  }
+
+  const handleSaveEdit = async (e) => {
+    if (e) e.preventDefault()
+    if (!item) return
+    setSavingEdit(true)
+    try {
+      const updatedRuleParams = {
+        ...(item.rule_params || {}),
+        unitsPerSheet: editForm.unitsPerSheet ? Number(editForm.unitsPerSheet) : undefined,
+        default_material_id: editForm.default_material_id || undefined,
+        description: editForm.description || undefined
+      }
+
+      const payload = {
+        name: editForm.name.trim(),
+        group_id: editForm.group_id || null,
+        unit: editForm.unit || 'шт',
+        default_material_id: editForm.default_material_id || null,
+        units_per_sheet: editForm.unitsPerSheet ? Number(editForm.unitsPerSheet) : null,
+        rule_params: updatedRuleParams,
+        updated_at: new Date().toISOString()
+      }
+
+      const { error: errV2 } = await supabase
+        .from('nomenclatures_v2')
+        .update(payload)
+        .eq('id', item.id)
+
+      if (errV2) console.warn('DB update warning:', errV2)
+
+      try {
+        await supabase
+          .from('nomenclature_catalog_profiles')
+          .update({
+            display_name: payload.name,
+            group_id: payload.group_id,
+            base_unit_id: payload.unit
+          })
+          .eq('nomenclature_id', item.id)
+      } catch (e) {}
+
+      const merged = {
+        ...item,
+        ...payload
+      }
+      setCurrentItem(merged)
+      setIsEditOpen(false)
+      setSaveSuccessMsg('Зміни номенклатури успішно збережено!')
+      setTimeout(() => setSaveSuccessMsg(''), 3500)
+
+      if (onItemUpdated) {
+        onItemUpdated(merged)
+      }
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('mes:refresh-table', { detail: { table: 'nomenclatures_v2' } }))
+        window.dispatchEvent(new CustomEvent('mes:refresh-table', { detail: { table: 'nomenclatures' } }))
+        window.dispatchEvent(new CustomEvent('mes:refresh-table', { detail: { table: 'bom_items' } }))
+      }
+    } catch (err) {
+      console.error('Error saving nomenclature edit:', err)
+      alert('Помилка збереження: ' + (err.message || err))
+    } finally {
+      setSavingEdit(false)
+    }
+  }
+
   const [activeTab, setActiveTab] = useState('identification') // identification | params | cnc | inventory | bom
   const [copiedKey, setCopiedKey] = useState(null)
   const [labelSize, setLabelSize] = useState('58x40') // '58x40' | '50x30'
@@ -496,8 +606,9 @@ export const NomenclatureCardModal = ({
   const freeAvailableQty = totalStockQty - totalReservedQty
 
   return (
-    <div 
-      style={{
+    <>
+      <div 
+        style={{
         position: 'fixed',
         inset: 0,
         zIndex: 9999,
@@ -599,24 +710,72 @@ export const NomenclatureCardModal = ({
             </div>
           </div>
 
-          <button
-            onClick={onClose}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              cursor: 'pointer',
-              color: 'var(--text-muted, #64748b)',
-              padding: '8px',
-              borderRadius: '10px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              transition: 'all 0.15s'
-            }}
-            className="hover:bg-slate-200 dark:hover:bg-slate-700"
-          >
-            <X size={22} />
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+            <button
+              onClick={handleOpenEdit}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '7px 14px',
+                borderRadius: '10px',
+                background: 'rgba(99, 102, 241, 0.1)',
+                border: '1px solid rgba(99, 102, 241, 0.3)',
+                color: '#6366f1',
+                fontWeight: 800,
+                fontSize: '0.8rem',
+                cursor: 'pointer',
+                transition: 'all 0.15s'
+              }}
+              title="Редагувати параметри номенклатури"
+            >
+              <Edit3 size={15} />
+              <span>Редагувати</span>
+            </button>
+
+            <a
+              href={`/nomenclature-v2?search=${encodeURIComponent(item.code || item.name || '')}&card=${item.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '7px 14px',
+                borderRadius: '10px',
+                background: 'rgba(15, 23, 42, 0.05)',
+                border: '1px solid var(--border-color, #e2e8f0)',
+                color: 'var(--text-muted, #64748b)',
+                fontWeight: 800,
+                fontSize: '0.8rem',
+                textDecoration: 'none',
+                transition: 'all 0.15s'
+              }}
+              title="Відкрити в повному каталозі 2.0 у новій вкладці"
+            >
+              <span>Каталог 2.0</span>
+              <ExternalLink size={13} />
+            </a>
+
+            <button
+              onClick={onClose}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                color: 'var(--text-muted, #64748b)',
+                padding: '8px',
+                borderRadius: '10px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'all 0.15s'
+              }}
+              className="hover:bg-slate-200 dark:hover:bg-slate-700"
+            >
+              <X size={22} />
+            </button>
+          </div>
         </div>
 
         {/* TABS NAVIGATION */}
@@ -1833,6 +1992,288 @@ export const NomenclatureCardModal = ({
         </div>
 
       </div>
+
+      {/* Floating Success Badge */}
+      {saveSuccessMsg && (
+        <div style={{
+          position: 'fixed',
+          top: '24px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          background: '#059669',
+          color: '#ffffff',
+          padding: '8px 20px',
+          borderRadius: '9999px',
+          fontSize: '0.85rem',
+          fontWeight: 800,
+          boxShadow: '0 8px 20px rgba(5, 150, 105, 0.4)',
+          zIndex: 10005,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          animation: 'fadeIn 0.2s ease-out'
+        }}>
+          <CheckCircle2 size={18} />
+          <span>{saveSuccessMsg}</span>
+        </div>
+      )}
     </div>
+
+    {/* EDIT NOMENCLATURE MODAL OVERLAY */}
+    {isEditOpen && (
+      <div 
+        style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 10001,
+          background: 'rgba(15, 23, 42, 0.75)',
+          backdropFilter: 'blur(6px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '20px'
+        }}
+        onClick={() => setIsEditOpen(false)}
+      >
+        <div 
+          style={{
+            background: 'var(--card-bg, #ffffff)',
+            color: 'var(--text, #0f172a)',
+            borderRadius: '20px',
+            border: '1px solid var(--border-color, #e2e8f0)',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+            width: '100%',
+            maxWidth: '560px',
+            padding: '24px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '16px'
+          }}
+          onClick={e => e.stopPropagation()}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '0.72rem', color: '#d97706', fontWeight: 900, fontFamily: 'monospace', background: 'rgba(217, 119, 6, 0.1)', padding: '2px 8px', borderRadius: '4px' }}>
+                  {item.code || item.id?.substring(0, 8)}
+                </span>
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted, #64748b)', fontWeight: 700 }}>
+                  ID: {item.id}
+                </span>
+              </div>
+              <h3 style={{ margin: '6px 0 0 0', fontWeight: 900, fontSize: '1.2rem', color: 'var(--text, #0f172a)' }}>
+                Редагувати номенклатуру
+              </h3>
+            </div>
+            <button 
+              onClick={() => setIsEditOpen(false)} 
+              style={{ background: 'transparent', border: 'none', color: 'var(--text-muted, #64748b)', cursor: 'pointer', padding: '6px' }}
+            >
+              <X size={20} />
+            </button>
+          </div>
+
+          <form onSubmit={handleSaveEdit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <div>
+              <label style={{ fontSize: '0.72rem', color: 'var(--text-muted, #64748b)', fontWeight: 900, display: 'block', marginBottom: '4px' }}>
+                НАЗВА НОМЕНКЛАТУРИ *
+              </label>
+              <input
+                type="text"
+                required
+                value={editForm.name}
+                onChange={e => setEditForm(prev => ({ ...prev, name: e.target.value }))}
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  background: 'var(--input-bg, #ffffff)',
+                  border: '1px solid var(--border-color, #cbd5e1)',
+                  color: 'var(--text-main, #0f172a)',
+                  borderRadius: '8px',
+                  fontSize: '0.88rem',
+                  fontWeight: 700,
+                  boxSizing: 'border-box'
+                }}
+              />
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div>
+                <label style={{ fontSize: '0.72rem', color: 'var(--text-muted, #64748b)', fontWeight: 900, display: 'block', marginBottom: '4px' }}>
+                  КАТЕГОРІЯ / ГРУПА КАТАЛОГУ
+                </label>
+                <select
+                  value={editForm.group_id || ''}
+                  onChange={e => setEditForm(prev => ({ ...prev, group_id: e.target.value }))}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    background: 'var(--input-bg, #ffffff)',
+                    border: '1px solid var(--border-color, #cbd5e1)',
+                    color: 'var(--text-main, #0f172a)',
+                    borderRadius: '8px',
+                    fontSize: '0.82rem',
+                    fontWeight: 600,
+                    boxSizing: 'border-box'
+                  }}
+                >
+                  <option value="">-- Без групи (01. Загальна) --</option>
+                  {flattenedGroups.map(g => (
+                    <option key={g.id} value={g.id}>{g.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label style={{ fontSize: '0.72rem', color: 'var(--text-muted, #64748b)', fontWeight: 900, display: 'block', marginBottom: '4px' }}>
+                  ОДИНИЦЯ ВИМІРУ
+                </label>
+                <select
+                  value={editForm.unit || 'шт'}
+                  onChange={e => setEditForm(prev => ({ ...prev, unit: e.target.value }))}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    background: 'var(--input-bg, #ffffff)',
+                    border: '1px solid var(--border-color, #cbd5e1)',
+                    color: 'var(--text-main, #0f172a)',
+                    borderRadius: '8px',
+                    fontSize: '0.82rem',
+                    fontWeight: 600,
+                    boxSizing: 'border-box'
+                  }}
+                >
+                  <option value="шт">Штуки (шт)</option>
+                  <option value="компл.">Комплекти (компл.)</option>
+                  <option value="лист">Листи (лист)</option>
+                  <option value="кг">Кілограми (кг)</option>
+                  <option value="м">Метри (м)</option>
+                  <option value="м²">Квадратні метри (м²)</option>
+                  <option value="л">Літри (л)</option>
+                </select>
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div>
+                <label style={{ fontSize: '0.72rem', color: 'var(--text-muted, #64748b)', fontWeight: 900, display: 'block', marginBottom: '4px' }}>
+                  ОСНОВНИЙ МАТЕРІАЛ (ЛИСТ)
+                </label>
+                <select
+                  value={editForm.default_material_id || ''}
+                  onChange={e => setEditForm(prev => ({ ...prev, default_material_id: e.target.value }))}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    background: 'var(--input-bg, #ffffff)',
+                    border: '1px solid var(--border-color, #cbd5e1)',
+                    color: 'var(--text-main, #0f172a)',
+                    borderRadius: '8px',
+                    fontSize: '0.82rem',
+                    fontWeight: 600,
+                    boxSizing: 'border-box'
+                  }}
+                >
+                  <option value="">-- Не вказано / без матеріалу --</option>
+                  {rawMaterials.map(m => (
+                    <option key={m.id} value={m.id}>{m.name || m.code}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label style={{ fontSize: '0.72rem', color: 'var(--text-muted, #64748b)', fontWeight: 900, display: 'block', marginBottom: '4px' }}>
+                  К-СТЬ ДЕТАЛЕЙ З ЛИСТА (ШТ)
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  placeholder="напр. 24"
+                  value={editForm.unitsPerSheet}
+                  onChange={e => setEditForm(prev => ({ ...prev, unitsPerSheet: e.target.value }))}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    background: 'var(--input-bg, #ffffff)',
+                    border: '1px solid var(--border-color, #cbd5e1)',
+                    color: 'var(--text-main, #0f172a)',
+                    borderRadius: '8px',
+                    fontSize: '0.88rem',
+                    fontWeight: 700,
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label style={{ fontSize: '0.72rem', color: 'var(--text-muted, #64748b)', fontWeight: 900, display: 'block', marginBottom: '4px' }}>
+                ОПИС / ДОДАТКОВІ ПРИМІТКИ
+              </label>
+              <textarea
+                rows={3}
+                placeholder="Додаткова інформація про деталь або виріб..."
+                value={editForm.description}
+                onChange={e => setEditForm(prev => ({ ...prev, description: e.target.value }))}
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  background: 'var(--input-bg, #ffffff)',
+                  border: '1px solid var(--border-color, #cbd5e1)',
+                  color: 'var(--text-main, #0f172a)',
+                  borderRadius: '8px',
+                  fontSize: '0.85rem',
+                  fontFamily: 'inherit',
+                  resize: 'vertical',
+                  boxSizing: 'border-box'
+                }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
+              <button
+                type="button"
+                onClick={() => setIsEditOpen(false)}
+                style={{
+                  padding: '10px 18px',
+                  borderRadius: '10px',
+                  border: '1px solid var(--border-color, #cbd5e1)',
+                  background: 'transparent',
+                  color: 'var(--text-muted, #64748b)',
+                  fontWeight: 800,
+                  fontSize: '0.85rem',
+                  cursor: 'pointer'
+                }}
+              >
+                Скасувати
+              </button>
+              <button
+                type="submit"
+                disabled={savingEdit}
+                style={{
+                  padding: '10px 22px',
+                  borderRadius: '10px',
+                  border: 'none',
+                  background: '#ff9000',
+                  color: '#ffffff',
+                  fontWeight: 900,
+                  fontSize: '0.85rem',
+                  cursor: savingEdit ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  boxShadow: '0 4px 14px rgba(255, 144, 0, 0.35)'
+                }}
+              >
+                {savingEdit ? <RefreshCw size={15} className="anim-spin" /> : <Save size={15} />}
+                <span>{savingEdit ? 'Збереження...' : 'Зберегти зміни'}</span>
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    )}
+    </>
   )
 }

@@ -104,6 +104,29 @@ const NomenclatureV2 = () => {
     return buildFlattenedGroupOptions(groups)
   }, [groups])
 
+  // Handle URL query parameters for deep linking (?search=... &card=...)
+  useEffect(() => {
+    try {
+      const urlParams = new URLSearchParams(window.location.search)
+      const q = urlParams.get('search')
+      if (q && !searchQuery) {
+        setSearchQuery(q)
+      }
+      const cardParam = urlParams.get('card')
+      if (cardParam && items && items.length > 0) {
+        const found = items.find(i => 
+          String(i.id) === String(cardParam) || 
+          String(i.code).toLowerCase() === String(cardParam).toLowerCase()
+        )
+        if (found) {
+          setSelectedCardItem(found)
+        }
+      }
+    } catch (e) {
+      console.warn('URL search params parse error:', e)
+    }
+  }, [items])
+
   // Dynamic Self-Learning Reference Dictionaries
   const [refDicts, setRefDicts] = useState(() => {
     const saved = localStorage.getItem('v2_erp_ref_dictionaries_v2')

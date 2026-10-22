@@ -14,7 +14,8 @@ import {
   ChevronDown, 
   AlertCircle,
   Cpu,
-  SlidersHorizontal
+  SlidersHorizontal,
+  ExternalLink
 } from 'lucide-react'
 import { useMES } from '../../../MESContext'
 import { 
@@ -29,6 +30,8 @@ import {
 import { BomRow } from './BomRow'
 import { NomCreateModal } from './NomCreateModal'
 import { generateNextV2Code } from '../../../utils/codeGenerator'
+import { NomenclatureCardModal } from '../../Nomenclature/components/NomenclatureCardModal/index.jsx'
+import { DEFAULT_ERP_GROUPS } from '../../Nomenclature/utils/nomenclatureHelpers'
 
 export function SpecBuilderTab() {
   const { nomenclatures: rawNoms, bomItems, supabase, refreshTable, machineOperations, machines, theme } = useMES()
@@ -124,6 +127,48 @@ export function SpecBuilderTab() {
   const [nomCreateConfig, setNomCreateConfig] = useState(null)
   const [showParentCreate, setShowParentCreate] = useState(false)
   const [dossierParentId, setDossierParentId] = useState(null)
+
+  // Nomenclature Card Modal State
+  const [selectedCardNom, setSelectedCardNom] = useState(null)
+  const [catalogGroups, setCatalogGroups] = useState(DEFAULT_ERP_GROUPS)
+
+  useEffect(() => {
+    const loadGroups = async () => {
+      try {
+        const { data } = await supabase.from('nomenclature_catalog_groups').select('*').order('sort_order')
+        if (data && data.length > 0) {
+          const merged = new Map()
+          DEFAULT_ERP_GROUPS.forEach(g => merged.set(g.id, g))
+          data.forEach(g => merged.set(g.id, g))
+          setCatalogGroups(Array.from(merged.values()))
+        }
+      } catch (e) {}
+    }
+    loadGroups()
+  }, [supabase])
+
+  const itemsMap = useMemo(() => {
+    const map = new Map()
+    nomenclatures.forEach(n => {
+      if (n && n.id) map.set(String(n.id), n)
+    })
+    return map
+  }, [nomenclatures])
+
+  const handleOpenCard = (nomOrId) => {
+    if (!nomOrId) return
+    if (typeof nomOrId === 'object' && nomOrId.id) {
+      setSelectedCardNom(nomOrId)
+      return
+    }
+    const idStr = String(nomOrId)
+    const found = nomenclatures.find(n => String(n.id) === idStr)
+    if (found) {
+      setSelectedCardNom(found)
+    } else {
+      setSelectedCardNom({ id: idStr, name: `ID: ${idStr}`, code: idStr })
+    }
+  }
   
   // State for inline operations manager
   const [activeInlinePart, setActiveInlinePart] = useState(null)
@@ -1088,7 +1133,25 @@ export function SpecBuilderTab() {
               <div className="dossier-a4-sheet" style={{ width: '100%', maxWidth: '800px', background: 'var(--card-bg, #ffffff)', border: '1px solid var(--border-color, #cbd5e1)', borderRadius: '8px', padding: '40px', boxSizing: 'border-box', boxShadow: '0 15px 35px rgba(0,0,0,0.08)', position: 'relative', color: 'var(--text-main, #0f172a)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid var(--border-color, #cbd5e1)', paddingBottom: '20px', marginBottom: '25px' }}>
                   <div>
-                    <h1 style={{ margin: 0, fontSize: '1.6rem', fontWeight: 900, color: 'var(--text-main, #0f172a)', letterSpacing: '-0.02em' }}>{dossierParent?.name}</h1>
+                    <h1 
+                      onClick={() => handleOpenCard(dossierParent)}
+                      title="Переглянути та редагувати картку виробу"
+                      style={{ 
+                        margin: 0, 
+                        fontSize: '1.6rem', 
+                        fontWeight: 900, 
+                        color: 'var(--text-main, #0f172a)', 
+                        letterSpacing: '-0.02em',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                      }}
+                      className="nom-clickable-name"
+                    >
+                      <span className="nom-text-link">{dossierParent?.name}</span>
+                      <ExternalLink size={16} className="no-print nom-link-icon" style={{ opacity: 0.5, flexShrink: 0 }} />
+                    </h1>
                     <p style={{ margin: '5px 0 0 0', fontSize: '0.8rem', color: 'var(--text-muted, #64748b)', fontWeight: 600 }}>СПЕЦИФІКАЦІЯ ВИРОБУ / BILL OF MATERIALS</p>
                   </div>
                   <div style={{ textAlign: 'right' }}>
@@ -1136,7 +1199,22 @@ export function SpecBuilderTab() {
                                 <tr key={b.child_id} style={{ borderBottom: '1px solid var(--border-color, #e2e8f0)' }}>
                                   <td style={{ padding: '8px 8px', color: 'var(--text-muted, #64748b)', fontWeight: 700 }}>{rowNum}</td>
                                   <td style={{ padding: '8px 8px', fontWeight: 700, color: 'var(--text-main, #0f172a)' }}>
-                                    <div>{child?.name || `(ID: ${b.child_id})`}</div>
+                                    <div
+                                      onClick={() => handleOpenCard(child || b.child_id)}
+                                      title={`Переглянути та редагувати картку: ${child?.name || b.child_id}`}
+                                      style={{
+                                        cursor: 'pointer',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '6px',
+                                        color: 'inherit',
+                                        transition: 'color 0.15s ease'
+                                      }}
+                                      className="nom-clickable-name"
+                                    >
+                                      <span className="nom-text-link">{child?.name || `(ID: ${b.child_id})`}</span>
+                                      <ExternalLink size={12} className="no-print nom-link-icon" style={{ opacity: 0.55, flexShrink: 0 }} />
+                                    </div>
                                     {child?.type === 'assembly' && subItems.length > 0 && (
                                       <div style={{ marginTop: '5px', paddingLeft: '15px', borderLeft: '2px solid rgba(139,92,246,0.3)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                         {subItems.map((sb) => {
@@ -1145,7 +1223,15 @@ export function SpecBuilderTab() {
                                           return (
                                             <div key={sb.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.7rem', color: 'var(--text-muted, #64748b)', flexWrap: 'wrap' }}>
                                               <span style={{ color: '#8b5cf6' }}>↳</span>
-                                              <span>{sbNom ? sbNom.name : 'Деталь'}</span>
+                                              <span
+                                                onClick={() => handleOpenCard(sbNom || sb.child_id)}
+                                                title={`Переглянути та редагувати картку: ${sbNom?.name || sb.child_id}`}
+                                                style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                                className="nom-clickable-name"
+                                              >
+                                                <span className="nom-text-link">{sbNom ? sbNom.name : 'Деталь'}</span>
+                                                <ExternalLink size={10} className="no-print nom-link-icon" style={{ opacity: 0.55, flexShrink: 0 }} />
+                                              </span>
                                               <span style={{ fontWeight: 800, color: 'var(--text-main, #0f172a)' }}>x{sb.quantity_per_parent * b.quantity_per_parent}</span>
                                               {sbOps.length > 0 ? (
                                                 <div style={{ display: 'inline-flex', flexWrap: 'wrap', gap: '3px', alignItems: 'center' }}>
@@ -1368,9 +1454,25 @@ export function SpecBuilderTab() {
               </div>
 
               <style dangerouslySetInnerHTML={{ __html: `
+                .nom-clickable-name {
+                  transition: all 0.15s ease;
+                }
+                .nom-clickable-name:hover .nom-text-link {
+                  color: #2563eb !important;
+                  text-decoration: underline;
+                  text-underline-offset: 3px;
+                }
+                .nom-clickable-name:hover .nom-link-icon {
+                  opacity: 1 !important;
+                  color: #2563eb !important;
+                  transform: translateY(-1px);
+                }
                 @media print {
                   body { background: #fff !important; color: #000 !important; }
                   .no-print { display: none !important; }
+                  .nom-clickable-name { cursor: default !important; color: #000 !important; text-decoration: none !important; }
+                  .nom-text-link { color: #000 !important; text-decoration: none !important; }
+                  .nom-link-icon { display: none !important; }
                   .dossier-print-container { width: 100% !important; align-items: start !important; }
                   .dossier-a4-sheet { border: none !important; box-shadow: none !important; padding: 0 !important; width: 100% !important; background: #fff !important; color: #000 !important; }
                   .dossier-a4-sheet h1, .dossier-a4-sheet h4, .dossier-a4-sheet table, .dossier-a4-sheet td, .dossier-a4-sheet th { color: #000 !important; }
@@ -1667,6 +1769,20 @@ export function SpecBuilderTab() {
             )
           })()}
         </div>
+      )}
+      {selectedCardNom && (
+        <NomenclatureCardModal
+          isOpen={!!selectedCardNom}
+          onClose={() => setSelectedCardNom(null)}
+          item={selectedCardNom}
+          groups={catalogGroups}
+          itemsMap={itemsMap}
+          onItemUpdated={(updated) => {
+            setSelectedCardNom(updated)
+            refreshTable('bom_items')
+            refreshTable('nomenclatures')
+          }}
+        />
       )}
       <style dangerouslySetInnerHTML={{ __html: '.anim-spin { animation: spin 1s linear infinite; } @keyframes spin { from{transform:rotate(0deg);} to{transform:rotate(360deg);} }' }} />
     </div>

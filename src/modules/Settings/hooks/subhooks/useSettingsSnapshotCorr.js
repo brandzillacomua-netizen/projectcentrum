@@ -94,6 +94,27 @@ export function useSettingsSnapshotCorr({ supabase, refreshTable }) {
     }
   }
 
+  const handlePartNeedChange = (nomId, val) => {
+    const newNeed = Math.max(0, parseInt(val) || 0)
+    setCorrSnapshotParts(prev => prev.map(p => {
+      if (p.nomenclature_id === nomId) {
+        const newPlan = Math.max(0, newNeed - (p.stock || 0))
+        const unitsPerSheet = p.units_per_sheet || 1
+        const newSheets = Math.ceil(newPlan / unitsPerSheet)
+        const isT700 = (p.material || p.name || '').toLowerCase().includes('т700') || (p.material || p.name || '').toLowerCase().includes('t700')
+        return {
+          ...p,
+          need: newNeed,
+          plan: newPlan,
+          sheets: newSheets,
+          sheets_t300: isT700 ? 0 : newSheets,
+          sheets_t700: isT700 ? newSheets : 0
+        }
+      }
+      return p
+    }))
+  }
+
   const handlePartStockChange = (nomId, val) => {
     const newStock = Math.max(0, parseInt(val) || 0)
     setCorrSnapshotParts(prev => prev.map(p => {
@@ -448,6 +469,7 @@ export function useSettingsSnapshotCorr({ supabase, refreshTable }) {
     setCorrSearchLoading,
     handleSearchTasks,
     handleSelectTask,
+    handlePartNeedChange,
     handlePartStockChange,
     handlePartSheetsChange,
     handleSaveCorrection

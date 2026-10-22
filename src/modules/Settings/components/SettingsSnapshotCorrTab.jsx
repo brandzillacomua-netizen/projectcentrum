@@ -12,6 +12,7 @@ export function SettingsSnapshotCorrTab(props) {
     setCorrSelectedTask,
     handleSelectTask,
     corrSnapshotParts,
+    handlePartNeedChange,
     handlePartStockChange,
     handlePartSheetsChange,
     handleSaveCorrection,
@@ -141,7 +142,7 @@ export function SettingsSnapshotCorrTab(props) {
                 <tr style={{ background: 'var(--fill-subtle)', borderBottom: '1px solid var(--border-subtle)', color: '#666' }}>
                   <th style={{ padding: '12px 16px' }}>Деталь / Код</th>
                   <th style={{ padding: '12px 16px' }}>Матеріал</th>
-                  <th style={{ padding: '12px 16px', textAlign: 'center' }}>Потреба</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'center', color: '#10b981' }}>Потреба</th>
                   <th style={{ padding: '12px 16px', textAlign: 'center', color: '#ff9000' }}>Взято з БЗ (Запас)</th>
                   <th style={{ padding: '12px 16px', textAlign: 'center' }}>План до виготовлення</th>
                   <th style={{ padding: '12px 16px', textAlign: 'center' }}>В листі (шт)</th>
@@ -156,7 +157,24 @@ export function SettingsSnapshotCorrTab(props) {
                       <div style={{ fontSize: '0.68rem', color: '#444', marginTop: '2px' }}>{p.code}</div>
                     </td>
                     <td style={{ padding: '12px 16px', color: 'var(--text-muted)' }}>{p.material}</td>
-                    <td style={{ padding: '12px 16px', textAlign: 'center', fontWeight: 700 }}>{p.need}</td>
+                    <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                      <input
+                        type="number"
+                        value={p.need}
+                        onChange={e => handlePartNeedChange(p.nomenclature_id, e.target.value)}
+                        style={{
+                          background: 'var(--surface-black)',
+                          border: '1px solid var(--border-subtle)',
+                          borderRadius: '8px',
+                          color: '#10b981',
+                          padding: '6px 10px',
+                          width: '90px',
+                          textAlign: 'center',
+                          fontWeight: 800,
+                          fontSize: '0.85rem'
+                        }}
+                      />
+                    </td>
                     <td style={{ padding: '12px 16px', textAlign: 'center' }}>
                       <input
                         type="number"
