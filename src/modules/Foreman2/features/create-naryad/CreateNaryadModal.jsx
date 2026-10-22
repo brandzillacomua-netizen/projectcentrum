@@ -240,6 +240,12 @@ export default function CreateNaryadModal({
       return
     }
 
+    const hasUnallocatedSheets = orderDetailsBreakdown.some(row => row.totalSheets > 0 && (row.sheetsT300 + row.sheetsT700) !== row.totalSheets)
+    if (hasUnallocatedSheets) {
+      alert('Будь ласка, розподіліть всі листи (Т300 / Т700) перед створенням наряду.')
+      return
+    }
+
     setIsSubmitting(true)
     try {
       const taskMachineName = 'Різні верстати'

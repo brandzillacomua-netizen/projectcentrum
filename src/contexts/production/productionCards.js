@@ -1065,6 +1065,10 @@ export function createProductionCardsActions({
                           matKeyBase.toLowerCase().includes('карбон') ||
                           matKeyBase.toLowerCase().includes('carbon');
 
+          if (isSheet && sheets > 0 && (sheets_t300 + sheets_t700) !== sheets) {
+            throw new Error(`Для деталі "${part.nom.name}" не розподілено листи (потрібно ${sheets} л., вказано ${sheets_t300 + sheets_t700} л.). Будь ласка, розподіліть листи між Т300 та Т700 перед створенням наряду.`)
+          }
+
           if (isSheet) {
             const addMaterialToSummary = (typePrefix, qty) => {
               const matKeyBase = (part.nom.material_type || part.nom.name || 'Інше').trim()

@@ -607,7 +607,7 @@ export function MasterNaryadModal({
                               style={{
                                 width: '55px',
                                 background: '#111',
-                                border: '1px solid #333',
+                                border: (sheets > 0 && totalSplitsSheets !== sheets) ? '2px solid #ef4444' : '1px solid #333',
                                 color: '#22c55e',
                                 padding: '5px 2px',
                                 borderRadius: '5px',
@@ -631,7 +631,7 @@ export function MasterNaryadModal({
                               style={{
                                 width: '55px',
                                 background: '#111',
-                                border: '1px solid #333',
+                                border: (sheets > 0 && totalSplitsSheets !== sheets) ? '2px solid #ef4444' : '1px solid #333',
                                 color: '#0ea5e9',
                                 padding: '5px 2px',
                                 borderRadius: '5px',

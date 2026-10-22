@@ -626,6 +626,11 @@ export function useMasterState() {
   const handlePrint = async () => {
     if (!activeNaryadOrder || isSubmitting) return
 
+    if (!activeNaryadOrder.isPrepOrder && !isReprintMode && !isSheetDistributionComplete) {
+      alert('Будь ласка, розподіліть всі листи (Т300 / Т700) перед створенням наряду.')
+      return
+    }
+
     const oldTitle = document.title;
     const batchSuffix = getBatchSuffix();
     const dateStr = new Date().toLocaleDateString('uk-UA').replace(/\//g, '.');
@@ -974,18 +979,24 @@ export function useMasterState() {
 
         if (totalToProduce <= 0) continue
 
+        const matKeyBase = (part.nom?.material_type || part.nom?.rule_params?.rawSheet || part.nom?.rule_params?.material || part.nom?.name || '').toLowerCase()
+        const isSheet = matKeyBase.includes('лист') ||
+                        matKeyBase.includes('sheet') ||
+                        matKeyBase.includes('карбон') ||
+                        matKeyBase.includes('carbon') ||
+                        (part.nom?.units_per_sheet && Number(part.nom?.units_per_sheet) > 0)
+
+        if (!isSheet) continue
+
         const unitsPerSheet = Number(part.nom?.units_per_sheet) || 1
         const sheetsNeeded = Math.ceil(totalToProduce / unitsPerSheet)
-
-        const isDefaultT700 = (part.nom?.material_type || part.nom?.name || '').toLowerCase().includes('т700') || (part.nom?.material_type || part.nom?.name || '').toLowerCase().includes('t700')
-        const defaultT300 = isDefaultT700 ? 0 : (totalToProduce > 0 ? sheetsNeeded : 0)
-        const defaultT700 = isDefaultT700 ? (totalToProduce > 0 ? sheetsNeeded : 0) : 0
+        if (sheetsNeeded <= 0) continue
 
         const splits = materialSplits[part.nom?.id] || {}
-        const t300 = splits.t300 !== undefined ? Number(splits.t300) : defaultT300
-        const t700 = splits.t700 !== undefined ? Number(splits.t700) : defaultT700
+        const t300 = splits.t300 !== undefined && splits.t300 !== '' ? Number(splits.t300) : 0
+        const t700 = splits.t700 !== undefined && splits.t700 !== '' ? Number(splits.t700) : 0
 
-        if ((t300 + t700) !== sheetsNeeded) {
+        if ((t300 + t700) !== sheetsNeeded || (t300 === 0 && t700 === 0)) {
           return false
         }
       }
