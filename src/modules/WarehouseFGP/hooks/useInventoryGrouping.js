@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { resolveCanonicalNomId } from '../../Nomenclature/utils/nomenclatureHelpers.js'
-import { isHardware, isSgpStockRow, normalizeKey } from '../warehouseFgpInventory.js'
+import { isHardware, isSgpStockRow, isSemiStockRow, isFinishedStockRow, normalizeKey } from '../warehouseFgpInventory.js'
 
 export function useInventoryGrouping({
   inventory,
@@ -20,12 +20,15 @@ export function useInventoryGrouping({
       if (activeTab === 'hardware') {
         return isHardware(item)
       }
+      if (activeTab === 'semi') {
+        return isSemiStockRow(item)
+      }
       if (activeTab === 'finished') {
         // Exclude empty non-sgp operational/buffer ghost rows
         if (item.warehouse !== 'sgp' && (Number(item.total_qty) || 0) <= 0 && (Number(item.reserved_qty) || 0) <= 0) {
           return false
         }
-        return isSgpStockRow(item)
+        return isFinishedStockRow(item)
       }
       if (activeTab === 'scrap') {
         return !isHardware(item) && (type === 'scrap' || type === 'scrap_ready' || type.startsWith('scrap_cat_') || (type !== 'finished' && (nameLower.includes('брак') || nameLower.includes('карантин'))))
@@ -77,13 +80,15 @@ export function useInventoryGrouping({
 
   // Compute accurate tab counts
   const tabCounts = useMemo(() => {
-    const counts = { finished: 0, hardware: 0, shop2_buffer: 0, scrap: 0, registry: 0 }
+    const counts = { finished: 0, semi: 0, hardware: 0, shop2_buffer: 0, scrap: 0, registry: 0 }
     ;(inventory || []).forEach(item => {
       const type = item.type || ''
       const q = Number(item.total_qty) || 0
       if (isHardware(item)) {
         counts.hardware += q
-      } else if (isSgpStockRow(item)) {
+      } else if (isSemiStockRow(item)) {
+        counts.semi += q
+      } else if (isFinishedStockRow(item)) {
         counts.finished += q
       } else if (type === 'scrap' || type === 'scrap_ready' || type.startsWith('scrap_cat_')) {
         counts.scrap += q

@@ -1152,7 +1152,8 @@ export function useShop1Actions({
             total_qty: actualNeed,
             reserved_qty: 0,
             type: 'semi_shop2',
-            unit: nom?.unit || 'шт'
+            unit: nom?.unit || 'шт',
+            warehouse: 'sgp'
           })
         }
       }
@@ -1169,7 +1170,8 @@ export function useShop1Actions({
             total_qty: actualBz,
             reserved_qty: 0,
             type: 'bz_shop2',
-            unit: nom?.unit || 'шт'
+            unit: nom?.unit || 'шт',
+            warehouse: 'sgp'
           })
         }
       }

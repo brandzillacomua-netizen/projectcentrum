@@ -829,7 +829,7 @@ export function createProductionCardsActions({
       if (nom && qtyCompleted > 0) {
         const { data: bzItem } = await supabase.from('inventory').select('*').eq('nomenclature_id', nom.id).eq('type', 'bz').limit(1).maybeSingle()
         if (bzItem) await supabase.from('inventory').update({ total_qty: (Number(bzItem.total_qty) || 0) + qtyCompleted }).eq('id', bzItem.id)
-        else await supabase.from('inventory').insert([{ nomenclature_id: nom.id, name: nom.name, unit: nom.unit || 'шт', total_qty: qtyCompleted, reserved_qty: 0, type: 'bz', pocket_owner: null }])
+        else await supabase.from('inventory').insert([{ nomenclature_id: nom.id, name: nom.name, unit: nom.unit || 'шт', total_qty: qtyCompleted, reserved_qty: 0, type: 'bz', pocket_owner: null, warehouse: 'sgp' }])
       }
     } else if (!isShop2) {
       const nom = nomenclatures.find(n => n.id === card.nomenclature_id)
@@ -873,7 +873,7 @@ export function createProductionCardsActions({
             if (match) {
               updates.push({ ...match, total_qty: (Number(match.total_qty) || 0) + netQtyForOrder })
             } else {
-              inserts.push({ nomenclature_id: nom.id, name: nom.name, unit: nom.unit || 'шт', total_qty: netQtyForOrder, reserved_qty: 0, type: 'semi' })
+              inserts.push({ nomenclature_id: nom.id, name: nom.name, unit: nom.unit || 'шт', total_qty: netQtyForOrder, reserved_qty: 0, type: 'semi', warehouse: 'sgp' })
             }
           }
           if (actualBuffer > 0) {
@@ -881,7 +881,7 @@ export function createProductionCardsActions({
             if (match) {
               updates.push({ ...match, total_qty: (Number(match.total_qty) || 0) + actualBuffer })
             } else {
-              inserts.push({ nomenclature_id: nom.id, name: nom.name, unit: nom.unit || 'шт', total_qty: actualBuffer, reserved_qty: 0, type: 'wip_bz' })
+              inserts.push({ nomenclature_id: nom.id, name: nom.name, unit: nom.unit || 'шт', total_qty: actualBuffer, reserved_qty: 0, type: 'wip_bz', warehouse: 'sgp' })
             }
           }
 

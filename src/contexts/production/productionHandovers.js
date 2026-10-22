@@ -90,7 +90,7 @@ export function createProductionHandoversActions({
           await supabase.from('inventory').update({ total_qty: (Number(s2Semi.total_qty) || 0) - take }).eq('id', s2Semi.id)
           const s1Semi = currentInventory.find(i => String(i.nomenclature_id) === String(nomId) && i.type === 'semi')
           if (s1Semi) await supabase.from('inventory').update({ total_qty: (Number(s1Semi.total_qty) || 0) + take }).eq('id', s1Semi.id)
-          else await supabase.from('inventory').insert([{ nomenclature_id: nomId, name: nom?.name || 'Деталь', total_qty: take, reserved_qty: 0, type: 'semi', unit: nom?.unit || 'шт' }])
+          else await supabase.from('inventory').insert([{ nomenclature_id: nomId, name: nom?.name || 'Деталь', total_qty: take, reserved_qty: 0, type: 'semi', unit: nom?.unit || 'шт', warehouse: 'sgp' }])
         }
         const s2Bz = currentInventory.find(i => String(i.nomenclature_id) === String(nomId) && i.type === 'bz_shop2')
         if (s2Bz && moveBackBz > 0) {
@@ -98,7 +98,7 @@ export function createProductionHandoversActions({
           await supabase.from('inventory').update({ total_qty: (Number(s2Bz.total_qty) || 0) - take }).eq('id', s2Bz.id)
           const s1WipBz = currentInventory.find(i => String(i.nomenclature_id) === String(nomId) && i.type === 'wip_bz')
           if (s1WipBz) await supabase.from('inventory').update({ total_qty: (Number(s1WipBz.total_qty) || 0) + take }).eq('id', s1WipBz.id)
-          else await supabase.from('inventory').insert([{ nomenclature_id: nomId, name: nom?.name || 'Деталь', total_qty: take, reserved_qty: 0, type: 'wip_bz', unit: nom?.unit || 'шт' }])
+          else await supabase.from('inventory').insert([{ nomenclature_id: nomId, name: nom?.name || 'Деталь', total_qty: take, reserved_qty: 0, type: 'wip_bz', unit: nom?.unit || 'шт', warehouse: 'sgp' }])
         }
       }
       if (shop2Task) await supabase.from('tasks').delete().eq('id', shop2Task.id)
@@ -124,7 +124,7 @@ export function createProductionHandoversActions({
         if (totalToMove > 0) {
           const { data: bzItem } = await supabase.from('inventory').select('*').eq('nomenclature_id', nomId).eq('type', 'bz').limit(1).maybeSingle()
           if (bzItem) await supabase.from('inventory').update({ total_qty: (Number(bzItem.total_qty) || 0) + totalToMove }).eq('id', bzItem.id)
-          else { const nom = nomenclatures.find(n => n.id === nomId); await supabase.from('inventory').insert([{ nomenclature_id: nomId, name: nom?.name || 'BZ Item', unit: nom?.unit || 'шт', total_qty: totalToMove, reserved_qty: 0, type: 'bz', pocket_owner: null }]) }
+          else { const nom = nomenclatures.find(n => n.id === nomId); await supabase.from('inventory').insert([{ nomenclature_id: nomId, name: nom?.name || 'BZ Item', unit: nom?.unit || 'шт', total_qty: totalToMove, reserved_qty: 0, type: 'bz', pocket_owner: null, warehouse: 'sgp' }]) }
           for (const s of shop2Stock) { if (s.type === 'bz_shop2') await supabase.from('inventory').update({ total_qty: 0 }).eq('id', s.id); else await supabase.from('inventory').delete().eq('id', s.id) }
         }
         
@@ -162,7 +162,8 @@ export function createProductionHandoversActions({
                   total_qty: leftover,
                   reserved_qty: 0,
                   type: 'bz',
-                  pocket_owner: null
+                  pocket_owner: null,
+                  warehouse: 'sgp'
                 }])
               }
             }
@@ -264,12 +265,12 @@ export function createProductionHandoversActions({
       if (finishedQty > 0) {
         const { data: finishedItem } = await supabase.from('inventory').select('*').in('nomenclature_id', allNomIds).eq('type', 'finished').limit(1).maybeSingle()
         if (finishedItem) inventoryUpdates.push({ ...finishedItem, nomenclature_id: canonicalNomId, total_qty: (Number(finishedItem.total_qty) || 0) + finishedQty })
-        else await supabase.from('inventory').insert([{ nomenclature_id: canonicalNomId, name: nom.name, unit: nom.unit || 'шт', total_qty: finishedQty, reserved_qty: 0, type: 'finished' }])
+        else await supabase.from('inventory').insert([{ nomenclature_id: canonicalNomId, name: nom.name, unit: nom.unit || 'шт', total_qty: finishedQty, reserved_qty: 0, type: 'finished', warehouse: 'sgp' }])
       }
       if (actualBzQty > 0) {
         const { data: bzItem } = await supabase.from('inventory').select('*').in('nomenclature_id', allNomIds).eq('type', 'bz').limit(1).maybeSingle()
         if (bzItem) inventoryUpdates.push({ ...bzItem, nomenclature_id: canonicalNomId, total_qty: (Number(bzItem.total_qty) || 0) + actualBzQty })
-        else await supabase.from('inventory').insert([{ nomenclature_id: canonicalNomId, name: nom.name, unit: nom.unit || 'шт', total_qty: actualBzQty, reserved_qty: 0, type: 'bz', pocket_owner: null }])
+        else await supabase.from('inventory').insert([{ nomenclature_id: canonicalNomId, name: nom.name, unit: nom.unit || 'шт', total_qty: actualBzQty, reserved_qty: 0, type: 'bz', pocket_owner: null, warehouse: 'sgp' }])
       }
       if (inventoryUpdates.length > 0) await supabase.from('inventory').upsert(inventoryUpdates)
       await supabase.from('work_card_history').insert([{ card_id: card.id, nomenclature_id: canonicalNomId, stage_name: 'Пакування/СГП', operator_name: 'Система (ПРЯМА ПЕРЕДАЧА)', qty_at_start: totalQty, qty_completed: totalQty, scrap_qty: 0, completed_at: new Date().toISOString() }])
@@ -313,7 +314,8 @@ export function createProductionHandoversActions({
           total_qty: qty,
           reserved_qty: 0,
           type: 'finished',
-          unit: nom?.unit || bz.unit || 'шт'
+          unit: nom?.unit || bz.unit || 'шт',
+          warehouse: 'sgp'
         }])
       }
 

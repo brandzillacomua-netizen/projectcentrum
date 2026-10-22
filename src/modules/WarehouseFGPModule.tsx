@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   History,
   Wrench,
+  Boxes,
   FileSpreadsheet
 } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
@@ -53,8 +54,7 @@ export const WarehouseFGPModule: React.FC = () => {
   const [requestSearchQuery, setRequestSearchQuery] = useState('')
   const [activeTab, setActiveTab] = useState<string>(() => {
     const tabParam = searchParams.get('tab')
-    if (tabParam === 'bz') return 'finished'
-    if (tabParam === 'semi') return 'shop2_buffer'
+    if (tabParam === 'bz') return 'semi'
     return tabParam || 'finished'
   })
   const [searchQuery, setSearchQuery] = useState('')
@@ -69,6 +69,7 @@ export const WarehouseFGPModule: React.FC = () => {
 
   const tabs = [
     { id: 'finished', label: 'Готова продукція', icon: <Archive size={18} /> },
+    { id: 'semi', label: 'Напівфабрикати', icon: <Boxes size={18} /> },
     { id: 'hardware', label: 'Метизи & Комплектуючі', icon: <Wrench size={18} /> },
     { id: 'shop2_buffer', label: 'Склад буфер Цеху 2', icon: <Layers size={18} /> },
     { id: 'scrap', label: 'Брак & Карантин', icon: <AlertTriangle size={18} /> },

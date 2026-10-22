@@ -207,16 +207,31 @@ export function useSupplyData({ isProcurementOnly = false } = {}) {
   }, [receptionDocs, isProcurementOnly])
   
   const availableNoms = useMemo(() => {
-    return (nomenclatures || []).filter(n => n.type !== 'part' && n.type !== 'product' && n.type !== 'finished')
+    return (nomenclatures || []).filter(n =>
+      n.type !== 'part' &&
+      n.type !== 'product' &&
+      n.type !== 'finished' &&
+      n.type !== 'semi' &&
+      n.type !== 'semi_shop1' &&
+      n.type !== 'semi_shop2' &&
+      n.type !== 'bz' &&
+      n.type !== 'bz_shop2' &&
+      n.type !== 'wip_bz'
+    )
   }, [nomenclatures])
 
   const stockRows = useMemo(() => {
     const targetWh = isProcurementOnly ? 'procurement' : 'production'
     const isSheet = item => /^лист(?:\s|$)/i.test(String(item?.name || '').trim())
     const isPlate = item => String(item?.name || '').toLowerCase().includes('карбонова пластина')
+    const isPartOrSemi = item => {
+      const t = String(item?.type || '').toLowerCase()
+      return t === 'finished' || t === 'product' || t === 'part' ||
+             t === 'semi' || t === 'semi_shop1' || t === 'semi_shop2' ||
+             t === 'bz' || t === 'bz_shop2' || t === 'wip_bz'
+    }
     const warehouseRows = (inventory || []).filter(item =>
-      item.type !== 'finished'
-      && item.type !== 'product'
+      !isPartOrSemi(item)
       && item.warehouse === targetWh
       && (isProcurementOnly || !isSheet(item))
     )
