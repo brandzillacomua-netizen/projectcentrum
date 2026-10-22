@@ -160,10 +160,11 @@ export function useBrakData() {
         setClassificationOperatorOptions(candidates)
         setClassificationResponsibleOperator(prev => {
           if (prev && candidates.some(c => c.name === prev)) return prev
-          return candidates.length === 1 ? candidates[0].name : ''
+          if (candidates.length === 1) return candidates[0].name
+          return ''
         })
         if (candidates.length === 0) {
-          setClassificationOperatorsError('В історії картки не знайдено жодного персонального оператора Цеху №1 від розкрою до сортування.')
+          setClassificationOperatorsError('В історії картки не знайдено виконавців виробничих етапів (розкрій, галтовка, сортування тощо).')
         }
       } catch (error) {
         if (cancelled) return
@@ -1321,13 +1322,11 @@ export function useBrakData() {
       return
     }
     if (!classificationResponsibleOperator) {
-      alert(classificationOperatorOptions.length > 1
-        ? 'Оберіть оператора, відповідального за цей брак.'
-        : 'Не знайдено персонального оператора Цеху №1. Класифікацію не збережено.')
+      alert('Оберіть оператора, відповідального за цей брак.')
       return
     }
     if (!classificationOperatorOptions.some(candidate => candidate.name === classificationResponsibleOperator)) {
-      alert('Обраний оператор відсутній в історії цієї картки. Оновіть форму та повторіть вибір.')
+      alert('Обраний виконавець відсутній серед учасників цієї картки. Оновіть форму та повторіть вибір.')
       return
     }
     if (totalDistributed > Number(selectedItem.total_qty)) {

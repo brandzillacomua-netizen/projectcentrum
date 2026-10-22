@@ -21,8 +21,16 @@ export const matchesOperator = (opName, filterVal) => {
   const oParts = oClean.split(' ')
   const fParts = fClean.split(' ')
 
-  const match1 = fParts.every(p => oParts.includes(p) || oParts.some(op => op.includes(p) || p.includes(op)))
-  const match2 = oParts.every(p => fParts.includes(p) || fParts.some(fp => fp.includes(p) || p.includes(fp)))
+  const matchToken = (p1, p2) => {
+    if (p1 === p2 || p1.includes(p2) || p2.includes(p1)) return true
+    if (p1.startsWith('галт') && p2.startsWith('галт')) return true
+    if (p1.startsWith('маляр') && p2.startsWith('фарб')) return true
+    if (p1.startsWith('фарб') && p2.startsWith('маляр')) return true
+    return false
+  }
+
+  const match1 = fParts.every(p => oParts.some(op => matchToken(p, op)))
+  const match2 = oParts.every(p => fParts.some(fp => matchToken(p, fp)))
 
   return match1 || match2
 }
@@ -31,12 +39,55 @@ const userCache = new Map()
 const entityExcludedCache = new Map()
 
 /**
+ * Finds the corresponding Galtovshchik user from systemUsers based on shift name.
+ */
+export function findGaltovshchikForShift(shiftName, systemUsers = []) {
+  if (!systemUsers?.length) return null
+  const cleanShift = String(shiftName || '').toLowerCase().trim()
+  const shiftMatch = cleanShift.match(/(\d+)/)
+  const shiftNum = shiftMatch ? shiftMatch[1] : null
+
+  return systemUsers.find(u => {
+    const log = String(u.login || '').toLowerCase().trim()
+    const sh = String(u.shift || '').toLowerCase().trim()
+    const pos = String(u.position || '').toLowerCase().trim()
+    const isGalt = pos.includes('галт') || log.includes('galt')
+    if (!isGalt || log.includes('tv') || log.includes('дашборд')) return false
+
+    if (shiftNum && (log === `galt.zm${shiftNum}` || sh.includes(shiftNum))) {
+      return true
+    }
+    if (cleanShift && sh === cleanShift) {
+      return true
+    }
+    return false
+  }) || null
+}
+
+/**
  * Robust matcher to find an employee profile in systemUsers.
  */
 export function findSystemUser(operatorName, systemUsers = []) {
   if (!operatorName || !systemUsers?.length) return null
   const clean = String(operatorName).toLowerCase().replace(/\s+/g, ' ').trim()
   if (userCache.has(clean)) return userCache.get(clean)
+
+  // 0. Handle Galtovka shift accounts: "Галтовка Зміна 1..4" -> "galt.zm1..4"
+  if (clean.includes('галт') && clean.includes('змін')) {
+    const shiftMatch = clean.match(/змін[а-я]*\s*(\d+)/i)
+    if (shiftMatch && shiftMatch[1]) {
+      const shiftNum = shiftMatch[1]
+      const galtUser = systemUsers.find(u => {
+        const log = String(u.login || '').toLowerCase().trim()
+        const sh = String(u.shift || '').toLowerCase().trim()
+        return log === `galt.zm${shiftNum}` || (sh.includes(shiftNum) && (String(u.position || '').toLowerCase().includes('галт') || log.includes('galt')))
+      })
+      if (galtUser) {
+        userCache.set(clean, galtUser)
+        return galtUser
+      }
+    }
+  }
 
   // 1. Direct login match
   let user = systemUsers.find(u => String(u.login || '').toLowerCase().trim() === clean)
@@ -291,7 +342,9 @@ function inferTeamProfile(operatorName) {
   const clean = String(operatorName || '').toLowerCase()
 
   if (clean.includes('галтовк')) {
-    return { department: 'Цех №1 (Галтовка)', position: 'Бригада галтовки' }
+    const shiftMatch = clean.match(/змін[а-я]*\s*(\d+)/i)
+    const shiftText = shiftMatch ? `Зміна ${shiftMatch[1]}` : ''
+    return { department: 'Цех №1', position: shiftText ? `Галтовщик (${shiftText})` : 'Галтовщик' }
   }
   if (clean.includes('пресув')) {
     return { department: 'Цех №2', position: 'Пресування' }
@@ -373,7 +426,13 @@ export function resolveResponsibleOperator(item, cardOperatorsMap = new Map(), w
     return 'Фарбувальник Зміна 1'
   }
   if (stage.includes('галтовк')) {
-    return 'Команда галтовки'
+    const shift = item.shift_name || null
+    const galtUser = findGaltovshchikForShift(shift, systemUsers)
+    if (galtUser) {
+      return galtUser.login === 'galt.zm3' ? 'Галтовка Зміна 3' : [galtUser.last_name, galtUser.first_name].filter(Boolean).join(' ') || galtUser.login
+    }
+    if (shift && shift !== 'Без зміни') return `Галтовка ${shift}`
+    return 'Галтовка Зміна 1'
   }
 
   return 'Команда'
@@ -523,7 +582,13 @@ export function useEmployeeReport({
 
         lastProductionOp = op
         if (hStage.includes('розкрій')) cuttingOp = op
-        else if (hStage.includes('галтовк')) tumblingOp = op
+        else if (hStage.includes('галтовк') || op.toLowerCase().includes('галтовк')) {
+          const shift = h.shift_name || null
+          const galtUser = findGaltovshchikForShift(shift, systemUsers)
+          tumblingOp = galtUser
+            ? (galtUser.login === 'galt.zm3' ? 'Галтовка Зміна 3' : [galtUser.last_name, galtUser.first_name].filter(Boolean).join(' ') || galtUser.login)
+            : (shift && shift !== 'Без зміни' ? `Галтовка ${shift}` : op)
+        }
         else if (hStage.includes('прес') || hStage.includes('кондуктор')) pressingOp = op
         else if (hStage.includes('фарбув') || hStage.includes('маляр')) paintingOp = op
       }
@@ -556,12 +621,19 @@ export function useEmployeeReport({
           const fn = String(user.first_name || '').trim()
           const ln = String(user.last_name || '').trim()
           name = [ln, fn].filter(Boolean).join(' ') || user.login
+          if (user.login === 'galt.zm3' || (user.shift === 'Зміна 3' && ln.toLowerCase().includes('галт'))) {
+            name = 'Галтовка Зміна 3'
+          }
           position = user.position || 'Оператор'
           department = user.department || 'Виробництво'
         } else {
           const inferred = inferTeamProfile(cleanName)
           department = inferred.department
           position = inferred.position
+          const shiftMatch = cleanName.match(/змін[а-я]*\s*(\d+)/i)
+          if (shiftMatch) {
+            shift = `Зміна ${shiftMatch[1]}`
+          }
         }
 
         stats.set(key, {
@@ -600,7 +672,20 @@ export function useEmployeeReport({
       if (selectedShiftFilter !== 'all' && h.shift_name !== selectedShiftFilter) return
 
       const isTechStage = isTechnicalHistoryStage(h.stage_name)
-      const rawOp = h.operator_name || 'Невідомий'
+      let rawOp = h.operator_name || 'Невідомий'
+      const hStage = String(h.stage_name || '').toLowerCase().trim()
+      const isGaltovkaOperation = hStage.includes('галт') || String(rawOp).toLowerCase().includes('галтовк')
+
+      if (isGaltovkaOperation) {
+        const opShift = h.shift_name || workCardsMap.get(String(h.card_id))?.shift_name || null
+        const galtUser = findGaltovshchikForShift(opShift, systemUsers)
+        if (galtUser) {
+          rawOp = galtUser.login === 'galt.zm3' ? 'Галтовка Зміна 3' : [galtUser.last_name, galtUser.first_name].filter(Boolean).join(' ') || galtUser.login
+        } else if (opShift && opShift !== 'Без зміни') {
+          rawOp = `Галтовка ${opShift}`
+        }
+      }
+
       const user = findSystemUser(rawOp, systemUsers)
       const isNonProd = isNonProductionEntity(rawOp, user, systemUsers)
 
@@ -771,6 +856,14 @@ export function useEmployeeReport({
       const user = findSystemUser(sourceOperator, systemUsers)
       if (!sourceOperator || isNonProductionEntity(sourceOperator, user, systemUsers)) {
         targetOperator = resolveResponsibleOperator(c, cardOperatorsMap, workCardsMap, systemUsers)
+      } else if (String(targetOperator).toLowerCase().includes('галтовк')) {
+        const shift = sourceHistory?.shift_name || null
+        const galtUser = findGaltovshchikForShift(shift, systemUsers)
+        if (galtUser) {
+          targetOperator = galtUser.login === 'galt.zm3' ? 'Галтовка Зміна 3' : [galtUser.last_name, galtUser.first_name].filter(Boolean).join(' ') || galtUser.login
+        } else if (shift && shift !== 'Без зміни') {
+          targetOperator = `Галтовка ${shift}`
+        }
       }
 
       const empStat = getOrCreateStat(targetOperator)

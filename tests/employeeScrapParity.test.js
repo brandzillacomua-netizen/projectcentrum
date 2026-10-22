@@ -211,6 +211,69 @@ describe('useEmployeeReport productionSummary calculation', () => {
     expect(productionSummary.operationalProduced).toBe(1200)
     expect(productionSummary.totalOperations).toBe(5)
   })
+
+  it('attributes Galtovka operations by shift to the respective Galtovshchik user accounts instead of generic Команда галтовки', async () => {
+    const { renderToString } = await import('react-dom/server')
+    const React = await import('react')
+    const { useEmployeeReport } = await import('../src/modules/reports/hooks/useEmployeeReport.js')
+
+    let capturedResult = null
+
+    function TestComponent() {
+      capturedResult = useEmployeeReport({
+        systemUsers: [
+          { id: 101, login: 'galt.zm1', first_name: 'Зміна 1', last_name: 'Галтовка', position: 'Галтовщик', department: 'Цех №1', shift: 'Зміна 1' },
+          { id: 102, login: 'galt.zm2', first_name: 'Зміна 2', last_name: 'Галтовка', position: 'Галтовщик', department: 'Цех №1', shift: 'Зміна 2' },
+          { id: 103, login: 'galt.zm3', first_name: 'Зміна 1', last_name: 'Галтовка', position: 'Галтовщик', department: 'Цех №1', shift: 'Зміна 3' }
+        ],
+        workCardHistory: [
+          // Shift 1 tumbling
+          { id: 'h1', card_id: 'c1', stage_name: 'Галтовка (Галтовка)', operator_name: 'Команда галтовки', shift_name: 'Зміна 1', qty_completed: 100, scrap_qty: 0, completed_at: '2026-10-22T08:00:00Z' },
+          // Shift 2 tumbling
+          { id: 'h2', card_id: 'c2', stage_name: 'Галтовка (Мийка)', operator_name: 'Команда галтовки', shift_name: 'Зміна 2', qty_completed: 200, scrap_qty: 0, completed_at: '2026-10-22T10:00:00Z' },
+          // Shift 3 tumbling
+          { id: 'h3', card_id: 'c3', stage_name: 'Галтовка (Сушка)', operator_name: 'Команда галтовки', shift_name: 'Зміна 3', qty_completed: 300, scrap_qty: 5, completed_at: '2026-10-22T12:00:00Z' }
+        ],
+        scrapClassificationsList: [],
+        scrapReasonsDb: [],
+        nomenclatures: [],
+        tasks: [],
+        orders: [],
+        workCards: [],
+        filterByDate: () => true,
+        selectedShiftFilter: 'all',
+        selectedEmployeeFilter: 'all',
+        searchQuery: ''
+      })
+      return React.createElement('div', null, 'OK')
+    }
+
+    renderToString(React.createElement(TestComponent))
+
+    expect(capturedResult).not.toBeNull()
+    const { employeeStats } = capturedResult
+
+    // Should NOT have a combined "Команда галтовки" entry
+    expect(employeeStats.some(e => e.name === 'Команда галтовки')).toBe(false)
+
+    // Should have 3 separate shift Galtovshchik entries
+    const zm1 = employeeStats.find(e => e.key === 'galt.zm1')
+    expect(zm1).toBeDefined()
+    expect(zm1.produced).toBe(100)
+    expect(zm1.shift).toBe('Зміна 1')
+
+    const zm2 = employeeStats.find(e => e.key === 'galt.zm2')
+    expect(zm2).toBeDefined()
+    expect(zm2.produced).toBe(200)
+    expect(zm2.shift).toBe('Зміна 2')
+
+    const zm3 = employeeStats.find(e => e.key === 'galt.zm3')
+    expect(zm3).toBeDefined()
+    expect(zm3.name).toBe('Галтовка Зміна 3')
+    expect(zm3.produced).toBe(300)
+    expect(zm3.scrap).toBe(5)
+    expect(zm3.shift).toBe('Зміна 3')
+  })
 })
 
 

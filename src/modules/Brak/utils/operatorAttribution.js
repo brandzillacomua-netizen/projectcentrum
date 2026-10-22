@@ -1,4 +1,15 @@
-const SHOP1_STAGE_MARKERS = ['розкрій', 'галтов', 'прийом', 'сортуван']
+const PRODUCTION_STAGE_MARKERS = [
+  'розкрій',
+  'галтов',
+  'прийом',
+  'сортуван',
+  'прес',
+  'пресуван',
+  'фарб',
+  'маляр',
+  'підготов',
+  'доопрацюв'
+]
 
 const BLOCKED_OPERATOR_NAMES = new Set([
   'команда',
@@ -8,6 +19,9 @@ const BLOCKED_OPERATOR_NAMES = new Set([
   'невідомий',
   'система',
   'термінал',
+  'телевізор',
+  'дашборд',
+  'екран',
   '—',
   '-'
 ])
@@ -17,8 +31,8 @@ const normalized = value => clean(value).toLocaleLowerCase('uk-UA')
 
 export function isShop1ResponsibilityStage(stageName) {
   const stage = normalized(stageName)
-  if (!stage || stage.startsWith('буфер')) return false
-  return SHOP1_STAGE_MARKERS.some(marker => stage.includes(marker))
+  if (!stage || stage.includes('буфер')) return false
+  return PRODUCTION_STAGE_MARKERS.some(marker => stage.includes(marker))
 }
 
 export function isAssignableProductionOperator(operatorName) {
@@ -30,7 +44,43 @@ export function isAssignableProductionOperator(operatorName) {
   if (name.includes('склад') || name.includes('бронь')) return false
   if (name.includes('система') || name.includes('system')) return false
   if (name.includes('адміністратор') || name.includes('майстер цеху')) return false
+  if (name.includes('телевізор') || name.includes('дашборд')) return false
   return true
+}
+
+export function formatProductionUserName(user) {
+  if (!user) return ''
+  const login = normalized(user.login)
+  const shift = clean(user.shift)
+  const lastName = clean(user.last_name)
+  const firstName = clean(user.first_name)
+
+  // Standardize Galtovka accounts
+  if (login === 'galt.zm1' || (normalized(lastName).includes('галтов') && shift === 'Зміна 1')) {
+    return 'Галтовка Зміна 1'
+  }
+  if (login === 'galt.zm2' || (normalized(lastName).includes('галтов') && shift === 'Зміна 2')) {
+    return 'Галтовка Зміна 2'
+  }
+  if (login === 'galt.zm3' || (normalized(lastName).includes('галтов') && shift === 'Зміна 3')) {
+    return 'Галтовка Зміна 3'
+  }
+  if (login === 'galt.zm4' || (normalized(lastName).includes('галтов') && shift === 'Зміна 4')) {
+    return 'Галтовка Зміна 4'
+  }
+
+  // Standardize Press accounts
+  if (login.startsWith('press') || normalized(lastName).includes('пресувал')) {
+    if (shift && shift !== 'Без зміни') return `Пресувальник ${shift}`
+  }
+
+  // Standardize Paint accounts
+  if (login.startsWith('paint') || normalized(lastName).includes('фарбувал')) {
+    if (shift && shift !== 'Без зміни') return `Фарбувальник ${shift}`
+  }
+
+  const parts = [lastName, firstName].filter(Boolean)
+  return parts.join(' ') || clean(user.login)
 }
 
 function findCanonicalUser(operatorName, systemUsers = []) {
@@ -41,14 +91,28 @@ function findCanonicalUser(operatorName, systemUsers = []) {
     const login = normalized(user.login)
     const firstName = normalized(user.first_name)
     const lastName = normalized(user.last_name)
-    return name === login || name === `${lastName} ${firstName}`.trim() || name === `${firstName} ${lastName}`.trim()
+    const formatted = normalized(formatProductionUserName(user))
+    return (
+      name === login ||
+      name === `${lastName} ${firstName}`.trim() ||
+      name === `${firstName} ${lastName}`.trim() ||
+      name === formatted
+    )
   }) || null
 }
 
 function isProductionUser(user) {
-  if (!user) return true
+  if (!user) return false
   const department = normalized(user.department)
   const position = normalized(user.position)
+  const login = normalized(user.login)
+  const firstName = normalized(user.first_name)
+  const lastName = normalized(user.last_name)
+
+  if (login.includes('tv') || login.includes('дашборд') || login.includes('admin')) return false
+  if (firstName.includes('телевізор') || lastName.includes('телевізор')) return false
+  if (firstName.includes('зовнішній') || lastName.includes('користувач')) return false
+
   return !(
     department.includes('вкя') ||
     department.includes('втк') ||
@@ -60,35 +124,124 @@ function isProductionUser(user) {
     position.includes('інспектор') ||
     position.includes('комірник') ||
     position.includes('майстер') ||
-    position.includes('адміністратор')
+    position.includes('адміністратор') ||
+    position.includes('керівник') ||
+    position.includes('начальник')
   )
 }
 
+function findGaltovshchikForShift(shiftName, systemUsers = []) {
+  const normShift = normalized(shiftName)
+  if (normShift) {
+    const match = systemUsers.find(u => {
+      if (!isProductionUser(u)) return false
+      const pos = normalized(u.position)
+      const dep = normalized(u.department)
+      const log = normalized(u.login)
+      const last = normalized(u.last_name)
+      const isGalt = pos.includes('галт') || dep.includes('галт') || log.includes('galt') || last.includes('галт')
+      if (!isGalt) return false
+      return normalized(u.shift) === normShift || log.includes(normShift.replace('зміна', 'zm').replace(/\s+/g, ''))
+    })
+    if (match) return match
+  }
+  return systemUsers.find(u => {
+    if (!isProductionUser(u)) return false
+    const pos = normalized(u.position)
+    const log = normalized(u.login)
+    return (pos.includes('галт') || log.includes('galt')) && !log.includes('tv')
+  }) || null
+}
+
+function findPressForShift(shiftName, systemUsers = []) {
+  const normShift = normalized(shiftName)
+  if (normShift) {
+    const match = systemUsers.find(u => {
+      if (!isProductionUser(u)) return false
+      const pos = normalized(u.position)
+      const log = normalized(u.login)
+      const last = normalized(u.last_name)
+      const isPress = pos.includes('прес') || log.includes('press') || last.includes('прес')
+      if (!isPress) return false
+      return normalized(u.shift) === normShift || log.includes(normShift.replace('зміна', 'zm').replace(/\s+/g, ''))
+    })
+    if (match) return match
+  }
+  return null
+}
+
+function findPaintForShift(shiftName, systemUsers = []) {
+  const normShift = normalized(shiftName)
+  if (normShift) {
+    const match = systemUsers.find(u => {
+      if (!isProductionUser(u)) return false
+      const pos = normalized(u.position)
+      const log = normalized(u.login)
+      const last = normalized(u.last_name)
+      const isPaint = pos.includes('маляр') || pos.includes('фарб') || log.includes('paint') || last.includes('фарб')
+      if (!isPaint) return false
+      return normalized(u.shift) === normShift || log.includes(normShift.replace('зміна', 'zm').replace(/\s+/g, ''))
+    })
+    if (match) return match
+  }
+  return null
+}
+
+/**
+ * Returns ONLY the production workers who actively took part in processing
+ * THIS specific work card across any of its stages (cutting, tumbling, sorting, pressing, painting, etc.).
+ */
 export function buildShop1OperatorCandidates(historyRows = [], systemUsers = []) {
-  const candidates = new Map()
+  const historyCandidates = new Map()
 
   for (const row of historyRows || []) {
     if (!isShop1ResponsibilityStage(row.stage_name)) continue
 
-    const rawName = clean(row.operator_name)
-    if (!isAssignableProductionOperator(rawName)) continue
-
-    const user = findCanonicalUser(rawName, systemUsers)
-    if (!isProductionUser(user)) continue
-
-    const name = user
-      ? [clean(user.last_name), clean(user.first_name)].filter(Boolean).join(' ') || clean(user.login)
-      : rawName
-    const key = user?.id ? `user:${user.id}` : `name:${normalized(name)}`
     const stage = clean(row.stage_name)
+    const normStage = normalized(stage)
     const shift = clean(row.shift_name)
     const occurredAt = row.completed_at || row.created_at || null
+    const rawName = clean(row.operator_name)
 
-    if (!candidates.has(key)) {
-      candidates.set(key, { name, stages: [], shifts: [], firstSeenAt: occurredAt, lastSeenAt: occurredAt })
+    let candidateName = ''
+    let candidateUser = null
+
+    if (isAssignableProductionOperator(rawName)) {
+      candidateUser = findCanonicalUser(rawName, systemUsers)
+      if (candidateUser && !isProductionUser(candidateUser)) continue
+      candidateName = candidateUser ? formatProductionUserName(candidateUser) : rawName
+    } else if (normStage.includes('галт')) {
+      candidateUser = findGaltovshchikForShift(shift, systemUsers)
+      if (candidateUser) {
+        candidateName = formatProductionUserName(candidateUser)
+      }
+    } else if (normStage.includes('прес')) {
+      candidateUser = findPressForShift(shift, systemUsers)
+      if (candidateUser) {
+        candidateName = formatProductionUserName(candidateUser)
+      }
+    } else if (normStage.includes('фарб') || normStage.includes('маляр')) {
+      candidateUser = findPaintForShift(shift, systemUsers)
+      if (candidateUser) {
+        candidateName = formatProductionUserName(candidateUser)
+      }
     }
 
-    const candidate = candidates.get(key)
+    if (!candidateName) continue
+
+    const key = candidateUser?.id ? `user:${candidateUser.id}` : `name:${normalized(candidateName)}`
+
+    if (!historyCandidates.has(key)) {
+      historyCandidates.set(key, {
+        name: candidateName,
+        stages: [],
+        shifts: [],
+        firstSeenAt: occurredAt,
+        lastSeenAt: occurredAt
+      })
+    }
+
+    const candidate = historyCandidates.get(key)
     if (stage && !candidate.stages.includes(stage)) candidate.stages.push(stage)
     if (shift && !candidate.shifts.includes(shift)) candidate.shifts.push(shift)
     if (occurredAt) {
@@ -97,6 +250,7 @@ export function buildShop1OperatorCandidates(historyRows = [], systemUsers = [])
     }
   }
 
-  return [...candidates.values()].sort((a, b) => new Date(a.firstSeenAt || 0) - new Date(b.firstSeenAt || 0))
+  return [...historyCandidates.values()].sort(
+    (a, b) => new Date(a.firstSeenAt || 0) - new Date(b.firstSeenAt || 0)
+  )
 }
-

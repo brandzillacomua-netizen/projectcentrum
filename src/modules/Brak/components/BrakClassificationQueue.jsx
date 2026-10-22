@@ -371,8 +371,9 @@ export const BrakClassificationQueue = React.memo(({
                 <div style={{ color: 'var(--text-color, #fff)', fontSize: '0.9rem', fontWeight: 900 }}>
                   {classificationOperatorOptions[0].name}
                   <div style={{ color: 'var(--text-muted, #777)', fontSize: '0.64rem', fontWeight: 700, marginTop: '4px' }}>
-                    Єдиний персональний оператор картки — обрано автоматично
-                    {classificationOperatorOptions[0].stages.length > 0 ? ` · ${classificationOperatorOptions[0].stages.join(', ')}` : ''}
+                    Єдиний виконавець картки — обрано автоматично
+                    {classificationOperatorOptions[0].stages?.length > 0 ? ` · ${classificationOperatorOptions[0].stages.join(', ')}` : ''}
+                    {classificationOperatorOptions[0].shifts?.length > 0 ? ` · ${classificationOperatorOptions[0].shifts.join(', ')}` : ''}
                   </div>
                 </div>
               ) : classificationOperatorOptions.length > 1 ? (
@@ -380,22 +381,33 @@ export const BrakClassificationQueue = React.memo(({
                   <select
                     value={classificationResponsibleOperator}
                     onChange={event => setClassificationResponsibleOperator(event.target.value)}
-                    style={{ width: '100%', padding: '12px 14px', borderRadius: '12px', border: `1px solid ${classificationResponsibleOperator ? '#10b98166' : '#ef444466'}`, background: 'var(--card-inner-bg, #000)', color: 'var(--text-color, #fff)', fontSize: '0.85rem', fontWeight: 850, boxSizing: 'border-box', outline: 'none' }}
+                    style={{
+                      width: '100%',
+                      padding: '12px 14px',
+                      borderRadius: '12px',
+                      border: `1px solid ${classificationResponsibleOperator ? '#10b98166' : '#ef444466'}`,
+                      background: 'var(--card-inner-bg, #000)',
+                      color: 'var(--text-color, #fff)',
+                      fontSize: '0.85rem',
+                      fontWeight: 850,
+                      boxSizing: 'border-box',
+                      outline: 'none'
+                    }}
                   >
                     <option value="">— Оберіть оператора, відповідального за брак —</option>
                     {classificationOperatorOptions.map(candidate => (
                       <option key={candidate.name} value={candidate.name}>
-                        {candidate.name}{candidate.stages.length ? ` — ${candidate.stages.join(', ')}` : ''}{candidate.shifts.length ? ` · ${candidate.shifts.join(', ')}` : ''}
+                        {candidate.name}{candidate.stages?.length ? ` — ${candidate.stages.join(', ')}` : ''}{candidate.shifts?.length ? ` · ${candidate.shifts.join(', ')}` : ''}
                       </option>
                     ))}
                   </select>
                   <div style={{ color: 'var(--text-muted, #777)', fontSize: '0.64rem', fontWeight: 700, marginTop: '7px' }}>
-                    У картці працювали кілька операторів. ВКЯ має обрати відповідального перед збереженням.
+                    У картці брали участь кілька виконавців. ВКЯ має обрати відповідального перед збереженням.
                   </div>
                 </>
               ) : (
                 <div style={{ color: '#ef4444', fontSize: '0.72rem', fontWeight: 850 }}>
-                  {classificationOperatorsError || 'Персональних операторів Цеху №1 у цій картці не знайдено. Класифікацію зберегти неможливо.'}
+                  {classificationOperatorsError || 'В історії картки не знайдено виконавців виробничих етапів. Класифікацію зберегти неможливо.'}
                 </div>
               )}
             </div>

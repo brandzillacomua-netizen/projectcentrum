@@ -28,15 +28,54 @@ describe('VKYA responsible operator candidates', () => {
     ])
   })
 
-  it('excludes team, QC, buffer and other technical identities', () => {
+  it('excludes team, QC, buffer, TV, system, and other technical identities', () => {
     const candidates = buildShop1OperatorCandidates([
       { operator_name: 'Команда', stage_name: 'Галтовка' },
       { operator_name: 'ВКЯ Зміна 1', stage_name: 'Сортування' },
       { operator_name: 'Петренко Іван', stage_name: 'Буфер Розкрій' },
-      { operator_name: 'Фарбувальник Зміна 1', stage_name: 'Фарбування' }
+      { operator_name: 'Система', stage_name: 'Розкрій' },
+      { operator_name: 'Термінал відновлення', stage_name: 'Сортування' }
     ])
 
     expect(candidates).toEqual([])
   })
-})
 
+  it('returns strictly the operators who took part in this card (including resolved galtovshchik)', () => {
+    const systemUsers = [
+      { id: 101, login: 'galt.zm1', first_name: 'Зміна 1', last_name: 'Галтовка', position: 'Галтовщик', department: 'Цех №1', shift: 'Зміна 1' },
+      { id: 102, login: 'galt.zm2', first_name: 'Зміна 2', last_name: 'Галтовка', position: 'Галтовщик', department: 'Цех №1', shift: 'Зміна 2' },
+      { id: 103, login: 'galt.zm3', first_name: 'Зміна 1', last_name: 'Галтовка', position: 'Галтовщик', department: 'Цех №1', shift: 'Зміна 3' },
+      { id: 104, login: 'random.op', first_name: 'Олег', last_name: 'Сторонній', position: 'Оператор', department: 'Цех №1', shift: 'Зміна 2' }
+    ]
+
+    const historyRows = [
+      { operator_name: 'Мальчин О.', stage_name: 'Розкрій (перезмінка)', shift_name: 'Зміна 4', completed_at: '2026-10-22T08:00:00Z' },
+      { operator_name: 'Команда галтовки', stage_name: 'Галтовка (Мийка)', shift_name: 'Зміна 3', completed_at: '2026-10-22T09:00:00Z' },
+      { operator_name: 'Арендач С.', stage_name: 'Сортування', shift_name: 'Зміна 1', completed_at: '2026-10-22T10:00:00Z' }
+    ]
+
+    const candidates = buildShop1OperatorCandidates(historyRows, systemUsers)
+
+    // Strictly returns ONLY the 3 participants of this card
+    expect(candidates.map(c => c.name)).toEqual([
+      'Мальчин О.',
+      'Галтовка Зміна 3',
+      'Арендач С.'
+    ])
+  })
+
+  it('includes press or paint operators only when they worked on this card', () => {
+    const systemUsers = [
+      { id: 201, login: 'press.zm1', first_name: 'Зміна 1', last_name: 'Пресувальник', position: 'Пресувальник', department: 'Цех №2', shift: 'Зміна 1' },
+      { id: 202, login: 'paint.zm2', first_name: 'Зміна 2', last_name: 'Фарбувальник', position: 'Маляр', department: 'Цех №2', shift: 'Зміна 2' }
+    ]
+
+    const historyRows = [
+      { operator_name: 'Пресувальник Зміна 1', stage_name: 'Пресування', shift_name: 'Зміна 1' }
+    ]
+
+    const candidates = buildShop1OperatorCandidates(historyRows, systemUsers)
+    // Only press operator who worked on the card is returned; paint operator who did not work is NOT included
+    expect(candidates.map(c => c.name)).toEqual(['Пресувальник Зміна 1'])
+  })
+})

@@ -69,6 +69,106 @@ export function createProductionOrdersActions({
     refreshTable('orders')
   }
 
+  const fallbackOrderDelete = async (orderId, isSuper = false) => {
+    // 1. Gather related tasks
+    const { data: orderTasks } = await supabase.from('tasks').select('id').eq('order_id', orderId)
+    const taskIds = (orderTasks || []).map(t => t.id)
+
+    // 2. Gather work cards
+    let wcQuery = supabase.from('work_cards').select('id, nomenclature_id, quantity')
+    if (taskIds.length > 0) {
+      wcQuery = wcQuery.or(`order_id.eq.${orderId},task_id.in.(${taskIds.join(',')})`)
+    } else {
+      wcQuery = wcQuery.eq('order_id', orderId)
+    }
+    const { data: workCards } = await wcQuery
+    const cardIds = (workCards || []).map(c => c.id)
+
+    // 3. Revert BZ reservations
+    let bzQuery = supabase.from('bz_inventory_reservations').select('*')
+    if (taskIds.length > 0) {
+      bzQuery = bzQuery.or(`order_id.eq.${orderId},task_id.in.(${taskIds.join(',')})`)
+    } else {
+      bzQuery = bzQuery.eq('order_id', orderId)
+    }
+    const { data: bzRes } = await bzQuery
+    if (bzRes && bzRes.length > 0) {
+      for (const res of bzRes) {
+        if (res.status === 'allocated') {
+          await supabase
+            .from('bz_inventory_reservations')
+            .update({ status: 'released', release_reason: isSuper ? 'Супер-видалення замовлення' : 'Видалення замовлення' })
+            .eq('id', res.id)
+            .catch(() => {})
+        }
+      }
+    }
+
+    // 4. Revert inventory reserves for material requests
+    let mrQuery = supabase.from('material_requests').select('*')
+    if (taskIds.length > 0) {
+      mrQuery = mrQuery.or(`order_id.eq.${orderId},task_id.in.(${taskIds.join(',')})`)
+    } else {
+      mrQuery = mrQuery.eq('order_id', orderId)
+    }
+    const { data: matRequests } = await mrQuery
+
+    if (matRequests && matRequests.length > 0) {
+      for (const mr of matRequests) {
+        if ((mr.status === 'issued' || mr.status === 'reserved' || mr.status === 'pending') && mr.inventory_id) {
+          const { data: invItem } = await supabase.from('inventory').select('id, reserved_qty').eq('id', mr.inventory_id).single()
+          if (invItem) {
+            const qty = Number(mr.quantity || 0)
+            const newReserved = Math.max(0, (Number(invItem.reserved_qty) || 0) - qty)
+            await supabase.from('inventory').update({ reserved_qty: newReserved }).eq('id', invItem.id)
+          }
+        }
+      }
+    }
+
+    // 5. Clean up leaf tracking records
+    if (cardIds.length > 0) {
+      try { await supabase.from('work_card_scrap_totals').delete().in('card_id', cardIds) } catch (e) {}
+      try { await supabase.from('work_card_history').delete().in('card_id', cardIds) } catch (e) {}
+      try { await supabase.from('vkya_reclassification_queue').delete().in('source_card_id', cardIds) } catch (e) {}
+      try { await supabase.from('vkya_restoration_cards').delete().in('source_card_id', cardIds) } catch (e) {}
+      try { await supabase.from('cutter_usage_events').delete().in('source_card_id', cardIds) } catch (e) {}
+    }
+    if (taskIds.length > 0) {
+      try { await supabase.from('work_card_scrap_totals').delete().in('task_id', taskIds) } catch (e) {}
+      try { await supabase.from('vkya_reclassification_queue').delete().in('source_task_id', taskIds) } catch (e) {}
+      try { await supabase.from('vkya_restoration_cards').delete().in('source_task_id', taskIds) } catch (e) {}
+      try { await supabase.from('cutter_usage_events').delete().in('task_id', taskIds) } catch (e) {}
+    }
+    try { await supabase.from('work_card_scrap_totals').delete().eq('order_id', orderId) } catch (e) {}
+    try { await supabase.from('vkya_reclassification_queue').delete().eq('source_order_id', orderId) } catch (e) {}
+    try { await supabase.from('vkya_restoration_cards').delete().eq('source_order_id', orderId) } catch (e) {}
+
+    // 6. Delete material requests
+    if (taskIds.length > 0) {
+      await supabase.from('material_requests').delete().or(`order_id.eq.${orderId},task_id.in.(${taskIds.join(',')})`)
+    } else {
+      await supabase.from('material_requests').delete().eq('order_id', orderId)
+    }
+
+    // 7. Delete work cards
+    if (cardIds.length > 0) {
+      await supabase.from('work_cards').delete().in('id', cardIds)
+    }
+
+    // 8. Delete tasks
+    if (taskIds.length > 0) {
+      await supabase.from('tasks').delete().in('id', taskIds)
+    }
+
+    // 9. Delete order items
+    await supabase.from('order_items').delete().eq('order_id', orderId)
+
+    // 10. Delete order
+    const { error: delErr } = await supabase.from('orders').delete().eq('id', orderId)
+    if (delErr) throw delErr
+  }
+
   const deleteOrder = async (orderId) => {
     try {
       const idempotencyKey = `void_order_${orderId}_${Date.now()}`
@@ -77,7 +177,14 @@ export function createProductionOrdersActions({
         p_reason: 'Regular delete action from UI',
         p_idempotency_key: idempotencyKey
       })
-      if (rpcErr) throw rpcErr
+      if (rpcErr) {
+        if (rpcErr.code === 'PGRST202' || rpcErr.message?.includes('rpc_void_order_atomic') || rpcErr.message?.includes('schema cache')) {
+          console.warn('rpc_void_order_atomic not in schema cache, falling back to direct delete:', rpcErr.message)
+          await fallbackOrderDelete(orderId, false)
+        } else {
+          throw rpcErr
+        }
+      }
     } catch (e) {
       console.error('deleteOrder error:', e)
       throw e
@@ -97,7 +204,14 @@ export function createProductionOrdersActions({
         p_reason: 'Super delete action from UI (reverts reserves)',
         p_idempotency_key: idempotencyKey
       })
-      if (rpcErr) throw rpcErr
+      if (rpcErr) {
+        if (rpcErr.code === 'PGRST202' || rpcErr.message?.includes('rpc_void_order_atomic') || rpcErr.message?.includes('schema cache')) {
+          console.warn('rpc_void_order_atomic not in schema cache, falling back to direct super-delete:', rpcErr.message)
+          await fallbackOrderDelete(orderId, true)
+        } else {
+          throw rpcErr
+        }
+      }
 
       refreshTable('orders')
       refreshTable('inventory')
