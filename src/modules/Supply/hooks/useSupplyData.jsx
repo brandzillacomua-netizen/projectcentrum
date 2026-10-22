@@ -226,9 +226,15 @@ export function useSupplyData({ isProcurementOnly = false } = {}) {
     const isPlate = item => String(item?.name || '').toLowerCase().includes('карбонова пластина')
     const isPartOrSemi = item => {
       const t = String(item?.type || '').toLowerCase()
-      return t === 'finished' || t === 'product' || t === 'part' ||
-             t === 'semi' || t === 'semi_shop1' || t === 'semi_shop2' ||
-             t === 'bz' || t === 'bz_shop2' || t === 'wip_bz'
+      if (t === 'finished' || t === 'product' || t === 'part' ||
+          t === 'semi' || t === 'semi_shop1' || t === 'semi_shop2' ||
+          t === 'bz' || t === 'bz_shop2' || t === 'wip_bz' ||
+          t === 'scrap' || t === 'scrap_ready' || t.startsWith('scrap_cat_')) {
+        return true
+      }
+      const nom = nomenclatures?.find(n => String(n.id) === String(item?.nomenclature_id))
+      if (nom && (nom.type === 'part' || nom.type === 'finished' || nom.type === 'product')) return true
+      return false
     }
     const warehouseRows = (inventory || []).filter(item =>
       !isPartOrSemi(item)
