@@ -70,10 +70,11 @@ const LoginPage = () => {
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <div style={{ position: 'relative' }}>
-            <User size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#333' }} />
+            <User size={18} className="login-input-icon" style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-dim, #64748b)', zIndex: 3 }} />
             <input
               type="text"
               placeholder="ЛОГІН"
+              className="login-input"
               style={inputStyle}
               value={formData.login}
               onChange={e => setFormData({ ...formData, login: e.target.value.replace(/\s/g, '') })}
@@ -82,10 +83,11 @@ const LoginPage = () => {
             />
           </div>
           <div style={{ position: 'relative' }}>
-            <Lock size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#333' }} />
+            <Lock size={18} className="login-input-icon" style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-dim, #64748b)', zIndex: 3 }} />
             <input
               type="password"
               placeholder="ПАРОЛЬ"
+              className="login-input"
               style={inputStyle}
               value={formData.password}
               onChange={e => setFormData({ ...formData, password: e.target.value })}
@@ -149,7 +151,45 @@ const LoginPage = () => {
         __html: `
         .animate-spin { animation: spin 1s linear infinite; }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        input:focus { border-color: #ff9000 !important; background: #000 !important; }
+        
+        /* Light theme adaptivity */
+        .light-theme .login-page-v2,
+        body.light-theme .login-page-v2 {
+          background: #f0f2f7 !important;
+        }
+        .light-theme .login-card,
+        body.light-theme .login-card {
+          background: #ffffff !important;
+          border-color: #e2e8f0 !important;
+          box-shadow: 0 20px 60px rgba(15, 23, 42, 0.08) !important;
+        }
+        .light-theme .login-input,
+        body.light-theme .login-input {
+          background: #ffffff !important;
+          border-color: #cbd5e1 !important;
+          color: #0f172a !important;
+        }
+        .light-theme .login-input:focus,
+        body.light-theme .login-input:focus {
+          background: #ffffff !important;
+          border-color: #ff9000 !important;
+          box-shadow: 0 0 0 3px rgba(255, 144, 0, 0.15) !important;
+          color: #0f172a !important;
+        }
+        .light-theme .login-input::placeholder,
+        body.light-theme .login-input::placeholder {
+          color: #94a3b8 !important;
+        }
+        .light-theme .login-input-icon,
+        body.light-theme .login-input-icon {
+          color: #64748b !important;
+        }
+
+        /* Dark theme focus */
+        body:not(.light-theme) .login-input:focus {
+          border-color: #ff9000 !important;
+          background: #000000 !important;
+        }
       `}} />
     </div>
   )

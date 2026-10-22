@@ -75,6 +75,7 @@ const ReportsModule = () => {
     filteredItems,
     handleGenerateReport,
     employeeStats,
+    productionSummary,
     scrapStats,
     scrapReasonsStats,
     generalStats,
@@ -167,6 +168,7 @@ const ReportsModule = () => {
         return (
           <EmployeeReportView
             employeeStats={employeeStats}
+            productionSummary={productionSummary}
             selectedEmployeeFilter={selectedEmployeeFilter}
             setSelectedEmployeeFilter={setSelectedEmployeeFilter}
             startDate={startDate}

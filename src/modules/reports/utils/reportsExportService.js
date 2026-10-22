@@ -93,6 +93,7 @@ export const exportReportToExcel = async ({
       'Працівник': e.name,
       'Цех': e.department || '—',
       'Посада': e.position || '—',
+      'Карти': e.cards || 0,
       'Операцій': e.operations,
       'Виготовлено (од)': e.produced,
       'Загальний брак (од)': e.scrap,

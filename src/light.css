@@ -35,6 +35,8 @@ body.light-theme {
 .light-theme .form-group select,
 .light-theme .form-group textarea,
 .light-theme input[type="text"],
+.light-theme input[type="password"],
+.light-theme input[type="email"],
 .light-theme input[type="number"] {
   background: #ffffff !important;
   border-color: #cbd5e1 !important;
@@ -44,6 +46,8 @@ body.light-theme {
 .light-theme .form-group input:focus,
 .light-theme .form-group select:focus,
 .light-theme input[type="text"]:focus,
+.light-theme input[type="password"]:focus,
+.light-theme input[type="email"]:focus,
 .light-theme input[type="number"]:focus {
   border-color: var(--primary) !important;
   box-shadow: 0 0 10px rgba(255, 144, 0, 0.15) !important;

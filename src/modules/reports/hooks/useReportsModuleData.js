@@ -348,7 +348,7 @@ export function useReportsModuleData() {
   // Sub-hooks per report type
   const warehouseReport = useWarehouseReport(inventory, nomenclatures)
 
-  const { employeeStats } = useEmployeeReport({
+  const { employeeStats, productionSummary } = useEmployeeReport({
     systemUsers,
     workCardHistory,
     scrapClassificationsList,
@@ -484,6 +484,7 @@ export function useReportsModuleData() {
     filterByDate,
     ...warehouseReport,
     employeeStats,
+    productionSummary,
     scrapStats,
     scrapReasonsStats,
     generalStats,

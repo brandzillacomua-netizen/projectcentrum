@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { buildClassificationOnlyEvents, isConfirmedResponsibleClassification, matchesOperator } from '../src/modules/reports/hooks/useEmployeeReport.js'
+import {
+  buildClassificationOnlyEvents,
+  isConfirmedResponsibleClassification,
+  matchesOperator,
+  isShop1CuttingOperation,
+  isShop2HistoryRecord
+} from '../src/modules/reports/hooks/useEmployeeReport.js'
 
 describe('employee scrap classification parity', () => {
   const inRange = () => true
@@ -101,4 +107,111 @@ describe('matchesOperator multi-select', () => {
     expect(matchesOperator('Когут Назар', ['Когут Назар', 'Бабайлов О.'])).toBe(true)
   })
 })
+
+describe('isShop1CuttingOperation', () => {
+  it('correctly identifies actual cutting operations with positive completed quantity', () => {
+    expect(isShop1CuttingOperation('Розкрій', 200)).toBe(true)
+    expect(isShop1CuttingOperation('розкрій', '150')).toBe(true)
+    expect(isShop1CuttingOperation('Розкрій чпк', 50)).toBe(true)
+  })
+
+  it('rejects shift changes, stops, pauses, buffers, and non-cutting stages', () => {
+    expect(isShop1CuttingOperation('Розкрій (перезмінка)', 200)).toBe(false)
+    expect(isShop1CuttingOperation('Розкрій (зупинка)', 200)).toBe(false)
+    expect(isShop1CuttingOperation('Буфер розкрою', 200)).toBe(false)
+    expect(isShop1CuttingOperation('Розкрій', 0)).toBe(false)
+    expect(isShop1CuttingOperation('Галтовка', 200)).toBe(false)
+    expect(isShop1CuttingOperation('Прийомка', 200)).toBe(false)
+    expect(isShop1CuttingOperation('Сортування', 200)).toBe(false)
+    expect(isShop1CuttingOperation(null, 100)).toBe(false)
+  })
+})
+
+describe('isShop2HistoryRecord', () => {
+  it('identifies shop 2 manufacturing stages', () => {
+    expect(isShop2HistoryRecord({ stage_name: 'Пресування' })).toBe(true)
+    expect(isShop2HistoryRecord({ stage_name: 'Фарбування' })).toBe(true)
+    expect(isShop2HistoryRecord({ stage_name: 'Доопрацювання' })).toBe(true)
+    expect(isShop2HistoryRecord({ stage_name: 'Пакування' })).toBe(true)
+    expect(isShop2HistoryRecord({ stage_name: 'Склад СГП (пряма передача)' })).toBe(true)
+  })
+
+  it('identifies shop 2 by card_info tag or operator department', () => {
+    expect(isShop2HistoryRecord({ stage_name: 'Операція', card_info: '[ЦЕХ №2] Автоматично' })).toBe(true)
+    expect(isShop2HistoryRecord({ stage_name: 'Операція' }, { department: 'Цех №2' })).toBe(true)
+  })
+
+  it('rejects Shop 1 stages and warehouse buffer without shop 2 tag', () => {
+    expect(isShop2HistoryRecord({ stage_name: 'Розкрій' })).toBe(false)
+    expect(isShop2HistoryRecord({ stage_name: 'Галтовка' })).toBe(false)
+    expect(isShop2HistoryRecord({ stage_name: 'Прийомка' })).toBe(false)
+    expect(isShop2HistoryRecord({ stage_name: 'Сортування' })).toBe(false)
+    expect(isShop2HistoryRecord({ stage_name: 'Склад БЗ' })).toBe(false)
+  })
+})
+
+describe('useEmployeeReport productionSummary calculation', () => {
+  it('correctly aggregates Shop 1 cutting, Shop 2 unique cards, and operational volume', async () => {
+    const { renderToString } = await import('react-dom/server')
+    const React = await import('react')
+    const { useEmployeeReport } = await import('../src/modules/reports/hooks/useEmployeeReport.js')
+
+    let capturedResult = null
+
+    function TestComponent() {
+      capturedResult = useEmployeeReport({
+        systemUsers: [
+          { login: 'op1', first_name: 'Іван', last_name: 'Петренко', department: 'Цех №1' },
+          { login: 'op2', first_name: 'Олег', last_name: 'Копитко', department: 'Цех №1' },
+          { login: 'op3', first_name: 'Тарас', last_name: 'Шевченко', department: 'Цех №2' }
+        ],
+        workCardHistory: [
+          // Card 1 in Shop 1:
+          // 1. Розкрій (200 pcs)
+          { id: 'h1', card_id: 'card-1', stage_name: 'Розкрій', operator_name: 'Петренко Іван', qty_completed: 200, scrap_qty: 0, completed_at: '2026-10-22T08:00:00Z' },
+          // 2. Галтовка (200 pcs) - subsequent operation, should NOT add new physical parts to Shop 1
+          { id: 'h2', card_id: 'card-1', stage_name: 'Галтовка', operator_name: 'Копитко Олег', qty_completed: 200, scrap_qty: 0, completed_at: '2026-10-22T09:00:00Z' },
+          // 3. Прийомка (200 pcs)
+          { id: 'h3', card_id: 'card-1', stage_name: 'Прийомка', operator_name: 'Петренко Іван', qty_completed: 200, scrap_qty: 0, completed_at: '2026-10-22T10:00:00Z' },
+          
+          // Card 2 in Shop 2:
+          // 1. Пресування (300 pcs)
+          { id: 'h4', card_id: 'card-2', stage_name: 'Пресування', operator_name: 'Шевченко Тарас', qty_completed: 300, scrap_qty: 0, completed_at: '2026-10-22T08:30:00Z' },
+          // 2. Фарбування (300 pcs) - second operation on same card in Shop 2, should NOT double-count
+          { id: 'h5', card_id: 'card-2', stage_name: 'Фарбування', operator_name: 'Шевченко Тарас', qty_completed: 300, scrap_qty: 0, completed_at: '2026-10-22T09:30:00Z' }
+        ],
+        scrapClassificationsList: [],
+        scrapReasonsDb: [],
+        nomenclatures: [],
+        tasks: [],
+        orders: [],
+        workCards: [],
+        filterByDate: () => true,
+        selectedShiftFilter: 'all',
+        selectedEmployeeFilter: 'all',
+        searchQuery: ''
+      })
+      return React.createElement('div', null, 'OK')
+    }
+
+    renderToString(React.createElement(TestComponent))
+
+    expect(capturedResult).not.toBeNull()
+    const { productionSummary } = capturedResult
+
+    // Shop 1 Cutting: only the 200 pcs cut on card-1
+    expect(productionSummary.shop1Produced).toBe(200)
+    expect(productionSummary.shop1Cards).toBe(1)
+
+    // Shop 2 Unique Cards: 300 pcs on card-2 (not 600)
+    expect(productionSummary.shop2Produced).toBe(300)
+    expect(productionSummary.shop2Cards).toBe(1)
+
+    // Operational output: sum of all operator actions (200 + 200 + 200 + 300 + 300 = 1200)
+    expect(productionSummary.operationalProduced).toBe(1200)
+    expect(productionSummary.totalOperations).toBe(5)
+  })
+})
+
+
 

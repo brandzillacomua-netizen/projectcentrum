@@ -126,6 +126,50 @@ export function isTechnicalHistoryStage(stageName) {
 }
 
 /**
+ * Check if a history stage is a Shop 1 Cutting (Розкрій) operation that physically
+ * produced pieces (excludes buffer, pause, stop, shift-handover, scrap-only).
+ */
+export function isShop1CuttingOperation(stageName, qtyCompleted = 0) {
+  if (!stageName) return false
+  const clean = String(stageName).toLowerCase().trim()
+  if (!clean.includes('розкрій')) return false
+  if (
+    clean.includes('буфер') ||
+    clean.includes('перезмінк') ||
+    clean.includes('зупинк') ||
+    clean.includes('пауз') ||
+    clean.includes('вкя')
+  ) {
+    return false
+  }
+  return Number(qtyCompleted) > 0
+}
+
+/**
+ * Check if a history record or card belongs to Shop 2 operations
+ */
+export function isShop2HistoryRecord(h, user = null, department = '') {
+  if (!h) return false
+  const stage = String(h.stage_name || h.stage || h.rawStage || '').toLowerCase().trim()
+  const info = String(h.card_info || '').toLowerCase()
+  const dept = String(department || user?.department || '').toLowerCase()
+
+  if (info.includes('[цех №2]') || info.includes('[цех 2]')) return true
+  if (dept.includes('цех №2') || dept.includes('цех 2')) return true
+
+  const shop2Keywords = [
+    'пресуван', 'прес', 'pressing',
+    'фарбуван', 'маляр', 'painting',
+    'доопрацюван', 'доработка', 'rework',
+    'пакуван', 'пакван', 'паковк', 'packaging'
+  ]
+  if (shop2Keywords.some(kw => stage.includes(kw))) return true
+  if (stage.includes('сгп') && !stage.includes('склад бз')) return true
+
+  return false
+}
+
+/**
  * Checks if a name or user represents a non-production entity
  * (quality inspector, warehouse reservation/account, system account,
  * foreman/master supervisor, or defect reason comment).
@@ -540,6 +584,7 @@ export function useEmployeeReport({
           cat4: 0,
           unclassified: 0,
           operations: 0,
+          cardIds: new Set(),
           history: []       // Full detailed list of work card operations for this operator
         })
       }
@@ -586,6 +631,10 @@ export function useEmployeeReport({
       if (!isAttributedQCScrap && !isTechStage && !isNonProd) {
         empStat.produced += qtyProduced
         empStat.operations += 1
+        const cid = h.card_id || h.work_card_id
+        if (cid) {
+          empStat.cardIds.add(String(cid))
+        }
       }
 
       empStat.scrap += qtyScrap
@@ -675,9 +724,18 @@ export function useEmployeeReport({
         }
       }
 
+      // Determine production flags
+      const cardId = h.card_id || h.work_card_id || null
+      const isCutting = isShop1CuttingOperation(h.stage_name, qtyProduced)
+      const isShop2Op = isShop2HistoryRecord(h, user, empStat.department)
+
       // Append detailed operation item
       empStat.history.push({
         id: h.id,
+        cardId: cardId ? String(cardId) : null,
+        rawStage: h.stage_name || '',
+        isCutting,
+        isShop2: isShop2Op,
         date: h.completed_at || h.created_at,
         stage: isAttributedQCScrap ? `${h.stage_name || 'ВКЯ'} (виявлено)` : (h.stage_name || 'Операція'),
         shift: h.shift_name || empStat.shift,
@@ -766,6 +824,7 @@ export function useEmployeeReport({
 
       return {
         ...s,
+        cards: s.cardIds ? s.cardIds.size : 0,
         efficiency,
         scrapPercent
       }
@@ -813,5 +872,56 @@ export function useEmployeeReport({
     searchQuery
   ])
 
-  return { employeeStats }
+  // Aggregate factory-level physical production summary
+  const productionSummary = useMemo(() => {
+    let shop1Produced = 0
+    const shop1Cards = new Set()
+    const shop2CardsMap = new Map()
+    let operationalProduced = 0
+    let totalOperations = 0
+
+    employeeStats.forEach(e => {
+      operationalProduced += Number(e.produced) || 0
+      totalOperations += Number(e.operations) || 0
+
+      if (Array.isArray(e.history)) {
+        e.history.forEach(h => {
+          const qty = Number(h.produced) || 0
+          if (qty <= 0) return
+
+          const cardKey = h.cardId ? String(h.cardId) : (h.id ? String(h.id) : null)
+
+          // 1. Shop 1 Cutting (Розкрій)
+          if (h.isCutting || isShop1CuttingOperation(h.rawStage || h.stage, qty)) {
+            shop1Produced += qty
+            if (cardKey) shop1Cards.add(cardKey)
+          }
+
+          // 2. Shop 2 (Цех №2 unique cards)
+          if (h.isShop2 || isShop2HistoryRecord(h, null, e.department)) {
+            if (cardKey) {
+              const currentMax = shop2CardsMap.get(cardKey) || 0
+              shop2CardsMap.set(cardKey, Math.max(currentMax, qty))
+            } else {
+              shop2CardsMap.set(`row-${h.id}`, qty)
+            }
+          }
+        })
+      }
+    })
+
+    const shop2Produced = Array.from(shop2CardsMap.values()).reduce((sum, q) => sum + q, 0)
+    const shop2Cards = shop2CardsMap.size
+
+    return {
+      shop1Produced,
+      shop1Cards: shop1Cards.size,
+      shop2Produced,
+      shop2Cards,
+      operationalProduced,
+      totalOperations
+    }
+  }, [employeeStats])
+
+  return { employeeStats, productionSummary }
 }

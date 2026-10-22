@@ -12,8 +12,12 @@ import {
   Wrench,
   ShieldAlert,
   Trash2,
-  ArrowUpDown
+  ArrowUpDown,
+  Scissors,
+  Layers,
+  Activity
 } from 'lucide-react'
+import { isShop1CuttingOperation, isShop2HistoryRecord } from '../hooks/useEmployeeReport'
 
 /**
  * Clean up messy raw metadata tags like "[MACHINE_ID:] [STAGE:...] №1/1 [REQ:6454]"
@@ -39,6 +43,7 @@ export function cleanOrderLabel(raw) {
 
 export const EmployeeReportView = ({
   employeeStats = [],
+  productionSummary = null,
   selectedEmployeeFilter = 'all',
   setSelectedEmployeeFilter,
   startDate,
@@ -70,6 +75,10 @@ export const EmployeeReportView = ({
     let quarantine = 0
     let util = 0
     let operations = 0
+    let shop1Produced = 0
+    const shop1Cards = new Set()
+    const shop2CardsMap = new Map()
+    const allCards = new Set()
 
     employeeStats.forEach(e => {
       produced += Number(e.produced) || 0
@@ -78,7 +87,44 @@ export const EmployeeReportView = ({
       quarantine += Number(e.quarantine) || 0
       util += Number(e.util) || 0
       operations += Number(e.operations) || 0
+      if (e.cardIds && typeof e.cardIds.forEach === 'function') {
+        e.cardIds.forEach(id => allCards.add(id))
+      }
+
+      if (Array.isArray(e.history)) {
+        e.history.forEach(h => {
+          const qty = Number(h.produced) || 0
+          if (qty <= 0) return
+
+          const cardKey = h.cardId ? String(h.cardId) : (h.id ? String(h.id) : null)
+
+          // 1. Shop 1 Cutting (Розкрій)
+          if (h.isCutting || isShop1CuttingOperation(h.rawStage || h.stage, qty)) {
+            shop1Produced += qty
+            if (cardKey) shop1Cards.add(cardKey)
+          }
+
+          // 2. Shop 2 (Цех №2 unique cards)
+          if (h.isShop2 || isShop2HistoryRecord(h, null, e.department)) {
+            if (cardKey) {
+              const currentMax = shop2CardsMap.get(cardKey) || 0
+              shop2CardsMap.set(cardKey, Math.max(currentMax, qty))
+            } else {
+              shop2CardsMap.set(`row-${h.id}`, qty)
+            }
+          }
+        })
+      }
     })
+
+    const computedShop2Produced = Array.from(shop2CardsMap.values()).reduce((sum, q) => sum + q, 0)
+    const computedShop2Cards = shop2CardsMap.size
+
+    // Fallback to productionSummary if passed directly from hook
+    const finalShop1Produced = productionSummary?.shop1Produced !== undefined ? productionSummary.shop1Produced : shop1Produced
+    const finalShop1Cards = productionSummary?.shop1Cards !== undefined ? productionSummary.shop1Cards : shop1Cards.size
+    const finalShop2Produced = productionSummary?.shop2Produced !== undefined ? productionSummary.shop2Produced : computedShop2Produced
+    const finalShop2Cards = productionSummary?.shop2Cards !== undefined ? productionSummary.shop2Cards : computedShop2Cards
 
     const totalProcessed = produced + scrap
     const efficiency = totalProcessed > 0
@@ -87,15 +133,20 @@ export const EmployeeReportView = ({
 
     return {
       produced,
+      shop1Produced: finalShop1Produced,
+      shop1Cards: finalShop1Cards,
+      shop2Produced: finalShop2Produced,
+      shop2Cards: finalShop2Cards,
       scrap,
       rework,
       quarantine,
       util,
       operations,
+      cards: allCards.size,
       efficiency,
       employeeCount: employeeStats.length
     }
-  }, [employeeStats])
+  }, [employeeStats, productionSummary])
 
   // Filtered and Sorted Employee List
   const filteredEmployees = useMemo(() => {
@@ -160,16 +211,42 @@ export const EmployeeReportView = ({
     <div className="employee-report-wrapper">
       {/* ── TOP KPI METRIC CARDS ── */}
       <div className="emp-kpi-grid">
-        {/* Total Produced */}
+        {/* Shop 1 Produced (Розкрій) */}
         <div className="emp-metric-card border-green">
           <div className="emp-metric-label">
-            <CheckCircle2 size={13} color="#22c55e" /> ВИРОБЛЕНО ЗА ПЕРІОД
+            <Scissors size={13} color="#22c55e" /> ВИРОБЛЕНО ЦЕХ №1 (РОЗКРІЙ)
           </div>
           <div className="emp-metric-val val-green">
+            {totals.shop1Produced.toLocaleString('uk-UA')} <span className="emp-metric-unit">шт</span>
+          </div>
+          <div className="emp-metric-sub">
+            {totals.shop1Cards.toLocaleString('uk-UA')} {totals.shop1Cards === 1 ? 'карта розкрою' : (totals.shop1Cards >= 2 && totals.shop1Cards <= 4 ? 'карти розкрою' : 'карт розкрою')}
+          </div>
+        </div>
+
+        {/* Shop 2 Produced (Унікальні карти) */}
+        <div className="emp-metric-card border-cyan">
+          <div className="emp-metric-label">
+            <Layers size={13} color="#06b6d4" /> ВИРОБЛЕНО ЦЕХ №2
+          </div>
+          <div className="emp-metric-val val-cyan">
+            {totals.shop2Produced.toLocaleString('uk-UA')} <span className="emp-metric-unit">шт</span>
+          </div>
+          <div className="emp-metric-sub">
+            {totals.shop2Cards.toLocaleString('uk-UA')} {totals.shop2Cards === 1 ? 'унікальна карта' : (totals.shop2Cards >= 2 && totals.shop2Cards <= 4 ? 'унікальні карти' : 'унікальних карт')}
+          </div>
+        </div>
+
+        {/* Operational Output / Workload */}
+        <div className="emp-metric-card border-purple">
+          <div className="emp-metric-label">
+            <Activity size={13} color="#a855f7" /> ОПЕРАЦІЙНИЙ ОБСЯГ
+          </div>
+          <div className="emp-metric-val val-purple">
             {totals.produced.toLocaleString('uk-UA')} <span className="emp-metric-unit">шт</span>
           </div>
           <div className="emp-metric-sub">
-            {totals.operations} завершених операцій
+            {totals.cards > 0 ? `${totals.cards.toLocaleString('uk-UA')} карт · ` : ''}{totals.operations.toLocaleString('uk-UA')} операцій (трудомісткість)
           </div>
         </div>
 
@@ -354,6 +431,12 @@ export const EmployeeReportView = ({
                   </div>
                 </th>
                 <th>Цех / Посада</th>
+                <th onClick={() => handleToggleSort('cards')} className="sortable-th th-center" title="Кількість унікальних робочих карт">
+                  <div className="th-content th-center">
+                    <span>Карти</span>
+                    <ArrowUpDown size={12} color={sortBy === 'cards' ? '#ff9000' : 'currentColor'} />
+                  </div>
+                </th>
                 <th onClick={() => handleToggleSort('operations')} className="sortable-th th-center">
                   <div className="th-content th-center">
                     <span>Операцій</span>
@@ -414,7 +497,7 @@ export const EmployeeReportView = ({
             <tbody>
               {filteredEmployees.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="emp-empty-td">
+                  <td colSpan={11} className="emp-empty-td">
                     За обраними критеріями працівників не знайдено
                   </td>
                 </tr>
@@ -457,6 +540,11 @@ export const EmployeeReportView = ({
                             {emp.position || 'Оператор'}
                           </span>
                         </div>
+                      </td>
+
+                      {/* Cards */}
+                      <td className="emp-cell-cards">
+                        {emp.cards || 0}
                       </td>
 
                       {/* Operations */}
@@ -593,7 +681,7 @@ function EmployeeDetailModal({ employee, onClose, startDate, endDate }) {
               </span>
             </div>
             <div className="emp-modal-dates">
-              Період: <strong>{startDate}</strong> — <strong>{endDate}</strong> • Зміна: <strong>{employee.shift}</strong>
+              Період: <strong>{startDate}</strong> — <strong>{endDate}</strong> • Зміна: <strong>{employee.shift}</strong> • Карт: <strong>{employee.cards || 0}</strong> • Операцій: <strong>{employee.operations || 0}</strong>
             </div>
           </div>
 
