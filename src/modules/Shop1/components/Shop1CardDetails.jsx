@@ -612,18 +612,24 @@ export function Shop1CardDetails({
                   </div>
                   <div style={{ marginBottom: '20px' }}>
                     <label style={labelStyle}>Відповідальний за прийомку</label>
-                    <select value={selectedOperator} onChange={e => setSelectedOperator(e.target.value)} disabled={!selectedShift} style={{ ...selectStyle, opacity: selectedShift ? 1 : 0.5, cursor: selectedShift ? 'pointer' : 'not-allowed' }}>
-                      <option value="">{selectedShift ? '— Оберіть оператора —' : '— Спочатку оберіть зміну —'}</option>
-                      {getFilteredOperators('Цех №1', selectedShift, 'Прийомка').map(o => <option key={o} value={o}>{o}</option>)}
-                    </select>
+                    {(() => {
+                      const receptionOps = getFilteredOperators('Цех №1', selectedShift, 'Прийомка') || []
+                      const availableOps = receptionOps.length > 0 ? receptionOps : (getFilteredOperators('Цех №1', selectedShift) || [])
+                      return (
+                        <select value={selectedOperator} onChange={e => setSelectedOperator(e.target.value)} disabled={!selectedShift} style={{ ...selectStyle, opacity: selectedShift ? 1 : 0.5, cursor: selectedShift ? 'pointer' : 'not-allowed' }}>
+                          <option value="">{selectedShift ? (availableOps.length > 0 ? '— Оберіть оператора (або Команда) —' : 'Команда') : '— Спочатку оберіть зміну —'}</option>
+                          {availableOps.map(o => <option key={o} value={o}>{o}</option>)}
+                        </select>
+                      )
+                    })()}
                   </div>
-                  <button onClick={handleAcceptToStock} disabled={!selectedOperator || !selectedShift || isProcessing}
+                  <button onClick={handleAcceptToStock} disabled={!selectedShift || isProcessing}
                     style={{
                       background: '#10b981', color: '#fff', border: 'none', width: '100%',
                       height: '64px', borderRadius: '16px', fontSize: '1.3rem', fontWeight: 1000,
                       cursor: 'pointer', transition: 'all 0.2s',
                       boxShadow: '0 10px 30px rgba(16,185,129,0.2)',
-                      opacity: (!selectedOperator || isProcessing) ? 0.5 : 1
+                      opacity: (!selectedShift || isProcessing) ? 0.5 : 1
                     }}>
                     ✅ ВІДПРАВИТИ В ПРИЙОМКУ
                   </button>

@@ -1094,7 +1094,7 @@ export function useShop1CardWorkflow({
           console.error('Error writing Tumbling Buffer history:', err);
         }
       }
-      await handleAcceptToStock({ bufferAlreadyRecorded });
+      await handleAcceptToStock({ bufferAlreadyRecorded, skipInFlightCheck: true });
       return;
     }
 
@@ -1493,18 +1493,19 @@ export function useShop1CardWorkflow({
       setIsProcessing(false);
       alert('Помилка сортування: ' + e.message);
     } finally {
+      inFlightRef.current = false;
       setIsProcessing(false);
     }
   };
 
-  const handleAcceptToStock = async ({ bufferAlreadyRecorded = false } = {}) => {
+  const handleAcceptToStock = async ({ bufferAlreadyRecorded = false, skipInFlightCheck = false } = {}) => {
     if (!currentCard) return;
-    if (inFlightRef.current) return;
+    if (!skipInFlightCheck && inFlightRef.current) return;
     inFlightRef.current = true;
     setIsProcessing(true);
     try {
       const qtyDone = currentCard.quantity || 0;
-      const op = selectedOperator || currentCard.operator_name || 'Прийомка';
+      const op = selectedOperator || currentCard.operator_name || 'Команда';
 
       const promises = [];
 
@@ -1521,7 +1522,7 @@ export function useShop1CardWorkflow({
             scrap_qty: 0,
             started_at: bufferStart,
             completed_at: new Date().toISOString(),
-            shift_name: currentCard.shift_name,
+            shift_name: selectedShift || currentCard.shift_name,
             manager_name: currentCard.manager_name,
             machine_name: currentCard.machine
           }])
@@ -1540,7 +1541,7 @@ export function useShop1CardWorkflow({
           started_at: new Date().toISOString(),
           completed_at: new Date().toISOString(),
           is_archived_scrap: true,
-          shift_name: currentCard.shift_name,
+          shift_name: selectedShift || currentCard.shift_name,
           manager_name: currentCard.manager_name,
           machine_name: currentCard.machine
         }])
@@ -1551,6 +1552,7 @@ export function useShop1CardWorkflow({
           status: 'at-buffer',
           operation: 'Прийомка',
           operator_name: op,
+          shift_name: selectedShift || currentCard.shift_name,
           completed_at: new Date().toISOString()
         }).eq('id', currentCard.id)
       );
@@ -1568,6 +1570,7 @@ export function useShop1CardWorkflow({
       setIsProcessing(false);
       alert('Помилка прийомки: ' + (e.message || 'Невідома помилка'));
     } finally {
+      inFlightRef.current = false;
       setIsProcessing(false);
     }
   };
