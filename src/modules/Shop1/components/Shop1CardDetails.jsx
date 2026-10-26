@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { ChevronRight, X, ArrowRight } from 'lucide-react'
 import { MACHINE_TYPES, getMachineSequenceConfig } from '../utils/shop1Helpers'
 import { getPendingRequestsForCard } from '../../../utils/materialCardMatching.js'
+import { getCardCuttingPlanSeconds, formatCuttingTime } from '../../../utils/cuttingTimeUtils.js'
 
 export function Shop1CardDetails({
   currentCard,
@@ -312,6 +313,61 @@ export function Shop1CardDetails({
                   </div>
                 </div>
               )}
+
+              {currentCard.operation === 'Розкрій' && (() => {
+                const planSec = getCardCuttingPlanSeconds(currentCard, nom)
+                if (!planSec || planSec <= 0) return null
+                const totalSec = getCardTimeMetrics(currentCard).totalSec
+                const isOvertime = totalSec > planSec
+                const percent = Math.min(100, Math.round((totalSec / planSec) * 100))
+                const remainingSec = Math.max(0, planSec - totalSec)
+                const overtimeSec = totalSec - planSec
+
+                return (
+                  <div style={{
+                    margin: '16px auto 0',
+                    maxWidth: '380px',
+                    background: isOvertime ? 'rgba(239, 68, 68, 0.08)' : 'rgba(16, 185, 129, 0.08)',
+                    border: `1px solid ${isOvertime ? 'rgba(239, 68, 68, 0.3)' : 'rgba(16, 185, 129, 0.3)'}`,
+                    borderRadius: '16px',
+                    padding: '12px 16px',
+                    textAlign: 'left'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <span style={{ fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', color: isOvertime ? '#ef4444' : '#10b981', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        ⏱ Плановий час розкрою
+                      </span>
+                      <span style={{ fontSize: '0.85rem', fontWeight: 1000, color: 'var(--text-strong)' }}>
+                        {formatCuttingTime(planSec)}
+                      </span>
+                    </div>
+
+                    <div style={{ height: '6px', background: 'rgba(255,255,255,0.08)', borderRadius: '3px', overflow: 'hidden', marginBottom: '8px' }}>
+                      <div style={{
+                        height: '100%',
+                        width: `${percent}%`,
+                        background: isOvertime ? '#ef4444' : '#10b981',
+                        transition: 'width 0.3s ease'
+                      }} />
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.72rem', fontWeight: 800 }}>
+                      <span style={{ color: 'var(--text-muted)' }}>
+                        Факт: <strong style={{ color: isOvertime ? '#ef4444' : '#10b981' }}>{formatSec(totalSec)}</strong>
+                      </span>
+                      {isOvertime ? (
+                        <span style={{ color: '#ef4444', fontWeight: 900 }}>
+                          ⚠️ Перевищення: +{formatSec(overtimeSec)}
+                        </span>
+                      ) : (
+                        <span style={{ color: '#10b981', fontWeight: 800 }}>
+                          Залишок: ~{formatCuttingTime(remainingSec)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )
+              })()}
 
               <div style={{
                 margin: '20px auto 10px',

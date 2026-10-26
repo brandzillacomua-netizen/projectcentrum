@@ -1,3 +1,5 @@
+import { getCardCuttingPlanSeconds, isCuttingCard, isCuttingOperation } from '../../../utils/cuttingTimeUtils.js'
+
 const CUTTING_STAGE = 'Розкрій'
 const SHIFT_HANDOVER_STAGE = 'Розкрій (перезмінка)'
 const STOP_STAGE = 'Розкрій (зупинка)'
@@ -82,4 +84,30 @@ export function buildCuttingTimeSummary(rows = []) {
     byCard
   }
 }
+
+export function calculateCuttingPlanSeconds(taskCards = [], nomenclatures = [], filterNomId = 'All', filterCardLabel = 'All', cuttingHistoryCardIds = null) {
+  const nomMap = new Map((nomenclatures || []).map(n => [String(n.id), n]))
+  let totalPlanSeconds = 0
+  const hasHistoryScope = Boolean(cuttingHistoryCardIds && cuttingHistoryCardIds.size > 0)
+
+  taskCards.forEach(card => {
+    if (!isCuttingCard(card)) return
+    if (hasHistoryScope) {
+      if (!cuttingHistoryCardIds.has(String(card.id))) return
+    } else if (!isCuttingOperation(card.operation)) {
+      return
+    }
+    if (filterNomId !== 'All' && String(card.nomenclature_id) !== String(filterNomId)) return
+    if (filterCardLabel !== 'All') {
+      const match = String(card.card_info || '').match(/(?:№|#)?\s*(\d+)\s*\/\s*(\d+)/)
+      const seqStr = match ? `${match[1]}/${match[2]}` : (card.card_info || '')
+      if (!seqStr.includes(filterCardLabel)) return
+    }
+    const nom = nomMap.get(String(card.nomenclature_id))
+    totalPlanSeconds += getCardCuttingPlanSeconds(card, nom, hasHistoryScope)
+  })
+
+  return totalPlanSeconds
+}
+
 

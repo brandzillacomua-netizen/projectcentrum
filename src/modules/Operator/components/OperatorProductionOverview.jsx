@@ -1,5 +1,6 @@
 import React from 'react'
 import { Camera, Layers, RefreshCw, Eye } from 'lucide-react'
+import { getCardCuttingPlanSeconds } from '../../../utils/cuttingTimeUtils.js'
 
 export const OperatorProductionOverview = ({
   setIsScanning,
@@ -46,10 +47,12 @@ export const OperatorProductionOverview = ({
 
   const getPlannedTime = (card) => {
     if (!card) return 0
-    if (card.estimated_time) return Number(card.estimated_time)
-    if (card.estimated_seconds) return Number(card.estimated_seconds) / 60
     const nom = getNomFromCard(card)
-    if (nom?.time_per_unit) return (Number(nom.time_per_unit) * Number(card.quantity))
+    const planSec = getCardCuttingPlanSeconds(card, nom)
+    if (planSec > 0) return Math.round(planSec / 60)
+    if (card.estimated_time) return Math.round(Number(card.estimated_time) / 60)
+    if (card.estimated_seconds) return Math.round(Number(card.estimated_seconds) / 60)
+    if (nom?.time_per_unit) return Math.round(Number(nom.time_per_unit) * Number(card.quantity))
     return 0
   }
 

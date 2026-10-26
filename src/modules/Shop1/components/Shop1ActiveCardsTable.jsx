@@ -7,6 +7,7 @@ import {
   formatDateTimeParts,
   formatMachine
 } from '../utils/shop1Helpers'
+import { getCardCuttingPlanSeconds, formatCuttingTime } from '../../../utils/cuttingTimeUtils.js'
 
 export function Shop1ActiveCardsTable({
   workCards = [],
@@ -134,6 +135,11 @@ export function Shop1ActiveCardsTable({
                 const timeMetrics = getCardTimeMetrics ? getCardTimeMetrics(card) : { totalSec: 0, currentSec: 0 }
                 const startDate = getCardStartDate ? getCardStartDate(card) : new Date(card.created_at || 0)
                 const nom = getNom ? getNom(card) : nomenclatures.find(n => n.id === card.nomenclature_id)
+                const isCutting = card.operation === 'Розкрій'
+                const planSec = isCutting ? getCardCuttingPlanSeconds(card, nom) : 0
+                const isOvertime = isCutting && planSec > 0 && timeMetrics.totalSec > planSec
+                const overtimeSec = isOvertime ? timeMetrics.totalSec - planSec : 0
+                const percent = (isCutting && planSec > 0) ? Math.min(100, Math.round((timeMetrics.totalSec / planSec) * 100)) : 0
 
                 return (
                   <tr key={card.id} 
@@ -202,8 +208,49 @@ export function Shop1ActiveCardsTable({
                     <td style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>{card.shift_name || '—'}</td>
                     <td style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>{card.operator_name || '—'}</td>
                     <td style={{ padding: '10px 14px', color: '#eab308', fontWeight: 800 }}>{formatMachine(card.machine)}</td>
-                    <td style={{ padding: '10px 14px', color: '#10b981', fontFamily: 'monospace', fontWeight: 700 }}>
-                      {formatSec(timeMetrics.totalSec)}
+                    <td style={{ padding: '10px 14px', whiteSpace: 'nowrap' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{
+                            color: isOvertime ? '#ef4444' : '#10b981',
+                            fontFamily: 'monospace',
+                            fontWeight: 800,
+                            fontSize: '0.88rem'
+                          }}>
+                            {formatSec(timeMetrics.totalSec)}
+                          </span>
+                          {isOvertime && (
+                            <span style={{
+                              fontSize: '0.62rem',
+                              fontWeight: 900,
+                              background: 'rgba(239, 68, 68, 0.15)',
+                              color: '#ef4444',
+                              border: '1px solid rgba(239, 68, 68, 0.35)',
+                              padding: '1px 5px',
+                              borderRadius: '4px'
+                            }}>
+                              +{formatSec(overtimeSec)}
+                            </span>
+                          )}
+                        </div>
+                        {isCutting && planSec > 0 && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.68rem', fontWeight: 700 }}>
+                            <span style={{ color: isOvertime ? '#ef4444' : 'var(--text-muted, #94a3b8)' }}>
+                              план: {formatCuttingTime(planSec)}
+                            </span>
+                            <span style={{
+                              color: isOvertime ? '#ef4444' : '#10b981',
+                              background: isOvertime ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+                              padding: '0 4px',
+                              borderRadius: '3px',
+                              fontSize: '0.62rem',
+                              fontWeight: 800
+                            }}>
+                              {percent}%
+                            </span>
+                          </div>
+                        )}
+                      </div>
                     </td>
                     <td style={{ padding: '10px 14px', color: '#eab308', fontFamily: 'monospace', fontWeight: 700 }}>
                       {formatSec(timeMetrics.currentSec)}

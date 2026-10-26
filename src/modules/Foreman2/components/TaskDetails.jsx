@@ -4,6 +4,7 @@ import { QRCodeSVG } from 'qrcode.react'
 import { formatQty } from '../utils/normalize.js'
 import { calculateGeneratedSheetTotal, getCardSheets } from '../features/shortage/shortageCalculations.js'
 import { CardScrapHistoryModal } from '../../Brak/components/modals/CardScrapHistoryModal.jsx'
+import { getCardCuttingPlanSeconds } from '../../../utils/cuttingTimeUtils.js'
 
 const panelStyle = {
   background: 'var(--surface-1)',
@@ -501,7 +502,7 @@ const WorkCardsArchive = ({ parts, task, expandedId, onToggle, onOpenReissue, on
                                         machine: card.machine || part.machine,
                                         totalLoadings: '—',
                                         sheetsPerLoading: getCardSheets(card, part.unitsPerSheet),
-                                        estimatedTime: (Number(part.nom?.time_per_unit) || 0) * (Number(card.quantity) || 0) * 60
+                                        estimatedTime: getCardCuttingPlanSeconds(card, part.nom)
                                       }])
                                     }
                                   }}
@@ -866,7 +867,7 @@ export default function TaskDetails({ model, nomenclatures = [], allCards, onOpe
                                     machine: c.machine,
                                     totalLoadings: load.expectedLoads,
                                     sheetsPerLoading: getCardSheets(c, part.unitsPerSheet),
-                                    estimatedTime: (Number(part.nom?.time_per_unit) || 0) * (Number(c.quantity) || 0) * 60
+                                    estimatedTime: getCardCuttingPlanSeconds(c, part.nom)
                                   })))
                                 }
                               }}
@@ -903,7 +904,7 @@ export default function TaskDetails({ model, nomenclatures = [], allCards, onOpe
                                         machine: card.machine || part.machine,
                                         totalLoadings: '—',
                                         sheetsPerLoading: getCardSheets(card, part.unitsPerSheet),
-                                        estimatedTime: (Number(part.nom?.time_per_unit) || 0) * (Number(card.quantity) || 0) * 60
+                                        estimatedTime: getCardCuttingPlanSeconds(card, part.nom)
                                       }])
                                     }
                                   }}

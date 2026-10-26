@@ -104,7 +104,7 @@ export const ERP_CATEGORY_SCHEMAS = {
       { key: 'name', label: 'Назва деталі', required: true },
       { key: 'default_material_id', label: 'Робочий матеріал / лист ЧПК', required: true },
       { key: 'unitsPerSheet', label: 'Норма деталей з 1 листа (шт/л)', required: true },
-      { key: 'loadTimings', label: 'Таймінги загрузок (2, 4, 8, 16, 32, 64 л.)', required: false }
+      { key: 'loadTimings', label: 'Таймінги загрузок (1, 2, 4, 8, 12, 16 л.)', required: false }
     ]
   },
   full_frame: {

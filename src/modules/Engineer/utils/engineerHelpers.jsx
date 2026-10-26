@@ -158,9 +158,10 @@ export const useV2NomenclaturesData = (supabase) => {
   const [v2Noms, setV2Noms] = useState([])
   const fetchV2 = async () => {
     try {
-      const { data } = await supabase.from('nomenclatures_v2').select('*').order('name')
+      const { data } = await supabase.from('nomenclatures_v2').select('*').neq('status', 'archived').order('name')
       if (data) {
-        const mapped = data.map(v => mapV2ToStandardNom(v))
+        const activeOnly = data.filter(v => v.status !== 'archived')
+        const mapped = activeOnly.map(v => mapV2ToStandardNom(v))
         setV2Noms(mapped)
       }
     } catch (e) {

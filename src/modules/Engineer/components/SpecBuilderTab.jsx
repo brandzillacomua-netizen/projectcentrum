@@ -539,6 +539,7 @@ export function SpecBuilderTab() {
     return uniqueParents
       .filter(p => {
         if (!p.nom) return false
+        if (p.nom.status === 'archived') return false
         const t = p.nom.type
         if (t && t !== 'product' && t !== 'assembly') return false
         if (q && !p.nom.name.toLowerCase().includes(q)) return false
@@ -1736,16 +1737,29 @@ export function SpecBuilderTab() {
                                     <button
                                       onClick={async e => {
                                         e.stopPropagation()
-                                        if (!confirm(`Архівувати позицію «${nom.name}»? Специфікація та історія будуть збережені.`)) return
+                                        const confirmMsg = isEmpty
+                                          ? `Видалити порожню специфікацію «${nom.name}»?`
+                                          : `Архівувати позицію «${nom.name}»? Специфікація та історія будуть збережені.`
+                                        if (!confirm(confirmMsg)) return
                                         try {
-                                          const { error } = await supabase
-                                            .from('nomenclatures_v2')
-                                            .update({ status: 'archived', updated_at: new Date().toISOString() })
-                                            .eq('id', nom.id)
-                                          if (error) throw error
+                                          if (isEmpty) {
+                                            await supabase.from('bom_items').delete().eq('parent_id', nom.id)
+                                            await supabase.from('nomenclature_v2_aliases').delete().eq('canonical_id', nom.id)
+                                            const { error: delErr } = await supabase.from('nomenclatures_v2').delete().eq('id', nom.id)
+                                            if (delErr) {
+                                              await supabase.from('nomenclatures_v2').update({ status: 'archived', updated_at: new Date().toISOString() }).eq('id', nom.id)
+                                            }
+                                          } else {
+                                            const { error } = await supabase
+                                              .from('nomenclatures_v2')
+                                              .update({ status: 'archived', updated_at: new Date().toISOString() })
+                                              .eq('id', nom.id)
+                                            if (error) throw error
+                                          }
 
                                           await refreshTable('bom_items')
                                           await refreshTable('nomenclatures')
+                                          await refreshTable('nomenclatures_v2')
                                         } catch (err) {
                                           alert('Помилка видалення: ' + err.message)
                                         }

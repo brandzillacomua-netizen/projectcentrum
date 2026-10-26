@@ -877,12 +877,12 @@ export const NomenclatureWizardModal = ({
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
-                    {['2', '4', '8', '16', '32', '64'].map(sheets => {
+                    {['1', '2', '4', '8', '12', '16'].map(sheets => {
                       const val = wizardParams.loadTimings?.[sheets] ?? '';
                       return (
                         <div key={sheets} style={{ background: 'var(--card-bg, #ffffff)', border: '1px solid var(--border-color, #cbd5e1)', borderRadius: '12px', padding: '10px 12px' }}>
                           <div style={{ fontSize: '0.72rem', fontWeight: 900, color: '#d97706', marginBottom: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span>{sheets} {sheets === '2' || sheets === '4' || sheets === '32' || sheets === '64' ? 'листи' : 'листів'}:</span>
+                            <span>{sheets} {sheets === '1' ? 'лист' : (sheets === '2' || sheets === '4' ? 'листи' : 'листів')}:</span>
                             <span style={{ fontSize: '0.65rem', color: 'var(--text-muted, #64748b)' }}>хв</span>
                           </div>
                           <input 

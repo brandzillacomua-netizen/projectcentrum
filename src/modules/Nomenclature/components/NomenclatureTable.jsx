@@ -74,6 +74,7 @@ const NomenclatureTableRow = React.memo(({
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '6px' }}>
             {Object.entries(item.rule_params.loadTimings)
               .filter(([_, v]) => v !== '' && v !== null && v !== undefined)
+              .sort(([a], [b]) => Number(a) - Number(b))
               .map(([k, v]) => (
                 <span key={k} style={{ background: 'rgba(255, 144, 0, 0.12)', border: '1px solid rgba(255, 144, 0, 0.3)', color: '#d97706', padding: '2px 6px', borderRadius: '5px', fontSize: '0.68rem', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
                   <Clock size={10} /> {k}л: {v}хв

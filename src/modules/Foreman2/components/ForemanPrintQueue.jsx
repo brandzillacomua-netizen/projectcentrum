@@ -2,6 +2,7 @@ import React from 'react'
 import { X } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import { getCustomerCode } from '../../../utils/customerCodeUtils.js'
+import { getCardCuttingPlanSeconds, formatCuttingTime } from '../../../utils/cuttingTimeUtils.js'
 
 const getLoadingSequence = (metadata) => {
   const loading = String(metadata?.loading || metadata?.card_info || '')
@@ -148,6 +149,11 @@ export default function ForemanPrintQueue({
       {sortedMetadata.map((m, i) => {
         const order = orders.find(o => o.id === printQueue.task?.order_id) || allOrdersMap[printQueue.task?.order_id]
         const nomenclature = nomenclatures.find(n => n.id === (printQueue.part?.nomenclature_id || printQueue.part?.nom?.id))
+        const sheets = m.sheetsPerLoading ?? Math.ceil(m.qty / (nomenclature?.units_per_sheet || 1))
+        const planSec = getCardCuttingPlanSeconds(
+          { ...m, operation: 'Розкрій', estimated_time: m.estimatedTime, sheetsPerLoading: sheets, quantity: m.qty },
+          nomenclature
+        )
         const currentDate = new Date().toLocaleDateString('uk-UA')
         const finishedProduct = order?.order_items?.[0] ? nomenclatures.find(n => n.id === order.order_items[0].nomenclature_id) : null
         const formatTime = (seconds) => {
@@ -283,7 +289,7 @@ export default function ForemanPrintQueue({
                           <tr style={{ flex: 1, background: '#fff' }}>
                             <td colSpan="2" style={{ padding: '2px', textAlign: 'center' }}>
                               <span style={{ fontSize: '6pt', fontWeight: 900, display: 'block', textTransform: 'uppercase', marginBottom: '1px' }}>План. час виконання</span>
-                              <span style={{ fontSize: '11pt', fontWeight: 1000 }}>{formatTime(m.estimatedTime || 0)}</span>
+                              <span style={{ fontSize: '11pt', fontWeight: 1000 }}>{formatCuttingTime(planSec)}</span>
                             </td>
                           </tr>
                         </tbody>

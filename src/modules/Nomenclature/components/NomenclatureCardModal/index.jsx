@@ -1277,7 +1277,7 @@ export const NomenclatureCardModal = ({
                 </h3>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '12px' }}>
-                  {[2, 4, 8, 16, 32, 64].map(sheets => {
+                  {[1, 2, 4, 8, 12, 16].map(sheets => {
                     const timeVal = item.rule_params?.loadTimings ? item.rule_params.loadTimings[sheets] : null
                     const hasVal = timeVal !== '' && timeVal !== null && timeVal !== undefined
                     return (
@@ -1292,7 +1292,7 @@ export const NomenclatureCardModal = ({
                         }}
                       >
                         <div style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-muted, #64748b)' }}>
-                          {sheets} {sheets < 5 ? 'листи' : 'листів'}
+                          {sheets} {sheets === 1 ? 'лист' : (sheets < 5 ? 'листи' : 'листів')}
                         </div>
                         <div style={{ fontSize: '1.1rem', fontWeight: 900, color: hasVal ? '#d97706' : 'var(--text-muted, #94a3b8)', marginTop: '4px' }}>
                           {hasVal ? `${timeVal} хв` : '—'}

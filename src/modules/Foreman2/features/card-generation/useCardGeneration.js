@@ -6,6 +6,7 @@ import {
   calculateRemainingGenerationSheets,
   resolvePlannedSheetsForGeneration
 } from './cardGenerationCalculations.js'
+import { getCuttingEstimatedSeconds } from '../../../../utils/cuttingTimeUtils.js'
 
 export function useCardGeneration({ mes, onDataChanged }) {
   const [isGenerating, setIsGenerating] = useState(false)
@@ -204,7 +205,7 @@ export function useCardGeneration({ mes, onDataChanged }) {
         cardsBatch.push({
           operation: 'Розкрій',
           machine: selectedMachineName || 'Не вказано',
-          estimatedTime: Math.round((Number(resolvedPartNom?.time_per_unit) || 0) * reqInThisLoading * 60),
+          estimatedTime: getCuttingEstimatedSeconds(resolvedPartNom, sheetsInThisLoading, reqInThisLoading),
           cardInfo: `${prefix}№${currentSeq}${originalNeed > 0 ? ` [NEED:${originalNeed}]` : ''} [REQ:${reqInThisLoading}] [BZ:${bzInThisLoading}] [SHEETS:${sheetsInThisLoading}]`,
           quantity: qtyInThisLoading,
           bufferQty: bzInThisLoading,
@@ -300,7 +301,7 @@ export function useCardGeneration({ mes, onDataChanged }) {
                 id: c.id,
                 loading: c.card_info,
                 qty: batchItem ? batchItem.quantity : 0,
-                estimatedTime: (Number(part.nom?.time_per_unit) || 0) * (batchItem ? batchItem.quantity : 0) * 60,
+                estimatedTime: getCuttingEstimatedSeconds(part.nom, batchItem ? batchItem.actualSheets : capacity, batchItem ? batchItem.quantity : 0),
                 totalLoadings: displayTotal,
                 sheetsPerLoading: batchItem ? batchItem.actualSheets : capacity,
                 machine: selectedMachineName
@@ -319,7 +320,7 @@ export function useCardGeneration({ mes, onDataChanged }) {
                 id: c.id,
                 loading: c.card_info,
                 qty: batchItem ? batchItem.quantity : 0,
-                estimatedTime: (Number(part.nom?.time_per_unit) || 0) * (batchItem ? batchItem.quantity : 0) * 60,
+                estimatedTime: getCuttingEstimatedSeconds(part.nom, batchItem ? batchItem.actualSheets : capacity, batchItem ? batchItem.quantity : 0),
                 totalLoadings: displayTotal,
                 sheetsPerLoading: batchItem ? batchItem.actualSheets : capacity,
                 machine: selectedMachineName

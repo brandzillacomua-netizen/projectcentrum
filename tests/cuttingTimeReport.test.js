@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildCuttingTimeSummary,
+  calculateCuttingPlanSeconds,
   getHistoryRowDurationSeconds,
   isCuttingStageRow,
   isCuttingStopRow,
@@ -53,4 +54,31 @@ describe('cutting time report', () => {
     expect(isCuttingWorkRow(stop)).toBe(false)
     expect(getHistoryRowDurationSeconds(work)).toBe(4530)
   })
+
+  it('calculates total cutting plan seconds across task cards using loadTimings', () => {
+    const taskCards = [
+      { id: 'c1', nomenclature_id: 'n1', operation: 'Розкрій', quantity: 184, card_info: '№1 [SHEETS:4]' },
+      { id: 'c2', nomenclature_id: 'n1', operation: 'Розкрій', quantity: 92, card_info: '№2 [SHEETS:2]' },
+      { id: 'c3', nomenclature_id: 'n1', operation: 'Галтовка', quantity: 184, card_info: '№1' }
+    ]
+    const noms = [{
+      id: 'n1',
+      units_per_sheet: 46,
+      rule_params: {
+        loadTimings: { '2': '45', '4': '60' }
+      }
+    }]
+
+    // c1 (4 sheets) = 60m = 3600s, c2 (2 sheets) = 45m = 2700s, c3 is Galtovka (excluded)
+    const planSec = calculateCuttingPlanSeconds(taskCards, noms)
+    expect(planSec).toBe(3600 + 2700)
+
+    // With cutting history scope, even if card has moved to downstream operation, plan is included
+    const movedCards = [
+      { id: 'c1', nomenclature_id: 'n1', operation: 'Сортування', quantity: 184, card_info: '№1 [SHEETS:4]' }
+    ]
+    const historyScope = new Set(['c1'])
+    expect(calculateCuttingPlanSeconds(movedCards, noms, 'All', 'All', historyScope)).toBe(3600)
+  })
 })
+

@@ -67,6 +67,9 @@ export const shop2CardService = {
     })
 
     const totalQtyToDeduct = cardsBatch.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0)
+    const directPackQty = insertPayloads
+      .filter(p => p.operation === 'Склад СГП' || p.status === 'completed')
+      .reduce((sum, p) => sum + (Number(p.quantity) || 0), 0)
 
     // ── ATOMIC ENTERPRISE RPC EXECUTION ──────────────────────────────────────────
     try {
@@ -82,6 +85,9 @@ export const shop2CardService = {
       })
 
       if (!rpcErr && rpcRes?.success) {
+        if (directPackQty > 0) {
+          await this.transferDirectSgpInventory({ nomenclatureId, directPackQty, sourceNomenclatureIds })
+        }
         return (rpcRes.cards || []).map(c => {
           const sheetsMatch = c.card_info?.match(/\[SHEETS:(\d+)\]/)
           const bzMatch = c.card_info?.match(/\[BZ:(\d+)\]/)
@@ -122,6 +128,10 @@ export const shop2CardService = {
       await this.deductFromSourceBufferCards({ orderId, nomenclatureId, totalQtyToDeduct, legacyIds: sourceNomenclatureIds, sourceOrderIds })
     }
 
+    if (directPackQty > 0) {
+      await this.transferDirectSgpInventory({ nomenclatureId, directPackQty, sourceNomenclatureIds })
+    }
+
     return (data || []).map(c => {
       const sheetsMatch = c.card_info?.match(/\[SHEETS:(\d+)\]/)
       const bzMatch = c.card_info?.match(/\[BZ:(\d+)\]/)
@@ -133,6 +143,73 @@ export const shop2CardService = {
         bufferQty: bzMatch ? Number(bzMatch[1]) : 0
       }
     })
+  },
+
+  /**
+   * Transfer inventory from semi_shop2/bz_shop2 to finished on SGP for direct handovers
+   */
+  async transferDirectSgpInventory({ nomenclatureId, directPackQty, sourceNomenclatureIds = [] }) {
+    if (!directPackQty || directPackQty <= 0) return
+    try {
+      const allNomIds = Array.from(new Set([nomenclatureId, ...sourceNomenclatureIds].filter(Boolean)))
+      // 1. Deduct from semi_shop2 / bz_shop2
+      const { data: semiRows } = await supabase
+        .from('inventory')
+        .select('*')
+        .in('nomenclature_id', allNomIds)
+        .in('type', ['semi_shop2', 'bz_shop2'])
+
+      let remaining = directPackQty
+      const sortedSemi = (semiRows || []).sort((a, b) => (a.type === 'semi_shop2' ? -1 : 1))
+      for (const r of sortedSemi) {
+        if (remaining <= 0) break
+        const current = Number(r.total_qty) || 0
+        const take = Math.min(current, remaining)
+        if (take > 0) {
+          await supabase.from('inventory').update({
+            total_qty: current - take,
+            updated_at: new Date().toISOString()
+          }).eq('id', r.id)
+          remaining -= take
+        }
+      }
+
+      // 2. Add to finished on sgp
+      const { data: finishedItem } = await supabase
+        .from('inventory')
+        .select('*')
+        .in('nomenclature_id', allNomIds)
+        .eq('type', 'finished')
+        .eq('warehouse', 'sgp')
+        .limit(1)
+        .maybeSingle()
+
+      if (finishedItem) {
+        await supabase.from('inventory').update({
+          total_qty: (Number(finishedItem.total_qty) || 0) + directPackQty,
+          updated_at: new Date().toISOString()
+        }).eq('id', finishedItem.id)
+      } else {
+        const { data: nom } = await supabase
+          .from('nomenclatures_v2')
+          .select('name, unit')
+          .eq('id', nomenclatureId)
+          .maybeSingle()
+
+        await supabase.from('inventory').insert([{
+          nomenclature_id: nomenclatureId,
+          name: nom?.name || 'Деталь',
+          unit: nom?.unit || 'шт',
+          total_qty: directPackQty,
+          reserved_qty: 0,
+          type: 'finished',
+          warehouse: 'sgp',
+          updated_at: new Date().toISOString()
+        }])
+      }
+    } catch (e) {
+      console.warn('[shop2CardService] transferDirectSgpInventory warning:', e?.message || e)
+    }
   },
 
   /**

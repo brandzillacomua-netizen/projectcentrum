@@ -27,7 +27,7 @@ export const NomCreateModal = ({
 
   const [wizardGroup, setWizardGroup] = useState(null)
   const [wizardRuleType, setWizardRuleType] = useState(initialRuleType || 'full_frame')
-  const DEFAULT_LOAD_TIMINGS = { '2': '', '4': '', '8': '', '16': '', '32': '', '64': '' }
+  const DEFAULT_LOAD_TIMINGS = { '1': '', '2': '', '4': '', '8': '', '12': '', '16': '' }
 
   const [wizardParams, setWizardParams] = useState({
     standard: 'DIN912', diameter: '3', length: '10', isBlack: true, isPartialThread: false,

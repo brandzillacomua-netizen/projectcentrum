@@ -13,6 +13,7 @@ import { findWorkingSheetNom, extractThickness } from '../../modules/Nomenclatur
 import { buildRequestAllocations, consumeCuttingInventoryOnce } from '../../services/atomicInventoryService.js'
 import { resolveCutterOrVirtualType, resolveCutterTypeName, isMachineMatch } from '../../utils/cutterCalculator.js'
 import { isRequestForCard } from '../../utils/materialCardMatching.js'
+import { getCuttingEstimatedSeconds } from '../../utils/cuttingTimeUtils.js'
 import { selectIssuedRequestsForInventory, sumRequestQuantity } from '../../services/reservationLedger.js'
 
 export function createProductionCardsActions({
@@ -39,10 +40,14 @@ export function createProductionCardsActions({
     const unitsPerSheet = Math.max(1, Number(partNom?.units_per_sheet) || 1)
     const actualSheets = Math.ceil((Number(quantity) || 0) / unitsPerSheet)
     const cardInfoText = `${baseCardInfo}${actualSheets > 0 && !baseCardInfo.includes('[SHEETS:') ? ` [SHEETS:${actualSheets}]` : ''}${Number(bufferQty) > 0 && !baseCardInfo.includes('[BZ:') ? ` [BZ:${bufferQty}]` : ''}${isRework && !baseCardInfo.includes('[REDO]') ? ' [REDO]' : ''}`
+    let finalEstTime = Math.round(Number(estimatedTime) || 0)
+    if (!finalEstTime && partNom && (!operation || operation === 'Розкрій')) {
+      finalEstTime = getCuttingEstimatedSeconds(partNom, actualSheets, Number(quantity) || 0)
+    }
     const { data: list, error } = await supabase.from('work_cards').insert([{
       task_id: taskId, order_id: orderId, nomenclature_id: nomenclatureId,
       operation: operation || 'Нова', machine, quantity: Number(quantity) || 0,
-      estimated_time: Math.round(Number(estimatedTime) || 0), status, is_rework: isRework,
+      estimated_time: finalEstTime, status, is_rework: isRework,
       card_info: cardInfoText
     }]).select()
     if (error) {
@@ -75,10 +80,17 @@ export function createProductionCardsActions({
     // change flows and must not be inferred from ordinary cards.
     const shouldSplitMaterialRequestsByCard = (cardsArray || []).some(c => c.splitMaterialRequests === true)
 
+    const partNom = nomenclatures.find(n => String(n.id) === String(nomenclatureId))
+    const unitsPerSheet = Math.max(1, Number(partNom?.units_per_sheet) || 1)
     const payloads = cardsArray.map(c => {
       const baseCardInfo = String(c.cardInfo || '')
       const actualSheets = Math.max(0, Number(c.actualSheets ?? c.sheets) || 0)
       const cardInfoText = `${baseCardInfo}${actualSheets > 0 && !baseCardInfo.includes('[SHEETS:') ? ` [SHEETS:${actualSheets}]` : ''}${Number(c.bufferQty) > 0 && !baseCardInfo.includes('[BZ:') ? ` [BZ:${c.bufferQty}]` : ''}`
+      let estTime = Math.round(Number(c.estimatedTime) || 0)
+      if (!estTime && partNom && (!c.operation || c.operation === 'Розкрій')) {
+        const sheets = actualSheets > 0 ? actualSheets : Math.ceil((Number(c.quantity) || 0) / unitsPerSheet)
+        estTime = getCuttingEstimatedSeconds(partNom, sheets, Number(c.quantity) || 0)
+      }
       return {
         task_id: taskId,
         order_id: orderId,
@@ -86,7 +98,7 @@ export function createProductionCardsActions({
         operation: c.operation || 'Нова',
         machine: c.machine,
         quantity: Number(c.quantity) || 0,
-        estimated_time: Math.round(Number(c.estimatedTime) || 0),
+        estimated_time: estTime,
         status: c.status || 'new',
         is_rework: c.is_rework || false,
         card_info: cardInfoText

@@ -20,11 +20,13 @@ import {
 } from '../utils/cutterReport.js'
 import {
   buildCuttingTimeSummary,
+  calculateCuttingPlanSeconds,
   getHistoryRowDurationSeconds,
   isCuttingStageRow,
   isCuttingStopRow,
   isCuttingWorkRow
 } from '../utils/cuttingTimeReport.js'
+import { getCardCuttingPlanSeconds } from '../../../utils/cuttingTimeUtils.js'
 import { buildScrapDetailGroups, buildUtilDetailGroups } from '../utils/scrapDetailReport.js'
 
 const isCuttingHistoryRow = row => String(row.stage_name || '').trim().startsWith('Розкрій')
@@ -474,6 +476,7 @@ export function ForemanReportModal({
           const totalActualCutters = Object.values(actualCuttersBreakdown).reduce((sum, val) => sum + val, 0)
 
           const cuttingTimeSummary = buildCuttingTimeSummary(reportData.historyRows || [])
+          const cuttingPlanSeconds = calculateCuttingPlanSeconds(reportData.taskCards || [], nomenclatures, reportNomFilter, reportCardFilter, new Set(Object.keys(cuttingTimeSummary.byCard)))
 
           const formatDurationHMS = (totalSeconds) => {
             if (totalSeconds === null || totalSeconds === undefined || totalSeconds < 0) return '—'
@@ -600,14 +603,8 @@ export function ForemanReportModal({
                     </div>
 
                     <div style={{ paddingLeft: '10px', borderLeft: '2px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 800 }}>
-                        <span>План із БЗ:</span>
-                        <span>{productionSummary.plannedBz} шт</span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 800 }}>
-                        <span>План цеху №1:</span>
-                        <span>{productionSummary.plannedShop1} шт</span>
-                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 800 }}><span>План із БЗ:</span><span>{productionSummary.plannedBz} шт</span></div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 800 }}><span>План цеху №1:</span><span>{productionSummary.plannedShop1} шт</span></div>
                     </div>
 
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1040,15 +1037,24 @@ export function ForemanReportModal({
 
                 return (
                   <div style={{ background: 'var(--surface-1)', borderRadius: '18px', overflowX: 'auto', border: '1px solid var(--border-subtle)' }}>
-                    {reportStageFilter === 'Розкрій' && (
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '14px', alignItems: 'center', padding: '11px 15px', borderBottom: '1px solid var(--border-subtle)', background: '#3b82f60a', fontSize: '0.7rem' }}>
-                        <span>Активний час розкрою: <strong style={{ color: '#3b82f6' }}>{formatDurationHMS(cuttingTimeSummary.totalSeconds)}</strong></span>
-                        <span>Карток: <strong>{cuttingTimeSummary.cardCount}</strong></span>
-                        <span>Робочих сесій: <strong>{cuttingTimeSummary.sessionCount}</strong></span>
-                        <span>Перезмінок: <strong>{cuttingTimeSummary.handoverCount}</strong></span>
-                        <span style={{ color: '#f59e0b' }}>Зупинки показані окремо й не входять в активний час</span>
-                      </div>
-                    )}
+                    {reportStageFilter === 'Розкрій' && (() => {
+                      const factSec = cuttingTimeSummary.totalSeconds
+                      const isOver = cuttingPlanSeconds > 0 && factSec > cuttingPlanSeconds
+                      const diffSec = Math.abs(factSec - cuttingPlanSeconds)
+                      const pct = cuttingPlanSeconds > 0 ? Math.round((factSec / cuttingPlanSeconds) * 100) : 0
+                      return (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '14px', alignItems: 'center', padding: '11px 15px', borderBottom: '1px solid var(--border-subtle)', background: isOver ? 'rgba(239, 68, 68, 0.08)' : '#3b82f60a', fontSize: '0.72rem' }}>
+                          <span>План розкрою: <strong style={{ color: 'var(--text-strong)' }}>{cuttingPlanSeconds > 0 ? formatDurationHMS(cuttingPlanSeconds) : '—'}</strong></span>
+                          <span>Факт розкрою: <strong style={{ color: isOver ? '#ef4444' : '#10b981' }}>{formatDurationHMS(factSec)}</strong></span>
+                          {cuttingPlanSeconds > 0 && (
+                            <span style={{ background: isOver ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)', color: isOver ? '#ef4444' : '#10b981', border: `1px solid ${isOver ? 'rgba(239, 68, 68, 0.35)' : 'rgba(16, 185, 129, 0.35)'}`, padding: '2px 7px', borderRadius: '6px', fontWeight: 900, fontSize: '0.65rem' }}>
+                              {isOver ? `⚠️ Перевищення: +${formatDurationHMS(diffSec)} (${pct}%)` : `В нормі: ${pct}%`}
+                            </span>
+                          )}
+                          <span style={{ marginLeft: 'auto', color: 'var(--text-dim)', fontSize: '0.68rem' }}>Карток: <strong>{cuttingTimeSummary.cardCount}</strong> · Сесій: <strong>{cuttingTimeSummary.sessionCount}</strong></span>
+                        </div>
+                      )
+                    })()}
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', textAlign: 'left', minWidth: '850px' }}>
                       <thead>
                         <tr style={{ background: 'var(--surface-2)', color: '#888', textTransform: 'uppercase', fontSize: '0.6rem', fontWeight: 900, borderBottom: '1px solid var(--border-subtle)' }}>
@@ -1072,17 +1078,16 @@ export function ForemanReportModal({
                             ? new Date(row.completed_at).toLocaleString('uk-UA', { hour: '2-digit', minute: '2-digit', second: '2-digit', day: '2-digit', month: '2-digit' })
                             : '—'
 
-                          const card = reportData.taskCards.find(c => c.id === row.card_id)
-                          const planSec = card?.estimated_time || 0
+                          const card = (reportData.taskCards || []).find(c => String(c.id) === String(row.card_id))
+                          const nom = nomenclatures.find(n => String(n.id) === String(row.nomenclature_id || card?.nomenclature_id))
+                          const effCard = card || { card_info: row.card_info, quantity: row.qty_at_start || row.qty_completed }
+                          const planSec = isCuttingStageRow(row) ? getCardCuttingPlanSeconds(effCard, nom, true) : (card?.estimated_time || 0)
                           const planStr = planSec > 0 ? formatDurationHMS(planSec) : '—'
-
                           const actualSeconds = getHistoryRowDurationSeconds(row)
                           const factStr = actualSeconds > 0 ? formatDurationHMS(actualSeconds) : '—'
                           const cuttingCardTime = cuttingTimeSummary.byCard[String(row.card_id || 'unknown')]
                           const isLastCuttingWorkRow = isCuttingWorkRow(row) && cuttingCardTime?.lastRow === row
                           const isCuttingStop = isCuttingStopRow(row)
-
-                          const nom = nomenclatures.find(n => n.id === row.nomenclature_id)
                           const cardSeq = getCardSequenceInfo(row, reportData.taskCards)
                           const seqStr = cardSeq.label
                           const stageName = String(row.stage_name || '').trim() || 'Не вказано'

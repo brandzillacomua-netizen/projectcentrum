@@ -6,11 +6,13 @@ import {
 } from '../../Foreman/utils/cutterReport.js'
 import {
   buildCuttingTimeSummary,
+  calculateCuttingPlanSeconds,
   getHistoryRowDurationSeconds,
   isCuttingStageRow,
   isCuttingStopRow,
   isCuttingWorkRow
 } from '../../Foreman/utils/cuttingTimeReport.js'
+import { getCardCuttingPlanSeconds } from '../../../utils/cuttingTimeUtils.js'
 import {
   getCardSequenceInfo,
   extractUniqueReportCards,
@@ -501,15 +503,25 @@ export const NariadReportsView = ({
                 </div>
 
                 <div style={{ overflowX: 'auto' }}>
-                  {nariadStageFilter === 'Розкрій' && (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center', padding: '10px', borderBottom: '1px solid var(--border-subtle)', background: '#3b82f60a', fontSize: '0.64rem' }}>
-                      <span>Активний час: <strong style={{ color: '#3b82f6' }}>{formatDurHMS(cuttingTimeSummary.totalSeconds)}</strong></span>
-                      <span>Карток: <strong>{cuttingTimeSummary.cardCount}</strong></span>
-                      <span>Сесій: <strong>{cuttingTimeSummary.sessionCount}</strong></span>
-                      <span>Перезмінок: <strong>{cuttingTimeSummary.handoverCount}</strong></span>
-                      <span style={{ color: '#f59e0b' }}>Зупинки не входять в активний час</span>
-                    </div>
-                  )}
+                  {nariadStageFilter === 'Розкрій' && (() => {
+                    const planSec = calculateCuttingPlanSeconds(rd?.taskCards || [], nomenclatures, nariadNomFilter, nariadCardFilter, new Set(Object.keys(cuttingTimeSummary.byCard)))
+                    const factSec = cuttingTimeSummary.totalSeconds
+                    const isOver = planSec > 0 && factSec > planSec
+                    const diffSec = Math.abs(factSec - planSec)
+                    const pct = planSec > 0 ? Math.round((factSec / planSec) * 100) : 0
+                    return (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center', padding: '10px', borderBottom: '1px solid var(--border-subtle)', background: isOver ? 'rgba(239, 68, 68, 0.08)' : '#3b82f60a', fontSize: '0.68rem' }}>
+                        <span>План розкрою: <strong style={{ color: 'var(--text-strong)' }}>{planSec > 0 ? formatDurHMS(planSec) : '—'}</strong></span>
+                        <span>Факт розкрою: <strong style={{ color: isOver ? '#ef4444' : '#10b981' }}>{formatDurHMS(factSec)}</strong></span>
+                        {planSec > 0 && (
+                          <span style={{ background: isOver ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)', color: isOver ? '#ef4444' : '#10b981', border: `1px solid ${isOver ? 'rgba(239, 68, 68, 0.35)' : 'rgba(16, 185, 129, 0.35)'}`, padding: '2px 6px', borderRadius: '4px', fontWeight: 900, fontSize: '0.62rem' }}>
+                            {isOver ? `⚠️ +${formatDurHMS(diffSec)} (${pct}%)` : `В нормі: ${pct}%`}
+                          </span>
+                        )}
+                        <span style={{ marginLeft: 'auto', color: 'var(--text-dim)', fontSize: '0.62rem' }}>Карток: <strong>{cuttingTimeSummary.cardCount}</strong> · Сесій: <strong>{cuttingTimeSummary.sessionCount}</strong></span>
+                      </div>
+                    )
+                  })()}
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.7rem' }}>
                     <thead>
                       <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
@@ -520,14 +532,15 @@ export const NariadReportsView = ({
                     </thead>
                     <tbody>
                       {logRows.map((row, idx) => {
-                        const nom = nomenclatures?.find(n => String(n.id) === String(row.nomenclature_id))
+                        const card = rd.taskCards?.find(c => String(c.id) === String(row.card_id))
+                        const nom = nomenclatures?.find(n => String(n.id) === String(row.nomenclature_id || card?.nomenclature_id))
                         const cardSeq = getCardSequenceInfo(row, rd.taskCards)
                         const sequenceLabel = cardSeq.label
                         const dur = getHistoryRowDurationSeconds(row)
                         const cuttingCardTime = cuttingTimeSummary.byCard[String(row.card_id || 'unknown')]
                         const isLastCuttingWorkRow = isCuttingWorkRow(row) && cuttingCardTime?.lastRow === row
-                        const isCuttingStop = isCuttingStopRow(row)
-                        const plannedSec = nom?.time_per_unit ? Math.round(Number(nom.time_per_unit) * (Number(row.qty_completed) || 0)) : null
+                        const effCard = card || { card_info: row.card_info, quantity: row.qty_at_start || row.qty_completed }
+                        const plannedSec = isCuttingStageRow(row) ? getCardCuttingPlanSeconds(effCard, nom, true) : (card?.estimated_time || (nom?.time_per_unit ? Math.round(Number(nom.time_per_unit) * (Number(row.qty_completed) || 0)) : null))
                         const isGalt = row.stage_name?.startsWith('Галтовка')
                         const stageClr = isCuttingStop ? '#f59e0b' : isShop2History(row) ? '#8b5cf6' : isGalt ? '#eab308' : row.stage_name === 'Прийомка' ? '#10b981' : row.stage_name === 'Сортування' ? '#14b8a6' : '#3b82f6'
                         const hasScrap = Number(row.scrap_qty) > 0
