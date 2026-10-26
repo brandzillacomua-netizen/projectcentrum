@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { Search, RotateCcw, Clock } from 'lucide-react'
 import {
   buildRequestedCuttersBreakdown,
@@ -11,6 +11,11 @@ import {
   isCuttingStopRow,
   isCuttingWorkRow
 } from '../../Foreman/utils/cuttingTimeReport.js'
+import {
+  getCardSequenceInfo,
+  extractUniqueReportCards,
+  sortRowsByCardSequence
+} from '../../Foreman/utils/naryadReport.js'
 
 const statusMeta = (s) => {
   const map = {
@@ -47,13 +52,19 @@ export const NariadReportsView = ({
   setNariadStageFilter,
   nariadNomFilter,
   setNariadNomFilter,
-  nariadSortBy,
+  nariadCardFilter: propCardFilter,
+  setNariadCardFilter: propSetCardFilter,
+  nariadSortBy = 'card',
   setNariadSortBy,
   setNariadDetailModal,
   nomenclatures,
   inventory,
   machineOperations: _machineOperations
 }) => {
+  const [internalCardFilter, setInternalCardFilter] = useState('All')
+  const nariadCardFilter = propCardFilter !== undefined ? propCardFilter : internalCardFilter
+  const setNariadCardFilter = propSetCardFilter || setInternalCardFilter
+
   const selectedTask = filteredTasks.find(t => t.id === selectedNariadTaskId)
   const selectedOrder = selectedTask ? (selectedTask._catalogOrder || allOrdersMap[selectedTask.order_id]) : null
 
@@ -325,8 +336,16 @@ export const NariadReportsView = ({
             if (nariadStageFilter === 'Прийомка') return row.stage_name === 'Прийомка' || row.stage_name === 'completed'
             return row.stage_name === nariadStageFilter
           }).filter(row => nariadNomFilter === 'All' || String(row.nomenclature_id) === nariadNomFilter)
+          .filter(row => {
+            if (nariadCardFilter === 'All') return true
+            const seq = getCardSequenceInfo(row, rd.taskCards)
+            return seq.label === nariadCardFilter
+          })
 
           logRows.sort((a, b) => {
+            if (nariadSortBy === 'card') {
+              return sortRowsByCardSequence(a, b, rd.taskCards)
+            }
             if (nariadSortBy === 'shop') return Number(isShop2History(a)) - Number(isShop2History(b)) || new Date(a.started_at || a.created_at || 0) - new Date(b.started_at || b.created_at || 0)
             if (nariadSortBy === 'min-time') {
               const da = a.started_at && a.completed_at ? new Date(a.completed_at) - new Date(a.started_at) : 0
@@ -454,6 +473,7 @@ export const NariadReportsView = ({
                     <select value={nariadSortBy} onChange={e => setNariadSortBy(e.target.value)}
                       className="form-input"
                       style={{ padding: '5px 10px', borderRadius: '8px', fontSize: '0.65rem', fontWeight: 700, cursor: 'pointer', width: 'auto' }}>
+                      <option value="card">По номеру картки (1, 2, 3...)</option>
                       <option value="date">По даті</option>
                       <option value="shop">Спочатку Цех №1, потім Цех №2</option>
                       <option value="min-time">Мін. час</option>
@@ -468,6 +488,14 @@ export const NariadReportsView = ({
                         const nom = nomenclatures?.find(n => String(n.id) === String(nomId))
                         return <option key={nomId} value={nomId}>{nom?.name || nomId}</option>
                       })}
+                    </select>
+                    <select value={nariadCardFilter} onChange={e => setNariadCardFilter(e.target.value)}
+                      className="form-input"
+                      style={{ padding: '5px 10px', borderRadius: '8px', fontSize: '0.65rem', fontWeight: 700, cursor: 'pointer', maxWidth: '150px' }}>
+                      <option value="All">Всі картки</option>
+                      {extractUniqueReportCards(rd.historyRows, rd.taskCards, row => (
+                        nariadNomFilter === 'All' || String(row.nomenclature_id) === String(nariadNomFilter)
+                      )).map(c => <option key={c.label} value={c.label}>Картка {c.label}</option>)}
                     </select>
                   </div>
                 </div>
@@ -493,9 +521,8 @@ export const NariadReportsView = ({
                     <tbody>
                       {logRows.map((row, idx) => {
                         const nom = nomenclatures?.find(n => String(n.id) === String(row.nomenclature_id))
-                        const rowCard = (rd.taskCards || []).find(card => String(card.id) === String(row.card_id))
-                        const sequenceMatch = String(row.card_info || rowCard?.card_info || '').match(/(?:^|\D)(\d+)\s*\/\s*(\d+)(?:\D|$)/)
-                        const sequenceLabel = sequenceMatch ? `${sequenceMatch[1]}/${sequenceMatch[2]}` : `ID ${String(row.card_id || '').slice(-8).toUpperCase()}`
+                        const cardSeq = getCardSequenceInfo(row, rd.taskCards)
+                        const sequenceLabel = cardSeq.label
                         const dur = getHistoryRowDurationSeconds(row)
                         const cuttingCardTime = cuttingTimeSummary.byCard[String(row.card_id || 'unknown')]
                         const isLastCuttingWorkRow = isCuttingWorkRow(row) && cuttingCardTime?.lastRow === row

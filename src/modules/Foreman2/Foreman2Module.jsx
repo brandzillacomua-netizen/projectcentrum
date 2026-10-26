@@ -62,7 +62,8 @@ export default function Foreman2Module() {
   const [reportData, setReportData] = useState(null)
   const [reportStageFilter, setReportStageFilter] = useState('All')
   const [reportNomFilter, setReportNomFilter] = useState('All')
-  const [reportSortBy, setReportSortBy] = useState('date')
+  const [reportCardFilter, setReportCardFilter] = useState('All')
+  const [reportSortBy, setReportSortBy] = useState('card')
   const [reportOperatorFilter, setReportOperatorFilter] = useState('All')
   const [reportDetailModal, setReportDetailModal] = useState(null)
 
@@ -479,6 +480,8 @@ export default function Foreman2Module() {
         setReportStageFilter={setReportStageFilter}
         reportNomFilter={reportNomFilter}
         setReportNomFilter={setReportNomFilter}
+        reportCardFilter={reportCardFilter}
+        setReportCardFilter={setReportCardFilter}
         reportSortBy={reportSortBy}
         setReportSortBy={setReportSortBy}
         reportOperatorFilter={reportOperatorFilter}

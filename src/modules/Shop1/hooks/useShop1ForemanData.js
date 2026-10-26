@@ -122,7 +122,8 @@ export const useShop1ForemanData = () => {
   const [nariadReportData, setNariadReportData] = useState(null)
   const [nariadStageFilter, setNariadStageFilter] = useState('All')
   const [nariadNomFilter, setNariadNomFilter] = useState('All')
-  const [nariadSortBy, setNariadSortBy] = useState('date')
+  const [nariadCardFilter, setNariadCardFilter] = useState('All')
+  const [nariadSortBy, setNariadSortBy] = useState('card')
   const [nariadDetailModal, setNariadDetailModal] = useState(null)
   const [nariadCatalog, setNariadCatalog] = useState([])
   const [nariadCatalogLoading, setNariadCatalogLoading] = useState(false)
@@ -904,6 +905,8 @@ export const useShop1ForemanData = () => {
     setNariadStageFilter,
     nariadNomFilter,
     setNariadNomFilter,
+    nariadCardFilter,
+    setNariadCardFilter,
     nariadSortBy,
     setNariadSortBy,
     nariadDetailModal,

@@ -1,6 +1,19 @@
+import React, { useState } from 'react'
 import { X, Loader2, Clock, Printer, RefreshCw, CheckCircle2, AlertTriangle } from 'lucide-react'
 import { getScrapBreakdown } from '../utils/foremanHelpers'
-import { buildNaryadScrapSummary, calculateActualSheetsForPart, scopeReportCards } from '../utils/naryadReport'
+import {
+  buildNaryadScrapSummary,
+  calculateActualSheetsForPart,
+  scopeReportCards,
+  getCardSequenceInfo,
+  extractUniqueReportCards,
+  sortRowsByCardSequence,
+  getDeclaredRequestQty,
+  getMaterialRequestQty,
+  isIssuedMaterialRequest,
+  isReissueSheetMaterialRequest,
+  parseSheetMaterialFromRequest
+} from '../utils/naryadReport'
 import {
   buildRequestedCuttersBreakdown,
   resolveActualCutterToRequested
@@ -51,41 +64,6 @@ const parseCuttersBreakdown = (cardInfo = '') => {
   } catch (e) {
     console.warn('Failed to parse cutters breakdown from card_info:', e, info.slice(jsonStart, jsonEnd + 1))
     return null
-  }
-}
-
-const getDeclaredRequestQty = (request, fallbackQty = 0) => {
-  const match = String(request?.details || '').match(/[—-]\s*(\d+(?:[.,]\d+)?)/)
-  if (match) return Number(match[1].replace(',', '.')) || fallbackQty
-  return fallbackQty
-}
-
-const getMaterialRequestQty = (request) => {
-  const directQty = Number(request?.quantity)
-  if (Number.isFinite(directQty) && directQty > 0) return directQty
-  const match = String(request?.details || '').match(/[—-]\s*(\d+(?:[.,]\d+)?)/)
-  if (match) return Number(match[1].replace(',', '.')) || 0
-  return getDeclaredRequestQty(request, 0)
-}
-
-const isIssuedMaterialRequest = (request) => ['issued', 'completed'].includes(String(request?.status || '').toLowerCase())
-
-const isReissueSheetMaterialRequest = (request) => {
-  const text = `${request?.details || ''} ${request?.nomenclature?.name || ''}`.toLowerCase()
-  const isSheet = text.includes('лист') || text.includes('т300') || text.includes('т700') || text.includes('t300') || text.includes('t700')
-  const isReissue = text.includes('довипуск') || text.includes('дозапит') || text.includes('брак') || text.includes('нестача')
-  return isSheet && isReissue
-}
-
-const parseSheetMaterialFromRequest = (request) => {
-  const text = `${request?.nomenclature?.name || ''} ${request?.details || ''}`
-  const compact = text.toLowerCase().replace(/\s+/g, '')
-  const typePrefix = compact.includes('т700') || compact.includes('t700') ? 'Т700' : 'Т300'
-  const thicknessMatch = text.match(/(\d+(?:[.,]\d+)?)\s*мм/i)
-  if (!thicknessMatch) return null
-  return {
-    typePrefix,
-    thickness: `${thicknessMatch[1].replace(',', '.')}мм`
   }
 }
 
@@ -179,10 +157,12 @@ export function ForemanReportModal({
   setReportStageFilter,
   reportNomFilter,
   setReportNomFilter,
-  reportSortBy,
+  reportSortBy = 'card',
   setReportSortBy,
   reportOperatorFilter,
   setReportOperatorFilter,
+  reportCardFilter: propCardFilter,
+  setReportCardFilter: propSetCardFilter,
   reportDetailModal,
   setReportDetailModal,
   handleOpenReport,
@@ -194,6 +174,10 @@ export function ForemanReportModal({
   inventory,
   workCards
 }) {
+  const [internalCardFilter, setInternalCardFilter] = useState('All')
+  const reportCardFilter = propCardFilter !== undefined ? propCardFilter : internalCardFilter
+  const setReportCardFilter = propSetCardFilter || setInternalCardFilter
+
   if (!showReportModal) return null
 
   return (
@@ -906,6 +890,34 @@ export function ForemanReportModal({
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase' }}>Картка:</span>
+                  <select
+                    value={reportCardFilter}
+                    onChange={e => setReportCardFilter(e.target.value)}
+                    style={{
+                      background: 'var(--surface-1)',
+                      border: '1px solid var(--border-subtle)',
+                      color: 'var(--text-strong)',
+                      padding: '6px 12px',
+                      borderRadius: '8px',
+                      fontSize: '0.75rem',
+                      fontWeight: 700,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <option value="All">Всі картки</option>
+                    {extractUniqueReportCards(reportData.historyRows, reportData.taskCards, row => (
+                      matchesHistoryStage(row, reportStageFilter) &&
+                      (reportNomFilter === 'All' || String(row.nomenclature_id) === String(reportNomFilter))
+                    )).map(c => (
+                      <option key={c.label} value={c.label}>
+                        Картка {c.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase' }}>Сортування:</span>
                   <select
                     value={reportSortBy}
@@ -926,7 +938,8 @@ export function ForemanReportModal({
                       cursor: 'pointer'
                     }}
                   >
-                    <option value="date">По даті (за замовчуванням)</option>
+                    <option value="card">По номеру картки (1, 2, 3...)</option>
+                    <option value="date">По даті</option>
                     <option value="min-time">Найменший час</option>
                     <option value="max-time">Найбільший час</option>
                     <option value="operator">По оператору</option>
@@ -980,6 +993,11 @@ export function ForemanReportModal({
                     return false
                   }
 
+                  if (reportCardFilter !== 'All') {
+                    const seq = getCardSequenceInfo(row, reportData.taskCards)
+                    if (seq.label !== reportCardFilter) return false
+                  }
+
                   if (reportSortBy === 'operator' && reportOperatorFilter !== 'All' && row.operator_name !== reportOperatorFilter) {
                     return false
                   }
@@ -987,6 +1005,9 @@ export function ForemanReportModal({
                 })
 
                 processedRows.sort((a, b) => {
+                  if (reportSortBy === 'card') {
+                    return sortRowsByCardSequence(a, b, reportData.taskCards)
+                  }
                   if (reportSortBy === 'date') {
                     return new Date(a.started_at || a.created_at) - new Date(b.started_at || b.created_at)
                   }
@@ -1062,9 +1083,8 @@ export function ForemanReportModal({
                           const isCuttingStop = isCuttingStopRow(row)
 
                           const nom = nomenclatures.find(n => n.id === row.nomenclature_id)
-                          const seqMatch = (row.card_info || card?.card_info || '').match(/(\d+\/\d+)/)
-                          const cardSuffix = String(row.card_id || '').slice(-8).toUpperCase()
-                          const seqStr = seqMatch ? seqMatch[1] : cardSuffix ? `ID: #${cardSuffix}` : '—'
+                          const cardSeq = getCardSequenceInfo(row, reportData.taskCards)
+                          const seqStr = cardSeq.label
                           const stageName = String(row.stage_name || '').trim() || 'Не вказано'
                           const isBufferStage = stageName.startsWith('Буфер')
                           const isReceptionStage = stageName === 'Прийомка' || stageName === 'completed'

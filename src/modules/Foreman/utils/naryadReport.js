@@ -190,3 +190,96 @@ export const summarizeReportProduction = (parts = []) => {
     return summary
   }, { need: 0, plannedBz: 0, plannedShop1: 0, fromBz: 0, fromShop1: 0, acceptedTotal: 0, rows })
 }
+
+export const getCardSequenceInfo = (row, taskCards = []) => {
+  const card = (taskCards || []).find(c => String(c.id) === String(row?.card_id))
+  const info = String(row?.card_info || card?.card_info || '')
+
+  const slashMatch = info.match(/(?:^|\D)(\d+)\s*\/\s*(\d+)(?:\D|$)/)
+  if (slashMatch) {
+    return {
+      num: parseInt(slashMatch[1], 10),
+      total: parseInt(slashMatch[2], 10),
+      label: `${slashMatch[1]}/${slashMatch[2]}`,
+      cardId: row?.card_id || card?.id
+    }
+  }
+
+  const singleMatch = info.match(/(?:картка|карта|№|#)\s*(\d+)(?:\D|$)/i)
+  if (singleMatch) {
+    return {
+      num: parseInt(singleMatch[1], 10),
+      total: 0,
+      label: `${singleMatch[1]}`,
+      cardId: row?.card_id || card?.id
+    }
+  }
+
+  const cardSuffix = String(row?.card_id || card?.id || '').slice(-8).toUpperCase()
+  return {
+    num: Infinity,
+    total: 0,
+    label: cardSuffix ? `ID: #${cardSuffix}` : '—',
+    cardId: row?.card_id || card?.id
+  }
+}
+
+export const extractUniqueReportCards = (historyRows = [], taskCards = [], predicate) => {
+  const cardMap = new Map()
+  ;(historyRows || []).forEach(row => {
+    if (predicate && !predicate(row)) return
+    const seq = getCardSequenceInfo(row, taskCards)
+    if (seq.label && seq.label !== '—' && !cardMap.has(seq.label)) {
+      cardMap.set(seq.label, seq)
+    }
+  })
+  return Array.from(cardMap.values()).sort((a, b) => {
+    if (a.num !== b.num) return a.num - b.num
+    return a.label.localeCompare(b.label)
+  })
+}
+
+export const sortRowsByCardSequence = (a, b, taskCards = []) => {
+  const seqA = getCardSequenceInfo(a, taskCards)
+  const seqB = getCardSequenceInfo(b, taskCards)
+  if (seqA.num !== seqB.num) return seqA.num - seqB.num
+  if (seqA.total !== seqB.total) return seqA.total - seqB.total
+  return new Date(a.started_at || a.created_at || 0) - new Date(b.started_at || b.created_at || 0)
+}
+
+export const getDeclaredRequestQty = (request, fallbackQty = 0) => {
+  const match = String(request?.details || '').match(/[—-]\s*(\d+(?:[.,]\d+)?)/)
+  if (match) return Number(match[1].replace(',', '.')) || fallbackQty
+  return fallbackQty
+}
+
+export const getMaterialRequestQty = (request) => {
+  const directQty = Number(request?.quantity)
+  if (Number.isFinite(directQty) && directQty > 0) return directQty
+  const match = String(request?.details || '').match(/[—-]\s*(\d+(?:[.,]\d+)?)/)
+  if (match) return Number(match[1].replace(',', '.')) || 0
+  return getDeclaredRequestQty(request, 0)
+}
+
+export const isIssuedMaterialRequest = (request) => ['issued', 'completed'].includes(String(request?.status || '').toLowerCase())
+
+export const isReissueSheetMaterialRequest = (request) => {
+  const text = `${request?.details || ''} ${request?.nomenclature?.name || ''}`.toLowerCase()
+  const isSheet = text.includes('лист') || text.includes('т300') || text.includes('т700') || text.includes('t300') || text.includes('t700')
+  const isReissue = text.includes('довипуск') || text.includes('дозапит') || text.includes('брак') || text.includes('нестача')
+  return isSheet && isReissue
+}
+
+export const parseSheetMaterialFromRequest = (request) => {
+  const text = `${request?.nomenclature?.name || ''} ${request?.details || ''}`
+  const compact = text.toLowerCase().replace(/\s+/g, '')
+  const typePrefix = compact.includes('т700') || compact.includes('t700') ? 'Т700' : 'Т300'
+  const thicknessMatch = text.match(/(\d+(?:[.,]\d+)?)\s*мм/i)
+  if (!thicknessMatch) return null
+  return {
+    typePrefix,
+    thickness: `${thicknessMatch[1].replace(',', '.')}мм`
+  }
+}
+
+

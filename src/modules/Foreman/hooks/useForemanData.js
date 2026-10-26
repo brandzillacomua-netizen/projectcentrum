@@ -23,7 +23,8 @@ export function useForemanData() {
   const [reportData, setReportData] = useState(null)
   const [reportStageFilter, setReportStageFilter] = useState('All')
   const [reportNomFilter, setReportNomFilter] = useState('All')
-  const [reportSortBy, setReportSortBy] = useState('date') 
+  const [reportCardFilter, setReportCardFilter] = useState('All')
+  const [reportSortBy, setReportSortBy] = useState('card') 
   const [reportOperatorFilter, setReportOperatorFilter] = useState('All')
   const [reportDetailModal, setReportDetailModal] = useState(null) 
 
@@ -82,6 +83,7 @@ export function useForemanData() {
     reportData, setReportData,
     reportStageFilter, setReportStageFilter,
     reportNomFilter, setReportNomFilter,
+    reportCardFilter, setReportCardFilter,
     reportSortBy, setReportSortBy,
     reportOperatorFilter, setReportOperatorFilter,
     reportDetailModal, setReportDetailModal,

@@ -41,6 +41,8 @@ export const Shop1ForemanModule: React.FC = () => {
     setNariadStageFilter,
     nariadNomFilter,
     setNariadNomFilter,
+    nariadCardFilter,
+    setNariadCardFilter,
     nariadSortBy,
     setNariadSortBy,
     setNariadDetailModal,
@@ -136,6 +138,8 @@ export const Shop1ForemanModule: React.FC = () => {
             setNariadStageFilter={setNariadStageFilter}
             nariadNomFilter={nariadNomFilter}
             setNariadNomFilter={setNariadNomFilter}
+            nariadCardFilter={nariadCardFilter}
+            setNariadCardFilter={setNariadCardFilter}
             nariadSortBy={nariadSortBy}
             setNariadSortBy={setNariadSortBy}
             setNariadDetailModal={setNariadDetailModal}
