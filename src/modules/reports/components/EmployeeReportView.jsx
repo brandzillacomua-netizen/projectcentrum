@@ -80,7 +80,17 @@ export const EmployeeReportView = ({
     const shop2CardsMap = new Map()
     const allCards = new Set()
 
+    let humanScrap = 0
+    let nonHumanScrap = 0
+    let nonHumanUtil = 0
+
     employeeStats.forEach(e => {
+      if (e.isNonHuman) {
+        nonHumanScrap += Number(e.scrap) || 0
+        nonHumanUtil += Number(e.util) || 0
+      } else {
+        humanScrap += Number(e.scrap) || 0
+      }
       produced += Number(e.produced) || 0
       scrap += Number(e.scrap) || 0
       rework += Number(e.rework) || 0
@@ -126,9 +136,10 @@ export const EmployeeReportView = ({
     const finalShop2Produced = productionSummary?.shop2Produced !== undefined ? productionSummary.shop2Produced : computedShop2Produced
     const finalShop2Cards = productionSummary?.shop2Cards !== undefined ? productionSummary.shop2Cards : computedShop2Cards
 
-    const totalProcessed = produced + scrap
-    const efficiency = totalProcessed > 0
-      ? ((produced / totalProcessed) * 100).toFixed(1)
+    // Operator efficiency excludes non-human technical defects
+    const humanTotalProcessed = produced + humanScrap
+    const efficiency = humanTotalProcessed > 0
+      ? ((produced / humanTotalProcessed) * 100).toFixed(1)
       : '100.0'
 
     return {
@@ -138,13 +149,16 @@ export const EmployeeReportView = ({
       shop2Produced: finalShop2Produced,
       shop2Cards: finalShop2Cards,
       scrap,
+      humanScrap,
+      nonHumanScrap,
+      nonHumanUtil,
       rework,
       quarantine,
       util,
       operations,
       cards: allCards.size,
       efficiency,
-      employeeCount: employeeStats.length
+      employeeCount: employeeStats.filter(e => !e.isNonHuman).length
     }
   }, [employeeStats, productionSummary])
 
@@ -179,6 +193,10 @@ export const EmployeeReportView = ({
         let diff = 0
         if (sortBy === 'name') {
           diff = String(a.name).localeCompare(String(b.name), 'uk-UA')
+        } else if (sortBy === 'efficiency') {
+          const valA = a.isNonHuman ? -1 : (Number(a.efficiency) || 0)
+          const valB = b.isNonHuman ? -1 : (Number(b.efficiency) || 0)
+          diff = valA - valB
         } else {
           const valA = Number(a[sortBy]) || 0
           const valB = Number(b[sortBy]) || 0
@@ -298,9 +316,32 @@ export const EmployeeReportView = ({
             {totals.util.toLocaleString('uk-UA')} <span className="emp-metric-unit">шт</span>
           </div>
           <div className="emp-metric-sub">
-            {totals.scrap > 0 ? `${((totals.util / totals.scrap) * 100).toFixed(0)}% від браку (безповоротний)` : 'Без утилю'}
+            {totals.nonHumanUtil > 0 ? (
+              <span style={{ color: '#38bdf8', fontWeight: 800 }}>
+                {totals.nonHumanUtil} шт без вини людей · {Math.max(0, totals.util - totals.nonHumanUtil)} шт персонал
+              </span>
+            ) : totals.scrap > 0 ? (
+              `${((totals.util / totals.scrap) * 100).toFixed(0)}% від браку (безповоротний)`
+            ) : (
+              'Без утилю'
+            )}
           </div>
         </div>
+
+        {/* Non-human scrap KPI */}
+        {totals.nonHumanScrap > 0 && (
+          <div className="emp-metric-card border-cyan" style={{ background: '#0284c712', borderColor: '#0284c755' }}>
+            <div className="emp-metric-label" style={{ color: '#38bdf8' }}>
+              ⚙️ БЕЗ ВИНИ ЛЮДЕЙ
+            </div>
+            <div className="emp-metric-val" style={{ color: '#38bdf8' }}>
+              {totals.nonHumanScrap.toLocaleString('uk-UA')} <span className="emp-metric-unit">шт</span>
+            </div>
+            <div className="emp-metric-sub" style={{ color: '#93c5fd' }}>
+              Утиль: {totals.nonHumanUtil} шт · Доопрацювання: {totals.nonHumanScrap - totals.nonHumanUtil} шт
+            </div>
+          </div>
+        )}
 
         {/* Average Efficiency */}
         <div className="emp-metric-card border-blue">
@@ -509,23 +550,31 @@ export const EmployeeReportView = ({
                     <tr
                       key={emp.key || idx}
                       onClick={() => setActiveEmployeeDetail(emp)}
-                      className="emp-table-row"
+                      className={`emp-table-row ${emp.isNonHuman ? 'emp-row-non-human' : ''}`}
+                      style={emp.isNonHuman ? { background: 'rgba(56, 189, 248, 0.05)', borderLeft: '3px solid #38bdf8' } : {}}
                     >
                       {/* Name & Avatar */}
                       <td className="emp-cell-user">
                         <div className="emp-user-wrap">
-                          <div className="emp-avatar-box">
-                            {getInitials(emp.name)}
+                          <div
+                            className="emp-avatar-box"
+                            style={emp.isNonHuman ? { background: '#0284c725', borderColor: '#38bdf888', color: '#38bdf8', fontSize: '1rem' } : {}}
+                          >
+                            {emp.isNonHuman ? '⚙️' : getInitials(emp.name)}
                           </div>
                           <div>
                             <div className="emp-name-text">
                               {emp.name}
                             </div>
-                            {emp.login && (
+                            {emp.isNonHuman ? (
+                              <div className="emp-login-text" style={{ color: '#38bdf8' }}>
+                                Технічна причина · Без вини робітників
+                              </div>
+                            ) : emp.login ? (
                               <div className="emp-login-text">
                                 @{emp.login}
                               </div>
-                            )}
+                            ) : null}
                           </div>
                         </div>
                       </td>
@@ -533,10 +582,13 @@ export const EmployeeReportView = ({
                       {/* Department & Position */}
                       <td className="emp-cell-dept">
                         <div className="emp-dept-stack">
-                          <span className="emp-dept-badge">
+                          <span
+                            className="emp-dept-badge"
+                            style={emp.isNonHuman ? { background: '#0284c720', color: '#38bdf8', border: '1px solid #0284c755' } : {}}
+                          >
                             {emp.department || 'Виробництво'}
                           </span>
-                          <span className="emp-pos-text">
+                          <span className="emp-pos-text" style={emp.isNonHuman ? { color: '#93c5fd' } : {}}>
                             {emp.position || 'Оператор'}
                           </span>
                         </div>
@@ -554,7 +606,7 @@ export const EmployeeReportView = ({
 
                       {/* Produced */}
                       <td className="emp-cell-produced">
-                        {emp.produced.toLocaleString('uk-UA')}
+                        {emp.isNonHuman ? '—' : emp.produced.toLocaleString('uk-UA')}
                       </td>
 
                       {/* Total Scrap */}
@@ -579,17 +631,25 @@ export const EmployeeReportView = ({
 
                       {/* Efficiency */}
                       <td className="emp-cell-eff">
-                        <div className="emp-eff-wrap">
-                          <span className={`emp-eff-number ${effNum >= 98 ? 'eff-good' : (effNum >= 90 ? 'eff-warn' : 'eff-bad')}`}>
-                            {emp.efficiency}%
-                          </span>
-                          <div className="emp-eff-bar-bg">
-                            <div
-                              className={`emp-eff-bar-fill ${effNum >= 98 ? 'bg-good' : (effNum >= 90 ? 'bg-warn' : 'bg-bad')}`}
-                              style={{ width: `${Math.min(100, Math.max(0, effNum))}%` }}
-                            />
+                        {emp.isNonHuman ? (
+                          <div className="emp-eff-wrap">
+                            <span style={{ color: '#38bdf8', fontWeight: 850, fontSize: '0.74rem', background: '#0284c718', padding: '3px 8px', borderRadius: '8px', border: '1px solid #0284c740' }} title="Брак без вини персоналу">
+                              Без вини
+                            </span>
                           </div>
-                        </div>
+                        ) : (
+                          <div className="emp-eff-wrap">
+                            <span className={`emp-eff-number ${effNum >= 98 ? 'eff-good' : (effNum >= 90 ? 'eff-warn' : 'eff-bad')}`}>
+                              {emp.efficiency}%
+                            </span>
+                            <div className="emp-eff-track">
+                              <div
+                                className={`emp-eff-fill ${effNum >= 98 ? 'fill-good' : (effNum >= 90 ? 'fill-warn' : 'fill-bad')}`}
+                                style={{ width: `${Math.min(100, Math.max(0, effNum))}%` }}
+                              />
+                            </div>
+                          </div>
+                        )}
                       </td>
 
                       {/* Actions */}
@@ -733,8 +793,8 @@ function EmployeeDetailModal({ employee, onClose, startDate, endDate }) {
 
           <div className="emp-modal-kpi-card border-blue">
             <div className="emp-modal-kpi-label label-blue">ЕФЕКТИВНІСТЬ</div>
-            <div className={`emp-modal-kpi-val ${Number(employee.efficiency) >= 98 ? 'text-green' : (Number(employee.efficiency) >= 90 ? 'text-orange' : 'text-red')}`}>
-              {employee.efficiency}%
+            <div className={`emp-modal-kpi-val ${employee.isNonHuman ? 'text-cyan' : (Number(employee.efficiency) >= 98 ? 'text-green' : (Number(employee.efficiency) >= 90 ? 'text-orange' : 'text-red'))}`}>
+              {employee.isNonHuman ? 'Без вини' : `${employee.efficiency}%`}
             </div>
           </div>
         </div>

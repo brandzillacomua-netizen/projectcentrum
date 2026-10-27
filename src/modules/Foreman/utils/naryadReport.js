@@ -193,7 +193,12 @@ export const summarizeReportProduction = (parts = []) => {
 
 export const getCardSequenceInfo = (row, taskCards = []) => {
   const card = (taskCards || []).find(c => String(c.id) === String(row?.card_id))
-  const info = String(row?.card_info || card?.card_info || '')
+  const rowInfo = String(row?.card_info || '')
+  const cardInfo = String(card?.card_info || '')
+  const info = `${rowInfo} ${cardInfo}`.trim()
+  const fullCardId = row?.card_id || card?.id || ''
+  const cardSuffix = fullCardId ? String(fullCardId).slice(-8).toUpperCase() : ''
+  const systemId = cardSuffix ? `#${cardSuffix}` : '—'
 
   const slashMatch = info.match(/(?:^|\D)(\d+)\s*\/\s*(\d+)(?:\D|$)/)
   if (slashMatch) {
@@ -201,7 +206,8 @@ export const getCardSequenceInfo = (row, taskCards = []) => {
       num: parseInt(slashMatch[1], 10),
       total: parseInt(slashMatch[2], 10),
       label: `${slashMatch[1]}/${slashMatch[2]}`,
-      cardId: row?.card_id || card?.id
+      cardId: fullCardId,
+      systemId
     }
   }
 
@@ -211,16 +217,17 @@ export const getCardSequenceInfo = (row, taskCards = []) => {
       num: parseInt(singleMatch[1], 10),
       total: 0,
       label: `${singleMatch[1]}`,
-      cardId: row?.card_id || card?.id
+      cardId: fullCardId,
+      systemId
     }
   }
 
-  const cardSuffix = String(row?.card_id || card?.id || '').slice(-8).toUpperCase()
   return {
     num: Infinity,
     total: 0,
     label: cardSuffix ? `ID: #${cardSuffix}` : '—',
-    cardId: row?.card_id || card?.id
+    cardId: fullCardId,
+    systemId
   }
 }
 

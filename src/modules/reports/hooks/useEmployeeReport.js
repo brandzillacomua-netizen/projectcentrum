@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { isNonHumanResponsibility } from '../../Brak/utils/operatorAttribution.js'
 
 /**
  * Token-based operator matching allowing for variations in name ordering
@@ -249,7 +250,8 @@ export function isNonProductionEntity(name, user = null, systemUsers = []) {
       clean.includes('відповідальн') ||
       clean.includes('бракований лист') ||
       clean.includes('scrap_cat:') ||
-      clean.includes('scrap_reason')
+      clean.includes('scrap_reason') ||
+      isNonHumanResponsibility(clean)
     ) {
       return true
     }
@@ -332,7 +334,15 @@ export function isNonProductionEntity(name, user = null, systemUsers = []) {
 }
 
 export function isConfirmedResponsibleClassification(classification) {
-  return String(classification?.notes || '').includes('[VKYA_RESPONSIBLE_OPERATOR_CONFIRMED]')
+  if (!classification) return false
+  const notes = String(classification?.notes || '')
+  if (notes.includes('[VKYA_RESPONSIBLE_OPERATOR_CONFIRMED]') || notes.includes('[VKYA_NON_HUMAN_SCRAP]')) return true
+  const op = String(classification.source_operator_name || '').trim()
+  if (isNonHumanResponsibility(op)) return true
+  if (op && op !== 'Команда' && !isNonProductionEntity(op, null, [])) {
+    return true
+  }
+  return false
 }
 
 /**
@@ -518,26 +528,36 @@ export function useEmployeeReport({
   searchQuery = ''
 }) {
   const employeeStats = useMemo(() => {
-    // Pre-index classifications by source_history_id
+    // Pre-index classifications by source_history_id and card_id
     const classificationsByHistoryId = new Map()
     const confirmedAssignedQtyByHistoryId = new Map()
+    const confirmedAssignedQtyByCardId = new Map()
 
     scrapClassificationsList.forEach(c => {
+      const isConfirmed = isConfirmedResponsibleClassification(c)
+      const categorizedQty = (c.scrap_classification_categories || []).reduce(
+        (sum, category) => sum + (Number(category.quantity) || 0),
+        0
+      )
+      const assignedQty = Math.max(Number(c.quantity) || 0, categorizedQty)
+
       if (c.source_history_id) {
         const hid = String(c.source_history_id)
-        if (isConfirmedResponsibleClassification(c)) {
-          const categorizedQty = (c.scrap_classification_categories || []).reduce(
-            (sum, category) => sum + (Number(category.quantity) || 0),
-            0
-          )
-          const assignedQty = Math.max(Number(c.quantity) || 0, categorizedQty)
+        if (isConfirmed) {
           confirmedAssignedQtyByHistoryId.set(hid, (confirmedAssignedQtyByHistoryId.get(hid) || 0) + assignedQty)
+          if (c.card_id) {
+            const cid = String(c.card_id)
+            confirmedAssignedQtyByCardId.set(cid, (confirmedAssignedQtyByCardId.get(cid) || 0) + assignedQty)
+          }
           return
         }
         if (!classificationsByHistoryId.has(hid)) {
           classificationsByHistoryId.set(hid, [])
         }
         classificationsByHistoryId.get(hid).push(c)
+      } else if (c.card_id && isConfirmed) {
+        const cid = String(c.card_id)
+        confirmedAssignedQtyByCardId.set(cid, (confirmedAssignedQtyByCardId.get(cid) || 0) + assignedQty)
       }
     })
 
@@ -691,7 +711,11 @@ export function useEmployeeReport({
 
       const qtyProduced = Number(h.qty_completed) || 0
       const originalQtyScrap = Number(h.scrap_qty) || 0
-      const confirmedAssignedQty = confirmedAssignedQtyByHistoryId.get(String(h.id)) || 0
+      const hid = String(h.id)
+      const cardIdKey = h.card_id || h.work_card_id ? String(h.card_id || h.work_card_id) : null
+      const confirmedAssignedQty = confirmedAssignedQtyByHistoryId.get(hid)
+        || (cardIdKey && confirmedAssignedQtyByCardId.get(cardIdKey))
+        || 0
       const qtyScrap = Math.max(0, originalQtyScrap - confirmedAssignedQty)
 
       // Skip non-manufacturing operations without scrap (warehouse bookings, completed markers, buffers, admin moves)
@@ -730,7 +754,6 @@ export function useEmployeeReport({
       let hCat3 = 0
       let hCat4 = 0
 
-      const hid = String(h.id)
       const linkedClasses = classificationsByHistoryId.get(hid)
 
       if (linkedClasses && linkedClasses.length > 0) {
@@ -747,8 +770,8 @@ export function useEmployeeReport({
             })
           }
         })
-      } else if (h.qc_scrap_comment && h.qc_scrap_comment.includes('SCRAP_CAT:')) {
-        // Legacy tag in comment
+      } else if (confirmedAssignedQty === 0 && h.qc_scrap_comment && h.qc_scrap_comment.includes('SCRAP_CAT:')) {
+        // Legacy tag in comment - only if this defect was not reassigned to a confirmed operator
         try {
           const match = h.qc_scrap_comment.match(/\[SCRAP_CAT:([^\]]+)\]/)
           if (match) {
@@ -848,28 +871,99 @@ export function useEmployeeReport({
       selectedShiftFilter
     })
 
+    const getOrCreateNonHumanStat = (operatorName) => {
+      const cleanName = String(operatorName || 'Без вини персоналу').trim()
+      const norm = cleanName.toLowerCase()
+      let key = 'non_human:other'
+      let icon = '⚙️'
+      let displayName = 'Без вини персоналу / технічне'
+      let position = 'Технічний чинник'
+
+      if (norm.includes('програм')) {
+        key = 'non_human:program'
+        icon = '⚙️'
+        displayName = 'Помилка програми / ЧПК'
+        position = 'Керуюча програма / CAM'
+      } else if (norm.includes('верстат') || norm.includes('станк') || norm.includes('обладнан')) {
+        key = 'non_human:machine'
+        icon = '🛠️'
+        displayName = 'Несправність верстата / обладнання'
+        position = 'Обладнання / Верстат'
+      } else if (norm.includes('матеріал') || norm.includes('сировин') || norm.includes('лист')) {
+        key = 'non_human:material'
+        icon = '📦'
+        displayName = 'Брак матеріалу / сировини'
+        position = 'Постачальник / Сировина'
+      } else if (norm.includes('форс-мажор')) {
+        key = 'non_human:force_majeure'
+        icon = '⚡'
+        displayName = 'Форс-мажорні обставини'
+        position = 'Зовнішні фактори'
+      }
+
+      if (!stats.has(key)) {
+        stats.set(key, {
+          key,
+          login: null,
+          name: `${icon} ${displayName}`,
+          rawName: cleanName,
+          position,
+          department: 'Без вини людей',
+          shift: '—',
+          avatar: null,
+          isNonHuman: true,
+          produced: 0,
+          scrap: 0,
+          rework: 0,
+          quarantine: 0,
+          util: 0,
+          cat1: 0,
+          cat2: 0,
+          cat3: 0,
+          cat4: 0,
+          unclassified: 0,
+          operations: 0,
+          cardIds: new Set(),
+          history: []
+        })
+      }
+      return stats.get(key)
+    }
+
     classificationOnlyEvents.forEach(event => {
       const c = event.sample
       const sourceHistory = event.sourceHistory
       const sourceOperator = String(c.source_operator_name || '').trim()
-      let targetOperator = sourceOperator || 'Команда'
-      const user = findSystemUser(sourceOperator, systemUsers)
-      if (!sourceOperator || isNonProductionEntity(sourceOperator, user, systemUsers)) {
-        targetOperator = resolveResponsibleOperator(c, cardOperatorsMap, workCardsMap, systemUsers)
-      } else if (String(targetOperator).toLowerCase().includes('галтовк')) {
-        const shift = sourceHistory?.shift_name || null
-        const galtUser = findGaltovshchikForShift(shift, systemUsers)
-        if (galtUser) {
-          targetOperator = galtUser.login === 'galt.zm3' ? 'Галтовка Зміна 3' : [galtUser.last_name, galtUser.first_name].filter(Boolean).join(' ') || galtUser.login
-        } else if (shift && shift !== 'Без зміни') {
-          targetOperator = `Галтовка ${shift}`
+
+      const isNonHuman = isNonHumanResponsibility(sourceOperator) || String(c.notes || '').includes('[VKYA_NON_HUMAN_SCRAP]')
+
+      let empStat = null
+      if (isNonHuman) {
+        empStat = getOrCreateNonHumanStat(sourceOperator)
+      } else {
+        let targetOperator = sourceOperator || 'Команда'
+        const user = findSystemUser(sourceOperator, systemUsers)
+        if (!sourceOperator || isNonProductionEntity(sourceOperator, user, systemUsers)) {
+          targetOperator = resolveResponsibleOperator(c, cardOperatorsMap, workCardsMap, systemUsers)
+        } else if (String(targetOperator).toLowerCase().includes('галтовк')) {
+          const shift = sourceHistory?.shift_name || null
+          const galtUser = findGaltovshchikForShift(shift, systemUsers)
+          if (galtUser) {
+            targetOperator = galtUser.login === 'galt.zm3' ? 'Галтовка Зміна 3' : [galtUser.last_name, galtUser.first_name].filter(Boolean).join(' ') || galtUser.login
+          } else if (shift && shift !== 'Без зміни') {
+            targetOperator = `Галтовка ${shift}`
+          }
         }
+        empStat = getOrCreateStat(targetOperator)
       }
 
-      const empStat = getOrCreateStat(targetOperator)
       const cRework = event.cat1 + event.cat2
       const cQuarantine = event.cat3 + event.unclassified
       const cUtil = event.cat4
+
+      if (c.card_id) {
+        empStat.cardIds.add(String(c.card_id))
+      }
 
       empStat.scrap += event.total
       empStat.cat1 += event.cat1
@@ -885,9 +979,11 @@ export function useEmployeeReport({
       empStat.history.push({
         id: event.key,
         date: sourceHistory?.completed_at || sourceHistory?.created_at || c.classified_at || c.created_at,
-        stage: isConfirmedResponsibleClassification(c)
-          ? `${c.source_stage_name || sourceHistory?.stage_name || 'Контроль ВКЯ'} (відповідального обрано ВКЯ)`
-          : (c.source_stage_name || 'Контроль ВКЯ (виявлено)'),
+        stage: isNonHuman
+          ? `${c.source_stage_name || sourceHistory?.stage_name || 'Контроль ВКЯ'} (Без вини персоналу: ${sourceOperator || 'технічне'})`
+          : (isConfirmedResponsibleClassification(c)
+              ? `${c.source_stage_name || sourceHistory?.stage_name || 'Контроль ВКЯ'} (відповідального обрано ВКЯ)`
+              : (c.source_stage_name || 'Контроль ВКЯ (виявлено)')),
         shift: sourceHistory?.shift_name || '—',
         nomenclatureName: nom?.name || 'Невідома деталь',
         nomenclatureCode: nom?.code || null,
@@ -898,19 +994,23 @@ export function useEmployeeReport({
         rework: cRework,
         quarantine: cQuarantine,
         util: cUtil,
-        reason: c.reason || c.comment || 'Класифікація ВКЯ'
+        reason: c.reason || c.comment || (isNonHuman ? sourceOperator : 'Класифікація ВКЯ')
       })
     })
 
     // Calculate final metrics for each employee
     const results = Array.from(stats.values()).map(s => {
       const totalProcessed = s.produced + s.scrap
-      const efficiency = totalProcessed > 0
-        ? Number(((s.produced / totalProcessed) * 100).toFixed(1))
-        : 100.0
-      const scrapPercent = totalProcessed > 0
-        ? Number(((s.scrap / totalProcessed) * 100).toFixed(1))
-        : 0.0
+      const efficiency = s.isNonHuman
+        ? null
+        : (totalProcessed > 0
+            ? Number(((s.produced / totalProcessed) * 100).toFixed(1))
+            : 100.0)
+      const scrapPercent = s.isNonHuman
+        ? null
+        : (totalProcessed > 0
+            ? Number(((s.scrap / totalProcessed) * 100).toFixed(1))
+            : 0.0)
 
       // Sort employee history by date descending
       s.history.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0))

@@ -110,4 +110,88 @@ export function calculateCuttingPlanSeconds(taskCards = [], nomenclatures = [], 
   return totalPlanSeconds
 }
 
+export function consolidateCuttingRows(rows = []) {
+  const cuttingByCard = new Map()
+  const result = []
+
+  rows.forEach(row => {
+    if (!isCuttingWorkRow(row)) {
+      result.push(row)
+      return
+    }
+    const cardId = String(row.card_id || row.id || 'unknown')
+    if (!cuttingByCard.has(cardId)) {
+      const entry = { sessions: [], placeholderIdx: result.length }
+      cuttingByCard.set(cardId, entry)
+      result.push(null)
+    }
+    cuttingByCard.get(cardId).sessions.push(row)
+  })
+
+  cuttingByCard.forEach(({ sessions, placeholderIdx }) => {
+    if (sessions.length === 1) {
+      result[placeholderIdx] = sessions[0]
+      return
+    }
+    sessions.sort((a, b) => new Date(a.started_at || a.created_at || 0) - new Date(b.started_at || b.created_at || 0))
+    const first = sessions[0]
+    const last = sessions[sessions.length - 1]
+    const totalDuration = sessions.reduce((sum, s) => sum + getHistoryRowDurationSeconds(s), 0)
+    const totalQty = sessions.reduce((sum, s) => sum + (Number(s.qty_completed) || 0), 0)
+    const totalScrap = sessions.reduce((sum, s) => sum + (Number(s.scrap_qty) || 0), 0)
+    const totalCutters = sessions.reduce((sum, s) => sum + (Number(s.cutters_used) || 0), 0)
+
+    result[placeholderIdx] = {
+      ...last,
+      id: `consolidated-${first.id}`,
+      started_at: first.started_at,
+      completed_at: last.completed_at,
+      duration_seconds: totalDuration,
+      qty_completed: totalQty,
+      scrap_qty: totalScrap,
+      cutters_used: totalCutters,
+      stage_name: CUTTING_STAGE,
+      is_consolidated: true,
+      session_count: sessions.length,
+      sessions: sessions.map(s => ({
+        ...s,
+        duration: getHistoryRowDurationSeconds(s)
+      }))
+    }
+  })
+
+  return result.filter(Boolean)
+}
+
+export function formatHandoverPendingInfo(row, card, durationSeconds) {
+  const replacedMatch = String(row?.card_info || '').match(/\[REPLACED_BY:(.*?)\]/)
+  if (!replacedMatch) return null
+
+  const rawNext = replacedMatch[1].replace(/\s*\([^)]*\)/, '').trim()
+  const parts = rawNext.split(/\s+/)
+  const nextOp = parts.length >= 2 && parts[1].length > 1 && !parts[1].endsWith('.')
+    ? `${parts[0]} ${parts[1][0]}.`
+    : rawNext
+
+  const machine = row?.machine_name || row?.machine || card?.machine || ''
+  const machineShort = machine.match(/(?:№|#)?\s*(Ф\d+)/i)?.[1] || machine.replace(/CNC KE XIN - /i, '').trim()
+
+  const dur = typeof durationSeconds === 'number' ? durationSeconds : getHistoryRowDurationSeconds(row)
+  let timeStr = ''
+  if (dur > 0) {
+    const h = Math.floor(dur / 3600)
+    const m = Math.floor((dur % 3600) / 60)
+    timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+  }
+
+  const shiftInfo = [row?.shift_name, timeStr].filter(Boolean).join(', ')
+
+  return {
+    nextOp,
+    machineShort,
+    shiftInfo: shiftInfo ? `(${shiftInfo})` : '',
+    label: `⏳ ${nextOp} (дорізає${machineShort ? ` на ${machineShort}` : ''})`
+  }
+}
+
 

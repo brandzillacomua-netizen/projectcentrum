@@ -7,6 +7,8 @@ import {
 import {
   buildCuttingTimeSummary,
   calculateCuttingPlanSeconds,
+  consolidateCuttingRows,
+  formatHandoverPendingInfo,
   getHistoryRowDurationSeconds,
   isCuttingStageRow,
   isCuttingStopRow,
@@ -64,6 +66,7 @@ export const NariadReportsView = ({
   machineOperations: _machineOperations
 }) => {
   const [internalCardFilter, setInternalCardFilter] = useState('All')
+  const [groupHandovers, setGroupHandovers] = useState(true)
   const nariadCardFilter = propCardFilter !== undefined ? propCardFilter : internalCardFilter
   const setNariadCardFilter = propSetCardFilter || setInternalCardFilter
 
@@ -344,6 +347,10 @@ export const NariadReportsView = ({
             return seq.label === nariadCardFilter
           })
 
+          if (groupHandovers) {
+            logRows = consolidateCuttingRows(logRows)
+          }
+
           logRows.sort((a, b) => {
             if (nariadSortBy === 'card') {
               return sortRowsByCardSequence(a, b, rd.taskCards)
@@ -499,6 +506,10 @@ export const NariadReportsView = ({
                         nariadNomFilter === 'All' || String(row.nomenclature_id) === String(nariadNomFilter)
                       )).map(c => <option key={c.label} value={c.label}>Картка {c.label}</option>)}
                     </select>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.65rem', color: groupHandovers ? '#3b82f6' : 'var(--text-dim)', fontWeight: 800, cursor: 'pointer', marginLeft: 'auto', userSelect: 'none' }}>
+                      <input type="checkbox" checked={groupHandovers} onChange={e => setGroupHandovers(e.target.checked)} style={{ cursor: 'pointer' }} />
+                      Об'єднувати перезмінки
+                    </label>
                   </div>
                 </div>
 
@@ -525,7 +536,7 @@ export const NariadReportsView = ({
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.7rem' }}>
                     <thead>
                       <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                        {['Деталь / Картка','Час (початок / завершення)','План. час','Факт. час','Етап','Оператор / Зміна','Робоче місце','Готово / Брак'].map(col => (
+                        {['Деталь / Картка','ID Картки','Час (початок / завершення)','План. час','Факт. час','Етап','Оператор / Зміна','Робоче місце','Готово / Брак'].map(col => (
                           <th key={col} style={{ padding: '8px 10px', textAlign: 'left', color: '#444', fontWeight: 900, textTransform: 'uppercase', fontSize: '0.58rem', whiteSpace: 'nowrap' }}>{col}</th>
                         ))}
                       </tr>
@@ -551,21 +562,29 @@ export const NariadReportsView = ({
                               <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nom?.name || '—'}</div>
                               <div style={{ color: 'var(--text-dim)', fontSize: '0.58rem', marginTop: '2px' }}>Картка {sequenceLabel}</div>
                             </td>
+                            <td style={{ padding: '8px 10px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                              <span style={{ fontFamily: 'monospace', fontSize: '0.64rem', background: 'var(--surface-2)', padding: '2px 5px', borderRadius: '4px', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', fontWeight: 800 }} title={cardSeq.cardId || ''}>{cardSeq.systemId || '—'}</span>
+                            </td>
                             <td style={{ padding: '8px 10px', color: 'var(--text-dim)', whiteSpace: 'nowrap' }}><div>{fmt(row.started_at)}</div><div style={{ marginTop: '2px' }}>{fmt(row.completed_at)}</div></td>
                             <td style={{ padding: '8px 10px', color: '#777', fontWeight: 800, whiteSpace: 'nowrap' }}>{plannedSec ? formatDurHMS(plannedSec) : '—'}</td>
                             <td style={{ padding: '8px 10px', color: isCuttingStop ? '#f59e0b' : dur > 0 ? '#3b82f6' : '#333', fontWeight: 800, whiteSpace: 'nowrap' }}>
                               <div>{dur > 0 ? formatDurHMS(dur) : '—'}</div>
                               {isCuttingStop && <div style={{ fontSize: '0.54rem', marginTop: '2px' }}>зупинка · не входить</div>}
-                              {isLastCuttingWorkRow && cuttingCardTime.sessionCount > 1 && (
+                              {row.is_consolidated ? (
+                                <div style={{ color: '#10b981', fontSize: '0.54rem', marginTop: '2px' }}>Разом за {row.session_count} зміни</div>
+                              ) : isLastCuttingWorkRow && cuttingCardTime.sessionCount > 1 ? (
                                 <div style={{ color: '#10b981', fontSize: '0.54rem', marginTop: '2px' }}>
                                   Разом: {formatDurHMS(cuttingCardTime.totalSeconds)} · {cuttingCardTime.sessionCount} сес.
                                 </div>
-                              )}
+                              ) : null}
                             </td>
                             <td style={{ padding: '8px 10px' }}>
                               <span style={{ background: `${stageClr}15`, color: stageClr, padding: '2px 7px', borderRadius: '5px', fontSize: '0.6rem', fontWeight: 900 }}>
                                 {row.stage_name || '—'}
                               </span>
+                              {row.is_consolidated && (
+                                <span style={{ display: 'inline-block', marginLeft: '4px', background: '#3b82f61a', color: '#3b82f6', border: '1px solid #3b82f640', padding: '1px 5px', borderRadius: '4px', fontSize: '0.55rem', fontWeight: 800 }}>{row.session_count} зміни</span>
+                              )}
                               {row.card_info?.includes('[LAST_OP:') && (
                                 <div style={{ fontSize: '0.58rem', color: '#f59e0b', marginTop: '3px', fontWeight: 800 }}>
                                   📍 {row.card_info.match(/\[LAST_OP:([^\]]+)\]/)?.[1]}
@@ -573,8 +592,36 @@ export const NariadReportsView = ({
                               )}
                             </td>
                             <td style={{ padding: '8px 10px', color: 'var(--text-dim)', fontWeight: 700 }}>
-                              <div>{row.operator_name || '—'}</div>
-                              <div style={{ color: '#444', fontSize: '0.6rem' }}>{row.shift_name || ''}</div>
+                              {row.is_consolidated && Array.isArray(row.sessions) ? (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                  {row.sessions.map((s, sIdx) => (
+                                    <div key={sIdx} style={{ fontSize: '0.62rem', whiteSpace: 'nowrap' }}>
+                                      <span style={{ color: 'var(--text-strong)', fontWeight: 800 }}>{s.operator_name}</span>
+                                      <span style={{ color: 'var(--text-dim)', fontSize: '0.55rem', marginLeft: '3px' }}>({s.shift_name})</span>
+                                      <span style={{ color: '#10b981', fontSize: '0.55rem', marginLeft: '4px', fontWeight: 700 }}>{formatDurHMS(s.duration)}</span>
+                                      {Number(s.qty_completed) > 0 && <span style={{ color: '#3b82f6', fontSize: '0.55rem', marginLeft: '3px', fontWeight: 800 }}>· {s.qty_completed} шт</span>}
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (() => {
+                                const pendingInfo = formatHandoverPendingInfo(row, card, durSec)
+                                if (pendingInfo) {
+                                  return (
+                                    <div>
+                                      <div style={{ color: 'var(--text-strong)', fontWeight: 800 }}>
+                                        {row.operator_name || '—'} <span style={{ color: 'var(--text-dim)', fontSize: '0.58rem', fontWeight: 600 }}>{pendingInfo.shiftInfo}</span>
+                                      </div>
+                                      <div style={{ color: '#f59e0b', fontSize: '0.6rem', marginTop: '2px', fontWeight: 800 }}>{pendingInfo.label}</div>
+                                    </div>
+                                  )
+                                }
+                                return (
+                                  <>
+                                    <div>{row.operator_name || '—'}</div>
+                                    <div style={{ color: 'var(--text-dim)', fontSize: '0.58rem' }}>{row.shift_name}</div>
+                                  </>
+                                )
+                              })()}
                             </td>
                             <td style={{ padding: '8px 10px', color: 'var(--text-dim)', fontWeight: 700 }}>{row.machine_name || '—'}</td>
                             <td style={{ padding: '8px 10px', fontWeight: 900, textAlign: 'right' }}><div style={{ color: '#10b981' }}>{Number(row.qty_completed) || 0} шт</div><div style={{ color: hasScrap ? '#ef4444' : '#333', marginTop: '3px' }}>{Number(row.scrap_qty) || 0} брак</div></td>

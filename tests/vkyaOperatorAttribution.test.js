@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { buildShop1OperatorCandidates } from '../src/modules/Brak/utils/operatorAttribution.js'
+import {
+  buildShop1OperatorCandidates,
+  NON_HUMAN_RESPONSIBILITY_OPTIONS,
+  isNonHumanResponsibility
+} from '../src/modules/Brak/utils/operatorAttribution.js'
 
 describe('VKYA responsible operator candidates', () => {
   it('auto-resolves one unique production operator across multiple cutting sessions', () => {
@@ -77,5 +81,21 @@ describe('VKYA responsible operator candidates', () => {
     const candidates = buildShop1OperatorCandidates(historyRows, systemUsers)
     // Only press operator who worked on the card is returned; paint operator who did not work is NOT included
     expect(candidates.map(c => c.name)).toEqual(['Пресувальник Зміна 1'])
+  })
+
+  it('provides non-human responsibility options for software, machine, and material causes', () => {
+    expect(NON_HUMAN_RESPONSIBILITY_OPTIONS.length).toBeGreaterThanOrEqual(4)
+    expect(NON_HUMAN_RESPONSIBILITY_OPTIONS.some(opt => opt.value === 'Помилка програми / ЧПК')).toBe(true)
+    expect(NON_HUMAN_RESPONSIBILITY_OPTIONS.some(opt => opt.value === 'Несправність верстата / обладнання')).toBe(true)
+    expect(NON_HUMAN_RESPONSIBILITY_OPTIONS.some(opt => opt.value === 'Брак матеріалу / сировини')).toBe(true)
+    expect(NON_HUMAN_RESPONSIBILITY_OPTIONS.some(opt => opt.value === 'Форс-мажор / непередбачувані обставини')).toBe(true)
+
+    expect(isNonHumanResponsibility('Помилка програми / ЧПК')).toBe(true)
+    expect(isNonHumanResponsibility('Несправність верстата / обладнання')).toBe(true)
+    expect(isNonHumanResponsibility('Брак матеріалу / сировини')).toBe(true)
+    expect(isNonHumanResponsibility('Форс-мажор / непередбачувані обставини')).toBe(true)
+    expect(isNonHumanResponsibility('Збій станка')).toBe(true)
+    expect(isNonHumanResponsibility('Кривизна листа')).toBe(true)
+    expect(isNonHumanResponsibility('Петренко Іван')).toBe(false)
   })
 })

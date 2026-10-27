@@ -2,6 +2,7 @@ import React from 'react'
 import { CheckCircle2, Package, Layers, X, ArrowLeft } from 'lucide-react'
 import { QUALITY_CLASSIFICATION_OPTIONS } from '../../VKYA/quality-hold/qualityHoldModel'
 import { CardScrapHistoryModal } from './modals/CardScrapHistoryModal'
+import { NON_HUMAN_RESPONSIBILITY_OPTIONS, isNonHumanResponsibility } from '../utils/operatorAttribution'
 
 export const BrakClassificationQueue = React.memo(({
   viewingCategory,
@@ -364,19 +365,17 @@ export const BrakClassificationQueue = React.memo(({
             )}
 
             <div style={{ background: '#2563eb10', border: '1px solid #2563eb45', borderRadius: '18px', padding: '18px 20px', marginBottom: '25px' }}>
-              <div style={{ color: '#60a5fa', fontWeight: 950, fontSize: '0.72rem', marginBottom: '9px' }}>ВІДПОВІДАЛЬНИЙ ЗА БРАК</div>
+              <div style={{ color: '#60a5fa', fontWeight: 950, fontSize: '0.72rem', marginBottom: '9px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>ВІДПОВІДАЛЬНИЙ ЗА БРАК / ПРИЧИНА СПИСАННЯ</span>
+                {isNonHumanResponsibility(classificationResponsibleOperator) && (
+                  <span style={{ background: '#38bdf820', border: '1px solid #38bdf850', color: '#38bdf8', padding: '2px 8px', borderRadius: '8px', fontSize: '0.62rem', fontWeight: 900 }}>
+                    БЕЗ ВИНИ ЛЮДЕЙ
+                  </span>
+                )}
+              </div>
               {classificationOperatorsLoading ? (
                 <div style={{ color: 'var(--text-muted, #888)', fontSize: '0.75rem', fontWeight: 800 }}>Завантаження операторів картки…</div>
-              ) : classificationOperatorOptions.length === 1 ? (
-                <div style={{ color: 'var(--text-color, #fff)', fontSize: '0.9rem', fontWeight: 900 }}>
-                  {classificationOperatorOptions[0].name}
-                  <div style={{ color: 'var(--text-muted, #777)', fontSize: '0.64rem', fontWeight: 700, marginTop: '4px' }}>
-                    Єдиний виконавець картки — обрано автоматично
-                    {classificationOperatorOptions[0].stages?.length > 0 ? ` · ${classificationOperatorOptions[0].stages.join(', ')}` : ''}
-                    {classificationOperatorOptions[0].shifts?.length > 0 ? ` · ${classificationOperatorOptions[0].shifts.join(', ')}` : ''}
-                  </div>
-                </div>
-              ) : classificationOperatorOptions.length > 1 ? (
+              ) : (
                 <>
                   <select
                     value={classificationResponsibleOperator}
@@ -385,30 +384,76 @@ export const BrakClassificationQueue = React.memo(({
                       width: '100%',
                       padding: '12px 14px',
                       borderRadius: '12px',
-                      border: `1px solid ${classificationResponsibleOperator ? '#10b98166' : '#ef444466'}`,
+                      border: `1px solid ${
+                        isNonHumanResponsibility(classificationResponsibleOperator)
+                          ? '#38bdf8'
+                          : classificationResponsibleOperator
+                            ? '#10b98166'
+                            : '#ef444466'
+                      }`,
                       background: 'var(--card-inner-bg, #000)',
                       color: 'var(--text-color, #fff)',
                       fontSize: '0.85rem',
                       fontWeight: 850,
                       boxSizing: 'border-box',
-                      outline: 'none'
+                      outline: 'none',
+                      cursor: 'pointer'
                     }}
                   >
-                    <option value="">— Оберіть оператора, відповідального за брак —</option>
-                    {classificationOperatorOptions.map(candidate => (
-                      <option key={candidate.name} value={candidate.name}>
-                        {candidate.name}{candidate.stages?.length ? ` — ${candidate.stages.join(', ')}` : ''}{candidate.shifts?.length ? ` · ${candidate.shifts.join(', ')}` : ''}
-                      </option>
-                    ))}
+                    <option value="">— Оберіть оператора або причину без вини людей —</option>
+
+                    {classificationOperatorOptions.length > 0 && (
+                      <optgroup label="👷 Виконавці картки">
+                        {classificationOperatorOptions.map(candidate => (
+                          <option key={candidate.name} value={candidate.name}>
+                            {candidate.name}{candidate.stages?.length ? ` — ${candidate.stages.join(', ')}` : ''}{candidate.shifts?.length ? ` · ${candidate.shifts.join(', ')}` : ''}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+
+                    <optgroup label="⚙️ Без вини працівників (програма / обладнання / сировина / форс-мажор)">
+                      {NON_HUMAN_RESPONSIBILITY_OPTIONS.map(opt => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </optgroup>
                   </select>
-                  <div style={{ color: 'var(--text-muted, #777)', fontSize: '0.64rem', fontWeight: 700, marginTop: '7px' }}>
-                    У картці брали участь кілька виконавців. ВКЯ має обрати відповідального перед збереженням.
-                  </div>
+
+                  {isNonHumanResponsibility(classificationResponsibleOperator) ? (
+                    <div style={{
+                      marginTop: '9px',
+                      padding: '8px 12px',
+                      borderRadius: '10px',
+                      background: '#0284c715',
+                      border: '1px solid #0284c740',
+                      color: '#38bdf8',
+                      fontSize: '0.72rem',
+                      fontWeight: 850,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}>
+                      <span>✨</span>
+                      <span>
+                        Обрано технічну/зовнішню причину. Брак <b>НЕ буде списано на людей</b> і не вплине на KPI працівників.
+                      </span>
+                    </div>
+                  ) : classificationResponsibleOperator ? (
+                    <div style={{ color: 'var(--text-muted, #777)', fontSize: '0.64rem', fontWeight: 700, marginTop: '7px' }}>
+                      {classificationOperatorOptions.length === 1 && classificationOperatorOptions[0].name === classificationResponsibleOperator
+                        ? 'Єдиний виконавець картки — обрано за замовчуванням (можна замінити на причину без вини людей у списку вище).'
+                        : `Брак буде персонально враховано за оператором: ${classificationResponsibleOperator}.`}
+                    </div>
+                  ) : (
+                    <div style={{ color: '#f59e0b', fontSize: '0.66rem', fontWeight: 800, marginTop: '7px' }}>
+                      {classificationOperatorOptions.length === 0
+                        ? 'Виконавців у картці не знайдено — оберіть технічну причину без вини людей для збереження.'
+                        : 'Оберіть конкретного виконавця або причину без вини персоналу перед збереженням.'}
+                    </div>
+                  )}
                 </>
-              ) : (
-                <div style={{ color: '#ef4444', fontSize: '0.72rem', fontWeight: 850 }}>
-                  {classificationOperatorsError || 'В історії картки не знайдено виконавців виробничих етапів. Класифікацію зберегти неможливо.'}
-                </div>
               )}
             </div>
 

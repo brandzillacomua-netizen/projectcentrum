@@ -274,6 +274,197 @@ describe('useEmployeeReport productionSummary calculation', () => {
     expect(zm3.scrap).toBe(5)
     expect(zm3.shift).toBe('Зміна 3')
   })
+
+  it('attributes confirmed scrap strictly to the operator chosen by VKYA without duplicating to the second card operator', async () => {
+    const { renderToString } = await import('react-dom/server')
+    const React = await import('react')
+    const { useEmployeeReport } = await import('../src/modules/reports/hooks/useEmployeeReport.js')
+
+    let capturedResult = null
+
+    function TestComponent() {
+      capturedResult = useEmployeeReport({
+        systemUsers: [
+          { login: 'kravets.t', first_name: 'Тарас', last_name: 'Кравець', department: 'Цех №1' },
+          { login: 'venhlinskyi.s', first_name: 'С.', last_name: 'Венглінський', department: 'Цех №1' }
+        ],
+        workCardHistory: [
+          // Operator 1: Handover, 0 produced, 0 scrap
+          { id: 'h-venh', card_id: 'card-100', stage_name: 'Розкрій (перезмінка)', operator_name: 'Венглінський С.', qty_completed: 0, scrap_qty: 0, completed_at: '2026-10-25T08:00:00Z' },
+          // Operator 2: Finished cutting, 1816 pcs, defect entered: 296 scrap, legacy comment written on completion
+          { id: 'h-krav', card_id: 'card-100', stage_name: 'Розкрій', operator_name: 'Кравець Тарас', qty_completed: 1816, scrap_qty: 296, qc_scrap_comment: '[SCRAP_CAT:{"cat4":296}]', completed_at: '2026-10-25T11:00:00Z' }
+        ],
+        scrapClassificationsList: [
+          // VKYA explicitly chose Kravets Taras as responsible for this 296 pcs Category 4 scrap
+          {
+            id: 'class-296',
+            source_history_id: 'h-krav',
+            card_id: 'card-100',
+            source_operator_name: 'Кравець Тарас',
+            notes: '[VKYA_RESPONSIBLE_OPERATOR_CONFIRMED]',
+            quantity: 296,
+            scrap_classification_categories: [{ category: 4, quantity: 296 }],
+            classified_at: '2026-10-25T12:00:00Z'
+          }
+        ],
+        scrapReasonsDb: [],
+        nomenclatures: [],
+        tasks: [],
+        orders: [],
+        workCards: [{ id: 'card-100', operator_name: 'Кравець Тарас' }],
+        filterByDate: () => true,
+        selectedShiftFilter: 'all',
+        selectedEmployeeFilter: 'all',
+        searchQuery: ''
+      })
+      return React.createElement('div', null, 'OK')
+    }
+
+    renderToString(React.createElement(TestComponent))
+
+    expect(capturedResult).not.toBeNull()
+    const { employeeStats } = capturedResult
+
+    const kravets = employeeStats.find(e => e.key === 'kravets.t')
+    const venhlinskyi = employeeStats.find(e => e.key === 'venhlinskyi.s')
+
+    expect(kravets).toBeDefined()
+    expect(venhlinskyi).toBeDefined()
+
+    // Kravets got the 296 scrap and 296 util exactly once (NOT 592)
+    expect(kravets.produced).toBe(1816)
+    expect(kravets.scrap).toBe(296)
+    expect(kravets.util).toBe(296)
+
+    // Venhlinskyi does NOT get the scrap or util
+    expect(venhlinskyi.produced).toBe(0)
+    expect(venhlinskyi.scrap).toBe(0)
+    expect(venhlinskyi.util).toBe(0)
+  })
+
+  it('attributes confirmed scrap to Operator 1 when chosen by VKYA, clearing it from Operator 2', async () => {
+    const { renderToString } = await import('react-dom/server')
+    const React = await import('react')
+    const { useEmployeeReport } = await import('../src/modules/reports/hooks/useEmployeeReport.js')
+
+    let capturedResult = null
+
+    function TestComponent() {
+      capturedResult = useEmployeeReport({
+        systemUsers: [
+          { login: 'kravets.t', first_name: 'Тарас', last_name: 'Кравець', department: 'Цех №1' },
+          { login: 'venhlinskyi.s', first_name: 'С.', last_name: 'Венглінський', department: 'Цех №1' }
+        ],
+        workCardHistory: [
+          { id: 'h-venh', card_id: 'card-101', stage_name: 'Розкрій (перезмінка)', operator_name: 'Венглінський С.', qty_completed: 0, scrap_qty: 0, completed_at: '2026-10-25T08:00:00Z' },
+          { id: 'h-krav', card_id: 'card-101', stage_name: 'Розкрій', operator_name: 'Кравець Тарас', qty_completed: 1816, scrap_qty: 296, qc_scrap_comment: '[SCRAP_CAT:{"cat4":296}]', completed_at: '2026-10-25T11:00:00Z' }
+        ],
+        scrapClassificationsList: [
+          // VKYA explicitly chose Venhlinskyi as responsible
+          {
+            id: 'class-296-v',
+            source_history_id: 'h-krav',
+            card_id: 'card-101',
+            source_operator_name: 'Венглінський С.',
+            notes: '[VKYA_RESPONSIBLE_OPERATOR_CONFIRMED]',
+            quantity: 296,
+            scrap_classification_categories: [{ category: 4, quantity: 296 }],
+            classified_at: '2026-10-25T12:00:00Z'
+          }
+        ],
+        scrapReasonsDb: [],
+        nomenclatures: [],
+        tasks: [],
+        orders: [],
+        workCards: [{ id: 'card-101', operator_name: 'Кравець Тарас' }],
+        filterByDate: () => true,
+        selectedShiftFilter: 'all',
+        selectedEmployeeFilter: 'all',
+        searchQuery: ''
+      })
+      return React.createElement('div', null, 'OK')
+    }
+
+    renderToString(React.createElement(TestComponent))
+
+    expect(capturedResult).not.toBeNull()
+    const { employeeStats } = capturedResult
+
+    const kravets = employeeStats.find(e => e.key === 'kravets.t')
+    const venhlinskyi = employeeStats.find(e => e.key === 'venhlinskyi.s')
+
+    expect(venhlinskyi.produced).toBe(0)
+    expect(venhlinskyi.scrap).toBe(296)
+    expect(venhlinskyi.util).toBe(296)
+
+    expect(kravets.produced).toBe(1816)
+    expect(kravets.scrap).toBe(0)
+    expect(kravets.util).toBe(0)
+  })
+
+  it('does not penalize any operator or create a fake worker when scrap is attributed to software or technical causes', async () => {
+    const { renderToString } = await import('react-dom/server')
+    const React = await import('react')
+    const { useEmployeeReport } = await import('../src/modules/reports/hooks/useEmployeeReport.js')
+
+    let capturedResult = null
+
+    function TestComponent() {
+      capturedResult = useEmployeeReport({
+        systemUsers: [
+          { login: 'kravets.t', first_name: 'Тарас', last_name: 'Кравець', department: 'Цех №1' },
+          { login: 'venhlinskyi.s', first_name: 'С.', last_name: 'Венглінський', department: 'Цех №1' }
+        ],
+        workCardHistory: [
+          { id: 'h-101', card_id: 'card-102', stage_name: 'Розкрій', operator_name: 'Кравець Тарас', qty_completed: 500, scrap_qty: 40, qc_scrap_comment: '[SCRAP_CAT:{"cat4":40}]', completed_at: '2026-10-25T11:00:00Z' }
+        ],
+        scrapClassificationsList: [
+          // VKYA attributed scrap to CNC program error
+          {
+            id: 'class-cnc-err',
+            source_history_id: 'h-101',
+            card_id: 'card-102',
+            source_operator_name: 'Помилка програми / ЧПК',
+            notes: '[VKYA_NON_HUMAN_SCRAP]',
+            quantity: 40,
+            scrap_classification_categories: [{ category: 4, quantity: 40 }],
+            classified_at: '2026-10-25T12:00:00Z'
+          }
+        ],
+        scrapReasonsDb: [],
+        nomenclatures: [],
+        tasks: [],
+        orders: [],
+        workCards: [{ id: 'card-102', operator_name: 'Кравець Тарас' }],
+        filterByDate: () => true,
+        selectedShiftFilter: 'all',
+        selectedEmployeeFilter: 'all',
+        searchQuery: ''
+      })
+      return React.createElement('div', null, 'OK')
+    }
+
+    renderToString(React.createElement(TestComponent))
+
+    expect(capturedResult).not.toBeNull()
+    const { employeeStats } = capturedResult
+
+    // Worker produced 500 pcs, and his scrap remains 0 (not penalized by program error)
+    const kravets = employeeStats.find(e => e.key === 'kravets.t')
+    expect(kravets.produced).toBe(500)
+    expect(kravets.scrap).toBe(0)
+    expect(kravets.util).toBe(0)
+
+    // Option 2: Special distinct non-human entry for "Помилка програми / ЧПК" is present
+    const nonHuman = employeeStats.find(e => e.isNonHuman)
+    expect(nonHuman).toBeDefined()
+    expect(nonHuman.name).toContain('Помилка програми / ЧПК')
+    expect(nonHuman.department).toBe('Без вини людей')
+    expect(nonHuman.produced).toBe(0)
+    expect(nonHuman.scrap).toBe(40)
+    expect(nonHuman.util).toBe(40)
+    expect(nonHuman.efficiency).toBeNull()
+  })
 })
 
 

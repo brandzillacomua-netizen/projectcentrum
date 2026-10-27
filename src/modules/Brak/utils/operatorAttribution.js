@@ -29,6 +29,59 @@ const BLOCKED_OPERATOR_NAMES = new Set([
 const clean = value => String(value || '').replace(/\s+/g, ' ').trim()
 const normalized = value => clean(value).toLocaleLowerCase('uk-UA')
 
+export const NON_HUMAN_RESPONSIBILITY_OPTIONS = [
+  {
+    value: 'Помилка програми / ЧПК',
+    label: '⚙️ Помилка програми / ЧПК (керуюча програма / CAM)',
+    shortLabel: 'Помилка програми / ЧПК',
+    description: 'Збій або помилка керуючої програми, траєкторії різу, CAM/CAD моделі'
+  },
+  {
+    value: 'Несправність верстата / обладнання',
+    label: '🛠️ Несправність верстата / обладнання (механіка / електроніка)',
+    shortLabel: 'Несправність верстата',
+    description: 'Механічний люфт, биття шпинделя, перегрів, відмова інструменту або датчиків'
+  },
+  {
+    value: 'Брак матеріалу / сировини',
+    label: '📦 Брак матеріалу / сировини (постачальник / кривизна листа)',
+    shortLabel: 'Брак сировини',
+    description: 'Кривизна металу, дефекти прокату, приховані тріщини, вина постачальника'
+  },
+  {
+    value: 'Форс-мажор / непередбачувані обставини',
+    label: '⚡ Форс-мажор / непередбачувані обставини (живлення / аварія)',
+    shortLabel: 'Форс-мажор',
+    description: 'Аварійне вимкнення електроенергії, збій мережі, непередбачувана зупинка'
+  },
+  {
+    value: 'Технічні причини / без вини персоналу',
+    label: '📋 Технічні причини / інше (без вини працівників)',
+    shortLabel: 'Без вини персоналу',
+    description: 'Тестовий запуск, налагодження або інші непередбачувані технічні фактори'
+  }
+]
+
+export function isNonHumanResponsibility(name) {
+  if (!name) return false
+  const cleanName = clean(name).toLocaleLowerCase('uk-UA')
+  if (NON_HUMAN_RESPONSIBILITY_OPTIONS.some(opt => clean(opt.value).toLocaleLowerCase('uk-UA') === cleanName)) {
+    return true
+  }
+  return (
+    cleanName.includes('помилка програм') ||
+    cleanName.includes('несправність верстат') ||
+    cleanName.includes('збій верстат') ||
+    cleanName.includes('збій станк') ||
+    cleanName.includes('брак матеріал') ||
+    cleanName.includes('брак сировин') ||
+    cleanName.includes('кривизна лист') ||
+    cleanName.includes('форс-мажор') ||
+    cleanName.includes('без вини') ||
+    cleanName.includes('технічн')
+  )
+}
+
 export function isShop1ResponsibilityStage(stageName) {
   const stage = normalized(stageName)
   if (!stage || stage.includes('буфер')) return false
@@ -37,7 +90,7 @@ export function isShop1ResponsibilityStage(stageName) {
 
 export function isAssignableProductionOperator(operatorName) {
   const name = normalized(operatorName)
-  if (!name || BLOCKED_OPERATOR_NAMES.has(name)) return false
+  if (!name || BLOCKED_OPERATOR_NAMES.has(name) || isNonHumanResponsibility(name)) return false
   if (name.startsWith('вкя') || name.startsWith('втк')) return false
   if (name.includes('контроль вкя') || name.includes('контролер якості')) return false
   if (name.includes('інспектор') || name.includes('термінал відновлення')) return false

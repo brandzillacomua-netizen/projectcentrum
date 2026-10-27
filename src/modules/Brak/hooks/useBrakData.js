@@ -13,7 +13,7 @@ import { reportDateBoundaryIso, normalizeScrapReasonName, isScrapReadyForQc, mat
 import { executeAtomicQcScrap } from '../../../services/atomicQcScrapService.js'
 import { incrementInventoryStock } from '../../../services/inventoryStockService.js'
 import { triggerHapticAudioFeedback } from '../../../services/scannerDebounceGuard.js'
-import { buildShop1OperatorCandidates } from '../utils/operatorAttribution.js'
+import { buildShop1OperatorCandidates, isNonHumanResponsibility } from '../utils/operatorAttribution.js'
 
 const VKYA_QUEUE_CACHE_KEY = 'VKYA_CLASSIFICATION_QUEUE_V2'
 const VKYA_REPORT_CACHE_TTL_MS = 30 * 1000
@@ -159,12 +159,12 @@ export function useBrakData() {
         const candidates = buildShop1OperatorCandidates(data || [], systemUsersRef.current || [])
         setClassificationOperatorOptions(candidates)
         setClassificationResponsibleOperator(prev => {
-          if (prev && candidates.some(c => c.name === prev)) return prev
+          if (prev && (candidates.some(c => c.name === prev) || isNonHumanResponsibility(prev))) return prev
           if (candidates.length === 1) return candidates[0].name
           return ''
         })
         if (candidates.length === 0) {
-          setClassificationOperatorsError('В історії картки не знайдено виконавців виробничих етапів (розкрій, галтовка, сортування тощо).')
+          setClassificationOperatorsError('В історії картки не знайдено операторів. Ви можете обрати причину без вини працівників.')
         }
       } catch (error) {
         if (cancelled) return
@@ -1322,11 +1322,13 @@ export function useBrakData() {
       return
     }
     if (!classificationResponsibleOperator) {
-      alert('Оберіть оператора, відповідального за цей брак.')
+      alert('Оберіть оператора або причину без вини працівників.')
       return
     }
-    if (!classificationOperatorOptions.some(candidate => candidate.name === classificationResponsibleOperator)) {
-      alert('Обраний виконавець відсутній серед учасників цієї картки. Оновіть форму та повторіть вибір.')
+    const isCandidate = classificationOperatorOptions.some(candidate => candidate.name === classificationResponsibleOperator)
+    const isNonHuman = isNonHumanResponsibility(classificationResponsibleOperator)
+    if (!isCandidate && !isNonHuman) {
+      alert('Обраний виконавець або причина відсутні у списку. Оновіть форму та повторіть вибір.')
       return
     }
     if (totalDistributed > Number(selectedItem.total_qty)) {
@@ -1370,11 +1372,12 @@ export function useBrakData() {
         const userName = currentUser ? `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() : 'Інспектор ВКЯ'
 
         const targetOperator = classificationResponsibleOperator
+        const isNonHuman = isNonHumanResponsibility(targetOperator)
 
         const restorationOriginHistoryId = selectedItem.history_row.restoration_return_row?.source_history_id
         const classificationNotes = [
           selectedItem.history_row.qc_scrap_comment || null,
-          '[VKYA_RESPONSIBLE_OPERATOR_CONFIRMED]',
+          isNonHuman ? '[VKYA_NON_HUMAN_SCRAP]' : '[VKYA_RESPONSIBLE_OPERATOR_CONFIRMED]',
           restorationOriginHistoryId ? `[VKYA_ORIGIN_HISTORY:${restorationOriginHistoryId}]` : null
         ].filter(Boolean).join(' ')
 

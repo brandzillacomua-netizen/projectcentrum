@@ -18,14 +18,7 @@ import {
   buildRequestedCuttersBreakdown,
   resolveActualCutterToRequested
 } from '../utils/cutterReport.js'
-import {
-  buildCuttingTimeSummary,
-  calculateCuttingPlanSeconds,
-  getHistoryRowDurationSeconds,
-  isCuttingStageRow,
-  isCuttingStopRow,
-  isCuttingWorkRow
-} from '../utils/cuttingTimeReport.js'
+import { buildCuttingTimeSummary, calculateCuttingPlanSeconds, consolidateCuttingRows, formatHandoverPendingInfo, getHistoryRowDurationSeconds, isCuttingStageRow, isCuttingStopRow, isCuttingWorkRow } from '../utils/cuttingTimeReport.js'
 import { getCardCuttingPlanSeconds } from '../../../utils/cuttingTimeUtils.js'
 import { buildScrapDetailGroups, buildUtilDetailGroups } from '../utils/scrapDetailReport.js'
 
@@ -177,6 +170,7 @@ export function ForemanReportModal({
   workCards
 }) {
   const [internalCardFilter, setInternalCardFilter] = useState('All')
+  const [groupHandovers, setGroupHandovers] = useState(true)
   const reportCardFilter = propCardFilter !== undefined ? propCardFilter : internalCardFilter
   const setReportCardFilter = propSetCardFilter || setInternalCardFilter
 
@@ -980,26 +974,27 @@ export function ForemanReportModal({
                     </select>
                   </div>
                 )}
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.72rem', color: groupHandovers ? '#3b82f6' : 'var(--text-muted)', fontWeight: 800, cursor: 'pointer', marginLeft: 'auto', userSelect: 'none' }}>
+                  <input type="checkbox" checked={groupHandovers} onChange={e => setGroupHandovers(e.target.checked)} style={{ cursor: 'pointer' }} />
+                  Об'єднувати перезмінки
+                </label>
               </div>
 
               {(() => {
                 let processedRows = (reportData.historyRows || []).filter(row => {
                   if (!matchesHistoryStage(row, reportStageFilter)) return false
-
-                  if (reportNomFilter !== 'All' && String(row.nomenclature_id) !== String(reportNomFilter)) {
-                    return false
-                  }
-
+                  if (reportNomFilter !== 'All' && String(row.nomenclature_id) !== String(reportNomFilter)) return false
                   if (reportCardFilter !== 'All') {
                     const seq = getCardSequenceInfo(row, reportData.taskCards)
                     if (seq.label !== reportCardFilter) return false
                   }
-
-                  if (reportSortBy === 'operator' && reportOperatorFilter !== 'All' && row.operator_name !== reportOperatorFilter) {
-                    return false
-                  }
+                  if (reportSortBy === 'operator' && reportOperatorFilter !== 'All' && row.operator_name !== reportOperatorFilter) return false
                   return true
                 })
+
+                if (groupHandovers) {
+                  processedRows = consolidateCuttingRows(processedRows)
+                }
 
                 processedRows.sort((a, b) => {
                   if (reportSortBy === 'card') {
@@ -1058,15 +1053,9 @@ export function ForemanReportModal({
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', textAlign: 'left', minWidth: '850px' }}>
                       <thead>
                         <tr style={{ background: 'var(--surface-2)', color: '#888', textTransform: 'uppercase', fontSize: '0.6rem', fontWeight: 900, borderBottom: '1px solid var(--border-subtle)' }}>
-                          <th style={{ padding: '12px 15px' }}>Деталь / Картка</th>
-                          <th style={{ padding: '12px 15px' }}>Час (початок / завершення)</th>
-                          <th style={{ padding: '12px 15px', textAlign: 'center' }}>План. час</th>
-                          <th style={{ padding: '12px 15px', textAlign: 'center' }}>Факт. час</th>
-                          <th style={{ padding: '12px 15px' }}>Етап</th>
-                          <th style={{ padding: '12px 15px' }}>Оператор / Зміна</th>
-                          <th style={{ padding: '12px 15px' }}>Робоче місце</th>
-                          <th style={{ padding: '12px 15px', textAlign: 'center' }}>Готово / Брак</th>
-                          <th style={{ padding: '12px 15px', textAlign: 'center' }}>Фрези</th>
+                          <th style={{ padding: '12px 15px' }}>Деталь / Картка</th><th style={{ padding: '12px 15px', textAlign: 'center' }}>Системний №</th><th style={{ padding: '12px 15px' }}>Час (початок / завершення)</th>
+                          <th style={{ padding: '12px 15px', textAlign: 'center' }}>План. час</th><th style={{ padding: '12px 15px', textAlign: 'center' }}>Факт. час</th><th style={{ padding: '12px 15px' }}>Етап</th>
+                          <th style={{ padding: '12px 15px' }}>Оператор / Зміна</th><th style={{ padding: '12px 15px' }}>Робоче місце</th><th style={{ padding: '12px 15px', textAlign: 'center' }}>Готово / Брак</th><th style={{ padding: '12px 15px', textAlign: 'center' }}>Фрези</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1109,6 +1098,7 @@ export function ForemanReportModal({
                                 <div style={{ fontWeight: 800, color: 'var(--text-strong)' }}>{nom?.name || '—'}</div>
                                 <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '2px' }}>Картка {seqStr}</div>
                               </td>
+                              <td style={{ padding: '12px 15px', textAlign: 'center', whiteSpace: 'nowrap' }}><span style={{ fontFamily: 'monospace', fontSize: '0.7rem', background: 'var(--surface-2)', padding: '2px 6px', borderRadius: '5px', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', fontWeight: 800 }} title={cardSeq.cardId || ''}>{cardSeq.systemId || '—'}</span></td>
                               <td style={{ padding: '12px 15px' }}>
                                 <div style={{ color: 'var(--text-muted)', fontWeight: 600 }}>{startTime}</div>
                                 <div style={{ color: 'var(--text-muted)', fontWeight: 700, marginTop: '2px' }}>{completedTime}</div>
@@ -1119,41 +1109,50 @@ export function ForemanReportModal({
                                 {isCuttingStop && (
                                   <div style={{ fontSize: '0.58rem', marginTop: '3px', whiteSpace: 'nowrap' }}>зупинка · не входить</div>
                                 )}
-                                {isLastCuttingWorkRow && cuttingCardTime.sessionCount > 1 && (
-                                  <div style={{ fontSize: '0.58rem', color: '#10b981', marginTop: '3px', whiteSpace: 'nowrap' }}>
-                                    Разом: {formatDurationHMS(cuttingCardTime.totalSeconds)} · {cuttingCardTime.sessionCount} сес.
-                                  </div>
+                                {row.is_consolidated ? (
+                                  <div style={{ fontSize: '0.58rem', color: '#10b981', marginTop: '3px', whiteSpace: 'nowrap' }}>Разом за {row.session_count} зміни</div>
+                                ) : isLastCuttingWorkRow && cuttingCardTime.sessionCount > 1 ? (
+                                  <div style={{ fontSize: '0.58rem', color: '#10b981', marginTop: '3px', whiteSpace: 'nowrap' }}>Разом: {formatDurationHMS(cuttingCardTime.totalSeconds)} · {cuttingCardTime.sessionCount} сес.</div>
+                                ) : null}
+                              </td>
+                              <td style={{ padding: '12px 15px' }}>
+                                <span className={`stage-badge stage-${stageKind}`} style={{ background: isBufferStage ? '#a78bfa1e' : isCuttingStop ? '#f59e0b1a' : isCuttingStageRow(row) ? '#3b82f61a' : stageName === 'Галтовка' ? '#eab3081a' : isReceptionStage ? '#10b9811a' : '#14b8a61a', color: isBufferStage ? '#a78bfa' : isCuttingStop ? '#f59e0b' : isCuttingStageRow(row) ? '#3b82f6' : stageName === 'Галтовка' ? '#eab308' : isReceptionStage ? '#10b981' : '#14b8a6', padding: '4px 8px', borderRadius: '6px', fontWeight: 900, fontSize: '0.7rem', border: isBufferStage ? '1px solid #a78bfa33' : 'none' }}>
+                                  {stageName === 'completed' ? 'Прийомка' : stageName}
+                                </span>
+                                {row.is_consolidated && (
+                                  <span style={{ display: 'inline-block', marginLeft: '6px', background: '#3b82f61a', color: '#3b82f6', border: '1px solid #3b82f640', padding: '2px 6px', borderRadius: '4px', fontSize: '0.62rem', fontWeight: 800 }}>{row.session_count} зміни</span>
                                 )}
                               </td>
                               <td style={{ padding: '12px 15px' }}>
-                                <span
-                                  className={`stage-badge stage-${stageKind}`}
-                                  style={{
-                                    background: isBufferStage ? '#a78bfa1e' : isCuttingStop ? '#f59e0b1a' : isCuttingStageRow(row) ? '#3b82f61a' : stageName === 'Галтовка' ? '#eab3081a' : isReceptionStage ? '#10b9811a' : '#14b8a61a',
-                                    color: isBufferStage ? '#a78bfa' : isCuttingStop ? '#f59e0b' : isCuttingStageRow(row) ? '#3b82f6' : stageName === 'Галтовка' ? '#eab308' : isReceptionStage ? '#10b981' : '#14b8a6',
-                                    padding: '4px 8px',
-                                    borderRadius: '6px',
-                                    fontWeight: 900,
-                                    fontSize: '0.7rem',
-                                    border: isBufferStage ? '1px solid #a78bfa33' : 'none'
-                                  }}
-                                >
-                                  {stageName === 'completed' ? 'Прийомка' : stageName}
-                                </span>
-                              </td>
-                              <td style={{ padding: '12px 15px' }}>
-                                <div style={{ color: 'var(--text-strong)', fontWeight: 800 }}>{row.operator_name}</div>
-                                <div style={{ color: 'var(--text-dim)', fontSize: '0.65rem' }}>{row.shift_name}</div>
-                                {(() => {
-                                  const replacedMatch = row.card_info?.match(/\[REPLACED_BY:(.*?)\]/)
-                                  if (replacedMatch) {
+                                {row.is_consolidated && Array.isArray(row.sessions) ? (
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                                    {row.sessions.map((s, sIdx) => (
+                                      <div key={sIdx} style={{ fontSize: '0.68rem', whiteSpace: 'nowrap' }}>
+                                        <span style={{ color: 'var(--text-strong)', fontWeight: 800 }}>{s.operator_name}</span>
+                                        <span style={{ color: 'var(--text-dim)', fontSize: '0.62rem', marginLeft: '3px' }}>({s.shift_name})</span>
+                                        <span style={{ color: '#10b981', fontSize: '0.62rem', marginLeft: '5px', fontWeight: 700 }}>{formatDurationHMS(s.duration)}</span>
+                                        {Number(s.qty_completed) > 0 && <span style={{ color: '#3b82f6', fontSize: '0.62rem', marginLeft: '3px', fontWeight: 800 }}>· {s.qty_completed} шт</span>}
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (() => {
+                                  const pendingInfo = formatHandoverPendingInfo(row, card, actualSeconds)
+                                  if (pendingInfo) {
                                     return (
-                                      <div style={{ color: '#f59e0b', fontSize: '0.65rem', marginTop: '4px', fontWeight: 700 }}>
-                                        ↳ Замінено на: {replacedMatch[1]}
+                                      <div>
+                                        <div style={{ color: 'var(--text-strong)', fontWeight: 800 }}>
+                                          {row.operator_name} <span style={{ color: 'var(--text-dim)', fontSize: '0.62rem', fontWeight: 600 }}>{pendingInfo.shiftInfo}</span>
+                                        </div>
+                                        <div style={{ color: '#f59e0b', fontSize: '0.65rem', marginTop: '3px', fontWeight: 800 }}>{pendingInfo.label}</div>
                                       </div>
                                     )
                                   }
-                                  return null
+                                  return (
+                                    <>
+                                      <div style={{ color: 'var(--text-strong)', fontWeight: 800 }}>{row.operator_name}</div>
+                                      <div style={{ color: 'var(--text-dim)', fontSize: '0.65rem' }}>{row.shift_name}</div>
+                                    </>
+                                  )
                                 })()}
                               </td>
                               <td style={{ padding: '12px 15px', color: 'var(--text-muted)' }}>
