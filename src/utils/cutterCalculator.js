@@ -94,7 +94,7 @@ export const extractCutterDiameter = (nameStr) => {
   if (!nameStr) return null
   const s = String(nameStr).toLowerCase()
 
-  const fMatch = s.match(/ф\s*(\d+(?:[.,]\d+)?)/)
+  const fMatch = s.match(/(?:ф|d)\s*(\d+(?:[.,]\d+)?)/)
   if (fMatch) return fMatch[1].replace(',', '.')
 
   const mmMatch = s.match(/(\d+(?:[.,]\d+)?)\s*мм/)
@@ -360,3 +360,79 @@ export const calculateCuttersForBatch = ({
 
   return Object.values(machineSpecificCutters)
 }
+
+/**
+ * Robust matching between a cutter request (from material_requests)
+ * and an operator-reported or planned cutter.
+ */
+export function isMatchingCutterRequest(r, cutterName, nom, opInvItem, card = null, nomenclatures = [], task = null) {
+  if (!r) return false
+
+  // 1. Direct inventory match
+  if (opInvItem?.id && r.inventory_id && String(r.inventory_id) === String(opInvItem.id)) {
+    return true
+  }
+
+  // 2. Direct nomenclature match
+  if (nom?.id && r.nomenclature_id && String(r.nomenclature_id) === String(nom.id)) {
+    return true
+  }
+
+  // 3. Characteristic linkage (nom.characteristic points to cutter type, or vice versa)
+  if (nom?.characteristic && r.nomenclature_id && String(r.nomenclature_id) === String(nom.characteristic)) {
+    return true
+  }
+  const rNom = nomenclatures?.find(n => String(n.id) === String(r.nomenclature_id) || (Array.isArray(n.legacy_ids) && n.legacy_ids.map(String).includes(String(r.nomenclature_id))))
+  if (rNom?.characteristic && nom?.id && String(rNom.characteristic) === String(nom.id)) {
+    return true
+  }
+  if (nom?.characteristic && rNom?.characteristic && String(nom.characteristic) === String(rNom.characteristic)) {
+    return true
+  }
+
+  // 4. Task snapshot selectedCutters match
+  const selectedCutters = task?.plan_snapshot?.[card?.nomenclature_id]?.selected_cutters || task?.plan_snapshot?.selectedCutters
+  if (selectedCutters && typeof selectedCutters === 'object') {
+    for (const [key, val] of Object.entries(selectedCutters)) {
+      const keyMatchesReq = String(key) === String(r.nomenclature_id) ||
+        (rNom && (key.toLowerCase() === rNom.name?.toLowerCase() || key.toLowerCase() === rNom.name?.toLowerCase().replace('тип ', '')))
+      const valMatchesNom = String(val) === String(nom?.id) ||
+        (opInvItem && String(val) === String(opInvItem.id)) ||
+        (nom && String(val).toLowerCase() === nom.name?.toLowerCase())
+      if (keyMatchesReq && valMatchesNom) return true
+    }
+  }
+
+  // 5. String details containment
+  const reqDetails = (r.details || '').toLowerCase()
+  const cName = (cutterName || '').toLowerCase().trim()
+  if (cName && reqDetails.includes(cName)) return true
+  if (nom?.name && reqDetails.includes(nom.name.toLowerCase().trim())) return true
+  if (rNom?.name && cName.includes(rNom.name.toLowerCase().trim())) return true
+
+  // 6. Cutter type name match via resolveCutterTypeName
+  if (typeof resolveCutterTypeName === 'function') {
+    const nomTypeName = resolveCutterTypeName(nom, nomenclatures)?.toLowerCase().trim()
+    const rNomTypeName = rNom ? resolveCutterTypeName(rNom, nomenclatures)?.toLowerCase().trim() : ''
+    if (nomTypeName && rNomTypeName && nomTypeName === rNomTypeName) return true
+    if (nomTypeName && reqDetails.includes(nomTypeName)) return true
+  }
+
+  // 7. Diameter & cutter type matching
+  const isCutterReq = reqDetails.includes('фрез') || (rNom?.name || '').toLowerCase().includes('фрез') || (rNom?.type === 'consumable')
+  const isCutterBreakdown = cName.includes('фрез') || (nom?.name || '').toLowerCase().includes('фрез') || (nom?.type === 'consumable')
+  if (isCutterReq && isCutterBreakdown) {
+    const dReq = extractCutterDiameter(reqDetails) || (rNom ? extractCutterDiameter(rNom.name) : null)
+    const dCutter = extractCutterDiameter(cName) || (nom ? extractCutterDiameter(nom.name) : null)
+    if (dReq !== null && dCutter !== null && parseFloat(dReq) === parseFloat(dCutter)) {
+      const isChamferReq = reqDetails.includes('фасоч') || (rNom?.name || '').toLowerCase().includes('фасоч')
+      const isChamferCutter = cName.includes('фасоч') || (nom?.name || '').toLowerCase().includes('фасоч')
+      if (isChamferReq === isChamferCutter) {
+        return true
+      }
+    }
+  }
+
+  return false
+}
+

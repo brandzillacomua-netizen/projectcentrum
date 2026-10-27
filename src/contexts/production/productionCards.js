@@ -11,7 +11,7 @@ import {
 } from './productionShared.js'
 import { findWorkingSheetNom, extractThickness } from '../../modules/Nomenclature/utils/nomenclatureHelpers.js'
 import { buildRequestAllocations, consumeCuttingInventoryOnce } from '../../services/atomicInventoryService.js'
-import { resolveCutterOrVirtualType, resolveCutterTypeName, isMachineMatch } from '../../utils/cutterCalculator.js'
+import { resolveCutterOrVirtualType, resolveCutterTypeName, isMachineMatch, isMatchingCutterRequest } from '../../utils/cutterCalculator.js'
 import { isRequestForCard } from '../../utils/materialCardMatching.js'
 import { getCuttingEstimatedSeconds } from '../../utils/cuttingTimeUtils.js'
 import { selectIssuedRequestsForInventory, sumRequestQuantity } from '../../services/reservationLedger.js'
@@ -466,7 +466,7 @@ export function createProductionCardsActions({
 
     const hasCuttersBreakdown = isCuttingOp && cuttersBreakdown && Object.keys(cuttersBreakdown).length > 0
 
-    if (isCuttingOp && (!alreadyDeductedSheets || hasCuttersBreakdown)) {
+    if (isCuttingOp && (!alreadyDeductedSheets || !alreadyDeductedCutters)) {
       const isChamferCutter = (name) => {
         const n = String(name || '').toLowerCase()
         return n.includes('фасоч') || n.includes('фаска') || n.includes('chamfer')
@@ -496,8 +496,7 @@ export function createProductionCardsActions({
       }
       if (!cardSheets || cardSheets <= 0) cardSheets = 1
 
-      // Check if other uncompleted cards remain for this task — MUST use DB, not stale React state
-      // (freshly generated cards may not yet be in workCards state via realtime)
+      // Check if other uncompleted cutting cards remain for this task — MUST use DB, not stale React state
       let isLastCard = false
       try {
         const { data: activeCardsDb } = await supabase
@@ -505,7 +504,8 @@ export function createProductionCardsActions({
           .select('id')
           .eq('task_id', card.task_id)
           .neq('id', card.id)
-          .not('status', 'in', '(completed,scrap,archived)')
+          .eq('operation', 'Розкрій')
+          .not('status', 'in', '(completed,scrap,archived,at-buffer,at-shop2-buffer)')
           .limit(1)
         isLastCard = !activeCardsDb || activeCardsDb.length === 0
       } catch (e) {
@@ -514,9 +514,12 @@ export function createProductionCardsActions({
         const otherActiveCards = (workCards || []).filter(c =>
           String(c.task_id) === String(card.task_id) &&
           String(c.id) !== String(card.id) &&
+          (c.operation === 'Розкрій' || !c.operation) &&
           c.status !== 'completed' &&
           c.status !== 'scrap' &&
-          c.status !== 'archived'
+          c.status !== 'archived' &&
+          c.status !== 'at-buffer' &&
+          c.status !== 'at-shop2-buffer'
         )
         isLastCard = otherActiveCards.length === 0
       }
@@ -653,16 +656,26 @@ export function createProductionCardsActions({
       }
 
       // ── 2. Process Cutters deduction & proportional reservation release ──
-      if (hasCuttersBreakdown) {
+      const processedCutterRequestIds = new Set()
 
-      for (const [cutterName, actualQtyVal] of Object.entries(cuttersBreakdown)) {
+      // Build effective breakdown
+      let effectiveCuttersBreakdown = { ...(cuttersBreakdown || {}) }
+      if (Object.keys(effectiveCuttersBreakdown).length === 0 && Array.isArray(task?.plan_snapshot?.consumables)) {
+        task.plan_snapshot.consumables.forEach(c => {
+          if (c.name && c.name.toLowerCase().includes('фрез')) {
+            effectiveCuttersBreakdown[c.name.trim()] = 0
+          }
+        })
+      }
+
+      for (const [cutterName, actualQtyVal] of Object.entries(effectiveCuttersBreakdown)) {
         const actualQty = Number(actualQtyVal) || 0
-        if (actualQty <= 0) continue
 
         const nom = nomenclatures?.find(n => n.name?.trim().toLowerCase() === cutterName.trim().toLowerCase() && n.type === 'consumable')
           || nomenclatures?.find(n => n.name?.trim().toLowerCase() === cutterName.trim().toLowerCase())
-        if (!nom) throw new Error(`Не знайдено номенклатуру фрези «${cutterName}»`)
-        cutterUsageItems.push({ nomenclature_id: nom.id, quantity: actualQty })
+        if (nom && actualQty > 0) {
+          cutterUsageItems.push({ nomenclature_id: nom.id, quantity: actualQty })
+        }
 
         // 1. Calculate planned rate (cutters per sheet) and card's planned quota
         let qtyPerSheet = null
@@ -686,7 +699,7 @@ export function createProductionCardsActions({
             if (cutterNomId && qps > 0) {
               const opCutterNom = resolveCutterOrVirtualType(cutterNomId, nomenclatures)
               const opCutterTypeName = resolveCutterTypeName(opCutterNom, nomenclatures)
-              const nomMatches = (String(opCutterNom?.id) === String(nom.id)) ||
+              const nomMatches = (String(opCutterNom?.id) === String(nom?.id)) ||
                 ((opCutterNom?.name || '').trim().toLowerCase() === cutterName.trim().toLowerCase()) ||
                 ((opCutterTypeName || '').trim().toLowerCase() === cutterName.trim().toLowerCase())
               if (nomMatches) {
@@ -731,18 +744,14 @@ export function createProductionCardsActions({
 
         const cardPlannedQty = Math.max(1, Math.ceil(cardSheets * (qtyPerSheet || 1)))
 
-        // Find active requests for this cutter on this task
-        const cutterRequests = dbTaskRequests.filter(r =>
-          (nom && String(r.nomenclature_id) === String(nom.id)) ||
-          (r.details || '').toLowerCase().includes(cutterName.toLowerCase())
-        )
-
         // 2. Adjust inventory total_qty and reserved_qty proportionally
         let invItem = inventory?.find(i => {
           const w = (i.warehouse || '').toLowerCase().trim()
-          return String(i.nomenclature_id) === String(nom.id) && (w === 'operational' || w === 'склад оперативний')
+          return ((nom && String(i.nomenclature_id) === String(nom.id)) ||
+            (i.name || '').toLowerCase().trim() === cutterName.toLowerCase().trim()) &&
+            (w === 'operational' || w === 'склад оперативний')
         })
-        if (!invItem) {
+        if (!invItem && nom) {
           const { data: invRows } = await supabase
             .from('inventory')
             .select('*')
@@ -761,34 +770,45 @@ export function createProductionCardsActions({
           if (invRows && invRows.length > 0) invItem = invRows[0]
         }
 
-        if (!invItem) {
+        if (actualQty > 0 && !invItem) {
           throw new Error(`Не знайдено фрезу «${cutterName}» на СО`)
         }
+
+        // Find active requests for this cutter on this task using robust matching
+        const matchingRequests = dbTaskRequests.filter(r =>
+          !processedCutterRequestIds.has(r.id) &&
+          isMatchingCutterRequest(r, cutterName, nom, invItem, card, nomenclatures, task)
+        )
+
+        const cardSpecificReqs = matchingRequests.filter(r => r.card_id && String(r.card_id) === String(card.id))
+        const otherMatchingReqs = matchingRequests.filter(r => !r.card_id || String(r.card_id) !== String(card.id))
+        const cutterRequests = [...cardSpecificReqs, ...otherMatchingReqs]
+
+        const taskReservedForCutter = cutterRequests.reduce((sum, r) => sum + (Number(r.quantity) || 0), 0)
 
         if (invItem) {
           const { data: freshInv } = await supabase.from('inventory').select('*').eq('id', invItem.id).maybeSingle()
           const currentInv = freshInv || invItem
 
-          // Only requests bound to this physical stock row contribute to its
-          // reserve. A same-nomenclature request may belong to another row and
-          // must never be released from this one.
-          const inventoryCutterRequests = selectIssuedRequestsForInventory(cutterRequests, currentInv.id)
-          const taskReservedForCutter = sumRequestQuantity(inventoryCutterRequests)
-
           const curReserved = Number(currentInv.reserved_qty) || 0
-          // Always release only this card's planned quota — last card is no different.
-          const quotaToRelease = cardPlannedQty
-          let releaseReserved = taskReservedForCutter > 0 ? Math.min(taskReservedForCutter, quotaToRelease) : quotaToRelease
+          // On last card, release 100% of any remaining reservation for this cutter
+          const quotaToRelease = isLastCard ? Math.max(cardPlannedQty, taskReservedForCutter) : cardPlannedQty
+          let releaseReserved = taskReservedForCutter > 0 ? Math.min(taskReservedForCutter, quotaToRelease) : Math.min(curReserved, quotaToRelease)
           releaseReserved = Math.max(0, Math.min(curReserved, releaseReserved))
 
-          await consumeCuttingInventoryOnce(supabase, {
-            cardId: card.id,
-            consumptionKey: `cutter:${nom.id}:${currentInv.id}`,
-            inventoryId: currentInv.id,
-            deductTotal: actualQty,
-            releaseReserved,
-            requestAllocations: buildRequestAllocations(inventoryCutterRequests, releaseReserved)
-          })
+          if (actualQty > 0 || releaseReserved > 0) {
+            const allocations = buildRequestAllocations(cutterRequests, releaseReserved)
+            allocations.forEach(a => processedCutterRequestIds.add(a.id))
+
+            await consumeCuttingInventoryOnce(supabase, {
+              cardId: card.id,
+              consumptionKey: `cutter:${nom?.id || cutterName}:${currentInv.id}`,
+              inventoryId: currentInv.id,
+              deductTotal: actualQty,
+              releaseReserved,
+              requestAllocations: allocations
+            })
+          }
 
           // 3. Scenario 3: If excess usage on a Chamfer cutter, add excess to restoration terminal queue
           if (actualQty > cardPlannedQty) {
@@ -796,8 +816,8 @@ export function createProductionCardsActions({
             if (isChamferCutter(cutterName)) {
               await supabase.from('cutter_restoration_batches').insert([{
                 batch_number: `BATCH-OVER-${Date.now().toString(36).toUpperCase()}`,
-                nomenclature_id: nom.id,
-                cutter_name: nom.name,
+                nomenclature_id: nom?.id || null,
+                cutter_name: nom?.name || cutterName,
                 received_qty: excess,
                 status: 'pending',
                 source_machine: card.machine || 'Не вказано',
@@ -806,6 +826,68 @@ export function createProductionCardsActions({
               }])
             }
           }
+        }
+      }
+
+      // On last card: sweep and clean up ANY remaining cutter requests for this task
+      if (isLastCard) {
+        try {
+          const { data: freshRemaining } = await supabase
+            .from('material_requests')
+            .select('*')
+            .eq('task_id', card.task_id)
+            .in('status', ['issued', 'pending', 'reserved', 'approved'])
+            .gt('quantity', 0)
+
+          const leftoverCutters = (freshRemaining || []).filter(r =>
+            !processedCutterRequestIds.has(r.id) &&
+            (
+              (r.details || '').toLowerCase().includes('фрез') ||
+              (nomenclatures || []).some(n => String(n.id) === String(r.nomenclature_id) && (n.name || '').toLowerCase().includes('фрез'))
+            )
+          )
+
+          for (const remReq of leftoverCutters) {
+            const remQty = Number(remReq.quantity) || 0
+            if (remQty <= 0) continue
+
+            let remInv = null
+            if (remReq.inventory_id) {
+              const { data: invRow } = await supabase.from('inventory').select('*').eq('id', remReq.inventory_id).maybeSingle()
+              remInv = invRow
+            }
+            if (!remInv && remReq.nomenclature_id) {
+              const { data: invRows } = await supabase
+                .from('inventory')
+                .select('*')
+                .eq('nomenclature_id', remReq.nomenclature_id)
+                .or('warehouse.eq.operational,warehouse.is.null')
+                .limit(1)
+              if (invRows && invRows.length > 0) remInv = invRows[0]
+            }
+
+            if (remInv) {
+              const curRes = Number(remInv.reserved_qty) || 0
+              const toRelease = Math.max(0, Math.min(curRes, remQty))
+              try {
+                await consumeCuttingInventoryOnce(supabase, {
+                  cardId: card.id,
+                  consumptionKey: `cutter:last-sweep:${remReq.id}`,
+                  inventoryId: remInv.id,
+                  deductTotal: 0,
+                  releaseReserved: toRelease,
+                  requestAllocations: [{ id: remReq.id, quantity: remQty }]
+                })
+              } catch (cleanErr) {
+                console.warn('Error during leftover cutter reservation cleanup in confirmBuffer:', cleanErr)
+                await supabase.from('material_requests').update({ quantity: 0, status: 'completed' }).eq('id', remReq.id)
+              }
+            } else {
+              await supabase.from('material_requests').update({ quantity: 0, status: 'completed' }).eq('id', remReq.id)
+            }
+          }
+        } catch (sweepErr) {
+          console.warn('Non-fatal error in last card cutter reserve sweep in confirmBuffer:', sweepErr)
         }
       }
 
@@ -826,7 +908,6 @@ export function createProductionCardsActions({
           console.warn('register_cutter_usage RPC info:', cutterUsageError.message)
         }
       }
-      } // end if (hasCuttersBreakdown)
 
       refreshTable('inventory')
       refreshTable('material_requests')
