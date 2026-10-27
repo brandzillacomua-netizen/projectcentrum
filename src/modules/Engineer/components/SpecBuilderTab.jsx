@@ -32,6 +32,7 @@ import { NomCreateModal } from './NomCreateModal'
 import { generateNextV2Code } from '../../../utils/codeGenerator'
 import { NomenclatureCardModal } from '../../Nomenclature/components/NomenclatureCardModal/index.jsx'
 import { DEFAULT_ERP_GROUPS } from '../../Nomenclature/utils/nomenclatureHelpers'
+import { getOpsDraft, saveOpsDraft, clearOpsDraft } from '../utils/operationsDraft.js'
 
 export function SpecBuilderTab() {
   const { nomenclatures: rawNoms, bomItems, supabase, refreshTable, machineOperations, machines, theme } = useMES()
@@ -181,6 +182,19 @@ export function SpecBuilderTab() {
   const [inlineCuttersList, setInlineCuttersList] = useState([])
   const [savingOps, setSavingOps] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
+  const [draftRestored, setDraftRestored] = useState(false)
+  const lastLoadedKeyRef = useRef(null)
+  const isDirtyRef = useRef(false)
+
+  const handleUpdateBoxOps = (boxSetOps, newOps) => {
+    isDirtyRef.current = true
+    boxSetOps(newOps)
+  }
+
+  const handleSetCutters = (newCutters) => {
+    isDirtyRef.current = true
+    setInlineCuttersList(newCutters)
+  }
 
   const renderCutterListEditor = (cutters, setCutters) => renderCutterListEditorShared(cutters, setCutters, nomenclatures, rawNoms)
 
@@ -211,37 +225,88 @@ export function SpecBuilderTab() {
     }
   }, [activeInlinePart, showNomCreate, showParentCreate])
 
+  const currentOpsKey = activeInlinePart && selectedMachine ? `${activeInlinePart.id}::${selectedMachine}` : null
+
+  const loadInlineOpsFromDb = () => {
+    if (!activeInlinePart || !selectedMachine) return
+    const existing = machineOperations?.find(o => 
+      o.nomenclature_id === activeInlinePart.id && 
+      (o.machine_type === selectedMachine || o.machine_id === selectedMachine)
+    )
+    if (existing) {
+      setSide1Ops((existing.side1_ops || []).filter(op => !op.startsWith('__CUTTER__:')))
+      const s2 = (existing.side2_ops || []).filter(op => !op.startsWith('__CUTTER__:'))
+      setSide2OpsF2(s2.map(op => op.includes('|') ? op.split('|')[0].trim() : op))
+      setSide2OpsF15(s2.map(op => op.includes('|') ? op.split('|')[1].trim() : ''))
+      const s2c = (existing.side2_cut_ops || []).filter(op => !op.startsWith('__CUTTER__:') && !op.startsWith('__CUTTER__Reference:'))
+      setSide2CutOpsF2(s2c.map(op => op.includes('|') ? op.split('|')[0].trim() : op))
+      setSide2CutOpsF15(s2c.map(op => op.includes('|') ? op.split('|')[1].trim() : ''))
+      
+      const cutterOps = (existing.side2_cut_ops || []).filter(op => op.startsWith('__CUTTER__:'))
+      const parsed = cutterOps.map(c => {
+        const parts = c.split(':')
+        return { nomId: parts[1], qty: parseFloat(parts[2]) || 0 }
+      })
+      setInlineCuttersList(parsed)
+    } else {
+      setSide1Ops([])
+      setSide2OpsF2([])
+      setSide2OpsF15([])
+      setSide2CutOpsF2([])
+      setSide2CutOpsF15([])
+      setInlineCuttersList([])
+    }
+    isDirtyRef.current = false
+    setDraftRestored(false)
+  }
+
+  // Initial load when switching active part or selected machine
   useEffect(() => {
-    if (activeInlinePart && selectedMachine) {
-      const existing = machineOperations?.find(o => 
-        o.nomenclature_id === activeInlinePart.id && 
-        (o.machine_type === selectedMachine || o.machine_id === selectedMachine)
-      )
-      if (existing) {
-        setSide1Ops((existing.side1_ops || []).filter(op => !op.startsWith('__CUTTER__:')))
-        const s2 = (existing.side2_ops || []).filter(op => !op.startsWith('__CUTTER__:'))
-        setSide2OpsF2(s2.map(op => op.includes('|') ? op.split('|')[0].trim() : op))
-        setSide2OpsF15(s2.map(op => op.includes('|') ? op.split('|')[1].trim() : ''))
-        const s2c = (existing.side2_cut_ops || []).filter(op => !op.startsWith('__CUTTER__:') && !op.startsWith('__CUTTER__Reference:'))
-        setSide2CutOpsF2(s2c.map(op => op.includes('|') ? op.split('|')[0].trim() : op))
-        setSide2CutOpsF15(s2c.map(op => op.includes('|') ? op.split('|')[1].trim() : ''))
-        
-        const cutterOps = (existing.side2_cut_ops || []).filter(op => op.startsWith('__CUTTER__:'))
-        const parsed = cutterOps.map(c => {
-          const parts = c.split(':')
-          return { nomId: parts[1], qty: parseFloat(parts[2]) || 0 }
-        })
-        setInlineCuttersList(parsed)
+    if (!currentOpsKey) {
+      lastLoadedKeyRef.current = null
+      isDirtyRef.current = false
+      setDraftRestored(false)
+      return
+    }
+
+    if (lastLoadedKeyRef.current !== currentOpsKey) {
+      lastLoadedKeyRef.current = currentOpsKey
+      const draft = getOpsDraft(activeInlinePart.id, selectedMachine)
+      if (draft) {
+        setSide1Ops(draft.side1Ops || [])
+        setSide2OpsF2(draft.side2OpsF2 || [])
+        setSide2OpsF15(draft.side2OpsF15 || [])
+        setSide2CutOpsF2(draft.side2CutOpsF2 || [])
+        setSide2CutOpsF15(draft.side2CutOpsF15 || [])
+        setInlineCuttersList(draft.inlineCuttersList || [])
+        isDirtyRef.current = true
+        setDraftRestored(true)
       } else {
-        setSide1Ops([])
-        setSide2OpsF2([])
-        setSide2OpsF15([])
-        setSide2CutOpsF2([])
-        setSide2CutOpsF15([])
-        setInlineCuttersList([])
+        loadInlineOpsFromDb()
       }
     }
-  }, [activeInlinePart, selectedMachine, machineOperations])
+  }, [currentOpsKey])
+
+  // Hydrate from DB only if loaded asynchronously after mount and user hasn't edited anything
+  useEffect(() => {
+    if (currentOpsKey && lastLoadedKeyRef.current === currentOpsKey && !isDirtyRef.current && !draftRestored) {
+      loadInlineOpsFromDb()
+    }
+  }, [machineOperations])
+
+  // Auto-save draft on any user change
+  useEffect(() => {
+    if (currentOpsKey && isDirtyRef.current) {
+      saveOpsDraft(activeInlinePart.id, selectedMachine, {
+        side1Ops,
+        side2OpsF2,
+        side2OpsF15,
+        side2CutOpsF2,
+        side2CutOpsF15,
+        inlineCuttersList
+      })
+    }
+  }, [currentOpsKey, side1Ops, side2OpsF2, side2OpsF15, side2CutOpsF2, side2CutOpsF15, inlineCuttersList])
 
   const handleSaveInlineOps = async () => {
     if (!activeInlinePart || !selectedMachine) return
@@ -274,6 +339,11 @@ export function SpecBuilderTab() {
         const { error } = await supabase.from('machine_operations').insert(payload)
         if (error) throw error
       }
+
+      clearOpsDraft(activeInlinePart.id, selectedMachine)
+      isDirtyRef.current = false
+      setDraftRestored(false)
+
       await refreshTable('machine_operations')
       setSaveSuccess(true)
       setTimeout(() => setSaveSuccess(false), 4000)
@@ -696,7 +766,7 @@ export function SpecBuilderTab() {
                 <span style={{ fontSize: '0.7rem', color: '#6366f1', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Операції для деталі</span>
                 <h3 style={{ margin: '4px 0 0 0', fontSize: '1.25rem', fontWeight: 900, color: modalTheme.textMain }}>{activeInlinePart.name}</h3>
               </div>
-              <button onClick={() => { setActiveInlinePart(null); setSelectedMachine('') }} title="Закрити" style={{ background: 'transparent', border: 'none', color: modalTheme.closeBtnColor, cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '6px', borderRadius: '8px' }}><X size={22}/></button>
+              <button onClick={() => { setActiveInlinePart(null); setSelectedMachine(''); lastLoadedKeyRef.current = null; }} title="Закрити" style={{ background: 'transparent', border: 'none', color: modalTheme.closeBtnColor, cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '6px', borderRadius: '8px' }}><X size={22}/></button>
             </div>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
@@ -714,13 +784,50 @@ export function SpecBuilderTab() {
 
               {selectedMachine && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  {draftRestored && (
+                    <div style={{
+                      padding: '10px 16px',
+                      background: 'rgba(234, 179, 8, 0.12)',
+                      border: '1px solid #eab308',
+                      borderRadius: '12px',
+                      color: '#ca8a04',
+                      fontSize: '0.82rem',
+                      fontWeight: 700,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '12px'
+                    }}>
+                      <span>⚠️ Відновлено вашу незбережену чернетку операцій (захист від втрати даних)</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          clearOpsDraft(activeInlinePart.id, selectedMachine)
+                          loadInlineOpsFromDb()
+                        }}
+                        style={{
+                          background: 'transparent',
+                          border: '1px solid #ca8a04',
+                          color: '#ca8a04',
+                          borderRadius: '8px',
+                          padding: '4px 10px',
+                          fontSize: '0.72rem',
+                          cursor: 'pointer',
+                          fontWeight: 800
+                        }}
+                      >
+                        Скинути до збереженого в базі
+                      </button>
+                    </div>
+                  )}
+
                   <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap' }}>
                     {[
-                      { title: '1 сторона', ops: side1Ops, setOps: setSide1Ops },
-                      { title: '2 сторона (Ф2)', ops: side2OpsF2, setOps: setSide2OpsF2 },
-                      { title: '2 сторона (Ф1.5)', ops: side2OpsF15, setOps: setSide2OpsF15 },
-                      { title: 'Вирізка (Ф2)', ops: side2CutOpsF2, setOps: setSide2CutOpsF2 },
-                      { title: 'Вирізка (Ф1.5)', ops: side2CutOpsF15, setOps: setSide2CutOpsF15 },
+                      { title: '1 сторона', ops: side1Ops, setOps: (ops) => handleUpdateBoxOps(setSide1Ops, ops) },
+                      { title: '2 сторона (Ф2)', ops: side2OpsF2, setOps: (ops) => handleUpdateBoxOps(setSide2OpsF2, ops) },
+                      { title: '2 сторона (Ф1.5)', ops: side2OpsF15, setOps: (ops) => handleUpdateBoxOps(setSide2OpsF15, ops) },
+                      { title: 'Вирізка (Ф2)', ops: side2CutOpsF2, setOps: (ops) => handleUpdateBoxOps(setSide2CutOpsF2, ops) },
+                      { title: 'Вирізка (Ф1.5)', ops: side2CutOpsF15, setOps: (ops) => handleUpdateBoxOps(setSide2CutOpsF15, ops) },
                     ].map((box, bIdx) => (
                       <div key={bIdx} style={{ flex: '1 1 300px', minWidth: '240px', background: modalTheme.cardHeaderBg, padding: '16px', borderRadius: '14px', border: `1px solid ${modalTheme.boxBorder}`, display: 'flex', flexDirection: 'column' }}>
                         <h5 style={{ margin: '0 0 10px 0', fontSize: '0.8rem', fontWeight: 800, color: modalTheme.boxTitle }}>{box.title}</h5>
@@ -753,7 +860,7 @@ export function SpecBuilderTab() {
                     ))}
 
                     <div style={{ flex: '1 1 100%', minWidth: '100%' }}>
-                      {renderCutterListEditor(inlineCuttersList, setInlineCuttersList)}
+                      {renderCutterListEditor(inlineCuttersList, handleSetCutters)}
                     </div>
                   </div>
 

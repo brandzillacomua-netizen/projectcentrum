@@ -34,6 +34,7 @@ import { WarehouseFloatingControls } from './Warehouse/components/WarehouseFloat
 import { WarehouseDeleteConfirmModal } from './Warehouse/components/modals/WarehouseDeleteConfirmModal.jsx'
 import { usePrepOrder } from '../hooks/usePrepOrder.js'
 import { MasterPrepModal } from './Master/components/modals/MasterPrepModal.jsx'
+import { WarehouseTransferRequestModal } from './Warehouse/components/modals/WarehouseTransferRequestModal.jsx'
 
 export const WarehouseModuleV2: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -91,6 +92,7 @@ export const WarehouseModuleV2: React.FC = () => {
 
   const [showAdd, setShowAdd] = useState<boolean>(false)
   const [showReception, setShowReception] = useState<boolean>(false)
+  const [showTransferModal, setShowTransferModal] = useState<boolean>(false)
   const [shortages, setShortages] = useState<any>(null)
   const [newItem, setNewItem] = useState<{ name: string; unit: string; total_qty: string; type: string }>({ name: '', unit: 'шт', total_qty: '', type: 'raw' })
   const [searchQuery, setSearchQuery] = useState<string>('')
@@ -307,6 +309,7 @@ export const WarehouseModuleV2: React.FC = () => {
         pendingDocsCount={pendingDocs.length}
         manualIssue={manualIssue}
         setShowPrepModal={setShowPrepModal}
+        setShowTransferModal={setShowTransferModal}
       />
 
       <div className="module-content" style={{ padding: '20px', overflowY: 'auto', flex: 1 }}>
@@ -504,6 +507,16 @@ export const WarehouseModuleV2: React.FC = () => {
         setPrepDeadline={setPrepDeadline}
         handleCreatePrepOrder={handleCreatePrepOrder}
         isSubmitting={isPrepSubmitting}
+      />
+
+      <WarehouseTransferRequestModal
+        show={showTransferModal}
+        onClose={() => setShowTransferModal(false)}
+        inventory={inventory}
+        nomenclatures={nomenclatures}
+        currentUser={currentUser}
+        refreshTable={refreshTable}
+        fetchData={fetchData}
       />
 
       <style>{`

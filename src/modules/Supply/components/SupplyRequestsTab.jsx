@@ -484,9 +484,15 @@ export const SupplyRequestsTab = ({
                   <div key={pr.id} className="request-card" style={{ background: 'var(--card-bg, #0a0a0a)', padding: '20px', borderRadius: '18px', border: '1px solid var(--border-color, var(--border-subtle))', borderLeft: pr.status === 'accepted' ? '4px solid #3b82f6' : '4px solid #ef4444', boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                        <strong style={pr.status === 'accepted' ? { color: '#3b82f6', fontSize: '0.95rem' } : { color: '#ef4444', fontSize: '0.95rem' }}>
-                          НАРЯД #{pr.order_num}
-                        </strong>
+                        {String(pr.order_num || '').startsWith('ПЕРЕМІЩЕННЯ') ? (
+                          <strong style={{ color: '#38bdf8', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span>📦</span> {pr.order_num}
+                          </strong>
+                        ) : (
+                          <strong style={pr.status === 'accepted' ? { color: '#3b82f6', fontSize: '0.95rem' } : { color: '#ef4444', fontSize: '0.95rem' }}>
+                            НАРЯД #{pr.order_num}
+                          </strong>
+                        )}
                         {isSuperAdmin && (
                           <button
                             onClick={() => handleDeletePurchaseRequest(pr)}

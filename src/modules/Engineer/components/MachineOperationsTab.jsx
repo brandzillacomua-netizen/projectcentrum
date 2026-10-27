@@ -9,6 +9,7 @@ import {
   autoClassify 
 } from '../utils/engineerHelpers.jsx'
 import { resolveCutterOrVirtualType } from '../../../utils/cutterCalculator.js'
+import { getOpsDraft, saveOpsDraft, clearOpsDraft } from '../utils/operationsDraft.js'
 
 export function MachineOperationsTab() {
   const { nomenclatures: rawNoms, machines, machineOperations, supabase, bomItems, refreshTable, theme } = useMES()
@@ -23,6 +24,9 @@ export function MachineOperationsTab() {
   const [cuttersList, setCuttersList] = useState([])
   const [uploading, setUploading] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [draftRestored, setDraftRestored] = useState(false)
+  const lastLoadedKeyRef = React.useRef(null)
+  const isDirtyRef = React.useRef(false)
 
   const [isLight, setIsLight] = useState(() => {
     if (theme) return theme === 'light'
@@ -45,37 +49,88 @@ export function MachineOperationsTab() {
     return () => observer.disconnect()
   }, [theme])
 
+  const currentOpsKey = selectedNom && selectedMachine ? `${selectedNom}::${selectedMachine}` : null
+
+  const loadOpsFromDb = () => {
+    if (!selectedNom || !selectedMachine) return
+    const existing = machineOperations?.find(o => 
+      o.nomenclature_id === selectedNom && 
+      (o.machine_type === selectedMachine || o.machine_id === selectedMachine)
+    )
+    if (existing) {
+      setSide1Ops((existing.side1_ops || []).filter(op => !op.startsWith('__CUTTER__:')))
+      const s2 = (existing.side2_ops || []).filter(op => !op.startsWith('__CUTTER__:'))
+      setSide2OpsF2(s2.map(op => op.includes('|') ? op.split('|')[0].trim() : op))
+      setSide2OpsF15(s2.map(op => op.includes('|') ? op.split('|')[1].trim() : ''))
+      const s2c = (existing.side2_cut_ops || []).filter(op => !op.startsWith('__CUTTER__:') && !op.startsWith('__CUTTER__Reference:'))
+      setSide2CutOpsF2(s2c.map(op => op.includes('|') ? op.split('|')[0].trim() : op))
+      setSide2CutOpsF15(s2c.map(op => op.includes('|') ? op.split('|')[1].trim() : ''))
+      
+      const cutterOps = (existing.side2_cut_ops || []).filter(op => op.startsWith('__CUTTER__:'))
+      const parsed = cutterOps.map(c => {
+        const parts = c.split(':')
+        return { nomId: parts[1], qty: parseFloat(parts[2]) || 0 }
+      })
+      setCuttersList(parsed)
+    } else {
+      setSide1Ops([])
+      setSide2OpsF2([])
+      setSide2OpsF15([])
+      setSide2CutOpsF2([])
+      setSide2CutOpsF15([])
+      setCuttersList([])
+    }
+    isDirtyRef.current = false
+    setDraftRestored(false)
+  }
+
+  // Load when selection changes
   React.useEffect(() => {
-    if (selectedNom && selectedMachine) {
-      const existing = machineOperations?.find(o => 
-        o.nomenclature_id === selectedNom && 
-        (o.machine_type === selectedMachine || o.machine_id === selectedMachine)
-      )
-      if (existing) {
-        setSide1Ops((existing.side1_ops || []).filter(op => !op.startsWith('__CUTTER__:')))
-        const s2 = (existing.side2_ops || []).filter(op => !op.startsWith('__CUTTER__:'))
-        setSide2OpsF2(s2.map(op => op.includes('|') ? op.split('|')[0].trim() : op))
-        setSide2OpsF15(s2.map(op => op.includes('|') ? op.split('|')[1].trim() : ''))
-        const s2c = (existing.side2_cut_ops || []).filter(op => !op.startsWith('__CUTTER__:') && !op.startsWith('__CUTTER__Reference:'))
-        setSide2CutOpsF2(s2c.map(op => op.includes('|') ? op.split('|')[0].trim() : op))
-        setSide2CutOpsF15(s2c.map(op => op.includes('|') ? op.split('|')[1].trim() : ''))
-        
-        const cutterOps = (existing.side2_cut_ops || []).filter(op => op.startsWith('__CUTTER__:'))
-        const parsed = cutterOps.map(c => {
-          const parts = c.split(':')
-          return { nomId: parts[1], qty: parseFloat(parts[2]) || 0 }
-        })
-        setCuttersList(parsed)
+    if (!currentOpsKey) {
+      lastLoadedKeyRef.current = null
+      isDirtyRef.current = false
+      setDraftRestored(false)
+      return
+    }
+
+    if (lastLoadedKeyRef.current !== currentOpsKey) {
+      lastLoadedKeyRef.current = currentOpsKey
+      const draft = getOpsDraft(selectedNom, selectedMachine)
+      if (draft) {
+        setSide1Ops(draft.side1Ops || [])
+        setSide2OpsF2(draft.side2OpsF2 || [])
+        setSide2OpsF15(draft.side2OpsF15 || [])
+        setSide2CutOpsF2(draft.side2CutOpsF2 || [])
+        setSide2CutOpsF15(draft.side2CutOpsF15 || [])
+        setCuttersList(draft.inlineCuttersList || draft.cuttersList || [])
+        isDirtyRef.current = true
+        setDraftRestored(true)
       } else {
-        setSide1Ops([])
-        setSide2OpsF2([])
-        setSide2OpsF15([])
-        setSide2CutOpsF2([])
-        setSide2CutOpsF15([])
-        setCuttersList([])
+        loadOpsFromDb()
       }
     }
-  }, [selectedNom, selectedMachine, machineOperations])
+  }, [currentOpsKey])
+
+  // Hydrate only if loaded asynchronously after mount and user hasn't edited anything
+  React.useEffect(() => {
+    if (currentOpsKey && lastLoadedKeyRef.current === currentOpsKey && !isDirtyRef.current && !draftRestored) {
+      loadOpsFromDb()
+    }
+  }, [machineOperations])
+
+  // Auto-save draft on any user change
+  React.useEffect(() => {
+    if (currentOpsKey && isDirtyRef.current) {
+      saveOpsDraft(selectedNom, selectedMachine, {
+        side1Ops,
+        side2OpsF2,
+        side2OpsF15,
+        side2CutOpsF2,
+        side2CutOpsF15,
+        cuttersList
+      })
+    }
+  }, [currentOpsKey, side1Ops, side2OpsF2, side2OpsF15, side2CutOpsF2, side2CutOpsF15, cuttersList])
 
   const handleSave = async () => {
     if (!selectedNom || !selectedMachine) return alert('Оберіть номенклатуру та тип верстата')
@@ -107,6 +162,9 @@ export function MachineOperationsTab() {
         const { error } = await supabase.from('machine_operations').insert(payload)
         if (error) throw error
       }
+      clearOpsDraft(selectedNom, selectedMachine)
+      isDirtyRef.current = false
+      setDraftRestored(false)
       alert('Збережено!')
       await refreshTable('machine_operations')
     } catch (err) {
@@ -740,22 +798,26 @@ export function MachineOperationsTab() {
           <input 
             value={op} 
             onChange={(e) => {
+              isDirtyRef.current = true
               const newOps = [...ops]
               newOps[idx] = e.target.value
               setOps(newOps)
             }}
             style={{ flex: 1, padding: '8px', background: isLight ? '#ffffff' : 'var(--surface-black)', border: `1px solid ${isLight ? '#cbd5e1' : 'var(--border-subtle)'}`, color: isLight ? '#0f172a' : '#fff', borderRadius: '6px' }}
           />
-          <button onClick={() => setOps(ops.filter((_, i) => i !== idx))} style={{ background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: '6px', padding: '0 10px', cursor: 'pointer' }}><Trash2 size={14} /></button>
+          <button onClick={() => { isDirtyRef.current = true; setOps(ops.filter((_, i) => i !== idx)) }} style={{ background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: '6px', padding: '0 10px', cursor: 'pointer' }}><Trash2 size={14} /></button>
         </div>
       ))}
-      <button onClick={() => setOps([...ops, ''])} style={{ width: '100%', padding: '8px', background: 'transparent', border: `1px dashed ${isLight ? '#cbd5e1' : 'var(--border-subtle)'}`, color: '#3b82f6', borderRadius: '6px', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '5px' }}>
+      <button onClick={() => { isDirtyRef.current = true; setOps([...ops, '']) }} style={{ width: '100%', padding: '8px', background: 'transparent', border: `1px dashed ${isLight ? '#cbd5e1' : 'var(--border-subtle)'}`, color: '#3b82f6', borderRadius: '6px', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '5px' }}>
         <Plus size={16} /> Додати операцію
       </button>
     </div>
   )
 
-  const renderCutterListEditor = (cutters, setCutters) => renderCutterListEditorShared(cutters, setCutters, nomenclatures, rawNoms)
+  const renderCutterListEditor = (cutters, setCutters) => renderCutterListEditorShared(cutters, (newCutters) => {
+    isDirtyRef.current = true
+    setCutters(newCutters)
+  }, nomenclatures, rawNoms)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -958,6 +1020,42 @@ export function MachineOperationsTab() {
 
         {selectedNom && selectedMachine && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+            {draftRestored && (
+              <div style={{
+                padding: '10px 16px',
+                background: 'rgba(234, 179, 8, 0.12)',
+                border: '1px solid #eab308',
+                borderRadius: '12px',
+                color: '#ca8a04',
+                fontSize: '0.85rem',
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '12px'
+              }}>
+                <span>⚠️ Відновлено вашу незбережену чернетку операцій (захист від втрати даних)</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    clearOpsDraft(selectedNom, selectedMachine)
+                    loadOpsFromDb()
+                  }}
+                  style={{
+                    background: 'transparent',
+                    border: '1px solid #ca8a04',
+                    color: '#ca8a04',
+                    borderRadius: '8px',
+                    padding: '4px 10px',
+                    fontSize: '0.75rem',
+                    cursor: 'pointer',
+                    fontWeight: 800
+                  }}
+                >
+                  Скинути до збереженого в базі
+                </button>
+              </div>
+            )}
             <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap' }}>
               {renderOpList(side1Ops, setSide1Ops, '1 сторона')}
               {renderOpList(side2OpsF2, setSide2OpsF2, '2 сторона (Ф2)')}
