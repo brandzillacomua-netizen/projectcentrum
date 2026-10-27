@@ -32,8 +32,15 @@ export const ReserveAnalysisModal = ({
   const usesIssuedRequestLedger = Boolean(item?.id) && (
     warehouseKey === 'operational' ||
     warehouseKey === 'склад оперативний' ||
+    warehouseKey === 'sgp' ||
+    warehouseKey === 'сгп' ||
+    (item?.relatedInventoryIds && item.relatedInventoryIds.length > 0) ||
     item?.type === 'consumable' ||
-    item?.type === 'raw'
+    item?.type === 'raw' ||
+    item?.type === 'finished' ||
+    item?.type === 'semi' ||
+    item?.type === 'bz' ||
+    item?.type === 'wip_bz'
   )
 
   useEffect(() => {
@@ -49,18 +56,44 @@ export const ReserveAnalysisModal = ({
         const fetchAllIssuedRequests = async () => {
           const pageSize = 1000
           const rows = []
+          const targetIds = Array.isArray(item.relatedInventoryIds) && item.relatedInventoryIds.length > 0
+            ? item.relatedInventoryIds
+            : [item.id]
+
           for (let from = 0; ; from += pageSize) {
-            const { data, error } = await supabase
+            let query = supabase
               .from('material_requests')
               .select('*')
-              .eq('inventory_id', item.id)
               .eq('status', 'issued')
               .order('created_at', { ascending: false })
               .range(from, from + pageSize - 1)
+
+            if (targetIds.length === 1) {
+              query = query.eq('inventory_id', targetIds[0])
+            } else {
+              query = query.in('inventory_id', targetIds)
+            }
+
+            const { data, error } = await query
             if (error) throw error
             rows.push(...(data || []))
-            if (!data || data.length < pageSize) return rows
+            if (!data || data.length < pageSize) break
           }
+
+          // If no requests were found by inventory_id, and we have a nomenclature_id, also check by nomenclature_id
+          if (rows.length === 0 && item.nomenclature_id) {
+            const { data: nomData, error: nomError } = await supabase
+              .from('material_requests')
+              .select('*')
+              .eq('status', 'issued')
+              .eq('nomenclature_id', item.nomenclature_id)
+              .order('created_at', { ascending: false })
+            if (!nomError && Array.isArray(nomData)) {
+              rows.push(...nomData)
+            }
+          }
+
+          return rows
         }
 
         const [issuedRequests, inventoryResult] = await Promise.all([
@@ -114,9 +147,25 @@ export const ReserveAnalysisModal = ({
   // this exact inventory row. Nomenclature-only matching caused completed and
   // foreign reservations to be counted again.
   const ledgerRequests = Array.isArray(liveIssuedRequests) ? liveIssuedRequests : []
-  const matchedRequests = usesIssuedRequestLedger
-    ? selectIssuedRequestsForInventory(ledgerRequests, item.id, safeTasks, safeOrders)
-    : selectIssuedRequestsForInventory(safeRequests, item.id, safeTasks, safeOrders)
+  const targetIds = Array.isArray(item.relatedInventoryIds) && item.relatedInventoryIds.length > 0
+    ? item.relatedInventoryIds
+    : [item.id]
+
+  let matchedRequests = usesIssuedRequestLedger
+    ? selectIssuedRequestsForInventory(ledgerRequests, targetIds, safeTasks, safeOrders)
+    : selectIssuedRequestsForInventory(safeRequests, targetIds, safeOrders)
+
+  // If matchedRequests is empty but we have requests matching item.nomenclature_id, also include them
+  if (matchedRequests.length === 0 && item.nomenclature_id) {
+    const pool = usesIssuedRequestLedger ? ledgerRequests : safeRequests
+    matchedRequests = pool.filter(req =>
+      req?.status === 'issued' &&
+      String(req.nomenclature_id) === String(item.nomenclature_id) &&
+      (Number(req.quantity) || 0) > 0 &&
+      requestBelongsToOpenWork(req, safeTasks, safeOrders)
+    )
+  }
+
   const staleIssuedRequests = usesIssuedRequestLedger
     ? ledgerRequests.filter(request => !requestBelongsToOpenWork(request, safeTasks, safeOrders))
     : []
@@ -190,6 +239,10 @@ export const ReserveAnalysisModal = ({
       }
     }
 
+    const isBz = (req.details || '').includes('AUTO_SGP_RESERVATION') ||
+      (req.details || '').toLowerCase().includes('буфер') ||
+      (req.details || '').toLowerCase().includes('бз')
+
     return {
       id: `req-${req.id}`,
       rawReqId: req.id,
@@ -199,7 +252,8 @@ export const ReserveAnalysisModal = ({
       date: req.created_at ? new Date(req.created_at).toLocaleDateString('uk-UA') : '—',
       taskId: req.task_id,
       orderId: req.order_id,
-      isPrep
+      isPrep,
+      isBz
     }
   })
 
@@ -404,30 +458,37 @@ export const ReserveAnalysisModal = ({
                 {reserveDetails.map((detail, idx) => (
                   <tr key={detail.id || idx} style={{ borderBottom: `1px solid ${isLight ? '#f1f5f9' : '#1a1e2a'}`, background: idx % 2 === 0 ? 'transparent' : (isLight ? '#f8fafc' : 'rgba(255,255,255,0.015)') }}>
                     <td style={{ padding: '12px 10px', fontWeight: 800 }}>
-                      {detail.isPrep ? (
-                        <span style={{ color: '#0284c7', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                          <span>{detail.orderNum}</span>
-                          <span style={{ fontSize: '0.65rem', padding: '1px 5px', borderRadius: '4px', background: isLight ? '#e0f2fe' : 'rgba(56, 189, 248, 0.15)', color: isLight ? '#0284c7' : '#38bdf8', fontWeight: 700 }}>Підготовка</span>
-                        </span>
-                      ) : detail.taskId ? (
-                        <Link
-                          to={`/master?task=${detail.taskId}`}
-                          style={{ color: isLight ? '#0284c7' : '#38bdf8', textDecoration: 'underline', cursor: 'pointer', fontWeight: 900 }}
-                          onClick={onClose}
-                        >
-                          {detail.orderNum}
-                        </Link>
-                      ) : detail.orderId ? (
-                        <Link
-                          to={`/master?order=${detail.orderId}`}
-                          style={{ color: isLight ? '#0284c7' : '#38bdf8', textDecoration: 'underline', cursor: 'pointer', fontWeight: 900 }}
-                          onClick={onClose}
-                        >
-                          {detail.orderNum}
-                        </Link>
-                      ) : (
-                        <span style={{ color: isLight ? '#475569' : '#cbd5e1', fontWeight: 800 }}>{detail.orderNum}</span>
-                      )}
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                        {detail.isPrep ? (
+                          <span style={{ color: '#0284c7', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                            <span>{detail.orderNum}</span>
+                            <span style={{ fontSize: '0.65rem', padding: '1px 5px', borderRadius: '4px', background: isLight ? '#e0f2fe' : 'rgba(56, 189, 248, 0.15)', color: isLight ? '#0284c7' : '#38bdf8', fontWeight: 700 }}>Підготовка</span>
+                          </span>
+                        ) : detail.taskId ? (
+                          <Link
+                            to={`/master?task=${detail.taskId}`}
+                            style={{ color: isLight ? '#0284c7' : '#38bdf8', textDecoration: 'underline', cursor: 'pointer', fontWeight: 900 }}
+                            onClick={onClose}
+                          >
+                            {detail.orderNum}
+                          </Link>
+                        ) : detail.orderId ? (
+                          <Link
+                            to={`/master?order=${detail.orderId}`}
+                            style={{ color: isLight ? '#0284c7' : '#38bdf8', textDecoration: 'underline', cursor: 'pointer', fontWeight: 900 }}
+                            onClick={onClose}
+                          >
+                            {detail.orderNum}
+                          </Link>
+                        ) : (
+                          <span style={{ color: isLight ? '#475569' : '#cbd5e1', fontWeight: 800 }}>{detail.orderNum}</span>
+                        )}
+                        {detail.isBz && (
+                          <span style={{ fontSize: '0.65rem', padding: '2px 6px', borderRadius: '5px', background: isLight ? '#fef3c7' : 'rgba(245, 158, 11, 0.2)', border: `1px solid ${isLight ? '#fde68a' : 'rgba(245, 158, 11, 0.4)'}`, color: isLight ? '#b45309' : '#fbbf24', fontWeight: 800 }}>
+                            Буфер БЗ
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td style={{ padding: '12px 10px', color: isLight ? '#0f172a' : '#f8fafc', fontWeight: 700 }}>
                       {detail.productName}

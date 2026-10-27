@@ -4,6 +4,8 @@ import { supabase } from '../../../supabase'
 import { useStore } from '../../../store/index.js'
 import { filterSgpReceiptRegistry } from '../utils/sgpReceiptRegistry.js'
 import { StockCardsAnalysisModal } from './StockCardsAnalysisModal'
+import { resolveCanonicalNomId } from '../../Nomenclature/utils/nomenclatureHelpers.js'
+import { normalizeKey } from '../warehouseFgpInventory.js'
 
 export function InventoryTab({
   t,
@@ -20,6 +22,7 @@ export function InventoryTab({
   refreshTable
 }) {
   const nomenclatures = useStore(state => state.nomenclatures) || []
+  const inventory = useStore(state => state.inventory) || []
   const [editingInvKey, setEditingInvKey] = useState(null)
   const [editingInvTotal, setEditingInvTotal] = useState('')
   const [editingInvReserved, setEditingInvReserved] = useState('')
@@ -312,6 +315,20 @@ export function InventoryTab({
           )
           const itemCode = linkedNom?.code || '—'
 
+          const canNomId = item.nomenclature_id ? resolveCanonicalNomId(item.nomenclature_id, nomenclatures) : null
+          const normName = normalizeKey(item.name)
+          const allMatchingRows = (inventory || []).filter(r => {
+            if (!r) return false
+            if (canNomId && r.nomenclature_id) {
+              return resolveCanonicalNomId(r.nomenclature_id, nomenclatures) === canNomId
+            }
+            return normalizeKey(r.name) === normName
+          })
+          const currentIds = new Set(item.rawItems ? item.rawItems.map(ri => String(ri.id)) : [String(item.id)])
+          const otherRows = allMatchingRows.filter(r => !currentIds.has(String(r.id)))
+          const otherWarehouseReserve = otherRows.reduce((sum, r) => sum + (Number(r.reserved_qty) || 0), 0)
+          const relatedInventoryIds = allMatchingRows.map(r => r.id).filter(Boolean)
+
           return (
           <tr key={item.key} style={{ borderBottom: `1px solid ${t.tableRowBorder}`, fontSize: '0.85rem' }}>
             <td style={{ padding: '14px 16px', fontWeight: 800, color: t.textPrimary }}>
@@ -417,6 +434,7 @@ export function InventoryTab({
                     setReserveAnalysisItem({
                       ...primaryRaw,
                       id: primaryRaw.id || item.key,
+                      relatedInventoryIds,
                       nomenclature_id: item.nomenclature_id || primaryRaw.nomenclature_id,
                       name: item.name,
                       total_qty: item.total_qty,
@@ -454,6 +472,43 @@ export function InventoryTab({
                 >
                   <span>{Number(item.reserved_qty).toLocaleString('uk-UA')}</span>
                   <Eye size={13} style={{ opacity: 0.85 }} />
+                </button>
+              ) : otherWarehouseReserve > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const primaryRaw = item.rawItems?.[0] || item
+                    const bzRowWithReserve = otherRows.find(r => (Number(r.reserved_qty) || 0) > 0)
+                    setReserveAnalysisItem({
+                      ...(bzRowWithReserve || primaryRaw),
+                      id: bzRowWithReserve?.id || primaryRaw.id || item.key,
+                      relatedInventoryIds,
+                      nomenclature_id: item.nomenclature_id || primaryRaw.nomenclature_id,
+                      name: item.name,
+                      total_qty: bzRowWithReserve?.total_qty || item.total_qty,
+                      reserved_qty: otherWarehouseReserve,
+                      unit: item.unit
+                    })
+                  }}
+                  title="На цій вкладці резерву немає, але є резерв у Буфері БЗ. Натисніть для перегляду."
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: '5px 10px',
+                    borderRadius: '10px',
+                    background: isDark ? 'rgba(217, 119, 6, 0.15)' : '#fffbeb',
+                    border: `1.5px dashed ${isDark ? '#d97706' : '#f59e0b'}`,
+                    color: isDark ? '#fbbf24' : '#b45309',
+                    fontSize: '0.8rem',
+                    fontWeight: 900,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  <span>0</span>
+                  <span style={{ fontSize: '0.74rem', opacity: 0.9 }}>({otherWarehouseReserve.toLocaleString('uk-UA')} у БЗ)</span>
+                  <Eye size={12} style={{ opacity: 0.85 }} />
                 </button>
               ) : (
                 <span style={{ color: t.textMuted, fontSize: '0.85rem', fontWeight: 600 }}>0</span>

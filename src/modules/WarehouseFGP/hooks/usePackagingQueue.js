@@ -4,8 +4,12 @@ import {
   getGroupedSgpAvailableStock,
   getGroupedSgpIssueAllocations,
   getGroupedSgpIssueRow,
-  isSgpStockRow
+  getGroupedSgpRow,
+  isSgpStockRow,
+  isHardware,
+  normalizeKey
 } from '../warehouseFgpInventory.js'
+import { resolveCanonicalNomId } from '../../Nomenclature/utils/nomenclatureHelpers.js'
 
 export function usePackagingQueue({
   liveRequests,
@@ -126,6 +130,16 @@ export function usePackagingQueue({
   }
 
   const getItemCategoryBadge = (req, displayName) => {
+    const details = req?.details || ''
+    if (
+      details.includes('AUTO_SGP_RESERVATION') ||
+      details.toUpperCase().includes('БУФЕР') ||
+      details.toUpperCase().includes('БЗ')
+    ) {
+      return isDark
+        ? { label: 'БУФЕР (БЗ)', color: '#fbbf24', bg: '#451a03', border: '#b45309' }
+        : { label: 'БУФЕР (БЗ)', color: '#b45309', bg: '#fef3c7', border: '#fde68a' }
+    }
     const nom = (nomenclatures || []).find(n => String(n.id) === String(req.nomenclature_id))
     const nameLower = (nom?.name || displayName || '').toLowerCase()
     const type = (nom?.type || '').toLowerCase()
@@ -154,14 +168,52 @@ export function usePackagingQueue({
       : { label: 'ДЕТАЛЬ СГП', color: '#4338ca', bg: '#e0e7ff', border: '#c7d2fe' }
   }
 
-  // Use the exact same grouped row as the SGP "Готова продукція" table so the
-  // queue's "На СГП" value is identical to that table's "Вільно" column.
-  const getSgpStock = req => getGroupedSgpAvailableStock(groupedInventory, nomenclatures, req)
+  // Group ALL relevant inventory rows (SGP + Buffers + Hardware) by canonical nomenclature,
+  // ensuring packaging queue stock is independent of which tab was active in the Inventory view.
+  const allGroupedInventory = useMemo(() => {
+    const map = new Map()
+    ;(inventory || []).forEach(item => {
+      if (!item) return
+      if (!isSgpStockRow(item) && !isHardware(item)) return
+      const canonicalNomId = item.nomenclature_id
+        ? resolveCanonicalNomId(item.nomenclature_id, nomenclatures)
+        : null
+      const normName = normalizeKey(item.name)
+      const key = canonicalNomId ? `nom_${canonicalNomId}` : `name_${normName}`
+      if (!map.has(key)) {
+        map.set(key, {
+          key,
+          nomenclature_id: canonicalNomId || item.nomenclature_id,
+          name: item.name,
+          unit: item.unit || 'шт',
+          total_qty: 0,
+          reserved_qty: 0,
+          rawItems: []
+        })
+      }
+      const entry = map.get(key)
+      entry.total_qty += Number(item.total_qty) || 0
+      entry.reserved_qty += Number(item.reserved_qty) || 0
+      entry.rawItems.push(item)
+    })
+    return Array.from(map.values())
+  }, [inventory, nomenclatures])
+
+  const getSgpStock = req => {
+    if (!req) return 0
+    const isIssued = req.status === 'completed' || req.status === 'issued'
+    const groupedRow = getGroupedSgpRow(allGroupedInventory, nomenclatures, req)
+    if (!groupedRow) return 0
+    if (isIssued) {
+      return Number(groupedRow.total_qty) || 0
+    }
+    return Math.max(0, (Number(groupedRow.total_qty) || 0) - (Number(groupedRow.reserved_qty) || 0))
+  }
 
   const issueRequest = async (req) => {
     if (!req) throw new Error('Запит не знайдено')
       const issuerName = `${currentUser?.first_name || ''} ${currentUser?.last_name || ''}`.trim() || currentUser?.login || 'Комірник СГП'
-      const groupedIssueRow = getGroupedSgpIssueRow(groupedInventory, nomenclatures, req)
+      const groupedIssueRow = getGroupedSgpIssueRow(allGroupedInventory, nomenclatures, req)
       const hasLegacyMismatchedId = groupedIssueRow?.nomenclature_id &&
         String(groupedIssueRow.nomenclature_id) !== String(req.nomenclature_id)
       
@@ -186,7 +238,7 @@ export function usePackagingQueue({
       if (!rpcSuccess) {
         const neededQty = Number(req.quantity) || 0
         const displayName = getItemDisplayName(req)
-        let allocationResult = getGroupedSgpIssueAllocations(groupedInventory, nomenclatures, req, neededQty)
+        let allocationResult = getGroupedSgpIssueAllocations(allGroupedInventory, nomenclatures, req, neededQty)
         if (allocationResult.allocations.length === 0) {
           const fallbackRows = (inventory || []).filter(item =>
             String(item.nomenclature_id) === String(req.nomenclature_id) && isSgpStockRow(item)

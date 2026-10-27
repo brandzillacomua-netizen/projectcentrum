@@ -1,4 +1,4 @@
-﻿import React from 'react'
+import React from 'react'
 import { Package, Clock, CheckCircle2, Search, ChevronsUpDown, ChevronDown, ChevronUp, User, AlertTriangle, Check, History, RefreshCw, Archive } from 'lucide-react'
 
 export function PackagingQueueTab({
@@ -488,8 +488,12 @@ export function PackagingQueueTab({
             const sgpStock = getSgpStock(req, displayName)
             const neededQty = Number(req.quantity) || 0
             const isAlreadyIssued = req.status === 'completed' || req.status === 'issued'
+            const isBzReservation = (req?.details || '').includes('AUTO_SGP_RESERVATION') ||
+              (req?.details || '').toLowerCase().includes('буфер') ||
+              (req?.details || '').toLowerCase().includes('бз') ||
+              (badge?.label || '').includes('БУФЕР')
             const hasEnough = isAlreadyIssued || sgpStock >= neededQty
-            return { req, displayName, badge, sgpStock, neededQty, hasEnough }
+            return { req, displayName, badge, sgpStock, neededQty, isAlreadyIssued, isBzReservation, hasEnough }
           })
           const totalOrderItems = itemsWithStock.length
           const totalOrderUnits = itemsWithStock.reduce((sum, i) => sum + i.neededQty, 0)
@@ -718,14 +722,14 @@ export function PackagingQueueTab({
                           <th style={{ padding: '12px 16px', fontWeight: 900 }}>Номенклатура матеріалу / виробу</th>
                           <th style={{ padding: '12px 16px', width: '130px', textAlign: 'center', fontWeight: 900, whiteSpace: 'nowrap' }}>Тип</th>
                           <th style={{ padding: '12px 16px', width: '120px', textAlign: 'right', fontWeight: 900, whiteSpace: 'nowrap' }}>Запитано</th>
-                          <th style={{ padding: '12px 16px', width: '120px', textAlign: 'right', fontWeight: 900, whiteSpace: 'nowrap' }}>На СГП</th>
-                          <th style={{ padding: '12px 16px', width: '160px', textAlign: 'center', fontWeight: 900, whiteSpace: 'nowrap' }}>Статус наявності</th>
-                          <th style={{ padding: '12px 20px', width: '120px', textAlign: 'center', fontWeight: 900, whiteSpace: 'nowrap' }}>Дія</th>
+                          <th style={{ padding: '12px 16px', width: '130px', textAlign: 'right', fontWeight: 900, whiteSpace: 'nowrap' }}>На складі / СГП</th>
+                          <th style={{ padding: '12px 16px', width: '180px', textAlign: 'center', fontWeight: 900, whiteSpace: 'nowrap' }}>Статус наявності</th>
+                          <th style={{ padding: '12px 20px', width: '130px', textAlign: 'center', fontWeight: 900, whiteSpace: 'nowrap' }}>Дія</th>
                         </tr>
                       </thead>
                       <tbody>
                         {itemsWithStock.map((item, itemIndex) => {
-                          const { req, displayName, badge, sgpStock, neededQty, hasEnough } = item
+                          const { req, displayName, badge, sgpStock, neededQty, isAlreadyIssued, isBzReservation, hasEnough } = item
 
                           return (
                             <tr
@@ -769,15 +773,56 @@ export function PackagingQueueTab({
                               </td>
 
                               <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 1000, fontSize: '0.95rem', color: isDark ? '#fbbf24' : '#d97706', whiteSpace: 'nowrap' }}>
-                                {neededQty} <span style={{ fontSize: '0.74rem', color: t.textSecondary }}>шт</span>
+                                {neededQty.toLocaleString('uk-UA')} <span style={{ fontSize: '0.74rem', color: t.textSecondary }}>шт</span>
                               </td>
 
                               <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 1000, fontSize: '0.95rem', color: hasEnough ? (isDark ? '#34d399' : '#059669') : '#ef4444', whiteSpace: 'nowrap' }}>
-                                {sgpStock} <span style={{ fontSize: '0.74rem', color: t.textSecondary }}>шт</span>
+                                <div>
+                                  {sgpStock.toLocaleString('uk-UA')} <span style={{ fontSize: '0.74rem', color: t.textSecondary }}>шт</span>
+                                </div>
+                                {isBzReservation && (
+                                  <div style={{ fontSize: '0.68rem', color: isDark ? '#fbbf24' : '#d97706', fontWeight: 800, marginTop: '2px' }}>
+                                    (Буфер БЗ)
+                                  </div>
+                                )}
                               </td>
 
                               <td style={{ padding: '12px 16px', textAlign: 'center', whiteSpace: 'nowrap' }}>
-                                {hasEnough ? (
+                                {isAlreadyIssued ? (
+                                  isBzReservation ? (
+                                    <span style={{
+                                      color: isDark ? '#38bdf8' : '#0284c7',
+                                      background: isDark ? 'rgba(14, 165, 233, 0.15)' : '#f0f9ff',
+                                      border: `1px solid ${isDark ? 'rgba(14, 165, 233, 0.4)' : '#bae6fd'}`,
+                                      padding: '4px 10px',
+                                      borderRadius: '8px',
+                                      fontWeight: 900,
+                                      fontSize: '0.76rem',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '4px',
+                                      whiteSpace: 'nowrap'
+                                    }}>
+                                      <CheckCircle2 size={13} /> Забезпечено з буфера
+                                    </span>
+                                  ) : (
+                                    <span style={{
+                                      color: isDark ? '#34d399' : '#059669',
+                                      background: isDark ? '#022c22' : '#ecfdf5',
+                                      border: `1px solid ${isDark ? '#059669' : '#a7f3d0'}`,
+                                      padding: '4px 10px',
+                                      borderRadius: '8px',
+                                      fontWeight: 900,
+                                      fontSize: '0.76rem',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '4px',
+                                      whiteSpace: 'nowrap'
+                                    }}>
+                                      <CheckCircle2 size={13} /> Забезпечено зі складу
+                                    </span>
+                                  )
+                                ) : hasEnough ? (
                                   <span style={{ color: isDark ? '#34d399' : '#059669', background: isDark ? '#022c22' : '#ecfdf5', border: `1px solid ${isDark ? '#059669' : '#a7f3d0'}`, padding: '4px 10px', borderRadius: '8px', fontWeight: 800, fontSize: '0.76rem', display: 'inline-flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
                                     <CheckCircle2 size={13} /> В наявності
                                   </span>
@@ -803,7 +848,7 @@ export function PackagingQueueTab({
                                     gap: '4px',
                                     whiteSpace: 'nowrap'
                                   }}>
-                                    <CheckCircle2 size={13} /> Видано
+                                    <CheckCircle2 size={13} /> {isBzReservation ? 'Видано з БЗ' : 'Видано'}
                                   </span>
                                 ) : (
                                   <button

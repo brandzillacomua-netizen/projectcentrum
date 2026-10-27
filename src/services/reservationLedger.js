@@ -18,9 +18,13 @@ export function requestBelongsToOpenWork(request, tasks = [], orders = []) {
 
 export function selectIssuedRequestsForInventory(requests = [], inventoryId, tasks = [], orders = []) {
   if (!inventoryId) return []
+  const idSet = Array.isArray(inventoryId)
+    ? new Set(inventoryId.map(String))
+    : (inventoryId instanceof Set ? inventoryId : new Set([String(inventoryId)]))
+
   return requests.filter(request =>
     request?.status === 'issued' &&
-    String(request.inventory_id || '') === String(inventoryId) &&
+    idSet.has(String(request.inventory_id || '')) &&
     (Number(request.quantity) || 0) > 0 &&
     requestBelongsToOpenWork(request, tasks, orders)
   )
