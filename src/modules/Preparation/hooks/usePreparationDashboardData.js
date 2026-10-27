@@ -1,10 +1,10 @@
 import { useState, useEffect, useMemo } from 'react'
-import { useMES } from '../../../MESContext'
 import { useStore } from '../../../store/index.js'
 import { useWarehouseComputed } from '../../Warehouse/hooks/useWarehouseComputed'
 
+export const SHEET_PAGE_SIZE = 2
+export const BOX_PAGE_SIZE = 2
 export const PREP_PAGE_SIZE = 4
-export const BOX_PAGE_SIZE = 3
 export const ROTATION_MS = 12000
 
 export const formatElapsed = (start, now) => {
@@ -20,6 +20,272 @@ export const getAgeMinutes = (start, now) => {
   return Math.max(0, Math.floor((now - new Date(start)) / 60000))
 }
 
+// Pure helper function to compute sheet issuance per order
+export function computeSheetOrders({ cardsWithBoxes, requests, nomenclatures, orderById }) {
+  const ordersMap = new Map()
+
+  const getOrCreateOrder = (orderId, fallbackNum) => {
+    const idStr = String(orderId || '')
+    if (!ordersMap.has(idStr)) {
+      const order = orderById.get(idStr)
+      const orderNum = order?.order_num || fallbackNum || 'Без наряду'
+      ordersMap.set(idStr, {
+        id: idStr,
+        orderNum,
+        totalSheets: 0,
+        issuedSheets: 0,
+        materials: new Map(),
+        cardsCount: 0,
+        issuedCardsCount: 0
+      })
+    }
+    return ordersMap.get(idStr)
+  }
+
+  // 1. Extract from cardsWithBoxes
+  ;(cardsWithBoxes || []).forEach(item => {
+    const orderId = String(item.card?.order_id || item.task?.order_id || '')
+    if (!orderId) return
+
+    const fallbackNum = item.task?.plan_snapshot?._prep_num || (item.card?.card_info || '').match(/НАРЯД\s*#?([^\s\]]+)/i)?.[1]
+    const orderGroup = getOrCreateOrder(orderId, fallbackNum)
+
+    const sheets = Math.max(0, Number(item.cardSheets) || 1)
+    const isIssued = Boolean(
+      item.isIssued ||
+      item.card?.is_box_issued ||
+      (item.card?.card_info || '').includes('[BOX_ISSUED:true]') ||
+      item.card?.sheet_issued
+    )
+
+    orderGroup.totalSheets += sheets
+    if (isIssued) {
+      orderGroup.issuedSheets += sheets
+      orderGroup.issuedCardsCount += 1
+    }
+    orderGroup.cardsCount += 1
+
+    const matName = item.activeMaterialName || item.nom?.material_type || item.nom?.name || 'Листи'
+    if (!orderGroup.materials.has(matName)) {
+      orderGroup.materials.set(matName, { name: matName, needed: 0, issued: 0 })
+    }
+    const mat = orderGroup.materials.get(matName)
+    mat.needed += sheets
+    if (isIssued) {
+      mat.issued += sheets
+    }
+  })
+
+  // 2. Reconcile with direct material requests for sheets
+  const isSheetReq = (r) => {
+    const nom = (nomenclatures || []).find(n => String(n.id) === String(r.nomenclature_id))
+    const name = (nom?.name || r.details || '').toLowerCase()
+    return r.category === 'sheet' || name.includes('лист') || name.includes('sheet') || name.includes('пластина')
+  }
+
+  ;(requests || []).filter(isSheetReq).forEach(r => {
+    const orderId = String(r.order_id || '')
+    if (!orderId) return
+
+    if (r.card_id && (cardsWithBoxes || []).some(c => String(c.card?.id) === String(r.card_id))) {
+      return
+    }
+
+    const order = orderById.get(orderId)
+    const orderGroup = getOrCreateOrder(orderId, order?.order_num)
+
+    if (orderGroup.cardsCount === 0) {
+      const qty = Number(r.quantity) || 1
+      const isIssued = r.status === 'completed' || r.status === 'issued'
+      orderGroup.totalSheets += qty
+      if (isIssued) orderGroup.issuedSheets += qty
+
+      const nom = (nomenclatures || []).find(n => String(n.id) === String(r.nomenclature_id))
+      const matName = nom?.name || r.details || 'Листи'
+      if (!orderGroup.materials.has(matName)) {
+        orderGroup.materials.set(matName, { name: matName, needed: 0, issued: 0 })
+      }
+      const mat = orderGroup.materials.get(matName)
+      mat.needed += qty
+      if (isIssued) mat.issued += qty
+    }
+  })
+
+  return Array.from(ordersMap.values())
+    .filter(o => o.totalSheets > 0)
+    .map(o => {
+      const pendingSheets = Math.max(0, o.totalSheets - o.issuedSheets)
+      const percent = o.totalSheets > 0 ? Math.min(100, Math.round((o.issuedSheets / o.totalSheets) * 100)) : 100
+      const status = o.issuedSheets >= o.totalSheets ? 'issued' : (o.issuedSheets > 0 ? 'partial' : 'waiting')
+      const materialsList = Array.from(o.materials.values()).map(m => ({
+        ...m,
+        pending: Math.max(0, m.needed - m.issued),
+        percent: m.needed > 0 ? Math.min(100, Math.round((m.issued / m.needed) * 100)) : 100
+      })).sort((a, b) => b.pending - a.pending)
+
+      return {
+        ...o,
+        pendingSheets,
+        percent,
+        status,
+        materials: materialsList
+      }
+    })
+    .sort((a, b) => {
+      if (a.pendingSheets > 0 && b.pendingSheets === 0) return -1
+      if (a.pendingSheets === 0 && b.pendingSheets > 0) return 1
+      if (a.pendingSheets !== b.pendingSheets) return b.pendingSheets - a.pendingSheets
+      return String(a.orderNum).localeCompare(String(b.orderNum), 'uk')
+    })
+}
+
+// Pure helper function to compute box orders and cutter tools
+export function computeBoxOrders({ cardsWithBoxes, orderById }) {
+  const grouped = new Map()
+  ;(cardsWithBoxes || []).forEach(item => {
+    const orderId = String(item.card?.order_id || item.task?.order_id || '')
+    const order = orderById.get(orderId)
+    const orderNum = order?.order_num || (item.card?.card_info || '').match(/НАРЯД\s*#?([^\s\]]+)/i)?.[1] || 'Без наряду'
+
+    if (!grouped.has(orderId)) {
+      grouped.set(orderId, {
+        id: orderId,
+        orderNum,
+        items: new Map(),
+        cutters: new Map(),
+        boxes: [],
+        total: 0,
+        prepared: 0
+      })
+    }
+    const orderGroup = grouped.get(orderId)
+    const nomKey = String(item.nom?.id || item.card?.nomenclature_id || item.nom?.name || 'unknown')
+    if (!orderGroup.items.has(nomKey)) {
+      orderGroup.items.set(nomKey, { id: nomKey, name: item.nom?.name || 'Без номенклатури', total: 0, prepared: 0 })
+    }
+    const nomGroup = orderGroup.items.get(nomKey)
+    nomGroup.total += 1
+    orderGroup.total += 1
+    if (item.isPrepared) {
+      nomGroup.prepared += 1
+      orderGroup.prepared += 1
+    }
+
+    // Cutters info inside boxes
+    (item.cutters || []).forEach(c => {
+      const cutterKey = c.name || c.nomenclature_id || 'Фреза'
+      if (!orderGroup.cutters.has(cutterKey)) {
+        orderGroup.cutters.set(cutterKey, {
+          id: c.nomenclature_id || cutterKey,
+          name: c.name || 'Фреза',
+          qty: 0,
+          boxesCovered: 0,
+          boxesTotal: 0
+        })
+      }
+      const cutterEntry = orderGroup.cutters.get(cutterKey)
+      cutterEntry.qty += Number(c.qty) || 0
+      cutterEntry.boxesTotal += 1
+      if (item.isPrepared) cutterEntry.boxesCovered += 1
+    })
+
+    const cardSeq = (item.card?.card_info || '').match(/(\d+\/\d+)/)?.[1] ||
+      (item.card?.card_info || '').match(/(№\d+)/)?.[1] ||
+      `#${orderGroup.total}`
+
+    orderGroup.boxes.push({
+      id: item.card?.id || `${orderId}_${orderGroup.total}`,
+      seq: cardSeq,
+      partName: item.nom?.name || 'Деталь',
+      sheets: item.cardSheets || 1,
+      isPrepared: item.isPrepared,
+      isIssued: item.isIssued,
+      cuttersCount: (item.cutters || []).reduce((sum, c) => sum + (Number(c.qty) || 0), 0)
+    })
+  })
+
+  return Array.from(grouped.values()).map(group => {
+    const pending = group.total - group.prepared
+    const percent = group.total ? Math.round((group.prepared / group.total) * 100) : 100
+    return {
+      ...group,
+      items: Array.from(group.items.values()).sort((a, b) => (a.prepared / a.total) - (b.prepared / b.total)),
+      cutters: Array.from(group.cutters.values()).sort((a, b) => b.qty - a.qty),
+      pending,
+      percent
+    }
+  }).sort((a, b) => {
+    if (a.pending > 0 && b.pending === 0) return -1
+    if (a.pending === 0 && b.pending > 0) return 1
+    if (a.pending !== b.pending) return b.pending - a.pending
+    return String(a.orderNum).localeCompare(String(b.orderNum), 'uk')
+  })
+}
+
+// Pure helper function to compute global preparation dashboard totals
+export function computePreparationTotals({ sheetOrders, boxOrders, prepQueue }) {
+  const sheetsTotal = (sheetOrders || []).reduce((sum, o) => sum + o.totalSheets, 0)
+  const sheetsIssued = (sheetOrders || []).reduce((sum, o) => sum + o.issuedSheets, 0)
+  const sheetsPending = Math.max(0, sheetsTotal - sheetsIssued)
+
+  const boxesTotal = (boxOrders || []).reduce((sum, order) => sum + order.total, 0)
+  const boxesPrepared = (boxOrders || []).reduce((sum, order) => sum + order.prepared, 0)
+  const boxesPending = Math.max(0, boxesTotal - boxesPrepared)
+
+  return {
+    sheetsTotal,
+    sheetsIssued,
+    sheetsPending,
+    sheetsPercent: sheetsTotal > 0 ? Math.round((sheetsIssued / sheetsTotal) * 100) : 100,
+    boxesTotal,
+    boxesPrepared,
+    boxesPending,
+    boxesPercent: boxesTotal > 0 ? Math.round((boxesPrepared / boxesTotal) * 100) : 100,
+    prepActive: (prepQueue || []).filter(item => item.status === 'in-progress').length,
+    prepWaiting: (prepQueue || []).filter(item => item.status !== 'in-progress').length
+  }
+}
+
+// Pure helper function to compute preparation alerts
+export function computePreparationAlerts({ activeSheetOrders, activeBoxOrders, prepQueue, now }) {
+  const result = []
+
+  ;(activeSheetOrders || []).slice(0, 3).forEach(order => {
+    if (order.pendingSheets > 0) {
+      result.push({
+        level: order.pendingSheets >= 8 ? 'danger' : 'warning',
+        text: `Наряд №${order.orderNum}: дефіцит ${order.pendingSheets} листів на складі СО (видано ${order.issuedSheets}/${order.totalSheets} л.)`
+      })
+    }
+  })
+
+  ;(activeBoxOrders || []).slice(0, 3).forEach(order => {
+    if (order.pending > 0) {
+      result.push({
+        level: order.pending >= 4 ? 'danger' : 'warning',
+        text: `Наряд №${order.orderNum}: потрібно зібрати ${order.pending} боксів фрез (${order.prepared}/${order.total} готово)`
+      })
+    }
+  })
+
+  ;(prepQueue || []).forEach(item => {
+    const age = getAgeMinutes(item.startedAt, now)
+    if (item.hasScrap) {
+      result.push({
+        level: 'danger',
+        text: `${item.prepNum}: зафіксовано брак деталей — потрібна повторна обробка`
+      })
+    } else if (item.status === 'in-progress' && age >= 120) {
+      result.push({
+        level: 'warning',
+        text: `${item.prepNum}: ${item.name} у роботі вже ${formatElapsed(item.startedAt, now)}`
+      })
+    }
+  })
+
+  return result.slice(0, 6)
+}
+
 export function usePreparationDashboardData() {
   const tasks = useStore(state => state.tasks)
   const nomenclatures = useStore(state => state.nomenclatures)
@@ -31,8 +297,11 @@ export function usePreparationDashboardData() {
   const orders = useStore(state => state.orders)
 
   const [now, setNow] = useState(new Date())
-  const [prepPage, setPrepPage] = useState(0)
+  const [viewMode, setViewMode] = useState('overview') // 'overview' | 'tumbling'
+  const [sheetPage, setSheetPage] = useState(0)
   const [boxesPage, setBoxesPage] = useState(0)
+  const [prepPage, setPrepPage] = useState(0)
+  const [isPaused, setIsPaused] = useState(false)
   const [lastDataChange, setLastDataChange] = useState(new Date())
 
   const { cardsWithBoxes } = useWarehouseComputed({
@@ -51,6 +320,27 @@ export function usePreparationDashboardData() {
 
   const orderById = useMemo(() => new Map((orders || []).map(order => [String(order.id), order])), [orders])
 
+  // 1. Sheet Issuance by Order
+  const sheetOrders = useMemo(() => {
+    return computeSheetOrders({ cardsWithBoxes, requests, nomenclatures, orderById })
+  }, [cardsWithBoxes, requests, nomenclatures, orderById])
+
+  const activeSheetOrders = useMemo(() => {
+    const unissued = sheetOrders.filter(o => o.pendingSheets > 0)
+    return unissued.length > 0 ? unissued : sheetOrders
+  }, [sheetOrders])
+
+  // 2. Cutter Boxes by Order
+  const boxOrders = useMemo(() => {
+    return computeBoxOrders({ cardsWithBoxes, orderById })
+  }, [cardsWithBoxes, orderById])
+
+  const activeBoxOrders = useMemo(() => {
+    const uncompleted = boxOrders.filter(order => order.pending > 0)
+    return uncompleted.length > 0 ? uncompleted : boxOrders
+  }, [boxOrders])
+
+  // 3. Preparation / Tumbling Tasks Queue
   const prepQueue = useMemo(() => {
     const nomMap = new Map((nomenclatures || []).map(n => [String(n.id), n]))
     const queue = []
@@ -86,82 +376,38 @@ export function usePreparationDashboardData() {
     })
   }, [tasks, nomenclatures, orderById])
 
-  const boxOrders = useMemo(() => {
-    const grouped = new Map()
-    ;(cardsWithBoxes || []).forEach(item => {
-      const orderId = String(item.card.order_id || item.task?.order_id || '')
-      const order = orderById.get(orderId)
-      const orderNum = order?.order_num || 'Без наряду'
-      if (!grouped.has(orderId)) grouped.set(orderId, { id: orderId, orderNum, items: new Map(), total: 0, prepared: 0 })
-      const orderGroup = grouped.get(orderId)
-      const nomKey = String(item.nom?.id || item.card.nomenclature_id || item.nom?.name || 'unknown')
-      if (!orderGroup.items.has(nomKey)) {
-        orderGroup.items.set(nomKey, { id: nomKey, name: item.nom?.name || 'Без номенклатури', total: 0, prepared: 0 })
-      }
-      const nomGroup = orderGroup.items.get(nomKey)
-      nomGroup.total += 1
-      orderGroup.total += 1
-      if (item.isPrepared) {
-        nomGroup.prepared += 1
-        orderGroup.prepared += 1
-      }
-    })
-
-    return Array.from(grouped.values()).map(group => ({
-      ...group,
-      items: Array.from(group.items.values()).sort((a, b) => (a.prepared / a.total) - (b.prepared / b.total)),
-      pending: group.total - group.prepared
-    })).sort((a, b) => b.pending - a.pending || String(a.orderNum).localeCompare(String(b.orderNum), 'uk'))
-  }, [cardsWithBoxes, orderById])
-
-  // The TV queue is operational: completed orders stay in totals, but never
-  // occupy a dashboard card or a rotation slot.
-  const activeBoxOrders = useMemo(
-    () => boxOrders.filter(order => order.pending > 0),
-    [boxOrders]
-  )
-
+  // 4. Global KPIs & Totals
   const totals = useMemo(() => {
-    const boxesTotal = boxOrders.reduce((sum, order) => sum + order.total, 0)
-    const boxesPrepared = boxOrders.reduce((sum, order) => sum + order.prepared, 0)
-    return {
-      prepActive: prepQueue.filter(item => item.status === 'in-progress').length,
-      prepWaiting: prepQueue.filter(item => item.status !== 'in-progress').length,
-      boxesTotal,
-      boxesPrepared,
-      boxesPending: boxesTotal - boxesPrepared
-    }
-  }, [prepQueue, boxOrders])
+    return computePreparationTotals({ sheetOrders, boxOrders, prepQueue })
+  }, [sheetOrders, boxOrders, prepQueue])
 
+  // 5. Alerts
   const alerts = useMemo(() => {
-    const result = []
-    prepQueue.forEach(item => {
-      const age = getAgeMinutes(item.startedAt, now)
-      if (item.hasScrap) result.push({ level: 'danger', text: `${item.prepNum}: зафіксовано брак — потрібна повторна підготовка` })
-      else if (item.status === 'in-progress' && age >= 120) result.push({ level: 'warning', text: `${item.prepNum}: ${item.name} у роботі вже ${formatElapsed(item.startedAt, now)}` })
-    })
-    activeBoxOrders.slice(0, 3).forEach(order => {
-      result.push({ level: order.pending >= 5 ? 'danger' : 'warning', text: `Наряд №${order.orderNum}: потрібно зібрати ще ${order.pending} боксів` })
-    })
-    return result.slice(0, 4)
-  }, [prepQueue, activeBoxOrders, now])
+    return computePreparationAlerts({ activeSheetOrders, activeBoxOrders, prepQueue, now })
+  }, [activeSheetOrders, activeBoxOrders, prepQueue, now])
 
-  const prepPages = Math.max(1, Math.ceil(prepQueue.length / PREP_PAGE_SIZE))
+  // 6. Pagination & TV Rotation
+  const sheetPages = Math.max(1, Math.ceil(activeSheetOrders.length / SHEET_PAGE_SIZE))
   const boxesPages = Math.max(1, Math.ceil(activeBoxOrders.length / BOX_PAGE_SIZE))
+  const prepPages = Math.max(1, Math.ceil(prepQueue.length / PREP_PAGE_SIZE))
 
   useEffect(() => {
+    if (isPaused) return
     const timer = setInterval(() => {
-      setPrepPage(page => (page + 1) % prepPages)
+      setSheetPage(page => (page + 1) % sheetPages)
       setBoxesPage(page => (page + 1) % boxesPages)
+      setPrepPage(page => (page + 1) % prepPages)
     }, ROTATION_MS)
     return () => clearInterval(timer)
-  }, [prepPages, boxesPages])
+  }, [sheetPages, boxesPages, prepPages, isPaused])
 
-  useEffect(() => setPrepPage(page => Math.min(page, prepPages - 1)), [prepPages])
+  useEffect(() => setSheetPage(page => Math.min(page, sheetPages - 1)), [sheetPages])
   useEffect(() => setBoxesPage(page => Math.min(page, boxesPages - 1)), [boxesPages])
+  useEffect(() => setPrepPage(page => Math.min(page, prepPages - 1)), [prepPages])
 
-  const visiblePrep = prepQueue.slice(prepPage * PREP_PAGE_SIZE, prepPage * PREP_PAGE_SIZE + PREP_PAGE_SIZE)
+  const visibleSheetOrders = activeSheetOrders.slice(sheetPage * SHEET_PAGE_SIZE, sheetPage * SHEET_PAGE_SIZE + SHEET_PAGE_SIZE)
   const visibleBoxOrders = activeBoxOrders.slice(boxesPage * BOX_PAGE_SIZE, boxesPage * BOX_PAGE_SIZE + BOX_PAGE_SIZE)
+  const visiblePrep = prepQueue.slice(prepPage * PREP_PAGE_SIZE, prepPage * PREP_PAGE_SIZE + PREP_PAGE_SIZE)
   const staleSeconds = Math.floor((now - lastDataChange) / 1000)
 
   const toggleFullscreen = async () => {
@@ -173,15 +419,29 @@ export function usePreparationDashboardData() {
 
   return {
     now,
-    prepPage,
+    viewMode,
+    setViewMode,
+    isPaused,
+    setIsPaused,
+    sheetPage,
     boxesPage,
-    prepPages,
+    prepPage,
+    sheetPages,
     boxesPages,
+    prepPages,
+    setSheetPage,
+    setBoxesPage,
+    setPrepPage,
     totals,
     alerts,
-    visiblePrep,
-    visibleBoxOrders,
+    sheetOrders,
+    activeSheetOrders,
+    visibleSheetOrders,
+    boxOrders,
     activeBoxOrders,
+    visibleBoxOrders,
+    prepQueue,
+    visiblePrep,
     staleSeconds,
     toggleFullscreen
   }

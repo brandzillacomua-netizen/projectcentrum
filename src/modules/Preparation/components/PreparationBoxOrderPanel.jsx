@@ -1,59 +1,205 @@
 import React from 'react'
-import { PackageCheck } from 'lucide-react'
+import { PackageCheck, CheckCircle2, Clock, Wrench, ChevronLeft, ChevronRight, Pause, Play, Box } from 'lucide-react'
 import { BOX_PAGE_SIZE } from '../hooks/usePreparationDashboardData'
 
 export default function PreparationBoxOrderPanel({
   visibleBoxOrders,
   activeBoxOrders,
   boxesPage,
-  boxesPages
+  boxesPages,
+  setBoxesPage,
+  isPaused,
+  setIsPaused
 }) {
   return (
-    <>
-      {visibleBoxOrders.map((order, cardIndex) => {
-        const orderPercent = order.total ? Math.round(order.prepared / order.total * 100) : 100
-        return (
-          <section className={`prep-tv__panel prep-tv__panel--box ${order.pending === 0 ? 'is-complete' : ''}`} key={order.id}>
-            <div className="prep-tv__panel-head">
-              <div><PackageCheck size={19} /><strong>БОКСИ ФРЕЗ · {cardIndex + 1}</strong></div>
-              <span>група {boxesPage + 1}/{boxesPages}</span>
+    <section className="prep-tv__panel prep-tv__panel--boxes">
+      <div className="prep-tv__panel-head">
+        <div className="prep-tv__head-title">
+          <PackageCheck size={20} className="prep-tv__head-icon" />
+          <div>
+            <strong>КОМПЛЕКТАЦІЯ БОКСІВ ФРЕЗ</strong>
+            <span className="prep-tv__head-sub">Інструмент та оснастка під наряди</span>
+          </div>
+        </div>
+        <div className="prep-tv__head-actions">
+          {setIsPaused && (
+            <button
+              type="button"
+              className={`prep-tv__ctrl-btn ${isPaused ? 'is-paused' : ''}`}
+              onClick={() => setIsPaused(!isPaused)}
+              title={isPaused ? 'Відновити автогортання' : 'Призупинити'}
+            >
+              {isPaused ? <Play size={13} /> : <Pause size={13} />}
+            </button>
+          )}
+          {setBoxesPage && (
+            <div className="prep-tv__nav-btns">
+              <button
+                type="button"
+                className="prep-tv__ctrl-btn"
+                onClick={() => setBoxesPage(p => (p - 1 + boxesPages) % boxesPages)}
+                title="Попередня сторінка"
+              >
+                <ChevronLeft size={15} />
+              </button>
+              <span className="prep-tv__page-badge">
+                {boxesPage + 1} / {boxesPages}
+              </span>
+              <button
+                type="button"
+                className="prep-tv__ctrl-btn"
+                onClick={() => setBoxesPage(p => (p + 1) % boxesPages)}
+                title="Наступна сторінка"
+              >
+                <ChevronRight size={15} />
+              </button>
             </div>
-            <article className="box-order">
-              <div className="box-order__head">
-                <div><span>НАРЯД</span><strong>№{order.orderNum}</strong></div>
-                <div className="box-order__result">
-                  <strong>{order.prepared}<i>/ {order.total}</i></strong>
-                  <span>{order.pending ? `ЗАЛИШИЛОСЯ ${order.pending}` : 'УСІ БОКСИ ГОТОВІ'}</span>
+          )}
+        </div>
+      </div>
+
+      <div className="prep-tv__box-list">
+        {visibleBoxOrders.map(order => {
+          const isComplete = order.pending === 0
+          const statusClass = isComplete ? 'is-complete' : 'is-pending'
+
+          return (
+            <article key={order.id} className={`box-order-card ${statusClass}`}>
+              {/* Header: Order info & status pill */}
+              <div className="box-order-card__header">
+                <div className="box-order-card__order">
+                  <span className="box-order-card__label">НАРЯД</span>
+                  <strong className="box-order-card__number">№{order.orderNum}</strong>
+                </div>
+
+                <div className="box-order-card__status-pill">
+                  {isComplete ? (
+                    <span className="pill pill--emerald">
+                      <CheckCircle2 size={13} /> УСІ БОКСИ ГОТОВІ ({order.total}/{order.total})
+                    </span>
+                  ) : (
+                    <span className="pill pill--amber">
+                      <Clock size={13} /> ПОТРІБНО ЗІБРАТИ {order.pending} БОКС{order.pending === 1 ? '' : 'И'}
+                    </span>
+                  )}
                 </div>
               </div>
-              <div className="box-order__progress">
-                <i style={{ width: `${orderPercent}%` }} />
-                <strong>{orderPercent}%</strong>
-              </div>
-              <div className="box-order__items">
-                {order.items.slice(0, 5).map(item => {
-                  const ready = item.prepared === item.total
-                  return (
-                    <div key={item.id} className={ready ? 'is-ready' : ''}>
-                      <span title={item.name}>{item.name}</span>
-                      <b>{item.prepared}<i>/{item.total}</i></b>
-                    </div>
-                  )
-                })}
-                {order.items.length > 5 && <small>+ ще {order.items.length - 5} номенклатур</small>}
-              </div>
-              <div className="box-order__slider">
-                <div>
-                  {activeBoxOrders.map((_, index) => (
-                    <i key={index} className={index >= boxesPage * BOX_PAGE_SIZE && index < (boxesPage + 1) * BOX_PAGE_SIZE ? 'is-active' : ''} />
-                  ))}
+
+              {/* Stats row */}
+              <div className="box-order-card__stats">
+                <div className="stat-block stat-block--main">
+                  <span className="stat-label">ЗІБРАНО БОКСІВ</span>
+                  <div className="stat-value">
+                    <strong>{order.prepared}</strong>
+                    <span className="stat-total">/ {order.total}</span>
+                    <span className="stat-unit">боксів</span>
+                  </div>
                 </div>
-                <span>Оновлення через 12 с</span>
+
+                <div className="stat-block stat-block--pending">
+                  <span className="stat-label">ЗАЛИШИЛОСЬ ЗІБРАТИ</span>
+                  <div className="stat-pending-val">
+                    {order.pending > 0 ? (
+                      <span className="pending-badge pending-badge--amber">
+                        {order.pending} бокс{order.pending === 1 ? '' : 'и'}
+                      </span>
+                    ) : (
+                      <span className="ready-badge">0 (Готово)</span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="stat-block stat-block--percent">
+                  <span className="stat-label">ГОТОВНІСТЬ</span>
+                  <div className="stat-percent-val">{order.percent}%</div>
+                </div>
               </div>
+
+              {/* Progress bar */}
+              <div className="box-order-card__progress">
+                <div
+                  className={`box-order-card__progress-fill ${statusClass}`}
+                  style={{ width: `${order.percent}%` }}
+                />
+              </div>
+
+              {/* Cutters & Tooling Breakdown (Які фрези та скільки треба наповнити) */}
+              <div className="box-order-card__cutters">
+                <div className="cutters-header">
+                  <Wrench size={13} />
+                  <span>НЕОБХІДНИЙ ІНСТРУМЕНТ (ФРЕЗИ):</span>
+                </div>
+                <div className="cutters-grid">
+                  {(order.cutters || []).length > 0 ? (
+                    order.cutters.map(cutter => (
+                      <div key={cutter.id} className="cutter-pill">
+                        <span className="cutter-pill__name" title={cutter.name}>
+                          {cutter.name}
+                        </span>
+                        <span className="cutter-pill__qty">
+                          {cutter.qty} шт.
+                        </span>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="cutters-empty">Спеціальні фрези не задіяні (стандартний набір)</div>
+                  )}
+                </div>
+              </div>
+
+              {/* Individual Box Cards Status */}
+              {(order.boxes || []).length > 0 && (
+                <div className="box-order-card__boxes-strip">
+                  <div className="boxes-strip-title">
+                    <Box size={12} />
+                    <span>СТАТУС ПО БОКСАХ:</span>
+                  </div>
+                  <div className="boxes-chips">
+                    {order.boxes.slice(0, 6).map((b, idx) => (
+                      <span
+                        key={b.id || idx}
+                        className={`box-chip ${b.isPrepared ? 'is-ready' : 'is-waiting'}`}
+                        title={`${b.partName} (${b.sheets} л.)`}
+                      >
+                        {b.seq} {b.isPrepared ? '✓' : '…'}
+                      </span>
+                    ))}
+                    {order.boxes.length > 6 && (
+                      <span className="box-chip-more">+{order.boxes.length - 6}</span>
+                    )}
+                  </div>
+                </div>
+              )}
             </article>
-          </section>
-        )
-      })}
-    </>
+          )
+        })}
+
+        {visibleBoxOrders.length === 0 && (
+          <div className="prep-tv__empty">
+            <CheckCircle2 size={54} />
+            <strong>Всі бокси фрез зібрані</strong>
+            <span>Очікуючих на збірку нарядів немає</span>
+          </div>
+        )}
+      </div>
+
+      {/* Pagination Footer */}
+      <div className="prep-tv__panel-footer">
+        <div className="prep-tv__dots">
+          {Array.from({ length: boxesPages }).map((_, idx) => (
+            <button
+              key={idx}
+              type="button"
+              className={`dot ${idx === boxesPage ? 'is-active' : ''}`}
+              onClick={() => setBoxesPage && setBoxesPage(idx)}
+              title={`Сторінка ${idx + 1}`}
+            />
+          ))}
+        </div>
+        <span className="prep-tv__timer-note">
+          {isPaused ? 'Автогортання призупинено' : 'Оновлення кожні 12 с'}
+        </span>
+      </div>
+    </section>
   )
 }

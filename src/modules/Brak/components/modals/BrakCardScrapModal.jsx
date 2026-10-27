@@ -69,14 +69,28 @@ export const BrakCardScrapModal = React.memo(({
                 <div style={{ color: 'var(--text-muted, #777)', fontSize: '0.64rem', fontWeight: 700, marginTop: '4px' }}>Єдиний оператор картки — обрано автоматично</div>
               </div>
             ) : qcCardOperators.length > 1 ? (
-              <select
-                value={qcResponsibleOperator}
-                onChange={event => setQcResponsibleOperator(event.target.value)}
-                style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: `1px solid ${qcResponsibleOperator ? '#10b98155' : '#ef444455'}`, background: 'var(--card-inner-bg, #000)', color: 'var(--text-color, #fff)', fontSize: '0.9rem', fontWeight: 800, boxSizing: 'border-box', outline: 'none' }}
-              >
-                <option value="">— Оберіть оператора картки —</option>
-                {qcCardOperators.map(operator => <option key={operator} value={operator}>{operator}</option>)}
-              </select>
+              <div>
+                <select
+                  value={qcResponsibleOperator}
+                  onChange={event => setQcResponsibleOperator(event.target.value)}
+                  style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: `1px solid ${qcResponsibleOperator ? '#10b98155' : '#ef444455'}`, background: 'var(--card-inner-bg, #000)', color: 'var(--text-color, #fff)', fontSize: '0.9rem', fontWeight: 800, boxSizing: 'border-box', outline: 'none' }}
+                >
+                  <option value="">— Оберіть оператора картки —</option>
+                  {qcCardOperators.map(operator => {
+                    const cardOp = String(scannedCard?.operator_name || '').toLowerCase().trim()
+                    const opNorm = String(operator || '').toLowerCase().trim()
+                    const isCurrent = cardOp && (opNorm === cardOp || opNorm.includes(cardOp) || cardOp.includes(opNorm))
+                    return (
+                      <option key={operator} value={operator}>
+                        {operator} {isCurrent ? '⚡ (поточний виконавець)' : '⏳ (попередній оператор)'}
+                      </option>
+                    )
+                  })}
+                </select>
+                <div style={{ color: 'var(--text-muted, #888)', fontSize: '0.64rem', fontWeight: 700, marginTop: '6px' }}>
+                  На картці зафіксовано перезмінку або кількох операторів. За замовчуванням обрано поточного виконавця.
+                </div>
+              </div>
             ) : (
               <div style={{ color: '#ef4444', fontSize: '0.72rem', fontWeight: 850 }}>У картці не знайдено виробничого оператора. Брак неможливо записати без відповідального.</div>
             )}

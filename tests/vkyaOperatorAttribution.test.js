@@ -98,4 +98,48 @@ describe('VKYA responsible operator candidates', () => {
     expect(isNonHumanResponsibility('Кривизна листа')).toBe(true)
     expect(isNonHumanResponsibility('Петренко Іван')).toBe(false)
   })
+
+  it('identifies both previous operator and current active operator after shift handover (перезмінка)', () => {
+    const historyRows = [
+      {
+        operator_name: 'Станько А.',
+        stage_name: 'Розкрій (перезмінка)',
+        shift_name: 'Зміна 1',
+        completed_at: '2026-10-27T08:35:56Z',
+        card_info: '103/116 [REPLACED_BY:Шевчук А. (Зміна 1)] [LAST_OP:Листи: 1]'
+      }
+    ]
+
+    const activeCard = {
+      id: 'card-103',
+      operator_name: 'Шевчук А.',
+      shift_name: 'Зміна 1',
+      started_at: '2026-10-27T08:35:56Z',
+      operation: 'Розкрій',
+      card_info: '103/116 [ORIGINAL_START:2026-10-27T04:59:39Z]'
+    }
+
+    const candidates = buildShop1OperatorCandidates(historyRows, [], activeCard)
+
+    expect(candidates).toHaveLength(2)
+    expect(candidates.map(c => c.name)).toEqual(['Станько А.', 'Шевчук А.'])
+    expect(candidates.find(c => c.name === 'Шевчук А.').stages).toContain('Розкрій')
+    expect(candidates.find(c => c.name === 'Станько А.').stages).toContain('Розкрій (перезмінка)')
+  })
+
+  it('extracts replacement operator from REPLACED_BY tag in history even without activeCard object', () => {
+    const historyRows = [
+      {
+        operator_name: 'Станько А.',
+        stage_name: 'Розкрій (перезмінка)',
+        shift_name: 'Зміна 1',
+        completed_at: '2026-10-27T08:35:56Z',
+        card_info: '[REPLACED_BY:Шевчук А. (Зміна 1)]'
+      }
+    ]
+
+    const candidates = buildShop1OperatorCandidates(historyRows, [])
+    expect(candidates.map(c => c.name)).toEqual(['Станько А.', 'Шевчук А.'])
+  })
 })
+

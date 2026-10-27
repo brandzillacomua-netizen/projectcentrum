@@ -242,10 +242,43 @@ function findPaintForShift(shiftName, systemUsers = []) {
 
 /**
  * Returns ONLY the production workers who actively took part in processing
- * THIS specific work card across any of its stages (cutting, tumbling, sorting, pressing, painting, etc.).
+ * THIS specific work card across any of its stages (cutting, tumbling, sorting, pressing, painting, etc.),
+ * including both previous operators from handover history and the current operator on the card.
  */
-export function buildShop1OperatorCandidates(historyRows = [], systemUsers = []) {
+export function buildShop1OperatorCandidates(historyRows = [], systemUsers = [], currentCard = null) {
   const historyCandidates = new Map()
+
+  const recordCandidate = (rawName, stage, shift, occurredAt) => {
+    if (!rawName) return
+    const cleanedRaw = clean(rawName)
+    if (!isAssignableProductionOperator(cleanedRaw)) return
+
+    const candidateUser = findCanonicalUser(cleanedRaw, systemUsers)
+    if (candidateUser && !isProductionUser(candidateUser)) return
+
+    const candidateName = candidateUser ? formatProductionUserName(candidateUser) : cleanedRaw
+    if (!candidateName) return
+
+    const key = candidateUser?.id ? `user:${candidateUser.id}` : `name:${normalized(candidateName)}`
+
+    if (!historyCandidates.has(key)) {
+      historyCandidates.set(key, {
+        name: candidateName,
+        stages: [],
+        shifts: [],
+        firstSeenAt: occurredAt,
+        lastSeenAt: occurredAt
+      })
+    }
+
+    const candidate = historyCandidates.get(key)
+    if (stage && !candidate.stages.includes(stage)) candidate.stages.push(stage)
+    if (shift && !candidate.shifts.includes(shift)) candidate.shifts.push(shift)
+    if (occurredAt) {
+      if (!candidate.firstSeenAt || new Date(occurredAt) < new Date(candidate.firstSeenAt)) candidate.firstSeenAt = occurredAt
+      if (!candidate.lastSeenAt || new Date(occurredAt) > new Date(candidate.lastSeenAt)) candidate.lastSeenAt = occurredAt
+    }
+  }
 
   for (const row of historyRows || []) {
     if (!isShop1ResponsibilityStage(row.stage_name)) continue
@@ -280,26 +313,55 @@ export function buildShop1OperatorCandidates(historyRows = [], systemUsers = [])
       }
     }
 
-    if (!candidateName) continue
+    if (candidateName) {
+      const key = candidateUser?.id ? `user:${candidateUser.id}` : `name:${normalized(candidateName)}`
 
-    const key = candidateUser?.id ? `user:${candidateUser.id}` : `name:${normalized(candidateName)}`
+      if (!historyCandidates.has(key)) {
+        historyCandidates.set(key, {
+          name: candidateName,
+          stages: [],
+          shifts: [],
+          firstSeenAt: occurredAt,
+          lastSeenAt: occurredAt
+        })
+      }
 
-    if (!historyCandidates.has(key)) {
-      historyCandidates.set(key, {
-        name: candidateName,
-        stages: [],
-        shifts: [],
-        firstSeenAt: occurredAt,
-        lastSeenAt: occurredAt
-      })
+      const candidate = historyCandidates.get(key)
+      if (stage && !candidate.stages.includes(stage)) candidate.stages.push(stage)
+      if (shift && !candidate.shifts.includes(shift)) candidate.shifts.push(shift)
+      if (occurredAt) {
+        if (!candidate.firstSeenAt || new Date(occurredAt) < new Date(candidate.firstSeenAt)) candidate.firstSeenAt = occurredAt
+        if (!candidate.lastSeenAt || new Date(occurredAt) > new Date(candidate.lastSeenAt)) candidate.lastSeenAt = occurredAt
+      }
     }
 
-    const candidate = historyCandidates.get(key)
-    if (stage && !candidate.stages.includes(stage)) candidate.stages.push(stage)
-    if (shift && !candidate.shifts.includes(shift)) candidate.shifts.push(shift)
-    if (occurredAt) {
-      if (!candidate.firstSeenAt || new Date(occurredAt) < new Date(candidate.firstSeenAt)) candidate.firstSeenAt = occurredAt
-      if (!candidate.lastSeenAt || new Date(occurredAt) > new Date(candidate.lastSeenAt)) candidate.lastSeenAt = occurredAt
+    // Check for handover replacement operator in card_info (e.g. [REPLACED_BY:Шевчук А. (Зміна 1)])
+    const replacedMatch = String(row?.card_info || '').match(/\[REPLACED_BY:(.*?)\]/)
+    if (replacedMatch) {
+      const rawNext = replacedMatch[1].replace(/\s*\([^)]*\)/, '').trim()
+      const nextShiftMatch = replacedMatch[1].match(/\(([^)]+)\)/)
+      const nextShift = nextShiftMatch ? nextShiftMatch[1].trim() : shift
+      recordCandidate(rawNext, stage.includes('перезмінка') ? 'Розкрій' : stage, nextShift, occurredAt)
+    }
+  }
+
+  // Also include the current operator who is actively processing the card
+  if (currentCard) {
+    const rawCardOp = clean(currentCard.operator_name)
+    const cardStage = clean(currentCard.operation || 'Розкрій')
+    const cardShift = clean(currentCard.shift_name)
+    const cardStartedAt = currentCard.started_at || null
+
+    if (rawCardOp) {
+      recordCandidate(rawCardOp, cardStage, cardShift, cardStartedAt)
+    }
+
+    const cardReplacedMatch = String(currentCard.card_info || '').match(/\[REPLACED_BY:(.*?)\]/)
+    if (cardReplacedMatch) {
+      const rawNext = cardReplacedMatch[1].replace(/\s*\([^)]*\)/, '').trim()
+      const nextShiftMatch = cardReplacedMatch[1].match(/\(([^)]+)\)/)
+      const nextShift = nextShiftMatch ? nextShiftMatch[1].trim() : cardShift
+      recordCandidate(rawNext, cardStage, nextShift, cardStartedAt)
     }
   }
 

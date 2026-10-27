@@ -150,17 +150,33 @@ export function useBrakData() {
       try {
         const { data, error } = await supabase
           .from('work_card_history')
-          .select('operator_name,stage_name,shift_name,created_at,completed_at')
+          .select('operator_name,stage_name,shift_name,created_at,completed_at,card_info')
           .eq('card_id', selectedClassificationCardId)
           .order('created_at', { ascending: true })
         if (error) throw error
         if (cancelled) return
 
-        const candidates = buildShop1OperatorCandidates(data || [], systemUsersRef.current || [])
+        let cardObj = (workCards || []).find(c => String(c.id) === String(selectedClassificationCardId))
+        if (!cardObj) {
+          const { data: dbCard } = await supabase
+            .from('work_cards')
+            .select('*')
+            .eq('id', selectedClassificationCardId)
+            .maybeSingle()
+          cardObj = dbCard
+        }
+
+        const candidates = buildShop1OperatorCandidates(data || [], systemUsersRef.current || [], cardObj)
         setClassificationOperatorOptions(candidates)
         setClassificationResponsibleOperator(prev => {
           if (prev && (candidates.some(c => c.name === prev) || isNonHumanResponsibility(prev))) return prev
           if (candidates.length === 1) return candidates[0].name
+          const cardOp = String(cardObj?.operator_name || '').toLowerCase().trim()
+          const currentCandidate = candidates.find(c => {
+            const norm = c.name.toLowerCase().trim()
+            return cardOp && (norm === cardOp || norm.includes(cardOp) || cardOp.includes(norm))
+          })
+          if (currentCandidate) return currentCandidate.name
           return ''
         })
         if (candidates.length === 0) {
@@ -594,16 +610,22 @@ export function useBrakData() {
 
       const { data: operatorHistory, error: operatorHistoryError } = await supabase
         .from('work_card_history')
-        .select('operator_name,stage_name,shift_name,created_at,completed_at')
+        .select('operator_name,stage_name,shift_name,created_at,completed_at,card_info')
         .eq('card_id', foundCard.id)
         .order('created_at', { ascending: true })
       if (operatorHistoryError) throw operatorHistoryError
 
-      const operators = buildShop1OperatorCandidates(operatorHistory || [], systemUsers || []).map(candidate => candidate.name)
+      const operators = buildShop1OperatorCandidates(operatorHistory || [], systemUsers || [], foundCard).map(candidate => candidate.name)
 
       setScannedCard(foundCard)
       setQcCardOperators(operators)
-      setQcResponsibleOperator(operators.length === 1 ? operators[0] : '')
+
+      const cardOp = String(foundCard.operator_name || '').toLowerCase().trim()
+      const currentOp = operators.find(op => {
+        const norm = op.toLowerCase().trim()
+        return cardOp && (norm === cardOp || norm.includes(cardOp) || cardOp.includes(norm))
+      })
+      setQcResponsibleOperator(currentOp || (operators.length === 1 ? operators[0] : ''))
       setQcScrapCount(0)
       setManualCardNumber('')
       setScanError(null)
@@ -665,16 +687,22 @@ export function useBrakData() {
             triggerHapticAudioFeedback(true)
             const { data: operatorHistory, error: operatorHistoryError } = await supabase
               .from('work_card_history')
-              .select('operator_name,stage_name,shift_name,created_at,completed_at')
+              .select('operator_name,stage_name,shift_name,created_at,completed_at,card_info')
               .eq('card_id', foundCard.id)
               .order('created_at', { ascending: true })
             if (operatorHistoryError) throw operatorHistoryError
 
-            const operators = buildShop1OperatorCandidates(operatorHistory || [], systemUsers || []).map(candidate => candidate.name)
+            const operators = buildShop1OperatorCandidates(operatorHistory || [], systemUsers || [], foundCard).map(candidate => candidate.name)
 
             setScannedCard(foundCard)
             setQcCardOperators(operators)
-            setQcResponsibleOperator(operators.length === 1 ? operators[0] : '')
+
+            const cardOp = String(foundCard.operator_name || '').toLowerCase().trim()
+            const currentOp = operators.find(op => {
+              const norm = op.toLowerCase().trim()
+              return cardOp && (norm === cardOp || norm.includes(cardOp) || cardOp.includes(norm))
+            })
+            setQcResponsibleOperator(currentOp || (operators.length === 1 ? operators[0] : ''))
             setQcScrapCount(0)
             setScanError(null)
           }
