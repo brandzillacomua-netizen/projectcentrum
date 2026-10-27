@@ -19,31 +19,17 @@ export default function PreparationDashboardHeader({
           <Layers size={22} />
         </div>
         <div>
-          <strong>ВІДДІЛ ПІДГОТОВКИ ТА ГАЛТОВКИ</strong>
+          <strong>ВІДДІЛ ПІДГОТОВКИ</strong>
           <span>ТВ МОДУЛЬ ОПЕРАТИВНОГО МОНІТОРИНГУ · СО ➔ РОЗКРІЙ</span>
         </div>
       </div>
 
-      {setViewMode && (
-        <div className="prep-tv__tabs">
-          <button
-            type="button"
-            className={`prep-tv__tab-btn ${viewMode === 'overview' ? 'is-active' : ''}`}
-            onClick={() => setViewMode('overview')}
-          >
-            <Monitor size={15} />
-            <span>Листи & Бокси фрез</span>
-          </button>
-          <button
-            type="button"
-            className={`prep-tv__tab-btn ${viewMode === 'tumbling' ? 'is-active' : ''}`}
-            onClick={() => setViewMode('tumbling')}
-          >
-            <Cpu size={15} />
-            <span>Черга операцій галтовки</span>
-          </button>
+      <div className="prep-tv__tabs">
+        <div className="prep-tv__tab-btn is-active" style={{ cursor: 'default' }}>
+          <Monitor size={15} />
+          <span>Листи & Бокси фрез</span>
         </div>
-      )}
+      </div>
 
       <div className="prep-tv__header-status">
         <span className={`prep-tv__pulse ${staleSeconds > 120 ? 'is-stale' : 'is-live'}`}>

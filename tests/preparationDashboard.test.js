@@ -23,11 +23,12 @@ describe('Preparation TV Dashboard Calculations', () => {
   const cardsWithBoxes = [
     // Order 101, Card 1: 2 sheets, issued, box prepared
     {
-      card: { id: 'wc-1', order_id: 'ord-101', card_info: '1/2 [BOX_ISSUED:true] [BOX_PREPARED:true]' },
+      card: { id: 'wc-1', order_id: 'ord-101', card_info: '1/2 [BOX_ISSUED:true] [BOX_PREPARED:true] [SHEET_ISSUED:true]', sheet_issued: true },
       nom: nomenclatures[2],
       activeMaterialName: 'Карбон Т700 2.0мм',
       cardSheets: 2,
       isIssued: true,
+      sheetIssued: true,
       isPrepared: true,
       cutters: [{ nomenclature_id: 'nom-cut-1', name: 'Фреза D2.0 компресійна', qty: 2 }]
     },
@@ -141,5 +142,57 @@ describe('Preparation TV Dashboard Calculations', () => {
 
     expect(alerts.length).toBeGreaterThan(0)
     expect(alerts.some(a => a.text.includes('241026-1') && a.text.includes('дефіцит'))).toBe(true)
+  })
+
+  it('filters out cutters from sheet requests and does not treat box issuance as sheet issuance', () => {
+    const orderRequests = [
+      // Real sheet request for order 241026-2
+      {
+        id: 'req-1',
+        order_id: 'ord-102',
+        nomenclature_id: 'nom-sheet-2',
+        quantity: 10,
+        status: 'pending',
+        category: 'sheet',
+        details: 'СКЛАД ОПЕРАТИВНИЙ: Лист Т300 1.5мм — 10 л.'
+      },
+      // Cutter request that happens to mention sheet in details
+      {
+        id: 'req-2',
+        order_id: 'ord-102',
+        nomenclature_id: 'nom-cut-1',
+        quantity: 5,
+        status: 'completed',
+        category: 'cutter',
+        details: 'СКЛАД ОПЕРАТИВНИЙ (ВИТРАТНІ МАТЕРІАЛИ): Фреза D2.0 компресійна — 5 шт. (Лист Т300 1.5мм)'
+      }
+    ]
+
+    const cardOnlyBoxIssued = [
+      {
+        card: { id: 'wc-10', order_id: 'ord-102', card_info: '1/1 [BOX_ISSUED:true]', is_box_issued: true },
+        nom: nomenclatures[3],
+        activeMaterialName: 'Карбон Т300 1.5мм',
+        cardSheets: 4,
+        isIssued: true, // From warehouse box tab
+        isPrepared: true
+      }
+    ]
+
+    const sheetOrders = computeSheetOrders({
+      cardsWithBoxes: cardOnlyBoxIssued,
+      requests: orderRequests,
+      nomenclatures,
+      orderById,
+      tasks: [{ id: 'task-1', order_id: 'ord-102', warehouse_conf: 'false' }]
+    })
+
+    const order = sheetOrders.find(o => o.orderNum === '241026-2')
+    expect(order).toBeDefined()
+    // Cutter request must NOT be included in sheets!
+    expect(order.materials.some(m => m.name.includes('Фреза'))).toBe(false)
+    // Box issuance does NOT make sheets issued!
+    expect(order.issuedSheets).toBe(0)
+    expect(order.pendingSheets).toBe(4)
   })
 })
