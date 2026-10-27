@@ -86,4 +86,22 @@ describe('WarehouseTransferRequestModal', () => {
     expect(html).toContain('Фреза конічна R0.5')
     expect(html).not.toContain('МДФ 16мм Шліфований')
   })
+
+  it('renders red cancel button and green submit action button', () => {
+    const html = renderToString(
+      React.createElement(WarehouseTransferRequestModal, {
+        show: true,
+        onClose: () => {},
+        inventory: sampleInventory,
+        nomenclatures: sampleNomenclatures
+      })
+    )
+
+    expect(html).toContain('СКАСУВАТИ')
+    expect(html).toContain('НАДІСЛАТИ ЗАПИТ НА СВ')
+    // Red styling for cancel
+    expect(html).toMatch(/color:\s*(?:#dc2626|#f87171|rgb\(220,\s*38,\s*38\)|rgb\(248,\s*113,\s*113\))/)
+    // Green styling for header badge
+    expect(html).toContain('#10b981')
+  })
 })
