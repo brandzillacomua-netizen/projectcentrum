@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { ArrowLeft, CheckCircle2, Factory, Hammer, Clock, Play, Plus, X, ListTodo } from 'lucide-react'
 import { useMES } from '../MESContext'
 import { apiService } from '../services/apiService'
+import { formatMinutesToHours } from '../utils/cuttingTimeUtils'
 
 const MasterWorkplace = () => {
   const { tasks, orders, workCards, createWorkCard, completeTaskByMaster } = useMES()
@@ -151,7 +152,7 @@ const MasterWorkplace = () => {
                               </div>
                               <div>
                                 <h4 style={{ margin: '0 0 5px 0', fontSize: '1.2rem' }}>{card.operation}</h4>
-                                <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>РЦ: {card.machine} | Час за нормою: {card.estimated_time || 0} хв</span>
+                                <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>РЦ: {card.machine} | Час за нормою: {formatMinutesToHours(card.estimated_time)}</span>
                               </div>
                             </div>
                             <div>

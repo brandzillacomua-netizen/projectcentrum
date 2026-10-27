@@ -25,10 +25,13 @@ export const formatElapsedTime = (startIso, currentTime = new Date()) => {
 
 export const formatPlanned = (mins) => {
   if (!mins || mins <= 0) return '—'
-  const h = Math.floor(mins / 60)
-  const m = Math.round(mins % 60)
-  if (h > 0) return `${h}год ${m}хв`
-  return `${m}хв`
+  const totalMin = Math.round(Number(mins) || 0)
+  if (totalMin <= 0) return '—'
+  const h = Math.floor(totalMin / 60)
+  const m = totalMin % 60
+  if (h === 0) return `${m}хв`
+  if (m === 0) return `${h}год`
+  return `${h}год ${m}хв`
 }
 
 export const getPlannedTime = (card, getNomFromCard) => {

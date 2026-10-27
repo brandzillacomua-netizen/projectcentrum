@@ -1,5 +1,5 @@
-import React from 'react'
 import { ClipboardList, X } from 'lucide-react'
+import { formatMinutesToHours } from '../../../utils/cuttingTimeUtils'
 
 export const OperatorQueueDrawer = ({
   queuedCards,
@@ -54,12 +54,7 @@ export const OperatorQueueDrawer = ({
                 {card.status === 'in-progress' ? 'У РОБОТІ' : 'ОЧІКУЄ'}
               </span>
               <span style={{ fontSize: '0.65rem', fontWeight: 800 }}>
-                {(() => {
-                  const totalMin = Math.round((Number(card.estimated_time) || 0) / 60)
-                  const h = Math.floor(totalMin / 60)
-                  const m = totalMin % 60
-                  return h > 0 ? `${h}год ${m}хв` : `${m}хв`
-                })()}
+                {formatMinutesToHours(Math.round((Number(card.estimated_time) || 0) / 60))}
               </span>
             </div>
           </div>

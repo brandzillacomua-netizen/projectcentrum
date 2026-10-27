@@ -23,6 +23,7 @@ import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
 import { useStore } from '../store/index.js'
 import { apiService } from '../services/apiDispatcher'
+import { formatMinutesToHours } from '../utils/cuttingTimeUtils'
 
 const SpecCard = ({ icon: Icon, label, value, color = '#eab308' }) => (
   <div style={{ background: 'var(--border-subtle)', border: '1px solid var(--border-subtle)', padding: '18px', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '8px', minWidth: '130px' }}>
@@ -211,7 +212,7 @@ const OperatorTerminal = () => {
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
               <span style={{ fontSize: '0.6rem', background: isActive ? 'var(--fill-inset)' : 'rgba(234, 179, 8, 0.1)', color: isActive ? '#000' : '#eab308', padding: '2px 6px', borderRadius: '4px', fontWeight: 900, textTransform: 'uppercase' }}>{card.status === 'in-progress' ? 'У РОБОТІ' : 'ОЧІКУЄ'}</span>
-              <span style={{ fontSize: '0.65rem', fontWeight: 800 }}>{card.estimated_time || 0} хв</span>
+              <span style={{ fontSize: '0.65rem', fontWeight: 800 }}>{formatMinutesToHours(card.estimated_time)}</span>
             </div>
           </div>
         )

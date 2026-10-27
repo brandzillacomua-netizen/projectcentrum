@@ -109,12 +109,13 @@ describe('cuttingTimeUtils', () => {
   })
 
   describe('formatCuttingTime', () => {
-    it('formats seconds into clean minute representation', () => {
+    it('formats seconds into clean hour and minute representation', () => {
       expect(formatCuttingTime(0)).toBe('0хв')
       expect(formatCuttingTime(1800)).toBe('30хв')
       expect(formatCuttingTime(2700)).toBe('45хв')
-      expect(formatCuttingTime(3600)).toBe('60хв')
-      expect(formatCuttingTime(7200)).toBe('120хв')
+      expect(formatCuttingTime(3600)).toBe('1год')
+      expect(formatCuttingTime(7200)).toBe('2год')
+      expect(formatCuttingTime(14400)).toBe('4год')
       expect(formatCuttingTime(5400)).toBe('1год 30хв')
     })
   })

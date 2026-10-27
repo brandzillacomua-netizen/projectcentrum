@@ -1,5 +1,5 @@
-import React from 'react'
 import { ClipboardList, Camera, X } from 'lucide-react'
+import { formatMinutesToHours } from '../../../utils/cuttingTimeUtils'
 
 export function Shop2QueueList({
   queuedCards,
@@ -30,7 +30,7 @@ export function Shop2QueueList({
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
               <span style={{ fontSize: '0.6rem', background: isActive ? 'var(--fill-inset)' : 'rgba(139, 92, 246, 0.1)', color: isActive ? '#fff' : '#8b5cf6', padding: '2px 6px', borderRadius: '4px', fontWeight: 900, textTransform: 'uppercase' }}>ОЧІКУЄ</span>
-              <span style={{ fontSize: '0.65rem', fontWeight: 800 }}>{card.estimated_time || 0} хв</span>
+              <span style={{ fontSize: '0.65rem', fontWeight: 800 }}>{formatMinutesToHours(card.estimated_time)}</span>
             </div>
           </div>
         )

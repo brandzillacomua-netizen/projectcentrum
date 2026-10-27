@@ -534,10 +534,13 @@ export function useMachinesData() {
 
   const formatPlanned = (minutes) => {
     if (!minutes) return '—'
-    const h = Math.floor(minutes / 60)
-    const m = Math.round(minutes % 60)
-    if (h > 0) return `${h}год ${m}хв`
-    return `${m}хв`
+    const totalMin = Math.round(Number(minutes) || 0)
+    if (totalMin <= 0) return '—'
+    const h = Math.floor(totalMin / 60)
+    const m = totalMin % 60
+    if (h === 0) return `${m}хв`
+    if (m === 0) return `${h}год`
+    return `${h}год ${m}хв`
   }
 
   return {

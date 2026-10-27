@@ -125,11 +125,21 @@ export const formatCuttingTime = (seconds) => {
     return `${totalMin}хв`
   }
 
-  if (totalMin % 60 === 0) {
-    return `${totalMin}хв`
-  }
-
   const h = Math.floor(totalMin / 60)
   const m = totalMin % 60
+  if (m === 0) {
+    return `${h}год`
+  }
+
+  return `${h}год ${m}хв`
+}
+
+export const formatMinutesToHours = (minutes) => {
+  const mins = Math.round(Number(minutes) || 0)
+  if (mins <= 0) return '0хв'
+  if (mins < 60) return `${mins}хв`
+  const h = Math.floor(mins / 60)
+  const m = mins % 60
+  if (m === 0) return `${h}год`
   return `${h}год ${m}хв`
 }

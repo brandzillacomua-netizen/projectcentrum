@@ -41,7 +41,8 @@ export const OperatorProductionOverview = ({
     if (!mins || mins <= 0) return '—'
     const h = Math.floor(mins / 60)
     const m = Math.round(mins % 60)
-    if (h > 0) return `${h}год ${m}хв`
+    if (h > 0 && m > 0) return `${h}год ${m}хв`
+    if (h > 0) return `${h}год`
     return `${m}хв`
   }
 
