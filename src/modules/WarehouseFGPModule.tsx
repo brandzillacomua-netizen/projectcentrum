@@ -20,6 +20,7 @@ import { useWarehouseRealtime } from './WarehouseFGP/hooks/useWarehouseRealtime.
 import { useShop2Buffer } from './WarehouseFGP/hooks/useShop2Buffer.js'
 import { usePackagingQueue } from './WarehouseFGP/hooks/usePackagingQueue.js'
 import { useInventoryGrouping } from './WarehouseFGP/hooks/useInventoryGrouping.js'
+import { useProductionWip } from './WarehouseFGP/hooks/useProductionWip.js'
 import { useSgpReceiptRegistry } from './WarehouseFGP/hooks/useSgpReceiptRegistry.js'
 import { exportSgpStockToExcel } from './WarehouseFGP/utils/exportSgpExcel.js'
 import { PackagingQueueTab as PackagingQueueTabRaw } from './WarehouseFGP/components/PackagingQueueTab.jsx'
@@ -86,6 +87,14 @@ export const WarehouseFGPModule: React.FC = () => {
   }: any = useShop2Buffer({ tasks, workCards, orders, nomenclatures, searchQuery })
 
   const {
+    groupedWipItems,
+    filteredWipItems,
+    totalWipParts,
+    wipStageTotals,
+    activeWipCardsCount
+  }: any = useProductionWip({ workCards, tasks, orders, nomenclatures, searchQuery })
+
+  const {
     receiptRows,
     isLoading: isReceiptRegistryLoading,
     isLoadingMore: isReceiptRegistryLoadingMore,
@@ -105,7 +114,8 @@ export const WarehouseFGPModule: React.FC = () => {
     searchQuery,
     receiptRows,
     receiptTotalCount,
-    totalShop2BufferParts
+    totalShop2BufferParts,
+    totalProductionWipParts: totalWipParts
   })
 
   const {
@@ -432,6 +442,13 @@ export const WarehouseFGPModule: React.FC = () => {
         setReserveAnalysisItem={setReserveAnalysisItem}
         inventory={inventory}
         nomenclatures={nomenclatures}
+        productionWipData={{
+          groupedWipItems,
+          filteredWipItems,
+          totalWipParts,
+          wipStageTotals,
+          activeWipCardsCount
+        }}
         fetchData={fetchData}
         refreshTable={refreshTable}
       />

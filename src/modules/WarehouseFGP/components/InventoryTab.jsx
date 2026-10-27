@@ -155,8 +155,10 @@ export function InventoryTab({
                   </td>
                   <td style={{ padding: '14px', color: t.textPrimary, fontWeight: 750 }}>{receipt.source}</td>
                   <td style={{ padding: '14px', color: t.textPrimary, fontWeight: 850, whiteSpace: 'nowrap' }}>
-                    {receipt.orderNumber ? `№${receipt.orderNumber}${receipt.batchIndex ? `/${receipt.batchIndex}` : ''}` : '—'}
+                    {receipt.orderNumber ? (receipt.orderNumber.startsWith('№') ? receipt.orderNumber : `№${receipt.orderNumber}`) + (receipt.batchIndex && !receipt.orderNumber.includes('/') ? `/${receipt.batchIndex}` : '') : '—'}
                   </td>
+
+
                   <td style={{ padding: '14px', fontWeight: 900, color: isDark ? '#34d399' : '#059669', whiteSpace: 'nowrap' }}>
                     #{String(receipt.cardId || receipt.id).slice(-8).toUpperCase()}
                   </td>

@@ -37,8 +37,7 @@ export const isSemiStockRow = item => {
   if (!item) return false
   const type = String(item.type || '').toLowerCase()
   return !isHardware(item) && (
-    type === 'semi' || type === 'semi_shop1' || type === 'semi_shop2' ||
-    type === 'bz' || type === 'bz_shop2' || type === 'wip_bz'
+    type === 'semi' || type === 'semi_shop1' || type === 'semi_shop2'
   )
 }
 
@@ -46,7 +45,8 @@ export const isFinishedStockRow = item => {
   if (!item) return false
   const type = String(item.type || '').toLowerCase()
   return !isHardware(item) && !isSemiStockRow(item) && (
-    type === 'finished' || type === 'product' || type === 'part'
+    type === 'finished' || type === 'product' || type === 'part' ||
+    type === 'bz' || type === 'bz_shop2' || type === 'wip_bz'
   )
 }
 

@@ -1,6 +1,7 @@
 import React from 'react'
 import { Archive, Search, Plus, FileSpreadsheet } from 'lucide-react'
 import { Shop2BufferTab } from './Shop2BufferTab'
+import { ProductionWipTab } from './ProductionWipTab'
 import { InventoryTab } from './InventoryTab'
 import { exportSgpStockToExcel } from '../utils/exportSgpExcel.js'
 
@@ -33,6 +34,7 @@ export function InventoryView({
   filteredItems,
   isAdmin,
   setReserveAnalysisItem,
+  productionWipData,
   inventory = [],
   nomenclatures = [],
   fetchData,
@@ -209,13 +211,17 @@ export function InventoryView({
               <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: t.textSecondary }} />
               <input
                 style={{ background: t.inputBg, border: `1.5px solid ${t.inputBorder}`, padding: '10px 14px 10px 36px', borderRadius: '12px', color: t.inputText, fontSize: '0.85rem', outline: 'none', width: '240px' }}
-                placeholder={activeTab === 'shop2_buffer' ? "Пошук деталей або № наряду..." : "Пошук випущених позицій..."}
+                placeholder={
+                  activeTab === 'shop2_buffer' ? "Пошук деталей або № наряду..." :
+                  activeTab === 'semi' ? "Пошук деталей в роботі або № наряду..." :
+                  "Пошук випущених позицій..."
+                }
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
               />
             </div>
 
-            {activeTab !== 'shop2_buffer' && activeTab !== 'registry' && (
+            {activeTab !== 'shop2_buffer' && activeTab !== 'registry' && activeTab !== 'semi' && (
               <button
                 onClick={() => setShowAdd(!showAdd)}
                 style={{ background: '#10b981', color: '#ffffff', border: 'none', padding: '10px 18px', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', boxShadow: '0 2px 8px rgba(16,185,129,0.25)' }}
@@ -226,7 +232,7 @@ export function InventoryView({
           </div>
         </div>
 
-        {showAdd && activeTab !== 'shop2_buffer' && activeTab !== 'registry' && (
+        {showAdd && activeTab !== 'shop2_buffer' && activeTab !== 'registry' && activeTab !== 'semi' && (
           <form onSubmit={handleAddInventoryItem} style={{ display: 'flex', gap: '12px', padding: '16px', background: t.cardHeaderBg, border: `1.5px solid ${t.cardBorder}`, borderRadius: '16px', marginBottom: '25px', flexWrap: 'wrap' }}>
             <input
               style={{ flex: 2, minWidth: '220px', background: t.inputBg, border: `1.5px solid ${t.inputBorder}`, color: t.inputText, padding: '12px', borderRadius: '10px' }}
@@ -258,6 +264,16 @@ export function InventoryView({
             shop2BufferTaskGroups={shop2BufferTaskGroups}
             filteredShop2BufferTaskGroups={filteredShop2BufferTaskGroups}
             shop2BufferConsolidatedItems={shop2BufferConsolidatedItems}
+            searchQuery={searchQuery}
+          />
+        ) : activeTab === 'semi' ? (
+          <ProductionWipTab
+            t={t}
+            isDark={isDark}
+            groupedWipItems={productionWipData?.groupedWipItems || []}
+            filteredWipItems={productionWipData?.filteredWipItems || []}
+            totalWipParts={productionWipData?.totalWipParts || 0}
+            wipStageTotals={productionWipData?.wipStageTotals || {}}
             searchQuery={searchQuery}
           />
         ) : (

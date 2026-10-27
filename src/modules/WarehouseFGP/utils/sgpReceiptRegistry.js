@@ -53,12 +53,28 @@ export function buildSgpReceiptRegistry({
       if (receipt.card_id) historyCardIds.add(String(receipt.card_id))
       const card = cardsById.get(String(receipt.card_id)) || {}
       const task = tasksById.get(String(card.task_id || receipt.task_id)) || {}
-      const order = ordersById.get(String(card.order_id || task.order_id)) || {}
+      const order = ordersById.get(String(card.order_id || task.order_id || receipt.order_id)) || {}
       const nomId = receipt.nomenclature_id || card.nomenclature_id
       const nom = nomsById.get(String(nomId)) || {}
       const timestamp = rowTimestamp(receipt)
       const cardInfo = text(receipt.card_info || card.card_info)
-      const orderFromCard = cardInfo.match(/Наряд\s*№\s*([^\s\[]+)/i)?.[1] || ''
+
+      // Спроба витягнути номер наряду з прив'язаного замовлення або з тексту картки
+      const rawOrderNum = order.order_num || order.number || ''
+      let cleanOrderNum = String(rawOrderNum).replace(/^[№#\s]+/, '').trim()
+
+      if (!cleanOrderNum && cardInfo) {
+        const match = cardInfo.match(/(?:Наряд|Замовлення)?\s*[№#]\s*([0-9]{4,8}(?:-[0-9]+)?|[0-9]+-[0-9]+)/i)
+          || cardInfo.match(/Наряд\s*№?\s*([^\s\[]+)/i)
+        if (match) {
+          cleanOrderNum = match[1].replace(/^[№#\s]+/, '').trim()
+        }
+      }
+
+      const batchIndex = task.batch_index
+        || cardInfo.match(/№\s*(\d+)\s*\/\s*(\d+)/)?.[1]
+        || cleanOrderNum.match(/\/(\d+)$/)?.[1]
+        || ''
 
       return {
         id: receipt.id,
@@ -68,8 +84,8 @@ export function buildSgpReceiptRegistry({
         detailCode: nom.code || '',
         quantity: Number(receipt.qty_completed || card.quantity) || 0,
         source: inferSource(receipt, card),
-        orderNumber: order.order_num || order.number || orderFromCard.replace(/\/\d+$/, ''),
-        batchIndex: task.batch_index || orderFromCard.match(/\/(\d+)$/)?.[1] || '',
+        orderNumber: cleanOrderNum.replace(/\/\d+$/, ''),
+        batchIndex,
         operatorName: receipt.operator_name || card.operator_name || 'Система'
       }
     })
@@ -83,7 +99,22 @@ export function buildSgpReceiptRegistry({
       const order = ordersById.get(String(card.order_id || task.order_id)) || {}
       const nom = nomsById.get(String(card.nomenclature_id)) || {}
       const cardInfo = text(card.card_info)
-      const orderFromCard = cardInfo.match(/Наряд\s*№\s*([^\s\[]+)/i)?.[1] || ''
+
+      const rawOrderNum = order.order_num || order.number || ''
+      let cleanOrderNum = String(rawOrderNum).replace(/^[№#\s]+/, '').trim()
+
+      if (!cleanOrderNum && cardInfo) {
+        const match = cardInfo.match(/(?:Наряд|Замовлення)?\s*[№#]\s*([0-9]{4,8}(?:-[0-9]+)?|[0-9]+-[0-9]+)/i)
+          || cardInfo.match(/Наряд\s*№?\s*([^\s\[]+)/i)
+        if (match) {
+          cleanOrderNum = match[1].replace(/^[№#\s]+/, '').trim()
+        }
+      }
+
+      const batchIndex = task.batch_index
+        || cardInfo.match(/№\s*(\d+)\s*\/\s*(\d+)/)?.[1]
+        || cleanOrderNum.match(/\/(\d+)$/)?.[1]
+        || ''
 
       return {
         id: `card-completed-${card.id}`,
@@ -93,8 +124,8 @@ export function buildSgpReceiptRegistry({
         detailCode: nom.code || '',
         quantity: Number(card.quantity) || 0,
         source: inferSource(null, card),
-        orderNumber: order.order_num || order.number || orderFromCard.replace(/\/\d+$/, ''),
-        batchIndex: task.batch_index || orderFromCard.match(/\/(\d+)$/)?.[1] || '',
+        orderNumber: cleanOrderNum.replace(/\/\d+$/, ''),
+        batchIndex,
         operatorName: card.operator_name || 'Система'
       }
     })

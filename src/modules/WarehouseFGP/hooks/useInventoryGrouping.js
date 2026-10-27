@@ -9,10 +9,11 @@ export function useInventoryGrouping({
   searchQuery = '',
   receiptRows,
   totalShop2BufferParts,
-  receiptTotalCount = null
+  receiptTotalCount = null,
+  totalProductionWipParts = null
 }) {
   const rawTabItems = useMemo(() => {
-    if (activeTab === 'shop2_buffer') return []
+    if (activeTab === 'shop2_buffer' || activeTab === 'semi') return []
     return (inventory || []).filter(item => {
       const type = item.type || ''
       const nameLower = (item.name || '').toLowerCase()
@@ -94,10 +95,11 @@ export function useInventoryGrouping({
         counts.scrap += q
       }
     })
+    counts.semi = totalProductionWipParts !== null ? totalProductionWipParts : counts.semi
     counts.shop2_buffer = totalShop2BufferParts
     counts.registry = receiptTotalCount ?? (receiptRows || []).length
     return counts
-  }, [inventory, receiptRows, receiptTotalCount, totalShop2BufferParts])
+  }, [inventory, receiptRows, receiptTotalCount, totalShop2BufferParts, totalProductionWipParts])
 
   return {
     rawTabItems,

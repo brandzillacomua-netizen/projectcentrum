@@ -371,8 +371,9 @@ export function StockCardsAnalysisModal({
                         </button>
                       </td>
                       <td style={{ padding: '12px', color: t.textPrimary, fontWeight: 900, whiteSpace: 'nowrap' }}>
-                        {receipt.orderNumber ? `№${receipt.orderNumber}${receipt.batchIndex ? `/${receipt.batchIndex}` : ''}` : '—'}
+                        {receipt.orderNumber ? (receipt.orderNumber.startsWith('№') ? receipt.orderNumber : `№${receipt.orderNumber}`) + (receipt.batchIndex && !receipt.orderNumber.includes('/') ? `/${receipt.batchIndex}` : '') : '—'}
                       </td>
+
                       <td style={{ padding: '12px', textAlign: 'center' }}>
                         <span style={{
                           display: 'inline-flex',
