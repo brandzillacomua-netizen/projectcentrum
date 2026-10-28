@@ -546,10 +546,9 @@ export const getLegacyIdsForNomId = (input, nomenclatures = []) => {
 };
 
 /**
- * Calculates free available stock on SGP warehouse for a given nomenclature item.
+ * Computes available stock specifically on SGP warehouse and BZ ready buffers
+ * for nomenclature-aware naryad generation and planning.
  * Supports V2 canonical ID, legacy V1 IDs, and normalized name fallback matching.
- * NOTE: type='bz' is intentionally EXCLUDED — it tracks parts transferred to Shop2 buffer,
- * not available stock for naryad planning.
  */
 export const getAvailableSGPStock = (partNom, inventory) => {
   if (!partNom || !Array.isArray(inventory)) return 0;
@@ -565,8 +564,9 @@ export const getAvailableSGPStock = (partNom, inventory) => {
     const idMatch = iNomId && (iNomId === partNomId || partLegacyIds.has(iNomId));
     const nameMatch = Boolean(normPartName && iName === normPartName);
 
-    // 'bz' is Shop2 buffer accounting — never count it as available SGP stock
-    const isAvailableType = i.type === 'finished' || i.type === 'part' || i.warehouse === 'sgp';
+    const type = String(i.type || '').toLowerCase();
+    const isAvailableType = type === 'finished' || type === 'product' || type === 'part' ||
+      type === 'bz' || type === 'bz_shop2' || type === 'wip_bz' || i.warehouse === 'sgp';
     const isNotPocket = !i.pocket_owner || i.pocket_owner === 'Не вказано';
 
     return (idMatch || nameMatch) && isAvailableType && isNotPocket;
@@ -592,7 +592,9 @@ export const findMatchingSGPInventoryItem = (partNom, inventory) => {
     const idMatch = iNomId && (iNomId === partNomId || partLegacyIds.has(iNomId));
     const nameMatch = Boolean(normPartName && iName === normPartName);
 
-    const isAvailableType = i.type === 'bz' || i.type === 'finished' || i.type === 'part' || i.warehouse === 'sgp';
+    const type = String(i.type || '').toLowerCase();
+    const isAvailableType = type === 'finished' || type === 'product' || type === 'part' ||
+      type === 'bz' || type === 'bz_shop2' || type === 'wip_bz' || i.warehouse === 'sgp';
     const isNotPocket = !i.pocket_owner || i.pocket_owner === 'Не вказано';
 
     return (idMatch || nameMatch) && isAvailableType && isNotPocket;
