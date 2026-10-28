@@ -25,13 +25,22 @@ export function useWarehouseRealtime(fetchData) {
         if (includeRelatedData && typeof fetchDataRef.current === 'function') {
           await fetchDataRef.current(['inventory', 'orders', 'tasks', 'nomenclatures', 'work_cards'])
         }
-        const { data, error } = await supabase
-          .from('material_requests')
-          .select('*')
-          .order('created_at', { ascending: false })
-          .limit(300)
-        if (error) throw error
-        if (Array.isArray(data)) setLiveRequests(data)
+        const [recentRes, issuedRes] = await Promise.all([
+          supabase
+            .from('material_requests')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(300),
+          supabase
+            .from('material_requests')
+            .select('*')
+            .eq('status', 'issued')
+        ])
+        if (recentRes.error) throw recentRes.error
+        const mergedMap = new Map()
+        ;(recentRes.data || []).forEach(r => { if (r?.id) mergedMap.set(r.id, r) })
+        ;(issuedRes.data || []).forEach(r => { if (r?.id && !mergedMap.has(r.id)) mergedMap.set(r.id, r) })
+        setLiveRequests(Array.from(mergedMap.values()))
       } catch (err) {
         console.warn('[WarehouseFGP] runQueueRefresh error:', err)
       } finally {

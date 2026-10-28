@@ -41,10 +41,10 @@ describe('packaging and SGP request fulfillment', () => {
 
   it('uses one concrete SGP inventory row by ID instead of summing duplicate rows', () => {
     const inventory = [
-      { id: 'main-stock', nomenclature_id: 'part-1', name: 'Same name', type: 'wip_bz', total_qty: 23279, reserved_qty: 151 },
+      { id: 'main-stock', nomenclature_id: 'part-1', name: 'Same name', type: 'wip_bz', warehouse: 'operational', total_qty: 23279, reserved_qty: 151 },
       { nomenclature_id: 'part-1', name: 'Operational row', type: 'raw', warehouse: 'operational', total_qty: 3892, reserved_qty: 0 },
       { nomenclature_id: 'part-1', name: 'SGP raw row', type: 'raw', warehouse: 'sgp', total_qty: 9, reserved_qty: 0 },
-      { id: 'duplicate-stock', nomenclature_id: 'part-1', name: 'Duplicate SGP row', type: 'wip_bz', total_qty: 9, reserved_qty: 0 },
+      { id: 'duplicate-stock', nomenclature_id: 'part-1', name: 'Duplicate SGP row', type: 'wip_bz', warehouse: 'operational', total_qty: 9, reserved_qty: 0 },
       { nomenclature_id: 'wrong-id', name: 'Same name', total_qty: 50000, reserved_qty: 0 }
     ]
 
@@ -52,7 +52,7 @@ describe('packaging and SGP request fulfillment', () => {
   })
 
   it('uses the exact free balance displayed by the grouped SGP inventory table', () => {
-    const rawItem = { id: 'correct-inventory-row', nomenclature_id: 'canonical-part', name: 'F415-ІП27-П-10-38', type: 'wip_bz', total_qty: 23279, reserved_qty: 151 }
+    const rawItem = { id: 'correct-inventory-row', nomenclature_id: 'canonical-part', name: 'F415-ІП27-П-10-38', type: 'wip_bz', warehouse: 'operational', total_qty: 23279, reserved_qty: 151 }
     const groupedItems = [
       { nomenclature_id: 'canonical-part', name: 'F415-ІП27-П-10-38', total_qty: 23279, reserved_qty: 151, rawItems: [rawItem] }
     ]
@@ -71,8 +71,8 @@ describe('packaging and SGP request fulfillment', () => {
       nomenclature_id: 'canonical-part',
       name: 'F415-ІП27-К-3-9',
       rawItems: [
-        { id: 'row-1', name: 'F415-ІП27-К-3-9', type: 'wip_bz', total_qty: 3413, reserved_qty: 0 },
-        { id: 'row-2', name: 'F415-ІП27-К-3-9', type: 'wip_bz', total_qty: 3211, reserved_qty: 54 }
+        { id: 'row-1', name: 'F415-ІП27-К-3-9', type: 'wip_bz', warehouse: 'operational', total_qty: 3413, reserved_qty: 0 },
+        { id: 'row-2', name: 'F415-ІП27-К-3-9', type: 'wip_bz', warehouse: 'operational', total_qty: 3211, reserved_qty: 54 }
       ]
     }]
     const nomenclatures = [{ id: 'canonical-part', legacy_ids: ['legacy-request-id'], name: 'F415-ІП27-К-3-9' }]

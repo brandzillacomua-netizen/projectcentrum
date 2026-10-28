@@ -29,6 +29,13 @@ export const isHardware = item => {
   )
 }
 
+// Types that appear in the warehouse=sgp / operational buckets and are genuine finished goods
+const FINISHED_STOCK_TYPES = new Set(['finished', 'part', 'product'])
+
+// Types that are in-process buffers between shops (БЗ / WIP)
+const WIP_BUFFER_TYPES = new Set(['bz', 'bz_shop2', 'wip_bz'])
+
+// All types that count as SGP-tracked stock (for Naryad allocation logic)
 const SGP_DETAIL_TYPES = new Set([
   'finished', 'part', 'product', 'bz', 'bz_shop2', 'wip_bz', 'semi', 'semi_shop2'
 ])
@@ -41,21 +48,35 @@ export const isSemiStockRow = item => {
   )
 }
 
+/**
+ * Returns true only for physically finished goods on the SGP shelf.
+ * WIP buffers (bz, wip_bz, bz_shop2) are NOT finished goods — they are
+ * parts still moving through Shop 1 → Shop 2 → packaging.
+ */
 export const isFinishedStockRow = item => {
   if (!item) return false
   const type = String(item.type || '').toLowerCase()
-  return !isHardware(item) && !isSemiStockRow(item) && (
-    type === 'finished' || type === 'product' || type === 'part' ||
-    type === 'bz' || type === 'bz_shop2' || type === 'wip_bz'
-  )
+  const warehouse = String(item.warehouse || '').toLowerCase()
+  // Only rows explicitly on the sgp warehouse with a finished-goods type
+  return !isHardware(item) && !isSemiStockRow(item) &&
+    warehouse === 'sgp' &&
+    FINISHED_STOCK_TYPES.has(type)
 }
 
+/**
+ * Returns true for any row that contributes to the SGP stock pool
+ * (used for naryad allocation and packaging issue — includes BZ buffers as a fallback source).
+ * Note: warehouse field may be absent on legacy records; WIP_BUFFER_TYPES are always operational.
+ */
 export const isSgpStockRow = item => {
   if (!item) return false
   const type = String(item.type || '').toLowerCase()
-  const nameLower = String(item.name || '').toLowerCase()
+  const warehouse = String(item.warehouse || '').toLowerCase()
   return !isHardware(item) && (
-    SGP_DETAIL_TYPES.has(type) || nameLower.includes('бз') || nameLower.includes('буфер')
+    (warehouse === 'sgp' && FINISHED_STOCK_TYPES.has(type)) ||
+    // BZ buffers are operational by nature — accept even when warehouse field is absent
+    WIP_BUFFER_TYPES.has(type) ||
+    (warehouse === 'operational' && SGP_DETAIL_TYPES.has(type))
   )
 }
 

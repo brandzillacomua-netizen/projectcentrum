@@ -25,10 +25,7 @@ export function useInventoryGrouping({
         return isSemiStockRow(item)
       }
       if (activeTab === 'finished') {
-        // Exclude empty non-sgp operational/buffer ghost rows
-        if (item.warehouse !== 'sgp' && (Number(item.total_qty) || 0) <= 0 && (Number(item.reserved_qty) || 0) <= 0) {
-          return false
-        }
+        // Only real finished goods on the SGP shelf — no BZ/WIP buffers
         return isFinishedStockRow(item)
       }
       if (activeTab === 'scrap') {
@@ -38,6 +35,24 @@ export function useInventoryGrouping({
     })
   }, [inventory, activeTab])
 
+  const canonicalNomMap = useMemo(() => {
+    const map = new Map()
+    ;(nomenclatures || []).forEach(n => {
+      if (!n) return
+      const cid = String(n.id || n.v2_id || '')
+      if (!cid) return
+      map.set(cid, cid)
+      if (n.v2_id) map.set(String(n.v2_id), cid)
+      if (n.legacy_id) map.set(String(n.legacy_id), cid)
+      if (Array.isArray(n.legacy_ids)) {
+        n.legacy_ids.forEach(lid => {
+          if (lid) map.set(String(lid), cid)
+        })
+      }
+    })
+    return map
+  }, [nomenclatures])
+
   // Group items by unique product identity and aggregate quantities
   const groupedItems = useMemo(() => {
     const map = new Map()
@@ -45,8 +60,9 @@ export function useInventoryGrouping({
     rawTabItems.forEach(item => {
       const cleanName = (item.name || '').trim()
       const normName = normalizeKey(cleanName)
-      const canonicalNomId = item.nomenclature_id
-        ? resolveCanonicalNomId(item.nomenclature_id, nomenclatures)
+      const rawNomId = item.nomenclature_id ? String(item.nomenclature_id) : null
+      const canonicalNomId = rawNomId
+        ? (canonicalNomMap.get(rawNomId) || resolveCanonicalNomId(rawNomId, nomenclatures))
         : null
       const key = canonicalNomId ? `nom_${canonicalNomId}` : `name_${normName}`
 

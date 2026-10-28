@@ -507,6 +507,53 @@ export async function fetchCurrentVkyaItems(supabase, taskIds = [], orderIds = [
   return items
 }
 
+async function preventVkyaSgpInflation(supabase, nomenclatureId, beforeSgpQty, expectedDelta) {
+  if (!nomenclatureId || !expectedDelta || expectedDelta <= 0 || beforeSgpQty === null) return
+  try {
+    const { data: afterSgp } = await supabase
+      .from('inventory')
+      .select('id, name, unit, total_qty')
+      .eq('nomenclature_id', nomenclatureId)
+      .eq('warehouse', 'sgp')
+      .eq('type', 'finished')
+      .limit(1)
+      .maybeSingle()
+    if (!afterSgp) return
+    const currentTotal = Number(afterSgp.total_qty) || 0
+    if (currentTotal === beforeSgpQty + Number(expectedDelta)) {
+      await supabase
+        .from('inventory')
+        .update({ total_qty: beforeSgpQty })
+        .eq('id', afterSgp.id)
+      const { data: s2Row } = await supabase
+        .from('inventory')
+        .select('id, total_qty')
+        .eq('nomenclature_id', nomenclatureId)
+        .eq('type', 'semi_shop2')
+        .limit(1)
+        .maybeSingle()
+      if (s2Row) {
+        await supabase
+          .from('inventory')
+          .update({ total_qty: (Number(s2Row.total_qty) || 0) + Number(expectedDelta), warehouse: 'production' })
+          .eq('id', s2Row.id)
+      } else {
+        await supabase.from('inventory').insert([{
+          nomenclature_id: nomenclatureId,
+          name: afterSgp.name || 'Деталь',
+          unit: afterSgp.unit || 'шт',
+          total_qty: Number(expectedDelta),
+          reserved_qty: 0,
+          type: 'semi_shop2',
+          warehouse: 'production'
+        }])
+      }
+    }
+  } catch (e) {
+    console.warn('[VKYA] preventVkyaSgpInflation warning:', e)
+  }
+}
+
 export async function returnQualityHoldToRoute(supabase, {
   sourceHistoryId,
   quantity,
@@ -514,6 +561,17 @@ export async function returnQualityHoldToRoute(supabase, {
   userName = null,
   notes = null
 }) {
+  let nomId = null
+  let beforeSgpQty = null
+  try {
+    const { data: hist } = await supabase.from('work_card_history').select('nomenclature_id').eq('id', sourceHistoryId).maybeSingle()
+    nomId = hist?.nomenclature_id || null
+    if (nomId) {
+      const { data: sgpRow } = await supabase.from('inventory').select('total_qty').eq('nomenclature_id', nomId).eq('warehouse', 'sgp').eq('type', 'finished').limit(1).maybeSingle()
+      if (sgpRow) beforeSgpQty = Number(sgpRow.total_qty) || 0
+    }
+  } catch {}
+
   const { data, error } = await supabase.rpc('return_vkya_quantity_to_route', {
     p_source_history_id: sourceHistoryId,
     p_quantity: Number(quantity),
@@ -522,6 +580,7 @@ export async function returnQualityHoldToRoute(supabase, {
     p_notes: notes
   })
   if (error) throw error
+  await preventVkyaSgpInflation(supabase, nomId, beforeSgpQty, Number(quantity))
   return data
 }
 
@@ -547,11 +606,25 @@ export async function returnRestorationToRoute(supabase, {
   restorationCardId,
   userName = null
 }) {
+  let nomId = null
+  let completedQty = 0
+  let beforeSgpQty = null
+  try {
+    const { data: restCard } = await supabase.from('vkya_restoration_cards').select('nomenclature_id, completed_quantity').eq('id', restorationCardId).maybeSingle()
+    nomId = restCard?.nomenclature_id || null
+    completedQty = Number(restCard?.completed_quantity) || 0
+    if (nomId) {
+      const { data: sgpRow } = await supabase.from('inventory').select('total_qty').eq('nomenclature_id', nomId).eq('warehouse', 'sgp').eq('type', 'finished').limit(1).maybeSingle()
+      if (sgpRow) beforeSgpQty = Number(sgpRow.total_qty) || 0
+    }
+  } catch {}
+
   const { data, error } = await supabase.rpc('return_vkya_restoration_to_route', {
     p_restoration_card_id: restorationCardId,
     p_returned_by: userName
   })
   if (error) throw error
+  await preventVkyaSgpInflation(supabase, nomId, beforeSgpQty, completedQty)
   return data
 }
 

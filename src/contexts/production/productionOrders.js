@@ -84,8 +84,8 @@ export function createProductionOrdersActions({
     const { data: workCards } = await wcQuery
     const cardIds = (workCards || []).map(c => c.id)
 
-    // 3. Revert BZ reservations and restore deducted total_qty
-    let bzQuery = supabase.from('bz_inventory_reservations').select('*')
+    // 3. Mark any legacy bz_inventory_reservations as released without creating duplicate bz rows or double-adding total_qty
+    let bzQuery = supabase.from('bz_inventory_reservations').select('id, status')
     if (taskIds.length > 0) {
       bzQuery = bzQuery.or(`order_id.eq.${orderId},task_id.in.(${taskIds.join(',')})`)
     } else {
@@ -93,31 +93,17 @@ export function createProductionOrdersActions({
     }
     const { data: bzRes } = await bzQuery
     if (bzRes && bzRes.length > 0) {
-      const opIds = [...new Set(bzRes.map(r => r.operation_id).filter(Boolean))]
-      for (const opId of opIds) {
-        await supabase.rpc('release_bz_reservation', {
-          p_operation_id: opId,
-          p_reason: isSuper ? 'Супер-видалення замовлення' : 'Видалення замовлення'
-        }).catch(() => {})
-      }
-
-      // Restore total_qty on finished/part inventory that was deducted upon naryad creation
-      for (const res of bzRes) {
-        const allocQty = Number(res.allocated_qty || 0)
-        if (allocQty > 0 && res.nomenclature_id) {
-          const { data: invItems } = await supabase
-            .from('inventory')
-            .select('id, total_qty')
-            .eq('nomenclature_id', res.nomenclature_id)
-            .in('type', ['finished', 'part'])
-            .eq('warehouse', 'sgp')
-            .limit(1)
-          if (invItems && invItems.length > 0) {
-            const inv = invItems[0]
-            const restored = (Number(inv.total_qty) || 0) + allocQty
-            await supabase.from('inventory').update({ total_qty: restored }).eq('id', inv.id).catch(() => {})
-          }
-        }
+      const activeResIds = bzRes.filter(r => r.status === 'allocated').map(r => r.id)
+      if (activeResIds.length > 0) {
+        await supabase
+          .from('bz_inventory_reservations')
+          .update({
+            status: 'released',
+            release_reason: isSuper ? 'Супер-видалення замовлення' : 'Видалення замовлення',
+            released_at: new Date().toISOString()
+          })
+          .in('id', activeResIds)
+          .catch(() => {})
       }
     }
 

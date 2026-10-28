@@ -239,9 +239,17 @@ export const ReserveAnalysisModal = ({
       }
     }
 
-    const isBz = (req.details || '').includes('AUTO_SGP_RESERVATION') ||
-      (req.details || '').toLowerCase().includes('буфер') ||
-      (req.details || '').toLowerCase().includes('бз')
+    const detailsText = String(req.details || '')
+    const isBz = detailsText.includes('AUTO_SGP_RESERVATION') ||
+      detailsText.toLowerCase().includes('буфер') ||
+      detailsText.toLowerCase().includes('бз')
+    const isOrderOutput = !isBz && (
+      detailsText.includes('AUTO_SHOP2_RESERVATION') ||
+      detailsText.includes('ЗАПИТ НА КОМПЛЕКТУВАННЯ') ||
+      warehouseKey === 'sgp' ||
+      warehouseKey === 'сгп' ||
+      item?.type === 'finished'
+    )
 
     return {
       id: `req-${req.id}`,
@@ -253,7 +261,8 @@ export const ReserveAnalysisModal = ({
       taskId: req.task_id,
       orderId: req.order_id,
       isPrep,
-      isBz
+      isBz,
+      isOrderOutput
     }
   })
 
@@ -485,7 +494,12 @@ export const ReserveAnalysisModal = ({
                         )}
                         {detail.isBz && (
                           <span style={{ fontSize: '0.65rem', padding: '2px 6px', borderRadius: '5px', background: isLight ? '#fef3c7' : 'rgba(245, 158, 11, 0.2)', border: `1px solid ${isLight ? '#fde68a' : 'rgba(245, 158, 11, 0.4)'}`, color: isLight ? '#b45309' : '#fbbf24', fontWeight: 800 }}>
-                            Буфер БЗ
+                            Бронь зі складу СГП
+                          </span>
+                        )}
+                        {detail.isOrderOutput && (
+                          <span style={{ fontSize: '0.65rem', padding: '2px 6px', borderRadius: '5px', background: isLight ? '#f5f3ff' : 'rgba(139, 92, 246, 0.2)', border: `1px solid ${isLight ? '#ddd6fe' : 'rgba(139, 92, 246, 0.4)'}`, color: isLight ? '#6d28d9' : '#c4b5fd', fontWeight: 800 }}>
+                            Під випуск наряду
                           </span>
                         )}
                       </div>

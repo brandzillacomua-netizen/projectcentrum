@@ -37,6 +37,7 @@ export function InventoryView({
   productionWipData,
   inventory = [],
   nomenclatures = [],
+  liveRequests = null,
   fetchData,
   refreshTable
 }) {
@@ -288,6 +289,7 @@ export function InventoryView({
             searchQuery={searchQuery}
             isAdmin={isAdmin}
             setReserveAnalysisItem={setReserveAnalysisItem}
+            liveRequests={liveRequests}
             fetchData={fetchData}
             refreshTable={refreshTable}
           />

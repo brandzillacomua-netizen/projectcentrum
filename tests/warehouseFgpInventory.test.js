@@ -24,25 +24,36 @@ describe('warehouse FGP inventory identity', () => {
     expect(isHardware({ type: 'finished', name: 'Табличка готова' })).toBe(false)
   })
 
-  it.each(['finished', 'product', 'part', 'bz', 'bz_shop2', 'wip_bz'])(
-    'classifies ready inventory type %s as finished stock',
+  it.each(['finished', 'product', 'part'])(
+    'classifies type %s on sgp warehouse as finished stock',
     type => {
-      expect(isFinishedStockRow({ type, name: 'Деталь карбонова' })).toBe(true)
-      expect(isSemiStockRow({ type, name: 'Деталь карбонова' })).toBe(false)
+      expect(isFinishedStockRow({ type, warehouse: 'sgp', name: 'Деталь карбонова' })).toBe(true)
+      expect(isSemiStockRow({ type, warehouse: 'sgp', name: 'Деталь карбонова' })).toBe(false)
     }
   )
+
+  it.each(['bz', 'bz_shop2', 'wip_bz'])(
+    'does NOT classify WIP buffer type %s as finished stock (it is in-process)',
+    type => {
+      expect(isFinishedStockRow({ type, warehouse: 'operational', name: 'Деталь карбонова' })).toBe(false)
+    }
+  )
+
+  it('does not classify finished type on non-sgp warehouse as finished stock', () => {
+    expect(isFinishedStockRow({ type: 'finished', warehouse: 'operational', name: 'Деталь' })).toBe(false)
+  })
 
   it.each(['semi', 'semi_shop1', 'semi_shop2'])(
     'classifies intermediate type %s as semi stock',
     type => {
-      expect(isSemiStockRow({ type, name: 'Заготовка' })).toBe(true)
-      expect(isFinishedStockRow({ type, name: 'Заготовка' })).toBe(false)
+      expect(isSemiStockRow({ type, warehouse: 'operational', name: 'Заготовка' })).toBe(true)
+      expect(isFinishedStockRow({ type, warehouse: 'operational', name: 'Заготовка' })).toBe(false)
     }
   )
 })
 
 describe('getAvailableSGPStock', () => {
-  it('correctly aggregates finished, bz, and wip_bz available stock for naryad planning', () => {
+  it('counts only finished SGP stock and ignores operational WIP/BZ buffers for naryad planning', () => {
     const partNom = {
       id: 'nom-90755',
       name: 'Київ К-ІП9/10/31/36/37-9-10-11-Х-3-39'
@@ -53,17 +64,17 @@ describe('getAvailableSGPStock', () => {
         name: 'Київ К-ІП9/10/31/36/37-9-10-11-Х-3-39',
         type: 'finished',
         warehouse: 'sgp',
-        total_qty: 1852,
-        reserved_qty: 0,
+        total_qty: 21552,
+        reserved_qty: 15700,
         pocket_owner: null
       },
       {
         nomenclature_id: 'nom-90755',
         name: 'Київ К-ІП9/10/31/36/37-9-10-11-Х-3-39',
-        type: 'bz',
+        type: 'bz_shop2',
         warehouse: 'operational',
         total_qty: 10000,
-        reserved_qty: 2700,
+        reserved_qty: 0,
         pocket_owner: null
       },
       {
@@ -77,14 +88,14 @@ describe('getAvailableSGPStock', () => {
       }
     ]
 
-    expect(getAvailableSGPStock(partNom, inventory)).toBe(11852)
+    expect(getAvailableSGPStock(partNom, inventory)).toBe(5852)
   })
 
   it('excludes pocket_owner items from generic available SGP stock', () => {
     const partNom = { id: 'nom-1', name: 'Деталь 1' }
     const inventory = [
-      { nomenclature_id: 'nom-1', name: 'Деталь 1', type: 'finished', total_qty: 100, reserved_qty: 0, pocket_owner: 'Замовник А' },
-      { nomenclature_id: 'nom-1', name: 'Деталь 1', type: 'finished', total_qty: 50, reserved_qty: 0, pocket_owner: null }
+      { nomenclature_id: 'nom-1', name: 'Деталь 1', type: 'finished', warehouse: 'sgp', total_qty: 100, reserved_qty: 0, pocket_owner: 'Замовник А' },
+      { nomenclature_id: 'nom-1', name: 'Деталь 1', type: 'finished', warehouse: 'sgp', total_qty: 50, reserved_qty: 0, pocket_owner: null }
     ]
     expect(getAvailableSGPStock(partNom, inventory)).toBe(50)
   })

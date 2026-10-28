@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { Pencil, Eye, Trash2, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react'
 import { supabase } from '../../../supabase'
 import { useStore } from '../../../store/index.js'
 import { filterSgpReceiptRegistry } from '../utils/sgpReceiptRegistry.js'
 import { StockCardsAnalysisModal } from './StockCardsAnalysisModal'
-import { resolveCanonicalNomId } from '../../Nomenclature/utils/nomenclatureHelpers.js'
 import { normalizeKey } from '../warehouseFgpInventory.js'
+import { requestBelongsToOpenWork } from '../../../services/reservationLedger.js'
 
 export function InventoryTab({
   t,
@@ -18,11 +18,15 @@ export function InventoryTab({
   searchQuery,
   isAdmin,
   setReserveAnalysisItem,
+  liveRequests = null,
   fetchData,
   refreshTable
 }) {
   const nomenclatures = useStore(state => state.nomenclatures) || []
   const inventory = useStore(state => state.inventory) || []
+  const storeRequests = useStore(state => state.requests) || []
+  const orders = useStore(state => state.orders) || []
+  const tasks = useStore(state => state.tasks) || []
   const [editingInvKey, setEditingInvKey] = useState(null)
   const [editingInvTotal, setEditingInvTotal] = useState('')
   const [editingInvReserved, setEditingInvReserved] = useState('')
@@ -31,6 +35,93 @@ export function InventoryTab({
   const [stockAnalysisItem, setStockAnalysisItem] = useState(null)
   const [registryPage, setRegistryPage] = useState(1)
   const [registryPageSize, setRegistryPageSize] = useState(50)
+
+  const { nomByIdMap, canonicalIdMap, invByCanonicalNom, invByNormName, stockReserveByInvId, orderReserveByInvId } = useMemo(() => {
+    const nomById = new Map()
+    const canMap = new Map()
+    ;(nomenclatures || []).forEach(n => {
+      if (!n) return
+      const cid = String(n.id || n.v2_id || '')
+      if (!cid) return
+      nomById.set(cid, n)
+      canMap.set(cid, cid)
+      if (n.v2_id) {
+        nomById.set(String(n.v2_id), n)
+        canMap.set(String(n.v2_id), cid)
+      }
+      if (n.legacy_id) {
+        nomById.set(String(n.legacy_id), n)
+        canMap.set(String(n.legacy_id), cid)
+      }
+      if (Array.isArray(n.legacy_ids)) {
+        n.legacy_ids.forEach(lid => {
+          if (lid) {
+            nomById.set(String(lid), n)
+            canMap.set(String(lid), cid)
+          }
+        })
+      }
+    })
+
+    const byNom = new Map()
+    const byName = new Map()
+    ;(inventory || []).forEach(r => {
+      if (!r) return
+      if (r.nomenclature_id) {
+        const rawId = String(r.nomenclature_id)
+        const cid = canMap.get(rawId) || rawId
+        let list = byNom.get(cid)
+        if (!list) {
+          list = []
+          byNom.set(cid, list)
+        }
+        list.push(r)
+      }
+      const nKey = normalizeKey(r.name)
+      if (nKey) {
+        let list = byName.get(nKey)
+        if (!list) {
+          list = []
+          byName.set(nKey, list)
+        }
+        list.push(r)
+      }
+    })
+
+    const reqMap = new Map()
+    ;(Array.isArray(storeRequests) ? storeRequests : []).forEach(r => { if (r?.id) reqMap.set(String(r.id), r) })
+    ;(Array.isArray(liveRequests) ? liveRequests : []).forEach(r => { if (r?.id) reqMap.set(String(r.id), r) })
+
+    const safeTasks = Array.isArray(tasks) ? tasks : []
+    const safeOrders = Array.isArray(orders) ? orders : []
+    const stockByInv = new Map()
+    const orderByInv = new Map()
+
+    reqMap.forEach(r => {
+      if (!r || r.status !== 'issued') return
+      const qty = Number(r.quantity) || 0
+      if (qty <= 0) return
+      if (!requestBelongsToOpenWork(r, safeTasks, safeOrders)) return
+      const invId = r.inventory_id ? String(r.inventory_id) : null
+      if (!invId) return
+      const details = String(r.details || '')
+      const isStockReservation = details.includes('AUTO_SGP_RESERVATION')
+      if (isStockReservation) {
+        stockByInv.set(invId, (stockByInv.get(invId) || 0) + qty)
+      } else {
+        orderByInv.set(invId, (orderByInv.get(invId) || 0) + qty)
+      }
+    })
+
+    return {
+      nomByIdMap: nomById,
+      canonicalIdMap: canMap,
+      invByCanonicalNom: byNom,
+      invByNormName: byName,
+      stockReserveByInvId: stockByInv,
+      orderReserveByInvId: orderByInv
+    }
+  }, [nomenclatures, inventory, storeRequests, liveRequests, orders, tasks])
 
   useEffect(() => {
     setRegistryPage(1)
@@ -296,40 +387,92 @@ export function InventoryTab({
               <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: isDark ? '#34d399' : '#10b981' }} /> НАЯВНІСТЬ
             </span>
           </th>
-          <th style={{ padding: '14px 16px', textAlign: 'center', width: '140px' }}>
+          <th style={{ padding: '14px 16px', textAlign: 'center', width: '140px' }} title="Чистий вільний залишок, доступний для бронювання в нові наряди">
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: isDark ? '#38bdf8' : '#0284c7', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
               <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: isDark ? '#38bdf8' : '#0284c7' }} /> ВІЛЬНО
             </span>
           </th>
-          <th style={{ padding: '14px 16px', textAlign: 'center', width: '140px' }}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: isDark ? '#fbbf24' : '#b45309', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: isDark ? '#fbbf24' : '#f59e0b' }} /> РЕЗЕРВ
-            </span>
-          </th>
+          {activeTab === 'finished' ? (
+            <>
+              <th style={{ padding: '14px 16px', textAlign: 'center', width: '155px' }} title="Деталі, здані Цехом №2 під поточні наряди (чекають комплектування та пакування)">
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: isDark ? '#a78bfa' : '#6d28d9', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: isDark ? '#a78bfa' : '#7c3aed' }} /> ПІД НАРЯДИ
+                </span>
+              </th>
+              <th style={{ padding: '14px 16px', textAlign: 'center', width: '165px' }} title="Вільний залишок СГП, заброньований у нові наряди при їх створенні замість порізки">
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: isDark ? '#fbbf24' : '#b45309', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: isDark ? '#fbbf24' : '#f59e0b' }} /> БРОНЬ ЗІ СКЛАДУ
+                </span>
+              </th>
+            </>
+          ) : (
+            <th style={{ padding: '14px 16px', textAlign: 'center', width: '140px' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: isDark ? '#fbbf24' : '#b45309', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: isDark ? '#fbbf24' : '#f59e0b' }} /> РЕЗЕРВ
+              </span>
+            </th>
+          )}
           <th style={{ padding: '14px 16px', textAlign: 'right', width: '80px' }}>ДІЇ</th>
         </tr>
       </thead>
       <tbody>
         {filteredItems.map(item => {
-          const linkedNom = item.nomenclature_id && nomenclatures.find(n =>
-            String(n.id) === String(item.nomenclature_id) ||
-            (n.legacy_ids || []).some(id => String(id) === String(item.nomenclature_id))
-          )
+          const rawNomId = item.nomenclature_id ? String(item.nomenclature_id) : null
+          const linkedNom = rawNomId ? nomByIdMap.get(rawNomId) : null
           const itemCode = linkedNom?.code || '—'
 
-          const canNomId = item.nomenclature_id ? resolveCanonicalNomId(item.nomenclature_id, nomenclatures) : null
+          const canNomId = rawNomId ? (canonicalIdMap.get(rawNomId) || rawNomId) : null
           const normName = normalizeKey(item.name)
-          const allMatchingRows = (inventory || []).filter(r => {
-            if (!r) return false
-            if (canNomId && r.nomenclature_id) {
-              return resolveCanonicalNomId(r.nomenclature_id, nomenclatures) === canNomId
-            }
-            return normalizeKey(r.name) === normName
-          })
+          const allMatchingRows = canNomId
+            ? (invByCanonicalNom.get(canNomId) || invByNormName.get(normName) || [])
+            : (invByNormName.get(normName) || [])
           const currentIds = new Set(item.rawItems ? item.rawItems.map(ri => String(ri.id)) : [String(item.id)])
           const otherRows = allMatchingRows.filter(r => !currentIds.has(String(r.id)))
           const otherWarehouseReserve = otherRows.reduce((sum, r) => sum + (Number(r.reserved_qty) || 0), 0)
           const relatedInventoryIds = allMatchingRows.map(r => r.id).filter(Boolean)
+
+          const totalReserved = Number(item.reserved_qty) || 0
+          let rawStockRes = 0
+          let rawOrderRes = 0
+          currentIds.forEach(cid => {
+            rawStockRes += stockReserveByInvId.get(cid) || 0
+            rawOrderRes += orderReserveByInvId.get(cid) || 0
+          })
+
+          let orderReserveQty = 0
+          let stockReserveQty = 0
+          if (totalReserved > 0) {
+            if (rawStockRes + rawOrderRes === totalReserved) {
+              stockReserveQty = rawStockRes
+              orderReserveQty = rawOrderRes
+            } else if (rawOrderRes > 0 && rawStockRes === 0) {
+              orderReserveQty = Math.min(totalReserved, rawOrderRes)
+              stockReserveQty = Math.max(0, totalReserved - orderReserveQty)
+            } else if (rawStockRes > 0 && rawOrderRes === 0) {
+              stockReserveQty = Math.min(totalReserved, rawStockRes)
+              orderReserveQty = Math.max(0, totalReserved - stockReserveQty)
+            } else if (rawStockRes + rawOrderRes > 0) {
+              stockReserveQty = Math.min(totalReserved, rawStockRes)
+              orderReserveQty = Math.max(0, totalReserved - stockReserveQty)
+            } else {
+              stockReserveQty = totalReserved
+              orderReserveQty = 0
+            }
+          }
+
+          const openReserveModal = () => {
+            const primaryRaw = item.rawItems?.[0] || item
+            setReserveAnalysisItem({
+              ...primaryRaw,
+              id: primaryRaw.id || item.key,
+              relatedInventoryIds,
+              nomenclature_id: item.nomenclature_id || primaryRaw.nomenclature_id,
+              name: item.name,
+              total_qty: item.total_qty,
+              reserved_qty: item.reserved_qty,
+              unit: item.unit
+            })
+          }
 
           return (
           <tr key={item.key} style={{ borderBottom: `1px solid ${t.tableRowBorder}`, fontSize: '0.85rem' }}>
@@ -419,103 +562,153 @@ export function InventoryTab({
                 {Math.max(0, (Number(item.total_qty) || 0) - (Number(item.reserved_qty) || 0)).toLocaleString('uk-UA')}
               </div>
             </td>
-            <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-              {editingInvKey === item.key ? (
-                <input
-                  type="number"
-                  value={editingInvReserved}
-                  onChange={e => setEditingInvReserved(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') handleSaveInventoryQty(item) }}
-                  style={{ width: '75px', background: t.inputBg, border: '1.5px solid #d97706', color: t.inputText, textAlign: 'center', borderRadius: '8px', padding: '6px' }}
-                />
-              ) : item.reserved_qty > 0 ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    const primaryRaw = item.rawItems?.[0] || item
-                    setReserveAnalysisItem({
-                      ...primaryRaw,
-                      id: primaryRaw.id || item.key,
-                      relatedInventoryIds,
-                      nomenclature_id: item.nomenclature_id || primaryRaw.nomenclature_id,
-                      name: item.name,
-                      total_qty: item.total_qty,
-                      reserved_qty: item.reserved_qty,
-                      unit: item.unit
-                    })
-                  }}
-                  title="Натисніть для перегляду замовлень у резерві"
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    padding: '6px 14px',
-                    borderRadius: '12px',
-                    background: isDark ? 'rgba(245, 158, 11, 0.15)' : '#fffbeb',
-                    border: `1px solid ${isDark ? 'rgba(245, 158, 11, 0.4)' : '#fde68a'}`,
-                    color: isDark ? '#fbbf24' : '#b45309',
-                    fontWeight: 950,
-                    fontSize: '0.92rem',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                    outline: 'none',
-                    boxShadow: isDark ? '0 2px 8px rgba(245, 158, 11, 0.12)' : '0 1px 3px rgba(180, 83, 9, 0.08)'
-                  }}
-                  onMouseEnter={e => {
-                    e.currentTarget.style.transform = 'translateY(-1px)'
-                    e.currentTarget.style.borderColor = isDark ? '#f59e0b' : '#d97706'
-                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(245, 158, 11, 0.25)'
-                  }}
-                  onMouseLeave={e => {
-                    e.currentTarget.style.transform = 'none'
-                    e.currentTarget.style.borderColor = isDark ? 'rgba(245, 158, 11, 0.4)' : '#fde68a'
-                    e.currentTarget.style.boxShadow = isDark ? '0 2px 8px rgba(245, 158, 11, 0.12)' : '0 1px 3px rgba(180, 83, 9, 0.08)'
-                  }}
-                >
-                  <span>{Number(item.reserved_qty).toLocaleString('uk-UA')}</span>
-                  <Eye size={13} style={{ opacity: 0.85 }} />
-                </button>
-              ) : otherWarehouseReserve > 0 ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    const primaryRaw = item.rawItems?.[0] || item
-                    const bzRowWithReserve = otherRows.find(r => (Number(r.reserved_qty) || 0) > 0)
-                    setReserveAnalysisItem({
-                      ...(bzRowWithReserve || primaryRaw),
-                      id: bzRowWithReserve?.id || primaryRaw.id || item.key,
-                      relatedInventoryIds,
-                      nomenclature_id: item.nomenclature_id || primaryRaw.nomenclature_id,
-                      name: item.name,
-                      total_qty: bzRowWithReserve?.total_qty || item.total_qty,
-                      reserved_qty: otherWarehouseReserve,
-                      unit: item.unit
-                    })
-                  }}
-                  title="На цій вкладці резерву немає, але є резерв у Буфері БЗ. Натисніть для перегляду."
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    padding: '5px 10px',
-                    borderRadius: '10px',
-                    background: isDark ? 'rgba(217, 119, 6, 0.15)' : '#fffbeb',
-                    border: `1.5px dashed ${isDark ? '#d97706' : '#f59e0b'}`,
-                    color: isDark ? '#fbbf24' : '#b45309',
-                    fontSize: '0.8rem',
-                    fontWeight: 900,
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  <span>0</span>
-                  <span style={{ fontSize: '0.74rem', opacity: 0.9 }}>({otherWarehouseReserve.toLocaleString('uk-UA')} у БЗ)</span>
-                  <Eye size={12} style={{ opacity: 0.85 }} />
-                </button>
-              ) : (
-                <span style={{ color: t.textMuted, fontSize: '0.85rem', fontWeight: 600 }}>0</span>
-              )}
-            </td>
+            {activeTab === 'finished' ? (
+              <>
+                <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                  {orderReserveQty > 0 ? (
+                    <button
+                      type="button"
+                      onClick={openReserveModal}
+                      title="Деталі, здані Цехом №2 під поточні наряди на пакування. Натисніть для перегляду."
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '6px 14px',
+                        borderRadius: '12px',
+                        background: isDark ? 'rgba(139, 92, 246, 0.15)' : '#f5f3ff',
+                        border: `1px solid ${isDark ? 'rgba(139, 92, 246, 0.4)' : '#ddd6fe'}`,
+                        color: isDark ? '#c4b5fd' : '#6d28d9',
+                        fontWeight: 950,
+                        fontSize: '0.92rem',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                        outline: 'none'
+                      }}
+                    >
+                      <span>{Number(orderReserveQty).toLocaleString('uk-UA')}</span>
+                      <Eye size={13} style={{ opacity: 0.85 }} />
+                    </button>
+                  ) : (
+                    <span style={{ color: t.textMuted, fontSize: '0.85rem', fontWeight: 600 }}>0</span>
+                  )}
+                </td>
+                <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                  {editingInvKey === item.key ? (
+                    <input
+                      type="number"
+                      value={editingInvReserved}
+                      onChange={e => setEditingInvReserved(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') handleSaveInventoryQty(item) }}
+                      style={{ width: '75px', background: t.inputBg, border: '1.5px solid #d97706', color: t.inputText, textAlign: 'center', borderRadius: '8px', padding: '6px' }}
+                    />
+                  ) : stockReserveQty > 0 ? (
+                    <button
+                      type="button"
+                      onClick={openReserveModal}
+                      title="Вільний залишок СГП, заброньований у нові наряди при їх створенні. Натисніть для перегляду."
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '6px 14px',
+                        borderRadius: '12px',
+                        background: isDark ? 'rgba(245, 158, 11, 0.15)' : '#fffbeb',
+                        border: `1px solid ${isDark ? 'rgba(245, 158, 11, 0.4)' : '#fde68a'}`,
+                        color: isDark ? '#fbbf24' : '#b45309',
+                        fontWeight: 950,
+                        fontSize: '0.92rem',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                        outline: 'none',
+                        boxShadow: isDark ? '0 2px 8px rgba(245, 158, 11, 0.12)' : '0 1px 3px rgba(180, 83, 9, 0.08)'
+                      }}
+                    >
+                      <span>{Number(stockReserveQty).toLocaleString('uk-UA')}</span>
+                      <Eye size={13} style={{ opacity: 0.85 }} />
+                    </button>
+                  ) : (
+                    <span style={{ color: t.textMuted, fontSize: '0.85rem', fontWeight: 600 }}>0</span>
+                  )}
+                </td>
+              </>
+            ) : (
+              <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                {editingInvKey === item.key ? (
+                  <input
+                    type="number"
+                    value={editingInvReserved}
+                    onChange={e => setEditingInvReserved(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') handleSaveInventoryQty(item) }}
+                    style={{ width: '75px', background: t.inputBg, border: '1.5px solid #d97706', color: t.inputText, textAlign: 'center', borderRadius: '8px', padding: '6px' }}
+                  />
+                ) : item.reserved_qty > 0 ? (
+                  <button
+                    type="button"
+                    onClick={openReserveModal}
+                    title="Натисніть для перегляду замовлень у резерві"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '6px 14px',
+                      borderRadius: '12px',
+                      background: isDark ? 'rgba(245, 158, 11, 0.15)' : '#fffbeb',
+                      border: `1px solid ${isDark ? 'rgba(245, 158, 11, 0.4)' : '#fde68a'}`,
+                      color: isDark ? '#fbbf24' : '#b45309',
+                      fontWeight: 950,
+                      fontSize: '0.92rem',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                      outline: 'none',
+                      boxShadow: isDark ? '0 2px 8px rgba(245, 158, 11, 0.12)' : '0 1px 3px rgba(180, 83, 9, 0.08)'
+                    }}
+                  >
+                    <span>{Number(item.reserved_qty).toLocaleString('uk-UA')}</span>
+                    <Eye size={13} style={{ opacity: 0.85 }} />
+                  </button>
+                ) : otherWarehouseReserve > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const primaryRaw = item.rawItems?.[0] || item
+                      const bzRowWithReserve = otherRows.find(r => (Number(r.reserved_qty) || 0) > 0)
+                      setReserveAnalysisItem({
+                        ...(bzRowWithReserve || primaryRaw),
+                        id: bzRowWithReserve?.id || primaryRaw.id || item.key,
+                        relatedInventoryIds,
+                        nomenclature_id: item.nomenclature_id || primaryRaw.nomenclature_id,
+                        name: item.name,
+                        total_qty: bzRowWithReserve?.total_qty || item.total_qty,
+                        reserved_qty: otherWarehouseReserve,
+                        unit: item.unit
+                      })
+                    }}
+                    title="На цій вкладці резерву немає, але є резерв на іншій позиції. Натисніть для перегляду."
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      padding: '5px 10px',
+                      borderRadius: '10px',
+                      background: isDark ? 'rgba(217, 119, 6, 0.15)' : '#fffbeb',
+                      border: `1.5px dashed ${isDark ? '#d97706' : '#f59e0b'}`,
+                      color: isDark ? '#fbbf24' : '#b45309',
+                      fontSize: '0.8rem',
+                      fontWeight: 900,
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    <span>0</span>
+                    <span style={{ fontSize: '0.74rem', opacity: 0.9 }}>({otherWarehouseReserve.toLocaleString('uk-UA')})</span>
+                    <Eye size={12} style={{ opacity: 0.85 }} />
+                  </button>
+                ) : (
+                  <span style={{ color: t.textMuted, fontSize: '0.85rem', fontWeight: 600 }}>0</span>
+                )}
+              </td>
+            )}
             <td style={{ padding: '14px', textAlign: 'right' }}>
               {editingInvKey === item.key ? (
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
@@ -571,7 +764,7 @@ export function InventoryTab({
 
         {filteredItems.length === 0 && (
           <tr>
-            <td colSpan={6} style={{ padding: '50px', textAlign: 'center', color: t.textMuted, fontSize: '0.88rem' }}>
+            <td colSpan={activeTab === 'finished' ? 7 : 6} style={{ padding: '50px', textAlign: 'center', color: t.textMuted, fontSize: '0.88rem' }}>
               На складі готової продукції немає записів за даним фільтром
             </td>
           </tr>

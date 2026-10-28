@@ -920,9 +920,9 @@ export function createProductionCardsActions({
     if (isRework || (card.card_info || '').includes('[ADMIN_MANUAL]')) {
       const nom = nomenclatures.find(n => n.id === card.nomenclature_id)
       if (nom && qtyCompleted > 0) {
-        const { data: bzItem } = await supabase.from('inventory').select('*').eq('nomenclature_id', nom.id).eq('type', 'bz').limit(1).maybeSingle()
-        if (bzItem) await supabase.from('inventory').update({ total_qty: (Number(bzItem.total_qty) || 0) + qtyCompleted }).eq('id', bzItem.id)
-        else await supabase.from('inventory').insert([{ nomenclature_id: nom.id, name: nom.name, unit: nom.unit || 'шт', total_qty: qtyCompleted, reserved_qty: 0, type: 'bz', pocket_owner: null, warehouse: 'sgp' }])
+        const { data: finItem } = await supabase.from('inventory').select('*').eq('nomenclature_id', nom.id).eq('warehouse', 'sgp').eq('type', 'finished').limit(1).maybeSingle()
+        if (finItem) await supabase.from('inventory').update({ total_qty: (Number(finItem.total_qty) || 0) + qtyCompleted }).eq('id', finItem.id)
+        else await supabase.from('inventory').insert([{ nomenclature_id: nom.id, name: nom.name, unit: nom.unit || 'шт', total_qty: qtyCompleted, reserved_qty: 0, type: 'finished', pocket_owner: null, warehouse: 'sgp' }])
       }
     } else if (!isShop2) {
       const nom = nomenclatures.find(n => n.id === card.nomenclature_id)
@@ -964,17 +964,17 @@ export function createProductionCardsActions({
           if (netQtyForOrder > 0) {
             const match = existingItems?.find(i => i.type === 'semi')
             if (match) {
-              updates.push({ ...match, total_qty: (Number(match.total_qty) || 0) + netQtyForOrder })
+              updates.push({ ...match, warehouse: 'production', total_qty: (Number(match.total_qty) || 0) + netQtyForOrder })
             } else {
-              inserts.push({ nomenclature_id: nom.id, name: nom.name, unit: nom.unit || 'шт', total_qty: netQtyForOrder, reserved_qty: 0, type: 'semi', warehouse: 'sgp' })
+              inserts.push({ nomenclature_id: nom.id, name: nom.name, unit: nom.unit || 'шт', total_qty: netQtyForOrder, reserved_qty: 0, type: 'semi', warehouse: 'production' })
             }
           }
           if (actualBuffer > 0) {
             const match = existingItems?.find(i => i.type === 'wip_bz')
             if (match) {
-              updates.push({ ...match, total_qty: (Number(match.total_qty) || 0) + actualBuffer })
+              updates.push({ ...match, warehouse: 'production', total_qty: (Number(match.total_qty) || 0) + actualBuffer })
             } else {
-              inserts.push({ nomenclature_id: nom.id, name: nom.name, unit: nom.unit || 'шт', total_qty: actualBuffer, reserved_qty: 0, type: 'wip_bz', warehouse: 'sgp' })
+              inserts.push({ nomenclature_id: nom.id, name: nom.name, unit: nom.unit || 'шт', total_qty: actualBuffer, reserved_qty: 0, type: 'wip_bz', warehouse: 'production' })
             }
           }
 
@@ -995,8 +995,6 @@ export function createProductionCardsActions({
 
   const createNaryad = async (orderId, machineName, customQuantities = null, customDeadline = null, customRowMachines = null, customMaterialSplits = null, customCutters = null, customBOMParts = null, customCutterOverrides = null, customRowMachinesSplits = null, customUseStockBZ = true, customPartBZOverrides = null) => {
     const bzOperationId = crypto.randomUUID()
-    let bzReservationCreated = false
-    let bzReservationAttached = false
     try {
       const validOrderId = (orderId && /^[0-9a-fA-F-]{36}$/.test(String(orderId))) ? orderId : null
       let order = orders.find(o => String(o.id) === String(orderId))
@@ -1063,26 +1061,38 @@ export function createProductionCardsActions({
         })
       })
 
-      const actorName = [currentUser?.last_name, currentUser?.first_name].filter(Boolean).join(' ') || currentUser?.login || 'system'
-      const { data: bzReserveData, error: bzReserveError } = await supabase.rpc('reserve_bz_for_naryad', {
-        p_operation_id: bzOperationId,
-        p_order_id: validOrderId,
-        p_items: Object.keys(bzRequestedByNom).length > 0
-          ? Object.entries(bzRequestedByNom).map(([nomenclature_id, quantity]) => ({ nomenclature_id, quantity }))
-          : [],
-        p_actor_id: currentUser?.id || null,
-        p_actor_name: actorName
-      })
-      if (bzReserveError) throw bzReserveError
-      bzReservationCreated = true
-      const bzReserveResult = bzReserveData
+      const bzAllocationRemaining = {}
+      const requestedNomIds = Object.keys(bzRequestedByNom)
+      if (requestedNomIds.length > 0) {
+        const { data: sgpStockRows, error: sgpStockError } = await supabase
+          .from('inventory')
+          .select('id, nomenclature_id, name, total_qty, reserved_qty, type, warehouse, pocket_owner')
+          .eq('warehouse', 'sgp')
+          .in('type', ['finished', 'part', 'product'])
+        if (sgpStockError) throw sgpStockError
 
-      const bzAllocationRemaining = Object.fromEntries(
-        (bzReserveResult?.allocations || []).map(row => [
-          String(row.nomenclature_id),
-          Number(row.allocated_qty) || 0
-        ])
-      )
+        const rows = sgpStockRows || []
+        for (const [nomId, reqQty] of Object.entries(bzRequestedByNom)) {
+          const partNom = (nomenclatures || []).find(n => String(n.id) === String(nomId))
+          const legacySet = new Set((partNom?.legacy_ids || []).map(String))
+          const normName = String(partNom?.name || '').trim().toLowerCase()
+
+          const matching = rows.filter(r => {
+            if (!r) return false
+            if (r.pocket_owner && r.pocket_owner !== 'Не вказано') return false
+            const rNomId = String(r.nomenclature_id || '')
+            const idMatch = rNomId && (rNomId === String(nomId) || legacySet.has(rNomId))
+            const nameMatch = Boolean(normName && String(r.name || '').trim().toLowerCase() === normName)
+            return idMatch || nameMatch
+          })
+
+          const freeQty = matching.reduce(
+            (sum, r) => sum + Math.max(0, (Number(r.total_qty) || 0) - (Number(r.reserved_qty) || 0)),
+            0
+          )
+          bzAllocationRemaining[String(nomId)] = Math.min(Number(reqQty) || 0, freeQty)
+        }
+      }
 
       effectiveOrderItems.forEach(item => {
         const requestedQty = customQuantities && customQuantities[item.id] !== undefined ? Number(customQuantities[item.id]) : Number(item.quantity)
@@ -1403,58 +1413,10 @@ export function createProductionCardsActions({
         }
       }
 
-      if (bzReservationCreated) {
-        const { error: attachError } = await supabase.rpc('attach_bz_reservation_to_task', {
-          p_operation_id: bzOperationId,
-          p_task_id: tData.id
-        })
-        if (attachError) throw attachError
-        bzReservationAttached = true
-      }
-
       if (bzStockDeductions.length > 0) {
-        // Deduct allocated stock from inventory — SGP/finished/part only (bz = Shop2 buffer accounting, not stock)
-        for (const allocation of bzStockDeductions) {
-          try {
-            // Search finished and part types first
-            const { data: candidates } = await supabase
-              .from('inventory')
-              .select('*')
-              .eq('nomenclature_id', allocation.nomenclature_id)
-              .in('type', ['finished', 'part'])
-              .limit(10)
-
-            // Fallback: warehouse=sgp if no typed candidates
-            let allCandidates = candidates || []
-            if (allCandidates.length === 0) {
-              const { data: sgpCandidates } = await supabase
-                .from('inventory')
-                .select('*')
-                .eq('nomenclature_id', allocation.nomenclature_id)
-                .eq('warehouse', 'sgp')
-                .limit(10)
-              allCandidates = sgpCandidates || []
-            }
-
-            let remaining = Number(allocation.quantity)
-            for (const item of allCandidates) {
-              if (remaining <= 0) break
-              if (item.pocket_owner && item.pocket_owner !== 'Не вказано') continue
-              const available = Math.max(0, (Number(item.total_qty) || 0) - (Number(item.reserved_qty) || 0))
-              const toDeduct = Math.min(remaining, available)
-              if (toDeduct <= 0) continue
-              const nextQty = Math.max(0, (Number(item.total_qty) || 0) - toDeduct)
-              await supabase
-                .from('inventory')
-                .update({ total_qty: nextQty })
-                .eq('id', item.id)
-              remaining -= toDeduct
-            }
-          } catch (invErr) {
-            console.warn('Failed to deduct SGP inventory:', invErr)
-          }
-        }
-
+        // SGP stock is reserved via material_requests (status='issued', target_warehouse='sgp') below,
+        // which triggers trg_reconcile_inventory_reserve to update reserved_qty.
+        // Actual total_qty deduction happens atomically upon packaging shipment (complete_packaging_shipment).
         const cardsToInsert = bzStockDeductions.map(allocation => ({
           task_id: tData.id,
           order_id: orderId,
@@ -1518,8 +1480,9 @@ export function createProductionCardsActions({
       if (allocatedNomIds.length > 0) {
         const { data: freshRows, error: freshRowsError } = await supabase
           .from('inventory')
-          .select('id,nomenclature_id,total_qty,reserved_qty,type,warehouse,pocket_owner')
-          .in('nomenclature_id', allocatedNomIds)
+          .select('id,nomenclature_id,name,total_qty,reserved_qty,type,warehouse,pocket_owner')
+          .eq('warehouse', 'sgp')
+          .in('type', ['finished', 'part', 'product'])
         if (freshRowsError) throw freshRowsError
         freshSgpInventory = freshRows || []
       }
@@ -1529,12 +1492,16 @@ export function createProductionCardsActions({
         .map(alloc => {
           const partNom = (nomenclatures || []).find(n => String(n.id) === String(alloc.nomenclature_id))
           const partName = partNom?.name || 'Деталь'
+          const legacySet = new Set((partNom?.legacy_ids || []).map(String))
+          const normName = String(partNom?.name || '').trim().toLowerCase()
           const sgpInv = freshSgpInventory
-            .filter(i =>
-              String(i.nomenclature_id) === String(alloc.nomenclature_id) &&
-              ['finished', 'part', 'product', 'bz', 'bz_shop2', 'wip_bz', 'semi', 'semi_shop2'].includes(String(i.type || '').toLowerCase()) &&
-              (!i.pocket_owner || i.pocket_owner === 'Не вказано')
-            )
+            .filter(i => {
+              if (!i || (i.pocket_owner && i.pocket_owner !== 'Не вказано')) return false
+              const iNomId = String(i.nomenclature_id || '')
+              const idMatch = iNomId && (iNomId === String(alloc.nomenclature_id) || legacySet.has(iNomId))
+              const nameMatch = Boolean(normName && String(i.name || '').trim().toLowerCase() === normName)
+              return idMatch || nameMatch
+            })
             .sort((a, b) => {
               const availableA = (Number(a.total_qty) || 0) - (Number(a.reserved_qty) || 0)
               const availableB = (Number(b.total_qty) || 0) - (Number(b.reserved_qty) || 0)
@@ -1576,13 +1543,6 @@ export function createProductionCardsActions({
       }
       return tData
     } catch (err) {
-      if (bzReservationCreated && !bzReservationAttached) {
-        const { error: releaseError } = await supabase.rpc('release_bz_reservation', {
-          p_operation_id: bzOperationId,
-          p_reason: `Помилка створення наряду: ${err.message}`
-        })
-        if (releaseError) console.error('Error releasing BZ reservation:', releaseError.message)
-      }
       console.error('Error creating naryad:', err.message)
       throw err
     }

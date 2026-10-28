@@ -77,9 +77,16 @@ export function getRequestFulfillmentForNomenclature(requests, nomenclatureId) {
 export function getPackagingItemFulfillment(requests, item) {
   const requestFulfillment = getRequestFulfillmentForNomenclature(requests, item?.nom?.id)
   const initialReservedQty = Math.max(0, Number(item?.initialReservedQty) || 0)
+  const autoReservedInRequests = (requestFulfillment.requests || [])
+    .filter(r =>
+      (r.status === 'issued' || r.status === 'completed') &&
+      String(r.details || '').includes('[AUTO_SGP_RESERVATION]')
+    )
+    .reduce((sum, r) => sum + (Number(r.quantity) || 0), 0)
+  const effectiveInitialReservedQty = Math.max(0, initialReservedQty - autoReservedInRequests)
   return {
     ...requestFulfillment,
-    initialReservedQty,
-    fulfilledQty: initialReservedQty + requestFulfillment.issuedQty
+    initialReservedQty: effectiveInitialReservedQty,
+    fulfilledQty: effectiveInitialReservedQty + requestFulfillment.issuedQty
   }
 }

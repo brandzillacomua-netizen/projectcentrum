@@ -442,6 +442,7 @@ export const WarehouseFGPModule: React.FC = () => {
         setReserveAnalysisItem={setReserveAnalysisItem}
         inventory={inventory}
         nomenclatures={nomenclatures}
+        liveRequests={liveRequests}
         productionWipData={{
           groupedWipItems,
           filteredWipItems,

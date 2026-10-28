@@ -565,11 +565,12 @@ export const getAvailableSGPStock = (partNom, inventory) => {
     const nameMatch = Boolean(normPartName && iName === normPartName);
 
     const type = String(i.type || '').toLowerCase();
-    const isAvailableType = type === 'finished' || type === 'product' || type === 'part' ||
-      type === 'bz' || type === 'bz_shop2' || type === 'wip_bz' || i.warehouse === 'sgp';
+    const warehouse = String(i.warehouse || '').toLowerCase();
+    const isFinishedType = type === 'finished' || type === 'product' || type === 'part';
+    const isSgpWarehouse = !warehouse || warehouse === 'sgp';
     const isNotPocket = !i.pocket_owner || i.pocket_owner === 'Не вказано';
 
-    return (idMatch || nameMatch) && isAvailableType && isNotPocket;
+    return (idMatch || nameMatch) && isFinishedType && isSgpWarehouse && isNotPocket;
   });
 
   return matchingItems.reduce((acc, i) => acc + Math.max(0, (Number(i.total_qty) || 0) - (Number(i.reserved_qty) || 0)), 0);
@@ -593,11 +594,12 @@ export const findMatchingSGPInventoryItem = (partNom, inventory) => {
     const nameMatch = Boolean(normPartName && iName === normPartName);
 
     const type = String(i.type || '').toLowerCase();
-    const isAvailableType = type === 'finished' || type === 'product' || type === 'part' ||
-      type === 'bz' || type === 'bz_shop2' || type === 'wip_bz' || i.warehouse === 'sgp';
+    const warehouse = String(i.warehouse || '').toLowerCase();
+    const isFinishedType = type === 'finished' || type === 'product' || type === 'part';
+    const isSgpWarehouse = !warehouse || warehouse === 'sgp';
     const isNotPocket = !i.pocket_owner || i.pocket_owner === 'Не вказано';
 
-    return (idMatch || nameMatch) && isAvailableType && isNotPocket;
+    return (idMatch || nameMatch) && isFinishedType && isSgpWarehouse && isNotPocket;
   }) || null;
 };
 

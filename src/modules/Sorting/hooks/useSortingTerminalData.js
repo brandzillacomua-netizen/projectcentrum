@@ -291,6 +291,46 @@ export function useSortingTerminalData() {
     setScanError(null)
     try {
       const goodQty = total - scrap - rework
+      // Ensure semi_shop2 and bz_shop2 rows exist on warehouse='production' before calling RPC
+      // so the RPC never falls back to incrementing the finished SGP row.
+      if (activeCompletingCard.nomenclature_id && goodQty > 0) {
+        const nomObj = getNom(activeCompletingCard.nomenclature_id)
+        const nomName = nomObj?.name || 'Деталь'
+        const nomUnit = nomObj?.unit || 'шт'
+        const { data: existingS2 } = await supabase
+          .from('inventory')
+          .select('id, type')
+          .eq('nomenclature_id', activeCompletingCard.nomenclature_id)
+          .in('type', ['semi_shop2', 'bz_shop2'])
+        const hasSemiS2 = (existingS2 || []).some(r => r.type === 'semi_shop2')
+        const hasBzS2 = (existingS2 || []).some(r => r.type === 'bz_shop2')
+        const toCreate = []
+        if (!hasSemiS2) {
+          toCreate.push({
+            nomenclature_id: activeCompletingCard.nomenclature_id,
+            name: nomName,
+            unit: nomUnit,
+            total_qty: 0,
+            reserved_qty: 0,
+            type: 'semi_shop2',
+            warehouse: 'production'
+          })
+        }
+        if (!hasBzS2) {
+          toCreate.push({
+            nomenclature_id: activeCompletingCard.nomenclature_id,
+            name: nomName,
+            unit: nomUnit,
+            total_qty: 0,
+            reserved_qty: 0,
+            type: 'bz_shop2',
+            warehouse: 'production'
+          })
+        }
+        if (toCreate.length > 0) {
+          await supabase.from('inventory').insert(toCreate)
+        }
+      }
       const result = await confirmedRpc(supabase, 'rpc_submit_sorting_complete_atomic', {
         p_card_id: activeCompletingCard.id,
         p_good_qty: goodQty,
