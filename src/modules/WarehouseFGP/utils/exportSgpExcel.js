@@ -1,4 +1,4 @@
-import { isHardware, normalizeKey } from '../warehouseFgpInventory.js'
+import { isFinishedStockRow, isHardware, normalizeKey } from '../warehouseFgpInventory.js'
 
 const getXLSX = async () => {
   try {
@@ -157,13 +157,7 @@ export const exportSgpStockToExcel = async ({
   }
 
   // 1. Finished Goods & Ready Parts
-  const finishedRows = buildGroupedRows(item => {
-    if (!isSgpItem(item)) return false
-    if (isHardware(item)) return false
-    const type = item.type || ''
-    const isSemi = type === 'semi' || type === 'semi_shop1' || type === 'semi_shop2' || type === 'bz' || type === 'bz_shop2' || type === 'wip_bz'
-    return !isSemi && (type === 'finished' || type === 'part' || type === 'product' || item.warehouse === 'sgp')
-  }, true)
+  const finishedRows = buildGroupedRows(item => isFinishedStockRow(item), true)
 
   // 1b. Semi-finished Goods & Buffers
   const semiRows = buildGroupedRows(item => {

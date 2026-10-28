@@ -207,11 +207,37 @@ export function usePackagingQueue({
     if (isIssued) {
       return Number(groupedRow.total_qty) || 0
     }
-    return Math.max(0, (Number(groupedRow.total_qty) || 0) - (Number(groupedRow.reserved_qty) || 0))
+    const ownShop2Reserved = (effectiveRequests || [])
+      .filter(r =>
+        r &&
+        r.status === 'issued' &&
+        String(r.order_id) === String(req.order_id) &&
+        String(r.nomenclature_id) === String(req.nomenclature_id) &&
+        String(r.details || '').includes('[AUTO_SHOP2_RESERVATION]')
+      )
+      .reduce((sum, r) => sum + (Number(r.quantity) || 0), 0)
+    return Math.max(0, (Number(groupedRow.total_qty) || 0) - (Number(groupedRow.reserved_qty) || 0) + ownShop2Reserved)
   }
 
   const issueRequest = async (req) => {
     if (!req) throw new Error('Запит не знайдено')
+      // If Shop 2 already auto-reserved parts for this order/nomenclature under [AUTO_SHOP2_RESERVATION],
+      // release those temporary auto-reservations before issuing the explicit packaging request so reserve is not doubled.
+      const ownShop2Reqs = (effectiveRequests || []).filter(r =>
+        r &&
+        r.id !== req.id &&
+        r.status === 'issued' &&
+        String(r.order_id) === String(req.order_id) &&
+        String(r.nomenclature_id) === String(req.nomenclature_id) &&
+        String(r.details || '').includes('[AUTO_SHOP2_RESERVATION]')
+      )
+      if (ownShop2Reqs.length > 0) {
+        await supabase
+          .from('material_requests')
+          .update({ status: 'cancelled' })
+          .in('id', ownShop2Reqs.map(r => r.id))
+      }
+
       const issuerName = `${currentUser?.first_name || ''} ${currentUser?.last_name || ''}`.trim() || currentUser?.login || 'Комірник СГП'
       const groupedIssueRow = getGroupedSgpIssueRow(allGroupedInventory, nomenclatures, req)
       const hasLegacyMismatchedId = groupedIssueRow?.nomenclature_id &&

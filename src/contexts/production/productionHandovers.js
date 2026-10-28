@@ -219,9 +219,11 @@ export function createProductionHandoversActions({
         String(r.details || '').includes('[AUTO_SHOP2_RESERVATION]') &&
         (!taskId || String(r.task_id) === String(taskId))
       )
-      const batchSuffix = (task?.batch_index && Number(task.batch_index) > 1) ? ` - Партія ${task.batch_index}` : ''
+      const batchSuffix = task?.batch_index ? `/${task.batch_index}` : ''
       const orderNum = order.order_num || String(orderId)
       const partName = nom?.name || 'Деталь'
+
+      const finalIssuedForOrder = alreadyIssuedOrCompleted + remainingNeedToReserve
 
       if (existingAutoShop2) {
         const nextQty = (Number(existingAutoShop2.quantity) || 0) + remainingNeedToReserve
@@ -247,6 +249,18 @@ export function createProductionHandoversActions({
             target_warehouse: 'sgp',
             details: `ЗАПИТ НА КОМПЛЕКТУВАННЯ (${orderNum}${batchSuffix}) [PACKAGING_SOURCE:SGP] [AUTO_SHOP2_RESERVATION]: ${partName} — ${remainingNeedToReserve} шт.`
           }])
+      }
+
+      // If any pending packaging request is now fully covered by the issued reservation, cancel the duplicate pending row
+      const coveredPendingIds = pendingReqs
+        .filter(pReq => (Number(pReq.quantity) || 0) <= finalIssuedForOrder)
+        .map(pReq => pReq.id)
+        .filter(Boolean)
+      if (coveredPendingIds.length > 0) {
+        await supabase
+          .from('material_requests')
+          .update({ status: 'cancelled' })
+          .in('id', coveredPendingIds)
       }
       refreshTable('material_requests')
       refreshTable('inventory')
