@@ -9,6 +9,7 @@ import { BrakReportPage } from './Brak/components/BrakReportPage.jsx'
 import { BrakStampsJournalModal } from './Brak/components/BrakStampsJournalModal.jsx'
 import { BrakScanModal } from './Brak/components/modals/BrakScanModal.jsx'
 import { BrakCardScrapModal } from './Brak/components/modals/BrakCardScrapModal.jsx'
+import { BrakActiveCuttingModal, isCardInCutting } from './Brak/components/modals/BrakActiveCuttingModal.jsx'
 import { BrakRestorationModal } from './Brak/components/modals/BrakRestorationModal.jsx'
 import { BrakReworkModal } from './Brak/components/modals/BrakReworkModal.jsx'
 import { Shop1QCOpsModal } from './Shop1/components/modals/Shop1QCOpsModal.jsx'
@@ -129,10 +130,15 @@ export default function BrakModule() {
   } = useBrakData()
 
   const [showStampsJournal, setShowStampsJournal] = useState(false)
+  const [showCuttingCardsModal, setShowCuttingCardsModal] = useState(false)
   const [qcOpsTargetCard, setQcOpsTargetCard] = useState(null)
 
   const stampedCardsCount = useMemo(() => {
     return (workCards || []).filter(c => String(c?.card_info || '').includes('[QC_OPS:')).length
+  }, [workCards])
+
+  const activeCuttingCardsCount = useMemo(() => {
+    return (workCards || []).filter(isCardInCutting).length
   }, [workCards])
 
   const qcOpsTargetNomenclature = useMemo(() => {
@@ -194,6 +200,8 @@ export default function BrakModule() {
           setShowReportPage={setShowReportPage}
           setShowStampsJournal={setShowStampsJournal}
           stampedCardsCount={stampedCardsCount}
+          setShowCuttingCardsModal={setShowCuttingCardsModal}
+          activeCuttingCardsCount={activeCuttingCardsCount}
         />
 
         <BrakStatsDashboard
@@ -292,6 +300,17 @@ export default function BrakModule() {
         orders={orders}
         nomenclatures={nomenclatures}
         machines={machines}
+        onOpenCardStampModal={(card) => setQcOpsTargetCard(card)}
+      />
+
+      <BrakActiveCuttingModal
+        isOpen={showCuttingCardsModal}
+        onClose={() => setShowCuttingCardsModal(false)}
+        workCards={workCards}
+        orders={orders}
+        nomenclatures={nomenclatures}
+        machines={machines}
+        fetchData={fetchData}
         onOpenCardStampModal={(card) => setQcOpsTargetCard(card)}
       />
 

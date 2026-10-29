@@ -1,5 +1,5 @@
 import React from 'react'
-import { Camera, Search, X, BarChart2, Wrench, Settings, Stamp } from 'lucide-react'
+import { Camera, Search, X, BarChart2, Wrench, Settings, Stamp, Flame } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 export const BrakActionBar = React.memo(({
@@ -11,7 +11,9 @@ export const BrakActionBar = React.memo(({
   openQcCardByNumber,
   setShowReportPage,
   setShowStampsJournal,
-  stampedCardsCount = 0
+  stampedCardsCount = 0,
+  setShowCuttingCardsModal,
+  activeCuttingCardsCount = 0
 }) => {
   return (
     <div style={{ display: 'flex', justifyContent: 'flex-start', gap: '12px', marginBottom: '25px', flexWrap: 'wrap' }}>
@@ -57,6 +59,44 @@ export const BrakActionBar = React.memo(({
           <Search size={17} /> ЗНАЙТИ
         </button>
       </div>
+
+      {typeof setShowCuttingCardsModal === 'function' && (
+        <button
+          onClick={() => setShowCuttingCardsModal(true)}
+          style={{
+            padding: '12px 22px',
+            borderRadius: '14px',
+            fontSize: '0.85rem',
+            fontWeight: 900,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            background: 'rgba(245, 158, 11, 0.14)',
+            border: '1px solid rgba(245, 158, 11, 0.45)',
+            color: '#f59e0b',
+            transition: 'all 0.2s',
+            boxShadow: '0 4px 14px rgba(245, 158, 11, 0.15)'
+          }}
+        >
+          <Flame size={18} />
+          <span>⚡ КАРТКИ В РОЗКРОЇ</span>
+          {activeCuttingCardsCount > 0 && (
+            <span
+              style={{
+                padding: '2px 8px',
+                borderRadius: '999px',
+                background: '#f59e0b',
+                color: '#000',
+                fontSize: '0.72rem',
+                fontWeight: 950
+              }}
+            >
+              {activeCuttingCardsCount}
+            </span>
+          )}
+        </button>
+      )}
 
       {typeof setShowStampsJournal === 'function' && (
         <button

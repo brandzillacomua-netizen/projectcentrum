@@ -132,6 +132,16 @@ export const BrakStampsJournalModal = React.memo(({
   const [isLoading, setIsLoading] = useState(false)
   const [dbStampedCards, setDbStampedCards] = useState([])
   const [historyLogs, setHistoryLogs] = useState([])
+  const [expandedCardIds, setExpandedCardIds] = useState(() => new Set())
+
+  const toggleCardExpanded = (cardId) => {
+    setExpandedCardIds(prev => {
+      const next = new Set(prev)
+      if (next.has(cardId)) next.delete(cardId)
+      else next.add(cardId)
+      return next
+    })
+  }
 
   // Lock body scroll and prevent background scroll bleeding on mobile touch
   useEffect(() => {
@@ -1033,57 +1043,111 @@ export const BrakStampsJournalModal = React.memo(({
                       border: '1px solid var(--border-color, rgba(148,163,184,0.2))',
                     }}
                   >
-                    <div style={{ fontSize: '0.68rem', fontWeight: 900, color: 'var(--text-muted, #64748b)', textTransform: 'uppercase', marginBottom: '8px' }}>
-                      Погоджені операції ВКЯ ({item.opsList.length}):
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', flexWrap: 'wrap', gap: '6px' }}>
+                      <div style={{ fontSize: '0.68rem', fontWeight: 900, color: 'var(--text-muted, #64748b)', textTransform: 'uppercase' }}>
+                        Погоджені операції ВКЯ ({item.opsList.length}):
+                      </div>
+                      {item.opsList.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => toggleCardExpanded(item.card.id)}
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: '#10b981',
+                            fontSize: '0.72rem',
+                            fontWeight: 900,
+                            cursor: 'pointer',
+                            padding: '2px 6px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}
+                        >
+                          {expandedCardIds.has(item.card.id) ? 'Згорнути ▴' : `Всі операції (${item.opsList.length}) ▾`}
+                        </button>
+                      )}
                     </div>
+
                     {item.opsList.length === 0 ? (
                       <div style={{ fontSize: '0.76rem', color: 'var(--text-muted, #64748b)', fontStyle: 'italic' }}>
                         Відмічено лише відповідність листів (операції ще не обрано)
                       </div>
                     ) : (
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                        {item.opsList.map(op => (
-                          <div
-                            key={op.key}
-                            style={{
-                              padding: '5px 10px',
-                              borderRadius: '8px',
-                              background: 'rgba(16, 185, 129, 0.08)',
-                              border: '1px solid rgba(16, 185, 129, 0.3)',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '6px',
-                              fontSize: '0.75rem',
-                            }}
-                          >
-                            {op.side && (
-                              <span style={{ fontSize: '0.65rem', fontWeight: 900, color: '#0284c7', textTransform: 'uppercase' }}>
-                                [{op.side}]
-                              </span>
+                      (() => {
+                        const isExpanded = expandedCardIds.has(item.card.id)
+                        const displayedOps = isExpanded ? item.opsList : [item.opsList[item.opsList.length - 1]]
+                        return (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            {!isExpanded && item.opsList.length > 1 && (
+                              <div style={{ fontSize: '0.66rem', color: '#10b981', fontWeight: 900, textTransform: 'uppercase' }}>
+                                Остання дія:
+                              </div>
                             )}
-                            <span style={{ fontWeight: 850, color: 'var(--text-color, inherit)' }}>
-                              {op.name}
-                            </span>
-                            <span
-                              style={{
-                                padding: '1px 6px',
-                                borderRadius: '999px',
-                                background: '#10b981',
-                                color: '#fff',
-                                fontSize: '0.64rem',
-                                fontWeight: 950,
-                              }}
-                            >
-                              {op.stamp}
-                            </span>
-                            {op.inspector && (
-                              <span style={{ fontSize: '0.66rem', color: 'var(--text-muted, #64748b)', fontWeight: 700 }}>
-                                ({op.inspector}{op.at ? `, ${op.at}` : ''})
-                              </span>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                              {displayedOps.map(op => (
+                                <div
+                                  key={op.key}
+                                  style={{
+                                    padding: '5px 10px',
+                                    borderRadius: '8px',
+                                    background: 'rgba(16, 185, 129, 0.08)',
+                                    border: '1px solid rgba(16, 185, 129, 0.3)',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    fontSize: '0.75rem',
+                                  }}
+                                >
+                                  {op.side && (
+                                    <span style={{ fontSize: '0.65rem', fontWeight: 900, color: '#0284c7', textTransform: 'uppercase' }}>
+                                      [{op.side}]
+                                    </span>
+                                  )}
+                                  <span style={{ fontWeight: 850, color: 'var(--text-color, inherit)' }}>
+                                    {op.name}
+                                  </span>
+                                  <span
+                                    style={{
+                                      padding: '1px 6px',
+                                      borderRadius: '999px',
+                                      background: '#10b981',
+                                      color: '#fff',
+                                      fontSize: '0.64rem',
+                                      fontWeight: 950,
+                                    }}
+                                  >
+                                    {op.stamp}
+                                  </span>
+                                  {op.inspector && (
+                                    <span style={{ fontSize: '0.66rem', color: 'var(--text-muted, #64748b)', fontWeight: 700 }}>
+                                      ({op.inspector}{op.at ? `, ${op.at}` : ''})
+                                    </span>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                            {!isExpanded && item.opsList.length > 1 && (
+                              <div
+                                onClick={() => toggleCardExpanded(item.card.id)}
+                                style={{
+                                  fontSize: '0.68rem',
+                                  color: 'var(--text-muted, #64748b)',
+                                  cursor: 'pointer',
+                                  marginTop: '2px',
+                                  userSelect: 'none',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px'
+                                }}
+                              >
+                                <span>🔍</span>
+                                <span>+ ще {item.opsList.length - 1} погоджених операцій (натисніть, щоб розгорнути всі)</span>
+                              </div>
                             )}
                           </div>
-                        ))}
-                      </div>
+                        )
+                      })()
                     )}
                   </div>
                 </div>
