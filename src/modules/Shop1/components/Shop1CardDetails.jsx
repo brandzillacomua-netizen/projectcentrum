@@ -156,6 +156,59 @@ export function Shop1CardDetails({
         </div>
       )}
 
+      {/* Індикатор зафіксованого перевищення часу розкрою */}
+      {(() => {
+        const isCuttingOrCameFromCutting = currentCard.operation === 'Розкрій' || currentCard.status === 'at-buffer'
+        if (!isCuttingOrCameFromCutting) return null
+        const planSec = getCardCuttingPlanSeconds(currentCard, nom, true)
+        if (!planSec || planSec <= 0) return null
+        const inBuf = currentCard.status === 'at-buffer'
+        const metrics = getCardTimeMetrics(currentCard)
+        const cuttingSec = inBuf ? Math.max(0, metrics.totalSec - metrics.currentSec) : metrics.totalSec
+        const isOvertime = cuttingSec > planSec
+        if (!isOvertime) return null
+        const overtimeSec = cuttingSec - planSec
+
+        return (
+          <div style={{
+            background: 'rgba(239, 68, 68, 0.12)',
+            border: '1.5px solid rgba(239, 68, 68, 0.4)',
+            borderRadius: '16px',
+            padding: '12px 16px',
+            marginBottom: '18px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '10px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '1.1rem' }}>⚠️</span>
+              <div>
+                <div style={{ fontSize: '0.72rem', fontWeight: 1000, color: '#ef4444', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  {inBuf ? 'ЗАФІКСОВАНО ПЕРЕВИЩЕННЯ: ЕТАП «РОЗКРІЙ»' : 'ПЕРЕВИЩЕННЯ ПЛАНОВОГО ЧАСУ РОЗКРОЮ'}
+                </div>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-strong)', fontWeight: 800, marginTop: '2px' }}>
+                  Фактичний розкрій: <strong style={{ color: '#ef4444' }}>{formatSec(cuttingSec)}</strong> ({formatCuttingTime(cuttingSec)}) · План: <strong>{formatCuttingTime(planSec)}</strong>
+                </div>
+              </div>
+            </div>
+            <span style={{
+              background: 'rgba(239, 68, 68, 0.25)',
+              color: '#ef4444',
+              border: '1px solid rgba(239, 68, 68, 0.5)',
+              padding: '3px 10px',
+              borderRadius: '8px',
+              fontWeight: 1000,
+              fontSize: '0.8rem',
+              fontFamily: 'monospace'
+            }}>
+              +{formatSec(overtimeSec)}
+            </span>
+          </div>
+        )
+      })()}
+
       {hasQcOpsStamps && (
         <div
           onClick={() => setShowQCOpsModal && setShowQCOpsModal(true)}
@@ -406,11 +459,14 @@ export function Shop1CardDetails({
               {currentCard.operation === 'Розкрій' && (() => {
                 const planSec = getCardCuttingPlanSeconds(currentCard, nom)
                 if (!planSec || planSec <= 0) return null
-                const totalSec = getCardTimeMetrics(currentCard).totalSec
-                const isOvertime = totalSec > planSec
-                const percent = Math.min(100, Math.round((totalSec / planSec) * 100))
-                const remainingSec = Math.max(0, planSec - totalSec)
-                const overtimeSec = totalSec - planSec
+                const inBuf = currentCard.status === 'at-buffer'
+                const metrics = getCardTimeMetrics(currentCard)
+                // For a card in buffer, cutting is completed. Evaluate plan ONLY on actual cutting work time, excluding buffer wait time!
+                const cuttingSec = inBuf ? Math.max(0, metrics.totalSec - metrics.currentSec) : metrics.totalSec
+                const isOvertime = cuttingSec > planSec
+                const percent = Math.min(100, Math.round((cuttingSec / planSec) * 100))
+                const remainingSec = Math.max(0, planSec - cuttingSec)
+                const overtimeSec = isOvertime ? cuttingSec - planSec : 0
 
                 return (
                   <div style={{
@@ -424,7 +480,7 @@ export function Shop1CardDetails({
                   }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                       <span style={{ fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', color: isOvertime ? '#ef4444' : '#10b981', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        ⏱ Плановий час розкрою
+                        ⏱ Плановий час розкрою {inBuf ? '(етап завершено)' : ''}
                       </span>
                       <span style={{ fontSize: '0.85rem', fontWeight: 1000, color: 'var(--text-strong)' }}>
                         {formatCuttingTime(planSec)}
@@ -442,11 +498,15 @@ export function Shop1CardDetails({
 
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.72rem', fontWeight: 800 }}>
                       <span style={{ color: 'var(--text-muted)' }}>
-                        Факт: <strong style={{ color: isOvertime ? '#ef4444' : '#10b981' }}>{formatSec(totalSec)}</strong>
+                        {inBuf ? 'Факт розкрою:' : 'Факт:'} <strong style={{ color: isOvertime ? '#ef4444' : '#10b981' }}>{formatSec(cuttingSec)}</strong>
                       </span>
                       {isOvertime ? (
                         <span style={{ color: '#ef4444', fontWeight: 900 }}>
                           ⚠️ Перевищення: +{formatSec(overtimeSec)}
+                        </span>
+                      ) : inBuf ? (
+                        <span style={{ color: '#10b981', fontWeight: 800 }}>
+                          ✓ В нормі ({percent}%)
                         </span>
                       ) : (
                         <span style={{ color: '#10b981', fontWeight: 800 }}>
@@ -738,6 +798,36 @@ export function Shop1CardDetails({
                   {currentCard.quantity} <small style={{ fontSize: '1.2rem', opacity: 0.3 }}>шт</small>
                 </div>
               </div>
+
+              {(() => {
+                const planSec = getCardCuttingPlanSeconds(currentCard, nom, true)
+                if (!planSec || planSec <= 0) return null
+                const metrics = getCardTimeMetrics(currentCard)
+                const cuttingSec = Math.max(0, metrics.totalSec - metrics.currentSec)
+                const isOvertime = cuttingSec > planSec
+                const overtimeSec = isOvertime ? cuttingSec - planSec : 0
+                return (
+                  <div style={{
+                    background: isOvertime ? 'rgba(239, 68, 68, 0.08)' : 'rgba(16, 185, 129, 0.08)',
+                    border: `1px solid ${isOvertime ? 'rgba(239, 68, 68, 0.3)' : 'rgba(16, 185, 129, 0.25)'}`,
+                    borderRadius: '16px',
+                    padding: '12px 16px',
+                    textAlign: 'left'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                      <span style={{ fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', color: isOvertime ? '#ef4444' : '#10b981' }}>
+                        {isOvertime ? '⚠️ Зафіксовано перевищення розкрою' : '✓ Розкрій у межах норми'}
+                      </span>
+                      <span style={{ fontSize: '0.8rem', fontWeight: 900, color: isOvertime ? '#ef4444' : '#10b981' }}>
+                        {isOvertime ? `+${formatSec(overtimeSec)}` : 'Норма'}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700 }}>
+                      Факт розкрою: <strong style={{ color: isOvertime ? '#ef4444' : 'var(--text-strong)' }}>{formatSec(cuttingSec)}</strong> ({formatCuttingTime(cuttingSec)}) · План: <strong>{formatCuttingTime(planSec)}</strong>
+                    </div>
+                  </div>
+                )
+              })()}
 
               {nextOp === 'Прийомка' ? (
                 <div className="s1-action-card" style={{ background: 'var(--surface-1)', padding: '24px', borderRadius: '20px', border: '1px solid var(--border-subtle)' }}>

@@ -135,11 +135,15 @@ export function Shop1ActiveCardsTable({
                 const timeMetrics = getCardTimeMetrics ? getCardTimeMetrics(card) : { totalSec: 0, currentSec: 0 }
                 const startDate = getCardStartDate ? getCardStartDate(card) : new Date(card.created_at || 0)
                 const nom = getNom ? getNom(card) : nomenclatures.find(n => n.id === card.nomenclature_id)
-                const isCutting = card.operation === 'Розкрій'
-                const planSec = isCutting ? getCardCuttingPlanSeconds(card, nom) : 0
-                const isOvertime = isCutting && planSec > 0 && timeMetrics.totalSec > planSec
-                const overtimeSec = isOvertime ? timeMetrics.totalSec - planSec : 0
-                const percent = (isCutting && planSec > 0) ? Math.min(100, Math.round((timeMetrics.totalSec / planSec) * 100)) : 0
+                const isCuttingStage = card.operation === 'Розкрій'
+                const planSec = isCuttingStage ? getCardCuttingPlanSeconds(card, nom, true) : 0
+                // For a card in buffer, cutting is completed. Evaluate plan ONLY on actual cutting work time, excluding buffer wait time!
+                const cuttingWorkSec = inBuf
+                  ? Math.max(0, timeMetrics.totalSec - timeMetrics.currentSec)
+                  : timeMetrics.totalSec
+                const isOvertime = isCuttingStage && planSec > 0 && cuttingWorkSec > planSec
+                const overtimeSec = isOvertime ? cuttingWorkSec - planSec : 0
+                const percent = (isCuttingStage && planSec > 0) ? Math.min(100, Math.round((cuttingWorkSec / planSec) * 100)) : 0
 
                 return (
                   <tr key={card.id} 
@@ -186,6 +190,18 @@ export function Shop1ActiveCardsTable({
                         }}>
                           {(inBuf && card.operation === 'Сортування') ? '🟣 БУФЕР' : inBuf ? '▣ БУФЕР' : card.status === 'paused' ? '⏸ ПАУЗА' : card.status === 'hold' ? '⏹ ЗУПИНЕНО' : '▶ РОБОТА'}
                         </span>
+                        {inBuf && isOvertime && (
+                          <span style={{
+                            fontSize: '0.62rem', fontWeight: 900,
+                            background: 'rgba(239, 68, 68, 0.15)',
+                            color: '#ef4444',
+                            padding: '3px 7px', borderRadius: '6px',
+                            border: '1px solid rgba(239, 68, 68, 0.35)',
+                            whiteSpace: 'nowrap'
+                          }} title={`Перевищення розкрою: +${formatSec(overtimeSec)}`}>
+                            ⚠️ Розкрій +{formatCuttingTime(overtimeSec)}
+                          </span>
+                        )}
                         {inBuf && card.operation === 'Розкрій' && (() => {
                           const pColors = { 1: '#ef4444', 2: '#3b82f6', 3: '#10b981' }
                           const pVal = card.galt_priority || 2
@@ -229,26 +245,39 @@ export function Shop1ActiveCardsTable({
                               padding: '1px 5px',
                               borderRadius: '4px'
                             }}>
-                              +{formatSec(overtimeSec)}
+                              +{formatSec(overtimeSec)} {inBuf ? '(розкрій)' : ''}
                             </span>
                           )}
                         </div>
-                        {isCutting && planSec > 0 && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.68rem', fontWeight: 700 }}>
-                            <span style={{ color: isOvertime ? '#ef4444' : 'var(--text-muted, #94a3b8)' }}>
-                              план: {formatCuttingTime(planSec)}
-                            </span>
-                            <span style={{
-                              color: isOvertime ? '#ef4444' : '#10b981',
-                              background: isOvertime ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)',
-                              padding: '0 4px',
-                              borderRadius: '3px',
-                              fontSize: '0.62rem',
-                              fontWeight: 800
-                            }}>
-                              {percent}%
-                            </span>
-                          </div>
+                        {isCuttingStage && planSec > 0 && (
+                          inBuf ? (
+                            isOvertime ? (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.66rem', fontWeight: 800, color: '#ef4444' }}>
+                                <span>⚠️ Розкрій: {formatCuttingTime(cuttingWorkSec)} (план: {formatCuttingTime(planSec)})</span>
+                              </div>
+                            ) : (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.66rem', fontWeight: 700, color: 'var(--text-muted)' }}>
+                                <span>розкрій: {formatCuttingTime(cuttingWorkSec)}</span>
+                                <span style={{ color: '#10b981', background: 'rgba(16, 185, 129, 0.1)', padding: '0 4px', borderRadius: '3px', fontSize: '0.62rem', fontWeight: 800 }}>✓ {percent}%</span>
+                              </div>
+                            )
+                          ) : (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.68rem', fontWeight: 700 }}>
+                              <span style={{ color: isOvertime ? '#ef4444' : 'var(--text-muted, #94a3b8)' }}>
+                                план: {formatCuttingTime(planSec)}
+                              </span>
+                              <span style={{
+                                color: isOvertime ? '#ef4444' : '#10b981',
+                                background: isOvertime ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+                                padding: '0 4px',
+                                borderRadius: '3px',
+                                fontSize: '0.62rem',
+                                fontWeight: 800
+                              }}>
+                                {percent}%
+                              </span>
+                            </div>
+                          )
                         )}
                       </div>
                     </td>

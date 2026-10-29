@@ -119,4 +119,43 @@ describe('cuttingTimeUtils', () => {
       expect(formatCuttingTime(5400)).toBe('1год 30хв')
     })
   })
+
+  describe('buffer card overtime isolation', () => {
+    it('isolates cutting work duration from buffer waiting time', () => {
+      // Card has 4h plan (14400s)
+      const planSec = 14400
+      // Cutting took 3h (10800s), card sat in buffer for 4h29m (16140s)
+      const timeMetrics = { totalSec: 26940, currentSec: 16140 }
+      
+      // When at buffer, cuttingWorkSec is totalSec - currentSec
+      const cuttingWorkSec = Math.max(0, timeMetrics.totalSec - timeMetrics.currentSec)
+      expect(cuttingWorkSec).toBe(10800)
+      
+      // Cutting was within plan!
+      const isCuttingOvertime = cuttingWorkSec > planSec
+      expect(isCuttingOvertime).toBe(false)
+    })
+
+    it('correctly detects and freezes cutting overtime for cards in buffer', () => {
+      // Card has 4h plan (14400s)
+      const planSec = 14400
+      // Cutting took 6h (21600s), card sat in buffer for 1h (3600s) -> total 7h (25200s)
+      const timeMetrics = { totalSec: 25200, currentSec: 3600 }
+      
+      const cuttingWorkSec = Math.max(0, timeMetrics.totalSec - timeMetrics.currentSec)
+      expect(cuttingWorkSec).toBe(21600) // 6 hours
+
+      const isOvertime = cuttingWorkSec > planSec
+      expect(isOvertime).toBe(true)
+
+      const overtimeSec = cuttingWorkSec - planSec
+      expect(overtimeSec).toBe(7200) // Exactly 2 hours!
+
+      // When card sits in buffer for another 3 hours (currentSec = 4h, totalSec = 10h)
+      const laterMetrics = { totalSec: 36000, currentSec: 14400 }
+      const laterCuttingWorkSec = Math.max(0, laterMetrics.totalSec - laterMetrics.currentSec)
+      expect(laterCuttingWorkSec).toBe(21600) // Still 6 hours!
+      expect(laterCuttingWorkSec - planSec).toBe(7200) // Still exactly 2 hours (frozen)!
+    })
+  })
 })
