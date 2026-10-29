@@ -74,6 +74,67 @@ export const parseCuttersBreakdown = (cardInfo = '') => {
   }
 }
 
+export const stripQcOpsStamps = (value = '') => {
+  let info = String(value || '')
+  let markerIdx = info.indexOf('[QC_OPS:')
+
+  while (markerIdx !== -1) {
+    const jsonStart = info.indexOf('{', markerIdx)
+    if (jsonStart === -1) break
+
+    let depth = 0
+    let jsonEnd = -1
+    for (let i = jsonStart; i < info.length; i++) {
+      if (info[i] === '{') depth++
+      else if (info[i] === '}') {
+        depth--
+        if (depth === 0) {
+          jsonEnd = i
+          break
+        }
+      }
+    }
+
+    if (jsonEnd === -1) break
+
+    const markerEnd = info[jsonEnd + 1] === ']' ? jsonEnd + 2 : jsonEnd + 1
+    info = `${info.slice(0, markerIdx)}${info.slice(markerEnd)}`.replace(/\s{2,}/g, ' ').trim()
+    markerIdx = info.indexOf('[QC_OPS:')
+  }
+
+  return info
+}
+
+export const parseQcOpsStamps = (cardInfo = '') => {
+  const info = String(cardInfo || '')
+  const markerIdx = info.indexOf('[QC_OPS:')
+  if (markerIdx === -1) return null
+
+  const jsonStart = info.indexOf('{', markerIdx)
+  if (jsonStart === -1) return null
+
+  let depth = 0
+  let jsonEnd = -1
+  for (let i = jsonStart; i < info.length; i++) {
+    if (info[i] === '{') depth++
+    else if (info[i] === '}') {
+      depth--
+      if (depth === 0) {
+        jsonEnd = i
+        break
+      }
+    }
+  }
+
+  if (jsonEnd === -1) return null
+
+  try {
+    return JSON.parse(info.slice(jsonStart, jsonEnd + 1))
+  } catch {
+    return null
+  }
+}
+
 // Ланцюжок Цеху №1
 export const CHAIN = [
   'Розкрій',

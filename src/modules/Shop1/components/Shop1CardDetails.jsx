@@ -1,7 +1,7 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
 import { ChevronRight, X, ArrowRight } from 'lucide-react'
-import { MACHINE_TYPES, getMachineSequenceConfig } from '../utils/shop1Helpers'
+import { MACHINE_TYPES, getMachineSequenceConfig, parseQcOpsStamps } from '../utils/shop1Helpers'
 import { getPendingRequestsForCard } from '../../../utils/materialCardMatching.js'
 import { getCardCuttingPlanSeconds, formatCuttingTime } from '../../../utils/cuttingTimeUtils.js'
 
@@ -31,6 +31,7 @@ export function Shop1CardDetails({
   handleStartNext,
   handleAcceptToStock,
   setShowQCModal,
+  setShowQCOpsModal,
   setShowPauseModal,
   setShowShiftChangeModal,
   setShowCompleteModal,
@@ -63,6 +64,9 @@ export function Shop1CardDetails({
 
   const parentTask = (tasks || []).find(t => String(t.id) === String(currentCard?.task_id))
   const pendingReqsForCard = getPendingRequestsForCard(currentCard, requests || [], parentTask, nomenclatures || [])
+  const qcOpsData = parseQcOpsStamps(currentCard.card_info)
+  const stampedOpsList = Object.entries(qcOpsData?.ops || {})
+  const hasQcOpsStamps = Boolean(qcOpsData?.sheets?.verified || stampedOpsList.length > 0)
 
   const labelStyle = { fontSize: '0.6rem', fontWeight: 900, color: 'var(--text-dim)', textTransform: 'uppercase', marginBottom: '6px', display: 'block' }
   const selectStyle = { width: '100%', background: 'var(--surface-2)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', padding: '12px', borderRadius: '12px', fontSize: '0.9rem', fontWeight: 700 }
@@ -116,6 +120,18 @@ export function Shop1CardDetails({
               📋 <span className="hide-mobile">НАРЯД</span>
             </Link>
           )}
+          {setShowQCOpsModal && (
+            <button onClick={() => setShowQCOpsModal(true)}
+              style={{ background: hasQcOpsStamps ? '#10b98120' : '#10b98115', border: `1px solid ${hasQcOpsStamps ? '#10b98180' : '#10b98145'}`, color: '#10b981', padding: '10px 14px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+              title="Погодження операцій розкрою та печатка ВКЯ">
+              💮 <span className="hide-mobile">ПЕЧАТКА ВКЯ</span>
+              {stampedOpsList.length > 0 && (
+                <span style={{ background: '#10b981', color: '#000', borderRadius: '999px', padding: '1px 7px', fontSize: '0.68rem', fontWeight: 1000 }}>
+                  {stampedOpsList.length}
+                </span>
+              )}
+            </button>
+          )}
           <button onClick={() => setShowQCModal(true)}
             style={{ background: '#ef444415', border: '1px solid #ef444440', color: '#ef4444', padding: '10px 14px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
             title="Внести додатковий брак ВКЯ">
@@ -137,6 +153,79 @@ export function Shop1CardDetails({
             </div>
           ))}
           <div style={{ color: 'var(--text-muted)', fontSize: '0.64rem', marginTop: '8px' }}>Поточна кількість картки вже зменшена на цей брак. Повторно його не вносьте.</div>
+        </div>
+      )}
+
+      {hasQcOpsStamps && (
+        <div
+          onClick={() => setShowQCOpsModal && setShowQCOpsModal(true)}
+          style={{
+            background: 'rgba(16, 185, 129, 0.08)',
+            border: '1px solid rgba(16, 185, 129, 0.35)',
+            borderRadius: '16px',
+            padding: '12px 16px',
+            marginBottom: '18px',
+            cursor: setShowQCOpsModal ? 'pointer' : 'default'
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <span style={{ color: '#10b981', fontSize: '0.78rem', fontWeight: 1000 }}>
+                💮 ПОГОДЖЕНО ВКЯ ({stampedOpsList.length} оп.)
+              </span>
+              {qcOpsData?.lastStamp && (
+                <span style={{
+                  border: '2px solid #10b981',
+                  color: '#10b981',
+                  borderRadius: '999px',
+                  padding: '2px 10px',
+                  fontSize: '0.68rem',
+                  fontWeight: 1000,
+                  letterSpacing: '0.04em'
+                }}>
+                  {qcOpsData.lastStamp}
+                </span>
+              )}
+              {qcOpsData?.sheets?.verified && (
+                <span style={{
+                  background: 'rgba(16, 185, 129, 0.16)',
+                  color: '#10b981',
+                  borderRadius: '8px',
+                  padding: '2px 8px',
+                  fontSize: '0.68rem',
+                  fontWeight: 900
+                }}>
+                  ✓ Листи відповідають ({qcOpsData.sheets.stamp || 'ВКЯ'})
+                </span>
+              )}
+            </div>
+            {qcOpsData?.lastInspector && (
+              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 800 }}>
+                Фахівець: <strong style={{ color: 'var(--text-strong)' }}>{qcOpsData.lastInspector}</strong>
+              </div>
+            )}
+          </div>
+          {stampedOpsList.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '8px' }}>
+              {stampedOpsList.map(([key, item]) => (
+                <span key={key} style={{
+                  background: 'var(--surface-1)',
+                  border: '1px solid rgba(16, 185, 129, 0.3)',
+                  borderRadius: '8px',
+                  padding: '4px 9px',
+                  fontSize: '0.7rem',
+                  fontWeight: 800,
+                  color: 'var(--text-strong)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}>
+                  <span style={{ color: '#10b981', fontWeight: 1000 }}>[{item.stamp || 'ВКЯ'}]</span>
+                  <span>{item.name}</span>
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

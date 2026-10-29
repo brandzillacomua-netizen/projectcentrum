@@ -5,6 +5,7 @@ import { formatQty } from '../utils/normalize.js'
 import { calculateGeneratedSheetTotal, getCardSheets } from '../features/shortage/shortageCalculations.js'
 import { CardScrapHistoryModal } from '../../Brak/components/modals/CardScrapHistoryModal.jsx'
 import { getCardCuttingPlanSeconds } from '../../../utils/cuttingTimeUtils.js'
+import { parseQcOpsStamps, stripQcOpsStamps } from '../../Shop1/utils/shop1Helpers.js'
 
 const panelStyle = {
   background: 'var(--surface-1)',
@@ -119,6 +120,11 @@ const ScrapMap = ({ title, map, accent }) => {
   )
 }
 
+const isCardCheckedByVkya = (card) => {
+  const qcOpsData = parseQcOpsStamps(card?.card_info)
+  return Boolean(qcOpsData?.sheets?.verified || Object.keys(qcOpsData?.ops || {}).length > 0)
+}
+
 const WorkCardTile = ({ card, unitsPerSheet, onClick, scrapInfo, onOpenScrapHistory }) => {
   const status = getCardStatus(card)
   const isRedo = card?.is_rework || String(card?.card_info || '').includes('[REDO]')
@@ -126,13 +132,56 @@ const WorkCardTile = ({ card, unitsPerSheet, onClick, scrapInfo, onOpenScrapHist
 
   const scrapQty = scrapInfo?.scrap || Number(card?.scrap_qty) || 0
   const utilQty = scrapInfo?.util || (card?.status === 'scrapped' ? Number(card?.quantity) : 0)
+  const qcOpsData = parseQcOpsStamps(card?.card_info)
+  const stampedOpsList = Object.values(qcOpsData?.ops || {})
+  const stampedOpsCount = stampedOpsList.length
+  const hasVkyaStamp = Boolean(qcOpsData?.sheets?.verified || stampedOpsCount > 0)
+  const cleanCardInfo = stripQcOpsStamps(card?.card_info || '')
+  const stampLabel = qcOpsData?.lastStamp || stampedOpsList[0]?.stamp || qcOpsData?.sheets?.stamp || 'ВКЯ'
+  const inspectorLabel = qcOpsData?.lastInspector || stampedOpsList[0]?.inspector || qcOpsData?.sheets?.inspector || ''
+  const vkyaTooltip = [
+    `${stampLabel}${inspectorLabel ? ` · ${inspectorLabel}` : ''}`,
+    qcOpsData?.sheets?.verified ? '✓ Листи відповідають' : null,
+    ...stampedOpsList.map(o => `✓ [${o.stamp || 'ВКЯ'}] ${o.name}`)
+  ].filter(Boolean).join('\n')
 
   return (
-    <article className="foreman2-card-tile" onClick={onClick} style={{ cursor: onClick ? 'pointer' : 'default', background: 'var(--card-bg, #080808)', border: '1px solid var(--glass-border, #242424)', borderRadius: '10px', padding: '12px', minWidth: 0 }}>
+    <article
+      className="foreman2-card-tile"
+      onClick={onClick}
+      style={{
+        cursor: onClick ? 'pointer' : 'default',
+        background: 'var(--card-bg, #080808)',
+        border: hasVkyaStamp ? '1.5px solid rgba(16, 185, 129, 0.45)' : '1px solid var(--glass-border, #242424)',
+        borderRadius: '10px',
+        padding: '12px',
+        minWidth: 0,
+        boxShadow: hasVkyaStamp ? '0 4px 14px rgba(16, 185, 129, 0.08)' : 'none'
+      }}
+    >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
         <div style={{ minWidth: 0 }}>
-          <div style={{ color: 'var(--text, #fff)', fontSize: '0.82rem', fontWeight: 950, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            Картка {cardCode || 'без номера'}
+          <div style={{ color: 'var(--text, #fff)', fontSize: '0.82rem', fontWeight: 950, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span>Картка {cardCode || 'без номера'}</span>
+            {hasVkyaStamp && (
+              <span
+                title={vkyaTooltip}
+                style={{
+                  border: '1.5px double #059669',
+                  color: '#059669',
+                  background: 'rgba(16, 185, 129, 0.12)',
+                  borderRadius: '999px',
+                  padding: '1px 6px',
+                  fontSize: '0.56rem',
+                  fontWeight: 1000,
+                  letterSpacing: '0.03em',
+                  transform: 'rotate(-3deg)',
+                  flexShrink: 0
+                }}
+              >
+                {stampLabel}
+              </span>
+            )}
           </div>
           <div style={{ color: 'var(--text-muted, #64748b)', fontSize: '0.66rem', fontWeight: 850, marginTop: '3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {card?.operation || 'Розкрій'} · {card?.machine || 'Верстат не вказано'}
@@ -147,6 +196,26 @@ const WorkCardTile = ({ card, unitsPerSheet, onClick, scrapInfo, onOpenScrapHist
         <span style={{ color: 'var(--text-strong)', background: status.color, borderRadius: '6px', padding: '4px 8px', fontSize: '0.6rem', fontWeight: 950, textTransform: 'uppercase' }}>
           {status.label}
         </span>
+        {hasVkyaStamp && (
+          <span
+            title={vkyaTooltip}
+            style={{
+              color: '#fff',
+              background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)',
+              borderRadius: '6px',
+              padding: '4px 8px',
+              fontSize: '0.6rem',
+              fontWeight: 950,
+              textTransform: 'uppercase',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              boxShadow: '0 2px 8px rgba(16, 185, 129, 0.35)'
+            }}
+          >
+            💮 ПЕРЕВІРЕНО {stampLabel} ({stampedOpsCount} оп.{qcOpsData?.sheets?.verified ? ' + листи' : ''})
+          </span>
+        )}
         {isRedo && (
           <span style={{ color: '#fff', background: '#ef4444', borderRadius: '6px', padding: '4px 8px', fontSize: '0.6rem', fontWeight: 950, textTransform: 'uppercase' }}>
             Довипуск
@@ -211,9 +280,9 @@ const WorkCardTile = ({ card, unitsPerSheet, onClick, scrapInfo, onOpenScrapHist
         </div>
       </div>
 
-      {card?.card_info && (
+      {cleanCardInfo && (
         <div style={{ marginTop: '10px', color: 'var(--text-muted, #64748b)', fontSize: '0.66rem', fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {card.card_info}
+          {cleanCardInfo}
         </div>
       )}
 
@@ -313,6 +382,7 @@ const WorkCardsArchive = ({ parts, task, expandedId, onToggle, onOpenReissue, on
           const completedCards = (part.productionCards || []).filter(card => ['completed', 'at-shop2-buffer', 'at-buffer', 'waiting-buffer'].includes(card.status)).length
           const inWorkCards = (part.productionCards || []).filter(card => card.status === 'in-progress').length
           const waitingCards = (part.productionCards || []).filter(card => card.status === 'new' || card.status === 'waiting-materials' || card.status === 'waiting-cutters').length
+          const vkyaCheckedCards = (part.cards || []).filter(isCardCheckedByVkya).length
           const redoCards = getRedoProductionCards(part)
           const waitingMaterials = (part.cards || []).some(card => card.status === 'waiting-materials' || card.status === 'waiting-cutters')
           const bzAfterScrap = part.spareFromSheets - part.scrap
@@ -363,7 +433,8 @@ const WorkCardsArchive = ({ parts, task, expandedId, onToggle, onOpenReissue, on
                     <small style={{ marginLeft: '8px', color: 'var(--text-muted, #94a3b8)' }}>
                       ({waitingCards > 0 && <span style={{ color: '#eab308', marginRight: '6px' }}>Очікують: {waitingCards}</span>}
                       {inWorkCards > 0 && <span style={{ color: '#3b82f6', marginRight: '6px' }}>В роботі: {inWorkCards}</span>}
-                      {completedCards > 0 && <span style={{ color: '#10b981' }}>Готові: {completedCards}</span>})
+                      {completedCards > 0 && <span style={{ color: '#10b981' }}>Готові: {completedCards}</span>}
+                      {vkyaCheckedCards > 0 && <span style={{ color: '#059669', marginLeft: '6px' }}>· 💮 Перевірено ВКЯ: {vkyaCheckedCards}</span>})
                     </small>
                   </div>
                   {load.expectedLoads > load.loaded && (
@@ -444,6 +515,7 @@ const WorkCardsArchive = ({ parts, task, expandedId, onToggle, onOpenReissue, on
                       const mWaiting = machineCards.filter(c => c.status === 'new' || c.status === 'waiting-materials' || c.status === 'waiting-cutters').length
                       const mInWork = machineCards.filter(c => c.status === 'in-progress').length
                       const mDone = machineCards.filter(c => ['completed', 'at-buffer', 'waiting-buffer', 'at-shop2-buffer'].includes(c.status)).length
+                      const mVkyaChecked = machineCards.filter(isCardCheckedByVkya).length
                       const mProduced = machineCards.reduce((sum, c) => sum + (['completed', 'at-buffer', 'waiting-buffer', 'at-shop2-buffer'].includes(c.status) ? (Number(c.quantity) || 0) : 0), 0)
 
                       return (
@@ -472,6 +544,7 @@ const WorkCardsArchive = ({ parts, task, expandedId, onToggle, onOpenReissue, on
                                 {mWaiting > 0 && <span style={{ color: '#eab308', marginLeft: '6px' }}>· Очікують: {mWaiting}</span>}
                                 {mInWork > 0 && <span style={{ color: '#3b82f6', marginLeft: '6px' }}>· В роботі: {mInWork}</span>}
                                 {mDone > 0 && <span style={{ color: '#10b981', marginLeft: '6px' }}>· Готові: {mDone}</span>}
+                                {mVkyaChecked > 0 && <span style={{ color: '#059669', marginLeft: '6px' }}>· 💮 Перевірено ВКЯ: {mVkyaChecked}</span>}
                               </div>
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>

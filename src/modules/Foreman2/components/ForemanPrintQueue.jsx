@@ -3,6 +3,34 @@ import { X } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import { getCustomerCode } from '../../../utils/customerCodeUtils.js'
 import { getCardCuttingPlanSeconds, formatCuttingTime } from '../../../utils/cuttingTimeUtils.js'
+import { parseQcOpsStamps } from '../../Shop1/utils/shop1Helpers.js'
+
+const renderStampBadge = (stampInfo) => {
+  if (!stampInfo?.stamp) return null
+  return (
+    <span
+      title={stampInfo.inspector ? `${stampInfo.stamp} · ${stampInfo.inspector} (${stampInfo.at || ''})` : stampInfo.stamp}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        border: '1.5px double #047857',
+        color: '#047857',
+        background: 'rgba(16, 185, 129, 0.08)',
+        borderRadius: '999px',
+        padding: '1px 5px',
+        fontSize: '5.5pt',
+        fontWeight: 1000,
+        letterSpacing: '0.03em',
+        transform: 'rotate(-4deg)',
+        lineHeight: 1.1,
+        whiteSpace: 'nowrap'
+      }}
+    >
+      {stampInfo.stamp}
+    </span>
+  )
+}
 
 const getLoadingSequence = (metadata) => {
   const loading = String(metadata?.loading || metadata?.card_info || '')
@@ -204,11 +232,21 @@ export default function ForemanPrintQueue({
         })
 
         const maxOps = Math.max(10, s1Ops.length, s2Ops.length, s2CutOpsF2.length, s2CutOpsF15.length)
+        const qcOpsData = parseQcOpsStamps(m.loading || m.card_info)
+        const findOpStamp = (prefix, idx, opText) => {
+          if (!opText || !qcOpsData?.ops) return null
+          if (qcOpsData.ops[`${prefix}:${idx}`]) return qcOpsData.ops[`${prefix}:${idx}`]
+          return Object.values(qcOpsData.ops).find(v => v?.name && v.name.trim() === opText.trim()) || null
+        }
+
         const opRows = Array.from({ length: maxOps }).map((_, idx) => ({
           s1: s1Ops[idx] || '',
+          s1Stamp: findOpStamp('s1', idx, s1Ops[idx]),
           s2: s2Ops[idx] || '',
+          s2Stamp: findOpStamp('s2', idx, s2Ops[idx]),
           s2cF2: s2CutOpsF2[idx] || '',
-          s2cF15: s2CutOpsF15[idx] || ''
+          s2cF15: s2CutOpsF15[idx] || '',
+          s2cStamp: findOpStamp('s2c', idx, isCutter1_5 ? s2CutOpsF15[idx] : s2CutOpsF2[idx])
         }))
 
         return (
@@ -302,7 +340,14 @@ export default function ForemanPrintQueue({
                 <div style={{ display: 'flex', border: '1.5px solid #000', height: '100%' }}>
                   <div style={{ padding: '0 15px', borderRight: '1.5px solid #000', display: 'flex', alignItems: 'center', fontSize: '10pt', fontWeight: 900 }}>Листи відповідають</div>
                   <div style={{ padding: '0 15px', borderRight: '1.5px solid #000', display: 'flex', alignItems: 'center', fontSize: '10pt', fontWeight: 900 }}>{getDisplayMaterial(nomenclature, snapshotPart) || nomenclature?.material_type || '—'}</div>
-                  <div style={{ padding: '0 15px', display: 'flex', alignItems: 'center', fontSize: '14pt', fontWeight: 900 }}>☐</div>
+                  <div style={{ padding: '0 12px', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14pt', fontWeight: 900 }}>
+                    {qcOpsData?.sheets?.verified ? (
+                      <>
+                        <span style={{ color: '#047857' }}>☑</span>
+                        {renderStampBadge(qcOpsData.sheets)}
+                      </>
+                    ) : '☐'}
+                  </div>
                 </div>
               </div>
               <div style={{ marginTop: '2px' }}>
@@ -333,15 +378,21 @@ export default function ForemanPrintQueue({
                     {opRows.map((row, idx) => (
                       <tr key={idx} style={{ height: '22px' }}>
                         <td style={{ border: '1.5px solid #000', paddingLeft: '4px' }}>{row.s1}</td>
-                        <td style={{ border: '1.5px solid #000', textAlign: 'center', fontSize: '10pt', letterSpacing: '2px' }}>☐ | ☐</td>
+                        <td style={{ border: '1.5px solid #000', textAlign: 'center', fontSize: '10pt', letterSpacing: row.s1Stamp ? '0' : '2px' }}>
+                          {row.s1Stamp ? renderStampBadge(row.s1Stamp) : '☐ | ☐'}
+                        </td>
                         <td style={{ border: '1.5px solid #000', paddingLeft: '4px' }}>{row.s2}</td>
-                        <td style={{ border: '1.5px solid #000', textAlign: 'center', fontSize: '10pt', letterSpacing: '2px' }}>☐ | ☐</td>
+                        <td style={{ border: '1.5px solid #000', textAlign: 'center', fontSize: '10pt', letterSpacing: row.s2Stamp ? '0' : '2px' }}>
+                          {row.s2Stamp ? renderStampBadge(row.s2Stamp) : '☐ | ☐'}
+                        </td>
                         {!isCutter1_5 ? (
                           <td style={{ border: '1.5px solid #000', paddingLeft: '4px' }}>{row.s2cF2}</td>
                         ) : (
                           <td style={{ border: '1.5px solid #000', paddingLeft: '4px' }}>{row.s2cF15}</td>
                         )}
-                        <td style={{ border: '1.5px solid #000', textAlign: 'center', fontSize: '10pt' }}>☐</td>
+                        <td style={{ border: '1.5px solid #000', textAlign: 'center', fontSize: '10pt' }}>
+                          {row.s2cStamp ? renderStampBadge(row.s2cStamp) : '☐'}
+                        </td>
                       </tr>
                     ))}
                   </tbody>

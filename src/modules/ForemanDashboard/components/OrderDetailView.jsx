@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { AlertTriangle, RefreshCw, Search } from 'lucide-react'
 import WipTable from './WipTable'
 import { fetchWorkCardHistoryByCardIds } from '../utils/foremanDashboardHelpers.jsx'
+import { parseQcOpsStamps } from '../../Shop1/utils/shop1Helpers'
 
 const OrderDetailContent = ({
   task, order, tasks, workCards, allTasksCards, cardsByTaskId, allCardsHistory, flowTotalsRows = [], nomenclatures, bomItems, inventory,
@@ -463,10 +464,12 @@ const OrderDetailContent = ({
                                       : '⚪ ОЧІКУЄ'
 
                                 const currentOp = c.operation || 'Створення'
+                                const qcOpsData = parseQcOpsStamps(c.card_info)
+                                const stampedOpsCount = Object.keys(qcOpsData?.ops || {}).length
 
                                 return (
-                                  <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--card-bg, #18181b)', border: '1px solid var(--glass-border, rgba(0,0,0,0.1))', padding: '10px 14px', borderRadius: '10px', fontSize: '0.74rem' }}>
-                                    <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+                                  <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--card-bg, #18181b)', border: '1px solid var(--glass-border, rgba(0,0,0,0.1))', padding: '10px 14px', borderRadius: '10px', fontSize: '0.74rem', flexWrap: 'wrap', gap: '8px' }}>
+                                    <div style={{ display: 'flex', gap: '15px', alignItems: 'center', flexWrap: 'wrap' }}>
                                       <strong style={{ color: '#ff9000', fontFamily: 'monospace' }}>#{c.id.slice(-8).toUpperCase()}</strong>
                                       <span style={{ color: 'var(--text-muted, #888)' }}>К-сть: <strong>{c.quantity || 0} шт</strong></span>
                                       
@@ -475,6 +478,16 @@ const OrderDetailContent = ({
                                           <span style={{ color: 'var(--glass-border, rgba(0,0,0,0.15))' }}>|</span>
                                           <span style={{ color: '#ef4444', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' }}>
                                             <span>⚠️</span> Брак: {totalScrap} шт {scrapStages ? `(на етапі: ${scrapStages})` : `(на етапі: ${currentOp})`}
+                                          </span>
+                                        </>
+                                      )}
+
+                                      {(stampedOpsCount > 0 || qcOpsData?.sheets?.verified) && (
+                                        <>
+                                          <span style={{ color: 'var(--glass-border, rgba(0,0,0,0.15))' }}>|</span>
+                                          <span style={{ color: '#10b981', fontWeight: 900, display: 'inline-flex', alignItems: 'center', gap: '5px', background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.35)', borderRadius: '999px', padding: '2px 9px', fontSize: '0.68rem' }}
+                                            title={Object.values(qcOpsData?.ops || {}).map(o => `[${o.stamp}] ${o.name}`).join('\n')}>
+                                            💮 {qcOpsData?.lastStamp || 'ВКЯ'}: {stampedOpsCount} оп.{qcOpsData?.sheets?.verified ? ' + листи ✓' : ''}
                                           </span>
                                         </>
                                       )}

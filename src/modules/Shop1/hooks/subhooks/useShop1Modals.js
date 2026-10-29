@@ -29,6 +29,7 @@ export function useShop1Modals({
 
   // QC modal
   const [showQCModal, setShowQCModal] = useState(false);
+  const [showQCOpsModal, setShowQCOpsModal] = useState(false);
   const [qcScrapCount, setQcScrapCount] = useState(0);
   const [qcInspector, setQcInspector] = useState('');
   const [qcReason, setQcReason] = useState('Биття цанги');
@@ -144,6 +145,8 @@ export function useShop1Modals({
     setCustomPauseReason,
     showQCModal,
     setShowQCModal,
+    showQCOpsModal,
+    setShowQCOpsModal,
     qcScrapCount,
     setQcScrapCount,
     qcInspector,
@@ -186,6 +189,7 @@ export function useShop1Modals({
     pauseReason,
     customPauseReason,
     showQCModal,
+    showQCOpsModal,
     qcScrapCount,
     qcInspector,
     qcReason,

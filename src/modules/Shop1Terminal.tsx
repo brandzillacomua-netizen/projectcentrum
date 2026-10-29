@@ -6,6 +6,7 @@ import { Shop1PauseModal } from './Shop1/components/modals/Shop1PauseModal'
 import { Shop1ShiftChangeModal } from './Shop1/components/modals/Shop1ShiftChangeModal'
 import { Shop1MachineCallModal } from './Shop1/components/modals/Shop1MachineCallModal'
 import { Shop1QCModal } from './Shop1/components/modals/Shop1QCModal'
+import { Shop1QCOpsModal } from './Shop1/components/modals/Shop1QCOpsModal'
 import { Shop1StorageExplorerModal } from './Shop1/components/modals/Shop1StorageExplorerModal'
 import { Shop1CompleteModal } from './Shop1/components/modals/Shop1CompleteModal'
 import { Shop1DetailStageModal } from './Shop1/components/modals/Shop1DetailStageModal'
@@ -45,6 +46,7 @@ export const Shop1Terminal: React.FC = () => {
     setMachineCallModal, machineCallSuccess, selectedCallMasterId, setSelectedCallMasterId,
     selectedCallEngineerId, setSelectedCallEngineerId, selectedCallQCId, setSelectedCallQCId,
     callMasters, callEngineers, callQCs, handleCreateCall, showQCModal, setShowQCModal,
+    showQCOpsModal, setShowQCOpsModal, setWorkCards, setSelectedCardHistory, currentUser, systemUsers, showAlert,
     qcScrapCount, setQcScrapCount, qcInspector, setQcInspector, qcReason, setQcReason,
     qcCustomReason, setQcCustomReason, customAlert, setCustomAlert, detailStage, setDetailStage,
     detailTab, setDetailTab, showStorageExplorer, setShowStorageExplorer, activeExplorerTab,
@@ -169,6 +171,7 @@ export const Shop1Terminal: React.FC = () => {
               handleStartNext={handleStartNext}
               handleAcceptToStock={handleAcceptToStock}
               setShowQCModal={setShowQCModal}
+              setShowQCOpsModal={setShowQCOpsModal}
               setShowPauseModal={setShowPauseModal}
               setShowShiftChangeModal={setShowShiftChangeModal}
               setShowCompleteModal={setShowCompleteModal}
@@ -330,6 +333,24 @@ export const Shop1Terminal: React.FC = () => {
         isProcessing={isProcessing}
         selectStyle={selectStyle}
         labelStyle={labelStyle}
+      />
+
+      {/* QC Operations Approval & Digital Stamp Modal */}
+      <Shop1QCOpsModal
+        showQCOpsModal={showQCOpsModal}
+        onClose={() => setShowQCOpsModal(false)}
+        currentCard={currentCard}
+        nomenclature={getNom(currentCard)}
+        tasks={tasks}
+        currentUser={currentUser}
+        systemUsers={systemUsers}
+        supabase={supabase}
+        setWorkCards={setWorkCards}
+        setSelectedCardHistory={setSelectedCardHistory}
+        showAlert={showAlert}
+        isProcessing={isProcessing}
+        setIsProcessing={setIsProcessing}
+        fetchData={fetchData}
       />
 
       {/* Stage Detail Modal */}

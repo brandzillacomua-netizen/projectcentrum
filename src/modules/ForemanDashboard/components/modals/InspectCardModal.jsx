@@ -1,8 +1,13 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
+import { parseQcOpsStamps } from '../../../Shop1/utils/shop1Helpers'
 
 const InspectCardModal = ({ inspectCardModal, onClose, tasks = [], ordersMap = {}, orders = [] }) => {
   if (!inspectCardModal) return null
+
+  const qcOpsData = parseQcOpsStamps(inspectCardModal.card_info)
+  const stampedOpsList = Object.entries(qcOpsData?.ops || {})
+  const hasQcOpsStamps = Boolean(qcOpsData?.sheets?.verified || stampedOpsList.length > 0)
 
   const infoParts = (inspectCardModal.card_info || '').split(' ')
   const cardNumBadge = infoParts[0] && (infoParts[0].includes('/') || infoParts[0].includes('['))
@@ -82,6 +87,42 @@ const InspectCardModal = ({ inspectCardModal, onClose, tasks = [], ordersMap = {
           <div><strong>Створено:</strong> {inspectCardModal.created_at ? new Date(inspectCardModal.created_at).toLocaleString('uk-UA') : '—'}</div>
           {inspectCardModal.completed_at && <div><strong>Завершено:</strong> {new Date(inspectCardModal.completed_at).toLocaleString('uk-UA')}</div>}
         </div>
+
+        {hasQcOpsStamps && (
+          <div style={{ background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.35)', borderRadius: '14px', padding: '12px 14px', marginBottom: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginBottom: stampedOpsList.length > 0 ? '8px' : 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <span style={{ color: '#10b981', fontSize: '0.76rem', fontWeight: 950 }}>
+                  💮 ПЕЧАТКА ВКЯ ({stampedOpsList.length} оп.)
+                </span>
+                {qcOpsData?.lastStamp && (
+                  <span style={{ border: '1.5px solid #10b981', color: '#10b981', borderRadius: '999px', padding: '1px 8px', fontSize: '0.66rem', fontWeight: 950 }}>
+                    {qcOpsData.lastStamp}
+                  </span>
+                )}
+                {qcOpsData?.sheets?.verified && (
+                  <span style={{ background: 'rgba(16, 185, 129, 0.16)', color: '#10b981', borderRadius: '6px', padding: '1px 7px', fontSize: '0.66rem', fontWeight: 900 }}>
+                    ✓ Листи відповідають
+                  </span>
+                )}
+              </div>
+              {qcOpsData?.lastInspector && (
+                <span style={{ fontSize: '0.68rem', color: 'var(--text-muted, #a1a1aa)', fontWeight: 700 }}>
+                  {qcOpsData.lastInspector}
+                </span>
+              )}
+            </div>
+            {stampedOpsList.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+                {stampedOpsList.map(([key, item]) => (
+                  <span key={key} style={{ background: 'var(--bg, #0d0d0f)', border: '1px solid rgba(16, 185, 129, 0.28)', borderRadius: '6px', padding: '3px 7px', fontSize: '0.68rem', fontWeight: 700, color: 'var(--text, #f4f4f5)' }}>
+                    <strong style={{ color: '#10b981' }}>[{item.stamp || 'ВКЯ'}]</strong> {item.name}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
           {isShop1Card ? (
