@@ -524,6 +524,52 @@ const MachinesModule = () => {
         }
 
         /* ── 3 QUICK CALL BUTTONS PANEL & CARDS ── */
+        .machine-header-call-wrap {
+          position: relative;
+          display: inline-flex;
+          align-items: center;
+        }
+        .call-header-btn {
+          position: relative;
+          gap: 6px;
+        }
+        .call-header-btn.is-open,
+        .call-header-btn.has-active-calls {
+          border-color: rgba(255, 144, 0, 0.55) !important;
+          background: rgba(255, 144, 0, 0.1) !important;
+          color: #ff9000 !important;
+        }
+        .call-header-badge {
+          background: #ef4444;
+          color: #fff;
+          font-size: 0.62rem;
+          font-weight: 950;
+          min-width: 18px;
+          height: 18px;
+          padding: 0 5px;
+          border-radius: 999px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .machine-header-call-popover {
+          position: absolute;
+          top: calc(100% + 8px);
+          right: 0;
+          z-index: 250;
+          width: 340px;
+          max-width: calc(100vw - 32px);
+          background: #0d0d0d;
+          border: 1px solid #282828;
+          border-radius: 16px;
+          padding: 14px;
+          box-shadow: 0 20px 50px rgba(0, 0, 0, 0.65);
+        }
+        .machine-call-popover-list {
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+        }
         .machine-quick-calls-panel {
           grid-column: 1 / -1;
           background: #0d0d0d;
@@ -990,9 +1036,20 @@ const MachinesModule = () => {
         }
 
         .light-theme .machine-quick-calls-panel,
-        body.light-theme .machine-quick-calls-panel {
+        body.light-theme .machine-quick-calls-panel,
+        .light-theme .machine-header-call-popover,
+        body.light-theme .machine-header-call-popover {
           background: #ffffff !important;
           border: 1px solid #e2e8f0 !important;
+          box-shadow: 0 18px 40px rgba(15, 23, 42, 0.16) !important;
+        }
+        .light-theme .call-header-btn.is-open,
+        body.light-theme .call-header-btn.is-open,
+        .light-theme .call-header-btn.has-active-calls,
+        body.light-theme .call-header-btn.has-active-calls {
+          border-color: #fdba74 !important;
+          background: #fff7ed !important;
+          color: #c2410c !important;
         }
 
         .light-theme .machine-quick-calls-header,

@@ -96,6 +96,7 @@ export function MachineDossier({
   const [selectedQualityId, setSelectedQualityId] = useState('')
   const [isCalling, setIsCalling] = useState(false)
   const [callNotice, setCallNotice] = useState('')
+  const [callMenuOpen, setCallMenuOpen] = useState(false)
 
   useEffect(() => {
     if (!selectedMachine?.id) return
@@ -309,7 +310,7 @@ export function MachineDossier({
 
   return (
     <div className="machine-dossier-overlay" onClick={() => setSelectedMachineId(null)}>
-      <section className="machine-dossier" onClick={event => event.stopPropagation()}>
+      <section className="machine-dossier" onClick={event => { event.stopPropagation(); if (callMenuOpen) setCallMenuOpen(false) }}>
         <header className="machine-dossier-header">
           <div className="machine-header-main">
             <div className="machine-title-block">
@@ -331,6 +332,203 @@ export function MachineDossier({
             <div className="machine-status-pill" style={{ color: status.color, borderColor: `${status.color}55`, background: `${status.color}12` }}>
               <span style={{ background: status.color }} />{status.label}
             </div>
+
+            <div className="machine-header-call-wrap" onClick={e => e.stopPropagation()}>
+              <button
+                type="button"
+                className={`machine-action secondary call-header-btn ${callMenuOpen ? 'is-open' : ''} ${activeCallsForMachine.length > 0 ? 'has-active-calls' : ''}`}
+                title="Швидкий виклик персоналу"
+                onClick={() => setCallMenuOpen(prev => !prev)}
+              >
+                <PhoneCall size={15} color="#ff9000" />
+                <span>Виклик</span>
+                {activeCallsForMachine.length > 0 && (
+                  <span className="call-header-badge">{activeCallsForMachine.length}</span>
+                )}
+              </button>
+
+              {callMenuOpen && (
+                <div className="machine-header-call-popover">
+                  <div className="machine-quick-calls-header">
+                    <div className="machine-panel-title" style={{ marginBottom: 0 }}>
+                      <PhoneCall size={16} color="#ff9000" />
+                      <span>Швидкий виклик персоналу</span>
+                    </div>
+                    <button
+                      type="button"
+                      className="machine-close-inline-btn"
+                      onClick={() => setCallMenuOpen(false)}
+                      title="Закрити"
+                    >
+                      <X size={15} />
+                    </button>
+                  </div>
+
+                  <div className="machine-quick-calls-operator" style={{ marginTop: '10px', marginBottom: '10px' }}>
+                    <label>Оператор:</label>
+                    <input
+                      type="text"
+                      value={operatorName}
+                      onChange={e => setOperatorName(e.target.value)}
+                      placeholder="Вкажіть ім'я..."
+                    />
+                  </div>
+
+                  {callNotice && (
+                    <div className="machine-dossier-notice" style={{ margin: '0 0 10px 0' }}>
+                      <CheckCircle2 size={15} /> {callNotice}
+                    </div>
+                  )}
+
+                  <div className="machine-call-popover-list">
+                    {/* 1. MASTER */}
+                    <div className={`machine-call-card master ${activeMasterCall ? 'is-active' : ''}`}>
+                      <div className="call-card-header">
+                        <div className="call-card-icon master"><PhoneCall size={17} /></div>
+                        <div className="call-card-meta">
+                          <div className="call-card-title">МАЙСТЕР</div>
+                          <div className="call-card-sub">Зміна / бригадир</div>
+                        </div>
+                        {activeMasterCall && (
+                          <span className="call-badge active-master">
+                            <span className="pulse-dot" /> В ЧЕРЗІ
+                          </span>
+                        )}
+                      </div>
+                      {activeMasterCall ? (
+                        <div className="call-card-active-info">
+                          <div className="call-active-time">
+                            Надіслано: {formatDateTime(activeMasterCall.created_at)} · <strong>{activeMasterCall.operator_name || 'Оператор'}</strong>
+                          </div>
+                          <button className="call-resolve-btn master" onClick={() => handleResolveCall(activeMasterCall)}>
+                            <CheckCircle2 size={14} /> Оброблено
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="call-card-action-block">
+                          <select
+                            value={selectedMasterId}
+                            onChange={e => setSelectedMasterId(e.target.value)}
+                            className="call-select master"
+                          >
+                            <option value="">-- Всі майстри (Загальний) --</option>
+                            {masters.map(u => (
+                              <option key={u.id} value={u.id}>
+                                {u.first_name || ''} {u.last_name || ''} {u.position ? `(${u.position})` : ''}
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            className="call-trigger-btn master"
+                            disabled={isCalling}
+                            onClick={() => handleTriggerCall('master')}
+                          >
+                            <PhoneCall size={15} /> Викликати майстра
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* 2. ENGINEER */}
+                    <div className={`machine-call-card engineer ${activeEngineerCall ? 'is-active' : ''}`}>
+                      <div className="call-card-header">
+                        <div className="call-card-icon engineer"><Hammer size={17} /></div>
+                        <div className="call-card-meta">
+                          <div className="call-card-title">ІНЖЕНЕР</div>
+                          <div className="call-card-sub">Налагодження / ремонт</div>
+                        </div>
+                        {activeEngineerCall && (
+                          <span className="call-badge active-engineer">
+                            <span className="pulse-dot" /> В ЧЕРЗІ
+                          </span>
+                        )}
+                      </div>
+                      {activeEngineerCall ? (
+                        <div className="call-card-active-info">
+                          <div className="call-active-time">
+                            Надіслано: {formatDateTime(activeEngineerCall.created_at)} · <strong>{activeEngineerCall.operator_name || 'Оператор'}</strong>
+                          </div>
+                          <button className="call-resolve-btn engineer" onClick={() => handleResolveCall(activeEngineerCall)}>
+                            <CheckCircle2 size={14} /> Оброблено
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="call-card-action-block">
+                          <select
+                            value={selectedEngineerId}
+                            onChange={e => setSelectedEngineerId(e.target.value)}
+                            className="call-select engineer"
+                          >
+                            <option value="">-- Всі інженери (Загальний) --</option>
+                            {engineers.map(u => (
+                              <option key={u.id} value={u.id}>
+                                {u.first_name || ''} {u.last_name || ''} {u.position ? `(${u.position})` : ''}
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            className="call-trigger-btn engineer"
+                            disabled={isCalling}
+                            onClick={() => handleTriggerCall('engineer')}
+                          >
+                            <Hammer size={15} /> Викликати інженера
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* 3. QUALITY CONTROL */}
+                    <div className={`machine-call-card quality ${activeQualityCall ? 'is-active' : ''}`}>
+                      <div className="call-card-header">
+                        <div className="call-card-icon quality"><ShieldAlert size={17} /></div>
+                        <div className="call-card-meta">
+                          <div className="call-card-title">ВКЯ</div>
+                          <div className="call-card-sub">Контроль якості / брак</div>
+                        </div>
+                        {activeQualityCall && (
+                          <span className="call-badge active-quality">
+                            <span className="pulse-dot" /> В ЧЕРЗІ
+                          </span>
+                        )}
+                      </div>
+                      {activeQualityCall ? (
+                        <div className="call-card-active-info">
+                          <div className="call-active-time">
+                            Надіслано: {formatDateTime(activeQualityCall.created_at)} · <strong>{activeQualityCall.operator_name || 'Оператор'}</strong>
+                          </div>
+                          <button className="call-resolve-btn quality" onClick={() => handleResolveCall(activeQualityCall)}>
+                            <CheckCircle2 size={14} /> Оброблено
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="call-card-action-block">
+                          <select
+                            value={selectedQualityId}
+                            onChange={e => setSelectedQualityId(e.target.value)}
+                            className="call-select quality"
+                          >
+                            <option value="">-- Всі фахівці ВКЯ (Загальний) --</option>
+                            {qualities.map(u => (
+                              <option key={u.id} value={u.id}>
+                                {u.first_name || ''} {u.last_name || ''} {u.position ? `(${u.position})` : ''}
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            className="call-trigger-btn quality"
+                            disabled={isCalling}
+                            onClick={() => handleTriggerCall('quality')}
+                          >
+                            <ShieldAlert size={15} /> Викликати ВКЯ
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
             <button
               className="machine-action secondary"
               title="Друкувати QR-код"
@@ -490,198 +688,6 @@ export function MachineDossier({
                     )}
                   </div>
                 )}
-              </div>
-
-              {/* ── 2. QUICK CALL BUTTONS PANEL ── */}
-              <div className="machine-panel machine-quick-calls-panel">
-                <div className="machine-quick-calls-header">
-                  <div className="machine-panel-title">
-                    <PhoneCall size={18} color="#ff9000" />
-                    <span>Швидкий виклик персоналу</span>
-                  </div>
-                  <div className="machine-quick-calls-operator">
-                    <label>Ім'я оператора:</label>
-                    <input
-                      type="text"
-                      value={operatorName}
-                      onChange={e => setOperatorName(e.target.value)}
-                      placeholder="Вкажіть ім'я..."
-                    />
-                  </div>
-                </div>
-
-                {callNotice && (
-                  <div className="machine-dossier-notice" style={{ marginTop: '10px' }}>
-                    <CheckCircle2 size={16} /> {callNotice}
-                  </div>
-                )}
-
-                <div className="machine-call-cards-grid">
-                  {/* 1. MASTER */}
-                  <div className={`machine-call-card master ${activeMasterCall ? 'is-active' : ''}`}>
-                    <div className="call-card-header">
-                      <div className="call-card-icon master"><PhoneCall size={20} /></div>
-                      <div className="call-card-meta">
-                        <div className="call-card-title">МАЙСТЕР</div>
-                        <div className="call-card-sub">Зміна / бригадир</div>
-                      </div>
-                      {activeMasterCall && (
-                        <span className="call-badge active-master">
-                          <span className="pulse-dot" /> В ЧЕРЗІ
-                        </span>
-                      )}
-                    </div>
-
-                    {activeMasterCall ? (
-                      <div className="call-card-active-info">
-                        <div className="call-active-time">
-                          Надіслано: {formatDateTime(activeMasterCall.created_at)}
-                        </div>
-                        <div className="call-active-by">
-                          Оператор: <strong>{activeMasterCall.operator_name || 'Оператор'}</strong>
-                        </div>
-                        <button
-                          className="call-resolve-btn master"
-                          onClick={() => handleResolveCall(activeMasterCall)}
-                        >
-                          <CheckCircle2 size={15} /> Оброблено
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="call-card-action-block">
-                        <select
-                          value={selectedMasterId}
-                          onChange={e => setSelectedMasterId(e.target.value)}
-                          className="call-select master"
-                        >
-                          <option value="">-- Всі майстри (Загальний) --</option>
-                          {masters.map(u => (
-                            <option key={u.id} value={u.id}>
-                              {u.first_name || ''} {u.last_name || ''} {u.position ? `(${u.position})` : ''}
-                            </option>
-                          ))}
-                        </select>
-                        <button
-                          className="call-trigger-btn master"
-                          disabled={isCalling}
-                          onClick={() => handleTriggerCall('master')}
-                        >
-                          <PhoneCall size={16} /> Викликати майстра
-                        </button>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* 2. ENGINEER */}
-                  <div className={`machine-call-card engineer ${activeEngineerCall ? 'is-active' : ''}`}>
-                    <div className="call-card-header">
-                      <div className="call-card-icon engineer"><Hammer size={20} /></div>
-                      <div className="call-card-meta">
-                        <div className="call-card-title">ІНЖЕНЕР</div>
-                        <div className="call-card-sub">Налагодження / ремонт</div>
-                      </div>
-                      {activeEngineerCall && (
-                        <span className="call-badge active-engineer">
-                          <span className="pulse-dot" /> В ЧЕРЗІ
-                        </span>
-                      )}
-                    </div>
-
-                    {activeEngineerCall ? (
-                      <div className="call-card-active-info">
-                        <div className="call-active-time">
-                          Надіслано: {formatDateTime(activeEngineerCall.created_at)}
-                        </div>
-                        <div className="call-active-by">
-                          Оператор: <strong>{activeEngineerCall.operator_name || 'Оператор'}</strong>
-                        </div>
-                        <button
-                          className="call-resolve-btn engineer"
-                          onClick={() => handleResolveCall(activeEngineerCall)}
-                        >
-                          <CheckCircle2 size={15} /> Оброблено
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="call-card-action-block">
-                        <select
-                          value={selectedEngineerId}
-                          onChange={e => setSelectedEngineerId(e.target.value)}
-                          className="call-select engineer"
-                        >
-                          <option value="">-- Всі інженери (Загальний) --</option>
-                          {engineers.map(u => (
-                            <option key={u.id} value={u.id}>
-                              {u.first_name || ''} {u.last_name || ''} {u.position ? `(${u.position})` : ''}
-                            </option>
-                          ))}
-                        </select>
-                        <button
-                          className="call-trigger-btn engineer"
-                          disabled={isCalling}
-                          onClick={() => handleTriggerCall('engineer')}
-                        >
-                          <Hammer size={16} /> Викликати інженера
-                        </button>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* 3. QUALITY CONTROL */}
-                  <div className={`machine-call-card quality ${activeQualityCall ? 'is-active' : ''}`}>
-                    <div className="call-card-header">
-                      <div className="call-card-icon quality"><ShieldAlert size={20} /></div>
-                      <div className="call-card-meta">
-                        <div className="call-card-title">ВКЯ</div>
-                        <div className="call-card-sub">Контроль якості / брак</div>
-                      </div>
-                      {activeQualityCall && (
-                        <span className="call-badge active-quality">
-                          <span className="pulse-dot" /> В ЧЕРЗІ
-                        </span>
-                      )}
-                    </div>
-
-                    {activeQualityCall ? (
-                      <div className="call-card-active-info">
-                        <div className="call-active-time">
-                          Надіслано: {formatDateTime(activeQualityCall.created_at)}
-                        </div>
-                        <div className="call-active-by">
-                          Оператор: <strong>{activeQualityCall.operator_name || 'Оператор'}</strong>
-                        </div>
-                        <button
-                          className="call-resolve-btn quality"
-                          onClick={() => handleResolveCall(activeQualityCall)}
-                        >
-                          <CheckCircle2 size={15} /> Оброблено
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="call-card-action-block">
-                        <select
-                          value={selectedQualityId}
-                          onChange={e => setSelectedQualityId(e.target.value)}
-                          className="call-select quality"
-                        >
-                          <option value="">-- Всі фахівці ВКЯ (Загальний) --</option>
-                          {qualities.map(u => (
-                            <option key={u.id} value={u.id}>
-                              {u.first_name || ''} {u.last_name || ''} {u.position ? `(${u.position})` : ''}
-                            </option>
-                          ))}
-                        </select>
-                        <button
-                          className="call-trigger-btn quality"
-                          disabled={isCalling}
-                          onClick={() => handleTriggerCall('quality')}
-                        >
-                          <ShieldAlert size={16} /> Викликати ВКЯ
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
               </div>
 
               <div className="machine-panel current-work">
