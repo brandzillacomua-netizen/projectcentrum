@@ -9,7 +9,7 @@ import { BrakReportPage } from './Brak/components/BrakReportPage.jsx'
 import { BrakStampsJournalModal } from './Brak/components/BrakStampsJournalModal.jsx'
 import { BrakScanModal } from './Brak/components/modals/BrakScanModal.jsx'
 import { BrakCardScrapModal } from './Brak/components/modals/BrakCardScrapModal.jsx'
-import { BrakActiveCuttingModal, isCardInCutting } from './Brak/components/modals/BrakActiveCuttingModal.jsx'
+import { BrakActiveCuttingModal, isCardInCutting, getActiveCuttingCards } from './Brak/components/modals/BrakActiveCuttingModal.jsx'
 import { BrakRestorationModal } from './Brak/components/modals/BrakRestorationModal.jsx'
 import { BrakReworkModal } from './Brak/components/modals/BrakReworkModal.jsx'
 import { Shop1QCOpsModal } from './Shop1/components/modals/Shop1QCOpsModal.jsx'
@@ -138,8 +138,8 @@ export default function BrakModule() {
   }, [workCards])
 
   const activeCuttingCardsCount = useMemo(() => {
-    return (workCards || []).filter(isCardInCutting).length
-  }, [workCards])
+    return getActiveCuttingCards(workCards, nomenclatures).length
+  }, [workCards, nomenclatures])
 
   const qcOpsTargetNomenclature = useMemo(() => {
     if (!qcOpsTargetCard) return null

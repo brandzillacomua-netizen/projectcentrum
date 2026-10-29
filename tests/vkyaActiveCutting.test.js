@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isCardInCutting } from '../src/modules/Brak/components/modals/BrakActiveCuttingModal.jsx'
+import { isCardInCutting, getActiveCuttingCards } from '../src/modules/Brak/components/modals/BrakActiveCuttingModal.jsx'
 
 describe('VKYA Active Cutting Cards Detection', () => {
   it('correctly identifies cards actively in cutting', () => {
@@ -64,6 +64,35 @@ describe('VKYA Active Cutting Cards Detection', () => {
       card_info: '[ЗІ СКЛАДУ СГП]'
     }
     expect(isCardInCutting(sgpCard)).toBe(false)
+  })
+
+  it('rejects Shop 2 automatic cards and non-part nomenclatures', () => {
+    const shop2AutoCard = {
+      id: 'card-shop2',
+      status: 'in-progress',
+      operation: 'Розкрій',
+      card_info: '[ЦЕХ №2] Автоматично'
+    }
+    expect(isCardInCutting(shop2AutoCard)).toBe(false)
+
+    const nonPartCard = {
+      id: 'card-box',
+      status: 'in-progress',
+      operation: 'Розкрій',
+      nomenclature_id: 'nom-box'
+    }
+    const nomMap = new Map([['nom-box', { id: 'nom-box', type: 'box' }]])
+    expect(isCardInCutting(nonPartCard, nomMap)).toBe(false)
+  })
+
+  it('getActiveCuttingCards deduplicates cards by id matching Shop 1 Terminal parity', () => {
+    const card1 = { id: 'card-dup', status: 'in-progress', operation: 'Розкрій' }
+    const cardDup = { id: 'card-dup', status: 'in-progress', operation: 'Розкрій' }
+    const card2 = { id: 'card-unique', status: 'in-progress', operation: 'Розкрій' }
+
+    const result = getActiveCuttingCards([card1, cardDup, card2])
+    expect(result).toHaveLength(2)
+    expect(result.map(c => c.id)).toEqual(['card-dup', 'card-unique'])
   })
 })
 

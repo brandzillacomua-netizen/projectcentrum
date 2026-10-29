@@ -34,25 +34,48 @@ function formatTimeOnly(isoStr) {
   return d.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' })
 }
 
-export function isCardInCutting(card) {
+export function isCardInCutting(card, nomMapOrList) {
   if (!card) return false
   const status = String(card.status || '').toLowerCase()
-  const isActive = status === 'in-progress' || status === 'in_progress' || status === 'paused' || status === 'working'
+  const isActive = status === 'in-progress' || status === 'in_progress' || status === 'paused' || status === 'hold' || status === 'working'
   if (!isActive) return false
 
-  const op = String(card.operation || card.current_operation || '').toLowerCase()
-  if (op === 'склад сгп' || op.includes('сгп') || op === 'сортування' || op === 'прийомка' || op === 'галтовка') return false
+  const op = String(card.operation || card.current_operation || '').trim()
+  if (op !== 'Розкрій' && !op.toLowerCase().startsWith('розкрій')) return false
+
   const info = String(card.card_info || '')
-  if (info.includes('[ЗІ СКЛАДУ СГП]') || info.includes('[SHOP:2]')) return false
-
-  if (op === 'розкрій' || op.includes('розкрій') || !op || op === 'нова') return true
-
-  const machine = String(card.machine || '').toLowerCase()
-  if (machine.includes('cnc') || machine.includes('чпк') || machine.includes('12x8') || machine.includes('ke xin') || machine.includes('фея')) {
-    return true
+  if (
+    info.includes('[ЗІ СКЛАДУ СГП]') ||
+    info.includes('[SHOP:2]') ||
+    info.includes('[ЦЕХ №2] Автоматично') ||
+    info.includes('[ЦЕХ 2] Автоматично')
+  ) {
+    return false
   }
 
-  return false
+  if (nomMapOrList) {
+    const nom = Array.isArray(nomMapOrList)
+      ? nomMapOrList.find(n => String(n.id) === String(card.nomenclature_id))
+      : nomMapOrList.get?.(card.nomenclature_id) || nomMapOrList[card.nomenclature_id]
+    if (nom && nom.type && nom.type !== 'part') {
+      return false
+    }
+  }
+
+  return true
+}
+
+export function getActiveCuttingCards(workCards = [], nomMapOrList = null) {
+  const uniqueMap = new Map()
+  for (const card of workCards || []) {
+    if (!card || !card.id) continue
+    const cardId = String(card.id)
+    if (uniqueMap.has(cardId)) continue
+    if (isCardInCutting(card, nomMapOrList)) {
+      uniqueMap.set(cardId, card)
+    }
+  }
+  return Array.from(uniqueMap.values())
 }
 
 export const BrakActiveCuttingModal = React.memo(({
@@ -122,7 +145,7 @@ export const BrakActiveCuttingModal = React.memo(({
 
   // Build cutting cards models with all metrics
   const cuttingCards = useMemo(() => {
-    const active = (workCards || []).filter(isCardInCutting)
+    const active = getActiveCuttingCards(workCards, nomMap)
 
     return active.map(card => {
       const order = ordersMap.get(card.order_id)
