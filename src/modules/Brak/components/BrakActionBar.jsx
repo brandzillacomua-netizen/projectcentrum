@@ -1,5 +1,5 @@
 import React from 'react'
-import { Camera, Search, X, BarChart2, Wrench, Settings } from 'lucide-react'
+import { Camera, Search, X, BarChart2, Wrench, Settings, Stamp } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 export const BrakActionBar = React.memo(({
@@ -9,7 +9,9 @@ export const BrakActionBar = React.memo(({
   scanError,
   setScanError,
   openQcCardByNumber,
-  setShowReportPage
+  setShowReportPage,
+  setShowStampsJournal,
+  stampedCardsCount = 0
 }) => {
   return (
     <div style={{ display: 'flex', justifyContent: 'flex-start', gap: '12px', marginBottom: '25px', flexWrap: 'wrap' }}>
@@ -55,6 +57,43 @@ export const BrakActionBar = React.memo(({
           <Search size={17} /> ЗНАЙТИ
         </button>
       </div>
+
+      {typeof setShowStampsJournal === 'function' && (
+        <button
+          onClick={() => setShowStampsJournal(true)}
+          style={{
+            padding: '12px 22px',
+            borderRadius: '14px',
+            fontSize: '0.85rem',
+            fontWeight: 900,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            background: 'rgba(16, 185, 129, 0.14)',
+            border: '1px solid rgba(16, 185, 129, 0.45)',
+            color: '#10b981',
+            transition: 'all 0.2s'
+          }}
+        >
+          <Stamp size={18} />
+          <span>💮 ЖУРНАЛ ПЕЧАТОК ВКЯ</span>
+          {stampedCardsCount > 0 && (
+            <span
+              style={{
+                padding: '2px 8px',
+                borderRadius: '999px',
+                background: '#10b981',
+                color: '#fff',
+                fontSize: '0.72rem',
+                fontWeight: 950
+              }}
+            >
+              {stampedCardsCount}
+            </span>
+          )}
+        </button>
+      )}
 
       <button
         onClick={() => setShowReportPage(true)}

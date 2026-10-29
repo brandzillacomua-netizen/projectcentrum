@@ -1747,6 +1747,10 @@ export function useBrakData() {
     handleSendToRework,
     openRestorationModal,
     handleSendToRestoration,
-    handleReturnToRoute
+    handleReturnToRoute,
+    supabase,
+    workCards,
+    fetchData,
+    systemUsers
   }
 }

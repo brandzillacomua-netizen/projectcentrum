@@ -1,3 +1,4 @@
+import React, { useState, useMemo } from 'react'
 import ReturnToRouteModal from './VKYA/quality-hold/ReturnToRouteModal.jsx'
 import { BrakHeader } from './Brak/components/BrakHeader.jsx'
 import { BrakMachineCallsWidget } from './Brak/components/BrakMachineCallsWidget.jsx'
@@ -5,10 +6,12 @@ import { BrakActionBar } from './Brak/components/BrakActionBar.jsx'
 import { BrakStatsDashboard } from './Brak/components/BrakStatsDashboard.jsx'
 import { BrakClassificationQueue } from './Brak/components/BrakClassificationQueue.jsx'
 import { BrakReportPage } from './Brak/components/BrakReportPage.jsx'
+import { BrakStampsJournalModal } from './Brak/components/BrakStampsJournalModal.jsx'
 import { BrakScanModal } from './Brak/components/modals/BrakScanModal.jsx'
 import { BrakCardScrapModal } from './Brak/components/modals/BrakCardScrapModal.jsx'
 import { BrakRestorationModal } from './Brak/components/modals/BrakRestorationModal.jsx'
 import { BrakReworkModal } from './Brak/components/modals/BrakReworkModal.jsx'
+import { Shop1QCOpsModal } from './Shop1/components/modals/Shop1QCOpsModal.jsx'
 import { useBrakData } from './Brak/hooks/useBrakData.js'
 
 export default function BrakModule() {
@@ -118,8 +121,24 @@ export default function BrakModule() {
     handleSendToRestoration,
     openReworkModal,
     handleSendToRework,
-    handleReturnToRoute
+    handleReturnToRoute,
+    supabase,
+    workCards,
+    fetchData,
+    systemUsers
   } = useBrakData()
+
+  const [showStampsJournal, setShowStampsJournal] = useState(false)
+  const [qcOpsTargetCard, setQcOpsTargetCard] = useState(null)
+
+  const stampedCardsCount = useMemo(() => {
+    return (workCards || []).filter(c => String(c?.card_info || '').includes('[QC_OPS:')).length
+  }, [workCards])
+
+  const qcOpsTargetNomenclature = useMemo(() => {
+    if (!qcOpsTargetCard) return null
+    return (nomenclatures || []).find(n => n.id === qcOpsTargetCard.nomenclature_id) || null
+  }, [qcOpsTargetCard, nomenclatures])
 
   if (showReportPage) {
     return (
@@ -173,6 +192,8 @@ export default function BrakModule() {
           setScanError={setScanError}
           openQcCardByNumber={openQcCardByNumber}
           setShowReportPage={setShowReportPage}
+          setShowStampsJournal={setShowStampsJournal}
+          stampedCardsCount={stampedCardsCount}
         />
 
         <BrakStatsDashboard
@@ -258,7 +279,38 @@ export default function BrakModule() {
         setQcScrapCount={setQcScrapCount}
         isProcessing={isProcessing}
         handleQCScrapOverride={handleQCScrapOverride}
+        onOpenCardStampModal={(card) => setQcOpsTargetCard(card)}
       />
+
+      <BrakStampsJournalModal
+        isOpen={showStampsJournal}
+        onClose={() => setShowStampsJournal(false)}
+        supabase={supabase}
+        workCards={workCards}
+        orders={orders}
+        nomenclatures={nomenclatures}
+        machines={machines}
+        onOpenCardStampModal={(card) => setQcOpsTargetCard(card)}
+      />
+
+      {qcOpsTargetCard && (
+        <Shop1QCOpsModal
+          showQCOpsModal={Boolean(qcOpsTargetCard)}
+          onClose={() => setQcOpsTargetCard(null)}
+          currentCard={qcOpsTargetCard}
+          nomenclature={qcOpsTargetNomenclature}
+          currentUser={currentUser}
+          systemUsers={systemUsers}
+          workCards={workCards}
+          fetchData={fetchData}
+          onSaved={(updatedCard) => {
+            if (scannedCard && scannedCard.id === updatedCard.id) {
+              setScannedCard(updatedCard)
+            }
+            setQcOpsTargetCard(null)
+          }}
+        />
+      )}
 
       <BrakRestorationModal
         restorationDraft={restorationDraft}

@@ -1,5 +1,6 @@
 import React from 'react'
-import { X } from 'lucide-react'
+import { X, Stamp } from 'lucide-react'
+import { parseQcOpsStamps } from '../../../Shop1/utils/shop1Helpers.js'
 
 export const BrakCardScrapModal = React.memo(({
   scannedCard,
@@ -20,12 +21,17 @@ export const BrakCardScrapModal = React.memo(({
   qcScrapCount,
   setQcScrapCount,
   isProcessing,
-  handleQCScrapOverride
+  handleQCScrapOverride,
+  onOpenCardStampModal
 }) => {
   if (!scannedCard) return null
 
   const nomName = (nomenclatures || []).find(n => n.id === scannedCard.nomenclature_id)?.name || 'Деталь'
   const orderNum = orders?.find(o => o.id === scannedCard.order_id)?.order_num || '—'
+  const qcOpsData = parseQcOpsStamps(scannedCard.card_info)
+  const stampedOpsCount = Object.keys(qcOpsData?.ops || {}).length
+  const sheetsApproved = Boolean(qcOpsData?.sheets?.verified || qcOpsData?.sheets?.approved)
+  const hasAnyStamp = stampedOpsCount > 0 || sheetsApproved
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.95)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10060, padding: '20px' }}>
@@ -44,9 +50,35 @@ export const BrakCardScrapModal = React.memo(({
           </button>
         </div>
         <div style={{ padding: '24px 22px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
-          <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 900, color: 'var(--text-color, #fff)' }}>
-            {nomName}
-          </h3>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 900, color: 'var(--text-color, #fff)' }}>
+              {nomName}
+            </h3>
+            {typeof onOpenCardStampModal === 'function' && (
+              <button
+                type="button"
+                onClick={() => onOpenCardStampModal(scannedCard)}
+                style={{
+                  padding: '9px 14px',
+                  borderRadius: '12px',
+                  border: '1.5px solid #10b981',
+                  background: hasAnyStamp ? '#ecfdf5' : 'rgba(16, 185, 129, 0.14)',
+                  color: hasAnyStamp ? '#047857' : '#10b981',
+                  fontSize: '0.76rem',
+                  fontWeight: 950,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                <Stamp size={15} />
+                {hasAnyStamp
+                  ? `💮 ${qcOpsData.lastStamp || 'ВКЯ'} (${stampedOpsCount} опер.${sheetsApproved ? ' · Листи ✓' : ''})`
+                  : '💮 ПЕЧАТКА ВКЯ (ОПЕРАЦІЇ)'}
+              </button>
+            )}
+          </div>
 
           {/* Інспектор ВКЯ */}
           <div>

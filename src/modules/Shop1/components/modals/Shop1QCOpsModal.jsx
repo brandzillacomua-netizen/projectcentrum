@@ -19,11 +19,15 @@ export function Shop1QCOpsModal({
   setSelectedCardHistory,
   fetchData,
   showAlert,
-  isProcessing,
-  setIsProcessing
+  isProcessing: externalProcessing,
+  setIsProcessing: externalSetProcessing,
+  onSaved
 }) {
   const machineOperations = useStore(state => state.machineOperations) || []
   const machines = useStore(state => state.machines) || []
+  const [localProcessing, setLocalProcessing] = useState(false)
+  const isProcessing = externalProcessing ?? localProcessing
+  const setIsProcessing = externalSetProcessing ?? setLocalProcessing
 
   const [localOpConfig, setLocalOpConfig] = useState(null)
   const [selectedStamp, setSelectedStamp] = useState(() => {
@@ -349,6 +353,9 @@ export function Shop1QCOpsModal({
       }
       if (typeof fetchData === 'function') {
         fetchData(['work_cards', 'work_card_history']).catch(() => {})
+      }
+      if (typeof onSaved === 'function') {
+        onSaved({ ...currentCard, card_info: updatedCardInfo })
       }
 
       onClose()
