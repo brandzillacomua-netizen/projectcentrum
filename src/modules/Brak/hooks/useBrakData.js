@@ -102,7 +102,63 @@ export function useBrakData() {
   const [scanError, setScanError] = useState(null)
   const [manualCardNumber, setManualCardNumber] = useState('')
   const [scannedCard, setScannedCard] = useState(null)
-  const [qcInspector, setQcInspector] = useState('')
+
+  const defaultQcInspector = useMemo(() => {
+    if (!currentUser) return ''
+    const sysUser = (systemUsers || []).find(u =>
+      (currentUser.id && u.id === currentUser.id) ||
+      (currentUser.login && u.login === currentUser.login)
+    )
+    if (sysUser) {
+      const formatted = [sysUser.last_name, sysUser.first_name].filter(Boolean).join(' ').trim()
+      if (formatted) return formatted
+      if (sysUser.name) return sysUser.name
+    }
+    const direct = [currentUser.last_name, currentUser.first_name].filter(Boolean).join(' ').trim()
+    if (direct) return direct
+    return currentUser.name || currentUser.username || currentUser.login || ''
+  }, [currentUser, systemUsers])
+
+  const [qcInspector, setQcInspector] = useState(() => {
+    if (!currentUser) {
+      try {
+        const saved = localStorage.getItem('centrum_vkya_inspector')
+        if (saved && saved.trim()) return saved.trim()
+      } catch {}
+      return ''
+    }
+    const sysUser = (systemUsers || []).find(u =>
+      (currentUser.id && u.id === currentUser.id) ||
+      (currentUser.login && u.login === currentUser.login)
+    )
+    const formatted = (sysUser && [sysUser.last_name, sysUser.first_name].filter(Boolean).join(' ').trim()) ||
+      [currentUser.last_name, currentUser.first_name].filter(Boolean).join(' ').trim() ||
+      currentUser.name || currentUser.username || currentUser.login || ''
+    return formatted || ''
+  })
+
+  // Auto-fill or sync when currentUser becomes available
+  useEffect(() => {
+    if (defaultQcInspector && (!qcInspector || qcInspector === '—')) {
+      setQcInspector(defaultQcInspector)
+    }
+  }, [defaultQcInspector])
+
+  // Sync when logged in user changes
+  useEffect(() => {
+    if (defaultQcInspector) {
+      setQcInspector(defaultQcInspector)
+    }
+  }, [currentUser?.id, currentUser?.login])
+
+  // Persist valid inspector name
+  useEffect(() => {
+    if (qcInspector && qcInspector.trim().length >= 2) {
+      try {
+        localStorage.setItem('centrum_vkya_inspector', qcInspector.trim())
+      } catch {}
+    }
+  }, [qcInspector])
   const [qcScrapCount, setQcScrapCount] = useState(0)
   const [qcReason, setQcReason] = useState('Биття цанги')
   const [qcCustomReason, setQcCustomReason] = useState('')

@@ -6,6 +6,22 @@ import { parseQcOpsStamps, stripQcOpsStamps } from '../../utils/shop1Helpers'
 
 const STAMP_OPTIONS = ['ВКЯ 1', 'ВКЯ 2', 'ВКЯ 3', 'ВКЯ 4', 'ВКЯ 5', 'ВКЯ 6', 'ВКЯ 7', 'ВКЯ 8']
 
+function resolveInspectorName(user, sysUsers = []) {
+  if (!user) return ''
+  const sysUser = (sysUsers || []).find(u =>
+    (user.id && u.id === user.id) ||
+    (user.login && u.login === user.login)
+  )
+  if (sysUser) {
+    const formatted = [sysUser.last_name, sysUser.first_name].filter(Boolean).join(' ').trim()
+    if (formatted) return formatted
+    if (sysUser.name) return sysUser.name
+  }
+  const direct = [user.last_name, user.first_name].filter(Boolean).join(' ').trim()
+  if (direct) return direct
+  return user.name || user.username || user.login || ''
+}
+
 export function Shop1QCOpsModal({
   showQCOpsModal,
   onClose,
@@ -33,10 +49,61 @@ export function Shop1QCOpsModal({
   const [selectedStamp, setSelectedStamp] = useState(() => {
     try { return localStorage.getItem('centrum_vkya_stamp') || 'ВКЯ 1' } catch { return 'ВКЯ 1' }
   })
-  const [inspectorName, setInspectorName] = useState('')
+  const defaultInspector = useMemo(() => {
+    return resolveInspectorName(currentUser, systemUsers)
+  }, [currentUser, systemUsers])
+
+  const [inspectorName, setInspectorName] = useState(() => {
+    const autoResolved = resolveInspectorName(currentUser, systemUsers)
+    if (autoResolved) return autoResolved
+    try {
+      const saved = localStorage.getItem('centrum_vkya_inspector')
+      if (saved && saved.trim()) return saved.trim()
+    } catch {}
+    return ''
+  })
+
+  // Auto-fill or sync when currentUser/systemUsers becomes available
+  useEffect(() => {
+    if (defaultInspector && (!inspectorName || inspectorName === '—')) {
+      setInspectorName(defaultInspector)
+    }
+  }, [defaultInspector])
+
+  // Sync when logged in user changes
+  useEffect(() => {
+    if (defaultInspector) {
+      setInspectorName(defaultInspector)
+    }
+  }, [currentUser?.id, currentUser?.login])
+
+  // Persist valid inspector name
+  useEffect(() => {
+    if (inspectorName && inspectorName.trim().length >= 2) {
+      try {
+        localStorage.setItem('centrum_vkya_inspector', inspectorName.trim())
+      } catch {}
+    }
+  }, [inspectorName])
   const [sheetsVerified, setSheetsVerified] = useState(false)
   const [sheetsStampInfo, setSheetsStampInfo] = useState(null)
   const [stampedOps, setStampedOps] = useState({})
+
+  // Lock body scroll and prevent background scroll bleeding on mobile touch
+  useEffect(() => {
+    if (!showQCOpsModal) return
+    const prevOverflow = document.body.style.overflow
+    const prevOverscroll = document.body.style.overscrollBehavior
+    const prevTouchAction = document.body.style.touchAction
+    document.body.style.overflow = 'hidden'
+    document.body.style.overscrollBehavior = 'none'
+    document.body.style.touchAction = 'pan-y'
+    return () => {
+      document.body.style.overflow = prevOverflow
+      document.body.style.overscrollBehavior = prevOverscroll
+      document.body.style.touchAction = prevTouchAction
+    }
+  }, [showQCOpsModal])
 
   // Check if current machine is a small CNC (12x8 / 1200x800 / Малий / 1.)
   const isSmallMachine = useMemo(() => {
@@ -463,11 +530,12 @@ export function Shop1QCOpsModal({
                     border: '1px dashed var(--border-subtle, #475569)',
                     color: 'var(--text-dim, #64748b)',
                     borderRadius: '999px',
-                    padding: '4px 10px',
-                    fontSize: '0.62rem',
-                    fontWeight: 800
+                    padding: '3px 8px',
+                    fontSize: '0.66rem',
+                    fontWeight: 800,
+                    whiteSpace: 'nowrap'
                   }}>
-                    Поставити {selectedStamp}
+                    + {selectedStamp}
                   </div>
                 )}
               </div>
@@ -479,56 +547,87 @@ export function Shop1QCOpsModal({
   }
 
   return (
-    <div style={{
-      position: 'fixed',
-      inset: 0,
-      background: 'rgba(0,0,0,0.88)',
-      backdropFilter: 'blur(6px)',
-      display: 'flex',
-      alignItems: 'flex-start',
-      justifyContent: 'center',
-      zIndex: 10030,
-      padding: '24px 14px',
-      overflowY: 'auto'
-    }}>
-      <div style={{
-        background: 'var(--surface-1)',
-        width: '100%',
-        maxWidth: '640px',
-        borderRadius: '26px',
-        border: '1.5px solid rgba(16, 185, 129, 0.4)',
+    <div
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        width: '100vw',
+        height: '100dvh',
+        background: 'rgba(0,0,0,0.88)',
+        backdropFilter: 'blur(6px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 100100, // Strictly higher than BrakCardScrapModal (100060) and mobile-app-topbar (99990)
+        padding: '8px',
+        boxSizing: 'border-box',
         overflow: 'hidden',
-        boxShadow: '0 24px 64px rgba(0,0,0,0.45), 0 0 32px rgba(16, 185, 129, 0.12)',
-        margin: 'auto 0'
-      }}>
+        overscrollBehavior: 'contain',
+        touchAction: 'pan-y'
+      }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget && !isProcessing) {
+          onClose()
+        }
+      }}
+    >
+      <div
+        style={{
+          background: 'var(--surface-1)',
+          width: '100%',
+          maxWidth: '640px',
+          maxHeight: 'calc(100dvh - 16px)',
+          display: 'flex',
+          flexDirection: 'column',
+          borderRadius: '20px',
+          border: '1.5px solid rgba(16, 185, 129, 0.4)',
+          overflow: 'hidden',
+          boxShadow: '0 24px 64px rgba(0,0,0,0.65), 0 0 32px rgba(16, 185, 129, 0.15)'
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div style={{
-          padding: '18px 22px',
+          padding: '12px 16px',
           background: 'var(--surface-2)',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          borderBottom: '1px solid rgba(16, 185, 129, 0.25)'
+          borderBottom: '1px solid rgba(16, 185, 129, 0.25)',
+          gap: '10px',
+          flexShrink: 0
         }}>
-          <div>
-            <h3 style={{ margin: 0, fontSize: '1.02rem', fontWeight: 950, color: '#10b981', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Stamp size={19} />
-              <span>ПЕЧАТКА ВКЯ · ПОГОДЖЕННЯ ОПЕРАЦІЙ КАРТКИ</span>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <h3 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 950, color: '#10b981', display: 'flex', alignItems: 'center', gap: '8px', lineHeight: 1.2 }}>
+              <Stamp size={18} style={{ flexShrink: 0 }} />
+              <span style={{ wordBreak: 'break-word' }}>ПЕЧАТКА ВКЯ · ПОГОДЖЕННЯ ОПЕРАЦІЙ</span>
             </h3>
-            <div style={{ fontSize: '0.66rem', color: 'var(--text-dim)', marginTop: '3px', fontWeight: 700 }}>
+            <div style={{ fontSize: '0.66rem', color: 'var(--text-dim)', marginTop: '3px', fontWeight: 700, wordBreak: 'break-word' }}>
               Картка #{String(currentCard.id).slice(-8).toUpperCase()} · {nomenclature?.name || 'Деталь'} · {currentCard.machine || 'Верстат'}
             </div>
           </div>
           <button
             onClick={onClose}
-            style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', padding: '4px' }}
+            style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', padding: '6px', flexShrink: 0 }}
           >
             <X size={22} />
           </button>
         </div>
 
         {/* Body */}
-        <div style={{ padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div style={{
+          padding: '12px 14px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '12px',
+          overflowY: 'auto',
+          flex: 1,
+          overscrollBehavior: 'contain',
+          WebkitOverflowScrolling: 'touch'
+        }}>
           {/* Вибір номера печатки ВКЯ та ПІБ інспектора */}
           <div style={{
             background: 'var(--surface-inset)',

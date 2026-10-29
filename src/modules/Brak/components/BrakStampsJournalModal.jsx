@@ -133,6 +133,22 @@ export const BrakStampsJournalModal = React.memo(({
   const [dbStampedCards, setDbStampedCards] = useState([])
   const [historyLogs, setHistoryLogs] = useState([])
 
+  // Lock body scroll and prevent background scroll bleeding on mobile touch
+  useEffect(() => {
+    if (!isOpen) return
+    const prevOverflow = document.body.style.overflow
+    const prevOverscroll = document.body.style.overscrollBehavior
+    const prevTouchAction = document.body.style.touchAction
+    document.body.style.overflow = 'hidden'
+    document.body.style.overscrollBehavior = 'none'
+    document.body.style.touchAction = 'pan-y'
+    return () => {
+      document.body.style.overflow = prevOverflow
+      document.body.style.overscrollBehavior = prevOverscroll
+      document.body.style.touchAction = prevTouchAction
+    }
+  }, [isOpen])
+
   const ordersMap = useMemo(() => {
     const map = new Map()
     ;(orders || []).forEach(o => map.set(o.id, o))
@@ -464,14 +480,23 @@ export const BrakStampsJournalModal = React.memo(({
     <div
       style={{
         position: 'fixed',
-        inset: 0,
-        background: 'rgba(0,0,0,0.82)',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        width: '100vw',
+        height: '100dvh',
+        background: 'rgba(0,0,0,0.85)',
         backdropFilter: 'blur(8px)',
-        zIndex: 10050,
+        zIndex: 100060, // Above mobile-app-topbar (99990)
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '20px',
+        padding: '8px',
+        boxSizing: 'border-box',
+        overflow: 'hidden',
+        overscrollBehavior: 'contain',
+        touchAction: 'pan-y'
       }}
       onClick={onClose}
     >
@@ -482,11 +507,11 @@ export const BrakStampsJournalModal = React.memo(({
           color: 'var(--text-color, #fff)',
           width: '100%',
           maxWidth: '1280px',
-          height: '90vh',
-          maxHeight: '92vh',
+          height: 'min(94dvh, 900px)',
+          maxHeight: 'calc(100dvh - 16px)',
           borderRadius: '24px',
           border: '1px solid rgba(16, 185, 129, 0.35)',
-          boxShadow: '0 25px 70px rgba(0,0,0,0.55)',
+          boxShadow: '0 25px 70px rgba(0,0,0,0.65)',
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',

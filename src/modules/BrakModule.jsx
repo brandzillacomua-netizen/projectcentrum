@@ -264,6 +264,8 @@ export default function BrakModule() {
         setScannedCard={setScannedCard}
         orders={orders}
         nomenclatures={nomenclatures}
+        currentUser={currentUser}
+        systemUsers={systemUsers}
         qcInspector={qcInspector}
         setQcInspector={setQcInspector}
         qcCardOperators={qcCardOperators}

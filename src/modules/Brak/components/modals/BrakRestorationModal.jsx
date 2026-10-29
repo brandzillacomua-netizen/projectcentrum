@@ -12,12 +12,24 @@ export const BrakRestorationModal = React.memo(({
   isProcessing,
   handleSendToRestoration
 }) => {
+  React.useEffect(() => {
+    if (!restorationDraft) return
+    const prevOverflow = document.body.style.overflow
+    const prevOverscroll = document.body.style.overscrollBehavior
+    document.body.style.overflow = 'hidden'
+    document.body.style.overscrollBehavior = 'none'
+    return () => {
+      document.body.style.overflow = prevOverflow
+      document.body.style.overscrollBehavior = prevOverscroll
+    }
+  }, [restorationDraft])
+
   if (!restorationDraft) return null
 
   const isFormValid = !isProcessing && restorationStageId && Number.isInteger(Number(restorationQuantity)) && Number(restorationQuantity) > 0 && Number(restorationQuantity) <= Number(restorationDraft.total_qty)
 
   return (
-    <div onClick={() => !isProcessing && setRestorationDraft(null)} style={{ position: 'fixed', inset: 0, zIndex: 10060, background: 'rgba(0,0,0,0.88)', display: 'grid', placeItems: 'center', padding: '20px' }}>
+    <div onClick={() => !isProcessing && setRestorationDraft(null)} style={{ position: 'fixed', inset: 0, zIndex: 100060, background: 'rgba(0,0,0,0.88)', display: 'grid', placeItems: 'center', padding: '16px', boxSizing: 'border-box', overflow: 'hidden', overscrollBehavior: 'contain' }}>
       <div onClick={event => event.stopPropagation()} style={{ width: '100%', maxWidth: '520px', background: 'var(--modal-bg, #0d0d0d)', border: '1px solid #06b6d455', borderRadius: '24px', padding: '28px', boxShadow: '0 30px 90px rgba(0,0,0,.7)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: '15px' }}>
           <div>
