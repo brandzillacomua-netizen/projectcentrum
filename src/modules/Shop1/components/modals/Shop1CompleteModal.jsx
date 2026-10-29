@@ -1,5 +1,6 @@
-import React from 'react'
-import { X } from 'lucide-react'
+import React, { useState, useMemo } from 'react'
+import { X, Plus, Sparkles } from 'lucide-react'
+import { detectCutterDiameter, STANDARD_CUTTER_DIAMETERS, extractCuttersByDiameter } from '../../utils/shop1Helpers'
 
 export function Shop1CompleteModal({
   showCompleteModal,
@@ -210,51 +211,146 @@ export function Shop1CompleteModal({
 
               {/* Фактична кількість фрез (Тільки для Розкрою) */}
               {currentCard.operation === 'Розкрій' && (() => {
-                const cardCutters = [...completeModalCutters].sort((a, b) => {
+                const configuredCutters = [...completeModalCutters].sort((a, b) => {
                   const getDiam = (str) => {
                     const m = str.match(/(\d+(?:[.,]\d+)?)[xх]/i)
                     return m ? parseFloat(m[1].replace(',', '.')) : 999
                   }
                   return getDiam(a) - getDiam(b)
                 })
+
+                // If no cutters configured for part, use standard 5 diameters
+                const activeList = configuredCutters.length > 0
+                  ? configuredCutters
+                  : STANDARD_CUTTER_DIAMETERS
+
+                // Also include any standard diameter that has an active entered value > 0
+                const fullList = [...activeList]
+                STANDARD_CUTTER_DIAMETERS.forEach(d => {
+                  if (!fullList.includes(d) && Number(cuttersBreakdown[d]) > 0) {
+                    fullList.push(d)
+                  }
+                })
+
+                const diameterTotals = extractCuttersByDiameter(cuttersBreakdown)
+
                 return (
-                  <div style={{ background: 'var(--surface-inset)', borderRadius: '14px', padding: '18px', border: '1px solid #eab30822', display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                    <label style={{ color: '#eab308', fontWeight: 900, fontSize: '0.7rem', textTransform: 'uppercase', display: 'block', textAlign: 'center' }}>
-                      ФАКТИЧНА КІЛЬКІСТЬ ФРЕЗ
-                    </label>
-                    {cardCutters.map(cutterName => {
+                  <div style={{ background: 'var(--surface-inset)', borderRadius: '14px', padding: '18px', border: '1px solid #eab30822', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <label style={{ color: '#eab308', fontWeight: 900, fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        ФАКТИЧНА КІЛЬКІСТЬ ФРЕЗ
+                      </label>
+                      <span style={{ fontSize: '0.64rem', color: 'var(--text-dim)', fontWeight: 700 }}>
+                        Діаметри: 1.5, 2, 3, 4, 6 мм
+                      </span>
+                    </div>
+
+                    {fullList.map(cutterName => {
                       const rawVal = cuttersBreakdown[cutterName]
                       const currentVal = rawVal !== undefined ? rawVal : ''
+                      const diam = detectCutterDiameter(cutterName)
                       return (
-                        <div key={cutterName} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--surface-1)', padding: '10px 15px', borderRadius: '10px', border: '1px solid var(--border-subtle)' }}>
-                          <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)', maxWidth: '60%', textAlign: 'left' }}>{cutterName}</span>
+                        <div key={cutterName} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--surface-1)', padding: '10px 14px', borderRadius: '10px', border: '1px solid var(--border-subtle)' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', maxWidth: '62%' }}>
+                            {diam && (
+                              <span style={{ padding: '2px 7px', borderRadius: '6px', background: '#eab3081a', border: '1px solid #eab30844', color: '#eab308', fontSize: '0.68rem', fontWeight: 900, flexShrink: 0 }}>
+                                {diam}
+                              </span>
+                            )}
+                            <span style={{ fontSize: '0.8rem', fontWeight: 750, color: 'var(--text-strong)', textAlign: 'left', wordBreak: 'break-word' }}>
+                              {cutterName}
+                            </span>
+                          </div>
+
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <button onClick={() => {
+                            <button
+                              onClick={() => {
                                 setCuttersTouched && setCuttersTouched(p => ({ ...p, [cutterName]: true }))
                                 setCuttersBreakdown && setCuttersBreakdown(p => ({ ...p, [cutterName]: Math.max(0, (Number(currentVal) || 0) - 1) }))
                               }}
                               type="button"
-                              style={{ width: '32px', height: '32px', background: '#1c1c1c', border: '1px solid var(--border-subtle)', color: '#fff', borderRadius: '6px', cursor: 'pointer', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
-                            <input type="number" min={0} value={currentVal} placeholder="0"
+                              style={{ width: '32px', height: '32px', background: '#1c1c1c', border: '1px solid var(--border-subtle)', color: '#fff', borderRadius: '6px', cursor: 'pointer', fontSize: '1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                            >
+                              −
+                            </button>
+                            <input
+                              type="number"
+                              min={0}
+                              value={currentVal}
+                              placeholder="0"
                               onChange={e => {
                                 const val = e.target.value
                                 setCuttersTouched && setCuttersTouched(p => ({ ...p, [cutterName]: true }))
                                 setCuttersBreakdown && setCuttersBreakdown(p => ({ ...p, [cutterName]: val === '' ? '' : Math.max(0, parseInt(val) || 0) }))
                               }}
-                              style={{ background: 'transparent', border: 'none', color: '#eab308', fontSize: '1.2rem', width: '50px', textAlign: 'center', fontWeight: 900 }} />
-                            <button onClick={() => {
+                              style={{ background: 'transparent', border: 'none', color: '#eab308', fontSize: '1.25rem', width: '50px', textAlign: 'center', fontWeight: 950, outline: 'none' }}
+                            />
+                            <button
+                              onClick={() => {
                                 setCuttersTouched && setCuttersTouched(p => ({ ...p, [cutterName]: true }))
                                 setCuttersBreakdown && setCuttersBreakdown(p => ({ ...p, [cutterName]: (Number(currentVal) || 0) + 1 }))
                               }}
                               type="button"
-                              style={{ width: '32px', height: '32px', background: '#1c1c1c', border: '1px solid var(--border-subtle)', color: '#fff', borderRadius: '6px', cursor: 'pointer', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+                              style={{ width: '32px', height: '32px', background: '#1c1c1c', border: '1px solid var(--border-subtle)', color: '#fff', borderRadius: '6px', cursor: 'pointer', fontSize: '1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                            >
+                              +
+                            </button>
                           </div>
                         </div>
                       )
                     })}
-                    <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '10px', textAlign: 'center', fontSize: '0.72rem', color: 'var(--text-dim)' }}>
-                      Всього використано: <strong style={{ color: '#eab308' }}>{Object.values(cuttersBreakdown).reduce((sum, v) => sum + (Number(v) || 0), 0)} шт</strong>
+
+                    {/* Quick buttons to add unlisted standard diameters if custom cutters are present */}
+                    {configuredCutters.length > 0 && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center', marginTop: '2px' }}>
+                        <span style={{ fontSize: '0.64rem', color: 'var(--text-dim)', fontWeight: 800 }}>+ Додати діаметр:</span>
+                        {STANDARD_CUTTER_DIAMETERS.map(diam => {
+                          const alreadyIn = fullList.includes(diam)
+                          if (alreadyIn) return null
+                          return (
+                            <button
+                              key={diam}
+                              type="button"
+                              onClick={() => {
+                                setCuttersTouched && setCuttersTouched(p => ({ ...p, [diam]: true }))
+                                setCuttersBreakdown && setCuttersBreakdown(p => ({ ...p, [diam]: 1 }))
+                              }}
+                              style={{
+                                padding: '3px 8px',
+                                borderRadius: '6px',
+                                border: '1px solid var(--border-subtle)',
+                                background: 'var(--surface-1)',
+                                color: 'var(--text-dim)',
+                                fontSize: '0.68rem',
+                                fontWeight: 850,
+                                cursor: 'pointer'
+                              }}
+                            >
+                              + {diam}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )}
+
+                    {/* Summary by standard diameters matching the work card */}
+                    <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '10px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '10px', fontSize: '0.72rem', color: 'var(--text-dim)' }}>
+                        <span>1,5мм: <strong style={{ color: diameterTotals['1,5мм'] ? '#eab308' : 'inherit' }}>{diameterTotals['1,5мм']}</strong></span>
+                        <span>·</span>
+                        <span>2мм: <strong style={{ color: diameterTotals['2мм'] ? '#eab308' : 'inherit' }}>{diameterTotals['2мм']}</strong></span>
+                        <span>·</span>
+                        <span>3мм: <strong style={{ color: diameterTotals['3мм'] ? '#eab308' : 'inherit' }}>{diameterTotals['3мм']}</strong></span>
+                        <span>·</span>
+                        <span>4мм: <strong style={{ color: diameterTotals['4мм'] ? '#eab308' : 'inherit' }}>{diameterTotals['4мм']}</strong></span>
+                        <span>·</span>
+                        <span>6мм: <strong style={{ color: diameterTotals['6мм'] ? '#eab308' : 'inherit' }}>{diameterTotals['6мм']}</strong></span>
+                      </div>
+                      <div style={{ textAlign: 'center', fontSize: '0.76rem', color: 'var(--text-strong)', fontWeight: 900 }}>
+                        Загалом використано: <strong style={{ color: '#eab308', fontSize: '0.9rem' }}>{diameterTotals.total} шт</strong>
+                      </div>
                     </div>
+
                     {!hasCuttersFact && (
                       <div style={{ textAlign: 'center', fontSize: '0.68rem', color: '#ef4444', fontWeight: 800 }}>
                         Заповніть фактичну кількість по кожній фрезі

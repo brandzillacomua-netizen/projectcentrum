@@ -3,7 +3,7 @@ import { X } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import { getCustomerCode } from '../../../utils/customerCodeUtils.js'
 import { getCardCuttingPlanSeconds, formatCuttingTime } from '../../../utils/cuttingTimeUtils.js'
-import { parseQcOpsStamps } from '../../Shop1/utils/shop1Helpers.js'
+import { parseQcOpsStamps, extractCuttersByDiameter } from '../../Shop1/utils/shop1Helpers.js'
 
 const renderStampBadge = (stampInfo) => {
   if (!stampInfo?.stamp) return null
@@ -213,6 +213,15 @@ export default function ForemanPrintQueue({
 
         const maxOps = Math.max(10, s1Ops.length, s2Ops.length, s2CutOpsF2.length, s2CutOpsF15.length)
         const qcOpsData = parseQcOpsStamps(m.loading || m.card_info)
+        const cuttersData = extractCuttersByDiameter(m.loading || m.card_info)
+        const utilQty = Number(
+          m.utilQty ??
+          m.util ??
+          m.cat4 ??
+          m.scrapInfo?.util ??
+          (m.status === 'scrapped' ? m.qty : 0)
+        ) || 0
+        const displayScrapQty = utilQty > 0 ? utilQty : ''
         const findOpStamp = (prefix, idx, opText) => {
           if (!opText || !qcOpsData?.ops) return null
           if (qcOpsData.ops[`${prefix}:${idx}`]) return qcOpsData.ops[`${prefix}:${idx}`]
@@ -359,11 +368,21 @@ export default function ForemanPrintQueue({
                       <tr key={idx} style={{ height: '22px' }}>
                         <td style={{ border: '1.5px solid #000', paddingLeft: '4px' }}>{row.s1}</td>
                         <td style={{ border: '1.5px solid #000', textAlign: 'center', fontSize: '10pt', letterSpacing: row.s1Stamp ? '0' : '2px' }}>
-                          {row.s1Stamp ? renderStampBadge(row.s1Stamp) : '☐ | ☐'}
+                          {row.s1Stamp ? (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '3px' }}>
+                              <span style={{ color: '#047857', fontWeight: 1000, fontSize: '9pt' }}>☑ | ☑</span>
+                              {renderStampBadge(row.s1Stamp)}
+                            </span>
+                          ) : '☐ | ☐'}
                         </td>
                         <td style={{ border: '1.5px solid #000', paddingLeft: '4px' }}>{row.s2}</td>
                         <td style={{ border: '1.5px solid #000', textAlign: 'center', fontSize: '10pt', letterSpacing: row.s2Stamp ? '0' : '2px' }}>
-                          {row.s2Stamp ? renderStampBadge(row.s2Stamp) : '☐ | ☐'}
+                          {row.s2Stamp ? (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '3px' }}>
+                              <span style={{ color: '#047857', fontWeight: 1000, fontSize: '9pt' }}>☑ | ☑</span>
+                              {renderStampBadge(row.s2Stamp)}
+                            </span>
+                          ) : '☐ | ☐'}
                         </td>
                         {!isCutter1_5 ? (
                           <td style={{ border: '1.5px solid #000', paddingLeft: '4px' }}>{row.s2cF2}</td>
@@ -371,7 +390,12 @@ export default function ForemanPrintQueue({
                           <td style={{ border: '1.5px solid #000', paddingLeft: '4px' }}>{row.s2cF15}</td>
                         )}
                         <td style={{ border: '1.5px solid #000', textAlign: 'center', fontSize: '10pt' }}>
-                          {row.s2cStamp ? renderStampBadge(row.s2cStamp) : '☐'}
+                          {row.s2cStamp ? (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '3px' }}>
+                              <span style={{ color: '#047857', fontWeight: 1000, fontSize: '10pt' }}>☑</span>
+                              {renderStampBadge(row.s2cStamp)}
+                            </span>
+                          ) : '☐'}
                         </td>
                       </tr>
                     ))}
@@ -392,34 +416,44 @@ export default function ForemanPrintQueue({
                     <div style={{ width: '50%', borderRight: '1.5px solid #000', display: 'flex', flexDirection: 'column' }}>
                       <div style={{ display: 'flex', borderBottom: '1.5px solid #000', height: '24px' }}>
                         <div style={{ width: '40%', borderRight: '1.5px solid #000', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900 }}>1,5мм</div>
-                        <div style={{ width: '60%' }}></div>
+                        <div style={{ width: '60%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 1000, fontSize: '9pt', color: '#000' }}>
+                          {cuttersData['1,5мм'] || ''}
+                        </div>
                       </div>
                       <div style={{ display: 'flex', borderBottom: '1.5px solid #000', height: '24px' }}>
                         <div style={{ width: '40%', borderRight: '1.5px solid #000', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900 }}>2мм</div>
-                        <div style={{ width: '60%' }}></div>
+                        <div style={{ width: '60%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 1000, fontSize: '9pt', color: '#000' }}>
+                          {cuttersData['2мм'] || ''}
+                        </div>
                       </div>
                       <div style={{ display: 'flex', height: '24px' }}>
                         <div style={{ width: '40%', borderRight: '1.5px solid #000', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900 }}>3мм</div>
-                        <div style={{ width: '60%' }}></div>
+                        <div style={{ width: '60%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 1000, fontSize: '9pt', color: '#000' }}>
+                          {cuttersData['3мм'] || ''}
+                        </div>
                       </div>
                     </div>
                     <div style={{ width: '50%', display: 'flex', flexDirection: 'column' }}>
                       <div style={{ display: 'flex', borderBottom: '1.5px solid #000', height: '36px' }}>
                         <div style={{ width: '40%', borderRight: '1.5px solid #000', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900 }}>4мм</div>
-                        <div style={{ width: '60%' }}></div>
+                        <div style={{ width: '60%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 1000, fontSize: '9pt', color: '#000' }}>
+                          {cuttersData['4мм'] || ''}
+                        </div>
                       </div>
                       <div style={{ display: 'flex', height: '36px' }}>
                         <div style={{ width: '40%', borderRight: '1.5px solid #000', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900 }}>6мм</div>
-                        <div style={{ width: '60%' }}></div>
+                        <div style={{ width: '60%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 1000, fontSize: '9pt', color: '#000' }}>
+                          {cuttersData['6мм'] || ''}
+                        </div>
                       </div>
                     </div>
                   </div>
                   <div style={{ width: '30%', display: 'flex', flexDirection: 'column', fontWeight: 900, padding: '4px 8px', justifyContent: 'space-between' }}>
-                    <div>1,5мм - </div>
-                    <div>2мм - </div>
-                    <div>3мм - </div>
-                    <div>4мм - </div>
-                    <div>6мм - </div>
+                    <div>1,5мм - {cuttersData['1,5мм'] ? <strong style={{ fontSize: '9pt', fontWeight: 1000 }}>{cuttersData['1,5мм']}</strong> : ''}</div>
+                    <div>2мм - {cuttersData['2мм'] ? <strong style={{ fontSize: '9pt', fontWeight: 1000 }}>{cuttersData['2мм']}</strong> : ''}</div>
+                    <div>3мм - {cuttersData['3мм'] ? <strong style={{ fontSize: '9pt', fontWeight: 1000 }}>{cuttersData['3мм']}</strong> : ''}</div>
+                    <div>4мм - {cuttersData['4мм'] ? <strong style={{ fontSize: '9pt', fontWeight: 1000 }}>{cuttersData['4мм']}</strong> : ''}</div>
+                    <div>6мм - {cuttersData['6мм'] ? <strong style={{ fontSize: '9pt', fontWeight: 1000 }}>{cuttersData['6мм']}</strong> : ''}</div>
                   </div>
                 </div>
                 <div style={{ marginTop: '2px', border: '1.5px solid #000', display: 'flex', fontSize: '7.5pt', height: '60px' }}>
@@ -438,7 +472,9 @@ export default function ForemanPrintQueue({
                   </div>
                   <div style={{ width: '120px', borderLeft: '1.5px solid #000', textAlign: 'center', display: 'flex', flexDirection: 'column' }}>
                     <div style={{ borderBottom: '1px solid #000', padding: '2px', fontWeight: 1000 }}>Кількість браку</div>
-                    <div style={{ flex: 1 }}></div>
+                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '15pt', fontWeight: 1000, color: utilQty > 0 ? '#b91c1c' : '#000' }}>
+                      {displayScrapQty}
+                    </div>
                   </div>
                   <div style={{ width: '140px', borderLeft: '1.5px solid #000', display: 'flex', flexDirection: 'column' }}>
                     <div style={{ borderBottom: '1px solid #000', padding: '2px', textAlign: 'center', fontWeight: 1000, fontSize: '6pt' }}>Корекція перегортання</div>

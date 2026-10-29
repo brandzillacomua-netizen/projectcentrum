@@ -575,7 +575,9 @@ const WorkCardsArchive = ({ parts, task, expandedId, onToggle, onOpenReissue, on
                                         machine: card.machine || part.machine,
                                         totalLoadings: '—',
                                         sheetsPerLoading: getCardSheets(card, part.unitsPerSheet),
-                                        estimatedTime: getCardCuttingPlanSeconds(card, part.nom)
+                                        estimatedTime: getCardCuttingPlanSeconds(card, part.nom),
+                                        scrapQty: cardScrapMap[card.id]?.scrap || Number(card.scrap_qty) || 0,
+                                        utilQty: cardScrapMap[card.id]?.util || (card.status === 'scrapped' ? Number(card.quantity) : 0)
                                       }])
                                     }
                                   }}
@@ -940,7 +942,9 @@ export default function TaskDetails({ model, nomenclatures = [], allCards, onOpe
                                     machine: c.machine,
                                     totalLoadings: load.expectedLoads,
                                     sheetsPerLoading: getCardSheets(c, part.unitsPerSheet),
-                                    estimatedTime: getCardCuttingPlanSeconds(c, part.nom)
+                                    estimatedTime: getCardCuttingPlanSeconds(c, part.nom),
+                                    scrapQty: cardScrapMap[c.id]?.scrap || Number(c.scrap_qty) || 0,
+                                    utilQty: cardScrapMap[c.id]?.util || (c.status === 'scrapped' ? Number(c.quantity) : 0)
                                   })))
                                 }
                               }}
@@ -977,7 +981,9 @@ export default function TaskDetails({ model, nomenclatures = [], allCards, onOpe
                                         machine: card.machine || part.machine,
                                         totalLoadings: '—',
                                         sheetsPerLoading: getCardSheets(card, part.unitsPerSheet),
-                                        estimatedTime: getCardCuttingPlanSeconds(card, part.nom)
+                                        estimatedTime: getCardCuttingPlanSeconds(card, part.nom),
+                                        scrapQty: cardScrapMap[card.id]?.scrap || Number(card.scrap_qty) || 0,
+                                        utilQty: cardScrapMap[card.id]?.util || (card.status === 'scrapped' ? Number(card.quantity) : 0)
                                       }])
                                     }
                                   }}

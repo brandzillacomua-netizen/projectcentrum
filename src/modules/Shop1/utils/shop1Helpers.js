@@ -74,6 +74,96 @@ export const parseCuttersBreakdown = (cardInfo = '') => {
   }
 }
 
+export const STANDARD_CUTTER_DIAMETERS = ['1,5мм', '2мм', '3мм', '4мм', '6мм']
+
+export const detectCutterDiameter = (name = '') => {
+  if (!name) return null
+  const clean = String(name).trim().toLowerCase()
+
+  if (clean === '1.5мм' || clean === '1,5мм' || clean === '1.5' || clean === '1,5') return '1,5мм'
+  if (clean === '2мм' || clean === '2' || clean === '2.0' || clean === '2,0') return '2мм'
+  if (clean === '3мм' || clean === '3' || clean === '3.0' || clean === '3,0') return '3мм'
+  if (clean === '4мм' || clean === '4' || clean === '4.0' || clean === '4,0') return '4мм'
+  if (clean === '6мм' || clean === '6' || clean === '6.0' || clean === '6,0') return '6мм'
+
+  if (/(?:^|\D)1[.,]5(?:\s*мм|[xх*]|\b)/i.test(clean) || clean.includes('1.5') || clean.includes('1,5')) {
+    return '1,5мм'
+  }
+
+  const matchX = clean.match(/(?:ф|\b)(\d+(?:[.,]\d+)?)\s*[xх*]/i)
+  if (matchX && matchX[1]) {
+    const num = parseFloat(matchX[1].replace(',', '.'))
+    if (num === 1.5) return '1,5мм'
+    if (num === 2) return '2мм'
+    if (num === 3) return '3мм'
+    if (num === 4) return '4мм'
+    if (num === 6) return '6мм'
+    return `${num}мм`
+  }
+
+  const matchPhi = clean.match(/ф\s*(\d+(?:[.,]\d+)?)/i)
+  if (matchPhi && matchPhi[1]) {
+    const num = parseFloat(matchPhi[1].replace(',', '.'))
+    if (num === 1.5) return '1,5мм'
+    if (num === 2) return '2мм'
+    if (num === 3) return '3мм'
+    if (num === 4) return '4мм'
+    if (num === 6) return '6мм'
+    return `${num}мм`
+  }
+
+  const matchMm = clean.match(/(\d+(?:[.,]\d+)?)\s*мм/i)
+  if (matchMm && matchMm[1]) {
+    const num = parseFloat(matchMm[1].replace(',', '.'))
+    if (num === 1.5) return '1,5мм'
+    if (num === 2) return '2мм'
+    if (num === 3) return '3мм'
+    if (num === 4) return '4мм'
+    if (num === 6) return '6мм'
+    return `${num}мм`
+  }
+
+  return null
+}
+
+export const extractCuttersByDiameter = (cardInfoOrBreakdown = null) => {
+  const result = {
+    '1,5мм': 0,
+    '2мм': 0,
+    '3мм': 0,
+    '4мм': 0,
+    '6мм': 0,
+    other: {},
+    total: 0,
+    hasData: false
+  }
+
+  let breakdown = cardInfoOrBreakdown
+  if (typeof cardInfoOrBreakdown === 'string') {
+    breakdown = parseCuttersBreakdown(cardInfoOrBreakdown)
+  }
+
+  if (!breakdown || typeof breakdown !== 'object') return result
+
+  Object.entries(breakdown).forEach(([name, count]) => {
+    const qty = Number(count) || 0
+    if (qty <= 0) return
+    result.hasData = true
+    result.total += qty
+
+    const diam = detectCutterDiameter(name)
+    if (diam && result[diam] !== undefined) {
+      result[diam] += qty
+    } else if (diam) {
+      result.other[diam] = (result.other[diam] || 0) + qty
+    } else {
+      result.other[name] = (result.other[name] || 0) + qty
+    }
+  })
+
+  return result
+}
+
 export const stripQcOpsStamps = (value = '') => {
   let info = String(value || '')
   let markerIdx = info.indexOf('[QC_OPS:')
