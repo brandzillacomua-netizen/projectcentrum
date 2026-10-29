@@ -57,13 +57,12 @@ describe('atomic warehouse box issue flow', () => {
     expect(modal).toContain('{!isBoxIssued && (')
   })
 
-  it('requires a physical box number during preparation and repairs legacy prepared boxes before issue', () => {
-    expect(handler).toContain("throw new Error('Вкажіть або відскануйте номер фізичного боксу.')")
+  it('auto-assigns box number during preparation and repairs legacy prepared boxes before issue', () => {
     expect(handler).toContain('await persistMissingBoxNumber(scannedCard, boxNumber || scannedCard.box_number)')
     expect(handler).toContain('box_number: targetBox')
     expect(modal).toContain('ЦЕЙ БОКС БУВ ЗІБРАНИЙ БЕЗ НОМЕРА')
     expect(modal).toContain('handleIssueCardMaterials(boxNumber.trim())')
-    expect(boxesModule).toContain('currentBoxNumber.trim().length > 0 && isAllChecked && isSheetChecked')
-    expect(boxesModule).toContain('handlers.handlePrepareBox(boxItem, currentBoxNumber)')
+    expect(boxesModule).toContain('isAllChecked && isSheetChecked')
+    expect(boxesModule).toContain('handlers.handlePrepareBox(boxItem')
   })
 })

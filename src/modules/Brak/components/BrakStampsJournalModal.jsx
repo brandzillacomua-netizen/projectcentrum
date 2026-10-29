@@ -512,6 +512,7 @@ export const BrakStampsJournalModal = React.memo(({
     >
       <div
         onClick={e => e.stopPropagation()}
+        className="brak-journal-modal-content"
         style={{
           background: 'var(--modal-bg, #0d0f12)',
           color: 'var(--text-color, #fff)',
@@ -610,6 +611,7 @@ export const BrakStampsJournalModal = React.memo(({
 
         {/* KPI Summary Cards */}
         <div
+          className="brak-journal-kpi-cards"
           style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
@@ -619,35 +621,35 @@ export const BrakStampsJournalModal = React.memo(({
             borderBottom: '1px solid var(--border-color, rgba(148,163,184,0.15))',
           }}
         >
-          <div style={{ padding: '12px 16px', borderRadius: '14px', background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.25)', display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div className="brak-kpi-journal-card brak-kpi-journal-cards" style={{ padding: '12px 16px', borderRadius: '14px', background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.25)', display: 'flex', alignItems: 'center', gap: '12px' }}>
             <FileCheck2 size={24} color="#10b981" />
             <div>
-              <div style={{ fontSize: '0.65rem', fontWeight: 850, color: 'var(--text-muted, #64748b)', textTransform: 'uppercase' }}>Перевірено карток</div>
-              <div style={{ fontSize: '1.35rem', fontWeight: 950, color: '#10b981' }}>{kpiStats.totalCards}</div>
+              <div className="kpi-label" style={{ fontSize: '0.65rem', fontWeight: 850, color: 'var(--text-muted, #64748b)', textTransform: 'uppercase' }}>Перевірено карток</div>
+              <div className="kpi-val" style={{ fontSize: '1.35rem', fontWeight: 950, color: '#10b981' }}>{kpiStats.totalCards}</div>
             </div>
           </div>
 
-          <div style={{ padding: '12px 16px', borderRadius: '14px', background: 'rgba(59, 130, 246, 0.08)', border: '1px solid rgba(59, 130, 246, 0.25)', display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div className="brak-kpi-journal-card brak-kpi-journal-ops" style={{ padding: '12px 16px', borderRadius: '14px', background: 'rgba(59, 130, 246, 0.08)', border: '1px solid rgba(59, 130, 246, 0.25)', display: 'flex', alignItems: 'center', gap: '12px' }}>
             <CheckSquare size={24} color="#3b82f6" />
             <div>
-              <div style={{ fontSize: '0.65rem', fontWeight: 850, color: 'var(--text-muted, #64748b)', textTransform: 'uppercase' }}>Погоджено операцій</div>
-              <div style={{ fontSize: '1.35rem', fontWeight: 950, color: '#3b82f6' }}>{kpiStats.totalOps}</div>
+              <div className="kpi-label" style={{ fontSize: '0.65rem', fontWeight: 850, color: 'var(--text-muted, #64748b)', textTransform: 'uppercase' }}>Погоджено операцій</div>
+              <div className="kpi-val" style={{ fontSize: '1.35rem', fontWeight: 950, color: '#3b82f6' }}>{kpiStats.totalOps}</div>
             </div>
           </div>
 
-          <div style={{ padding: '12px 16px', borderRadius: '14px', background: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.25)', display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div className="brak-kpi-journal-card brak-kpi-journal-sheets" style={{ padding: '12px 16px', borderRadius: '14px', background: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.25)', display: 'flex', alignItems: 'center', gap: '12px' }}>
             <Layers size={24} color="#f59e0b" />
             <div>
-              <div style={{ fontSize: '0.65rem', fontWeight: 850, color: 'var(--text-muted, #64748b)', textTransform: 'uppercase' }}>Листи відповідають ✓</div>
-              <div style={{ fontSize: '1.35rem', fontWeight: 950, color: '#f59e0b' }}>{kpiStats.sheetsConfirmed}</div>
+              <div className="kpi-label" style={{ fontSize: '0.65rem', fontWeight: 850, color: 'var(--text-muted, #64748b)', textTransform: 'uppercase' }}>Листи відповідають ✓</div>
+              <div className="kpi-val" style={{ fontSize: '1.35rem', fontWeight: 950, color: '#f59e0b' }}>{kpiStats.sheetsConfirmed}</div>
             </div>
           </div>
 
-          <div style={{ padding: '12px 16px', borderRadius: '14px', background: 'rgba(168, 85, 247, 0.08)', border: '1px solid rgba(168, 85, 247, 0.25)', display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div className="brak-kpi-journal-card brak-kpi-journal-inspectors" style={{ padding: '12px 16px', borderRadius: '14px', background: 'rgba(168, 85, 247, 0.08)', border: '1px solid rgba(168, 85, 247, 0.25)', display: 'flex', alignItems: 'center', gap: '12px' }}>
             <UserCheck size={24} color="#a855f7" />
             <div>
-              <div style={{ fontSize: '0.65rem', fontWeight: 850, color: 'var(--text-muted, #64748b)', textTransform: 'uppercase' }}>Інспекторів ВКЯ</div>
-              <div style={{ fontSize: '1.35rem', fontWeight: 950, color: '#a855f7' }}>{kpiStats.inspectorsCount}</div>
+              <div className="kpi-label" style={{ fontSize: '0.65rem', fontWeight: 850, color: 'var(--text-muted, #64748b)', textTransform: 'uppercase' }}>Інспекторів ВКЯ</div>
+              <div className="kpi-val" style={{ fontSize: '1.35rem', fontWeight: 950, color: '#a855f7' }}>{kpiStats.inspectorsCount}</div>
             </div>
           </div>
         </div>
@@ -902,6 +904,7 @@ export const BrakStampsJournalModal = React.memo(({
               paginatedCards.map(item => (
                 <div
                   key={item.card.id}
+                  className="brak-journal-card-row"
                   style={{
                     borderRadius: '16px',
                     border: '1px solid rgba(16, 185, 129, 0.3)',
@@ -1036,6 +1039,7 @@ export const BrakStampsJournalModal = React.memo(({
 
                   {/* Selected Operations List */}
                   <div
+                    className="brak-journal-ops-box"
                     style={{
                       background: 'var(--modal-bg, rgba(148, 163, 184, 0.06))',
                       borderRadius: '12px',
@@ -1088,6 +1092,7 @@ export const BrakStampsJournalModal = React.memo(({
                               {displayedOps.map(op => (
                                 <div
                                   key={op.key}
+                                  className="brak-journal-op-pill"
                                   style={{
                                     padding: '5px 10px',
                                     borderRadius: '8px',

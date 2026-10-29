@@ -21,7 +21,7 @@ export const KittingModal = ({
 
   // Verify all cutters are checked
   const isAllCuttersChecked = cutters.every(c => checkedCutters[cardId]?.[c.nomenclature_id])
-  const canSubmit = isAllCuttersChecked && boxNumber.trim().length > 0
+  const canSubmit = isAllCuttersChecked
 
   const handleSubmit = async () => {
     if (!canSubmit) return
@@ -79,15 +79,15 @@ export const KittingModal = ({
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             <label style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 800 }}>
-              НОМЕР / ШТРИХ-КОД ФІЗИЧНОГО БОКСУ
+
             </label>
             <input
               type="text"
               value={boxNumber}
               onChange={event => setBoxNumbers(previous => ({ ...previous, [cardId]: event.target.value }))}
-              placeholder="Введіть або відскануйте номер боксу"
+              style={{ display: 'none' }}
               autoFocus
-              style={{ background: 'var(--surface-inset)', border: boxNumber.trim() ? '1px solid #ff9000' : '1px solid var(--border-subtle)', borderRadius: '10px', padding: '11px 14px', color: 'var(--text-strong)', fontSize: '0.82rem', fontWeight: 900, outline: 'none' }}
+
             />
 
             <label style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 800 }}>
@@ -150,9 +150,9 @@ export const KittingModal = ({
               flex: 2, 
               padding: '12px', 
               borderRadius: '10px', 
-              background: canSubmit ? '#10b981' : 'var(--surface-2)', 
-              color: canSubmit ? '#000' : '#444', 
-              border: 'none', 
+              background: canSubmit ? '#10b981' : 'rgba(239, 68, 68, 0.1)', 
+              color: canSubmit ? '#ffffff' : '#ef4444', 
+              border: canSubmit ? '1px solid #10b981' : '1px solid rgba(239, 68, 68, 0.3)', 
               fontWeight: 900, 
               cursor: canSubmit ? 'pointer' : 'not-allowed', 
               opacity: isProcessing ? 0.5 : 1,
@@ -163,7 +163,7 @@ export const KittingModal = ({
             }}
           >
             <Package size={16} /> 
-            {isProcessing ? 'ОБРОБКА...' : !boxNumber.trim() ? 'ВКАЖІТЬ НОМЕР БОКСУ' : 'ЗАВЕРШИТИ ЗБІРКУ'}
+            {isProcessing ? 'ОБРОБКА...' : !canSubmit ? 'ПОЗНАЧТЕ ВСІ ФРЕЗИ' : 'ЗАВЕРШИТИ ЗБІРКУ'}
           </button>
         </div>
 

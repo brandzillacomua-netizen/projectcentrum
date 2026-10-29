@@ -305,6 +305,7 @@ export const BrakActiveCuttingModal = React.memo(({
     >
       <div
         onClick={e => e.stopPropagation()}
+        className="brak-cutting-modal-content"
         style={{
           background: 'var(--modal-bg, #0d0f12)',
           color: 'var(--text-color, #fff)',
@@ -322,6 +323,7 @@ export const BrakActiveCuttingModal = React.memo(({
       >
         {/* Header */}
         <div
+          className="brak-cutting-header"
           style={{
             padding: '14px 20px',
             background: 'linear-gradient(135deg, rgba(245,158,11,0.12) 0%, rgba(180,83,9,0.04) 100%)',
@@ -416,6 +418,7 @@ export const BrakActiveCuttingModal = React.memo(({
 
         {/* Quick KPI Counters */}
         <div
+          className="brak-cutting-kpi-bar"
           style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
@@ -426,15 +429,16 @@ export const BrakActiveCuttingModal = React.memo(({
             flexShrink: 0
           }}
         >
-          <div style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)', borderRadius: '12px', padding: '8px 12px' }}>
-            <div style={{ fontSize: '0.62rem', fontWeight: 900, color: '#f59e0b', textTransform: 'uppercase' }}>В розкрої зараз</div>
-            <div style={{ fontSize: '1.25rem', fontWeight: 950, color: 'var(--text-strong, #fff)', marginTop: '2px' }}>
+          <div className="brak-kpi-card brak-kpi-total" style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)', borderRadius: '12px', padding: '8px 12px' }}>
+            <div className="kpi-label" style={{ fontSize: '0.62rem', fontWeight: 900, color: '#f59e0b', textTransform: 'uppercase' }}>В розкрої зараз</div>
+            <div className="kpi-val" style={{ fontSize: '1.25rem', fontWeight: 950, color: 'var(--text-strong, #fff)', marginTop: '2px' }}>
               {stats.total} <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted, #94a3b8)' }}>карток</span>
             </div>
           </div>
 
           <div
             onClick={() => setSelectedFilter(selectedFilter === 'uninspected' ? 'all' : 'uninspected')}
+            className="brak-kpi-card brak-kpi-uninspected"
             style={{
               background: stats.uninspected > 0 ? 'rgba(239,68,68,0.12)' : 'rgba(255,255,255,0.03)',
               border: stats.uninspected > 0 ? '1.5px solid #ef4444' : '1px solid var(--border-color, rgba(255,255,255,0.08))',
@@ -443,16 +447,17 @@ export const BrakActiveCuttingModal = React.memo(({
               cursor: 'pointer'
             }}
           >
-            <div style={{ fontSize: '0.62rem', fontWeight: 900, color: stats.uninspected > 0 ? '#ef4444' : 'var(--text-muted, #94a3b8)', textTransform: 'uppercase' }}>
+            <div className="kpi-label" style={{ fontSize: '0.62rem', fontWeight: 900, color: stats.uninspected > 0 ? '#ef4444' : 'var(--text-muted, #94a3b8)', textTransform: 'uppercase' }}>
               🚨 Ще без печаток
             </div>
-            <div style={{ fontSize: '1.25rem', fontWeight: 950, color: stats.uninspected > 0 ? '#ef4444' : 'var(--text-strong, #fff)', marginTop: '2px' }}>
+            <div className="kpi-val" style={{ fontSize: '1.25rem', fontWeight: 950, color: stats.uninspected > 0 ? '#ef4444' : 'var(--text-strong, #fff)', marginTop: '2px' }}>
               {stats.uninspected}
             </div>
           </div>
 
           <div
             onClick={() => setSelectedFilter(selectedFilter === 'needs_recheck' ? 'all' : 'needs_recheck')}
+            className="brak-kpi-card brak-kpi-recheck"
             style={{
               background: stats.needsRecheck > 0 ? 'rgba(245,158,11,0.12)' : 'rgba(255,255,255,0.03)',
               border: stats.needsRecheck > 0 ? '1px solid rgba(245,158,11,0.4)' : '1px solid var(--border-color, rgba(255,255,255,0.08))',
@@ -461,16 +466,17 @@ export const BrakActiveCuttingModal = React.memo(({
               cursor: 'pointer'
             }}
           >
-            <div style={{ fontSize: '0.62rem', fontWeight: 900, color: '#f59e0b', textTransform: 'uppercase' }}>
+            <div className="kpi-label" style={{ fontSize: '0.62rem', fontWeight: 900, color: '#f59e0b', textTransform: 'uppercase' }}>
               ⏳ Перевірити знову (&gt;45хв)
             </div>
-            <div style={{ fontSize: '1.25rem', fontWeight: 950, color: 'var(--text-strong, #fff)', marginTop: '2px' }}>
+            <div className="kpi-val" style={{ fontSize: '1.25rem', fontWeight: 950, color: 'var(--text-strong, #fff)', marginTop: '2px' }}>
               {stats.needsRecheck}
             </div>
           </div>
 
           <div
             onClick={() => setSelectedFilter(selectedFilter === 'inspected' ? 'all' : 'inspected')}
+            className="brak-kpi-card brak-kpi-fresh"
             style={{
               background: 'rgba(16,185,129,0.08)',
               border: '1px solid rgba(16,185,129,0.25)',
@@ -479,10 +485,10 @@ export const BrakActiveCuttingModal = React.memo(({
               cursor: 'pointer'
             }}
           >
-            <div style={{ fontSize: '0.62rem', fontWeight: 900, color: '#10b981', textTransform: 'uppercase' }}>
+            <div className="kpi-label" style={{ fontSize: '0.62rem', fontWeight: 900, color: '#10b981', textTransform: 'uppercase' }}>
               ✅ Свіжо перевірені
             </div>
-            <div style={{ fontSize: '1.25rem', fontWeight: 950, color: 'var(--text-strong, #fff)', marginTop: '2px' }}>
+            <div className="kpi-val" style={{ fontSize: '1.25rem', fontWeight: 950, color: 'var(--text-strong, #fff)', marginTop: '2px' }}>
               {stats.fresh}
             </div>
           </div>
@@ -565,7 +571,7 @@ export const BrakActiveCuttingModal = React.memo(({
           )}
 
           {/* Quick Filter Pills */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+          <div className="brak-filter-pill-row" style={{ display: 'flex', alignItems: 'center', gap: '6px', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
             {[
               { id: 'all', label: 'Всі' },
               { id: 'uninspected', label: '🚨 Без печаток' },
@@ -577,6 +583,7 @@ export const BrakActiveCuttingModal = React.memo(({
                 <button
                   key={tab.id}
                   onClick={() => setSelectedFilter(tab.id)}
+                  className={`brak-filter-pill ${active ? 'active' : ''}`}
                   style={{
                     height: '30px',
                     padding: '0 10px',
@@ -661,6 +668,7 @@ export const BrakActiveCuttingModal = React.memo(({
               return (
                 <div
                   key={card.id}
+                  className={`brak-cutting-card-row ${isUrgent ? 'urgent' : inspectionTier === 'fresh' ? 'fresh' : ''}`}
                   style={{
                     background: 'var(--card-inner-bg, rgba(255,255,255,0.03))',
                     border: borderStyle,
@@ -678,6 +686,7 @@ export const BrakActiveCuttingModal = React.memo(({
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                       {/* Machine Badge */}
                       <span
+                        className="brak-cutting-machine-badge"
                         style={{
                           background: 'rgba(59, 130, 246, 0.15)',
                           border: '1px solid rgba(59, 130, 246, 0.4)',
@@ -697,6 +706,7 @@ export const BrakActiveCuttingModal = React.memo(({
 
                       {/* Card ID */}
                       <span
+                        className="brak-cutting-card-id"
                         style={{
                           background: 'rgba(16, 185, 129, 0.12)',
                           color: '#10b981',
@@ -758,6 +768,7 @@ export const BrakActiveCuttingModal = React.memo(({
                     <button
                       type="button"
                       onClick={() => onOpenCardStampModal && onOpenCardStampModal(card)}
+                      className="brak-inspect-btn"
                       style={{
                         padding: '10px 16px',
                         borderRadius: '12px',
@@ -792,6 +803,7 @@ export const BrakActiveCuttingModal = React.memo(({
                   >
                     {/* Box 1: Time in Cutting */}
                     <div
+                      className={`brak-cutting-time-box ${durationMs > 90 * 60 * 1000 ? 'time-warning' : ''}`}
                       style={{
                         background: 'var(--modal-bg, rgba(0,0,0,0.3))',
                         borderRadius: '12px',
@@ -821,7 +833,7 @@ export const BrakActiveCuttingModal = React.memo(({
                         <div style={{ fontSize: '0.64rem', fontWeight: 850, color: 'var(--text-muted, #94a3b8)', textTransform: 'uppercase' }}>
                           Час у розкрої:
                         </div>
-                        <div style={{ fontSize: '0.92rem', fontWeight: 950, color: 'var(--text-strong, #fff)' }}>
+                        <div className="time-val" style={{ fontSize: '0.92rem', fontWeight: 950, color: 'var(--text-strong, #fff)' }}>
                           {formatDurationFromMs(durationMs)}
                           <span style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted, #94a3b8)', marginLeft: '6px' }}>
                             (старт о {formatTimeOnly(card.started_at || card.created_at)})
@@ -832,6 +844,7 @@ export const BrakActiveCuttingModal = React.memo(({
 
                     {/* Box 2: VKYA Inspection Status */}
                     <div
+                      className={`brak-cutting-qc-box ${!item.hasAnyStamp ? 'uninspected' : inspectionTier === 'urgent_recheck' || inspectionTier === 'needs_recheck' ? 'needs-recheck' : 'inspected'}`}
                       style={{
                         background: !item.hasAnyStamp
                           ? 'rgba(239,68,68,0.08)'
@@ -890,12 +903,12 @@ export const BrakActiveCuttingModal = React.memo(({
                           Остання перевірка ВКЯ:
                         </div>
                         {!item.hasAnyStamp ? (
-                          <div style={{ fontSize: '0.82rem', fontWeight: 950, color: '#ef4444' }}>
+                          <div className="qc-msg" style={{ fontSize: '0.82rem', fontWeight: 950, color: '#ef4444' }}>
                             ⚠️ Ще не перевірялось ВКЯ (потрібен контроль)
                           </div>
                         ) : (
                           <div>
-                            <div style={{ fontSize: '0.86rem', fontWeight: 950, color: 'var(--text-strong, #fff)' }}>
+                            <div className="qc-msg" style={{ fontSize: '0.86rem', fontWeight: 950, color: 'var(--text-strong, #fff)' }}>
                               {lastStampMs !== null ? `${formatDurationFromMs(lastStampMs)} тому` : (qcData?.lastStampedAt || 'погоджено')}
                               <span style={{ fontSize: '0.72rem', fontWeight: 850, color: '#10b981', marginLeft: '6px' }}>
                                 ({qcData?.lastStamp || 'ВКЯ'} · {qcData?.lastInspector || 'Інспектор'})

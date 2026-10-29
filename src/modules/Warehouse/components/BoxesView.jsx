@@ -168,7 +168,7 @@ export const BoxesView = ({
                         const isAllChecked = boxItem.cutters.every(c => checkedCutters[cardId]?.[c.nomenclature_id])
                         const isSheetChecked = !!checkedSheets[cardId] || boxItem.isPrepared || boxItem.isIssued
                         const currentBoxNumber = boxNumbers[cardId] !== undefined ? boxNumbers[cardId] : (boxItem.card.box_number || '')
-                        const canSubmit = currentBoxNumber.trim().length > 0 && isAllChecked && isSheetChecked
+                        const canSubmit = isAllChecked && isSheetChecked
 
                         return (
                           <div key={cardId} style={{ background: 'var(--surface-1)', borderRadius: 18, padding: 16, display: 'flex', flexDirection: 'column', gap: 12, border: `1px solid ${boxItem.isIssued ? '#10b98133' : boxItem.isPrepared ? '#3b82f633' : '#ff900022'}` }}>
@@ -190,13 +190,13 @@ export const BoxesView = ({
 
                             {!boxItem.isPrepared && !boxItem.isIssued && (
                               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                                <label style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--text-muted)' }}>НОМЕР / ШТРИХ-КОД ФІЗИЧНОГО БОКСУ:</label>
+
                                 <input
                                   type="text"
                                   value={currentBoxNumber}
                                   onChange={event => setBoxNumbers(previous => ({ ...previous, [cardId]: event.target.value }))}
-                                  placeholder="Введіть або відскануйте номер"
-                                  style={{ background: 'var(--surface-inset)', border: currentBoxNumber.trim() ? '1px solid #ff9000' : '1px solid var(--border-subtle)', borderRadius: 10, padding: '9px 12px', color: 'var(--text-strong)', fontSize: '0.78rem', fontWeight: 900, outline: 'none' }}
+                                  style={{ display: 'none' }}
+
                                 />
                                 <div style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--text-muted)', marginBottom: 2 }}>НАПОВНЕННЯ БОКСУ:</div>
                                 <div
@@ -231,12 +231,14 @@ export const BoxesView = ({
                             {/* Action buttons */}
                             {!boxItem.isPrepared && !boxItem.isIssued && (
                               <button
+                                type="button"
+                                className={`wb-submit-btn ${canSubmit ? 'wb-btn-ready' : 'wb-btn-pending'}`}
                                 disabled={isProcessing || !canSubmit}
                                 onClick={() => handlePrepareBox(boxItem, currentBoxNumber)}
-                                style={{ width: '100%', padding: '11px', background: canSubmit ? '#ff9000' : 'var(--surface-2)', color: canSubmit ? '#000' : '#444', border: 'none', borderRadius: 12, fontWeight: 900, fontSize: '0.78rem', textTransform: 'uppercase', cursor: (isProcessing || !canSubmit) ? 'not-allowed' : 'pointer', transition: 'all 0.2s', marginTop: 4 }}
+                                style={{ width: '100%', padding: '11px', background: canSubmit ? '#10b981' : 'rgba(239, 68, 68, 0.1)', color: canSubmit ? '#ffffff' : '#ef4444', border: canSubmit ? '1px solid #10b981' : '1px solid rgba(239, 68, 68, 0.3)', borderRadius: 12, fontWeight: 900, fontSize: '0.78rem', textTransform: 'uppercase', cursor: (isProcessing || !canSubmit) ? 'not-allowed' : 'pointer', transition: 'all 0.2s', marginTop: 4, boxShadow: canSubmit ? '0 4px 12px rgba(16, 185, 129, 0.25)' : 'none' }}
                               >
                                 <Package size={14} style={{ display: 'inline', marginRight: 6, verticalAlign: 'middle' }} />
-                                {!currentBoxNumber.trim() ? 'Вкажіть номер боксу' : !canSubmit ? 'Позначте всі матеріали' : `Завершити комплектацію №${currentBoxNumber.trim()}`}
+                                {!canSubmit ? 'Позначте всі матеріали' : 'Завершити комплектацію'}
                               </button>
                             )}
                             {boxItem.isPrepared && !boxItem.isIssued && (

@@ -214,6 +214,7 @@ export const BrakCardScrapModal = React.memo(({
 
           {/* Section: Scrap Recording */}
           <div
+            className="brak-scrap-box"
             style={{
               background: 'var(--card-inner-bg, rgba(239, 68, 68, 0.04))',
               border: '1px solid rgba(239, 68, 68, 0.25)',
@@ -224,7 +225,7 @@ export const BrakCardScrapModal = React.memo(({
               gap: '10px'
             }}
           >
-            <div style={{ fontSize: '0.7rem', fontWeight: 950, color: '#f87171', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            <div className="brak-scrap-title" style={{ fontSize: '0.7rem', fontWeight: 950, color: '#f87171', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
               ⚠️ ФІКСАЦІЯ БРАКУ (КАРАНТИН)
             </div>
 
@@ -249,8 +250,8 @@ export const BrakCardScrapModal = React.memo(({
             </div>
 
             {/* Виробничий оператор, якому присвоюється брак */}
-            <div style={{ background: '#ef444410', border: '1px solid #ef444435', borderRadius: '12px', padding: '10px 12px' }}>
-              <label style={{ color: '#fca5a5', fontWeight: 900, fontSize: '0.66rem', display: 'block', marginBottom: '4px' }}>
+            <div className="brak-scrap-assign-box" style={{ background: '#ef444410', border: '1px solid #ef444435', borderRadius: '12px', padding: '10px 12px' }}>
+              <label className="brak-scrap-assign-label" style={{ color: '#fca5a5', fontWeight: 900, fontSize: '0.66rem', display: 'block', marginBottom: '4px' }}>
                 КОМУ ПРИСВОЇТИ БРАК
               </label>
               {qcCardOperators.length === 1 ? (
@@ -325,8 +326,8 @@ export const BrakCardScrapModal = React.memo(({
             )}
 
             {/* Лічильник браку */}
-            <div style={{ background: 'var(--card-inner-bg, #0d0d0d)', borderRadius: '12px', padding: '10px 12px', textAlign: 'center', border: '1px solid #ef444422' }}>
-              <label style={{ color: '#ef4444', fontWeight: 900, fontSize: '0.64rem', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>
+            <div className="brak-scrap-counter-box" style={{ background: 'var(--card-inner-bg, #0d0d0d)', borderRadius: '12px', padding: '10px 12px', textAlign: 'center', border: '1px solid #ef444422' }}>
+              <label className="brak-scrap-counter-label" style={{ color: '#ef4444', fontWeight: 900, fontSize: '0.64rem', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>
                 КІЛЬКІСТЬ ВИЯВЛЕНОГО БРАКУ
               </label>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>

@@ -34,25 +34,25 @@ export function Shop1ActiveCardsTable({
           {isSyncing && <div style={{ fontSize: '0.7rem', color: '#eab308', display: 'flex', alignItems: 'center', gap: '6px', marginRight: '8px' }}><RefreshCw className="spin-s1" size={12} /> Оновлення...</div>}
           {/* Кнопки фільтру */}
           {[['all', 'ВСІ'], ['in-progress', '▶ РОБОТА'], ['at-buffer', '■ БУФЕР']].map(([val, label]) => (
-            <button key={val} onClick={() => setActiveTableFilter && setActiveTableFilter(val)} style={{
-              padding: '6px 14px', borderRadius: '8px', border: 'none', cursor: 'pointer',
-              fontSize: '0.65rem', fontWeight: 900, letterSpacing: '0.04em',
-              transition: 'all 0.15s',
-              background: activeTableFilter === val
-                ? (val === 'in-progress' ? '#3b82f6' : val === 'at-buffer' ? '#f59e0b' : '#fff')
-                : '#1a1a1a',
-              color: activeTableFilter === val
-                ? (val === 'all' ? '#000' : '#fff')
-                : '#555',
-              boxShadow: activeTableFilter === val ? '0 2px 8px rgba(0,0,0,0.3)' : 'none'
-            }}>{label}</button>
+            <button
+              key={val}
+              onClick={() => setActiveTableFilter && setActiveTableFilter(val)}
+              className={`s1-table-filter-btn ${activeTableFilter === val ? `active active-${val}` : ''}`}
+              style={{
+                padding: '6px 14px', borderRadius: '8px', cursor: 'pointer',
+                fontSize: '0.65rem', fontWeight: 900, letterSpacing: '0.04em',
+                transition: 'all 0.15s'
+              }}
+            >
+              {label}
+            </button>
           ))}
         </div>
       </div>
       <div style={{ overflowX: 'auto', maxWidth: '100%', border: 'none', borderRadius: 0, width: '100%', WebkitOverflowScrolling: 'touch' }}>
         <table style={{ width: '100%', minWidth: '1200px', borderCollapse: 'collapse', textAlign: 'left' }}>
           <thead>
-            <tr style={{ background: 'var(--surface-inset)', fontSize: '0.65rem', fontWeight: 900, color: '#555', textTransform: 'uppercase' }}>
+            <tr className="s1-active-table-head" style={{ background: 'var(--surface-inset)', fontSize: '0.65rem', fontWeight: 900, color: 'var(--text-dim, #555)', textTransform: 'uppercase' }}>
               <th style={{ padding: '12px 14px' }}>ДАТА І ЧАС</th>
               <th style={{ padding: '12px 14px' }}>ДЕТАЛЬ</th>
               <th style={{ padding: '12px 14px' }}>ЕТАП</th>
@@ -61,8 +61,8 @@ export function Shop1ActiveCardsTable({
               <th style={{ padding: '12px 14px' }}>ЗМІНА</th>
               <th style={{ padding: '12px 14px' }}>ОПЕРАТОР</th>
               <th style={{ padding: '12px 14px' }}>ВЕРСТАТ</th>
-              <th style={{ padding: '12px 14px', color: '#10b981' }}>ЗАГАЛЬНИЙ ЧАС</th>
-              <th style={{ padding: '12px 14px', color: '#eab308' }}>ЧАС ЗМІНИ</th>
+              <th className="th-time-total" style={{ padding: '12px 14px', color: '#10b981' }}>ЗАГАЛЬНИЙ ЧАС</th>
+              <th className="th-time-shift" style={{ padding: '12px 14px', color: '#eab308' }}>ЧАС ЗМІНИ</th>
               <th style={{ padding: '12px 14px' }}></th>
             </tr>
           </thead>
@@ -163,7 +163,7 @@ export function Shop1ActiveCardsTable({
                     <td style={{ padding: '10px 14px', fontWeight: 800, whiteSpace: 'nowrap', fontSize: '0.75rem' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         {cardSeq && (
-                          <span style={{ 
+                          <span className="s1-card-seq-badge" style={{ 
                             background: '#eab30815', 
                             color: '#eab308', 
                             padding: '2px 6px', 
@@ -181,7 +181,7 @@ export function Shop1ActiveCardsTable({
                     <td style={{ padding: '10px 14px' }}>{card.operation}</td>
                     <td style={{ padding: '10px 14px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'nowrap' }}>
-                        <span style={{
+                        <span className={`s1-status-pill ${(inBuf && card.operation === 'Сортування') ? 's1-status-sorting' : inBuf ? 's1-status-buffer' : (card.status === 'paused' || card.status === 'hold') ? 's1-status-pause' : 's1-status-work'}`} style={{
                           fontSize: '0.7rem', fontWeight: 900, textTransform: 'uppercase',
                           background: (inBuf && card.operation === 'Сортування') ? '#8b5cf618' : inBuf ? '#f59e0b18' : (card.status === 'paused' || card.status === 'hold') ? '#ef444418' : '#3b82f618',
                           color: (inBuf && card.operation === 'Сортування') ? '#8b5cf6' : inBuf ? '#f59e0b' : (card.status === 'paused' || card.status === 'hold') ? '#ef4444' : '#3b82f6',
@@ -191,7 +191,7 @@ export function Shop1ActiveCardsTable({
                           {(inBuf && card.operation === 'Сортування') ? '🟣 БУФЕР' : inBuf ? '▣ БУФЕР' : card.status === 'paused' ? '⏸ ПАУЗА' : card.status === 'hold' ? '⏹ ЗУПИНЕНО' : '▶ РОБОТА'}
                         </span>
                         {inBuf && isOvertime && (
-                          <span style={{
+                          <span className="s1-overtime-badge" style={{
                             fontSize: '0.62rem', fontWeight: 900,
                             background: 'rgba(239, 68, 68, 0.15)',
                             color: '#ef4444',
@@ -223,11 +223,11 @@ export function Shop1ActiveCardsTable({
                     <td style={{ padding: '10px 14px', fontWeight: 900 }}>{card.quantity} шт</td>
                     <td style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>{card.shift_name || '—'}</td>
                     <td style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>{card.operator_name || '—'}</td>
-                    <td style={{ padding: '10px 14px', color: '#eab308', fontWeight: 800 }}>{formatMachine(card.machine)}</td>
+                    <td className="s1-machine-cell" style={{ padding: '10px 14px', color: '#eab308', fontWeight: 850 }}>{formatMachine(card.machine)}</td>
                     <td style={{ padding: '10px 14px', whiteSpace: 'nowrap' }}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span style={{
+                          <span className={isOvertime ? 's1-time-overtime' : 's1-time-normal'} style={{
                             color: isOvertime ? '#ef4444' : '#10b981',
                             fontFamily: 'monospace',
                             fontWeight: 800,

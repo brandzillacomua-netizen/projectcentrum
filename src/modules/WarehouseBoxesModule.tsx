@@ -387,7 +387,7 @@ export const WarehouseBoxesModule: React.FC = () => {
                           const currentBoxNumber = boxNumberState[cardId] !== undefined
                             ? boxNumberState[cardId]
                             : (boxItem.card.box_number || '')
-                          const canSubmit = currentBoxNumber.trim().length > 0 && isAllChecked && isSheetChecked
+                          const canSubmit = isAllChecked && isSheetChecked
 
                           return (
                             <div
@@ -434,19 +434,6 @@ export const WarehouseBoxesModule: React.FC = () => {
                                 <div style={{ fontSize: '0.78rem', color: 'var(--text-soft)', fontWeight: 700, marginTop: '2px', wordBreak: 'break-all', whiteSpace: 'normal' }}>
                                   {boxItem.partName}
                                 </div>
-                              </div>
-
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                                <label style={{ fontSize: '0.6rem', color: 'var(--text-muted)', fontWeight: 800 }}>НОМЕР / ШТРИХ-КОД ФІЗИЧНОГО БОКСУ:</label>
-                                <input
-                                  type="text"
-                                  inputMode="text"
-                                  placeholder="Введіть або відскануйте номер боксу"
-                                  value={currentBoxNumber}
-                                  disabled={boxItem.isPrepared}
-                                  onChange={event => setBoxNumberState((previous: any) => ({ ...previous, [cardId]: event.target.value }))}
-                                  style={{ background: 'var(--surface-inset)', border: currentBoxNumber.trim() ? '1px solid #ff9000' : '1px solid var(--border-subtle)', borderRadius: '9px', padding: '9px 12px', color: 'var(--text-strong)', fontSize: '0.78rem', fontWeight: 900, outline: 'none', boxSizing: 'border-box', width: '100%' }}
-                                />
                               </div>
 
                               {/* Machine and sheets count */}
@@ -538,27 +525,29 @@ export const WarehouseBoxesModule: React.FC = () => {
                               {/* Save Button */}
                               {!boxItem.isPrepared && (
                                 <button
+                                  type="button"
+                                  className={`wb-submit-btn ${canSubmit ? 'wb-btn-ready' : 'wb-btn-pending'}`}
                                   disabled={isProcessing || !canSubmit}
                                   onClick={() => handlers.handlePrepareBox(boxItem, currentBoxNumber)}
                                   style={{
                                     width: '100%',
-                                    padding: '10px',
-                                    background: canSubmit ? '#ff9000' : 'var(--surface-2)',
-                                    color: canSubmit ? '#000' : '#555',
-                                    border: 'none',
-                                    borderRadius: '8px',
+                                    padding: '11px',
+                                    background: canSubmit ? '#10b981' : 'rgba(239, 68, 68, 0.1)',
+                                    color: canSubmit ? '#ffffff' : '#ef4444',
+                                    border: canSubmit ? '1px solid #10b981' : '1px solid rgba(239, 68, 68, 0.3)',
+                                    borderRadius: '10px',
                                     fontWeight: 900,
-                                    fontSize: '0.75rem',
+                                    fontSize: '0.78rem',
+                                    letterSpacing: '0.02em',
                                     cursor: (isProcessing || !canSubmit) ? 'not-allowed' : 'pointer',
                                     transition: 'all 0.2s',
-                                    marginTop: '2px'
+                                    marginTop: '2px',
+                                    boxShadow: canSubmit ? '0 4px 12px rgba(16, 185, 129, 0.25)' : 'none'
                                   }}
                                 >
-                                  {!currentBoxNumber.trim()
-                                    ? 'Вкажіть номер боксу'
-                                    : !isAllChecked || !isSheetChecked
+                                  {!isAllChecked || !isSheetChecked
                                     ? 'Позначте вміст' 
-                                    : `Завершити комплектацію боксу №${currentBoxNumber.trim()}`
+                                    : 'Завершити комплектацію боксу'
                                   }
                                 </button>
                               )}

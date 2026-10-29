@@ -79,9 +79,11 @@ export const useWarehouseHandlers = ({
   }
 
   const validateBoxNumber = async (card, value) => {
-    const targetBox = String(value || '').trim()
+    let targetBox = String(value || card?.box_number || '').trim()
+    const isAuto = !targetBox
     if (!targetBox) {
-      throw new Error('Вкажіть або відскануйте номер фізичного боксу.')
+      const cardSeq = card?.card_info?.split(' ')[0]?.trim() || `К${String(card?.id || '').slice(0, 6)}`
+      targetBox = `Б-${cardSeq.replace('/', '-')}`
     }
 
     const { data: duplicates, error: duplicateError } = await supabaseClient
@@ -96,10 +98,14 @@ export const useWarehouseHandlers = ({
 
     if (duplicateError) throw duplicateError
     if (duplicates?.length) {
-      const duplicate = duplicates[0]
-      const duplicateNom = (nomenclatures || []).find(n => String(n.id) === String(duplicate.nomenclature_id))
-      const duplicateLabel = duplicate.card_info?.split(' ')[0] || `#${String(duplicate.id).substring(0, 8)}`
-      throw new Error(`Бокс №${targetBox} вже присвоєно активній картці ${duplicateLabel} (${duplicateNom?.name || 'Деталь'}).`)
+      if (isAuto || targetBox.startsWith('Б-')) {
+        targetBox = `${targetBox}-${String(card.id).substring(0, 4)}`
+      } else {
+        const duplicate = duplicates[0]
+        const duplicateNom = (nomenclatures || []).find(n => String(n.id) === String(duplicate.nomenclature_id))
+        const duplicateLabel = duplicate.card_info?.split(' ')[0] || `#${String(duplicate.id).substring(0, 8)}`
+        throw new Error(`Бокс №${targetBox} вже присвоєно активній картці ${duplicateLabel} (${duplicateNom?.name || 'Деталь'}).`)
+      }
     }
 
     return targetBox
@@ -203,9 +209,6 @@ export const useWarehouseHandlers = ({
     setIsProcessing(true)
     try {
       let boxNumber = String(boxItem.card.box_number || '').trim()
-      if (!boxNumber) {
-        boxNumber = String(window.prompt('Вкажіть або відскануйте номер фізичного боксу перед видачею:', '') || '').trim()
-      }
       await persistMissingBoxNumber(boxItem.card, boxNumber)
 
       const { error } = await supabaseClient.rpc('issue_warehouse_box', {

@@ -1351,3 +1351,121 @@ body {
   }
 }
 
+
+
+/* ==========================================================================
+   SHOP 1 & VKYA ACTIONS — DARK MODE DEFAULTS
+   ========================================================================== */
+.s1-table-filter-btn {
+  background: #1a1a1a;
+  color: #888888;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.s1-table-filter-btn:hover {
+  background: #262626;
+  color: #ffffff;
+}
+.s1-table-filter-btn.active.active-all {
+  background: #ffffff;
+  color: #000000;
+  border-color: #ffffff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+.s1-table-filter-btn.active.active-in-progress {
+  background: #3b82f6;
+  color: #ffffff;
+  border-color: #3b82f6;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+}
+.s1-table-filter-btn.active.active-at-buffer {
+  background: #f59e0b;
+  color: #ffffff;
+  border-color: #f59e0b;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
+}
+
+.vkya-btn {
+  border: 1px solid transparent;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.vkya-btn-scan {
+  background: rgba(239, 68, 68, 0.14);
+  border-color: rgba(239, 68, 68, 0.45);
+  color: #ef4444;
+  box-shadow: 0 4px 14px rgba(239, 68, 68, 0.15);
+}
+.vkya-btn-scan:hover {
+  background: rgba(239, 68, 68, 0.22);
+  border-color: #ef4444;
+}
+.vkya-btn-cutting {
+  background: rgba(245, 158, 11, 0.14);
+  border-color: rgba(245, 158, 11, 0.45);
+  color: #f59e0b;
+  box-shadow: 0 4px 14px rgba(245, 158, 11, 0.15);
+}
+.vkya-btn-cutting:hover {
+  background: rgba(245, 158, 11, 0.22);
+  border-color: #f59e0b;
+}
+.vkya-btn-journal {
+  background: rgba(16, 185, 129, 0.14);
+  border-color: rgba(16, 185, 129, 0.45);
+  color: #10b981;
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.15);
+}
+.vkya-btn-journal:hover {
+  background: rgba(16, 185, 129, 0.22);
+  border-color: #10b981;
+}
+.vkya-btn-reports {
+  background: rgba(168, 85, 247, 0.14);
+  border-color: rgba(168, 85, 247, 0.45);
+  color: #a855f7;
+  box-shadow: 0 4px 14px rgba(168, 85, 247, 0.15);
+}
+.vkya-btn-reports:hover {
+  background: rgba(168, 85, 247, 0.22);
+  border-color: #a855f7;
+}
+.vkya-btn-restoration {
+  background: rgba(6, 182, 212, 0.14);
+  border-color: rgba(6, 182, 212, 0.45);
+  color: #06b6d4;
+  box-shadow: 0 4px 14px rgba(6, 182, 212, 0.15);
+}
+.vkya-btn-restoration:hover {
+  background: rgba(6, 182, 212, 0.22);
+  border-color: #06b6d4;
+}
+.vkya-btn-settings {
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.4);
+  color: #f59e0b;
+  box-shadow: 0 4px 14px rgba(245, 158, 11, 0.15);
+}
+.vkya-btn-settings:hover {
+  background: rgba(245, 158, 11, 0.2);
+  border-color: #f59e0b;
+}
+.vkya-btn-cutting .vkya-btn-badge {
+  background: #f59e0b;
+  color: #000;
+}
+.vkya-btn-journal .vkya-btn-badge {
+  background: #10b981;
+  color: #fff;
+}
+
+/* Warehouse Boxes Action Buttons */
+.wb-btn-pending {
+  background: rgba(239, 68, 68, 0.12) !important;
+  color: #f87171 !important;
+  border: 1px solid rgba(239, 68, 68, 0.35) !important;
+}
+.wb-btn-ready {
+  background: #10b981 !important;
+  color: #ffffff !important;
+  border: 1px solid #10b981 !important;
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3) !important;
+}

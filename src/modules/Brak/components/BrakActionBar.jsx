@@ -63,6 +63,7 @@ export const BrakActionBar = React.memo(({
       {typeof setShowCuttingCardsModal === 'function' && (
         <button
           onClick={() => setShowCuttingCardsModal(true)}
+          className="vkya-btn vkya-btn-cutting"
           style={{
             padding: '12px 22px',
             borderRadius: '14px',
@@ -72,22 +73,17 @@ export const BrakActionBar = React.memo(({
             display: 'flex',
             alignItems: 'center',
             gap: '10px',
-            background: 'rgba(245, 158, 11, 0.14)',
-            border: '1px solid rgba(245, 158, 11, 0.45)',
-            color: '#f59e0b',
             transition: 'all 0.2s',
-            boxShadow: '0 4px 14px rgba(245, 158, 11, 0.15)'
           }}
         >
           <Flame size={18} />
           <span>⚡ КАРТКИ В РОЗКРОЇ</span>
           {activeCuttingCardsCount > 0 && (
             <span
+              className="vkya-btn-badge"
               style={{
                 padding: '2px 8px',
                 borderRadius: '999px',
-                background: '#f59e0b',
-                color: '#000',
                 fontSize: '0.72rem',
                 fontWeight: 950
               }}
@@ -101,6 +97,7 @@ export const BrakActionBar = React.memo(({
       {typeof setShowStampsJournal === 'function' && (
         <button
           onClick={() => setShowStampsJournal(true)}
+          className="vkya-btn vkya-btn-journal"
           style={{
             padding: '12px 22px',
             borderRadius: '14px',
@@ -110,9 +107,6 @@ export const BrakActionBar = React.memo(({
             display: 'flex',
             alignItems: 'center',
             gap: '10px',
-            background: 'rgba(16, 185, 129, 0.14)',
-            border: '1px solid rgba(16, 185, 129, 0.45)',
-            color: '#10b981',
             transition: 'all 0.2s'
           }}
         >
@@ -120,11 +114,10 @@ export const BrakActionBar = React.memo(({
           <span>💮 ЖУРНАЛ ПЕЧАТОК ВКЯ</span>
           {stampedCardsCount > 0 && (
             <span
+              className="vkya-btn-badge"
               style={{
                 padding: '2px 8px',
                 borderRadius: '999px',
-                background: '#10b981',
-                color: '#fff',
                 fontSize: '0.72rem',
                 fontWeight: 950
               }}
