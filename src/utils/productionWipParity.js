@@ -24,3 +24,11 @@ export const getUnassignedShop2BufferCards = (cards = [], assignedCardIds = new 
     !assignedCardIds.has(String(card.id))
   ))
 )
+
+export const getUnassignedLiveSortingCards = (cards = [], assignedCardIds = new Set()) => (
+  (cards || []).filter(card => (
+    isLiveSortingCard(card) &&
+    (Number(card?.quantity) || 0) > 0 &&
+    !assignedCardIds.has(String(card.id))
+  ))
+)

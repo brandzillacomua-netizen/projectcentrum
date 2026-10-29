@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   getShop2BufferRemaining,
+  getUnassignedLiveSortingCards,
   getUnassignedShop2BufferCards,
   isLiveSortingCard,
   mergeCardsPreferLive
@@ -45,5 +46,17 @@ describe('production WIP parity', () => {
 
     expect(unassigned).toHaveLength(1)
     expect(unassigned.reduce((sum, card) => sum + getShop2BufferRemaining(card), 0)).toBe(4)
+  })
+
+  it('keeps live sorting cards outside visible orders in the global dashboard total', () => {
+    const cards = [
+      { id: 'assigned-sort', operation: 'Сортування', status: 'at-buffer', quantity: 14625 },
+      { id: 'outside-sort', operation: 'Сортування', status: 'at-buffer', quantity: 756 }
+    ]
+    const assignedIds = new Set(['assigned-sort'])
+    const unassigned = getUnassignedLiveSortingCards(cards, assignedIds)
+
+    expect(unassigned).toHaveLength(1)
+    expect(unassigned.reduce((sum, card) => sum + card.quantity, 0)).toBe(756)
   })
 })

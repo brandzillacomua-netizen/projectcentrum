@@ -16,10 +16,12 @@ import {
   getConfirmedSgpFromCards,
   getConfirmedSgpFromFlow,
   getForemanTaskScopeKey,
-  isBzReservationCard
+  isBzReservationCard,
+  isConfirmedSgpCard
 } from '../utils/foremanDashboardMetrics.js'
 import {
   getShop2BufferRemaining,
+  getUnassignedLiveSortingCards,
   getUnassignedShop2BufferCards,
   isLiveSortingCard,
   mergeCardsPreferLive
@@ -381,9 +383,8 @@ export const useForemanDashboardData = () => {
         const nomCards = taskCards.filter(c => String(c.nomenclature_id) === nid)
         const flowRows = scopeIds.flatMap(taskId => flowTotalsByTaskNom[taskId]?.[nid] || [])
         const confirmedFromFlow = getConfirmedSgpFromFlow(flowRows, nomCards)
-        cache[task.id][nid] = confirmedFromFlow > 0
-          ? confirmedFromFlow
-          : getConfirmedSgpFromCards(nomCards)
+        const confirmedFromCards = getConfirmedSgpFromCards(nomCards)
+        cache[task.id][nid] = Math.max(confirmedFromFlow, confirmedFromCards)
       })
     })
     return cache
@@ -620,6 +621,7 @@ export const useForemanDashboardData = () => {
 
     const groups = {}
     const assignedShop2BufferCardIds = new Set()
+    const assignedLiveSortingCardIds = new Set()
     const productNoms = nomenclatures.filter(n => n.type === 'product')
     productNoms.forEach(prod => {
       if (parentToChildren[String(prod.id)]) {
@@ -788,12 +790,14 @@ export const useForemanDashboardData = () => {
         const qGalt = getQ(['Галтовка'], ['in-progress', 'paused'])
         const qGaltBuf = getQ(['Галтовка'], ['at-buffer'])
         const qPriy = getQ(['Прийомка'], ['new', 'in-progress', 'paused', 'at-buffer'])
-        const qSortAct = filteredCards.filter(c => {
+        const qSortActCards = filteredCards.filter(c => {
           if (String(c.nomenclature_id) !== String(nom.id)) return false
           const cardParent = getCardParentId(c)
           if (!cardParent || String(cardParent) !== String(parentId)) return false
           return !isVkyaCard(c) && isLiveSortingCard(c)
-        }).reduce((s, c) => s + (Number(c.quantity) || 0), 0)
+        })
+        qSortActCards.forEach(card => assignedLiveSortingCardIds.add(String(card.id)))
+        const qSortAct = qSortActCards.reduce((s, c) => s + (Number(c.quantity) || 0), 0)
         const qSortCards = filteredCards.filter(c => {
           if (String(c.nomenclature_id) !== String(nom.id)) return false
           const cardParent = getCardParentId(c)
@@ -923,8 +927,22 @@ export const useForemanDashboardData = () => {
         const remaining = getShop2BufferRemaining(card)
         const nomId = String(card.nomenclature_id || '')
         if (!nomId) return
-        const current = unassignedByNom.get(nomId) || { quantity: 0, cardIds: [] }
-        current.quantity += remaining
+        const current = unassignedByNom.get(nomId) || { qSort: 0, qSortAct: 0, cardIds: [] }
+        current.qSort += remaining
+        current.cardIds.push(String(card.id))
+        unassignedByNom.set(nomId, current)
+      })
+
+      getUnassignedLiveSortingCards(dashboardCards, assignedLiveSortingCardIds).forEach(card => {
+        if (isVkyaCard(card)) return
+        const nomId = String(card.nomenclature_id || '')
+        if (!nomId) return
+        const nom = nomenclatures.find(item => String(item.id) === nomId)
+        if (nom && nom.type && nom.type !== 'part') return
+        const qty = Number(card.quantity) || 0
+        if (qty <= 0) return
+        const current = unassignedByNom.get(nomId) || { qSort: 0, qSortAct: 0, cardIds: [] }
+        current.qSortAct += qty
         current.cardIds.push(String(card.id))
         unassignedByNom.set(nomId, current)
       })
@@ -938,6 +956,8 @@ export const useForemanDashboardData = () => {
           name.toLowerCase().includes(searchQuery.toLowerCase()) ||
           code.toLowerCase().includes(searchQuery.toLowerCase())
         if (!matchSearch) return
+        const rowSum = (entry.qSortAct || 0) + (entry.qSort || 0)
+        if (rowSum <= 0) return
 
         unassignedRows.push({
           id: `${nomId}___unassigned_shop2__`,
@@ -949,13 +969,14 @@ export const useForemanDashboardData = () => {
           demand: 0,
           qtyPerProduct: 0,
           qWhWait: 0, qCutWait: 0, qCut: 0, qCutBuf: 0,
-          qGalt: 0, qGaltBuf: 0, qPriy: 0, qSortAct: 0,
-          qSort: entry.quantity,
+          qGalt: 0, qGaltBuf: 0, qPriy: 0,
+          qSortAct: entry.qSortAct || 0,
+          qSort: entry.qSort || 0,
           qMalWait: 0, qMal: 0, qMalBuf: 0,
           qPresWait: 0, qPres: 0, qPresBuf: 0,
           qDoopWait: 0, qDoop: 0, qDoopBuf: 0,
           qSgp: 0, qBz: 0, qScrap: 0, qVkya: 0,
-          sum: entry.quantity
+          sum: rowSum
         })
       })
 
@@ -1139,10 +1160,8 @@ export const useForemanDashboardData = () => {
     else if (stageKey === 'qDoop') matchingCards = matchOpsAndStatus(['Доопрацювання'], ['in-progress', 'paused'])
     else if (stageKey === 'qDoopBuf') matchingCards = matchOpsAndStatus(['Доопрацювання'], ['at-buffer'])
     else if (stageKey === 'qSgp') matchingCards = nomCards.filter(c => {
-      if (isVkyaCard(c) || isBzReservationCard(c) || c.status !== 'completed') return false
-      const op = String(c.operation || '').toLowerCase()
-      const info = String(c.card_info || '').toLowerCase()
-      return op.includes('сгп') || op.includes('пакування/сгп') || info.includes('[пряма передача]')
+      if (isVkyaCard(c)) return false
+      return isConfirmedSgpCard(c)
     }).map(c => ({ ...c, quantity: getConfirmedSgpCardQuantity(c) }))
     else if (stageKey === 'qBz') {
       matchingCards = [{

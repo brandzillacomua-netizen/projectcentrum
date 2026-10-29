@@ -262,7 +262,7 @@ const OrderDetailContent = ({
                 { key: 'Pressing', label: 'Пресування', ops: ['Пресування'], color: '#eab308' },
                 { key: 'Painting', label: 'Фарбування', ops: ['Фарбування', 'Малярка'], color: '#ec4899' },
                 { key: 'Rework', label: 'Доопрацювання', ops: ['Доопрацювання'], color: '#ef4444' },
-                { key: 'Sgp', label: 'СГП', ops: ['Пакування/СГП', 'СГП'], color: '#6366f1' }
+                { key: 'Sgp', label: 'СГП', ops: ['Пакування/СГП', 'Склад СГП', 'Пакування', 'СГП'], color: '#6366f1' }
               ]
 
               const stageDurations = {}

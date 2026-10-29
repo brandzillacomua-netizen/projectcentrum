@@ -32,6 +32,30 @@ describe('foreman dashboard terminal metrics', () => {
     expect(calculateTerminalMetrics({ confirmedSgpCardsQty: 42 }).qSgp).toBe(42)
   })
 
+  it('uses the larger of flow totals and confirmed SGP cards when flow totals only cover part of the transfer', () => {
+    expect(calculateTerminalMetrics({ flowSgpQty: 3000, confirmedSgpCardsQty: 18000 }).qSgp).toBe(18000)
+  })
+
+  it('counts Shop 2 cards that transitioned to Пакування after finishing Фарбування', () => {
+    const cards = [
+      {
+        id: 'card-pak-new',
+        status: 'new',
+        operation: 'Пакування',
+        quantity: 14803,
+        card_info: '[MACHINE_ID:] [MACHINE_NAME:] [SHOP:2] [STAGE:Фарбування] №1/1 [REQ:14803]'
+      },
+      {
+        id: 'card-pak-comp',
+        status: 'completed',
+        operation: 'Пакування',
+        quantity: 248,
+        card_info: '[SHOP:2] [STAGE:Пресування] №1/2 [REQ:248]'
+      }
+    ]
+    expect(getConfirmedSgpFromCards(cards)).toBe(15051)
+  })
+
   it('isolates separate batches of the same order', () => {
     expect(getForemanTaskScopeKey({ order_id: 'order-1', batch_index: 1 }))
       .not.toBe(getForemanTaskScopeKey({ order_id: 'order-1', batch_index: 2 }))

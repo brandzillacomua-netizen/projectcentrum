@@ -342,7 +342,7 @@ export function createProductionCardsActions({
     const isRework = (card.card_info || '').includes('[REWORK]')
     const currentOp = (card.operation || '').trim()
     const isShop1 = (card.card_info || '').includes('[SHOP:1]')
-    const isShop2 = (card.card_info || '').includes('[ЦЕХ №2]')
+    const isShop2 = (card.card_info || '').includes('[ЦЕХ №2]') || (card.card_info || '').includes('[SHOP:2]') || (card.card_info || '').includes('[ЦЕХ 2]')
     const chain = isShop1 ? CHAIN_SHOP1 : CHAIN_GENERAL
     const idx = chain.findIndex(s => s.toLowerCase() === currentOp.toLowerCase())
     const nextStage = idx >= 0 && idx < chain.length - 1 ? chain[idx + 1] : null

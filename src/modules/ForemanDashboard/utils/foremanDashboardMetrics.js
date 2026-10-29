@@ -15,13 +15,28 @@ export const isBzReservationCard = (card) => (
   /\[BZ_RESERVATION(?::[^\]]*)?\]/i.test(String(card?.card_info || ''))
 )
 
-export const getConfirmedSgpFromCards = (cards = []) => cards.reduce((sum, card) => {
-  if (String(card?.status || '').toLowerCase() !== 'completed') return sum
-  if (isBzReservationCard(card)) return sum
-  const operation = String(card?.operation || '').toLowerCase()
+export const isConfirmedSgpCard = (card) => {
+  if (!card) return false
+  if (isBzReservationCard(card)) return false
+  const status = String(card?.status || '').toLowerCase()
+  const operation = String(card?.operation || '').toLowerCase().trim()
   const info = String(card?.card_info || '').toLowerCase()
-  const isTransferMarker = operation.includes('сгп') || operation.includes('пакування/сгп') || info.includes('[пряма передача]')
-  if (!isTransferMarker) return sum
+  if (status === 'completed') {
+    return (
+      operation.includes('сгп') ||
+      operation.includes('пакування') ||
+      operation.includes('упаковка') ||
+      info.includes('[пряма передача')
+    )
+  }
+  if (status === 'new' && operation === 'пакування') {
+    return info.includes('[shop:2]') || info.includes('[цех №2]') || info.includes('[цех 2]')
+  }
+  return false
+}
+
+export const getConfirmedSgpFromCards = (cards = []) => cards.reduce((sum, card) => {
+  if (!isConfirmedSgpCard(card)) return sum
   return sum + getConfirmedSgpCardQuantity(card)
 }, 0)
 
@@ -53,7 +68,7 @@ export const calculateTerminalMetrics = ({
   const qBz = Math.max(0, Number(initialStock) || 0)
   const confirmedFlowSgp = Math.max(0, Number(flowSgpQty) || 0)
   const confirmedCardSgp = Math.max(0, Number(confirmedSgpCardsQty) || 0)
-  const qSgp = confirmedFlowSgp > 0 ? confirmedFlowSgp : confirmedCardSgp
+  const qSgp = Math.max(confirmedFlowSgp, confirmedCardSgp)
   const qScrap = Math.max(0, Number(finalScrapQty) || 0)
   const qVkya = Math.max(0, Number(currentVkyaQty) || 0)
 
