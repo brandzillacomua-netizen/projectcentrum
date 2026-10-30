@@ -28,6 +28,8 @@ import {
   PRIORITY_CFG,
   isOverdueTask,
   getAssignees,
+  getChecklistAssignees,
+  isTaskVisibleToUser,
   checklistProgress,
   toggleChecklistItem
 } from '../../../Kanban/utils/kanbanHelpers'
@@ -73,24 +75,29 @@ export function CorporateTasksView({
     return map
   }, [systemUsers])
 
+  // Filter only tasks relevant to current user: personal (assigned/checklist/author) or collective
+  const userVisibleTasks = useMemo(() => {
+    return (managementTasks || []).filter(task => isTaskVisibleToUser(task, currentUser, companyStructure))
+  }, [managementTasks, currentUser, companyStructure])
+
   // Metrics calculation
   const metrics = useMemo(() => {
-    const total = managementTasks.length
-    const active = managementTasks.filter(t => t.status !== 'done').length
-    const todo = managementTasks.filter(t => t.status === 'todo').length
-    const inProgress = managementTasks.filter(t => t.status === 'in_progress').length
-    const review = managementTasks.filter(t => t.status === 'review').length
-    const done = managementTasks.filter(t => t.status === 'done').length
-    const overdue = managementTasks.filter(t => isOverdueTask(t)).length
+    const total = userVisibleTasks.length
+    const active = userVisibleTasks.filter(t => t.status !== 'done').length
+    const todo = userVisibleTasks.filter(t => t.status === 'todo').length
+    const inProgress = userVisibleTasks.filter(t => t.status === 'in_progress').length
+    const review = userVisibleTasks.filter(t => t.status === 'review').length
+    const done = userVisibleTasks.filter(t => t.status === 'done').length
+    const overdue = userVisibleTasks.filter(t => isOverdueTask(t)).length
 
     return { total, active, todo, inProgress, review, done, overdue }
-  }, [managementTasks])
+  }, [userVisibleTasks])
 
   // Filtered task stream
   const filteredTasks = useMemo(() => {
-    return managementTasks.filter(task => {
+    return userVisibleTasks.filter(task => {
       const assignees = getAssignees(task)
-      const isAssignedToMe = assignees.includes(currentLogin)
+      const isAssignedToMe = assignees.includes(currentLogin) || (Array.isArray(task.checklist) && task.checklist.some(i => getChecklistAssignees(i).includes(currentLogin)))
       const isCreatedByMe = task.created_by === currentLogin
 
       // Scope filter
@@ -120,7 +127,7 @@ export function CorporateTasksView({
 
       return true
     })
-  }, [managementTasks, scopeFilter, statusFilter, searchQuery, currentLogin, usersByLogin])
+  }, [userVisibleTasks, scopeFilter, statusFilter, searchQuery, currentLogin, usersByLogin])
 
   // Action helpers
   const handleAdvanceStatus = async (task, newStatus) => {

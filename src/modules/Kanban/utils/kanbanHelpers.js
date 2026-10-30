@@ -88,6 +88,49 @@ export const getChecklistAssignees = (item) => {
   return []
 }
 
+export const isTaskVisibleToUser = (task, user, companyStructure = []) => {
+  if (!user || !task) return false
+  const pos = (user?.position || '').toLowerCase()
+  const rights = user?.access_rights || {}
+  const isDirectorOrAdmin = Boolean(
+    rights.director ||
+    user?.role === 'admin' ||
+    user?.is_admin ||
+    user?.login === 'admin' ||
+    pos.includes('директор') ||
+    pos.includes('адмін') ||
+    pos.includes('керівник підприємства')
+  )
+  if (isDirectorOrAdmin) return true
+
+  const login = user.login
+  const userId = String(user.id || '')
+
+  // 1. Created by user
+  if (task.created_by === login || (task.created_by && String(task.created_by) === userId)) return true
+
+  // 2. Assigned directly to user (either in assignees array or assigned_to)
+  const assignees = getAssignees(task)
+  if (assignees.includes(login) || assignees.includes(userId)) return true
+
+  // 3. User is assigned to any checklist item / subtask
+  if (Array.isArray(task.checklist) && task.checklist.some(item => {
+    const itemAssignees = getChecklistAssignees(item)
+    return itemAssignees.includes(login) || itemAssignees.includes(userId)
+  })) {
+    return true
+  }
+
+  // 4. Collective task (спільне завдання для всіх або для відділу користувача)
+  if (task.is_collective) {
+    if (!task.department || task.department === 'all') return true
+    const userDept = getUserDeptId(user.department, companyStructure)
+    if (userDept && String(task.department).toLowerCase() === String(userDept).toLowerCase()) return true
+  }
+
+  return false
+}
+
 export const checklistProgress = (checklist = []) => {
   if (!checklist.length) return null
   const parentIds = new Set()

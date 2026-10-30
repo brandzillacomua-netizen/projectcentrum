@@ -8,9 +8,10 @@ import { CorporateTasksView } from './components/tasks/CorporateTasksView'
 import { useCorporateFeed } from './hooks/useCorporateFeed'
 import KanbanModule from '../KanbanModule'
 import { KanbanTaskModal } from '../Kanban/components/modals/KanbanTaskModal'
+import { isTaskVisibleToUser } from '../Kanban/utils/kanbanHelpers'
 
 export default function CorporateModule() {
-  const { currentUser, managementTasks, refreshTable } = useMES()
+  const { currentUser, managementTasks, companyStructure = [], refreshTable } = useMES()
   const [activeTab, setActiveTab] = useState('feed')
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [companyUsers, setCompanyUsers] = useState([])
@@ -36,8 +37,14 @@ export default function CorporateModule() {
     refreshPosts
   } = useCorporateFeed(currentUser)
 
-  // Company management tasks from MES context
-  const activeTasks = (managementTasks || []).filter(t => t.status !== 'done')
+  // Filter tasks relevant to current user: personal (assigned/checklist/author) or collective
+  const userRelevantTasks = useMemo(() => {
+    return (managementTasks || []).filter(t => isTaskVisibleToUser(t, currentUser, companyStructure))
+  }, [managementTasks, currentUser, companyStructure])
+
+  const activeTasks = useMemo(() => {
+    return userRelevantTasks.filter(t => t.status !== 'done')
+  }, [userRelevantTasks])
 
   // Fetch company users for mentions and assignees
   useEffect(() => {
@@ -92,7 +99,8 @@ export default function CorporateModule() {
       loading={feedLoading}
       currentUser={currentUser}
       users={companyUsers}
-      tasks={managementTasks || []}
+      tasks={userRelevantTasks}
+      companyStructure={companyStructure}
       posts={posts}
       onToggleAck={toggleAck}
       onOpenNewTaskModal={() => setIsQuickTaskModalOpen(true)}

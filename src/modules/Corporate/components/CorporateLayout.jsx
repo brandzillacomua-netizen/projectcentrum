@@ -32,6 +32,7 @@ export function CorporateLayout({
   currentUser,
   users = [],
   tasks = [],
+  companyStructure = [],
   posts = [],
   selectedCategory = 'all',
   onSelectCategory,
@@ -51,14 +52,20 @@ export function CorporateLayout({
   const roleText = currentUser?.position || (currentUser?.access_rights?.director ? 'Керівник' : 'Співробітник')
   const shiftText = currentUser?.shift ? `Зміна ${currentUser.shift}` : (currentUser?.department || 'Виробництво')
 
-  // Top pending tasks for right widget (from company managementTasks)
+  // Top pending tasks for right widget (only tasks assigned to me, checklist for me, authored by me, or collective)
   const userLogin = currentUser?.login || ''
   const myPendingTasks = (tasks || [])
     .filter(t => {
       if (t.status === 'done') return false
       const assignees = t.assignees || (t.assigned_to ? [t.assigned_to] : [])
       const isAssignedToMe = assignees.includes(userLogin) || assignees.includes(currentUserId)
-      return isAssignedToMe || assignees.length === 0
+      const isAuthor = t.created_by === userLogin || (t.created_by && String(t.created_by) === currentUserId)
+      const isChecklistAssigned = Array.isArray(t.checklist) && t.checklist.some(item => {
+        const itemAssignees = item?.assignees || (item?.assignee ? [item.assignee] : [])
+        return itemAssignees.includes(userLogin) || itemAssignees.includes(currentUserId)
+      })
+      const isCollective = Boolean(t.is_collective)
+      return isAssignedToMe || isChecklistAssigned || isAuthor || isCollective
     })
     .slice(0, 5)
 
