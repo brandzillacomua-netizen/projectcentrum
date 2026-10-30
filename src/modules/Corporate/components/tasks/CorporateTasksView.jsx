@@ -450,137 +450,123 @@ export function CorporateTasksView({
               // Border indicator color
               const leftColor = task.color || (isOverdue ? '#ef4444' : (task.status === 'done' ? '#10b981' : priority.color))
 
-              // Status presentation
+              // Status presentation (high-contrast luminous tokens for dark header)
               const statusCfg = {
-                todo: { label: 'В ЧЕРЗІ', color: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.12)' },
-                in_progress: { label: 'В РОБОТІ', color: '#3b82f6', bg: 'rgba(59, 130, 246, 0.12)' },
-                review: { label: 'ПЕРЕВІРКА', color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.12)' },
-                done: { label: 'ВИКОНАНО', color: '#10b981', bg: 'rgba(16, 185, 129, 0.12)' }
-              }[task.status] || { label: task.status, color: '#94a3b8', bg: 'rgba(148, 163, 184, 0.12)' }
+                todo: { label: 'В ЧЕРЗІ', color: '#c4b5fd', bg: 'rgba(167, 139, 250, 0.25)' },
+                in_progress: { label: 'В РОБОТІ', color: '#93c5fd', bg: 'rgba(96, 165, 250, 0.25)' },
+                review: { label: 'ПЕРЕВІРКА', color: '#fde047', bg: 'rgba(250, 204, 21, 0.25)' },
+                done: { label: 'ВИКОНАНО', color: '#6ee7b7', bg: 'rgba(52, 211, 153, 0.25)' }
+              }[task.status] || { label: task.status, color: '#cbd5e1', bg: 'rgba(203, 213, 225, 0.25)' }
 
               return (
                 <div
                   key={task.id}
                   className="corp-card corp-task-card"
                   style={{
-                    padding: '16px 20px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '12px',
                     borderLeft: `4px solid ${leftColor}`,
                     transition: 'all 0.15s ease'
                   }}
                 >
-                  {/* Card Header: Badges & Edit actions */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                      {/* Status badge */}
-                      <span
-                        style={{
-                          fontSize: '0.72rem',
-                          fontWeight: 900,
-                          color: statusCfg.color,
-                          background: statusCfg.bg,
-                          border: `1px solid ${statusCfg.color}35`,
-                          padding: '3px 9px',
-                          borderRadius: '6px',
-                          letterSpacing: '0.03em'
-                        }}
-                      >
-                        {statusCfg.label}
-                      </span>
+                  {/* Card Header: Badges & Title in dedicated header surface */}
+                  <div className="corp-task-card-header">
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                        {/* Status badge */}
+                        <span
+                          style={{
+                            fontSize: '0.72rem',
+                            fontWeight: 900,
+                            color: statusCfg.color,
+                            background: statusCfg.bg,
+                            border: `1px solid ${statusCfg.color}35`,
+                            padding: '3px 9px',
+                            borderRadius: '6px',
+                            letterSpacing: '0.03em'
+                          }}
+                        >
+                          {statusCfg.label}
+                        </span>
 
-                      {/* Priority badge */}
-                      <span
-                        style={{
-                          fontSize: '0.7rem',
-                          fontWeight: 800,
-                          color: priority.color,
-                          background: priority.bg,
-                          border: `1px solid ${priority.color}35`,
-                          padding: '2px 8px',
-                          borderRadius: '6px'
-                        }}
-                      >
-                        {priority.label}
-                      </span>
-
-                      {/* Collective / Department */}
-                      {task.is_collective && (
+                        {/* Priority badge */}
                         <span
                           style={{
                             fontSize: '0.7rem',
                             fontWeight: 800,
-                            color: '#a855f7',
-                            background: 'rgba(168, 85, 247, 0.1)',
-                            border: '1px solid rgba(168, 85, 247, 0.25)',
+                            color: priority.color,
+                            background: priority.bg,
+                            border: `1px solid ${priority.color}35`,
                             padding: '2px 8px',
                             borderRadius: '6px'
                           }}
                         >
-                          Колективна ({task.department || 'Усі'})
+                          {priority.label}
                         </span>
-                      )}
-                    </div>
 
-                    {/* Right actions: Edit & Delete */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <button
-                        type="button"
-                        onClick={() => setEditingTask(task)}
-                        className="corp-btn-subtle"
-                        style={{ padding: '4px 8px', fontSize: '0.72rem' }}
-                        title="Редагувати задачу в системній модалці"
-                      >
-                        <Edit3 size={13} />
-                        <span>Редагувати</span>
-                      </button>
+                        {/* Collective / Department */}
+                        {task.is_collective && (
+                          <span
+                            style={{
+                              fontSize: '0.7rem',
+                              fontWeight: 800,
+                              color: '#a855f7',
+                              background: 'rgba(168, 85, 247, 0.1)',
+                              border: '1px solid rgba(168, 85, 247, 0.25)',
+                              padding: '2px 8px',
+                              borderRadius: '6px'
+                            }}
+                          >
+                            Колективна ({task.department || 'Усі'})
+                          </span>
+                        )}
+                      </div>
 
-                      {canDeleteTask(task) && (
+                      {/* Right actions: Edit & Delete */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <button
                           type="button"
-                          onClick={(e) => handleDeleteTask(task.id, e)}
+                          onClick={() => setEditingTask(task)}
                           className="corp-btn-subtle"
-                          style={{ padding: '4px 8px', fontSize: '0.72rem', color: '#ef4444' }}
-                          title="Видалити завдання"
+                          style={{ padding: '4px 8px', fontSize: '0.72rem' }}
+                          title="Редагувати задачу в системній модалці"
                         >
-                          <Trash2 size={13} />
+                          <Edit3 size={13} />
+                          <span>Редагувати</span>
                         </button>
-                      )}
-                    </div>
-                  </div>
 
-                  {/* Title & Description */}
-                  <div>
-                    <h3
+                        {canDeleteTask(task) && (
+                          <button
+                            type="button"
+                            onClick={(e) => handleDeleteTask(task.id, e)}
+                            className="corp-btn-subtle"
+                            style={{ padding: '4px 8px', fontSize: '0.72rem', color: '#ef4444' }}
+                            title="Видалити завдання"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Title inside Header */}
+                    <div
+                      role="heading"
+                      aria-level={3}
                       onClick={() => setEditingTask(task)}
-                      style={{
-                        margin: 0,
-                        fontSize: '1rem',
-                        fontWeight: 800,
-                        color: 'var(--ch-text-primary)',
-                        cursor: 'pointer',
-                        lineHeight: 1.4
-                      }}
+                      className="corp-task-card-title"
+                      style={{ color: '#ffffff' }}
                       title="Натисніть для перегляду та редагування"
                     >
                       {task.title}
-                    </h3>
+                    </div>
+                  </div>
 
+                  {/* Card Body: Description, Checklist, Assignees, Dates & Action buttons */}
+                  <div className="corp-task-card-body">
                     {task.description && (
-                      <p
-                        style={{
-                          margin: '6px 0 0 0',
-                          fontSize: '0.84rem',
-                          color: 'var(--ch-text-secondary)',
-                          lineHeight: 1.5,
-                          whiteSpace: 'pre-line'
-                        }}
-                      >
+                      <p className="corp-task-card-desc">
                         {task.description}
                       </p>
                     )}
-                  </div>
 
                   {/* Checklist Bar & Collapsible Items */}
                   {checklist.length > 0 && (
@@ -806,6 +792,7 @@ export function CorporateTasksView({
                         </button>
                       )}
                     </div>
+                  </div>
                   </div>
                 </div>
               )

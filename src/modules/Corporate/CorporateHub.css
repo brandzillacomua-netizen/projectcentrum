@@ -1889,11 +1889,117 @@ body:not(.light-theme) .corp-composer-modal {
 }
 
 .corp-task-card {
-  padding: 16px 20px;
+  padding: 0 !important;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 16px;
+  background: var(--ch-surface-solid) !important;
+  border: 1px solid var(--ch-border) !important;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.08);
+  transition: all 0.15s ease;
+}
+
+:root.light-theme .corp-task-card,
+body.light-theme .corp-task-card,
+.light-theme .corp-task-card {
+  background: #ffffff !important;
+  border: 1.5px solid #cbd5e1 !important;
+  box-shadow: 0 6px 24px rgba(15, 23, 42, 0.09) !important;
+}
+
+body:not(.light-theme) .corp-task-card {
+  background: #121622 !important;
+  border: 1px solid rgba(255, 255, 255, 0.09) !important;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45) !important;
+}
+
+/* ── TASK CARD HEADER: CONTRASTING OBSIDIAN / SLATE BANNER ── */
+.corp-task-card-header {
+  padding: 13px 18px 12px 18px;
+  background: #0f172a !important;
+  border-bottom: 2px solid #1e293b !important;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+:root.light-theme .corp-task-card-header,
+body.light-theme .corp-task-card-header,
+.light-theme .corp-task-card-header {
+  background: #0f172a !important;
+  border-bottom: 2px solid #1e293b !important;
+}
+
+body:not(.light-theme) .corp-task-card-header {
+  background: #0a0d14 !important;
+  border-bottom: 1.5px solid rgba(255, 255, 255, 0.12) !important;
+}
+
+.corp-task-card-title,
+:root.light-theme .corp-task-card-title,
+body.light-theme .corp-task-card-title,
+.light-theme .corp-task-card-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 850;
+  color: #ffffff !important;
+  cursor: pointer;
+  line-height: 1.35;
+  letter-spacing: -0.2px;
+  transition: color 0.15s ease;
+}
+
+.corp-task-card-title:hover {
+  color: #818cf8 !important;
+}
+
+/* Action buttons inside header */
+.corp-task-card-header .corp-btn-subtle {
+  background: rgba(255, 255, 255, 0.12) !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  color: #f1f5f9 !important;
+}
+
+.corp-task-card-header .corp-btn-subtle:hover {
+  background: rgba(255, 255, 255, 0.22) !important;
+  color: #ffffff !important;
+}
+
+.corp-task-card-body {
+  padding: 14px 18px 16px 18px;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  transition: all 0.15s ease;
+}
+
+:root.light-theme .corp-task-card-body,
+body.light-theme .corp-task-card-body,
+.light-theme .corp-task-card-body {
+  background: #ffffff !important;
+  color: #0f172a !important;
+}
+
+body:not(.light-theme) .corp-task-card-body {
+  background: #121622 !important;
+  color: #f8fafc !important;
+}
+
+.corp-task-card-desc {
+  margin: 0;
+  font-size: 0.86rem;
+  line-height: 1.5;
+  white-space: pre-line;
+}
+
+:root.light-theme .corp-task-card-desc,
+body.light-theme .corp-task-card-desc,
+.light-theme .corp-task-card-desc {
+  color: #334155 !important;
+}
+
+body:not(.light-theme) .corp-task-card-desc {
+  color: #cbd5e1 !important;
 }
 
 /* ── MOBILE CHANNELS BAR (<=860px) ────────────────────────────────────────── */
@@ -2183,8 +2289,53 @@ body:not(.light-theme) .corp-composer-modal {
   }
 
   .corp-task-card {
-    padding: 12px 14px !important;
+    padding: 0 !important;
     border-radius: 14px !important;
+    margin-bottom: 6px !important;
+  }
+
+  .corp-task-card-header {
+    padding: 11px 13px 10px 13px !important;
+    gap: 7px !important;
+  }
+
+  .light-theme .corp-task-card-header {
+    background: #0f172a !important;
+    border-bottom: 2px solid #1e293b !important;
+  }
+
+  body:not(.light-theme) .corp-task-card-header {
+    background: #0a0d14 !important;
+    border-bottom: 1.5px solid rgba(255, 255, 255, 0.12) !important;
+  }
+
+  .corp-task-card-title {
+    font-size: 0.98rem !important;
+    color: #ffffff !important;
+  }
+
+  .corp-task-card-body {
+    padding: 12px 13px 14px 13px !important;
     gap: 10px !important;
+  }
+
+  .light-theme .corp-task-card-body {
+    background: #ffffff !important;
+    color: #0f172a !important;
+  }
+
+  body:not(.light-theme) .corp-task-card-body {
+    background: #121622 !important;
+    color: #f8fafc !important;
+  }
+
+  .light-theme .corp-task-card-desc {
+    font-size: 0.82rem !important;
+    color: #334155 !important;
+  }
+
+  body:not(.light-theme) .corp-task-card-desc {
+    font-size: 0.82rem !important;
+    color: #cbd5e1 !important;
   }
 }
