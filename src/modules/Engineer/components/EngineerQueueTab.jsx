@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { AlertCircle, Clock, FileCode, ShieldCheck, CheckCircle2, CheckSquare, Square } from 'lucide-react'
 import { apiService } from '../../../services/apiDispatcher'
-import { getTaskParts } from '../utils/engineerHelpers.jsx'
+import { getTaskParts, resolveEngineerTaskSelection } from '../utils/engineerHelpers.jsx'
 
 export function EngineerQueueTab({
   pendingTasks = [],
@@ -10,46 +10,52 @@ export function EngineerQueueTab({
   nomenclatures = [],
   approveEngineer
 }) {
-  const [selectedByTask, setSelectedByTask] = useState({})
+  // selectedPendingByTask stores array of unapproved part nomIds chosen to be approved in this step
+  const [selectedPendingByTask, setSelectedPendingByTask] = useState({})
   const [submittingTaskId, setSubmittingTaskId] = useState(null)
 
-  const togglePart = (taskId, partId, parts) => {
-    const current = selectedByTask[taskId] !== undefined
-      ? selectedByTask[taskId]
-      : parts.map(p => p.nomId)
+  const toggleUnapprovedPart = (taskId, partId, unapprovedPartIds, isPartiallyApproved) => {
+    setSelectedPendingByTask(prev => {
+      const current = prev[taskId] !== undefined
+        ? prev[taskId]
+        : (isPartiallyApproved ? [] : unapprovedPartIds)
 
-    if (current.includes(partId)) {
-      setSelectedByTask(prev => ({
+      const next = current.includes(partId)
+        ? current.filter(id => id !== partId)
+        : [...current, partId]
+
+      return {
         ...prev,
-        [taskId]: current.filter(id => id !== partId)
-      }))
-    } else {
-      setSelectedByTask(prev => ({
-        ...prev,
-        [taskId]: [...current, partId]
-      }))
-    }
+        [taskId]: next
+      }
+    })
   }
 
-  const selectAll = (taskId, parts) => {
-    setSelectedByTask(prev => ({
+  const selectAll = (taskId, unapprovedPartIds) => {
+    setSelectedPendingByTask(prev => ({
       ...prev,
-      [taskId]: parts.map(p => p.nomId)
+      [taskId]: unapprovedPartIds
     }))
   }
 
   const deselectAll = (taskId) => {
-    setSelectedByTask(prev => ({
+    setSelectedPendingByTask(prev => ({
       ...prev,
       [taskId]: []
     }))
   }
 
-  const handleApprove = async (taskId, selectedIds, allPartIds) => {
+  const handleApprove = async (taskId, idsToSubmit, allPartIds) => {
     try {
       setSubmittingTaskId(taskId)
-      const idsToSubmit = selectedIds.length === allPartIds.length ? allPartIds : selectedIds
-      await apiService.submitApproveEngineer(taskId, idsToSubmit, approveEngineer)
+      const finalIds = idsToSubmit.length === allPartIds.length ? allPartIds : idsToSubmit
+      await apiService.submitApproveEngineer(taskId, finalIds, approveEngineer)
+      // Clear selection state for this task so it reinitializes cleanly with fresh snapshot
+      setSelectedPendingByTask(prev => {
+        const next = { ...prev }
+        delete next[taskId]
+        return next
+      })
     } catch (err) {
       console.error('Engineer approval error:', err)
       alert('Помилка погодження: ' + (err?.message || err))
@@ -81,19 +87,53 @@ export function EngineerQueueTab({
         {pendingTasks.map(task => {
           const order = (orders || []).find(o => String(o.id) === String(task.order_id))
           const parts = getTaskParts(task, order, nomenclatures)
-          const allPartIds = parts.map(p => p.nomId)
+          const selection = resolveEngineerTaskSelection(task, parts, selectedPendingByTask[task.id])
 
-          const approvedNoms = Array.isArray(task?.plan_snapshot?._engineer_approved_noms)
-            ? task.plan_snapshot._engineer_approved_noms.map(String)
-            : (task?.engineer_conf ? allPartIds : [])
+          const {
+            allPartIds,
+            approvedNoms,
+            unapprovedPartIds,
+            selectedUnapproved,
+            effectiveSelectedIds,
+            isPartiallyApproved,
+            isFullyApproved,
+            newlySelectedCount,
+            totalSelectedCount
+          } = selection
 
-          const selectedIds = selectedByTask[task.id] !== undefined
-            ? selectedByTask[task.id]
-            : (approvedNoms.length > 0 ? approvedNoms : allPartIds)
-
-          const isPartiallyApproved = approvedNoms.length > 0 && approvedNoms.length < parts.length
-          const isFullyApproved = approvedNoms.length > 0 && parts.length > 0 && parts.every(p => approvedNoms.includes(p.nomId))
           const isSubmitting = submittingTaskId === task.id
+
+          let isButtonDisabled = false
+          let buttonLabel = ''
+
+          if (parts.length === 0) {
+            isButtonDisabled = false
+            buttonLabel = 'ПОГОДИТИ НАРЯД'
+          } else if (approvedNoms.length === 0) {
+            // Fresh task (0 approved so far)
+            if (newlySelectedCount === 0) {
+              isButtonDisabled = true
+              buttonLabel = 'ОБЕРІТЬ ДЕТАЛІ ДЛЯ ПОГОДЖЕННЯ'
+            } else if (newlySelectedCount === parts.length) {
+              isButtonDisabled = false
+              buttonLabel = `ПОГОДИТИ ВСІ ДЕТАЛІ (${parts.length}/${parts.length})`
+            } else {
+              isButtonDisabled = false
+              buttonLabel = `ПОГОДИТИ ОБРАНІ (${newlySelectedCount}/${parts.length})`
+            }
+          } else {
+            // Partially approved task (e.g. 2 of 4 already approved)
+            if (newlySelectedCount === 0) {
+              isButtonDisabled = true
+              buttonLabel = `НЕ ОБРАНО НОВИХ ДЕТАЛЕЙ (ПОГОДЖЕНО ${approvedNoms.length}/${parts.length})`
+            } else if (totalSelectedCount === parts.length) {
+              isButtonDisabled = false
+              buttonLabel = `ПОГОДИТИ ЗАЛИШОК +${newlySelectedCount} (ВСІ ${parts.length}/${parts.length})`
+            } else {
+              isButtonDisabled = false
+              buttonLabel = `ПОГОДИТИ ОБРАНІ (+${newlySelectedCount} ДЕТ., РАЗОМ ${totalSelectedCount}/${parts.length})`
+            }
+          }
 
           return (
             <div
@@ -136,63 +176,87 @@ export function EngineerQueueTab({
               <div className="spec-review" style={{ background: 'var(--surface-inset)', padding: '14px', borderRadius: '14px', border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '8px' }}>
                   <label style={{ fontSize: '0.68rem', color: 'var(--text-muted, #888)', textTransform: 'uppercase', margin: 0, fontWeight: 900 }}>
-                    Деталі наряду ({selectedIds.length}/{parts.length} обрано):
+                    {approvedNoms.length > 0 ? (
+                      <>
+                        Деталі наряду ({approvedNoms.length} погодж.{newlySelectedCount > 0 ? ` + ${newlySelectedCount} обрано` : ''} з {parts.length}):
+                      </>
+                    ) : (
+                      <>Деталі наряду ({totalSelectedCount}/{parts.length} обрано):</>
+                    )}
                   </label>
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <button
-                      type="button"
-                      onClick={() => selectAll(task.id, parts)}
-                      style={{ background: 'none', border: 'none', color: '#3b82f6', fontSize: '0.68rem', fontWeight: 800, cursor: 'pointer', padding: '2px 4px' }}
-                    >
-                      Всі
-                    </button>
-                    <span style={{ color: 'var(--text-dim)' }}>·</span>
-                    <button
-                      type="button"
-                      onClick={() => deselectAll(task.id)}
-                      style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: '0.68rem', fontWeight: 800, cursor: 'pointer', padding: '2px 4px' }}
-                    >
-                      Зняти
-                    </button>
-                  </div>
+                  {unapprovedPartIds.length > 0 && (
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button
+                        type="button"
+                        onClick={() => selectAll(task.id, unapprovedPartIds)}
+                        style={{ background: 'none', border: 'none', color: '#3b82f6', fontSize: '0.68rem', fontWeight: 800, cursor: 'pointer', padding: '2px 4px' }}
+                      >
+                        {approvedNoms.length > 0 ? 'Всі залишок' : 'Всі'}
+                      </button>
+                      <span style={{ color: 'var(--text-dim)' }}>·</span>
+                      <button
+                        type="button"
+                        onClick={() => deselectAll(task.id)}
+                        style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: '0.68rem', fontWeight: 800, cursor: 'pointer', padding: '2px 4px' }}
+                      >
+                        Зняти
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '280px', overflowY: 'auto' }}>
                   {parts.map(part => {
-                    const isSelected = selectedIds.includes(part.nomId)
                     const isAlreadyApproved = approvedNoms.includes(part.nomId)
+                    const isNewlySelected = selectedUnapproved.includes(part.nomId)
 
                     return (
                       <div
                         key={part.nomId}
-                        onClick={() => togglePart(task.id, part.nomId, parts)}
+                        onClick={isAlreadyApproved ? undefined : () => toggleUnapprovedPart(task.id, part.nomId, unapprovedPartIds, approvedNoms.length > 0)}
                         style={{
                           display: 'flex',
                           alignItems: 'center',
                           gap: '10px',
                           padding: '8px 10px',
                           borderRadius: '10px',
-                          background: isSelected ? 'rgba(59, 130, 246, 0.08)' : 'rgba(255, 255, 255, 0.02)',
-                          border: isSelected ? '1px solid rgba(59, 130, 246, 0.3)' : '1px solid rgba(255, 255, 255, 0.05)',
-                          cursor: 'pointer',
+                          background: isAlreadyApproved
+                            ? 'rgba(16, 185, 129, 0.08)'
+                            : (isNewlySelected ? 'rgba(59, 130, 246, 0.08)' : 'rgba(255, 255, 255, 0.02)'),
+                          border: isAlreadyApproved
+                            ? '1px solid rgba(16, 185, 129, 0.28)'
+                            : (isNewlySelected ? '1px solid rgba(59, 130, 246, 0.35)' : '1px solid rgba(255, 255, 255, 0.05)'),
+                          cursor: isAlreadyApproved ? 'default' : 'pointer',
+                          userSelect: 'none',
                           transition: 'all 0.15s ease'
                         }}
+                        title={isAlreadyApproved ? 'Деталь вже погоджена інженером (фіксовано)' : undefined}
                       >
-                        <div style={{ color: isSelected ? '#3b82f6' : 'var(--text-dim)', display: 'flex', alignItems: 'center' }}>
-                          {isSelected ? <CheckSquare size={18} /> : <Square size={18} />}
+                        <div style={{ color: isAlreadyApproved ? '#10b981' : (isNewlySelected ? '#3b82f6' : 'var(--text-dim)'), display: 'flex', alignItems: 'center' }}>
+                          {isAlreadyApproved ? (
+                            <CheckSquare size={18} />
+                          ) : isNewlySelected ? (
+                            <CheckSquare size={18} />
+                          ) : (
+                            <Square size={18} />
+                          )}
                         </div>
 
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
-                            <div style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text, #fff)', wordBreak: 'break-word' }}>
+                            <div style={{ fontSize: '0.82rem', fontWeight: 800, color: isAlreadyApproved ? 'var(--text, #fff)' : (isNewlySelected ? 'var(--text, #fff)' : 'var(--text-dim, #aaa)'), wordBreak: 'break-word' }}>
                               {part.name}
                             </div>
                             {isAlreadyApproved ? (
-                              <span style={{ fontSize: '0.62rem', fontWeight: 900, color: '#10b981', background: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '1px 6px', borderRadius: '4px', whiteSpace: 'nowrap' }}>
+                              <span style={{ fontSize: '0.62rem', fontWeight: 900, color: '#10b981', background: 'rgba(16, 185, 129, 0.14)', border: '1px solid rgba(16, 185, 129, 0.35)', padding: '2px 7px', borderRadius: '5px', whiteSpace: 'nowrap' }}>
                                 ✓ ПОГОДЖЕНО
                               </span>
+                            ) : isNewlySelected ? (
+                              <span style={{ fontSize: '0.62rem', fontWeight: 900, color: '#3b82f6', background: 'rgba(59, 130, 246, 0.12)', border: '1px solid rgba(59, 130, 246, 0.35)', padding: '2px 7px', borderRadius: '5px', whiteSpace: 'nowrap' }}>
+                                ДО ПОГОДЖЕННЯ
+                              </span>
                             ) : (
-                              <span style={{ fontSize: '0.62rem', fontWeight: 800, color: '#f59e0b', background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.25)', padding: '1px 6px', borderRadius: '4px', whiteSpace: 'nowrap' }}>
+                              <span style={{ fontSize: '0.62rem', fontWeight: 800, color: '#f59e0b', background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.25)', padding: '2px 7px', borderRadius: '5px', whiteSpace: 'nowrap' }}>
                                 ОЧІКУЄ
                               </span>
                             )}
@@ -226,38 +290,32 @@ export function EngineerQueueTab({
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: 'auto' }}>
                 <button
                   type="button"
-                  disabled={selectedIds.length === 0 || isSubmitting}
-                  onClick={() => handleApprove(task.id, selectedIds, allPartIds)}
+                  disabled={isButtonDisabled || isSubmitting}
+                  onClick={() => handleApprove(task.id, effectiveSelectedIds, allPartIds)}
                   style={{
                     width: '100%',
                     padding: '14px',
-                    background: selectedIds.length === 0
+                    background: isButtonDisabled
                       ? 'var(--surface-inset)'
-                      : (selectedIds.length === parts.length ? '#10b981' : '#3b82f6'),
-                    color: selectedIds.length === 0 ? 'var(--text-dim)' : '#fff',
+                      : (totalSelectedCount === parts.length ? '#10b981' : '#3b82f6'),
+                    color: isButtonDisabled ? 'var(--text-dim)' : '#fff',
                     border: 'none',
                     borderRadius: '12px',
                     fontWeight: 900,
-                    cursor: selectedIds.length === 0 || isSubmitting ? 'not-allowed' : 'pointer',
+                    cursor: isButtonDisabled || isSubmitting ? 'not-allowed' : 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: '10px',
                     fontSize: '0.88rem',
                     transition: 'all 0.15s ease',
-                    boxShadow: selectedIds.length > 0 ? '0 4px 12px rgba(0,0,0,0.15)' : 'none'
+                    boxShadow: !isButtonDisabled ? '0 4px 12px rgba(0,0,0,0.15)' : 'none'
                   }}
                 >
                   <ShieldCheck size={18} />
                   {isSubmitting ? (
                     'ЗБЕРЕЖЕННЯ...'
-                  ) : selectedIds.length === 0 ? (
-                    'ОБЕРІТЬ ДЕТАЛІ'
-                  ) : selectedIds.length === parts.length ? (
-                    `ПОГОДИТИ ВСІ ДЕТАЛІ (${parts.length}/${parts.length})`
-                  ) : (
-                    `ПОГОДИТИ ОБРАНІ (${selectedIds.length}/${parts.length})`
-                  )}
+                  ) : buttonLabel}
                 </button>
               </div>
             </div>

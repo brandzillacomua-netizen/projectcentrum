@@ -339,3 +339,40 @@ export const isPartEngineerApproved = (task, partNomId) => {
   }
   return task.engineer_conf === true
 }
+
+/**
+ * Resolves engineer per-part selection state.
+ * Prevents mutation of already approved parts and safely computes effective approved IDs.
+ */
+export const resolveEngineerTaskSelection = (task, parts = [], userSelection) => {
+  const allPartIds = (parts || []).map(p => String(p.nomId))
+  const approvedNoms = Array.isArray(task?.plan_snapshot?._engineer_approved_noms)
+    ? task.plan_snapshot._engineer_approved_noms.map(String)
+    : (task?.engineer_conf ? allPartIds : [])
+
+  const unapprovedPartIds = allPartIds.filter(id => !approvedNoms.includes(id))
+
+  let selectedUnapproved = []
+  if (userSelection !== undefined && Array.isArray(userSelection)) {
+    selectedUnapproved = userSelection.map(String).filter(id => unapprovedPartIds.includes(id))
+  } else {
+    // If task is brand new (0 approved), default to selecting all unapproved parts.
+    // If task is partially approved, default to empty (user explicitly chooses next parts).
+    selectedUnapproved = approvedNoms.length === 0 ? unapprovedPartIds : []
+  }
+
+  const effectiveSelectedIds = Array.from(new Set([...approvedNoms, ...selectedUnapproved]))
+
+  return {
+    allPartIds,
+    approvedNoms,
+    unapprovedPartIds,
+    selectedUnapproved,
+    effectiveSelectedIds,
+    isPartiallyApproved: approvedNoms.length > 0 && approvedNoms.length < allPartIds.length,
+    isFullyApproved: allPartIds.length > 0 && approvedNoms.length === allPartIds.length,
+    newlySelectedCount: selectedUnapproved.length,
+    totalSelectedCount: effectiveSelectedIds.length
+  }
+}
+

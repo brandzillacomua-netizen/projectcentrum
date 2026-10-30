@@ -1,12 +1,5 @@
 import React, { useState } from 'react'
-import { 
-  Settings, 
-  ArrowLeft, 
-  BookOpen, 
-  Database, 
-  FileUp, 
-  Sliders 
-} from 'lucide-react'
+import { Settings, ArrowLeft, BookOpen, Database, FileUp, Sliders } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
 import { useV2NomenclaturesData, isTaskFullyEngineerApproved } from './Engineer/utils/engineerHelpers.jsx'
@@ -17,14 +10,8 @@ import { ImportSpecTab } from './Engineer/components/ImportSpecTab'
 import { EngineerCuttersTab } from './Engineer/components/EngineerCuttersTab'
 
 export interface MachineCallEntry {
-  id: string | number
-  machine_id: string | number
-  status: string
-  called_role: string
-  called_employee_id?: string | number
-  called_employee_name?: string
-  operator_name?: string
-  created_at: string
+  id: string | number; machine_id: string | number; status: string; called_role: string;
+  called_employee_id?: string | number; called_employee_name?: string; operator_name?: string; created_at: string;
 }
 
 export const EngineerV2Module: React.FC = () => {
