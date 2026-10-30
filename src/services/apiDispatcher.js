@@ -103,11 +103,13 @@ export const apiService = {
     return true;
   },
 
-  submitApproveEngineer: async (taskId, fallback) => {
-    if (typeof fallback === 'function') await fallback(taskId);
+  submitApproveEngineer: async (taskId, approvedNomIdsOrCallback, maybeCallback) => {
+    const callback = typeof approvedNomIdsOrCallback === 'function' ? approvedNomIdsOrCallback : maybeCallback;
+    const approvedNomIds = typeof approvedNomIdsOrCallback === 'function' ? null : approvedNomIdsOrCallback;
+    if (typeof callback === 'function') await callback(taskId, approvedNomIds);
     return true;
   },
-  
+
   submitApproveDirector: async (taskId, fallback) => {
     if (typeof fallback === 'function') await fallback(taskId);
     return true;

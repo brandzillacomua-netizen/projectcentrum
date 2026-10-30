@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useMES } from '../../../MESContext'
-import { useV2NomenclaturesData } from '../utils/engineerHelpers.jsx'
+import { useV2NomenclaturesData, isTaskFullyEngineerApproved } from '../utils/engineerHelpers.jsx'
 
 export function useEngineerState() {
   const mesContext = useMES()
@@ -24,13 +24,14 @@ export function useEngineerState() {
 
   const pendingTasks = (tasks || []).filter(t => 
     t.status === 'waiting' && 
-    !t.engineer_conf && 
-    !t.step?.includes('Пресування')
+    !t.step?.includes('Пресування') &&
+    !isTaskFullyEngineerApproved(t, orders, nomenclatures)
   )
 
   const approvedCount = (tasks || []).filter(t => 
     t.status === 'waiting' && 
-    t.engineer_conf
+    !t.step?.includes('Пресування') &&
+    isTaskFullyEngineerApproved(t, orders, nomenclatures)
   ).length
 
   const activeCalls = (machineCalls || []).filter(c => 

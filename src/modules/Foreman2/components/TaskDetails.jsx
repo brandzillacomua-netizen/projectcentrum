@@ -841,6 +841,7 @@ export default function TaskDetails({ model, nomenclatures = [], allCards, onOpe
               {parts.map(part => {
                 const expanded = expandedPartId === part.nomId
                 const load = getLoadProgress(part, rowCapacities[part.nomId])
+                const isEngineerApproved = !Array.isArray(model?.task?.plan_snapshot?._engineer_approved_noms) || model.task.plan_snapshot._engineer_approved_noms.map(String).includes(String(part.nomId))
                 const redoCards = getRedoProductionCards(part)
                 const surplus = part.plannedSheets > 0 ? Math.max(0, (part.plannedSheets * part.unitsPerSheet) - part.plan) : 0
                 const isWaitingMaterials = part.cards.some(card => card.status === 'waiting-materials' || card.status === 'waiting-cutters')
@@ -855,6 +856,17 @@ export default function TaskDetails({ model, nomenclatures = [], allCards, onOpe
                         <div style={{ display: 'flex', alignItems: 'center', gap: '7px', fontWeight: 900, color: 'var(--text, #fff)', wordBreak: 'break-word', whiteSpace: 'normal' }}>
                           {expanded ? <ChevronDown size={15} color="var(--text-muted, #666)" /> : <ChevronRight size={15} color="var(--text-muted, #666)" />}
                           {part.name || 'Невідома деталь'}
+                          {Array.isArray(model?.task?.plan_snapshot?._engineer_approved_noms) && (
+                            isEngineerApproved ? (
+                              <span style={{ fontSize: '0.58rem', fontWeight: 900, color: '#10b981', background: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '1px 5px', borderRadius: '4px', marginLeft: '6px' }}>
+                                ЧПК ✓
+                              </span>
+                            ) : (
+                              <span style={{ fontSize: '0.58rem', fontWeight: 900, color: '#f59e0b', background: 'rgba(245, 158, 11, 0.12)', border: '1px solid rgba(245, 158, 11, 0.3)', padding: '1px 5px', borderRadius: '4px', marginLeft: '6px' }}>
+                                ОЧІКУЄ ЧПК
+                              </span>
+                            )
+                          )}
                         </div>
                         <div style={{ fontSize: '0.65rem', color: 'var(--text-dim, #64748b)', marginLeft: '22px' }}>{part.code || 'БЕЗ КОДУ'}</div>
                       </td>
@@ -905,27 +917,48 @@ export default function TaskDetails({ model, nomenclatures = [], allCards, onOpe
                                 </div>
                               )}
                               {load.remainingSheets > 0 && (
-                                <button
-                                  type="button"
-                                  onClick={(event) => {
-                                    event.stopPropagation()
-                                    if (onGenerateCards) onGenerateCards(part, 1, rowCapacities[part.nomId], load.remainingSheets)
-                                  }}
-                                  style={{
-                                    background: '#ff9000',
-                                    color: '#000',
-                                    border: 'none',
-                                    padding: '8px 15px',
-                                    borderRadius: '8px',
-                                    fontSize: '0.65rem',
-                                    fontWeight: 900,
-                                    cursor: 'pointer',
-                                    textTransform: 'uppercase',
-                                    opacity: 1
-                                  }}
-                                >
-                                  Генерувати
-                                </button>
+                                isEngineerApproved ? (
+                                  <button
+                                    type="button"
+                                    onClick={(event) => {
+                                      event.stopPropagation()
+                                      if (onGenerateCards) onGenerateCards(part, 1, rowCapacities[part.nomId], load.remainingSheets)
+                                    }}
+                                    style={{
+                                      background: '#ff9000',
+                                      color: '#000',
+                                      border: 'none',
+                                      padding: '8px 15px',
+                                      borderRadius: '8px',
+                                      fontSize: '0.65rem',
+                                      fontWeight: 900,
+                                      cursor: 'pointer',
+                                      textTransform: 'uppercase',
+                                      opacity: 1
+                                    }}
+                                  >
+                                    Генерувати
+                                  </button>
+                                ) : (
+                                  <div
+                                    title="Ця деталь очікує погодження програм ЧПК інженером"
+                                    style={{
+                                      background: 'rgba(245, 158, 11, 0.1)',
+                                      border: '1px solid rgba(245, 158, 11, 0.35)',
+                                      color: '#f59e0b',
+                                      padding: '6px 10px',
+                                      borderRadius: '8px',
+                                      fontSize: '0.6rem',
+                                      fontWeight: 900,
+                                      textAlign: 'center',
+                                      textTransform: 'uppercase',
+                                      cursor: 'not-allowed',
+                                      whiteSpace: 'nowrap'
+                                    }}
+                                  >
+                                    ⏳ Очікує ЧПК
+                                  </div>
+                                )
                               )}
                             </div>
                           )}

@@ -90,7 +90,7 @@ export const ApprovalsDrawer = ({
                   </div>
                   <div className={`check-item ${isEngOk ? 'ok' : 'pending'}`}>
                     <FileCode size={18} />
-                    <span>ІНЖЕНЕР</span>
+                    <span>{Array.isArray(task.plan_snapshot?._engineer_approved_noms) && task.plan_snapshot._engineer_approved_noms.length > 0 ? `ІНЖЕНЕР (${task.plan_snapshot._engineer_approved_noms.length})` : 'ІНЖЕНЕР'}</span>
                     {isEngOk && <CheckCircle2 size={12} />}
                   </div>
                 </div>

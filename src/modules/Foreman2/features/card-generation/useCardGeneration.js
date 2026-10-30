@@ -55,6 +55,16 @@ export function useCardGeneration({ mes, onDataChanged }) {
     const resolvedPartNom = part?.nom || (mes.nomenclatures || []).find(n => String(n.id) === String(targetNomId)) || { id: targetNomId, name: part?.name, material_type: part?.material }
     const nomId = resolvedPartNom?.id || targetNomId
 
+    const approvedList = task?.plan_snapshot?._engineer_approved_noms
+    if (Array.isArray(approvedList) && nomId) {
+      const isApproved = approvedList.map(String).includes(String(nomId))
+      if (!isApproved) {
+        generatingLockRef.current = false
+        alert(`⚠️ Генерація карток заблокована! Позиція "${resolvedPartNom?.name || nomId}" ще не погоджена інженером ЧПК.`)
+        return
+      }
+    }
+
     // Persist selectedCutters to task plan_snapshot if provided
     if (selectedCutters && Object.keys(selectedCutters).length > 0) {
       try {
@@ -341,6 +351,15 @@ export function useCardGeneration({ mes, onDataChanged }) {
   }
 
   const openGenModal = (config) => {
+    const { task, part } = config || {}
+    const targetNomId = part?.nomId || part?.id || part?.nom?.id
+    const approvedList = task?.plan_snapshot?._engineer_approved_noms
+    if (Array.isArray(approvedList) && targetNomId) {
+      if (!approvedList.map(String).includes(String(targetNomId))) {
+        alert(`⚠️ Генерація карток заблокована! Позиція "${part?.name || targetNomId}" ще не погоджена інженером ЧПК.`)
+        return
+      }
+    }
     setGenModalConfig(config)
   }
 

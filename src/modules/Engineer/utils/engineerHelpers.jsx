@@ -246,3 +246,96 @@ export const autoClassify = (nom) => {
 
   return 'Метизи'
 }
+
+export const getTaskParts = (task, order, nomenclatures = []) => {
+  const parts = []
+  const seenIds = new Set()
+  const snapshot = task?.plan_snapshot || {}
+
+  const META_KEYS = new Set([
+    'materialSummary',
+    'selectedCutters',
+    'consumables',
+    'arrivals',
+    'nomenclatures',
+    '_report_snapshot',
+    '_engineer_approved_noms',
+    '_engineer_approved_at'
+  ])
+
+  const findNom = (key) => {
+    const norm = String(key || '').trim().toLowerCase()
+    return (nomenclatures || []).find(n => {
+      if (!n) return false
+      if (String(n.id).toLowerCase() === norm) return true
+      if (n.code && String(n.code).toLowerCase() === norm) return true
+      if (n.nomenclature_code && String(n.nomenclature_code).toLowerCase() === norm) return true
+      if (Array.isArray(n.legacy_ids) && n.legacy_ids.some(leg => String(leg).toLowerCase() === norm)) return true
+      return false
+    })
+  }
+
+  // 1. Snapshot parts
+  for (const [key, value] of Object.entries(snapshot)) {
+    if (key.startsWith('_') || META_KEYS.has(key) || typeof value !== 'object' || !value) continue
+    const nom = findNom(key)
+    const nomId = nom?.id ? String(nom.id) : String(key)
+    if (!seenIds.has(nomId)) {
+      seenIds.add(nomId)
+      parts.push({
+        nomId,
+        name: nom?.name || value.name || value.code || `Деталь #${nomId}`,
+        code: nom?.code || nom?.nomenclature_code || value.code || '',
+        cnc_program: nom?.cnc_program || value.cnc_program || null,
+        need: Number(value.need ?? value.qty ?? value.plan ?? 0),
+        sheets: Number(value.sheets ?? 0),
+        material: nom?.material_type || value.material || '',
+        unitsPerSheet: Number(nom?.units_per_sheet || value.units_per_sheet || 1)
+      })
+    }
+  }
+
+  // 2. Order items fallback
+  if (parts.length === 0 && order?.order_items?.length) {
+    for (const item of order.order_items) {
+      const nom = findNom(item.nomenclature_id)
+      const nomId = nom?.id ? String(nom.id) : String(item.nomenclature_id)
+      if (nomId && !seenIds.has(nomId)) {
+        seenIds.add(nomId)
+        parts.push({
+          nomId,
+          name: nom?.name || `Позиція #${nomId}`,
+          code: nom?.code || nom?.nomenclature_code || '',
+          cnc_program: nom?.cnc_program || null,
+          need: Number(item.quantity || 0),
+          sheets: 0,
+          material: nom?.material_type || '',
+          unitsPerSheet: Number(nom?.units_per_sheet || 1)
+        })
+      }
+    }
+  }
+
+  return parts
+}
+
+export const isTaskFullyEngineerApproved = (task, orders = [], nomenclatures = []) => {
+  if (!task?.engineer_conf) return false
+  const approvedList = task?.plan_snapshot?._engineer_approved_noms
+  if (!Array.isArray(approvedList)) return true // legacy tasks with engineer_conf === true
+  
+  const order = (orders || []).find(o => String(o.id) === String(task.order_id))
+  const parts = getTaskParts(task, order, nomenclatures)
+  if (parts.length === 0) return true
+
+  return parts.every(p => approvedList.map(String).includes(String(p.nomId)))
+}
+
+export const isPartEngineerApproved = (task, partNomId) => {
+  if (!task) return false
+  const approvedList = task?.plan_snapshot?._engineer_approved_noms
+  if (Array.isArray(approvedList)) {
+    return approvedList.map(String).includes(String(partNomId))
+  }
+  return task.engineer_conf === true
+}

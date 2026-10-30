@@ -14,9 +14,56 @@ export function createProductionHandoversActions({
     setTasks(prev => prev.map(t => t.id === taskId ? { ...t, warehouse_conf: 'true' } : t))
     await supabase.from('tasks').update({ warehouse_conf: 'true' }).eq('id', taskId)
   }
-  const approveEngineer = async (taskId) => {
-    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, engineer_conf: true } : t))
-    await supabase.from('tasks').update({ engineer_conf: true }).eq('id', taskId)
+  const approveEngineer = async (taskId, approvedNomIds = null) => {
+    let targetTask = tasks.find(t => String(t.id) === String(taskId))
+    if (!targetTask) {
+      const { data: dbTask } = await supabase.from('tasks').select('*').eq('id', taskId).maybeSingle()
+      targetTask = dbTask
+    }
+    if (!targetTask) return
+
+    const existingSnap = (targetTask?.plan_snapshot && typeof targetTask.plan_snapshot === 'object')
+      ? { ...targetTask.plan_snapshot }
+      : {}
+
+    let nextApprovedNoms = []
+    let isApproved = true
+
+    if (Array.isArray(approvedNomIds)) {
+      nextApprovedNoms = Array.from(new Set(approvedNomIds.map(String)))
+      isApproved = nextApprovedNoms.length > 0
+    } else {
+      const snapshotNomKeys = Object.keys(existingSnap).filter(k => 
+        !k.startsWith('_') && 
+        !['materialSummary', 'selectedCutters', 'consumables', 'arrivals', 'nomenclatures', '_report_snapshot'].includes(k) &&
+        typeof existingSnap[k] === 'object'
+      )
+      if (snapshotNomKeys.length > 0) {
+        nextApprovedNoms = snapshotNomKeys.map(String)
+      } else {
+        const order = orders.find(o => String(o.id) === String(targetTask.order_id))
+        const itemNomIds = (order?.order_items || []).map(i => String(i.nomenclature_id)).filter(Boolean)
+        nextApprovedNoms = itemNomIds
+      }
+      isApproved = true
+    }
+
+    const nextSnapshot = {
+      ...existingSnap,
+      _engineer_approved_noms: nextApprovedNoms,
+      _engineer_approved_at: new Date().toISOString()
+    }
+
+    setTasks(prev => prev.map(t => String(t.id) === String(taskId) ? {
+      ...t,
+      engineer_conf: isApproved,
+      plan_snapshot: nextSnapshot
+    } : t))
+
+    await supabase.from('tasks').update({
+      engineer_conf: isApproved,
+      plan_snapshot: nextSnapshot
+    }).eq('id', taskId)
   }
   const approveDirector = async (taskId) => {
     setTasks(prev => prev.map(t => t.id === taskId ? { ...t, director_conf: true } : t))
