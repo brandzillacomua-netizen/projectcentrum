@@ -1168,8 +1168,8 @@ body {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 14px;
-    height: 56px;
+    padding: 0 10px;
+    height: 62px;
     background: rgba(11, 13, 20, 0.94);
     backdrop-filter: blur(15px);
     -webkit-backdrop-filter: blur(15px);
@@ -1185,7 +1185,7 @@ body {
   }
 
   .app-main-content {
-    padding-top: 56px !important;
+    padding-top: 62px !important;
   }
 
   .mobile-menu-toggle-btn {
@@ -1194,7 +1194,7 @@ body {
     gap: 5px;
     background: rgba(255, 255, 255, 0.06);
     border: 1px solid rgba(255, 144, 0, 0.35);
-    padding: 5px 9px;
+    padding: 6px 10px;
     border-radius: 12px;
     cursor: pointer;
     transition: transform 0.15s;
@@ -1205,8 +1205,8 @@ body {
   }
 
   .mobile-topbar-icon-btn {
-    width: 36px;
-    height: 36px;
+    width: 38px;
+    height: 38px;
     border-radius: 10px;
     background: rgba(255, 255, 255, 0.06);
     border: 1px solid rgba(255, 255, 255, 0.1);

@@ -8,8 +8,8 @@ export const KanbanStyles = () => (
 
         .kb-root {
           background: #020202;
-          min-height: calc(100vh - 56px);
-          height: calc(100vh - 56px);
+          min-height: calc(100vh - 62px);
+          height: calc(100vh - 62px);
           color: #e8e8e8;
           display: flex; flex-direction: column;
           font-family: 'Inter', sans-serif;
@@ -551,7 +551,7 @@ export const KanbanStyles = () => (
         @media (max-width: 768px) {
           .kb-root {
             height: auto !important;
-            min-height: calc(100vh - 56px) !important;
+            min-height: calc(100vh - 62px) !important;
             overflow: visible !important;
           }
           .kb-nav {

@@ -1,7 +1,5 @@
 import React, { useState, useMemo } from 'react'
 import {
-  Search,
-  X,
   Inbox,
   PenSquare,
   Plus,
@@ -10,7 +8,9 @@ import {
   Wrench,
   Lightbulb,
   Pin,
-  Building2
+  Building2,
+  Image,
+  Paperclip
 } from 'lucide-react'
 import { POST_CATEGORIES } from '../../utils/corporateHelpers'
 import { CorporatePostCard } from './CorporatePostCard'
@@ -39,7 +39,6 @@ export function CorporateFeed({
   selectedCategory = 'all',
   onSelectCategory
 }) {
-  const [searchQuery, setSearchQuery] = useState('')
   const [isModalOpen, setIsModalOpen] = useState(false)
 
   const activeCat = selectedCategory || 'all'
@@ -48,116 +47,107 @@ export function CorporateFeed({
 
   const filteredPosts = useMemo(() => {
     return (posts || []).filter(post => {
-      // Channel / Pinned filter
       if (activeCat === 'pinned') {
-        if (!post.is_pinned) return false
+        return Boolean(post.is_pinned)
       } else if (activeCat !== 'all' && post.category !== activeCat) {
         return false
       }
-
-      // Search query filter (title, content, author)
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase()
-        const title = String(post.title || '').toLowerCase()
-        const content = String(post.content || '').toLowerCase()
-        const authorName = `${post.author?.first_name || ''} ${post.author?.last_name || ''}`.toLowerCase()
-        if (!title.includes(q) && !content.includes(q) && !authorName.includes(q)) {
-          return false
-        }
-      }
       return true
     })
-  }, [posts, activeCat, searchQuery])
+  }, [posts, activeCat])
 
   return (
     <div className="corp-feed-container">
-      {/* ── FEED ACTIONS & SEARCH TOOLBAR ─────────────────────────────── */}
-      <div className="corp-card corp-channel-toolbar">
-        {/* Active Channel Tag & Count */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <span
-            className="corp-channel-badge"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '5px 12px',
-              borderRadius: '10px',
-              fontWeight: 800,
-              fontSize: '0.82rem',
-              color: activeChannel.color,
-              background: 'var(--ch-surface-inset)',
-              border: '1px solid var(--ch-border)'
-            }}
-          >
-            <ActiveIcon size={14} />
-            <span>#{activeChannel.label}</span>
-          </span>
-          <span className="corp-channel-toolbar-count">
-            {filteredPosts.length} {filteredPosts.length === 1 ? 'допис' : filteredPosts.length < 5 ? 'дописи' : 'дописів'}
-          </span>
-        </div>
+      {/* ── MOBILE HORIZONTAL CHANNELS SCROLLBAR (Visible on mobile/tablet <=860px) ── */}
+      <div className="corp-mobile-channels-bar">
+        {Object.entries(CHANNEL_META).map(([key, meta]) => {
+          const Icon = meta.icon
+          const isSelected = activeCat === key
+          const count = key === 'all'
+            ? posts.length
+            : key === 'pinned'
+            ? posts.filter(p => p.is_pinned).length
+            : posts.filter(p => p.category === key).length
 
-        {/* Right Tools: Search & Create Button */}
-        <div className="corp-channel-toolbar-tools">
-          <div className="corp-search-box">
-            <Search size={15} color="var(--ch-text-dim)" />
-            <input
-              type="text"
-              className="corp-search-input"
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              placeholder="Пошук у стрічці..."
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                className="corp-search-clear-btn"
-                title="Очистити пошук"
-              >
-                <X size={14} />
-              </button>
-            )}
-          </div>
-
-          <button
-            type="button"
-            className="corp-btn-primary"
-            onClick={() => setIsModalOpen(true)}
-            style={{ padding: '8px 16px', borderRadius: '12px', fontSize: '0.82rem' }}
-          >
-            <Plus size={15} />
-            <span>Створити допис</span>
-          </button>
-        </div>
+          return (
+            <button
+              key={key}
+              type="button"
+              className={`corp-mobile-channel-chip ${isSelected ? 'active' : ''}`}
+              onClick={() => onSelectCategory && onSelectCategory(key)}
+              style={isSelected ? { color: meta.color, borderColor: meta.color } : {}}
+            >
+              <Icon size={13} />
+              <span>{meta.label}</span>
+              <span className="corp-mobile-channel-badge">{count}</span>
+            </button>
+          )
+        })}
       </div>
 
-      {/* ── SLEEK FEED PROMPT BAR ─────────────────────────────────────── */}
+      {/* ── PROMINENT SPACIOUS CREATION PROMPT CARD ───────────────────── */}
       <div
-        className="corp-card corp-feed-prompt-bar"
+        className="corp-card corp-feed-prompt-card"
         onClick={() => setIsModalOpen(true)}
         role="button"
         tabIndex={0}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flex: 1, minWidth: 0 }}>
-          <CorporateAvatar user={currentUser} size={42} />
-          <div className="corp-feed-prompt-input">
-            Опублікувати допис у #{activeChannel.label}...
+        <div className="corp-prompt-card-top">
+          <CorporateAvatar user={currentUser} size={46} />
+          <div className="corp-prompt-card-fake-input">
+            Поділіться новиною, оголошенням чи робочим питанням у #{activeChannel.label}...
           </div>
         </div>
 
-        <button
-          type="button"
-          className="corp-btn-primary corp-feed-prompt-btn"
-          onClick={(e) => {
-            e.stopPropagation()
-            setIsModalOpen(true)
-          }}
-        >
-          <PenSquare size={15} />
-          <span>Написати допис</span>
-        </button>
+        <div className="corp-prompt-card-bottom">
+          <div className="corp-prompt-channel-tag" style={{ color: activeChannel.color }}>
+            <ActiveIcon size={15} />
+            <span>#{activeChannel.label}</span>
+            <span className="corp-prompt-channel-count">
+              ({filteredPosts.length} {filteredPosts.length === 1 ? 'допис' : filteredPosts.length < 5 ? 'дописи' : 'дописів'})
+            </span>
+          </div>
+
+          <div className="corp-prompt-actions-row">
+            <button
+              type="button"
+              className="corp-prompt-tool-btn"
+              onClick={(e) => {
+                e.stopPropagation()
+                setIsModalOpen(true)
+              }}
+              title="Додати фото"
+            >
+              <Image size={15} color="#10b981" />
+              <span>Фото</span>
+            </button>
+
+            <button
+              type="button"
+              className="corp-prompt-tool-btn"
+              onClick={(e) => {
+                e.stopPropagation()
+                setIsModalOpen(true)
+              }}
+              title="Додати документ"
+            >
+              <Paperclip size={15} color="#3b82f6" />
+              <span>Файл</span>
+            </button>
+
+            <button
+              type="button"
+              className="corp-btn-primary corp-prompt-submit-btn"
+              onClick={(e) => {
+                e.stopPropagation()
+                setIsModalOpen(true)
+              }}
+            >
+              <PenSquare size={15} />
+              <span>Написати допис</span>
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* ── POSTS STREAM ──────────────────────────────────────────────── */}
@@ -182,12 +172,10 @@ export function CorporateFeed({
             </div>
             <div>
               <h3 className="corp-feed-empty-title">
-                {searchQuery ? 'За вашим запитом нічого не знайдено' : 'У цьому каналі поки немає публікацій'}
+                У цьому каналі поки немає публікацій
               </h3>
               <p className="corp-feed-empty-desc">
-                {searchQuery
-                  ? 'Спробуйте уточнити пошукові слова або скинути рядок пошуку.'
-                  : `Будьте першим, хто поділиться важливою інформацією у каналі #${activeChannel.label}.`}
+                Будьте першим, хто поділиться важливою інформацією у каналі #{activeChannel.label}.
               </p>
             </div>
             <button

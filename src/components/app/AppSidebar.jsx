@@ -75,7 +75,7 @@ export const AppSidebar = ({ isCollapsed, setIsCollapsed, chatUnreadCount, isMob
       {/* Mobile Sticky Website Header Bar */}
       <header className="mobile-app-topbar no-print">
         {/* Left: Logo 🦊 + Brand + Menu Toggle Arrow */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <button
             onClick={(e) => {
               e.stopPropagation()
@@ -85,7 +85,7 @@ export const AppSidebar = ({ isCollapsed, setIsCollapsed, chatUnreadCount, isMob
             className="mobile-menu-toggle-btn"
             title={isCollapsed ? "Відкрити меню" : "Згорнути меню"}
           >
-            <img src="/kulytsya.png" alt="Logo" style={{ height: '26px', filter: 'drop-shadow(0 0 6px rgba(255,144,0,0.5))' }} />
+            <img src="/kulytsya.png" alt="Logo" style={{ height: '28px', filter: 'drop-shadow(0 0 6px rgba(255,144,0,0.5))' }} />
             {isCollapsed ? <ChevronRight size={16} color="#ff9000" /> : <ChevronLeft size={16} color="#ff9000" />}
           </button>
           
