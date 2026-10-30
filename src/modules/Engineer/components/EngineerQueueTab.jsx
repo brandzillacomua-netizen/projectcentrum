@@ -89,7 +89,7 @@ export function EngineerQueueTab({
 
           const selectedIds = selectedByTask[task.id] !== undefined
             ? selectedByTask[task.id]
-            : (approvedNoms.length > 0 ? Array.from(new Set([...approvedNoms, ...allPartIds])) : allPartIds)
+            : (approvedNoms.length > 0 ? approvedNoms : allPartIds)
 
           const isPartiallyApproved = approvedNoms.length > 0 && approvedNoms.length < parts.length
           const isFullyApproved = approvedNoms.length > 0 && parts.length > 0 && parts.every(p => approvedNoms.includes(p.nomId))

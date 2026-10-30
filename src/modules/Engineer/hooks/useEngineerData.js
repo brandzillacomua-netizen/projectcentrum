@@ -1,13 +1,23 @@
 import { useState } from 'react'
 import { supabase } from '../../../supabase'
 import { useMES } from '../../../MESContext'
+import { useV2NomenclaturesData, isTaskFullyEngineerApproved } from '../utils/engineerHelpers.jsx'
 
 export function useEngineerData() {
-  const { tasks, currentUser, machineCalls } = useMES()
+  const { tasks, orders, currentUser, machineCalls } = useMES()
+  const nomenclatures = useV2NomenclaturesData(supabase)
   const [activeTab, setActiveTab] = useState('tasks')
 
-  const pendingTasks = (tasks || []).filter(t => t.status === 'waiting' && !t.engineer_conf)
-  const approvedCount = (tasks || []).filter(t => t.status === 'waiting' && t.engineer_conf).length
+  const pendingTasks = (tasks || []).filter(t => 
+    (t.status === 'waiting' || t.status === 'in-progress' || t.status === 'in_progress') && 
+    !t.step?.includes('Пресування') &&
+    !isTaskFullyEngineerApproved(t, orders, nomenclatures)
+  )
+  const approvedCount = (tasks || []).filter(t => 
+    (t.status === 'waiting' || t.status === 'in-progress' || t.status === 'in_progress') && 
+    !t.step?.includes('Пресування') &&
+    isTaskFullyEngineerApproved(t, orders, nomenclatures)
+  ).length
 
   const activeCalls = (machineCalls || []).filter(c => 
     c.status === 'pending' && 

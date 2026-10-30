@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import { X, Stamp, CheckCircle2, ShieldCheck, CheckSquare, Square, FileCheck2 } from 'lucide-react'
+import { X, Stamp, CheckCircle2, ShieldCheck, CheckSquare, Square, FileCheck2, Clock, AlertTriangle } from 'lucide-react'
 import { useStore } from '../../../../store/index.js'
 import { supabase } from '../../../../supabase'
 import { parseQcOpsStamps, stripQcOpsStamps } from '../../utils/shop1Helpers'
@@ -88,6 +88,17 @@ export function Shop1QCOpsModal({
   const [sheetsVerified, setSheetsVerified] = useState(false)
   const [sheetsStampInfo, setSheetsStampInfo] = useState(null)
   const [stampedOps, setStampedOps] = useState({})
+  const [checkedSheets, setCheckedSheets] = useState([])
+  const [hourlyChecks, setHourlyChecks] = useState([])
+  const [selectedSheetForCheck, setSelectedSheetForCheck] = useState(1)
+  const [checkStatus, setCheckStatus] = useState('ok')
+  const [pendingHourlyCheck, setPendingHourlyCheck] = useState(null)
+  const [initialState, setInitialState] = useState(null)
+
+  const totalSheetsCount = useMemo(() => {
+    const matchSheets = String(currentCard?.card_info || '').match(/\[SHEETS:(\d+)\]/)
+    return matchSheets ? Math.max(1, Number(matchSheets[1])) : Math.max(1, currentCard?.sheets_count || 1)
+  }, [currentCard?.card_info, currentCard?.sheets_count])
 
   // Lock body scroll and prevent background scroll bleeding on mobile touch
   useEffect(() => {
@@ -237,10 +248,24 @@ export function Shop1QCOpsModal({
   useEffect(() => {
     if (!showQCOpsModal || !currentCard) return
     const parsed = parseQcOpsStamps(currentCard.card_info)
+    const existingOps = parsed?.ops || {}
+    const existingSheetsVerified = Boolean(parsed?.sheets?.verified)
+    const existingSheetsStampInfo = parsed?.sheets || null
+    const existingChecks = Array.isArray(parsed?.checks) ? parsed.checks : []
+    const existingCheckedSheets = Array.isArray(parsed?.sheets?.checkedSheets) ? parsed.sheets.checkedSheets : []
+
+    setSheetsVerified(existingSheetsVerified)
+    setSheetsStampInfo(existingSheetsStampInfo)
+    setStampedOps(existingOps)
+    setHourlyChecks(existingChecks)
+    setCheckedSheets(existingCheckedSheets)
+    setPendingHourlyCheck(null)
+    setCheckStatus('ok')
+
+    const nextUnchecked = Array.from({ length: totalSheetsCount }, (_, i) => i + 1).find(s => !existingCheckedSheets.includes(s)) || 1
+    setSelectedSheetForCheck(nextUnchecked)
+
     if (parsed) {
-      setSheetsVerified(Boolean(parsed.sheets?.verified))
-      setSheetsStampInfo(parsed.sheets || null)
-      setStampedOps(parsed.ops || {})
       if (parsed.lastStamp) setSelectedStamp(parsed.lastStamp)
       if (parsed.lastInspector) setInspectorName(parsed.lastInspector)
     } else {
@@ -248,6 +273,14 @@ export function Shop1QCOpsModal({
       setSheetsStampInfo(null)
       setStampedOps({})
     }
+
+    setInitialState({
+      ops: existingOps,
+      sheetsVerified: existingSheetsVerified,
+      checkedSheets: existingCheckedSheets,
+      checksCount: existingChecks.length,
+      updatedAt: parsed?.updatedAt || null
+    })
 
     if (!parsed?.lastInspector) {
       const savedInspector = (() => {
@@ -259,7 +292,7 @@ export function Shop1QCOpsModal({
         : ([currentUser?.last_name, currentUser?.first_name].filter(Boolean).join(' ').trim() || '')
       setInspectorName(savedInspector || currentFullName)
     }
-  }, [showQCOpsModal, currentCard?.id])
+  }, [showQCOpsModal, currentCard?.id, totalSheetsCount])
 
   if (!showQCOpsModal || !currentCard) return null
 
@@ -270,6 +303,64 @@ export function Shop1QCOpsModal({
   }
 
   const isInspectorValid = Boolean(inspectorName && inspectorName.trim().length >= 2)
+
+  const hasChanges = useMemo(() => {
+    if (!initialState) return false
+
+    // 1. Changes in operation stamps
+    const curOpsKeys = Object.keys(stampedOps || {})
+    const initOpsKeys = Object.keys(initialState.ops || {})
+    if (curOpsKeys.length !== initOpsKeys.length) return true
+    for (const key of curOpsKeys) {
+      if (!initialState.ops[key]) return true
+      if (initialState.ops[key].stamp !== stampedOps[key]?.stamp) return true
+      if (initialState.ops[key].inspector !== stampedOps[key]?.inspector) return true
+    }
+
+    // 2. Changes in sheets verification
+    if (sheetsVerified !== initialState.sheetsVerified) return true
+
+    // 3. New checked sheet added
+    const curChecked = checkedSheets || []
+    const initChecked = initialState.checkedSheets || []
+    if (curChecked.length !== initChecked.length) return true
+    for (const s of curChecked) {
+      if (!initChecked.includes(s)) return true
+    }
+
+    // 4. Staged or added hourly check
+    if (pendingHourlyCheck) return true
+    if ((hourlyChecks || []).length > (initialState.checksCount || 0)) return true
+
+    return false
+  }, [stampedOps, sheetsVerified, checkedSheets, pendingHourlyCheck, hourlyChecks, initialState])
+
+  const handleStageHourlyCheck = () => {
+    if (!isInspectorValid) {
+      alert('Будь ласка, спочатку вкажіть ПІБ контролера ВКЯ!')
+      return
+    }
+    const cleanInspector = inspectorName.trim()
+    const cleanStamp = selectedStamp || 'ВКЯ 1'
+    const stampTime = nowTimeShort()
+
+    const newCheck = {
+      id: `${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      at: new Date().toISOString(),
+      time: stampTime,
+      inspector: cleanInspector,
+      stamp: cleanStamp,
+      sheetNum: selectedSheetForCheck,
+      status: checkStatus,
+      statusLabel: checkStatus === 'ok' ? 'в нормі (без зауважень)' : checkStatus === 'warning' ? 'зауваження' : 'виявлено брак'
+    }
+
+    setPendingHourlyCheck(newCheck)
+    setHourlyChecks(prev => [newCheck, ...prev.filter(c => c.id !== newCheck.id)])
+    if (!checkedSheets.includes(selectedSheetForCheck)) {
+      setCheckedSheets(prev => [...prev, selectedSheetForCheck])
+    }
+  }
 
   const toggleOpStamp = (item) => {
     if (!isInspectorValid) return
@@ -347,6 +438,10 @@ export function Shop1QCOpsModal({
       alert('Будь ласка, спочатку оберіть або введіть ПІБ контролера ВКЯ, який ставить печатки!')
       return
     }
+    if (!hasChanges) {
+      alert('Змін не виявлено! Для оновлення перевірки відмітьте нову операцію або підтвердіть щогодинний огляд.')
+      return
+    }
     setIsProcessing(true)
     try {
       const cleanInspector = inspectorName.trim()
@@ -356,30 +451,50 @@ export function Shop1QCOpsModal({
         localStorage.setItem('centrum_vkya_inspector', cleanInspector)
       } catch { /* ignore */ }
 
+      const allChecksList = pendingHourlyCheck
+        ? [pendingHourlyCheck, ...hourlyChecks.filter(c => c.id !== pendingHourlyCheck.id)]
+        : hourlyChecks
+
+      const latestCheck = allChecksList[0] || null
+
       const qcPayload = {
         lastStamp: cleanStamp,
         lastInspector: cleanInspector,
         updatedAt: new Date().toISOString(),
-        sheets: sheetsVerified ? (sheetsStampInfo || {
-          verified: true,
+        sheets: (sheetsVerified || checkedSheets.length > 0) ? {
+          verified: sheetsVerified,
           stamp: cleanStamp,
           inspector: cleanInspector,
-          at: nowTimeShort()
-        }) : null,
-        ops: stampedOps
+          at: sheetsStampInfo?.at || nowTimeShort(),
+          checkedSheets: checkedSheets
+        } : null,
+        ops: stampedOps,
+        checks: allChecksList,
+        lastHourlyCheck: latestCheck ? {
+          time: latestCheck.time,
+          inspector: latestCheck.inspector,
+          stamp: latestCheck.stamp,
+          sheetText: latestCheck.sheetNum ? `Лист ${latestCheck.sheetNum} з ${totalSheetsCount}` : null,
+          statusText: latestCheck.statusLabel || 'в нормі'
+        } : null
       }
 
       const baseInfo = stripQcOpsStamps(currentCard.card_info || '')
-      const hasAnyVerification = sheetsVerified || Object.keys(stampedOps).length > 0
+      const hasAnyVerification = sheetsVerified || Object.keys(stampedOps).length > 0 || allChecksList.length > 0
       const updatedCardInfo = hasAnyVerification
         ? `${baseInfo} [QC_OPS:${JSON.stringify(qcPayload)}]`.trim()
         : baseInfo
 
       const stampedNames = Object.values(stampedOps).map(v => `${v.name} (${v.stamp})`)
-      const summaryComment = [
-        sheetsVerified ? 'Листи відповідають ✓' : null,
-        stampedNames.length > 0 ? `Перевірено операцій (${stampedNames.length}/${allItems.length}): ${stampedNames.join('; ')}` : 'Відмітки ВКЯ знято'
-      ].filter(Boolean).join(' | ')
+      const summaryParts = []
+      if (sheetsVerified) summaryParts.push('Листи відповідають ✓')
+      if (latestCheck) {
+        summaryParts.push(`Щогодинний огляд: ${latestCheck.sheetNum ? `Лист ${latestCheck.sheetNum}/${totalSheetsCount} ` : ''}${latestCheck.statusLabel} (${cleanStamp})`)
+      }
+      if (stampedNames.length > 0) {
+        summaryParts.push(`Погоджено операцій (${stampedNames.length}/${allItems.length}): ${stampedNames.join('; ')}`)
+      }
+      const summaryComment = summaryParts.join(' | ') || 'Відмітки ВКЯ оновлено'
 
       const nowIso = new Date().toISOString()
 
@@ -428,8 +543,8 @@ export function Shop1QCOpsModal({
       onClose()
       if (typeof showAlert === 'function') {
         showAlert(
-          `Печатку ${cleanStamp} (${cleanInspector}) збережено!\nПогоджено операцій: ${Object.keys(stampedOps).length} з ${allItems.length}${sheetsVerified ? '\n✓ Листи відповідають матеріалу' : ''}`,
-          '💮 Печатка ВКЯ поставлена'
+          `Печатку ${cleanStamp} (${cleanInspector}) збережено!\nПогоджено операцій: ${Object.keys(stampedOps).length} з ${allItems.length}${latestCheck ? `\n⏱️ ${latestCheck.sheetNum ? `Лист ${latestCheck.sheetNum}/${totalSheetsCount}: ` : ''}${latestCheck.statusLabel}` : ''}`,
+          '💮 Перевірка ВКЯ збережена'
         )
       }
     } catch (err) {
@@ -746,6 +861,173 @@ export function Shop1QCOpsModal({
             )}
           </div>
 
+          {/* Блок «Щогодинний контроль розкрою» */}
+          <div
+            style={{
+              background: pendingHourlyCheck ? 'rgba(56, 189, 248, 0.12)' : 'var(--surface-inset)',
+              border: pendingHourlyCheck ? '1.5px solid #38bdf8' : '1px solid var(--border-subtle)',
+              borderRadius: '16px',
+              padding: '14px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px'
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Clock size={18} color="#38bdf8" />
+                <span style={{ fontSize: '0.78rem', fontWeight: 950, color: '#38bdf8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  Щогодинний контроль розкрою
+                </span>
+              </div>
+              {hourlyChecks.length > 0 && (
+                <span style={{ fontSize: '0.66rem', fontWeight: 800, color: 'var(--text-dim)' }}>
+                  Проведено оглядів: <strong style={{ color: '#38bdf8' }}>{hourlyChecks.length}</strong>
+                </span>
+              )}
+            </div>
+
+            {/* Вибір перевіреного листа */}
+            <div>
+              <label style={{ fontSize: '0.64rem', fontWeight: 900, color: 'var(--text-dim)', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>
+                Поточний лист розкрою (всього листів: {totalSheetsCount}):
+              </label>
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                {Array.from({ length: totalSheetsCount }, (_, i) => i + 1).map(sheetNum => {
+                  const isChecked = checkedSheets.includes(sheetNum)
+                  const isSelected = selectedSheetForCheck === sheetNum
+                  return (
+                    <button
+                      key={sheetNum}
+                      type="button"
+                      onClick={() => setSelectedSheetForCheck(sheetNum)}
+                      style={{
+                        padding: '6px 12px',
+                        borderRadius: '10px',
+                        fontSize: '0.74rem',
+                        fontWeight: 900,
+                        cursor: 'pointer',
+                        background: isSelected
+                          ? '#38bdf8'
+                          : isChecked
+                          ? 'rgba(16, 185, 129, 0.15)'
+                          : 'var(--surface-2)',
+                        color: isSelected
+                          ? '#000'
+                          : isChecked
+                          ? '#10b981'
+                          : 'var(--text-strong)',
+                        border: isSelected
+                          ? '1.5px solid #38bdf8'
+                          : isChecked
+                          ? '1px solid #10b981'
+                          : '1px solid var(--border-subtle)',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '5px'
+                      }}
+                    >
+                      <span>Лист {sheetNum}</span>
+                      {isChecked && <CheckCircle2 size={13} />}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Статус контролю (3 кнопки) */}
+            <div>
+              <label style={{ fontSize: '0.64rem', fontWeight: 900, color: 'var(--text-dim)', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>
+                Результат огляду деталі / різу:
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '6px' }}>
+                <button
+                  type="button"
+                  onClick={() => setCheckStatus('ok')}
+                  style={{
+                    padding: '8px 10px',
+                    borderRadius: '10px',
+                    fontSize: '0.72rem',
+                    fontWeight: 900,
+                    cursor: 'pointer',
+                    background: checkStatus === 'ok' ? 'rgba(16, 185, 129, 0.2)' : 'var(--surface-2)',
+                    color: checkStatus === 'ok' ? '#10b981' : 'var(--text-dim)',
+                    border: checkStatus === 'ok' ? '1.5px solid #10b981' : '1px solid var(--border-subtle)',
+                    textAlign: 'center'
+                  }}
+                >
+                  ✓ Без відхилень
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCheckStatus('warning')}
+                  style={{
+                    padding: '8px 10px',
+                    borderRadius: '10px',
+                    fontSize: '0.72rem',
+                    fontWeight: 900,
+                    cursor: 'pointer',
+                    background: checkStatus === 'warning' ? 'rgba(245, 158, 11, 0.2)' : 'var(--surface-2)',
+                    color: checkStatus === 'warning' ? '#f59e0b' : 'var(--text-dim)',
+                    border: checkStatus === 'warning' ? '1.5px solid #f59e0b' : '1px solid var(--border-subtle)',
+                    textAlign: 'center'
+                  }}
+                >
+                  ⚠️ Зауваження
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCheckStatus('defect')}
+                  style={{
+                    padding: '8px 10px',
+                    borderRadius: '10px',
+                    fontSize: '0.72rem',
+                    fontWeight: 900,
+                    cursor: 'pointer',
+                    background: checkStatus === 'defect' ? 'rgba(239, 68, 68, 0.2)' : 'var(--surface-2)',
+                    color: checkStatus === 'defect' ? '#ef4444' : 'var(--text-dim)',
+                    border: checkStatus === 'defect' ? '1.5px solid #ef4444' : '1px solid var(--border-subtle)',
+                    textAlign: 'center'
+                  }}
+                >
+                  🚨 Брак
+                </button>
+              </div>
+            </div>
+
+            {/* Кнопка затвердження щогодинного огляду */}
+            <button
+              type="button"
+              onClick={handleStageHourlyCheck}
+              disabled={!isInspectorValid}
+              style={{
+                width: '100%',
+                padding: '10px 14px',
+                borderRadius: '11px',
+                border: 'none',
+                background: pendingHourlyCheck
+                  ? 'rgba(56, 189, 248, 0.25)'
+                  : 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                color: '#fff',
+                fontSize: '0.8rem',
+                fontWeight: 950,
+                cursor: !isInspectorValid ? 'not-allowed' : 'pointer',
+                opacity: !isInspectorValid ? 0.5 : 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px'
+              }}
+            >
+              <Clock size={16} />
+              <span>
+                {pendingHourlyCheck
+                  ? `✓ ОГЛЯД ЛИСТА ${selectedSheetForCheck} ЗАТВЕРДЖЕНО (НАТИСНІТЬ ЗБЕРЕГТИ НИЖЧЕ)`
+                  : `⏱️ ПІДТВЕРДИТИ ОГЛЯД ЛИСТА ${selectedSheetForCheck} (${selectedStamp})`}
+              </span>
+            </button>
+          </div>
+
           {/* Швидкі дії */}
           {totalOpsCount > 0 && (
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
@@ -815,37 +1097,73 @@ export function Shop1QCOpsModal({
             </div>
           )}
 
-          {/* Save Button */}
-          <button
-            type="button"
-            onClick={handleSaveStamps}
-            disabled={isProcessing || !isInspectorValid}
-            style={{
-              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-              color: '#fff',
-              border: 'none',
-              padding: '16px',
-              borderRadius: '15px',
-              fontSize: '1rem',
-              fontWeight: 1000,
-              cursor: (isProcessing || !isInspectorValid) ? 'not-allowed' : 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '8px',
-              boxShadow: '0 10px 28px rgba(16, 185, 129, 0.3)',
-              opacity: (isProcessing || !isInspectorValid) ? 0.45 : 1
-            }}
-          >
-            <FileCheck2 size={20} />
-            <span>
-              {isProcessing
-                ? 'ЗБЕРЕЖЕННЯ ПЕЧАТКИ...'
-                : !isInspectorValid
-                  ? 'ВКАЖІТЬ ПІБ КОНТРОЛЕРА ВКЯ ДЛЯ ПЕЧАТКИ'
-                  : `ПОСТАВИТИ ПЕЧАТКУ ${selectedStamp} (${stampedCount}/${totalOpsCount})`}
-            </span>
-          </button>
+          {/* Action Buttons: Save or Close */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '6px' }}>
+            <button
+              type="button"
+              onClick={handleSaveStamps}
+              disabled={isProcessing || !isInspectorValid || !hasChanges}
+              style={{
+                background: !hasChanges
+                  ? 'var(--surface-2, rgba(255,255,255,0.06))'
+                  : 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                color: !hasChanges ? 'var(--text-muted, #94a3b8)' : '#fff',
+                border: !hasChanges ? '1px solid var(--border-subtle, rgba(255,255,255,0.12))' : 'none',
+                padding: '16px',
+                borderRadius: '15px',
+                fontSize: '0.94rem',
+                fontWeight: 1000,
+                cursor: (isProcessing || !isInspectorValid || !hasChanges) ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                boxShadow: hasChanges ? '0 10px 28px rgba(16, 185, 129, 0.3)' : 'none',
+                opacity: (isProcessing || !isInspectorValid) ? 0.45 : 1,
+                transition: 'all 0.2s ease'
+              }}
+            >
+              <FileCheck2 size={20} />
+              <span>
+                {isProcessing
+                  ? 'ЗБЕРЕЖЕННЯ ПЕЧАТКИ...'
+                  : !isInspectorValid
+                    ? 'ВКАЖІТЬ ПІБ КОНТРОЛЕРА ВКЯ ДЛЯ ПЕЧАТКИ'
+                    : !hasChanges
+                      ? '✓ ЗМІН НЕ ВНЕСЕНО (ТАЙМЕР НЕ СКИДАЄТЬСЯ)'
+                      : `ЗБЕРЕГТИ ПЕРЕВІРКУ ВКЯ (${selectedStamp})`}
+              </span>
+            </button>
+
+            {!hasChanges && (
+              <div style={{
+                textAlign: 'center',
+                fontSize: '0.68rem',
+                color: 'var(--text-dim, #64748b)',
+                fontWeight: 700
+              }}>
+                ℹ️ Захист від пустого кліку: таймер оновлюється лише коли відмічено нову операцію або підтверджено щогодинний огляд листа вище.
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={isProcessing}
+              style={{
+                background: 'none',
+                border: '1px solid var(--border-subtle, rgba(255,255,255,0.12))',
+                color: 'var(--text-muted, #94a3b8)',
+                padding: '10px',
+                borderRadius: '12px',
+                fontSize: '0.78rem',
+                fontWeight: 800,
+                cursor: 'pointer'
+              }}
+            >
+              Закрити картку без змін
+            </button>
+          </div>
         </div>
       </div>
     </div>

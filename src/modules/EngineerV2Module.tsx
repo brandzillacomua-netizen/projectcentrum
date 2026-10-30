@@ -9,7 +9,7 @@ import {
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
-import { useV2NomenclaturesData } from './Engineer/utils/engineerHelpers.jsx'
+import { useV2NomenclaturesData, isTaskFullyEngineerApproved } from './Engineer/utils/engineerHelpers.jsx'
 import { EngineerQueueTab } from './Engineer/components/EngineerQueueTab'
 import { MachineOperationsTab } from './Engineer/components/MachineOperationsTab'
 import { SpecBuilderTab } from './Engineer/components/SpecBuilderTab'
@@ -54,8 +54,16 @@ export const EngineerV2Module: React.FC = () => {
     return () => observer.disconnect()
   }, [theme])
   
-  const pendingTasks = (tasks || []).filter((t: any) => t.status === 'waiting' && !t.engineer_conf && !t.step?.includes('Пресування'))
-  const approvedCount = (tasks || []).filter((t: any) => t.status === 'waiting' && t.engineer_conf).length
+  const pendingTasks = (tasks || []).filter((t: any) => 
+    (t.status === 'waiting' || t.status === 'in-progress' || t.status === 'in_progress') && 
+    !t.step?.includes('Пресування') && 
+    !isTaskFullyEngineerApproved(t, orders, nomenclatures)
+  )
+  const approvedCount = (tasks || []).filter((t: any) => 
+    (t.status === 'waiting' || t.status === 'in-progress' || t.status === 'in_progress') && 
+    !t.step?.includes('Пресування') && 
+    isTaskFullyEngineerApproved(t, orders, nomenclatures)
+  ).length
 
   const activeCalls = (machineCalls || []).filter((c: MachineCallEntry) => 
     c.status === 'pending' && 

@@ -185,6 +185,11 @@ export const BrakCardScrapModal = React.memo(({
                     {qcOpsData.lastStamp || 'ВКЯ'} ({stampedOpsCount} опер.{sheetsApproved ? ' · Листи ✓' : ''})
                   </span>
                 )}
+                {qcOpsData?.lastHourlyCheck && (
+                  <span style={{ fontSize: '0.66rem', fontWeight: 900, color: '#0284c7', background: '#f0f9ff', padding: '2px 8px', borderRadius: '999px' }}>
+                    ⏱️ {qcOpsData.lastHourlyCheck.sheetText ? `${qcOpsData.lastHourlyCheck.sheetText} · ` : ''}{qcOpsData.lastHourlyCheck.statusText || 'в нормі'} ({qcOpsData.lastHourlyCheck.time})
+                  </span>
+                )}
               </div>
               <button
                 type="button"

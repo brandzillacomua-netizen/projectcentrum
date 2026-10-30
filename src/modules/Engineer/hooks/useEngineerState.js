@@ -23,13 +23,13 @@ export function useEngineerState() {
   const [activeTab, setActiveTab] = useState('tasks')
 
   const pendingTasks = (tasks || []).filter(t => 
-    t.status === 'waiting' && 
+    (t.status === 'waiting' || t.status === 'in-progress' || t.status === 'in_progress') && 
     !t.step?.includes('Пресування') &&
     !isTaskFullyEngineerApproved(t, orders, nomenclatures)
   )
 
   const approvedCount = (tasks || []).filter(t => 
-    t.status === 'waiting' && 
+    (t.status === 'waiting' || t.status === 'in-progress' || t.status === 'in_progress') && 
     !t.step?.includes('Пресування') &&
     isTaskFullyEngineerApproved(t, orders, nomenclatures)
   ).length

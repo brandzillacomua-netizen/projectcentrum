@@ -21,7 +21,8 @@ export function useKanbanState() {
     setManagementTasks,
     companyStructure,
     fetchCompletedManagementTasks,
-    fetchCompletedManagementTasksCount
+    fetchCompletedManagementTasksCount,
+    refreshTable
   } = useMES()
 
   const DEPARTMENTS = useMemo(() => {
@@ -114,6 +115,13 @@ export function useKanbanState() {
   const [hasMoreCompleted, setHasMoreCompleted] = useState(true)
   const [isFetchingCompleted, setIsFetchingCompleted] = useState(false)
 
+  // Ensure active management tasks are loaded immediately when mounting Kanban
+  useEffect(() => {
+    if (typeof refreshTable === 'function') {
+      refreshTable('management_tasks')
+    }
+  }, [refreshTable])
+
   useEffect(() => {
     if (!currentUser) return
     setCompletedPage(0)
@@ -123,9 +131,10 @@ export function useKanbanState() {
     if (typeof fetchCompletedManagementTasks === 'function') {
       setIsFetchingCompleted(true)
       fetchCompletedManagementTasks(0, 20, currentUser, isDirector).then(res => {
-        setCompletedTasks(res.data || [])
-        if (res.count !== undefined) setCompletedCount(res.count)
-        setHasMoreCompleted((res.data || []).length === 20)
+        const list = Array.isArray(res) ? res : (res?.data || [])
+        setCompletedTasks(list)
+        if (res && res.count !== undefined) setCompletedCount(res.count)
+        setHasMoreCompleted(list.length === 20)
         setIsFetchingCompleted(false)
       })
     }
@@ -136,9 +145,10 @@ export function useKanbanState() {
     const nextPage = completedPage + 1
     setIsFetchingCompleted(true)
     const res = await fetchCompletedManagementTasks(nextPage, 20, currentUser, isDirector)
-    setCompletedTasks(prev => [...prev, ...(res.data || [])])
+    const list = Array.isArray(res) ? res : (res?.data || [])
+    setCompletedTasks(prev => [...prev, ...list])
     setCompletedPage(nextPage)
-    setHasMoreCompleted((res.data || []).length === 20)
+    setHasMoreCompleted(list.length === 20)
     setIsFetchingCompleted(false)
   }
 
@@ -197,7 +207,7 @@ export function useKanbanState() {
 
   // ── Stats ───────────────────────────────────────────────────────────────
   const stats = useMemo(() => {
-    let list = (managementTasks || []).filter(t => !t.project_id)
+    let list = (managementTasks || []).filter(t => !t.project_id && t.status !== 'done')
     if (!isDirector) {
       list = list.filter(t => isTaskRelevantToUser(t, currentUser))
     }
@@ -212,7 +222,7 @@ export function useKanbanState() {
 
   // ── Filtered tasks ──────────────────────────────────────────────────────
   const filteredTasks = useMemo(() => {
-    let list = (managementTasks || []).filter(t => !t.project_id)
+    let list = (managementTasks || []).filter(t => !t.project_id && t.status !== 'done')
     if (!isDirector) {
       list = list.filter(t => isTaskRelevantToUser(t, currentUser))
     }

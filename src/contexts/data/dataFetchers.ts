@@ -336,7 +336,7 @@ export function useDataFetchers(state: any) {
         const data = requireData(await fetchPendingMachineCalls())
         if (data) setMachineCalls(data)
       } else if (tableName === 'management_tasks') {
-        const data = requireData(await supabase.from('management_tasks').select('*').or('status.neq.done,project_id.not.is.null').order('created_at', { ascending: false }))
+        const data = requireData(await supabase.from('management_tasks').select('*').order('created_at', { ascending: false }))
         try {
           const statusUpdates = JSON.parse(localStorage.getItem('centrum_task_status_updates') || '{}')
           const createdTasks = JSON.parse(localStorage.getItem('centrum_created_management_tasks') || '[]')
@@ -528,19 +528,21 @@ export function useDataFetchers(state: any) {
     }
   }
 
-  const fetchCompletedManagementTasks = async () => {
+  const fetchCompletedManagementTasks = async (page = 0, pageSize = 20) => {
     try {
-      const { data, error } = await supabase
+      const from = page * pageSize
+      const to = from + pageSize - 1
+      const { data, error, count } = await supabase
         .from('management_tasks')
-        .select('*')
+        .select('*', { count: 'exact' })
         .eq('status', 'done')
         .order('created_at', { ascending: false })
-        .limit(200)
+        .range(from, to)
       if (error) throw error
-      return data || []
+      return { data: data || [], count: count || 0 }
     } catch (err) {
       console.warn('[dataFetchers] Failed to fetch completed management tasks:', err)
-      return []
+      return { data: [], count: 0 }
     }
   }
 

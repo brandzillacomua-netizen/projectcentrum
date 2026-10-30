@@ -179,14 +179,14 @@ export const BrakActiveCuttingModal = React.memo(({
 
       // Inspection state categorization:
       // - uninspected: no stamps at all
-      // - urgent_recheck: inspected > 4 hours ago
-      // - needs_recheck: inspected > 2 hours ago
-      // - fresh: inspected <= 2 hours ago
+      // - urgent_recheck: inspected > 3 hours ago
+      // - needs_recheck: inspected > 1 hour (60 min) ago
+      // - fresh: inspected <= 1 hour (60 min) ago
       let inspectionTier = 'uninspected'
       if (hasAnyStamp) {
-        if (lastStampMs === null || lastStampMs > 4 * 3600 * 1000) {
+        if (lastStampMs === null || lastStampMs > 3 * 3600 * 1000) {
           inspectionTier = 'urgent_recheck'
-        } else if (lastStampMs > 2 * 3600 * 1000) {
+        } else if (lastStampMs > 1 * 3600 * 1000) {
           inspectionTier = 'needs_recheck'
         } else {
           inspectionTier = 'fresh'
@@ -467,7 +467,7 @@ export const BrakActiveCuttingModal = React.memo(({
             }}
           >
             <div className="kpi-label" style={{ fontSize: '0.62rem', fontWeight: 900, color: '#f59e0b', textTransform: 'uppercase' }}>
-              ⏳ Перевірити знову (&gt;2 годин)
+              ⏳ Перевірити знову (&gt;1 години)
             </div>
             <div className="kpi-val" style={{ fontSize: '1.25rem', fontWeight: 950, color: 'var(--text-strong, #fff)', marginTop: '2px' }}>
               {stats.needsRecheck}
@@ -924,6 +924,11 @@ export const BrakActiveCuttingModal = React.memo(({
                               Погоджено: <strong style={{ color: '#10b981' }}>{item.stampedOpsCount} опер.</strong>
                               {item.sheetsApproved ? ' · Листи відповідають ✓' : ' · Листи не відмічено'}
                             </div>
+                            {qcData?.lastHourlyCheck && (
+                              <div style={{ fontSize: '0.66rem', color: '#0284c7', fontWeight: 850, marginTop: '2px' }}>
+                                ⏱️ {qcData.lastHourlyCheck.sheetText ? `${qcData.lastHourlyCheck.sheetText} · ` : ''}{qcData.lastHourlyCheck.statusText || 'в нормі'}
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
