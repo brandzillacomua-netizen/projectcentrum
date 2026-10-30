@@ -167,12 +167,12 @@ export function CorporateTasksView({
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%' }}>
+    <div className="corp-tasks-container">
       {/* ── TOP ACTION & VIEW MODE BAR ────────────────────────────────────────── */}
-      <div className="corp-card" style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '14px', flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+      <div className="corp-card corp-tasks-topbar">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           {/* View mode toggle */}
-          <div className="corp-tabs-group" style={{ background: 'var(--ch-surface-inset)', padding: '3px' }}>
+          <div className="corp-tabs-group corp-tasks-view-tabs" style={{ background: 'var(--ch-surface-inset)', padding: '3px' }}>
             <button
               type="button"
               className={`corp-tab-btn ${viewMode === 'stream' ? 'active' : ''}`}
@@ -180,7 +180,7 @@ export function CorporateTasksView({
               style={{ padding: '6px 14px', fontSize: '0.8rem' }}
             >
               <List size={15} />
-              <span>Псевдосписок (Стрічка)</span>
+              <span>Стрічка</span>
             </button>
 
             <button
@@ -190,7 +190,7 @@ export function CorporateTasksView({
               style={{ padding: '6px 14px', fontSize: '0.8rem' }}
             >
               <LayoutGrid size={15} />
-              <span>Повна дошка Канбан</span>
+              <span>Канбан</span>
             </button>
           </div>
         </div>
@@ -199,7 +199,7 @@ export function CorporateTasksView({
         <button
           type="button"
           onClick={() => (onOpenNewTaskModal ? onOpenNewTaskModal() : setIsNewTaskModalOpen(true))}
-          className="corp-btn-primary"
+          className="corp-btn-primary corp-tasks-create-btn"
           style={{ padding: '8px 16px', fontSize: '0.82rem' }}
         >
           <Plus size={16} />
@@ -215,134 +215,122 @@ export function CorporateTasksView({
       ) : (
         <>
           {/* ── QUICK METRICS COUNTERS ──────────────────────────────────────── */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '10px' }}>
+          <div className="corp-tasks-metrics-grid">
             {/* Active total */}
             <div
-              className="corp-card"
+              className={`corp-card corp-tasks-metric-card ${statusFilter === 'active' ? 'active' : ''}`}
               onClick={() => setStatusFilter('active')}
               style={{
-                padding: '12px 14px',
-                cursor: 'pointer',
                 borderLeft: statusFilter === 'active' ? '3px solid var(--ch-accent)' : undefined,
                 background: statusFilter === 'active' ? 'var(--ch-accent-subtle)' : undefined
               }}
             >
-              <div style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--ch-text-dim)', textTransform: 'uppercase' }}>
+              <div className="corp-tasks-metric-label" style={{ color: 'var(--ch-text-dim)' }}>
                 В роботі & черзі
               </div>
-              <div style={{ fontSize: '1.35rem', fontWeight: 900, color: 'var(--ch-text-primary)', marginTop: '4px' }}>
+              <div className="corp-tasks-metric-val" style={{ color: 'var(--ch-text-primary)' }}>
                 {metrics.active}
               </div>
             </div>
 
             {/* In progress */}
             <div
-              className="corp-card"
+              className={`corp-card corp-tasks-metric-card ${statusFilter === 'in_progress' ? 'active' : ''}`}
               onClick={() => setStatusFilter('in_progress')}
               style={{
-                padding: '12px 14px',
-                cursor: 'pointer',
                 borderLeft: statusFilter === 'in_progress' ? '3px solid #3b82f6' : undefined,
                 background: statusFilter === 'in_progress' ? 'rgba(59, 130, 246, 0.1)' : undefined
               }}
             >
-              <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#3b82f6', textTransform: 'uppercase' }}>
+              <div className="corp-tasks-metric-label" style={{ color: '#3b82f6' }}>
                 В роботі
               </div>
-              <div style={{ fontSize: '1.35rem', fontWeight: 900, color: '#3b82f6', marginTop: '4px' }}>
+              <div className="corp-tasks-metric-val" style={{ color: '#3b82f6' }}>
                 {metrics.inProgress}
               </div>
             </div>
 
             {/* Todo */}
             <div
-              className="corp-card"
+              className={`corp-card corp-tasks-metric-card ${statusFilter === 'todo' ? 'active' : ''}`}
               onClick={() => setStatusFilter('todo')}
               style={{
-                padding: '12px 14px',
-                cursor: 'pointer',
                 borderLeft: statusFilter === 'todo' ? '3px solid #8b5cf6' : undefined,
                 background: statusFilter === 'todo' ? 'rgba(139, 92, 246, 0.1)' : undefined
               }}
             >
-              <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#8b5cf6', textTransform: 'uppercase' }}>
+              <div className="corp-tasks-metric-label" style={{ color: '#8b5cf6' }}>
                 В черзі
               </div>
-              <div style={{ fontSize: '1.35rem', fontWeight: 900, color: '#8b5cf6', marginTop: '4px' }}>
+              <div className="corp-tasks-metric-val" style={{ color: '#8b5cf6' }}>
                 {metrics.todo}
               </div>
             </div>
 
             {/* Review */}
             <div
-              className="corp-card"
+              className={`corp-card corp-tasks-metric-card ${statusFilter === 'review' ? 'active' : ''}`}
               onClick={() => setStatusFilter('review')}
               style={{
-                padding: '12px 14px',
-                cursor: 'pointer',
                 borderLeft: statusFilter === 'review' ? '3px solid #f59e0b' : undefined,
                 background: statusFilter === 'review' ? 'rgba(245, 158, 11, 0.1)' : undefined
               }}
             >
-              <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#f59e0b', textTransform: 'uppercase' }}>
+              <div className="corp-tasks-metric-label" style={{ color: '#f59e0b' }}>
                 На перевірці
               </div>
-              <div style={{ fontSize: '1.35rem', fontWeight: 900, color: '#f59e0b', marginTop: '4px' }}>
+              <div className="corp-tasks-metric-val" style={{ color: '#f59e0b' }}>
                 {metrics.review}
               </div>
             </div>
 
             {/* Overdue */}
             <div
-              className="corp-card"
+              className={`corp-card corp-tasks-metric-card ${statusFilter === 'overdue' ? 'active' : ''}`}
               onClick={() => setStatusFilter('overdue')}
               style={{
-                padding: '12px 14px',
-                cursor: 'pointer',
                 borderLeft: statusFilter === 'overdue' ? '3px solid #ef4444' : undefined,
                 background: statusFilter === 'overdue' ? 'rgba(239, 68, 68, 0.1)' : undefined
               }}
             >
-              <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#ef4444', textTransform: 'uppercase' }}>
+              <div className="corp-tasks-metric-label" style={{ color: '#ef4444' }}>
                 Прострочено
               </div>
-              <div style={{ fontSize: '1.35rem', fontWeight: 900, color: '#ef4444', marginTop: '4px' }}>
+              <div className="corp-tasks-metric-val" style={{ color: '#ef4444' }}>
                 {metrics.overdue}
               </div>
             </div>
 
             {/* Done */}
             <div
-              className="corp-card"
+              className={`corp-card corp-tasks-metric-card ${statusFilter === 'done' ? 'active' : ''}`}
               onClick={() => setStatusFilter('done')}
               style={{
-                padding: '12px 14px',
-                cursor: 'pointer',
                 borderLeft: statusFilter === 'done' ? '3px solid #10b981' : undefined,
                 background: statusFilter === 'done' ? 'rgba(16, 185, 129, 0.1)' : undefined
               }}
             >
-              <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#10b981', textTransform: 'uppercase' }}>
+              <div className="corp-tasks-metric-label" style={{ color: '#10b981' }}>
                 Виконано
               </div>
-              <div style={{ fontSize: '1.35rem', fontWeight: 900, color: '#10b981', marginTop: '4px' }}>
+              <div className="corp-tasks-metric-val" style={{ color: '#10b981' }}>
                 {metrics.done}
               </div>
             </div>
           </div>
 
           {/* ── FILTER & SEARCH TOOLBAR ──────────────────────────────────────── */}
-          <div className="corp-card" style={{ padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div className="corp-card corp-tasks-filter-card">
             {/* Top row: Scope & Search */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
+            <div className="corp-tasks-filter-toprow">
               {/* Scope filter pills */}
-              <div className="corp-filter-chips">
+              <div className="corp-filter-chips corp-tasks-scope-chips">
                 <button
                   type="button"
                   className={`corp-chip ${scopeFilter === 'all' ? 'active' : ''}`}
                   onClick={() => setScopeFilter('all')}
                 >
-                  <span>Усі завдання ({managementTasks.length})</span>
+                  <span>Усі ({managementTasks.length})</span>
                 </button>
 
                 <button
@@ -351,7 +339,7 @@ export function CorporateTasksView({
                   onClick={() => setScopeFilter('my')}
                 >
                   <User size={13} />
-                  <span>Мої завдання ({managementTasks.filter(t => getAssignees(t).includes(currentLogin)).length})</span>
+                  <span>Мої ({managementTasks.filter(t => getAssignees(t).includes(currentLogin)).length})</span>
                 </button>
 
                 <button
@@ -359,12 +347,12 @@ export function CorporateTasksView({
                   className={`corp-chip ${scopeFilter === 'created_by_me' ? 'active' : ''}`}
                   onClick={() => setScopeFilter('created_by_me')}
                 >
-                  <span>Доручено мною ({managementTasks.filter(t => t.created_by === currentLogin).length})</span>
+                  <span>Доручені ({managementTasks.filter(t => t.created_by === currentLogin).length})</span>
                 </button>
               </div>
 
               {/* Search */}
-              <div className="corp-search-box" style={{ maxWidth: '280px', width: '100%' }}>
+              <div className="corp-search-box corp-tasks-search-box">
                 <Search size={14} color="var(--ch-text-dim)" />
                 <input
                   type="text"
@@ -386,64 +374,66 @@ export function CorporateTasksView({
             </div>
 
             {/* Bottom row: Status selector pills */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--ch-text-dim)', textTransform: 'uppercase' }}>
+            <div className="corp-tasks-status-row">
+              <span className="corp-tasks-status-label">
                 Статус:
               </span>
 
-              <button
-                type="button"
-                className={`corp-btn-subtle ${statusFilter === 'active' ? 'active' : ''}`}
-                onClick={() => setStatusFilter('active')}
-                style={{ padding: '4px 10px', fontSize: '0.74rem' }}
-              >
-                Активні ({metrics.active})
-              </button>
+              <div className="corp-tasks-status-pills">
+                <button
+                  type="button"
+                  className={`corp-btn-subtle ${statusFilter === 'active' ? 'active' : ''}`}
+                  onClick={() => setStatusFilter('active')}
+                  style={{ padding: '4px 10px', fontSize: '0.74rem' }}
+                >
+                  Активні ({metrics.active})
+                </button>
 
-              <button
-                type="button"
-                className={`corp-btn-subtle ${statusFilter === 'in_progress' ? 'active' : ''}`}
-                onClick={() => setStatusFilter('in_progress')}
-                style={{ padding: '4px 10px', fontSize: '0.74rem', color: '#3b82f6' }}
-              >
-                В роботі ({metrics.inProgress})
-              </button>
+                <button
+                  type="button"
+                  className={`corp-btn-subtle ${statusFilter === 'in_progress' ? 'active' : ''}`}
+                  onClick={() => setStatusFilter('in_progress')}
+                  style={{ padding: '4px 10px', fontSize: '0.74rem', color: '#3b82f6' }}
+                >
+                  В роботі ({metrics.inProgress})
+                </button>
 
-              <button
-                type="button"
-                className={`corp-btn-subtle ${statusFilter === 'todo' ? 'active' : ''}`}
-                onClick={() => setStatusFilter('todo')}
-                style={{ padding: '4px 10px', fontSize: '0.74rem', color: '#8b5cf6' }}
-              >
-                В черзі ({metrics.todo})
-              </button>
+                <button
+                  type="button"
+                  className={`corp-btn-subtle ${statusFilter === 'todo' ? 'active' : ''}`}
+                  onClick={() => setStatusFilter('todo')}
+                  style={{ padding: '4px 10px', fontSize: '0.74rem', color: '#8b5cf6' }}
+                >
+                  В черзі ({metrics.todo})
+                </button>
 
-              <button
-                type="button"
-                className={`corp-btn-subtle ${statusFilter === 'review' ? 'active' : ''}`}
-                onClick={() => setStatusFilter('review')}
-                style={{ padding: '4px 10px', fontSize: '0.74rem', color: '#f59e0b' }}
-              >
-                На перевірці ({metrics.review})
-              </button>
+                <button
+                  type="button"
+                  className={`corp-btn-subtle ${statusFilter === 'review' ? 'active' : ''}`}
+                  onClick={() => setStatusFilter('review')}
+                  style={{ padding: '4px 10px', fontSize: '0.74rem', color: '#f59e0b' }}
+                >
+                  На перевірці ({metrics.review})
+                </button>
 
-              <button
-                type="button"
-                className={`corp-btn-subtle ${statusFilter === 'done' ? 'active' : ''}`}
-                onClick={() => setStatusFilter('done')}
-                style={{ padding: '4px 10px', fontSize: '0.74rem', color: '#10b981' }}
-              >
-                Виконані ({metrics.done})
-              </button>
+                <button
+                  type="button"
+                  className={`corp-btn-subtle ${statusFilter === 'done' ? 'active' : ''}`}
+                  onClick={() => setStatusFilter('done')}
+                  style={{ padding: '4px 10px', fontSize: '0.74rem', color: '#10b981' }}
+                >
+                  Виконані ({metrics.done})
+                </button>
 
-              <button
-                type="button"
-                className={`corp-btn-subtle ${statusFilter === 'all' ? 'active' : ''}`}
-                onClick={() => setStatusFilter('all')}
-                style={{ padding: '4px 10px', fontSize: '0.74rem' }}
-              >
-                Усі без фільтру ({metrics.total})
-              </button>
+                <button
+                  type="button"
+                  className={`corp-btn-subtle ${statusFilter === 'all' ? 'active' : ''}`}
+                  onClick={() => setStatusFilter('all')}
+                  style={{ padding: '4px 10px', fontSize: '0.74rem' }}
+                >
+                  Усі без фільтру ({metrics.total})
+                </button>
+              </div>
             </div>
           </div>
 
@@ -471,7 +461,7 @@ export function CorporateTasksView({
               return (
                 <div
                   key={task.id}
-                  className="corp-card"
+                  className="corp-card corp-task-card"
                   style={{
                     padding: '16px 20px',
                     display: 'flex',
