@@ -29,6 +29,17 @@ export const ApprovalsDrawer = ({
             const order = orders.find(o => String(o.id) === String(task.order_id)) || allOrdersMap[task.order_id]
             const isSkladOk = task.warehouse_conf === 'true' || task.warehouse_conf === 'partial'
             const isEngOk = task.engineer_conf === true
+            const approvedNoms = task.plan_snapshot?._engineer_approved_noms
+            const isEngPartial = isEngOk && Array.isArray(approvedNoms) && (() => {
+              const snapKeys = Object.keys(task.plan_snapshot || {}).filter(k => 
+                !k.startsWith('_') && 
+                !['materialSummary', 'selectedCutters', 'consumables', 'arrivals', 'nomenclatures', '_report_snapshot'].includes(k) &&
+                typeof task.plan_snapshot[k] === 'object' &&
+                task.plan_snapshot[k] !== null
+              )
+              const totalParts = snapKeys.length > 0 ? snapKeys.length : (order?.order_items?.length || 0)
+              return totalParts > 0 && approvedNoms.length < totalParts
+            })()
 
             const orderItems = order?.order_items || []
             let prodName = ''
@@ -88,9 +99,12 @@ export const ApprovalsDrawer = ({
                     <span>{task.warehouse_conf === 'partial' ? 'ЧАСТК. СКЛАД' : 'СКЛАД'}</span>
                     {(task.warehouse_conf === 'true' || task.warehouse_conf === 'partial') && <CheckCircle2 size={12} />}
                   </div>
-                  <div className={`check-item ${isEngOk ? 'ok' : 'pending'}`}>
+                  <div 
+                    className={`check-item ${isEngOk ? (isEngPartial ? 'partial' : 'ok') : 'pending'}`}
+                    style={isEngPartial ? { background: 'rgba(234,179,8,0.1)', color: '#eab308', border: '1px solid rgba(234,179,8,0.2)' } : {}}
+                  >
                     <FileCode size={18} />
-                    <span>{Array.isArray(task.plan_snapshot?._engineer_approved_noms) && task.plan_snapshot._engineer_approved_noms.length > 0 ? `ІНЖЕНЕР (${task.plan_snapshot._engineer_approved_noms.length})` : 'ІНЖЕНЕР'}</span>
+                    <span>{isEngPartial ? 'ЧАСТК. ІНЖЕНЕР' : 'ІНЖЕНЕР'}</span>
                     {isEngOk && <CheckCircle2 size={12} />}
                   </div>
                 </div>

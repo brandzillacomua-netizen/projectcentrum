@@ -12,6 +12,24 @@ const MasterActiveTaskCard = React.memo(({ task, order, nomenclatures, handleRep
   const isSkladConfirmed = whConf === 'true' || task.warehouse_conf === true
   const isSkladPartial = !isSkladConfirmed && whConf === 'partial'
   const isTechConfirmed = task.engineer_conf === true || String(task.engineer_conf || '').trim().toLowerCase() === 'true'
+  const approvedNomsList = task.plan_snapshot?._engineer_approved_noms
+  let isTechPartial = false
+  if (isTechConfirmed && Array.isArray(approvedNomsList)) {
+    const snapKeys = Object.keys(task.plan_snapshot || {}).filter(k => 
+      !k.startsWith('_') && 
+      !['materialSummary', 'selectedCutters', 'consumables', 'arrivals', 'nomenclatures', '_report_snapshot'].includes(k) &&
+      typeof task.plan_snapshot[k] === 'object' &&
+      task.plan_snapshot[k] !== null
+    )
+    const totalPartsCount = snapKeys.length > 0 
+      ? snapKeys.length 
+      : (order?.order_items?.length || 0)
+
+    if (totalPartsCount > 0 && approvedNomsList.length < totalPartsCount) {
+      isTechPartial = true
+    }
+  }
+  const isTechFull = isTechConfirmed && !isTechPartial
   const isDirectorConfirmed = task.director_conf === true || String(task.director_conf || '').trim().toLowerCase() === 'true'
 
   const totalSets = Number(task.planned_sets) || order?.order_items?.reduce((sum, it) => sum + Number(it.quantity), 0) || 0
@@ -125,12 +143,23 @@ const MasterActiveTaskCard = React.memo(({ task, order, nomenclatures, handleRep
           fontSize: '0.65rem', 
           padding: '4px 12px', 
           borderRadius: '6px', 
-          background: isTechConfirmed ? '#00b894' : (isLight ? '#e2e8f0' : '#27272a'), 
-          color: isTechConfirmed ? '#ffffff' : (isLight ? '#64748b' : '#a1a1aa'), 
+          background: isTechFull 
+            ? '#00b894' 
+            : (isTechPartial 
+                ? (isLight ? '#fef3c7' : 'rgba(234, 179, 8, 0.15)') 
+                : (isLight ? '#e2e8f0' : '#27272a')), 
+          color: isTechFull 
+            ? '#ffffff' 
+            : (isTechPartial 
+                ? (isLight ? '#b45309' : '#fbbf24') 
+                : (isLight ? '#64748b' : '#a1a1aa')), 
+          border: isTechPartial 
+            ? (isLight ? '1px solid #fde68a' : '1px solid rgba(234, 179, 8, 0.4)') 
+            : 'none',
           fontWeight: 900,
           letterSpacing: '0.5px'
         }}>
-          ІНЖЕНЕР
+          {isTechPartial ? 'ЧАСТК. ІНЖЕНЕР' : 'ІНЖЕНЕР'}
         </div>
         <div style={{ 
           fontSize: '0.65rem', 
