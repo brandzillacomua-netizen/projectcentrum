@@ -571,10 +571,10 @@ export function BroadcastPushModal({ isOpen, onClose }) {
                   outline: 'none'
                 }}
               >
-                <option value="/corporate">Корпоративний портал (/corporate)</option>
+                <option value="/">Корпоративний портал (/)</option>
                 <option value="/notifications">Центр сповіщень (/notifications)</option>
                 <option value="/tasks">Задачник Канбан (/tasks)</option>
-                <option value="/">Головний Дашборд (/)</option>
+                <option value="/dashboard">Каталог модулів (/dashboard)</option>
                 <option value="/shipping">Відвантаження (/shipping)</option>
                 <option value="/machines">Обладнання (/machines)</option>
               </select>

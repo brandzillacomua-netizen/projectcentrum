@@ -11,6 +11,7 @@ import {
   Search,
   X,
   LayoutDashboard,
+  Building2,
   Briefcase,
   Settings,
   LogOut
@@ -65,8 +66,8 @@ export const AppSidebar = ({ isCollapsed, setIsCollapsed, chatUnreadCount, isMob
     return modules.filter(m => m.title.toLowerCase().includes(query) || m.desc.toLowerCase().includes(query));
   }, [modules, sidebarFilter]);
 
-  const crmModules = filteredModules.filter(m => m.pillar === 'crm')
-  const erpModules = filteredModules.filter(m => m.pillar === 'erp')
+  const crmModules = filteredModules.filter(m => m.pillar === 'crm' && m.id !== 'corporate')
+  const erpModules = filteredModules.filter(m => m.pillar === 'erp' && m.id !== 'dashboard')
   const mesModules = filteredModules.filter(m => m.pillar === 'mes')
 
   return (
@@ -320,18 +321,35 @@ export const AppSidebar = ({ isCollapsed, setIsCollapsed, chatUnreadCount, isMob
 
         {/* Navigation Items */}
         <div className="sidebar-nav-container">
-          {/* Main Dashboard Link */}
-          {(currentUser?.access_rights?.dashboard === true || currentUser?.access_rights?.dashboard === 'true' || currentUser?.access_rights?.dashboard === 1) && (
+          {/* Corporate Portal as Main Home */}
+          {(currentUser?.access_rights?.corporate !== false) && (
             <Link
               to="/"
               onClick={() => {
                 setIsMobileOpen(false)
                 if (isCollapsed) setIsCollapsed(false)
               }}
-              className={`sidebar-link-item ${location.pathname === '/' ? 'active' : ''}`}
+              className={`sidebar-link-item ${location.pathname === '/' || location.pathname.startsWith('/corporate') ? 'active' : ''}`}
+              title={isCollapsed ? 'Корпоративний Портал' : ''}
+            >
+              <Building2 size={18} color="#6366f1" />
+              {!isCollapsed && <span>Корпоративний Портал</span>}
+            </Link>
+          )}
+
+          {/* Module Catalog / Dashboard Link */}
+          {(currentUser?.position === 'Адмін' || currentUser?.role === 'admin' || currentUser?.access_rights?.dashboard === true || currentUser?.access_rights?.dashboard === 'true' || currentUser?.access_rights?.dashboard === 1) && (
+            <Link
+              to="/dashboard"
+              onClick={() => {
+                setIsMobileOpen(false)
+                if (isCollapsed) setIsCollapsed(false)
+              }}
+              className={`sidebar-link-item ${location.pathname === '/dashboard' ? 'active' : ''}`}
+              title={isCollapsed ? 'Каталог модулів' : ''}
             >
               <LayoutDashboard size={18} color="#ff9000" />
-              {!isCollapsed && <span>Головний Дашборд</span>}
+              {!isCollapsed && <span>Каталог модулів</span>}
             </Link>
           )}
 

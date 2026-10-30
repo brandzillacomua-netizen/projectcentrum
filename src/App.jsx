@@ -3,6 +3,7 @@ import { Routes, Route, Link, Navigate, useLocation, useNavigate } from 'react-r
 import {
   AlertTriangle,
   X,
+
   Bell,
   BellOff,
   User,
@@ -871,7 +872,8 @@ const AppContent = () => {
         )}
         <Routes>
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/" element={<PortalDashboard chatUnreadCount={chatUnreadCount} />} />
+          <Route path="/" element={<PermissionGuard id="corporate"><CorporateModule /></PermissionGuard>} />
+          <Route path="/dashboard" element={<PermissionGuard id="dashboard"><PortalDashboard chatUnreadCount={chatUnreadCount} /></PermissionGuard>} />
           <Route path="/crm" element={<PermissionGuard id="crm"><CrmModule /></PermissionGuard>} />
           <Route path="/crm/clients" element={<PermissionGuard id="crm_clients"><CrmClientsModule /></PermissionGuard>} />
           <Route path="/foreman-dashboard" element={<PermissionGuard id="foreman_dashboard"><ForemanDashboardModule /></PermissionGuard>} />
@@ -917,8 +919,8 @@ const AppContent = () => {
           <Route path="/tasks" element={<PermissionGuard id="kanban"><KanbanModule /></PermissionGuard>} />
           <Route path="/tasks/projects" element={<PermissionGuard id="kanban"><TaskProjectsModule /></PermissionGuard>} />
           <Route path="/chat" element={<PermissionGuard id="chat"><ChatModule /></PermissionGuard>} />
-          <Route path="/corporate" element={<PermissionGuard id="corporate"><CorporateModule /></PermissionGuard>} />
-          <Route path="/corporate/*" element={<PermissionGuard id="corporate"><CorporateModule /></PermissionGuard>} />
+          <Route path="/corporate" element={<Navigate to="/" replace />} />
+          <Route path="/corporate/*" element={<Navigate to="/" replace />} />
           <Route path="/access" element={<PermissionGuard id="access"><AccessModule /></PermissionGuard>} />
           <Route path="/procurement" element={<PermissionGuard id="procurement"><SupplyModule isProcurementOnly={true} /></PermissionGuard>} />
           <Route path="/reports" element={<PermissionGuard id="reports"><ReportsModule /></PermissionGuard>} />

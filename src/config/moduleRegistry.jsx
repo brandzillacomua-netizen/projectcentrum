@@ -34,10 +34,11 @@ export const getAllModules = (badgeCount = 0, chatBadgeCount = 0) => [
   { id: 'crm_clients', title: 'База Клієнтів & Картки CRM', icon: <Users />, path: '/crm/clients', desc: 'Картки клієнтів, LTV, середній чек та комунікація', color: '#6366f1', pillar: 'crm' },
   { id: 'manager', title: 'Менеджер Замовлень', icon: <LayoutDashboard />, path: '/manager', desc: 'Вхідні замовлення та реєстрація', color: '#6366f1', pillar: 'crm' },
   { id: 'chat', title: 'Чат & Комунікація', icon: <MessageCircle />, path: '/chat', desc: 'Внутрішні та клієнтські канали', color: '#6366f1', badge: chatBadgeCount, pillar: 'crm' },
-  { id: 'corporate', title: 'Корпоративний Портал', icon: <Building2 />, path: '/corporate', desc: 'Стрічка компанії, накази, задачник та комунікація', color: '#6366f1', pillar: 'crm' },
+  { id: 'corporate', title: 'Корпоративний Портал', icon: <Building2 />, path: '/', desc: 'Стрічка компанії, накази, задачник та комунікація', color: '#6366f1', pillar: 'crm' },
   { id: 'kanban', title: 'Задачі (Канбан)', icon: <KanbanSquare />, path: '/tasks', desc: 'Доручення та проекти', color: '#8b5cf6', badge: badgeCount, pillar: 'crm' },
 
   // ── ERP Pillar (Ресурси, Склад, Аналітика та Управління) ───────────────────
+  { id: 'dashboard', title: 'Каталог модулів', icon: <LayoutDashboard />, path: '/dashboard', desc: 'Загальний плитковий каталог усіх доступних модулів системи', color: '#ff9000', pillar: 'erp' },
   { id: 'warehouse', title: 'Склад Оперативний (WMS)', icon: <IconSO />, path: '/warehouse', desc: 'Матеріали, залишки та комплектація', color: '#10b981', pillar: 'erp' },
   { id: 'warehouse_fgp', title: 'Склад Готової Продукції (СГП)', icon: <IconSGP />, path: '/warehouse-fgp', desc: 'Готова продукція, буфер цеху 2, метизи та брак', color: '#10b981', pillar: 'erp' },
   { id: 'supply', title: 'Склад Виробництва', icon: <IconSV />, path: '/supply', desc: 'Управління запасами та запити', color: '#10b981', pillar: 'erp' },
@@ -103,6 +104,9 @@ export const getAvailableModules = (currentUser, badgeCount, chatBadgeCount = 0)
     }
     if (m.id === 'corporate') {
       return rights.corporate !== false;
+    }
+    if (m.id === 'dashboard') {
+      return isAdmin || checkRight('dashboard');
     }
     return checkRight(m.id);
   });
