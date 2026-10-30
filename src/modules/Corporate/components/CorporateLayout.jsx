@@ -17,11 +17,9 @@ import {
   Wrench,
   Lightbulb,
   AlertCircle,
-  Radio
 } from 'lucide-react'
 import { POST_CATEGORIES } from '../utils/corporateHelpers'
 import { CorporateAvatar } from './common/CorporateAvatar'
-import { BroadcastPushModal } from '../../../components/common/BroadcastPushModal'
 
 export function CorporateLayout({
   activeTab = 'feed', // 'feed' | 'tasks'
@@ -42,7 +40,6 @@ export function CorporateLayout({
   children
 }) {
   const currentUserId = String(currentUser?.id || '')
-  const [isPushBroadcastOpen, setIsPushBroadcastOpen] = React.useState(false)
 
   // Current user display info
   const fullName = currentUser
@@ -314,25 +311,6 @@ export function CorporateLayout({
                 </button>
               </div>
 
-              {/* Push Broadcast Button */}
-              <button
-                type="button"
-                onClick={() => setIsPushBroadcastOpen(true)}
-                className="corp-btn-primary"
-                title="Масова розсилка Push-сповіщень на всі пристрої"
-                style={{
-                  background: 'linear-gradient(135deg, #6366f1, #3b82f6)',
-                  padding: '7px 14px',
-                  fontSize: '0.78rem',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px'
-                }}
-              >
-                <Radio size={14} />
-                <span>Надіслати PUSH</span>
-              </button>
-
               <button
                 type="button"
                 onClick={onRefresh}
@@ -531,11 +509,6 @@ export function CorporateLayout({
         </aside>
       )}
 
-      {/* Broadcast Push Notification Modal */}
-      <BroadcastPushModal
-        isOpen={isPushBroadcastOpen}
-        onClose={() => setIsPushBroadcastOpen(false)}
-      />
     </div>
     </div>
   )

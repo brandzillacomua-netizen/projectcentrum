@@ -1,11 +1,12 @@
 import React from 'react'
 import { 
-  Cpu, AlertCircle, Sliders, Layers, Upload, CheckCircle2, RefreshCw, Archive, Search 
+  Cpu, AlertCircle, Sliders, Layers, Upload, CheckCircle2, RefreshCw, Archive, Search, Radio
 } from 'lucide-react'
 import { TelegramAlertsConfig } from './TelegramAlertsConfig'
 
 export function SettingsSystemAdminTab(props) {
   const {
+    onOpenPushModal,
     tempFortnetUrl,
     setTempFortnetUrl,
     updateFortnetUrl,
@@ -213,6 +214,72 @@ export function SettingsSystemAdminTab(props) {
 
         {/* Telegram Crash Alerts & Diagnostics */}
         <TelegramAlertsConfig />
+
+        {/* Web Push Broadcast Block (Admin Only) */}
+        {typeof onOpenPushModal === 'function' && (
+          <div style={{
+            marginTop: '25px',
+            paddingTop: '20px',
+            borderTop: '1px solid rgba(255, 255, 255, 0.08)'
+          }}>
+            <div style={{
+              background: 'rgba(99, 102, 241, 0.08)',
+              border: '1.5px solid rgba(99, 102, 241, 0.3)',
+              borderRadius: '16px',
+              padding: '18px 20px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: '14px',
+              flexWrap: 'wrap'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{
+                  width: '40px',
+                  height: '40px',
+                  borderRadius: '10px',
+                  background: 'rgba(99, 102, 241, 0.2)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}>
+                  <Radio size={20} color="#818cf8" />
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.9rem', fontWeight: 900, color: '#fff' }}>
+                    Масові Push-сповіщення (Web Push)
+                  </div>
+                  <div style={{ fontSize: '0.74rem', color: 'var(--text-dim)', marginTop: '2px' }}>
+                    Надсилання push-повідомлень на всі робочі пристрої співробітників (ПК, планшети, смартфони)
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={onOpenPushModal}
+                style={{
+                  background: 'linear-gradient(135deg, #6366f1, #3b82f6)',
+                  border: 'none',
+                  color: '#fff',
+                  padding: '10px 18px',
+                  borderRadius: '12px',
+                  fontSize: '0.82rem',
+                  fontWeight: 900,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '7px',
+                  boxShadow: '0 4px 14px rgba(99, 102, 241, 0.35)',
+                  transition: 'all 0.2s'
+                }}
+              >
+                <Radio size={16} />
+                <span>НАДІСЛАТИ PUSH</span>
+              </button>
+            </div>
+          </div>
+        )}
       </section>
 
       {/* Right Panel: Start Pages by Position */}

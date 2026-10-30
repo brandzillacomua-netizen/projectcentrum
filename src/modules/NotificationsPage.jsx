@@ -293,29 +293,31 @@ const NotificationsPage = () => {
             </div>
           </div>
 
-          {/* Right: Push Broadcast and Mark all as read buttons */}
+          {/* Right: Push Broadcast (admin only) and Mark all as read buttons */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <button
-              onClick={() => setIsPushBroadcastOpen(true)}
-              style={{
-                background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
-                border: 'none',
-                color: '#fff',
-                padding: '6px 14px',
-                borderRadius: '10px',
-                fontSize: '0.75rem',
-                fontWeight: 800,
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-                flexShrink: 0,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)'
-              }}
-            >
-              <Radio size={14} /> Надіслати PUSH
-            </button>
+            {(currentUser?.role === 'admin' || currentUser?.is_admin || currentUser?.login === 'admin') && (
+              <button
+                onClick={() => setIsPushBroadcastOpen(true)}
+                style={{
+                  background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
+                  border: 'none',
+                  color: '#fff',
+                  padding: '6px 14px',
+                  borderRadius: '10px',
+                  fontSize: '0.75rem',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)'
+                }}
+              >
+                <Radio size={14} /> Надіслати PUSH
+              </button>
+            )}
 
             {unreadCount > 0 && (
               <button

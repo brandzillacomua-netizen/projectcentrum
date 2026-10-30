@@ -6,7 +6,8 @@ import {
   Users as UsersIcon, 
   Building2, 
   Cpu, 
-  Sliders 
+  Sliders,
+  Radio
 } from 'lucide-react'
 import { useSettingsState } from './Settings/hooks/useSettingsState'
 import { SettingsUsersTab } from './Settings/components/SettingsUsersTab'
@@ -14,10 +15,12 @@ import { SettingsStructureTab } from './Settings/components/SettingsStructureTab
 import { SettingsSystemAdminTab } from './Settings/components/SettingsSystemAdminTab'
 import { SettingsSnapshotCorrTab } from './Settings/components/SettingsSnapshotCorrTab'
 import { SettingsAuditLogTab } from './Settings/components/SettingsAuditLogTab'
+import { BroadcastPushModal } from '../components/common/BroadcastPushModal'
 import { ShieldAlert } from 'lucide-react'
 
 const SettingsModule = () => {
   const state = useSettingsState()
+  const [isPushBroadcastOpen, setIsPushBroadcastOpen] = React.useState(false)
   const {
     currentUser,
     logout,
@@ -52,7 +55,32 @@ const SettingsModule = () => {
             <h1 style={{ fontSize: '1.1rem', fontWeight: 900, letterSpacing: '0.02em', textTransform: 'uppercase', margin: 0 }}>Адмін-Панель MES</h1>
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => setIsPushBroadcastOpen(true)}
+              style={{
+                background: 'linear-gradient(135deg, #6366f1, #3b82f6)',
+                border: 'none',
+                color: '#fff',
+                padding: '9px 16px',
+                borderRadius: '12px',
+                fontSize: '0.8rem',
+                fontWeight: 900,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '7px',
+                boxShadow: '0 4px 14px rgba(99, 102, 241, 0.35)',
+                transition: 'all 0.2s'
+              }}
+              title="Масова розсилка Push-сповіщень на всі пристрої"
+            >
+              <Radio size={15} />
+              <span>НАДІСЛАТИ PUSH</span>
+            </button>
+          )}
           <div style={{ textAlign: 'right', lineHeight: 1.2 }} className="hide-mobile">
             <div className="nav-user-name" style={{ fontSize: '0.85rem', fontWeight: 800, color: '#f3f4f6' }}>{currentUser?.first_name} {currentUser?.last_name}</div>
             <div style={{ fontSize: '0.65rem', color: '#ff9000', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{currentUser?.position}</div>
@@ -105,7 +133,7 @@ const SettingsModule = () => {
 
         {/* ── TAB 3: SYSTEM CONFIG ── */}
         {activeTab === 'system' && isAdmin && (
-          <SettingsSystemAdminTab {...state} />
+          <SettingsSystemAdminTab {...state} onOpenPushModal={() => setIsPushBroadcastOpen(true)} />
         )}
 
         {/* ── TAB 4: SECURITY AUDIT LOG ── */}
@@ -435,6 +463,12 @@ const SettingsModule = () => {
           }
         }
       `}</style>
+
+      {/* Broadcast Push Notification Modal (Admin Only) */}
+      <BroadcastPushModal
+        isOpen={isPushBroadcastOpen}
+        onClose={() => setIsPushBroadcastOpen(false)}
+      />
     </div>
   )
 }
