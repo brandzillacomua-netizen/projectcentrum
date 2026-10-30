@@ -16,6 +16,43 @@ import {
 } from 'lucide-react'
 import { parseQcOpsStamps } from '../../../Shop1/utils/shop1Helpers.js'
 import { extractCardSequence } from '../../hooks/useBrakData.js'
+import { useStore } from '../../../../store/index.js'
+
+export function resolveCardCuttingStart(card, historyList = []) {
+  if (!card) return null
+
+  // 1. Check metadata [ORIGINAL_START:iso] preserved during shift changes
+  const matchOrig = card.card_info?.match(/\[ORIGINAL_START:([^\]]+)\]/)?.[1]
+  if (matchOrig) {
+    const d = new Date(matchOrig)
+    if (!Number.isNaN(d.getTime())) return matchOrig
+  }
+
+  // 2. Check work_card_history for earlier start on Розкрій
+  if (historyList && historyList.length > 0) {
+    const cardIdStr = String(card.id)
+    const cardHistories = historyList.filter(h =>
+      String(h.card_id) === cardIdStr &&
+      (String(h.stage_name || '').toLowerCase().includes('розкрій'))
+    )
+    let earliest = null
+    for (const h of cardHistories) {
+      const t = h.started_at ? new Date(h.started_at).getTime() : 0
+      if (t > 0 && (!earliest || t < earliest)) {
+        earliest = t
+      }
+    }
+    if (earliest) {
+      const currentStart = card.started_at ? new Date(card.started_at).getTime() : 0
+      if (!currentStart || earliest < currentStart) {
+        return new Date(earliest).toISOString()
+      }
+    }
+  }
+
+  // 3. Fallback to started_at or created_at
+  return card.started_at || card.created_at || null
+}
 
 function formatDurationFromMs(ms) {
   if (!ms || ms < 0) return '0 хв'
@@ -94,6 +131,7 @@ export const BrakActiveCuttingModal = React.memo(({
   const [sortBy, setSortBy] = useState('duration_desc') // 'duration_desc' | 'qc_urgency' | 'machine'
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [now, setNow] = useState(() => Date.now())
+  const workCardHistory = useStore(state => state.workCardHistory) || []
 
   // Keep a live minute ticker for durations
   useEffect(() => {
@@ -156,8 +194,9 @@ export const BrakActiveCuttingModal = React.memo(({
       const sheetsApproved = Boolean(qcData?.sheets?.verified || qcData?.sheets?.approved)
       const hasAnyStamp = stampedOpsCount > 0 || sheetsApproved
 
-      // Duration in cutting
-      const startTime = card.started_at ? new Date(card.started_at).getTime() : new Date(card.created_at || Date.now()).getTime()
+      // Duration in cutting - preserves true start time across shift changes ([ORIGINAL_START] or history)
+      const effectiveStart = resolveCardCuttingStart(card, workCardHistory)
+      const startTime = effectiveStart ? new Date(effectiveStart).getTime() : (card.created_at ? new Date(card.created_at).getTime() : Date.now())
       const durationMs = Math.max(0, now - startTime)
 
       // Time since last VKYA stamp
@@ -203,6 +242,7 @@ export const BrakActiveCuttingModal = React.memo(({
         hasAnyStamp,
         durationMs,
         startTime,
+        effectiveStart,
         lastStampMs,
         lastStampDate,
         sheetsCount,
@@ -213,7 +253,7 @@ export const BrakActiveCuttingModal = React.memo(({
         operatorName: card.operator_name || 'Не вказано'
       }
     })
-  }, [workCards, ordersMap, nomMap, now])
+  }, [workCards, ordersMap, nomMap, workCardHistory, now])
 
   // Extract unique machines list
   const availableMachines = useMemo(() => {
@@ -842,7 +882,7 @@ export const BrakActiveCuttingModal = React.memo(({
                         <div className="time-val" style={{ fontSize: '0.92rem', fontWeight: 950, color: 'var(--text-strong, #fff)' }}>
                           {formatDurationFromMs(durationMs)}
                           <span style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted, #94a3b8)', marginLeft: '6px' }}>
-                            (старт о {formatTimeOnly(card.started_at || card.created_at)})
+                            (старт о {formatTimeOnly(item.effectiveStart || card.started_at || card.created_at)})
                           </span>
                         </div>
                       </div>
