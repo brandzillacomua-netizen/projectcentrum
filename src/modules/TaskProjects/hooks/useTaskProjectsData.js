@@ -160,16 +160,43 @@ export const useTaskProjectsData = () => {
     e.preventDefault()
     if (!taskForm.title.trim() || saving) return
     setSaving(true)
+    const currentProjectId = activeProject?.id || targetProjectId
     const payload = {
       ...taskForm, title: taskForm.title.trim(), description: taskForm.description.trim(),
-      deadline: taskForm.deadline || null, project_id: activeProject?.id || targetProjectId,
+      deadline: taskForm.deadline || null, project_id: currentProjectId,
       assignees: taskForm.assignees, assigned_to: taskForm.assignees[0] || null, is_collective: false,
     }
     const result = editingTask
       ? await updateManagementTask(editingTask.id, payload)
       : await addManagementTask({ status: 'todo', department: 'all', ...payload })
+
+    if (result?.error) {
+      setSaving(false)
+      return alert(`Не вдалося зберегти задачу: ${result.error.message}`)
+    }
+
+    // Automatically add newly assigned users to project team (member_logins) if not already present
+    if (currentProjectId) {
+      const proj = taskProjects.find(p => String(p.id) === String(currentProjectId))
+      if (proj) {
+        const assignedLogins = new Set()
+        asArray(taskForm.assignees).forEach(l => { if (l) assignedLogins.add(l) })
+        asArray(taskForm.checklist).forEach(item => {
+          asArray(item?.assignees).forEach(l => { if (l) assignedLogins.add(l) })
+          if (item?.assignee) assignedLogins.add(item.assignee)
+        })
+
+        const currentMembers = asArray(proj.member_logins)
+        const newMembersToAdd = [...assignedLogins].filter(login => !currentMembers.includes(login))
+
+        if (newMembersToAdd.length > 0) {
+          const updatedMembers = [...currentMembers, ...newMembersToAdd]
+          await updateTaskProject(currentProjectId, { member_logins: updatedMembers })
+        }
+      }
+    }
+
     setSaving(false)
-    if (result?.error) return alert(`Не вдалося зберегти задачу: ${result.error.message}`)
     closeTaskModal()
   }
 
@@ -187,9 +214,27 @@ export const useTaskProjectsData = () => {
   }
 
   const targetProject = activeProject || visibleProjects.find(p => p.id === targetProjectId)
-  const allowedLogins = new Set(asArray(targetProject?.member_logins))
-  const allowedDeptNames = new Set(companyStructure.filter(d => asArray(targetProject?.department_ids).map(String).includes(String(d.id))).map(d => d.name))
-  const assignableUsers = targetProject ? systemUsers.filter(u => allowedLogins.has(u.login) || allowedDeptNames.has(u.department)) : systemUsers
+
+  // Ensure all system users are available for assignment, prioritizing project team members at the top
+  const assignableUsers = useMemo(() => {
+    if (!Array.isArray(systemUsers) || systemUsers.length === 0) return []
+    const allowedLogins = new Set(asArray(targetProject?.member_logins))
+    const allowedDeptNames = new Set(
+      companyStructure
+        .filter(d => asArray(targetProject?.department_ids).map(String).includes(String(d.id)))
+        .map(d => d.name)
+    )
+
+    return [...systemUsers].sort((a, b) => {
+      const aIsMember = allowedLogins.has(a.login) || allowedDeptNames.has(a.department)
+      const bIsMember = allowedLogins.has(b.login) || allowedDeptNames.has(b.department)
+      if (aIsMember && !bIsMember) return -1
+      if (!aIsMember && bIsMember) return 1
+      const nameA = userName(a).toLowerCase()
+      const nameB = userName(b).toLowerCase()
+      return nameA.localeCompare(nameB, 'uk')
+    })
+  }, [systemUsers, targetProject, companyStructure])
 
   const handleAddColumnSubmit = async () => {
     if (!newColTitle.trim() || !activeProject) return

@@ -5,9 +5,18 @@ import { COLORS, taskId, userName } from '../../hooks/useTaskProjectsData.js'
 import { Modal } from './TaskProjectsModal.jsx'
 import TaskProjectsSearchPicker from './TaskProjectsSearchPicker.jsx'
 
-export const TaskProjectsTaskModal = ({ form, setForm, users, editing, saving, onSubmit, onClose, project }) => {
+export const TaskProjectsTaskModal = ({ form, setForm, users = [], editing, saving, onSubmit, onClose, project }) => {
   const [newItem, setNewItem] = useState('')
-  const userOptions = users.map(u => ({ value: u.login, label: userName(u), meta: u.department || '' }))
+  const userOptions = (users || []).map(u => {
+    const metaParts = []
+    if (u.position) metaParts.push(u.position)
+    if (u.department) metaParts.push(u.department)
+    return {
+      value: u.login,
+      label: userName(u),
+      meta: metaParts.join(' · ') || u.login || ''
+    }
+  })
 
   const addItem = (text, parentId = null) => {
     if (!text.trim()) return
@@ -41,10 +50,28 @@ export const TaskProjectsTaskModal = ({ form, setForm, users, editing, saving, o
             {COLORS.map(c => <button type="button" key={c} className={form.color === c ? 'active' : ''} style={{ background: c }} onClick={() => setForm({ ...form, color: c })} />)}
           </div>
         </div>
-        <TaskProjectsSearchPicker label="ВИКОНАВЦІ З КОМАНДИ ПРОЄКТУ" placeholder="Пошук за прізвищем…" options={userOptions} selected={form.assignees} onToggle={value => setForm(prev => ({ ...prev, assignees: prev.assignees.includes(value) ? prev.assignees.filter(v => v !== value) : [...prev.assignees, value] }))} />
+        <TaskProjectsSearchPicker
+          label="ВИКОНАВЦІ (ПРАЦІВНИКИ)"
+          placeholder="Пошук за прізвищем, ім'ям або логіном…"
+          options={userOptions}
+          selected={form.assignees || []}
+          onToggle={value => setForm(prev => ({ ...prev, assignees: (prev.assignees || []).includes(value) ? prev.assignees.filter(v => v !== value) : [...(prev.assignees || []), value] }))}
+        />
         <div className="tp-check-builder">
           <span className="tp-label"><CheckSquare size={13} /> ЧЕКЛІСТ (ПУНКТИ)</span>
-          <ChecklistEditor items={form.checklist} newItem={newItem} setNewItem={setNewItem} onAdd={() => { addItem(newItem); setNewItem('') }} onToggle={toggleItem} onAddSubItem={(parentId, text) => addItem(text, parentId)} onRemove={removeItem} canEdit={true} systemUsers={users} onUpdateAssignee={(itemId, assignees) => updateChecklistItem(itemId, { assignees, assignee: assignees[0] || null })} onUpdateDeadline={(itemId, deadline) => updateChecklistItem(itemId, { deadline: deadline || null })} />
+          <ChecklistEditor
+            items={form.checklist || []}
+            newItem={newItem}
+            setNewItem={setNewItem}
+            onAdd={() => { addItem(newItem); setNewItem('') }}
+            onToggle={toggleItem}
+            onAddSubItem={(parentId, text) => addItem(text, parentId)}
+            onRemove={removeItem}
+            canEdit={true}
+            systemUsers={users || []}
+            onUpdateAssignee={(itemId, assignees) => updateChecklistItem(itemId, { assignees, assignee: assignees[0] || null })}
+            onUpdateDeadline={(itemId, deadline) => updateChecklistItem(itemId, { deadline: deadline || null })}
+          />
         </div>
         <div className="tp-modal-actions">
           <button type="button" className="tp-secondary" onClick={onClose}>Скасувати</button>
