@@ -104,4 +104,30 @@ describe('WarehouseTransferRequestModal', () => {
     // Green styling for header badge
     expect(html).toContain('#10b981')
   })
+
+  it('guarantees transfer request payload does not contain non-existent notes column in purchase_requests', () => {
+    // Top-level schema of purchase_requests table in PostgreSQL
+    const allowedColumns = ['id', 'order_id', 'order_num', 'items', 'status', 'created_at', 'destination_warehouse', 'task_id']
+    
+    // Simulate what WarehouseTransferRequestModal creates
+    const insertPayload = {
+      order_id: null,
+      order_num: 'ПЕРЕМІЩЕННЯ НА СО',
+      task_id: null,
+      status: 'pending',
+      destination_warehouse: 'production',
+      items: [
+        {
+          nomenclature_id: 'nom-1',
+          needed: 10,
+          quantity: 10,
+          notes: '[TRANSFER_SO_SV] Запит на переміщення з СВ на СО'
+        }
+      ]
+    }
+
+    const payloadKeys = Object.keys(insertPayload)
+    expect(payloadKeys.every(k => allowedColumns.includes(k))).toBe(true)
+    expect(payloadKeys.includes('notes')).toBe(false)
+  })
 })

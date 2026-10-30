@@ -290,6 +290,12 @@ export function WarehouseTransferRequestModal({
     setErrorMsg('')
 
     try {
+      const authorName = currentUser
+        ? `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || currentUser.login
+        : 'Комірник СО'
+
+      const transferNote = `[TRANSFER_SO_SV] Запит на переміщення з СВ на СО. ${comment ? `Коментар: ${comment}. ` : ''}Ініціатор: ${authorName}`
+
       const itemsMap = new Map((allItemsList || []).map(it => [it.key, it]))
       const items = Object.entries(quantities)
         .filter(([_, qty]) => Number(qty) > 0)
@@ -305,22 +311,24 @@ export function WarehouseTransferRequestModal({
             quantity: Number(qty),
             source_warehouse: 'production',
             target_warehouse: 'operational',
-            details: `Переміщення на СО: ${it?.name || 'Позиція'} — ${qty} ${it?.unit || 'шт'}`
+            details: `Переміщення на СО: ${it?.name || 'Позиція'} — ${qty} ${it?.unit || 'шт'}`,
+            comment: comment ? String(comment).trim() : null,
+            author: authorName,
+            notes: transferNote
           }
         })
 
-      const authorName = currentUser
-        ? `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || currentUser.login
-        : 'Комірник СО'
+      const orderNum = comment && comment.trim()
+        ? `ПЕРЕМІЩЕННЯ НА СО (${comment.trim().slice(0, 35)})`
+        : 'ПЕРЕМІЩЕННЯ НА СО'
 
       const { error } = await supabase.from('purchase_requests').insert([{
         order_id: null,
-        order_num: 'ПЕРЕМІЩЕННЯ НА СО',
+        order_num: orderNum,
         task_id: null,
         status: 'pending',
         destination_warehouse: 'production',
-        items,
-        notes: `[TRANSFER_SO_SV] Запит на переміщення з СВ на СО. ${comment ? `Коментар: ${comment}. ` : ''}Ініціатор: ${authorName}`
+        items
       }])
 
       if (error) throw error
