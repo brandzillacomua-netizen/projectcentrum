@@ -1469,3 +1469,230 @@ body {
   border: 1px solid #10b981 !important;
   box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3) !important;
 }
+
+/* ==========================================================================
+   VKYA MODALS MOBILE OPTIMIZATION & UNIFIED SCROLLING (PHONES & TABLETS)
+   ========================================================================== */
+@media (max-width: 768px) {
+  /* ── 1. ACTIVE CUTTING CARDS MODAL (КАРТКИ В РОЗКРОЇ) ── */
+  .brak-cutting-modal-overlay {
+    padding: 0 !important;
+    align-items: flex-start !important;
+    justify-content: flex-start !important;
+    overflow: hidden !important;
+  }
+
+  .brak-cutting-modal-content {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    border-radius: 0 !important;
+    border: none !important;
+    /* Entire modal body becomes the single smooth scroll container */
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch !important;
+    overscroll-behavior-y: contain !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  .brak-cutting-header {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 40 !important;
+    padding: 10px 14px !important;
+    background: var(--modal-bg, #0d0f12) !important;
+    border-bottom: 1.5px solid rgba(245, 158, 11, 0.35) !important;
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45) !important;
+    flex-shrink: 0 !important;
+  }
+
+  .brak-cutting-header h2 {
+    font-size: 0.94rem !important;
+    line-height: 1.2 !important;
+  }
+
+  .brak-cutting-subtitle {
+    display: none !important; /* Hide long subtitle on phones to preserve vertical height */
+  }
+
+  .brak-cutting-kpi-bar {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 6px !important;
+    padding: 8px 12px !important;
+    flex-shrink: 0 !important;
+  }
+
+  .brak-cutting-kpi-bar .brak-kpi-card {
+    padding: 6px 10px !important;
+    border-radius: 10px !important;
+  }
+
+  .brak-cutting-kpi-bar .kpi-label {
+    font-size: 0.58rem !important;
+    line-height: 1.15 !important;
+  }
+
+  .brak-cutting-kpi-bar .kpi-val {
+    font-size: 1.15rem !important;
+    margin-top: 2px !important;
+  }
+
+  .brak-cutting-filters-bar {
+    padding: 8px 12px !important;
+    gap: 8px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    flex-shrink: 0 !important;
+  }
+
+  .brak-cutting-search-box {
+    width: 100% !important;
+    flex: 1 1 100% !important;
+    height: 36px !important;
+  }
+
+  .brak-cutting-selects-row {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 6px !important;
+    width: 100% !important;
+    margin-left: 0 !important;
+  }
+
+  .brak-cutting-machine-select,
+  .brak-cutting-sort-select {
+    width: 100% !important;
+    height: 34px !important;
+    font-size: 0.72rem !important;
+    margin-left: 0 !important;
+  }
+
+  .brak-filter-pill-row {
+    width: 100% !important;
+    display: flex !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+    padding-bottom: 2px !important;
+    gap: 6px !important;
+  }
+
+  .brak-filter-pill-row::-webkit-scrollbar {
+    display: none;
+  }
+
+  .brak-filter-pill {
+    flex-shrink: 0 !important;
+    height: 28px !important;
+    font-size: 0.7rem !important;
+    padding: 0 9px !important;
+  }
+
+  .brak-cutting-cards-container {
+    overflow-y: visible !important; /* let modal-content scroll smoothly! */
+    flex: none !important;
+    height: auto !important;
+    padding: 10px 12px 30px !important;
+    gap: 10px !important;
+  }
+
+  .brak-cutting-card-row {
+    padding: 12px !important;
+    border-radius: 14px !important;
+  }
+
+  .brak-inspect-btn {
+    width: 100% !important;
+    justify-content: center !important;
+    padding: 11px !important;
+    font-size: 0.86rem !important;
+    margin-top: 4px !important;
+  }
+
+  .brak-monitoring-boxes {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+
+  /* ── 2. STAMPS JOURNAL MODAL (ЖУРНАЛ ПЕЧАТОК ВКЯ) ── */
+  .brak-journal-modal-overlay {
+    padding: 0 !important;
+    align-items: flex-start !important;
+    justify-content: flex-start !important;
+    overflow: hidden !important;
+  }
+
+  .brak-journal-modal-content {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    border-radius: 0 !important;
+    border: none !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch !important;
+    overscroll-behavior-y: contain !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  .brak-journal-header {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 40 !important;
+    padding: 10px 14px !important;
+    background: var(--modal-bg, #0d0f12) !important;
+    border-bottom: 1.5px solid rgba(16, 185, 129, 0.35) !important;
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45) !important;
+    flex-shrink: 0 !important;
+  }
+
+  .brak-journal-header h2 {
+    font-size: 0.94rem !important;
+    line-height: 1.2 !important;
+  }
+
+  .brak-journal-subtitle {
+    display: none !important;
+  }
+
+  .brak-journal-kpi-cards {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 6px !important;
+    padding: 8px 12px !important;
+    flex-shrink: 0 !important;
+  }
+
+  .brak-journal-kpi-cards .brak-kpi-journal-card {
+    padding: 8px 10px !important;
+    border-radius: 10px !important;
+    gap: 8px !important;
+  }
+
+  .brak-journal-kpi-cards .kpi-label {
+    font-size: 0.58rem !important;
+  }
+
+  .brak-journal-kpi-cards .kpi-val {
+    font-size: 1.15rem !important;
+  }
+
+  .brak-journal-filters-bar {
+    padding: 8px 12px !important;
+    gap: 8px !important;
+    flex-shrink: 0 !important;
+  }
+
+  .brak-journal-body-container {
+    overflow-y: visible !important;
+    flex: none !important;
+    height: auto !important;
+    padding: 10px 12px 30px !important;
+    gap: 10px !important;
+  }
+}

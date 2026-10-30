@@ -83,9 +83,9 @@ const CellCardsModal = ({ selectedCellModal, onClose, onInspectCard, tasks = [],
                   const orderNumText = ord?.order_num ? `Наряд № ${ord.order_num}` : (c.order_id ? `№ ${String(c.order_id).substring(0, 8)}` : 'Без наряду')
 
                   const infoParts = (c.card_info || '').split(' ')
-                  const rawCardNumBadge = infoParts[0] && (infoParts[0].includes('/') || infoParts[0].includes('[')) ? infoParts[0] : (c.card_number || `№ ${String(c.id).substring(0, 8)}`)
+                  const rawCardNumBadge = infoParts[0] && (infoParts[0].includes('/') || infoParts[0].includes('[')) ? infoParts[0] : (c.card_number || `№ ${String(c.id).slice(-8)}`)
                   const cardNumBadge = String(rawCardNumBadge)
-                  const sysHexNum = `#${String(c.id).substring(0, 8).toUpperCase()}`
+                  const sysHexNum = `#${String(c.id).slice(-8).toUpperCase()}`
                   const restCardInfo = infoParts.slice(cardNumBadge === infoParts[0] ? 1 : 0).join(' ')
 
                   return (

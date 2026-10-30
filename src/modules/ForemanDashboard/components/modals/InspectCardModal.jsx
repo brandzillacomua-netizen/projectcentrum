@@ -12,8 +12,8 @@ const InspectCardModal = ({ inspectCardModal, onClose, tasks = [], ordersMap = {
   const infoParts = (inspectCardModal.card_info || '').split(' ')
   const cardNumBadge = infoParts[0] && (infoParts[0].includes('/') || infoParts[0].includes('['))
     ? infoParts[0]
-    : (inspectCardModal.card_number || `№ ${String(inspectCardModal.id).substring(0, 8)}`)
-  const sysHexNum = `#${String(inspectCardModal.id).substring(0, 8).toUpperCase()}`
+    : (inspectCardModal.card_number || `№ ${String(inspectCardModal.id).slice(-8)}`)
+  const sysHexNum = `#${String(inspectCardModal.id).slice(-8).toUpperCase()}`
 
   const task = tasks.find(t => String(t.id) === String(inspectCardModal.task_id))
   const ord = ordersMap[inspectCardModal.order_id] || (task ? ordersMap[task.order_id] : null) || orders.find(o => String(o.id) === String(inspectCardModal.order_id))

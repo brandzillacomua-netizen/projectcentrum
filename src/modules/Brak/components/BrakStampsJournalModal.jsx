@@ -286,7 +286,7 @@ export const BrakStampsJournalModal = React.memo(({
       })
 
       const seqNum = extractCardSequence(card.card_info)
-      const shortHex = String(card.id || '').slice(0, 8).toUpperCase()
+      const shortHex = String(card.id || '').slice(-8).toUpperCase()
       const updatedAt = qcData.updatedAt || card.updated_at || card.created_at
 
       result.push({
@@ -331,7 +331,7 @@ export const BrakStampsJournalModal = React.memo(({
 
       const order = ordersMap.get(row.order_id || linkedCard?.order_id)
       const nom = nomMap.get(row.nomenclature_id || linkedCard?.nomenclature_id)
-      const shortHex = String(row.card_id || '').slice(0, 8).toUpperCase()
+      const shortHex = String(row.card_id || '').slice(-8).toUpperCase()
       const seqNum = extractCardSequence(row.card_info || linkedCard?.card_info)
 
       const rawOp = String(row.operator_name || '')
@@ -488,6 +488,7 @@ export const BrakStampsJournalModal = React.memo(({
 
   return (
     <div
+      className="brak-journal-modal-overlay"
       style={{
         position: 'fixed',
         top: 0,
@@ -530,6 +531,7 @@ export const BrakStampsJournalModal = React.memo(({
       >
         {/* Header */}
         <div
+          className="brak-journal-header"
           style={{
             padding: '18px 26px',
             background: 'linear-gradient(135deg, rgba(16,185,129,0.12) 0%, rgba(6,78,59,0.04) 100%)',
@@ -562,7 +564,7 @@ export const BrakStampsJournalModal = React.memo(({
               <h2 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 950, letterSpacing: '0.3px', color: 'var(--text-color, #fff)' }}>
                 ЖУРНАЛ ПЕЧАТОК ВКЯ · ОБЛІК ПЕРЕВІРЕНИХ КАРТОК ТА ОПЕРАЦІЙ
               </h2>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted, #94a3b8)', fontWeight: 700, marginTop: '3px' }}>
+              <div className="brak-journal-subtitle" style={{ fontSize: '0.75rem', color: 'var(--text-muted, #94a3b8)', fontWeight: 700, marginTop: '3px' }}>
                 Реєстр усіх робочих карток, де контролери ВКЯ підтвердили відповідність листів та погодили технологічні операції
               </div>
             </div>
@@ -656,6 +658,7 @@ export const BrakStampsJournalModal = React.memo(({
 
         {/* Tabs + Filters Bar */}
         <div
+          className="brak-journal-filters-bar"
           style={{
             padding: '12px 26px',
             borderBottom: '1px solid var(--border-color, rgba(148,163,184,0.15))',
@@ -888,7 +891,7 @@ export const BrakStampsJournalModal = React.memo(({
         </div>
 
         {/* Body Content */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '18px 26px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <div className="brak-journal-body-container" style={{ flex: 1, overflowY: 'auto', padding: '18px 26px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
           {activeTab === 'cards' ? (
             paginatedCards.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted, #64748b)' }}>

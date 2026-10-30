@@ -175,18 +175,18 @@ export const BrakActiveCuttingModal = React.memo(({
       const sheetsCount = matchSheets ? Number(matchSheets[1]) : (card.sheets_count || 1)
 
       const seqNum = extractCardSequence(card.card_info)
-      const shortHex = String(card.id || '').slice(0, 8).toUpperCase()
+      const shortHex = String(card.id || '').slice(-8).toUpperCase()
 
       // Inspection state categorization:
       // - uninspected: no stamps at all
-      // - urgent_recheck: inspected > 2 hours ago
-      // - needs_recheck: inspected between 45m and 2h ago
-      // - fresh: inspected < 45m ago
+      // - urgent_recheck: inspected > 4 hours ago
+      // - needs_recheck: inspected > 2 hours ago
+      // - fresh: inspected <= 2 hours ago
       let inspectionTier = 'uninspected'
       if (hasAnyStamp) {
-        if (lastStampMs === null || lastStampMs > 2 * 3600 * 1000) {
+        if (lastStampMs === null || lastStampMs > 4 * 3600 * 1000) {
           inspectionTier = 'urgent_recheck'
-        } else if (lastStampMs > 45 * 60 * 1000) {
+        } else if (lastStampMs > 2 * 3600 * 1000) {
           inspectionTier = 'needs_recheck'
         } else {
           inspectionTier = 'fresh'
@@ -218,7 +218,7 @@ export const BrakActiveCuttingModal = React.memo(({
   // Extract unique machines list
   const availableMachines = useMemo(() => {
     const list = Array.from(new Set(cuttingCards.map(c => c.machineName).filter(Boolean)))
-    return list.sort()
+    return list.sort((a, b) => a.localeCompare(b, 'uk', { numeric: true, sensitivity: 'base' }))
   }, [cuttingCards])
 
   // Filter & Sort
@@ -255,14 +255,13 @@ export const BrakActiveCuttingModal = React.memo(({
       if (sortBy === 'duration_desc') {
         return b.durationMs - a.durationMs
       }
-      if (sortBy === 'qc_urgency') {
-        const tierWeight = { uninspected: 4, urgent_recheck: 3, needs_recheck: 2, fresh: 1 }
-        const diff = (tierWeight[b.inspectionTier] || 0) - (tierWeight[a.inspectionTier] || 0)
-        if (diff !== 0) return diff
-        return b.durationMs - a.durationMs
+      if (sortBy === 'duration_asc') {
+        return a.durationMs - b.durationMs
       }
       if (sortBy === 'machine') {
-        return a.machineName.localeCompare(b.machineName)
+        const cmp = a.machineName.localeCompare(b.machineName, 'uk', { numeric: true, sensitivity: 'base' })
+        if (cmp !== 0) return cmp
+        return b.durationMs - a.durationMs
       }
       return 0
     })
@@ -281,6 +280,7 @@ export const BrakActiveCuttingModal = React.memo(({
 
   return (
     <div
+      className="brak-cutting-modal-overlay"
       style={{
         position: 'fixed',
         top: 0,
@@ -370,7 +370,7 @@ export const BrakActiveCuttingModal = React.memo(({
                   {cuttingCards.length} в роботі
                 </span>
               </div>
-              <div style={{ fontSize: '0.66rem', color: 'var(--text-muted, #94a3b8)', marginTop: '2px' }}>
+              <div className="brak-cutting-subtitle" style={{ fontSize: '0.66rem', color: 'var(--text-muted, #94a3b8)', marginTop: '2px' }}>
                 Контроль часу розкрою на верстатах ЧПК та своєчасне погодження операцій ВКЯ
               </div>
             </div>
@@ -467,7 +467,7 @@ export const BrakActiveCuttingModal = React.memo(({
             }}
           >
             <div className="kpi-label" style={{ fontSize: '0.62rem', fontWeight: 900, color: '#f59e0b', textTransform: 'uppercase' }}>
-              ⏳ Перевірити знову (&gt;45хв)
+              ⏳ Перевірити знову (&gt;2 годин)
             </div>
             <div className="kpi-val" style={{ fontSize: '1.25rem', fontWeight: 950, color: 'var(--text-strong, #fff)', marginTop: '2px' }}>
               {stats.needsRecheck}
@@ -496,6 +496,7 @@ export const BrakActiveCuttingModal = React.memo(({
 
         {/* Filters and Search Bar */}
         <div
+          className="brak-cutting-filters-bar"
           style={{
             padding: '10px 16px',
             background: 'var(--card-inner-bg, rgba(255,255,255,0.015))',
@@ -509,6 +510,7 @@ export const BrakActiveCuttingModal = React.memo(({
         >
           {/* Search Input */}
           <div
+            className="brak-cutting-search-box"
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -546,30 +548,6 @@ export const BrakActiveCuttingModal = React.memo(({
             )}
           </div>
 
-          {/* Machine Filter */}
-          {availableMachines.length > 1 && (
-            <select
-              value={selectedMachine}
-              onChange={e => setSelectedMachine(e.target.value)}
-              style={{
-                height: '34px',
-                padding: '0 10px',
-                borderRadius: '10px',
-                border: '1px solid var(--border-color, rgba(255,255,255,0.1))',
-                background: 'var(--modal-bg, #000)',
-                color: 'var(--text-color, #fff)',
-                fontSize: '0.76rem',
-                fontWeight: 800,
-                outline: 'none'
-              }}
-            >
-              <option value="all">Всі верстати ({availableMachines.length})</option>
-              {availableMachines.map(m => (
-                <option key={m} value={m}>{m}</option>
-              ))}
-            </select>
-          )}
-
           {/* Quick Filter Pills */}
           <div className="brak-filter-pill-row" style={{ display: 'flex', alignItems: 'center', gap: '6px', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
             {[
@@ -603,31 +581,58 @@ export const BrakActiveCuttingModal = React.memo(({
             })}
           </div>
 
-          {/* Sort By */}
-          <select
-            value={sortBy}
-            onChange={e => setSortBy(e.target.value)}
-            style={{
-              height: '34px',
-              padding: '0 10px',
-              borderRadius: '10px',
-              border: '1px solid var(--border-color, rgba(255,255,255,0.1))',
-              background: 'var(--modal-bg, #000)',
-              color: 'var(--text-color, #fff)',
-              fontSize: '0.76rem',
-              fontWeight: 800,
-              outline: 'none',
-              marginLeft: 'auto'
-            }}
-          >
-            <option value="duration_desc">⏱️ Найдовше в роботі</option>
-            <option value="qc_urgency">🚨 Терміновість перевірки ВКЯ</option>
-            <option value="machine">Верстат (А-Я)</option>
-          </select>
+          {/* Selects: Machine & Sorting */}
+          <div className="brak-cutting-selects-row" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto' }}>
+            {availableMachines.length > 1 && (
+              <select
+                className="brak-cutting-machine-select"
+                value={selectedMachine}
+                onChange={e => setSelectedMachine(e.target.value)}
+                style={{
+                  height: '34px',
+                  padding: '0 10px',
+                  borderRadius: '10px',
+                  border: '1px solid var(--border-color, rgba(255,255,255,0.1))',
+                  background: 'var(--modal-bg, #000)',
+                  color: 'var(--text-color, #fff)',
+                  fontSize: '0.76rem',
+                  fontWeight: 800,
+                  outline: 'none'
+                }}
+              >
+                <option value="all">Всі верстати ({availableMachines.length})</option>
+                {availableMachines.map(m => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+            )}
+
+            <select
+              className="brak-cutting-sort-select"
+              value={sortBy}
+              onChange={e => setSortBy(e.target.value)}
+              style={{
+                height: '34px',
+                padding: '0 10px',
+                borderRadius: '10px',
+                border: '1px solid var(--border-color, rgba(255,255,255,0.1))',
+                background: 'var(--modal-bg, #000)',
+                color: 'var(--text-color, #fff)',
+                fontSize: '0.76rem',
+                fontWeight: 800,
+                outline: 'none'
+              }}
+            >
+              <option value="duration_desc">⏱️ Найдовше в роботі</option>
+              <option value="duration_asc">⏳ Найменше в роботі</option>
+              <option value="machine">🔤 Верстат (А-Я)</option>
+            </select>
+          </div>
         </div>
 
         {/* Scrollable Cards Grid / List */}
         <div
+          className="brak-cutting-cards-container"
           style={{
             padding: '14px 16px',
             overflowY: 'auto',
@@ -794,6 +799,7 @@ export const BrakActiveCuttingModal = React.memo(({
 
                   {/* Two Monitoring Boxes: 1. Time in cutting | 2. VKYA last check */}
                   <div
+                    className="brak-monitoring-boxes"
                     style={{
                       display: 'grid',
                       gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',

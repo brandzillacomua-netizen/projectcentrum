@@ -129,7 +129,7 @@ export const BrakCardScrapModal = React.memo(({
               <span>ВІДДІЛ ВКЯ · КАРТКА</span>
             </h3>
             <div style={{ fontSize: '0.64rem', color: 'var(--text-muted, #888)', marginTop: '2px', wordBreak: 'break-word' }}>
-              Замовлення №{orderNum} · Картка #{String(scannedCard.id || '').slice(0, 8).toUpperCase()}
+              Замовлення №{orderNum} · Картка #{String(scannedCard.id || '').slice(-8).toUpperCase()}
             </div>
           </div>
           <button
