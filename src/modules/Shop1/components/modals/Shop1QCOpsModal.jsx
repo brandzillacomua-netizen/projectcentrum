@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import { X, Stamp, CheckCircle2, ShieldCheck, CheckSquare, Square, FileCheck2, Clock, AlertTriangle } from 'lucide-react'
+import { X, Stamp, CheckCircle2, ShieldCheck, CheckSquare, Square, FileCheck2, Clock, Layers } from 'lucide-react'
 import { useStore } from '../../../../store/index.js'
 import { supabase } from '../../../../supabase'
 import { parseQcOpsStamps, stripQcOpsStamps } from '../../utils/shop1Helpers'
@@ -85,20 +85,51 @@ export function Shop1QCOpsModal({
       } catch {}
     }
   }, [inspectorName])
+
   const [sheetsVerified, setSheetsVerified] = useState(false)
   const [sheetsStampInfo, setSheetsStampInfo] = useState(null)
   const [stampedOps, setStampedOps] = useState({})
-  const [checkedSheets, setCheckedSheets] = useState([])
+  const [selectedSheet, setSelectedSheet] = useState('Лист 1, 2')
+  const [activeSideTab, setActiveSideTab] = useState('all') // 'all', 'side1', 'side2', 'side2_cut'
+  const [isHourlyConfirmed, setIsHourlyConfirmed] = useState(false)
   const [hourlyChecks, setHourlyChecks] = useState([])
-  const [selectedSheetForCheck, setSelectedSheetForCheck] = useState(1)
-  const [checkStatus, setCheckStatus] = useState('ok')
-  const [pendingHourlyCheck, setPendingHourlyCheck] = useState(null)
   const [initialState, setInitialState] = useState(null)
 
   const totalSheetsCount = useMemo(() => {
     const matchSheets = String(currentCard?.card_info || '').match(/\[SHEETS:(\d+)\]/)
     return matchSheets ? Math.max(1, Number(matchSheets[1])) : Math.max(1, currentCard?.sheets_count || 1)
   }, [currentCard?.card_info, currentCard?.sheets_count])
+
+  // Check if current machine is a small CNC (12x8 / 1200x800 / Малий / 1.)
+  const isSmallMachine = useMemo(() => {
+    const machineName = currentCard?.machine || ''
+    const norm = machineName.toLowerCase().replace(/х/g, 'x')
+    return (
+      norm.includes('12x8') ||
+      norm.includes('12*8') ||
+      norm.includes('1200x800') ||
+      norm.includes('1200') ||
+      norm.includes('малий') ||
+      norm.includes('1.')
+    )
+  }, [currentCard?.machine])
+
+  // Опції листів для малого станка: Лист 1, 2; Лист 3, 4; Листи 1-N (всі)
+  const smallMachineSheetOptions = useMemo(() => {
+    if (totalSheetsCount <= 2) {
+      return ['Лист 1, 2', 'Всі листи']
+    }
+    const opts = []
+    for (let i = 1; i <= totalSheetsCount; i += 2) {
+      if (i + 1 <= totalSheetsCount) {
+        opts.push(`Лист ${i}, ${i + 1}`)
+      } else {
+        opts.push(`Лист ${i}`)
+      }
+    }
+    opts.push(`Листи 1-${totalSheetsCount} (всі)`)
+    return opts
+  }, [totalSheetsCount])
 
   // Lock body scroll and prevent background scroll bleeding on mobile touch
   useEffect(() => {
@@ -115,20 +146,6 @@ export function Shop1QCOpsModal({
       document.body.style.touchAction = prevTouchAction
     }
   }, [showQCOpsModal])
-
-  // Check if current machine is a small CNC (12x8 / 1200x800 / Малий / 1.)
-  const isSmallMachine = useMemo(() => {
-    const machineName = currentCard?.machine || ''
-    const norm = machineName.toLowerCase().replace(/х/g, 'x')
-    return (
-      norm.includes('12x8') ||
-      norm.includes('12*8') ||
-      norm.includes('1200x800') ||
-      norm.includes('1200') ||
-      norm.includes('малий') ||
-      norm.includes('1.')
-    )
-  }, [currentCard?.machine])
 
   const parentTask = useMemo(
     () => (tasks || []).find(t => String(t.id) === String(currentCard?.task_id)),
@@ -252,32 +269,32 @@ export function Shop1QCOpsModal({
     const existingSheetsVerified = Boolean(parsed?.sheets?.verified)
     const existingSheetsStampInfo = parsed?.sheets || null
     const existingChecks = Array.isArray(parsed?.checks) ? parsed.checks : []
-    const existingCheckedSheets = Array.isArray(parsed?.sheets?.checkedSheets) ? parsed.sheets.checkedSheets : []
 
     setSheetsVerified(existingSheetsVerified)
     setSheetsStampInfo(existingSheetsStampInfo)
     setStampedOps(existingOps)
     setHourlyChecks(existingChecks)
-    setCheckedSheets(existingCheckedSheets)
-    setPendingHourlyCheck(null)
-    setCheckStatus('ok')
-
-    const nextUnchecked = Array.from({ length: totalSheetsCount }, (_, i) => i + 1).find(s => !existingCheckedSheets.includes(s)) || 1
-    setSelectedSheetForCheck(nextUnchecked)
+    setIsHourlyConfirmed(false)
+    setActiveSideTab('all')
 
     if (parsed) {
       if (parsed.lastStamp) setSelectedStamp(parsed.lastStamp)
       if (parsed.lastInspector) setInspectorName(parsed.lastInspector)
+      if (parsed.lastHourlyCheck?.sheetText && isSmallMachine) {
+        setSelectedSheet(parsed.lastHourlyCheck.sheetText)
+      } else {
+        setSelectedSheet(smallMachineSheetOptions[0] || 'Лист 1, 2')
+      }
     } else {
       setSheetsVerified(false)
       setSheetsStampInfo(null)
       setStampedOps({})
+      setSelectedSheet(smallMachineSheetOptions[0] || 'Лист 1, 2')
     }
 
     setInitialState({
       ops: existingOps,
       sheetsVerified: existingSheetsVerified,
-      checkedSheets: existingCheckedSheets,
       checksCount: existingChecks.length,
       updatedAt: parsed?.updatedAt || null
     })
@@ -292,7 +309,7 @@ export function Shop1QCOpsModal({
         : ([currentUser?.last_name, currentUser?.first_name].filter(Boolean).join(' ').trim() || '')
       setInspectorName(savedInspector || currentFullName)
     }
-  }, [showQCOpsModal, currentCard?.id, totalSheetsCount])
+  }, [showQCOpsModal, currentCard?.id, isSmallMachine, smallMachineSheetOptions])
 
   if (!showQCOpsModal || !currentCard) return null
 
@@ -304,6 +321,7 @@ export function Shop1QCOpsModal({
 
   const isInspectorValid = Boolean(inspectorName && inspectorName.trim().length >= 2)
 
+  // Guard: did user actually add/update a stamp or sheet confirmation?
   const hasChanges = useMemo(() => {
     if (!initialState) return false
 
@@ -315,52 +333,17 @@ export function Shop1QCOpsModal({
       if (!initialState.ops[key]) return true
       if (initialState.ops[key].stamp !== stampedOps[key]?.stamp) return true
       if (initialState.ops[key].inspector !== stampedOps[key]?.inspector) return true
+      if (initialState.ops[key].sheet !== stampedOps[key]?.sheet) return true
     }
 
     // 2. Changes in sheets verification
     if (sheetsVerified !== initialState.sheetsVerified) return true
 
-    // 3. New checked sheet added
-    const curChecked = checkedSheets || []
-    const initChecked = initialState.checkedSheets || []
-    if (curChecked.length !== initChecked.length) return true
-    for (const s of curChecked) {
-      if (!initChecked.includes(s)) return true
-    }
-
-    // 4. Staged or added hourly check
-    if (pendingHourlyCheck) return true
-    if ((hourlyChecks || []).length > (initialState.checksCount || 0)) return true
+    // 3. User explicitly confirmed routine check
+    if (isHourlyConfirmed) return true
 
     return false
-  }, [stampedOps, sheetsVerified, checkedSheets, pendingHourlyCheck, hourlyChecks, initialState])
-
-  const handleStageHourlyCheck = () => {
-    if (!isInspectorValid) {
-      alert('Будь ласка, спочатку вкажіть ПІБ контролера ВКЯ!')
-      return
-    }
-    const cleanInspector = inspectorName.trim()
-    const cleanStamp = selectedStamp || 'ВКЯ 1'
-    const stampTime = nowTimeShort()
-
-    const newCheck = {
-      id: `${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-      at: new Date().toISOString(),
-      time: stampTime,
-      inspector: cleanInspector,
-      stamp: cleanStamp,
-      sheetNum: selectedSheetForCheck,
-      status: checkStatus,
-      statusLabel: checkStatus === 'ok' ? 'в нормі (без зауважень)' : checkStatus === 'warning' ? 'зауваження' : 'виявлено брак'
-    }
-
-    setPendingHourlyCheck(newCheck)
-    setHourlyChecks(prev => [newCheck, ...prev.filter(c => c.id !== newCheck.id)])
-    if (!checkedSheets.includes(selectedSheetForCheck)) {
-      setCheckedSheets(prev => [...prev, selectedSheetForCheck])
-    }
-  }
+  }, [stampedOps, sheetsVerified, isHourlyConfirmed, initialState])
 
   const toggleOpStamp = (item) => {
     if (!isInspectorValid) return
@@ -374,6 +357,7 @@ export function Shop1QCOpsModal({
           inspector: inspectorName.trim(),
           name: item.name,
           side: item.side,
+          sheet: isSmallMachine ? selectedSheet : `Листи 1-${totalSheetsCount}`,
           at: nowTimeShort()
         }
       }
@@ -403,15 +387,23 @@ export function Shop1QCOpsModal({
     if (!isInspectorValid) return
     const stampTime = nowTimeShort()
     const nextOps = { ...stampedOps }
-    allItems.forEach(item => {
-      if (!nextOps[item.key]) {
-        nextOps[item.key] = {
-          stamp: selectedStamp || 'ВКЯ 1',
-          inspector: inspectorName.trim(),
-          name: item.name,
-          side: item.side,
-          at: stampTime
-        }
+    const itemsToStamp = activeSideTab === 'all'
+      ? allItems
+      : allItems.filter(i => {
+          if (activeSideTab === 'side1') return i.key.startsWith('s1:')
+          if (activeSideTab === 'side2') return i.key.startsWith('s2:')
+          if (activeSideTab === 'side2_cut') return i.key.startsWith('s2c:')
+          return true
+        })
+
+    itemsToStamp.forEach(item => {
+      nextOps[item.key] = {
+        stamp: selectedStamp || 'ВКЯ 1',
+        inspector: inspectorName.trim(),
+        name: item.name,
+        side: item.side,
+        sheet: isSmallMachine ? selectedSheet : `Листи 1-${totalSheetsCount}`,
+        at: stampTime
       }
     })
     setStampedOps(nextOps)
@@ -430,6 +422,7 @@ export function Shop1QCOpsModal({
     setStampedOps({})
     setSheetsVerified(false)
     setSheetsStampInfo(null)
+    setIsHourlyConfirmed(false)
   }
 
   const handleSaveStamps = async () => {
@@ -439,7 +432,7 @@ export function Shop1QCOpsModal({
       return
     }
     if (!hasChanges) {
-      alert('Змін не виявлено! Для оновлення перевірки відмітьте нову операцію або підтвердіть щогодинний огляд.')
+      alert('Змін не виявлено! Для оновлення перевірки погодьте нову операцію або відповідність листів.')
       return
     }
     setIsProcessing(true)
@@ -451,36 +444,38 @@ export function Shop1QCOpsModal({
         localStorage.setItem('centrum_vkya_inspector', cleanInspector)
       } catch { /* ignore */ }
 
-      const allChecksList = pendingHourlyCheck
-        ? [pendingHourlyCheck, ...hourlyChecks.filter(c => c.id !== pendingHourlyCheck.id)]
-        : hourlyChecks
+      const stampTime = nowTimeShort()
+      const currentSheetText = isSmallMachine ? selectedSheet : `Листи 1-${totalSheetsCount}`
+      const stampedCount = Object.keys(stampedOps).length
 
-      const latestCheck = allChecksList[0] || null
+      const latestCheck = {
+        id: Date.now(),
+        time: stampTime,
+        inspector: cleanInspector,
+        stamp: cleanStamp,
+        sheetText: currentSheetText,
+        statusText: `погоджено ${stampedCount} з ${allItems.length}`
+      }
+
+      const allChecksList = [latestCheck, ...hourlyChecks.filter(c => c.time !== stampTime)].slice(0, 30)
 
       const qcPayload = {
         lastStamp: cleanStamp,
         lastInspector: cleanInspector,
         updatedAt: new Date().toISOString(),
-        sheets: (sheetsVerified || checkedSheets.length > 0) ? {
+        sheets: (sheetsVerified || sheetsStampInfo) ? {
           verified: sheetsVerified,
           stamp: cleanStamp,
           inspector: cleanInspector,
-          at: sheetsStampInfo?.at || nowTimeShort(),
-          checkedSheets: checkedSheets
+          at: sheetsStampInfo?.at || stampTime
         } : null,
         ops: stampedOps,
         checks: allChecksList,
-        lastHourlyCheck: latestCheck ? {
-          time: latestCheck.time,
-          inspector: latestCheck.inspector,
-          stamp: latestCheck.stamp,
-          sheetText: latestCheck.sheetNum ? `Лист ${latestCheck.sheetNum} з ${totalSheetsCount}` : null,
-          statusText: latestCheck.statusLabel || 'в нормі'
-        } : null
+        lastHourlyCheck: latestCheck
       }
 
       const baseInfo = stripQcOpsStamps(currentCard.card_info || '')
-      const hasAnyVerification = sheetsVerified || Object.keys(stampedOps).length > 0 || allChecksList.length > 0
+      const hasAnyVerification = sheetsVerified || stampedCount > 0
       const updatedCardInfo = hasAnyVerification
         ? `${baseInfo} [QC_OPS:${JSON.stringify(qcPayload)}]`.trim()
         : baseInfo
@@ -488,9 +483,7 @@ export function Shop1QCOpsModal({
       const stampedNames = Object.values(stampedOps).map(v => `${v.name} (${v.stamp})`)
       const summaryParts = []
       if (sheetsVerified) summaryParts.push('Листи відповідають ✓')
-      if (latestCheck) {
-        summaryParts.push(`Щогодинний огляд: ${latestCheck.sheetNum ? `Лист ${latestCheck.sheetNum}/${totalSheetsCount} ` : ''}${latestCheck.statusLabel} (${cleanStamp})`)
-      }
+      if (isSmallMachine) summaryParts.push(currentSheetText)
       if (stampedNames.length > 0) {
         summaryParts.push(`Погоджено операцій (${stampedNames.length}/${allItems.length}): ${stampedNames.join('; ')}`)
       }
@@ -543,7 +536,7 @@ export function Shop1QCOpsModal({
       onClose()
       if (typeof showAlert === 'function') {
         showAlert(
-          `Печатку ${cleanStamp} (${cleanInspector}) збережено!\nПогоджено операцій: ${Object.keys(stampedOps).length} з ${allItems.length}${latestCheck ? `\n⏱️ ${latestCheck.sheetNum ? `Лист ${latestCheck.sheetNum}/${totalSheetsCount}: ` : ''}${latestCheck.statusLabel}` : ''}`,
+          `Печатку ${cleanStamp} (${cleanInspector}) збережено!\n${isSmallMachine ? `${currentSheetText} · ` : ''}Погоджено операцій: ${stampedCount} з ${allItems.length}`,
           '💮 Перевірка ВКЯ збережена'
         )
       }
@@ -560,22 +553,29 @@ export function Shop1QCOpsModal({
 
   const renderSection = (title, items) => {
     if (!items || items.length === 0) return null
+    const sectionApprovedCount = items.filter(it => stampedOps[it.key]).length
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
         <div style={{
-          fontSize: '0.68rem',
+          fontSize: '0.72rem',
           fontWeight: 950,
           color: '#10b981',
           textTransform: 'uppercase',
-          letterSpacing: '0.06em',
-          padding: '6px 10px',
+          letterSpacing: '0.05em',
+          padding: '7px 12px',
           background: 'rgba(16, 185, 129, 0.08)',
-          borderRadius: '8px',
-          borderLeft: '3px solid #10b981'
+          borderRadius: '10px',
+          borderLeft: '3.5px solid #10b981',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
         }}>
-          {title} ({items.filter(it => stampedOps[it.key]).length}/{items.length})
+          <span>{title}</span>
+          <span style={{ fontSize: '0.68rem', fontWeight: 900, color: sectionApprovedCount === items.length ? '#10b981' : 'var(--text-dim)' }}>
+            {sectionApprovedCount} / {items.length}
+          </span>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {items.map(item => {
             const stampData = stampedOps[item.key]
             const isChecked = Boolean(stampData)
@@ -588,56 +588,63 @@ export function Shop1QCOpsModal({
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   gap: '12px',
-                  padding: '11px 14px',
+                  padding: '12px 16px',
                   borderRadius: '14px',
                   cursor: isInspectorValid ? 'pointer' : 'not-allowed',
                   opacity: isInspectorValid ? 1 : 0.55,
-                  background: isChecked ? 'rgba(16, 185, 129, 0.1)' : 'var(--surface-inset)',
-                  border: isChecked ? '1.5px solid rgba(16, 185, 129, 0.45)' : '1px solid var(--border-subtle)',
+                  background: isChecked ? 'rgba(16, 185, 129, 0.12)' : 'var(--surface-inset)',
+                  border: isChecked ? '1.5px solid rgba(16, 185, 129, 0.5)' : '1px solid var(--border-subtle)',
                   transition: 'all 0.15s ease'
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0, flex: 1 }}>
                   {isChecked ? (
-                    <CheckSquare size={20} color="#10b981" style={{ flexShrink: 0 }} />
+                    <CheckSquare size={22} color="#10b981" style={{ flexShrink: 0 }} />
                   ) : (
-                    <Square size={20} color="#64748b" style={{ flexShrink: 0 }} />
+                    <Square size={22} color="#64748b" style={{ flexShrink: 0 }} />
                   )}
                   <div style={{ minWidth: 0, flex: 1 }}>
                     <div style={{
-                      fontSize: '0.86rem',
-                      fontWeight: 850,
+                      fontSize: '0.92rem',
+                      fontWeight: 900,
                       color: isChecked ? 'var(--text-strong)' : 'var(--text-muted, #94a3b8)',
-                      lineHeight: 1.25,
+                      lineHeight: 1.3,
                       wordBreak: 'break-word'
                     }}>
                       {item.name}
                     </div>
                     {isChecked && (
-                      <div style={{ fontSize: '0.64rem', color: '#10b981', fontWeight: 800, marginTop: '3px' }}>
-                        ✓ Перевірив: {stampData.inspector} · {stampData.at}
+                      <div style={{ fontSize: '0.66rem', color: '#10b981', fontWeight: 800, marginTop: '3px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                        <span>✓ {stampData.inspector}</span>
+                        <span>·</span>
+                        <span>{stampData.at}</span>
+                        {stampData.sheet && (
+                          <>
+                            <span>·</span>
+                            <span style={{ color: '#f59e0b', fontWeight: 900 }}>{stampData.sheet}</span>
+                          </>
+                        )}
                       </div>
                     )}
                   </div>
                 </div>
 
-                {/* Візуальна кругла/овальна печатка ВКЯ як на паперовому бланку */}
                 {isChecked ? (
                   <div style={{
                     flexShrink: 0,
                     border: '2px double #10b981',
                     color: '#10b981',
-                    background: 'rgba(16, 185, 129, 0.12)',
+                    background: 'rgba(16, 185, 129, 0.15)',
                     borderRadius: '999px',
-                    padding: '4px 11px',
-                    fontSize: '0.72rem',
+                    padding: '4px 12px',
+                    fontSize: '0.74rem',
                     fontWeight: 1000,
                     letterSpacing: '0.06em',
                     transform: 'rotate(-4deg)',
                     boxShadow: '0 0 0 1px rgba(16,185,129,0.2)',
                     textTransform: 'uppercase'
                   }}>
-                    {stampData.stamp}
+                    💮 {stampData.stamp}
                   </div>
                 ) : (
                   <div style={{
@@ -645,8 +652,8 @@ export function Shop1QCOpsModal({
                     border: '1px dashed var(--border-subtle, #475569)',
                     color: 'var(--text-dim, #64748b)',
                     borderRadius: '999px',
-                    padding: '3px 8px',
-                    fontSize: '0.66rem',
+                    padding: '4px 10px',
+                    fontSize: '0.7rem',
                     fontWeight: 800,
                     whiteSpace: 'nowrap'
                   }}>
@@ -676,8 +683,8 @@ export function Shop1QCOpsModal({
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        zIndex: 100100, // Strictly higher than BrakCardScrapModal (100060) and mobile-app-topbar (99990)
-        padding: '8px',
+        zIndex: 100100,
+        padding: '12px',
         boxSizing: 'border-box',
         overflow: 'hidden',
         overscrollBehavior: 'contain',
@@ -693,11 +700,11 @@ export function Shop1QCOpsModal({
         style={{
           background: 'var(--surface-1)',
           width: '100%',
-          maxWidth: '640px',
-          maxHeight: 'calc(100dvh - 16px)',
+          maxWidth: '700px',
+          maxHeight: 'calc(100dvh - 24px)',
           display: 'flex',
           flexDirection: 'column',
-          borderRadius: '20px',
+          borderRadius: '24px',
           border: '1.5px solid rgba(16, 185, 129, 0.4)',
           overflow: 'hidden',
           boxShadow: '0 24px 64px rgba(0,0,0,0.65), 0 0 32px rgba(16, 185, 129, 0.15)'
@@ -706,7 +713,7 @@ export function Shop1QCOpsModal({
       >
         {/* Header */}
         <div style={{
-          padding: '12px 16px',
+          padding: '14px 18px',
           background: 'var(--surface-2)',
           display: 'flex',
           justifyContent: 'space-between',
@@ -716,28 +723,28 @@ export function Shop1QCOpsModal({
           flexShrink: 0
         }}>
           <div style={{ minWidth: 0, flex: 1 }}>
-            <h3 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 950, color: '#10b981', display: 'flex', alignItems: 'center', gap: '8px', lineHeight: 1.2 }}>
-              <Stamp size={18} style={{ flexShrink: 0 }} />
+            <h3 style={{ margin: 0, fontSize: '0.96rem', fontWeight: 950, color: '#10b981', display: 'flex', alignItems: 'center', gap: '8px', lineHeight: 1.2 }}>
+              <Stamp size={20} style={{ flexShrink: 0 }} />
               <span style={{ wordBreak: 'break-word' }}>ПЕЧАТКА ВКЯ · ПОГОДЖЕННЯ ОПЕРАЦІЙ</span>
             </h3>
-            <div style={{ fontSize: '0.66rem', color: 'var(--text-dim)', marginTop: '3px', fontWeight: 700, wordBreak: 'break-word' }}>
+            <div style={{ fontSize: '0.68rem', color: 'var(--text-dim)', marginTop: '4px', fontWeight: 700, wordBreak: 'break-word' }}>
               Картка #{String(currentCard.id).slice(-8).toUpperCase()} · {nomenclature?.name || 'Деталь'} · {currentCard.machine || 'Верстат'}
             </div>
           </div>
           <button
             onClick={onClose}
-            style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', padding: '6px', flexShrink: 0 }}
+            style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', padding: '6px', flexShrink: 0, borderRadius: '8px' }}
           >
             <X size={22} />
           </button>
         </div>
 
-        {/* Body */}
+        {/* Modal Body - Single clean smooth scrollable view without tiny nested sub-scrolls */}
         <div style={{
-          padding: '12px 14px',
+          padding: '16px 20px',
           display: 'flex',
           flexDirection: 'column',
-          gap: '12px',
+          gap: '14px',
           overflowY: 'auto',
           flex: 1,
           overscrollBehavior: 'contain',
@@ -836,7 +843,7 @@ export function Shop1QCOpsModal({
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               {sheetsVerified ? <CheckSquare size={21} color="#10b981" /> : <Square size={21} color="#64748b" />}
               <div>
-                <div style={{ fontSize: '0.82rem', fontWeight: 950, color: 'var(--text-strong)' }}>
+                <div style={{ fontSize: '0.84rem', fontWeight: 950, color: 'var(--text-strong)' }}>
                   Листи відповідають: <span style={{ color: '#10b981' }}>{materialLabel}</span>
                 </div>
                 <div style={{ fontSize: '0.65rem', color: 'var(--text-dim)', fontWeight: 700, marginTop: '2px' }}>
@@ -861,177 +868,141 @@ export function Shop1QCOpsModal({
             )}
           </div>
 
-          {/* Блок «Щогодинний контроль розкрою» */}
-          <div
-            style={{
-              background: pendingHourlyCheck ? 'rgba(56, 189, 248, 0.12)' : 'var(--surface-inset)',
-              border: pendingHourlyCheck ? '1.5px solid #38bdf8' : '1px solid var(--border-subtle)',
+          {/* Вибір листів для малого станка (ТІЛЬКИ для малого станка, інші станки зразу всі листи) */}
+          {isSmallMachine && (
+            <div style={{
+              background: 'rgba(245, 158, 11, 0.05)',
+              border: '1.5px solid rgba(245, 158, 11, 0.25)',
               borderRadius: '16px',
-              padding: '14px',
+              padding: '12px 14px',
               display: 'flex',
               flexDirection: 'column',
-              gap: '12px'
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Clock size={18} color="#38bdf8" />
-                <span style={{ fontSize: '0.78rem', fontWeight: 950, color: '#38bdf8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                  Щогодинний контроль розкрою
+              gap: '8px'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ fontSize: '0.85rem' }}>📍</span>
+                  <span style={{ fontSize: '0.68rem', color: '#f59e0b', fontWeight: 950, textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                    Листи розкрою (малий станок 12×8)
+                  </span>
+                </div>
+                <span style={{ fontSize: '0.62rem', color: 'var(--text-dim)', fontWeight: 800 }}>
+                  Всього в наряді: {totalSheetsCount} лист.
                 </span>
               </div>
-              {hourlyChecks.length > 0 && (
-                <span style={{ fontSize: '0.66rem', fontWeight: 800, color: 'var(--text-dim)' }}>
-                  Проведено оглядів: <strong style={{ color: '#38bdf8' }}>{hourlyChecks.length}</strong>
-                </span>
-              )}
-            </div>
-
-            {/* Вибір перевіреного листа */}
-            <div>
-              <label style={{ fontSize: '0.64rem', fontWeight: 900, color: 'var(--text-dim)', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>
-                Поточний лист розкрою (всього листів: {totalSheetsCount}):
-              </label>
-              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                {Array.from({ length: totalSheetsCount }, (_, i) => i + 1).map(sheetNum => {
-                  const isChecked = checkedSheets.includes(sheetNum)
-                  const isSelected = selectedSheetForCheck === sheetNum
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                {smallMachineSheetOptions.map(sheet => {
+                  const isSel = selectedSheet === sheet
                   return (
                     <button
-                      key={sheetNum}
+                      key={sheet}
                       type="button"
-                      onClick={() => setSelectedSheetForCheck(sheetNum)}
+                      onClick={() => setSelectedSheet(sheet)}
                       style={{
-                        padding: '6px 12px',
-                        borderRadius: '10px',
-                        fontSize: '0.74rem',
-                        fontWeight: 900,
+                        padding: '9px 16px',
+                        borderRadius: '12px',
+                        fontSize: '0.84rem',
+                        fontWeight: 950,
                         cursor: 'pointer',
-                        background: isSelected
-                          ? '#38bdf8'
-                          : isChecked
-                          ? 'rgba(16, 185, 129, 0.15)'
-                          : 'var(--surface-2)',
-                        color: isSelected
-                          ? '#000'
-                          : isChecked
-                          ? '#10b981'
-                          : 'var(--text-strong)',
-                        border: isSelected
-                          ? '1.5px solid #38bdf8'
-                          : isChecked
-                          ? '1px solid #10b981'
-                          : '1px solid var(--border-subtle)',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '5px'
+                        background: isSel ? '#f59e0b' : 'var(--surface-2)',
+                        color: isSel ? '#000' : 'var(--text-strong)',
+                        border: isSel ? '1.5px solid #f59e0b' : '1px solid var(--border-subtle)',
+                        transition: 'all 0.15s ease',
+                        boxShadow: isSel ? '0 2px 8px rgba(245, 158, 11, 0.3)' : 'none'
                       }}
                     >
-                      <span>Лист {sheetNum}</span>
-                      {isChecked && <CheckCircle2 size={13} />}
+                      {sheet}
                     </button>
                   )
                 })}
               </div>
             </div>
+          )}
 
-            {/* Статус контролю (3 кнопки) */}
-            <div>
-              <label style={{ fontSize: '0.64rem', fontWeight: 900, color: 'var(--text-dim)', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>
-                Результат огляду деталі / різу:
-              </label>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '6px' }}>
+          {/* Таби сторін за аналогією з перезмінкою (1 сторона / 2 сторона / 2 сторона вирізка) */}
+          {totalOpsCount > 0 && (
+            <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '2px' }}>
+              <button
+                type="button"
+                onClick={() => setActiveSideTab('all')}
+                style={{
+                  padding: '7px 14px',
+                  borderRadius: '10px',
+                  fontSize: '0.74rem',
+                  fontWeight: 900,
+                  cursor: 'pointer',
+                  background: activeSideTab === 'all' ? '#10b981' : 'var(--surface-2)',
+                  color: activeSideTab === 'all' ? '#000' : 'var(--text-strong)',
+                  border: activeSideTab === 'all' ? '1px solid #10b981' : '1px solid var(--border-subtle)',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                Усі операції ({allItems.length})
+              </button>
+              {s1Ops.length > 0 && (
                 <button
                   type="button"
-                  onClick={() => setCheckStatus('ok')}
+                  onClick={() => setActiveSideTab('side1')}
                   style={{
-                    padding: '8px 10px',
+                    padding: '7px 14px',
                     borderRadius: '10px',
-                    fontSize: '0.72rem',
+                    fontSize: '0.74rem',
                     fontWeight: 900,
                     cursor: 'pointer',
-                    background: checkStatus === 'ok' ? 'rgba(16, 185, 129, 0.2)' : 'var(--surface-2)',
-                    color: checkStatus === 'ok' ? '#10b981' : 'var(--text-dim)',
-                    border: checkStatus === 'ok' ? '1.5px solid #10b981' : '1px solid var(--border-subtle)',
-                    textAlign: 'center'
+                    background: activeSideTab === 'side1' ? '#10b981' : 'var(--surface-2)',
+                    color: activeSideTab === 'side1' ? '#000' : 'var(--text-strong)',
+                    border: activeSideTab === 'side1' ? '1px solid #10b981' : '1px solid var(--border-subtle)',
+                    whiteSpace: 'nowrap'
                   }}
                 >
-                  ✓ Без відхилень
+                  1 сторона ({s1Ops.length})
                 </button>
+              )}
+              {s2Ops.length > 0 && (
                 <button
                   type="button"
-                  onClick={() => setCheckStatus('warning')}
+                  onClick={() => setActiveSideTab('side2')}
                   style={{
-                    padding: '8px 10px',
+                    padding: '7px 14px',
                     borderRadius: '10px',
-                    fontSize: '0.72rem',
+                    fontSize: '0.74rem',
                     fontWeight: 900,
                     cursor: 'pointer',
-                    background: checkStatus === 'warning' ? 'rgba(245, 158, 11, 0.2)' : 'var(--surface-2)',
-                    color: checkStatus === 'warning' ? '#f59e0b' : 'var(--text-dim)',
-                    border: checkStatus === 'warning' ? '1.5px solid #f59e0b' : '1px solid var(--border-subtle)',
-                    textAlign: 'center'
+                    background: activeSideTab === 'side2' ? '#10b981' : 'var(--surface-2)',
+                    color: activeSideTab === 'side2' ? '#000' : 'var(--text-strong)',
+                    border: activeSideTab === 'side2' ? '1px solid #10b981' : '1px solid var(--border-subtle)',
+                    whiteSpace: 'nowrap'
                   }}
                 >
-                  ⚠️ Зауваження
+                  2 сторона ({s2Ops.length})
                 </button>
+              )}
+              {s2CutOps.length > 0 && (
                 <button
                   type="button"
-                  onClick={() => setCheckStatus('defect')}
+                  onClick={() => setActiveSideTab('side2_cut')}
                   style={{
-                    padding: '8px 10px',
+                    padding: '7px 14px',
                     borderRadius: '10px',
-                    fontSize: '0.72rem',
+                    fontSize: '0.74rem',
                     fontWeight: 900,
                     cursor: 'pointer',
-                    background: checkStatus === 'defect' ? 'rgba(239, 68, 68, 0.2)' : 'var(--surface-2)',
-                    color: checkStatus === 'defect' ? '#ef4444' : 'var(--text-dim)',
-                    border: checkStatus === 'defect' ? '1.5px solid #ef4444' : '1px solid var(--border-subtle)',
-                    textAlign: 'center'
+                    background: activeSideTab === 'side2_cut' ? '#10b981' : 'var(--surface-2)',
+                    color: activeSideTab === 'side2_cut' ? '#000' : 'var(--text-strong)',
+                    border: activeSideTab === 'side2_cut' ? '1px solid #10b981' : '1px solid var(--border-subtle)',
+                    whiteSpace: 'nowrap'
                   }}
                 >
-                  🚨 Брак
+                  2 ст. вирізка ({s2CutOps.length})
                 </button>
-              </div>
+              )}
             </div>
-
-            {/* Кнопка затвердження щогодинного огляду */}
-            <button
-              type="button"
-              onClick={handleStageHourlyCheck}
-              disabled={!isInspectorValid}
-              style={{
-                width: '100%',
-                padding: '10px 14px',
-                borderRadius: '11px',
-                border: 'none',
-                background: pendingHourlyCheck
-                  ? 'rgba(56, 189, 248, 0.25)'
-                  : 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
-                color: '#fff',
-                fontSize: '0.8rem',
-                fontWeight: 950,
-                cursor: !isInspectorValid ? 'not-allowed' : 'pointer',
-                opacity: !isInspectorValid ? 0.5 : 1,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px'
-              }}
-            >
-              <Clock size={16} />
-              <span>
-                {pendingHourlyCheck
-                  ? `✓ ОГЛЯД ЛИСТА ${selectedSheetForCheck} ЗАТВЕРДЖЕНО (НАТИСНІТЬ ЗБЕРЕГТИ НИЖЧЕ)`
-                  : `⏱️ ПІДТВЕРДИТИ ОГЛЯД ЛИСТА ${selectedSheetForCheck} (${selectedStamp})`}
-              </span>
-            </button>
-          </div>
+          )}
 
           {/* Швидкі дії */}
           {totalOpsCount > 0 && (
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-              <div style={{ fontSize: '0.74rem', fontWeight: 900, color: 'var(--text-dim)' }}>
+              <div style={{ fontSize: '0.76rem', fontWeight: 900, color: 'var(--text-dim)' }}>
                 Погоджено операцій: <strong style={{ color: '#10b981' }}>{stampedCount}</strong> з <strong>{totalOpsCount}</strong>
               </div>
               <div style={{ display: 'flex', gap: '8px' }}>
@@ -1045,13 +1016,13 @@ export function Shop1QCOpsModal({
                     color: '#10b981',
                     padding: '6px 12px',
                     borderRadius: '9px',
-                    fontSize: '0.72rem',
+                    fontSize: '0.74rem',
                     fontWeight: 900,
                     cursor: isInspectorValid ? 'pointer' : 'not-allowed',
                     opacity: isInspectorValid ? 1 : 0.45
                   }}
                 >
-                  ✓ Погодити всі операції
+                  ✓ Погодити {activeSideTab !== 'all' ? 'обрану сторону' : 'всі операції'}
                 </button>
                 {stampedCount > 0 && (
                   <button
@@ -1063,7 +1034,7 @@ export function Shop1QCOpsModal({
                       color: '#ef4444',
                       padding: '6px 10px',
                       borderRadius: '9px',
-                      fontSize: '0.72rem',
+                      fontSize: '0.74rem',
                       fontWeight: 800,
                       cursor: 'pointer'
                     }}
@@ -1075,7 +1046,7 @@ export function Shop1QCOpsModal({
             </div>
           )}
 
-          {/* Таблиця операцій з техпроцесу */}
+          {/* Таблиця операцій з техпроцесу - повнорозмірна без вкладеного маленького скролбоксу */}
           {totalOpsCount === 0 ? (
             <div style={{
               padding: '24px',
@@ -1084,16 +1055,55 @@ export function Shop1QCOpsModal({
               borderRadius: '14px',
               border: '1px solid var(--border-subtle)',
               color: 'var(--text-dim)',
-              fontSize: '0.82rem',
+              fontSize: '0.84rem',
               fontWeight: 700
             }}>
               Для цієї деталі ще не заповнено поопераційний список у техпроцесі інженера, але ви можете підтвердити відповідність листів та поставити загальну печатку ВКЯ на картку.
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', maxHeight: '380px', overflowY: 'auto', paddingRight: '4px' }}>
-              {renderSection('Операція (1 сторона)', allItems.filter(i => i.key.startsWith('s1:')))}
-              {renderSection('Операція (2 сторона)', allItems.filter(i => i.key.startsWith('s2:')))}
-              {renderSection(`Операція (2 сторона вирізка) ${isCutter1_5 ? 'Ф1.5мм' : 'Ф2мм'}`, allItems.filter(i => i.key.startsWith('s2c:')))}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              {(activeSideTab === 'all' || activeSideTab === 'side1') &&
+                renderSection('Операція (1 сторона)', allItems.filter(i => i.key.startsWith('s1:')))}
+              {(activeSideTab === 'all' || activeSideTab === 'side2') &&
+                renderSection('Операція (2 сторона)', allItems.filter(i => i.key.startsWith('s2:')))}
+              {(activeSideTab === 'all' || activeSideTab === 'side2_cut') &&
+                renderSection(`Операція (2 сторона вирізка) ${isCutter1_5 ? 'Ф1.5мм' : 'Ф2мм'}`, allItems.filter(i => i.key.startsWith('s2c:')))}
+            </div>
+          )}
+
+          {/* Чергова щогодинна перевірка якщо всі операції вже погоджені */}
+          {totalOpsCount > 0 && stampedCount === totalOpsCount && (
+            <div
+              style={{
+                padding: '12px 14px',
+                background: isHourlyConfirmed ? 'rgba(16, 185, 129, 0.15)' : 'rgba(56, 189, 248, 0.08)',
+                border: isHourlyConfirmed ? '1.5px solid #10b981' : '1px solid rgba(56, 189, 248, 0.3)',
+                borderRadius: '14px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '10px',
+                cursor: isInspectorValid ? 'pointer' : 'not-allowed'
+              }}
+              onClick={() => {
+                if (!isInspectorValid) return
+                setIsHourlyConfirmed(prev => !prev)
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Clock size={20} color={isHourlyConfirmed ? '#10b981' : '#38bdf8'} />
+                <div>
+                  <div style={{ fontSize: '0.82rem', fontWeight: 950, color: 'var(--text-strong)' }}>
+                    {isHourlyConfirmed
+                      ? '✓ Черговий огляд підтверджено (таймер оновиться)'
+                      : `Фіксація чергового огляду (${isSmallMachine ? selectedSheet : 'Всі листи'})`}
+                  </div>
+                  <div style={{ fontSize: '0.66rem', color: 'var(--text-dim)', fontWeight: 700, marginTop: '2px' }}>
+                    Всі операції вже погоджено. Натисніть тут для оновлення 1-годинного таймера перевірки.
+                  </div>
+                </div>
+              </div>
+              {isHourlyConfirmed ? <CheckSquare size={20} color="#10b981" /> : <Square size={20} color="#64748b" />}
             </div>
           )}
 
@@ -1104,35 +1114,43 @@ export function Shop1QCOpsModal({
               onClick={handleSaveStamps}
               disabled={isProcessing || !isInspectorValid || !hasChanges}
               style={{
+                width: '100%',
                 background: !hasChanges
                   ? 'var(--surface-2, rgba(255,255,255,0.06))'
                   : 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
                 color: !hasChanges ? 'var(--text-muted, #94a3b8)' : '#fff',
-                border: !hasChanges ? '1px solid var(--border-subtle, rgba(255,255,255,0.12))' : 'none',
-                padding: '16px',
-                borderRadius: '15px',
-                fontSize: '0.94rem',
-                fontWeight: 1000,
+                border: !hasChanges ? '1.5px solid var(--border-subtle, rgba(255,255,255,0.12))' : 'none',
+                padding: '16px 20px',
+                borderRadius: '16px',
+                fontSize: '0.96rem',
+                fontWeight: 950,
                 cursor: (isProcessing || !isInspectorValid || !hasChanges) ? 'not-allowed' : 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: '8px',
-                boxShadow: hasChanges ? '0 10px 28px rgba(16, 185, 129, 0.3)' : 'none',
+                textTransform: 'uppercase',
+                letterSpacing: '0.04em',
+                boxShadow: hasChanges ? '0 8px 24px rgba(16, 185, 129, 0.3)' : 'none',
                 opacity: (isProcessing || !isInspectorValid) ? 0.45 : 1,
                 transition: 'all 0.2s ease'
               }}
             >
-              <FileCheck2 size={20} />
-              <span>
-                {isProcessing
-                  ? 'ЗБЕРЕЖЕННЯ ПЕЧАТКИ...'
-                  : !isInspectorValid
-                    ? 'ВКАЖІТЬ ПІБ КОНТРОЛЕРА ВКЯ ДЛЯ ПЕЧАТКИ'
-                    : !hasChanges
-                      ? '✓ ЗМІН НЕ ВНЕСЕНО (ТАЙМЕР НЕ СКИДАЄТЬСЯ)'
-                      : `ЗБЕРЕГТИ ПЕРЕВІРКУ ВКЯ (${selectedStamp})`}
-              </span>
+              {isProcessing ? (
+                <span>ЗБЕРЕЖЕННЯ ПЕЧАТКИ...</span>
+              ) : !isInspectorValid ? (
+                <span>ВКАЖІТЬ ПІБ КОНТРОЛЕРА ВКЯ</span>
+              ) : !hasChanges ? (
+                <>
+                  <FileCheck2 size={18} />
+                  <span>✓ ЗМІН НЕ ВНЕСЕНО (ТАЙМЕР НЕ СКИДАЄТЬСЯ)</span>
+                </>
+              ) : (
+                <>
+                  <Stamp size={18} />
+                  <span>ЗБЕРЕГТИ ПЕРЕВІРКУ ВКЯ ({selectedStamp})</span>
+                </>
+              )}
             </button>
 
             {!hasChanges && (
@@ -1140,9 +1158,10 @@ export function Shop1QCOpsModal({
                 textAlign: 'center',
                 fontSize: '0.68rem',
                 color: 'var(--text-dim, #64748b)',
-                fontWeight: 700
+                fontWeight: 700,
+                lineHeight: 1.35
               }}>
-                ℹ️ Захист від пустого кліку: таймер оновлюється лише коли відмічено нову операцію або підтверджено щогодинний огляд листа вище.
+                ℹ️ Захист від пустого кліку: таймер оновлюється лише коли погоджено нову операцію, змінено статус листів або підтверджено черговий огляд.
               </div>
             )}
 
@@ -1151,12 +1170,13 @@ export function Shop1QCOpsModal({
               onClick={onClose}
               disabled={isProcessing}
               style={{
+                width: '100%',
                 background: 'none',
                 border: '1px solid var(--border-subtle, rgba(255,255,255,0.12))',
                 color: 'var(--text-muted, #94a3b8)',
-                padding: '10px',
-                borderRadius: '12px',
-                fontSize: '0.78rem',
+                padding: '12px',
+                borderRadius: '14px',
+                fontSize: '0.84rem',
                 fontWeight: 800,
                 cursor: 'pointer'
               }}
@@ -1169,4 +1189,3 @@ export function Shop1QCOpsModal({
     </div>
   )
 }
-
