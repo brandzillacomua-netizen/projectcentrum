@@ -11,9 +11,11 @@ import {
   Tablet,
   ShoppingBag,
   Warehouse,
-  AlertTriangle
+  AlertTriangle,
+  Radio
 } from 'lucide-react'
 import { useMES } from '../MESContext'
+import { BroadcastPushModal } from '../components/common/BroadcastPushModal'
 
 const NotificationsPage = () => {
   const navigate = useNavigate()
@@ -32,6 +34,7 @@ const NotificationsPage = () => {
   } = useMES()
 
   const [activeFilter, setActiveFilter] = useState('all')
+  const [isPushBroadcastOpen, setIsPushBroadcastOpen] = useState(false)
 
   const [readNotifIds, setReadNotifIds] = useState(() => {
     if (!currentUser) return []
@@ -290,15 +293,15 @@ const NotificationsPage = () => {
             </div>
           </div>
 
-          {/* Right: Mark all as read button */}
-          {unreadCount > 0 && (
+          {/* Right: Push Broadcast and Mark all as read buttons */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <button
-              onClick={markAllNotifsAsRead}
+              onClick={() => setIsPushBroadcastOpen(true)}
               style={{
-                background: 'linear-gradient(135deg, rgba(255,144,0,0.15), rgba(255,144,0,0.08))',
-                border: '1px solid rgba(255, 144, 0, 0.3)',
-                color: '#ff9000',
-                padding: '6px 12px',
+                background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
+                border: 'none',
+                color: '#fff',
+                padding: '6px 14px',
                 borderRadius: '10px',
                 fontSize: '0.75rem',
                 fontWeight: 800,
@@ -307,12 +310,36 @@ const NotificationsPage = () => {
                 flexShrink: 0,
                 display: 'flex',
                 alignItems: 'center',
-                gap: '5px'
+                gap: '6px',
+                boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)'
               }}
             >
-              <Check size={14} /> Прочитати все
+              <Radio size={14} /> Надіслати PUSH
             </button>
-          )}
+
+            {unreadCount > 0 && (
+              <button
+                onClick={markAllNotifsAsRead}
+                style={{
+                  background: 'linear-gradient(135deg, rgba(255,144,0,0.15), rgba(255,144,0,0.08))',
+                  border: '1px solid rgba(255, 144, 0, 0.3)',
+                  color: '#ff9000',
+                  padding: '6px 12px',
+                  borderRadius: '10px',
+                  fontSize: '0.75rem',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px'
+                }}
+              >
+                <Check size={14} /> Прочитати все
+              </button>
+            )}
+          </div>
         </div>
       </header>
 
@@ -414,6 +441,12 @@ const NotificationsPage = () => {
           </div>
         )}
       </div>
+
+      {/* Broadcast Push Notification Modal */}
+      <BroadcastPushModal
+        isOpen={isPushBroadcastOpen}
+        onClose={() => setIsPushBroadcastOpen(false)}
+      />
     </div>
   )
 }

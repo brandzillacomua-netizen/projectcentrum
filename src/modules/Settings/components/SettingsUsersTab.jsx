@@ -53,6 +53,8 @@ export function SettingsUsersTab(props) {
     getStructureTypeIcon,
     typeColors,
     renderUserAvatar,
+    grantCorporateToAll,
+    isGrantingCorporate,
     nowTick
   } = props
 
@@ -239,7 +241,7 @@ export function SettingsUsersTab(props) {
             </button>
             {userForm.id && (
               <button type="button" 
-                onClick={() => setUserForm({ id: null, login: '', password: '', first_name: '', last_name: '', position: companyPositions?.[0]?.name || 'Оператор', department: companyStructure?.[0]?.name || 'Цех №1', shift: 'Без зміни', access_rights: { operator: true } })} 
+                onClick={() => setUserForm({ id: null, login: '', password: '', first_name: '', last_name: '', position: companyPositions?.[0]?.name || 'Оператор', department: companyStructure?.[0]?.name || 'Цех №1', shift: 'Без зміни', access_rights: { operator: true, corporate: true } })} 
                 style={{ background: 'var(--fill-subtle)', color: 'var(--text-strong)', border: '1px solid var(--border-subtle)', padding: '10px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', transition: '0.2s' }}
               >
                 СКАСУВАТИ
@@ -261,7 +263,7 @@ export function SettingsUsersTab(props) {
               </h3>
               <button
                 onClick={() => {
-                  setUserForm({ id: null, login: '', password: '', first_name: '', last_name: '', position: companyPositions?.[0]?.name || 'Оператор', department: companyStructure?.[0]?.name || 'Цех №1', shift: 'Без зміни', access_rights: { operator: true } })
+                  setUserForm({ id: null, login: '', password: '', first_name: '', last_name: '', position: companyPositions?.[0]?.name || 'Оператор', department: companyStructure?.[0]?.name || 'Цех №1', shift: 'Без зміни', access_rights: { operator: true, corporate: true } })
                   setShowMobileUserForm(true)
                   window.scrollTo({ top: 0, behavior: 'smooth' })
                 }}
@@ -311,6 +313,32 @@ export function SettingsUsersTab(props) {
               >
                 <Upload size={14} /> Імпорт з CSV
               </button>
+
+              {typeof grantCorporateToAll === 'function' && (
+                <button
+                  style={{
+                    background: 'rgba(99, 102, 241, 0.12)',
+                    border: '1px solid rgba(99, 102, 241, 0.35)',
+                    color: '#818cf8',
+                    padding: '6px 12px',
+                    borderRadius: '8px',
+                    fontSize: '0.72rem',
+                    fontWeight: 800,
+                    cursor: isGrantingCorporate ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    transition: '0.2s',
+                    opacity: isGrantingCorporate ? 0.6 : 1
+                  }}
+                  type="button"
+                  disabled={isGrantingCorporate}
+                  onClick={grantCorporateToAll}
+                  title="Увімкнути галочку Корпоративного порталу для всіх співробітників у базі"
+                >
+                  <ShieldCheck size={14} /> {isGrantingCorporate ? 'Оновлення...' : 'Корп. Портал для всіх'}
+                </button>
+              )}
             </div>
             <div style={{ position: 'relative', width: '260px' }}>
               <Search size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-dim)' }} />

@@ -133,6 +133,7 @@ export const ROUTE_DATA_PROFILES = Object.freeze({
   '/brak': ['inventory', 'nomenclatures', 'work_cards', 'orders', 'machine_calls', 'machines', 'work_card_history', 'system_users', 'tasks'],
   '/tasks': ['management_tasks', 'task_projects', 'system_users', 'company_structure'],
   '/tasks/projects': ['management_tasks', 'task_projects', 'system_users', 'company_structure'],
+  '/corporate': ['management_tasks', 'task_projects', 'system_users', 'company_structure'],
   '/chat': ['system_users'],
   '/access': [],
   '/reports': ['inventory', 'system_users', 'work_card_history', 'tasks', 'orders', 'nomenclatures', 'reception_docs', 'material_requests'],

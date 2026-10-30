@@ -67,6 +67,7 @@ const PressingTerminal = lazy(() => import('./modules/PressingTerminal'))
 const WarehouseBoxesModule = lazy(() => import('./modules/WarehouseBoxesModule'))
 const PreparationDashboard = lazy(() => import('./modules/PreparationDashboard'))
 const ChatModule = lazy(() => import('./modules/ChatModule'))
+const CorporateModule = lazy(() => import('./modules/Corporate/CorporateModule'))
 const CutterRestorationModule = lazy(() => import('./modules/CutterRestorationModule'))
 const WarehouseFGPModule = lazy(() => import('./modules/WarehouseFGPModule'))
 const Shop2CardGenModule = lazy(() => import('./modules/Shop2CardGen/Shop2CardGenModule'))
@@ -916,6 +917,8 @@ const AppContent = () => {
           <Route path="/tasks" element={<PermissionGuard id="kanban"><KanbanModule /></PermissionGuard>} />
           <Route path="/tasks/projects" element={<PermissionGuard id="kanban"><TaskProjectsModule /></PermissionGuard>} />
           <Route path="/chat" element={<PermissionGuard id="chat"><ChatModule /></PermissionGuard>} />
+          <Route path="/corporate" element={<PermissionGuard id="corporate"><CorporateModule /></PermissionGuard>} />
+          <Route path="/corporate/*" element={<PermissionGuard id="corporate"><CorporateModule /></PermissionGuard>} />
           <Route path="/access" element={<PermissionGuard id="access"><AccessModule /></PermissionGuard>} />
           <Route path="/procurement" element={<PermissionGuard id="procurement"><SupplyModule isProcurementOnly={true} /></PermissionGuard>} />
           <Route path="/reports" element={<PermissionGuard id="reports"><ReportsModule /></PermissionGuard>} />

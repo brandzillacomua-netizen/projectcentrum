@@ -8,9 +8,20 @@ import { MultiAssigneeSelector } from '../KanbanAssigneeSelector'
 import { ChecklistEditor } from '../KanbanChecklistEditor'
 import { genId } from '../../utils/kanbanHelpers'
 
-export const KanbanTaskModal = ({ initialAssignee, onClose, onCreated }) => {
-  const { currentUser, systemUsers, addManagementTask, companyStructure } = useMES()
-  const blankForm = { title: '', description: '', priority: 'medium', color: '', assigned_to: initialAssignee || '', assignees: initialAssignee ? [initialAssignee] : [], is_collective: false, department: 'all', deadline: '', checklist: [] }
+export const KanbanTaskModal = ({ editTask, initialAssignee, initialTitle = '', initialDescription = '', onClose, onCreated, onUpdated }) => {
+  const { currentUser, systemUsers, addManagementTask, updateManagementTask, companyStructure } = useMES()
+  const blankForm = {
+    title: editTask?.title || initialTitle || '',
+    description: editTask?.description || initialDescription || '',
+    priority: editTask?.priority || 'medium',
+    color: editTask?.color || '',
+    assigned_to: editTask?.assigned_to || initialAssignee || '',
+    assignees: editTask?.assignees || (editTask?.assigned_to ? [editTask.assigned_to] : (initialAssignee ? [initialAssignee] : [])),
+    is_collective: !!editTask?.is_collective,
+    department: editTask?.department || 'all',
+    deadline: editTask?.deadline ? editTask.deadline.slice(0, 16) : '',
+    checklist: Array.isArray(editTask?.checklist) ? editTask.checklist : []
+  }
   const [form, setForm] = React.useState(blankForm)
   const [newCheckItem, setNewCheckItem] = React.useState('')
   const [isSubmitting, setIsSubmitting] = React.useState(false)
@@ -53,7 +64,7 @@ export const KanbanTaskModal = ({ initialAssignee, onClose, onCreated }) => {
     return list
   }, [companyStructure])
 
-  const handleCreateTask = async (e) => {
+  const handleSaveTask = async (e) => {
     e.preventDefault()
     if (!form.title.trim() || isSubmitting) return
     setIsSubmitting(true)
@@ -63,10 +74,15 @@ export const KanbanTaskModal = ({ initialAssignee, onClose, onCreated }) => {
         color: form.color || '',
         assignees: form.assignees || [],
         assigned_to: (form.assignees || [])[0] || form.assigned_to || '',
-        status: 'todo'
+        ...(editTask ? {} : { status: 'todo' })
       }
-      const { data, error } = await addManagementTask(payload)
-      if (!error && onCreated) onCreated(data)
+      if (editTask) {
+        const { data, error } = await updateManagementTask(editTask.id, payload)
+        if (!error && onUpdated) onUpdated(data)
+      } else {
+        const { data, error } = await addManagementTask(payload)
+        if (!error && onCreated) onCreated(data)
+      }
       onClose()
     } catch {
       setIsSubmitting(false)
@@ -89,10 +105,10 @@ export const KanbanTaskModal = ({ initialAssignee, onClose, onCreated }) => {
       <div className="modal-overlay" onClick={onClose}>
         <div className="modal-box create-modal" onClick={e => e.stopPropagation()}>
           <div className="modal-head">
-            <h2><Plus size={18} /> Нова задача</h2>
+            <h2><Plus size={18} /> {editTask ? 'Редагувати задачу' : 'Нова задача'}</h2>
             <button className="icon-btn" onClick={onClose}><X size={18} /></button>
           </div>
-          <form className="modal-form" onSubmit={handleCreateTask}>
+          <form className="modal-form" onSubmit={handleSaveTask}>
             <div className="form-group">
               <label>Назва задачі *</label>
               <input type="text" required placeholder="Коротко опишіть задачу..." value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} autoFocus />
@@ -137,7 +153,13 @@ export const KanbanTaskModal = ({ initialAssignee, onClose, onCreated }) => {
             </div>
             <div className="modal-footer">
               <button type="button" className="btn-ghost" onClick={onClose} disabled={isSubmitting}>Скасувати</button>
-              <button type="submit" className="btn-primary-orange" disabled={isSubmitting}> {isSubmitting ? <><span className="btn-spinner" />СТВОРЕННЯ...</> : 'СТВОРИТИ ЗАДАЧУ'} </button>
+              <button type="submit" className="btn-primary-orange" disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <><span className="btn-spinner" />ЗБЕРЕЖЕННЯ...</>
+                ) : (
+                  editTask ? 'ЗБЕРЕГТИ ЗМІНИ' : 'СТВОРИТИ ЗАДАЧУ'
+                )}
+              </button>
             </div>
           </form>
         </div>

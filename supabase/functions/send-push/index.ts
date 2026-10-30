@@ -26,10 +26,10 @@ serve(async (req: Request) => {
   }
 
   try {
-    const { user_id, title, body, path, notifData } = await req.json();
+    const { user_id, user_ids, title, body, path, notifData } = await req.json();
 
-    if (!user_id || !title) {
-      return new Response(JSON.stringify({ error: "user_id and title are required" }), {
+    if (!title) {
+      return new Response(JSON.stringify({ error: "title is required" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -41,11 +41,18 @@ serve(async (req: Request) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
 
-    // Отримуємо всі підписки цього юзера
-    const { data: subscriptions, error } = await supabase
-      .from("push_subscriptions")
-      .select("endpoint, p256dh, auth")
-      .eq("user_id", user_id);
+    // Отримуємо підписки: якщо 'all' або не вказано конкретного юзера — всі пристрої
+    const isBroadcast = user_id === "all" || user_id === "*" || (!user_id && !user_ids);
+    let subQuery = supabase.from("push_subscriptions").select("endpoint, p256dh, auth");
+    if (!isBroadcast) {
+      if (Array.isArray(user_ids) && user_ids.length > 0) {
+        subQuery = subQuery.in("user_id", user_ids);
+      } else if (user_id) {
+        subQuery = subQuery.eq("user_id", user_id);
+      }
+    }
+
+    const { data: subscriptions, error } = await subQuery;
 
     if (error) throw error;
     if (!subscriptions || subscriptions.length === 0) {

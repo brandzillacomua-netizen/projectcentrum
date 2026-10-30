@@ -187,3 +187,66 @@ export async function sendPushToUsers(userIds, title, body, path = '/', notifDat
     userIds.map(uid => sendPushToUser(uid, title, body, path, notifData))
   );
 }
+
+/**
+ * Отримує кількість активних пристроїв, підписаних на push.
+ * @returns {Promise<number>}
+ */
+export async function getActivePushSubscriptionsCount() {
+  try {
+    const { count, error } = await supabase
+      .from('push_subscriptions')
+      .select('*', { count: 'exact', head: true });
+    if (error) throw error;
+    return count || 0;
+  } catch (err) {
+    console.warn('[Push] Could not get subscriptions count:', err);
+    return 0;
+  }
+}
+
+/**
+ * Відправляє масове Push-сповіщення всім підписаним пристроям підприємства.
+ * @param {string} title
+ * @param {string} body
+ * @param {string} [path]
+ * @param {object} [notifData]
+ * @returns {Promise<{ sent: number, total: number }>}
+ */
+export async function sendBroadcastPush(title, body, path = '/', notifData = {}) {
+  try {
+    // 1. Спроба відправити один батч-запит в Edge Function send-push
+    const response = await fetch(`${supabaseUrl}/functions/v1/send-push`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${supabaseAnonKey}`
+      },
+      body: JSON.stringify({ user_id: 'all', title, body, path, notifData })
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      return data;
+    }
+  } catch (err) {
+    console.warn('[Push] Edge function broadcast attempt failed, trying fallback:', err);
+  }
+
+  // 2. Fallback: дістаємо унікальних користувачів і шлемо через sendPushToUsers
+  try {
+    const { data: subs } = await supabase
+      .from('push_subscriptions')
+      .select('user_id');
+
+    const uniqueUserIds = [...new Set((subs || []).map(s => s.user_id).filter(Boolean))];
+    if (uniqueUserIds.length > 0) {
+      await sendPushToUsers(uniqueUserIds, title, body, path, notifData);
+      return { sent: uniqueUserIds.length, total: uniqueUserIds.length };
+    }
+  } catch (err) {
+    console.error('[Push] Fallback broadcast failed:', err);
+  }
+
+  return { sent: 0, total: 0 };
+}

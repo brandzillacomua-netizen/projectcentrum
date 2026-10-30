@@ -292,7 +292,7 @@ export const KanbanStyles = () => (
 
         /* ── COLUMN ── */
         .kb-col {
-          flex: 0 0 290px; display: flex; flex-direction: column;
+          flex: 1 1 230px; min-width: 220px; max-width: 360px; display: flex; flex-direction: column;
           background: #070707; border: 1px solid #111; border-radius: 18px;
           overflow: hidden; min-height: 0;
         }

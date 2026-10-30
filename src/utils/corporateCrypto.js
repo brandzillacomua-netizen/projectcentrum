@@ -1,0 +1,197 @@
+// ─── CORPORATE MODULE CLIENT-SIDE ENCRYPTION (ChaCha20 Stream Cipher) ────────
+// Pure JavaScript implementation of ChaCha20 cipher (RFC 7539).
+// Seamlessly compatible with Centrum Chat encryption protocol.
+// Guaranteed to work on all browsers, HTTP, HTTPS and local IP origins.
+
+const MASTER_CORP_SALT = 'centrum_corporate_sec_v1_2026'
+
+function rotl(v, n) {
+  return (v << n) | (v >>> (32 - n))
+}
+
+function QR(a, x, y, z, w) {
+  a[x] = (a[x] + a[y]) >>> 0; a[w] = rotl(a[w] ^ a[x], 16)
+  a[z] = (a[z] + a[w]) >>> 0; a[y] = rotl(a[y] ^ a[z], 12)
+  a[x] = (a[x] + a[y]) >>> 0; a[w] = rotl(a[w] ^ a[x], 8)
+  a[z] = (a[z] + a[w]) >>> 0; a[y] = rotl(a[y] ^ a[z], 7)
+}
+
+function chacha20Block(key, counter, nonce) {
+  const state = new Uint32Array(16)
+  // Constants: "expand 32-byte k"
+  state[0] = 0x61707865
+  state[1] = 0x3320646e
+  state[2] = 0x79622d32
+  state[3] = 0x6b206574
+
+  for (let i = 0; i < 8; i++) state[4 + i] = key[i]
+  state[12] = counter
+  for (let i = 0; i < 3; i++) state[13 + i] = nonce[i]
+
+  const working = new Uint32Array(state)
+
+  for (let i = 0; i < 10; i++) {
+    // Column rounds
+    QR(working, 0, 4, 8, 12)
+    QR(working, 1, 5, 9, 13)
+    QR(working, 2, 6, 10, 14)
+    QR(working, 3, 7, 11, 15)
+    // Diagonal rounds
+    QR(working, 0, 5, 10, 15)
+    QR(working, 1, 6, 11, 12)
+    QR(working, 2, 7, 8, 13)
+    QR(working, 3, 4, 9, 14)
+  }
+
+  const out = new Uint8Array(64)
+  const out32 = new Uint32Array(out.buffer)
+  for (let i = 0; i < 16; i++) {
+    out32[i] = (working[i] + state[i]) >>> 0
+  }
+  return out
+}
+
+// Derive a 256-bit key (8 u32 words) from string using FNV-1a cascade
+function deriveKeyWords(str) {
+  const encoder = new TextEncoder()
+  const bytes = encoder.encode(str)
+  const words = new Uint32Array(8)
+
+  words[0] = 0x6a09e667; words[1] = 0xbb67ae85; words[2] = 0x3c6ef372; words[3] = 0xa54ff53a
+  words[4] = 0x510e527f; words[5] = 0x9b05688c; words[6] = 0x1f83d9ab; words[7] = 0x5be0cd19
+
+  for (let i = 0; i < bytes.length; i++) {
+    const byte = bytes[i]
+    for (let w = 0; w < 8; w++) {
+      words[w] = Math.imul(words[w] ^ byte, 16777619 + w * 0x01000193) >>> 0
+    }
+  }
+  return words
+}
+
+function bytesToBase64(bytes) {
+  let binary = ''
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i])
+  return btoa(binary)
+}
+
+function base64ToBytes(b64) {
+  const binary = atob(b64)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+  return bytes
+}
+
+function chacha20Process(keyWords, nonceWords, inputBytes) {
+  const out = new Uint8Array(inputBytes.length)
+  let blockNum = 0
+  for (let offset = 0; offset < inputBytes.length; offset += 64) {
+    const keyStream = chacha20Block(keyWords, blockNum++, nonceWords)
+    const count = Math.min(64, inputBytes.length - offset)
+    for (let i = 0; i < count; i++) {
+      out[offset + i] = inputBytes[offset + i] ^ keyStream[i]
+    }
+  }
+  return out
+}
+
+function getRandomNonce() {
+  const nonceBytes = new Uint8Array(12)
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    crypto.getRandomValues(nonceBytes)
+  } else {
+    for (let i = 0; i < 12; i++) nonceBytes[i] = Math.floor(Math.random() * 256)
+  }
+  return {
+    bytes: nonceBytes,
+    words: new Uint32Array(nonceBytes.buffer)
+  }
+}
+
+/**
+ * Encrypt arbitrary text with ChaCha20 cipher
+ */
+export const encryptCorporateText = (text, context = 'corp') => {
+  if (!text || typeof text !== 'string' || !text.trim()) return text
+  if (text.startsWith('[ENC:v1:')) return text
+
+  try {
+    const keyWords = deriveKeyWords(`${MASTER_CORP_SALT}:${context || 'general'}`)
+    const nonce = getRandomNonce()
+    const textBytes = new TextEncoder().encode(text)
+    const cipherBytes = chacha20Process(keyWords, nonce.words, textBytes)
+
+    const nonceB64 = bytesToBase64(nonce.bytes)
+    const cipherB64 = bytesToBase64(cipherBytes)
+
+    return `[ENC:v1:${nonceB64}:${cipherB64}]`
+  } catch (err) {
+    console.error('[corporateCrypto] Encryption error:', err)
+    return text
+  }
+}
+
+/**
+ * Decrypt text if it matches [ENC:v1:...], otherwise returns as-is
+ */
+export const decryptCorporateText = (text, context = 'corp') => {
+  if (!text || typeof text !== 'string') return text
+  if (!text.startsWith('[ENC:v1:')) return text
+
+  try {
+    const match = text.match(/^\[ENC:v1:([^:]+):([^:]+)\]$/)
+    if (!match) return text
+
+    const [, nonceB64, cipherB64] = match
+    const nonceBytes = base64ToBytes(nonceB64)
+    const cipherBytes = base64ToBytes(cipherB64)
+    const nonceWords = new Uint32Array(nonceBytes.buffer)
+    const keyWords = deriveKeyWords(`${MASTER_CORP_SALT}:${context || 'general'}`)
+
+    const decryptedBytes = chacha20Process(keyWords, nonceWords, cipherBytes)
+    return new TextDecoder().decode(decryptedBytes)
+  } catch (err) {
+    console.warn('[corporateCrypto] Decryption error:', err)
+    return '🔒 [Зашифрований вміст]'
+  }
+}
+
+/**
+ * Decrypts a single corporate post object
+ */
+export const decryptCorporatePost = (post) => {
+  if (!post || typeof post !== 'object') return post
+  return {
+    ...post,
+    title: decryptCorporateText(post.title, 'post_title'),
+    content: decryptCorporateText(post.content, 'post_content')
+  }
+}
+
+/**
+ * Decrypts a list of corporate post objects
+ */
+export const decryptCorporatePostList = (posts = []) => {
+  if (!Array.isArray(posts) || posts.length === 0) return posts
+  return posts.map(decryptCorporatePost)
+}
+
+/**
+ * Decrypts a single corporate comment object
+ */
+export const decryptCorporateComment = (comment) => {
+  if (!comment || typeof comment !== 'object') return comment
+  return {
+    ...comment,
+    content: decryptCorporateText(comment.content, 'comment_content')
+  }
+}
+
+/**
+ * Decrypts a list of corporate comment objects
+ */
+export const decryptCorporateCommentList = (comments = []) => {
+  if (!Array.isArray(comments) || comments.length === 0) return comments
+  return comments.map(decryptCorporateComment)
+}
+

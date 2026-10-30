@@ -535,7 +535,7 @@ export function useSettingsImports({
     department: companyStructure?.[0]?.name || 'Цех №1',
     position: companyPositions?.[0]?.name || 'Оператор',
     shift: 'Без зміни',
-    access_rights: { operator: true }
+    access_rights: { operator: true, corporate: true }
   })
   const [duplicatePolicy, setDuplicatePolicy] = useState('skip')
   const [importStatus, setImportStatus] = useState('idle')

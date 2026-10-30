@@ -5,6 +5,7 @@ import {
   LayoutDashboard,
   MessageCircle,
   KanbanSquare,
+  Building2,
   ShoppingBag,
   DollarSign,
   Package,
@@ -33,6 +34,7 @@ export const getAllModules = (badgeCount = 0, chatBadgeCount = 0) => [
   { id: 'crm_clients', title: 'База Клієнтів & Картки CRM', icon: <Users />, path: '/crm/clients', desc: 'Картки клієнтів, LTV, середній чек та комунікація', color: '#6366f1', pillar: 'crm' },
   { id: 'manager', title: 'Менеджер Замовлень', icon: <LayoutDashboard />, path: '/manager', desc: 'Вхідні замовлення та реєстрація', color: '#6366f1', pillar: 'crm' },
   { id: 'chat', title: 'Чат & Комунікація', icon: <MessageCircle />, path: '/chat', desc: 'Внутрішні та клієнтські канали', color: '#6366f1', badge: chatBadgeCount, pillar: 'crm' },
+  { id: 'corporate', title: 'Корпоративний Портал', icon: <Building2 />, path: '/corporate', desc: 'Стрічка компанії, накази, задачник та комунікація', color: '#6366f1', pillar: 'crm' },
   { id: 'kanban', title: 'Задачі (Канбан)', icon: <KanbanSquare />, path: '/tasks', desc: 'Доручення та проекти', color: '#8b5cf6', badge: badgeCount, pillar: 'crm' },
 
   // ── ERP Pillar (Ресурси, Склад, Аналітика та Управління) ───────────────────
@@ -99,6 +101,9 @@ export const getAvailableModules = (currentUser, badgeCount, chatBadgeCount = 0)
     if (m.id === 'foreman') {
       return checkRight('foreman') || checkRight('foreman2');
     }
+    if (m.id === 'corporate') {
+      return rights.corporate !== false;
+    }
     return checkRight(m.id);
   });
 }
@@ -109,6 +114,7 @@ export const CATEGORY_MAP = {
   crm_clients: 'crm',
   manager: 'crm',
   chat: 'crm',
+  corporate: 'crm',
   kanban: 'crm',
 
   // ERP
