@@ -131,6 +131,27 @@ export function Shop1QCOpsModal({
     return opts
   }, [totalSheetsCount])
 
+  const isAllSheetsSelected = Boolean(
+    !isSmallMachine ||
+    selectedSheet.includes('(всі)') ||
+    selectedSheet.includes('Всі') ||
+    selectedSheet === 'all-cut'
+  )
+
+  // Auto-switch tabs when switching sheet options on small machine:
+  // - Лист 1, 2 або Лист 3, 4 -> тільки 1 та 2 сторона (не вирізка)
+  // - Листи 1-N (всі) -> тільки 2 сторона вирізка
+  useEffect(() => {
+    if (!isSmallMachine) return
+    if (isAllSheetsSelected) {
+      setActiveSideTab('side2_cut')
+    } else {
+      if (activeSideTab === 'side2_cut') {
+        setActiveSideTab('all')
+      }
+    }
+  }, [selectedSheet, isSmallMachine, isAllSheetsSelected])
+
   // Lock body scroll and prevent background scroll bleeding on mobile touch
   useEffect(() => {
     if (!showQCOpsModal) return
@@ -159,7 +180,7 @@ export function Shop1QCOpsModal({
 
   const isCutter1_5 = snapshotPart?.cutter_override === '1.5'
 
-  // Resolve operation configuration for this card and machine (same logic as ForemanPrintQueue & Shop1ShiftChangeModal)
+  // Resolve operation configuration for this card and machine
   const opConfig = useMemo(() => {
     if (!currentCard?.nomenclature_id) return null
     const nomId = String(currentCard.nomenclature_id)
@@ -253,6 +274,17 @@ export function Shop1QCOpsModal({
     return { s1Ops: s1, s2Ops: s2, s2CutOps: s2c, allItems: items }
   }, [activeConfig, isCutter1_5])
 
+  // Filter visible items based on selected sheet for small machine:
+  // - Лист 1, 2 або Лист 3, 4: ТІЛЬКИ 1 та 2 сторона (вирізка недоступна!)
+  // - Листи 1-N (всі): ТІЛЬКИ 2 сторона вирізка!
+  const availableItems = useMemo(() => {
+    if (!isSmallMachine) return allItems
+    if (isAllSheetsSelected) {
+      return allItems.filter(i => i.key.startsWith('s2c:'))
+    }
+    return allItems.filter(i => i.key.startsWith('s1:') || i.key.startsWith('s2:'))
+  }, [allItems, isSmallMachine, isAllSheetsSelected])
+
   const qcStaffList = useMemo(() => {
     const list = (systemUsers || []).filter(u =>
       u?.access_rights?.brak ||
@@ -321,44 +353,77 @@ export function Shop1QCOpsModal({
 
   const isInspectorValid = Boolean(inspectorName && inspectorName.trim().length >= 2)
 
-  // Guard: did user actually add/update a stamp or sheet confirmation?
+  // Guard: check if any stamps, sheets status or hourly confirm changed
   const hasChanges = useMemo(() => {
     if (!initialState) return false
-
-    // 1. Changes in operation stamps
-    const curOpsKeys = Object.keys(stampedOps || {})
-    const initOpsKeys = Object.keys(initialState.ops || {})
-    if (curOpsKeys.length !== initOpsKeys.length) return true
-    for (const key of curOpsKeys) {
-      if (!initialState.ops[key]) return true
-      if (initialState.ops[key].stamp !== stampedOps[key]?.stamp) return true
-      if (initialState.ops[key].inspector !== stampedOps[key]?.inspector) return true
-      if (initialState.ops[key].sheet !== stampedOps[key]?.sheet) return true
-    }
-
-    // 2. Changes in sheets verification
+    if (JSON.stringify(stampedOps) !== JSON.stringify(initialState.ops)) return true
     if (sheetsVerified !== initialState.sheetsVerified) return true
-
-    // 3. User explicitly confirmed routine check
     if (isHourlyConfirmed) return true
-
     return false
   }, [stampedOps, sheetsVerified, isHourlyConfirmed, initialState])
 
+  // Current sheet key on small machine: '1-2' or '3-4' or 'all'
+  const currentSheetKey = useMemo(() => {
+    if (!isSmallMachine || isAllSheetsSelected) return 'all'
+    if (selectedSheet.includes('1') && selectedSheet.includes('2')) return '1-2'
+    if (selectedSheet.includes('3') && selectedSheet.includes('4')) return '3-4'
+    return selectedSheet
+  }, [isSmallMachine, isAllSheetsSelected, selectedSheet])
+
   const toggleOpStamp = (item) => {
     if (!isInspectorValid) return
+    const stampTime = nowTimeShort()
+    const cleanStamp = selectedStamp || 'ВКЯ 1'
+    const cleanInspector = inspectorName.trim()
+
     setStampedOps(prev => {
       const next = { ...prev }
-      if (next[item.key]) {
+      const prevOp = prev[item.key] || { name: item.name, side: item.side }
+
+      // 1. On small machine for side 1 or side 2: specific sheet pair (1-2 or 3-4)
+      if (isSmallMachine && (item.key.startsWith('s1:') || item.key.startsWith('s2:')) && !isAllSheetsSelected) {
+        const isSheet1_2 = currentSheetKey === '1-2'
+        const hasThisSheet = isSheet1_2 ? Boolean(prevOp.sheet1_2) : Boolean(prevOp.sheet3_4)
+
+        if (hasThisSheet) {
+          // Uncheck this specific sheet pair
+          const updated = { ...prevOp }
+          if (isSheet1_2) delete updated.sheet1_2
+          else delete updated.sheet3_4
+
+          if (!updated.sheet1_2 && !updated.sheet3_4 && !updated.allSheets) {
+            delete next[item.key]
+            return next
+          }
+          next[item.key] = updated
+          return next
+        }
+
+        // Check this specific sheet pair
+        const sheetStampData = { stamp: cleanStamp, inspector: cleanInspector, at: stampTime }
+        next[item.key] = {
+          ...prevOp,
+          stamp: cleanStamp,
+          inspector: cleanInspector,
+          name: item.name,
+          side: item.side,
+          at: stampTime,
+          ...(isSheet1_2 ? { sheet1_2: sheetStampData } : { sheet3_4: sheetStampData })
+        }
+        return next
+      }
+
+      // 2. Cut-out operation (2 ст. вирізка) or non-small machines: single common stamp
+      if (prev[item.key]) {
         delete next[item.key]
       } else {
         next[item.key] = {
-          stamp: selectedStamp || 'ВКЯ 1',
-          inspector: inspectorName.trim(),
+          stamp: cleanStamp,
+          inspector: cleanInspector,
           name: item.name,
           side: item.side,
-          sheet: isSmallMachine ? selectedSheet : `Листи 1-${totalSheetsCount}`,
-          at: nowTimeShort()
+          at: stampTime,
+          allSheets: true
         }
       }
       return next
@@ -386,33 +451,55 @@ export function Shop1QCOpsModal({
   const handleStampAll = () => {
     if (!isInspectorValid) return
     const stampTime = nowTimeShort()
+    const cleanStamp = selectedStamp || 'ВКЯ 1'
+    const cleanInspector = inspectorName.trim()
     const nextOps = { ...stampedOps }
+
     const itemsToStamp = activeSideTab === 'all'
-      ? allItems
-      : allItems.filter(i => {
+      ? availableItems
+      : availableItems.filter(i => {
           if (activeSideTab === 'side1') return i.key.startsWith('s1:')
           if (activeSideTab === 'side2') return i.key.startsWith('s2:')
           if (activeSideTab === 'side2_cut') return i.key.startsWith('s2c:')
           return true
         })
 
+    const isSheet1_2 = currentSheetKey === '1-2'
+    const isSheet3_4 = currentSheetKey === '3-4'
+    const sheetStampData = { stamp: cleanStamp, inspector: cleanInspector, at: stampTime }
+
     itemsToStamp.forEach(item => {
-      nextOps[item.key] = {
-        stamp: selectedStamp || 'ВКЯ 1',
-        inspector: inspectorName.trim(),
-        name: item.name,
-        side: item.side,
-        sheet: isSmallMachine ? selectedSheet : `Листи 1-${totalSheetsCount}`,
-        at: stampTime
+      const prevOp = nextOps[item.key] || { name: item.name, side: item.side }
+      if (isSmallMachine && (item.key.startsWith('s1:') || item.key.startsWith('s2:')) && !isAllSheetsSelected) {
+        nextOps[item.key] = {
+          ...prevOp,
+          stamp: cleanStamp,
+          inspector: cleanInspector,
+          name: item.name,
+          side: item.side,
+          at: stampTime,
+          ...(isSheet1_2 ? { sheet1_2: sheetStampData } : isSheet3_4 ? { sheet3_4: sheetStampData } : {})
+        }
+      } else {
+        nextOps[item.key] = {
+          ...prevOp,
+          stamp: cleanStamp,
+          inspector: cleanInspector,
+          name: item.name,
+          side: item.side,
+          at: stampTime,
+          allSheets: true
+        }
       }
     })
+
     setStampedOps(nextOps)
     if (!sheetsVerified) {
       setSheetsVerified(true)
       setSheetsStampInfo({
         verified: true,
-        stamp: selectedStamp || 'ВКЯ 1',
-        inspector: inspectorName.trim(),
+        stamp: cleanStamp,
+        inspector: cleanInspector,
         at: stampTime
       })
     }
@@ -446,7 +533,7 @@ export function Shop1QCOpsModal({
 
       const stampTime = nowTimeShort()
       const currentSheetText = isSmallMachine ? selectedSheet : `Листи 1-${totalSheetsCount}`
-      const stampedCount = Object.keys(stampedOps).length
+      const totalOpsStamped = Object.keys(stampedOps).length
 
       const latestCheck = {
         id: Date.now(),
@@ -454,7 +541,7 @@ export function Shop1QCOpsModal({
         inspector: cleanInspector,
         stamp: cleanStamp,
         sheetText: currentSheetText,
-        statusText: `погоджено ${stampedCount} з ${allItems.length}`
+        statusText: `погоджено (${currentSheetText})`
       }
 
       const allChecksList = [latestCheck, ...hourlyChecks.filter(c => c.time !== stampTime)].slice(0, 30)
@@ -475,17 +562,30 @@ export function Shop1QCOpsModal({
       }
 
       const baseInfo = stripQcOpsStamps(currentCard.card_info || '')
-      const hasAnyVerification = sheetsVerified || stampedCount > 0
+      const hasAnyVerification = sheetsVerified || totalOpsStamped > 0
       const updatedCardInfo = hasAnyVerification
         ? `${baseInfo} [QC_OPS:${JSON.stringify(qcPayload)}]`.trim()
         : baseInfo
 
-      const stampedNames = Object.values(stampedOps).map(v => `${v.name} (${v.stamp})`)
       const summaryParts = []
       if (sheetsVerified) summaryParts.push('Листи відповідають ✓')
       if (isSmallMachine) summaryParts.push(currentSheetText)
-      if (stampedNames.length > 0) {
-        summaryParts.push(`Погоджено операцій (${stampedNames.length}/${allItems.length}): ${stampedNames.join('; ')}`)
+
+      // Count operations per sheet category
+      let s1_2Count = 0
+      let s3_4Count = 0
+      let cutCount = 0
+      Object.values(stampedOps).forEach(op => {
+        if (op.sheet1_2) s1_2Count++
+        if (op.sheet3_4) s3_4Count++
+        if (op.allSheets || op.side?.includes('вирізка')) cutCount++
+      })
+      if (isSmallMachine) {
+        if (s1_2Count > 0) summaryParts.push(`Лист 1,2 (${s1_2Count} оп.)`)
+        if (s3_4Count > 0) summaryParts.push(`Лист 3,4 (${s3_4Count} оп.)`)
+        if (cutCount > 0) summaryParts.push(`Вирізка (${cutCount} оп.)`)
+      } else if (totalOpsStamped > 0) {
+        summaryParts.push(`Погоджено: ${totalOpsStamped}/${allItems.length}`)
       }
       const summaryComment = summaryParts.join(' | ') || 'Відмітки ВКЯ оновлено'
 
@@ -536,7 +636,7 @@ export function Shop1QCOpsModal({
       onClose()
       if (typeof showAlert === 'function') {
         showAlert(
-          `Печатку ${cleanStamp} (${cleanInspector}) збережено!\n${isSmallMachine ? `${currentSheetText} · ` : ''}Погоджено операцій: ${stampedCount} з ${allItems.length}`,
+          `Печатку ${cleanStamp} (${cleanInspector}) збережено!\n${isSmallMachine ? `${currentSheetText} · ` : ''}Погоджено операцій: ${totalOpsStamped}`,
           '💮 Перевірка ВКЯ збережена'
         )
       }
@@ -548,12 +648,29 @@ export function Shop1QCOpsModal({
   }
 
   const materialLabel = snapshotPart?.raw_material_name || nomenclature?.rule_params?.rawSheet || nomenclature?.material_type || 'Лист за техпроцесом'
-  const stampedCount = Object.keys(stampedOps).length
-  const totalOpsCount = allItems.length
+
+  // Determine if an operation is stamped for the current sheet context
+  const isItemCheckedForCurrentSheet = (item) => {
+    const stampData = stampedOps[item.key]
+    if (!stampData) return false
+    if (!isSmallMachine || isAllSheetsSelected || item.key.startsWith('s2c:')) {
+      return Boolean(stampData.allSheets || stampData.stamp)
+    }
+    if (currentSheetKey === '1-2') {
+      return Boolean(stampData.sheet1_2 || stampData.allSheets)
+    }
+    if (currentSheetKey === '3-4') {
+      return Boolean(stampData.sheet3_4 || stampData.allSheets)
+    }
+    return Boolean(stampData)
+  }
+
+  const currentSheetStampedCount = availableItems.filter(isItemCheckedForCurrentSheet).length
+  const totalAvailableCount = availableItems.length
 
   const renderSection = (title, items) => {
     if (!items || items.length === 0) return null
-    const sectionApprovedCount = items.filter(it => stampedOps[it.key]).length
+    const sectionApprovedCount = items.filter(isItemCheckedForCurrentSheet).length
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
         <div style={{
@@ -578,7 +695,11 @@ export function Shop1QCOpsModal({
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {items.map(item => {
             const stampData = stampedOps[item.key]
-            const isChecked = Boolean(stampData)
+            const isChecked = isItemCheckedForCurrentSheet(item)
+            const isSheet1_2 = Boolean(stampData?.sheet1_2)
+            const isSheet3_4 = Boolean(stampData?.sheet3_4)
+            const activeStampObj = currentSheetKey === '1-2' ? stampData?.sheet1_2 : currentSheetKey === '3-4' ? stampData?.sheet3_4 : stampData
+
             return (
               <div
                 key={item.key}
@@ -613,18 +734,45 @@ export function Shop1QCOpsModal({
                     }}>
                       {item.name}
                     </div>
-                    {isChecked && (
-                      <div style={{ fontSize: '0.66rem', color: '#10b981', fontWeight: 800, marginTop: '3px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                        <span>✓ {stampData.inspector}</span>
-                        <span>·</span>
-                        <span>{stampData.at}</span>
-                        {stampData.sheet && (
-                          <>
-                            <span>·</span>
-                            <span style={{ color: '#f59e0b', fontWeight: 900 }}>{stampData.sheet}</span>
-                          </>
-                        )}
+
+                    {/* Позначки для малого станка: окремо статус для Лист 1, 2 та Лист 3, 4 як у карті */}
+                    {isSmallMachine && (item.key.startsWith('s1:') || item.key.startsWith('s2:')) ? (
+                      <div style={{ display: 'flex', gap: '6px', marginTop: '5px', flexWrap: 'wrap' }}>
+                        <span style={{
+                          fontSize: '0.64rem',
+                          fontWeight: 900,
+                          padding: '2px 8px',
+                          borderRadius: '6px',
+                          background: isSheet1_2 ? 'rgba(16, 185, 129, 0.2)' : 'var(--surface-2)',
+                          color: isSheet1_2 ? '#10b981' : 'var(--text-dim)',
+                          border: isSheet1_2 ? '1px solid #10b981' : '1px solid var(--border-subtle)',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}>
+                          Лист 1, 2: <strong>{isSheet1_2 ? `☑ ${stampData?.sheet1_2?.stamp || ''}` : '☐'}</strong>
+                        </span>
+                        <span style={{
+                          fontSize: '0.64rem',
+                          fontWeight: 900,
+                          padding: '2px 8px',
+                          borderRadius: '6px',
+                          background: isSheet3_4 ? 'rgba(16, 185, 129, 0.2)' : 'var(--surface-2)',
+                          color: isSheet3_4 ? '#10b981' : 'var(--text-dim)',
+                          border: isSheet3_4 ? '1px solid #10b981' : '1px solid var(--border-subtle)',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}>
+                          Лист 3, 4: <strong>{isSheet3_4 ? `☑ ${stampData?.sheet3_4?.stamp || ''}` : '☐'}</strong>
+                        </span>
                       </div>
+                    ) : (
+                      isChecked && activeStampObj && (
+                        <div style={{ fontSize: '0.66rem', color: '#10b981', fontWeight: 800, marginTop: '3px' }}>
+                          ✓ {activeStampObj.inspector} · {activeStampObj.at}
+                        </div>
+                      )
                     )}
                   </div>
                 </div>
@@ -644,7 +792,7 @@ export function Shop1QCOpsModal({
                     boxShadow: '0 0 0 1px rgba(16,185,129,0.2)',
                     textTransform: 'uppercase'
                   }}>
-                    💮 {stampData.stamp}
+                    💮 {activeStampObj?.stamp || stampData?.stamp || selectedStamp}
                   </div>
                 ) : (
                   <div style={{
@@ -893,6 +1041,7 @@ export function Shop1QCOpsModal({
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                 {smallMachineSheetOptions.map(sheet => {
                   const isSel = selectedSheet === sheet
+                  const isAllCut = sheet.includes('(всі)') || sheet.includes('Всі')
                   return (
                     <button
                       key={sheet}
@@ -911,73 +1060,82 @@ export function Shop1QCOpsModal({
                         boxShadow: isSel ? '0 2px 8px rgba(245, 158, 11, 0.3)' : 'none'
                       }}
                     >
-                      {sheet}
+                      {sheet} {isAllCut ? '✂️' : ''}
                     </button>
                   )
                 })}
               </div>
+              <div style={{ fontSize: '0.64rem', color: '#f59e0b', fontWeight: 700 }}>
+                {isAllSheetsSelected
+                  ? '✂️ Для всіх листів доступна операція «2 сторона вирізка»'
+                  : `Для ${selectedSheet} доступні операції 1-ї та 2-ї сторони`}
+              </div>
             </div>
           )}
 
-          {/* Таби сторін за аналогією з перезмінкою (1 сторона / 2 сторона / 2 сторона вирізка) */}
-          {totalOpsCount > 0 && (
+          {/* Таби сторін: адаптуються під вибрані листи */}
+          {availableItems.length > 0 && (
             <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '2px' }}>
-              <button
-                type="button"
-                onClick={() => setActiveSideTab('all')}
-                style={{
-                  padding: '7px 14px',
-                  borderRadius: '10px',
-                  fontSize: '0.74rem',
-                  fontWeight: 900,
-                  cursor: 'pointer',
-                  background: activeSideTab === 'all' ? '#10b981' : 'var(--surface-2)',
-                  color: activeSideTab === 'all' ? '#000' : 'var(--text-strong)',
-                  border: activeSideTab === 'all' ? '1px solid #10b981' : '1px solid var(--border-subtle)',
-                  whiteSpace: 'nowrap'
-                }}
-              >
-                Усі операції ({allItems.length})
-              </button>
-              {s1Ops.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setActiveSideTab('side1')}
-                  style={{
-                    padding: '7px 14px',
-                    borderRadius: '10px',
-                    fontSize: '0.74rem',
-                    fontWeight: 900,
-                    cursor: 'pointer',
-                    background: activeSideTab === 'side1' ? '#10b981' : 'var(--surface-2)',
-                    color: activeSideTab === 'side1' ? '#000' : 'var(--text-strong)',
-                    border: activeSideTab === 'side1' ? '1px solid #10b981' : '1px solid var(--border-subtle)',
-                    whiteSpace: 'nowrap'
-                  }}
-                >
-                  1 сторона ({s1Ops.length})
-                </button>
+              {!isAllSheetsSelected && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setActiveSideTab('all')}
+                    style={{
+                      padding: '7px 14px',
+                      borderRadius: '10px',
+                      fontSize: '0.74rem',
+                      fontWeight: 900,
+                      cursor: 'pointer',
+                      background: activeSideTab === 'all' ? '#10b981' : 'var(--surface-2)',
+                      color: activeSideTab === 'all' ? '#000' : 'var(--text-strong)',
+                      border: activeSideTab === 'all' ? '1px solid #10b981' : '1px solid var(--border-subtle)',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    Усі ({availableItems.length})
+                  </button>
+                  {s1Ops.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveSideTab('side1')}
+                      style={{
+                        padding: '7px 14px',
+                        borderRadius: '10px',
+                        fontSize: '0.74rem',
+                        fontWeight: 900,
+                        cursor: 'pointer',
+                        background: activeSideTab === 'side1' ? '#10b981' : 'var(--surface-2)',
+                        color: activeSideTab === 'side1' ? '#000' : 'var(--text-strong)',
+                        border: activeSideTab === 'side1' ? '1px solid #10b981' : '1px solid var(--border-subtle)',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      1 сторона ({s1Ops.length})
+                    </button>
+                  )}
+                  {s2Ops.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveSideTab('side2')}
+                      style={{
+                        padding: '7px 14px',
+                        borderRadius: '10px',
+                        fontSize: '0.74rem',
+                        fontWeight: 900,
+                        cursor: 'pointer',
+                        background: activeSideTab === 'side2' ? '#10b981' : 'var(--surface-2)',
+                        color: activeSideTab === 'side2' ? '#000' : 'var(--text-strong)',
+                        border: activeSideTab === 'side2' ? '1px solid #10b981' : '1px solid var(--border-subtle)',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      2 сторона ({s2Ops.length})
+                    </button>
+                  )}
+                </>
               )}
-              {s2Ops.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setActiveSideTab('side2')}
-                  style={{
-                    padding: '7px 14px',
-                    borderRadius: '10px',
-                    fontSize: '0.74rem',
-                    fontWeight: 900,
-                    cursor: 'pointer',
-                    background: activeSideTab === 'side2' ? '#10b981' : 'var(--surface-2)',
-                    color: activeSideTab === 'side2' ? '#000' : 'var(--text-strong)',
-                    border: activeSideTab === 'side2' ? '1px solid #10b981' : '1px solid var(--border-subtle)',
-                    whiteSpace: 'nowrap'
-                  }}
-                >
-                  2 сторона ({s2Ops.length})
-                </button>
-              )}
-              {s2CutOps.length > 0 && (
+              {isAllSheetsSelected && s2CutOps.length > 0 && (
                 <button
                   type="button"
                   onClick={() => setActiveSideTab('side2_cut')}
@@ -987,23 +1145,24 @@ export function Shop1QCOpsModal({
                     fontSize: '0.74rem',
                     fontWeight: 900,
                     cursor: 'pointer',
-                    background: activeSideTab === 'side2_cut' ? '#10b981' : 'var(--surface-2)',
-                    color: activeSideTab === 'side2_cut' ? '#000' : 'var(--text-strong)',
-                    border: activeSideTab === 'side2_cut' ? '1px solid #10b981' : '1px solid var(--border-subtle)',
+                    background: '#10b981',
+                    color: '#000',
+                    border: '1px solid #10b981',
                     whiteSpace: 'nowrap'
                   }}
                 >
-                  2 ст. вирізка ({s2CutOps.length})
+                  2 ст. вирізка (всі листи: {s2CutOps.length})
                 </button>
               )}
             </div>
           )}
 
           {/* Швидкі дії */}
-          {totalOpsCount > 0 && (
+          {availableItems.length > 0 && (
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
               <div style={{ fontSize: '0.76rem', fontWeight: 900, color: 'var(--text-dim)' }}>
-                Погоджено операцій: <strong style={{ color: '#10b981' }}>{stampedCount}</strong> з <strong>{totalOpsCount}</strong>
+                Погоджено ({isSmallMachine ? selectedSheet : 'Всі'}):{' '}
+                <strong style={{ color: '#10b981' }}>{currentSheetStampedCount}</strong> з <strong>{totalAvailableCount}</strong>
               </div>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button
@@ -1022,9 +1181,9 @@ export function Shop1QCOpsModal({
                     opacity: isInspectorValid ? 1 : 0.45
                   }}
                 >
-                  ✓ Погодити {activeSideTab !== 'all' ? 'обрану сторону' : 'всі операції'}
+                  ✓ Погодити для {isSmallMachine ? selectedSheet : 'всіх листів'}
                 </button>
-                {stampedCount > 0 && (
+                {currentSheetStampedCount > 0 && (
                   <button
                     type="button"
                     onClick={handleClearAll}
@@ -1046,8 +1205,8 @@ export function Shop1QCOpsModal({
             </div>
           )}
 
-          {/* Таблиця операцій з техпроцесу - повнорозмірна без вкладеного маленького скролбоксу */}
-          {totalOpsCount === 0 ? (
+          {/* Таблиця доступних операцій */}
+          {availableItems.length === 0 ? (
             <div style={{
               padding: '24px',
               textAlign: 'center',
@@ -1058,21 +1217,21 @@ export function Shop1QCOpsModal({
               fontSize: '0.84rem',
               fontWeight: 700
             }}>
-              Для цієї деталі ще не заповнено поопераційний список у техпроцесі інженера, але ви можете підтвердити відповідність листів та поставити загальну печатку ВКЯ на картку.
+              Для обраного етапу немає запланованих операцій у карті.
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              {(activeSideTab === 'all' || activeSideTab === 'side1') &&
-                renderSection('Операція (1 сторона)', allItems.filter(i => i.key.startsWith('s1:')))}
-              {(activeSideTab === 'all' || activeSideTab === 'side2') &&
-                renderSection('Операція (2 сторона)', allItems.filter(i => i.key.startsWith('s2:')))}
-              {(activeSideTab === 'all' || activeSideTab === 'side2_cut') &&
-                renderSection(`Операція (2 сторона вирізка) ${isCutter1_5 ? 'Ф1.5мм' : 'Ф2мм'}`, allItems.filter(i => i.key.startsWith('s2c:')))}
+              {!isAllSheetsSelected && (activeSideTab === 'all' || activeSideTab === 'side1') &&
+                renderSection('Операція (1 сторона)', availableItems.filter(i => i.key.startsWith('s1:')))}
+              {!isAllSheetsSelected && (activeSideTab === 'all' || activeSideTab === 'side2') &&
+                renderSection('Операція (2 сторона)', availableItems.filter(i => i.key.startsWith('s2:')))}
+              {isAllSheetsSelected && (activeSideTab === 'all' || activeSideTab === 'side2_cut') &&
+                renderSection(`Операція (2 сторона вирізка) ${isCutter1_5 ? 'Ф1.5мм' : 'Ф2мм'}`, availableItems.filter(i => i.key.startsWith('s2c:')))}
             </div>
           )}
 
           {/* Чергова щогодинна перевірка якщо всі операції вже погоджені */}
-          {totalOpsCount > 0 && stampedCount === totalOpsCount && (
+          {availableItems.length > 0 && currentSheetStampedCount === totalAvailableCount && (
             <div
               style={{
                 padding: '12px 14px',
@@ -1099,7 +1258,7 @@ export function Shop1QCOpsModal({
                       : `Фіксація чергового огляду (${isSmallMachine ? selectedSheet : 'Всі листи'})`}
                   </div>
                   <div style={{ fontSize: '0.66rem', color: 'var(--text-dim)', fontWeight: 700, marginTop: '2px' }}>
-                    Всі операції вже погоджено. Натисніть тут для оновлення 1-годинного таймера перевірки.
+                    Всі операції для цього етапу вже погоджено. Натисніть тут для оновлення 1-годинного таймера перевірки.
                   </div>
                 </div>
               </div>

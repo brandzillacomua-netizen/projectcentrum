@@ -368,21 +368,41 @@ export default function ForemanPrintQueue({
                       <tr key={idx} style={{ height: '22px' }}>
                         <td style={{ border: '1.5px solid #000', paddingLeft: '4px' }}>{row.s1}</td>
                         <td style={{ border: '1.5px solid #000', textAlign: 'center', fontSize: '10pt', letterSpacing: row.s1Stamp ? '0' : '2px' }}>
-                          {row.s1Stamp ? (
-                            <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '3px' }}>
-                              <span style={{ color: '#047857', fontWeight: 1000, fontSize: '9pt' }}>☑ | ☑</span>
-                              {renderStampBadge(row.s1Stamp)}
-                            </span>
-                          ) : '☐ | ☐'}
+                          {(() => {
+                            if (!row.s1Stamp) return '☐ | ☐'
+                            const s = row.s1Stamp
+                            const has1_2 = Boolean(s.sheet1_2 || s.sheets?.['1-2'] || s.sheet === 'Лист 1, 2' || s.allSheets)
+                            const has3_4 = Boolean(s.sheet3_4 || s.sheets?.['3-4'] || s.sheet === 'Лист 3, 4' || s.allSheets)
+                            const check1_2 = has1_2 || (!s.sheet1_2 && !s.sheet3_4 && !s.sheet)
+                            const check3_4 = has3_4 || (!s.sheet1_2 && !s.sheet3_4 && !s.sheet)
+                            return (
+                              <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '3px' }}>
+                                <span style={{ color: '#047857', fontWeight: 1000, fontSize: '9pt' }}>
+                                  {check1_2 ? '☑' : '☐'} | {check3_4 ? '☑' : '☐'}
+                                </span>
+                                {renderStampBadge(s)}
+                              </span>
+                            )
+                          })()}
                         </td>
                         <td style={{ border: '1.5px solid #000', paddingLeft: '4px' }}>{row.s2}</td>
                         <td style={{ border: '1.5px solid #000', textAlign: 'center', fontSize: '10pt', letterSpacing: row.s2Stamp ? '0' : '2px' }}>
-                          {row.s2Stamp ? (
-                            <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '3px' }}>
-                              <span style={{ color: '#047857', fontWeight: 1000, fontSize: '9pt' }}>☑ | ☑</span>
-                              {renderStampBadge(row.s2Stamp)}
-                            </span>
-                          ) : '☐ | ☐'}
+                          {(() => {
+                            if (!row.s2Stamp) return '☐ | ☐'
+                            const s = row.s2Stamp
+                            const has1_2 = Boolean(s.sheet1_2 || s.sheets?.['1-2'] || s.sheet === 'Лист 1, 2' || s.allSheets)
+                            const has3_4 = Boolean(s.sheet3_4 || s.sheets?.['3-4'] || s.sheet === 'Лист 3, 4' || s.allSheets)
+                            const check1_2 = has1_2 || (!s.sheet1_2 && !s.sheet3_4 && !s.sheet)
+                            const check3_4 = has3_4 || (!s.sheet1_2 && !s.sheet3_4 && !s.sheet)
+                            return (
+                              <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '3px' }}>
+                                <span style={{ color: '#047857', fontWeight: 1000, fontSize: '9pt' }}>
+                                  {check1_2 ? '☑' : '☐'} | {check3_4 ? '☑' : '☐'}
+                                </span>
+                                {renderStampBadge(s)}
+                              </span>
+                            )
+                          })()}
                         </td>
                         {!isCutter1_5 ? (
                           <td style={{ border: '1.5px solid #000', paddingLeft: '4px' }}>{row.s2cF2}</td>
