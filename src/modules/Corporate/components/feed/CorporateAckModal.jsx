@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { X, CheckCircle2, User, Clock, ShieldCheck } from 'lucide-react'
 import { corporateApi } from '../../services/corporateApi'
 import { CorporateAvatar } from '../common/CorporateAvatar'
@@ -27,7 +28,7 @@ export function CorporateAckModal({
     return () => { mounted = false }
   }, [postId])
 
-  return (
+  const modalContent = (
     <div className="corp-modal-overlay" onClick={onClose}>
       <div className="corp-modal-box" onClick={e => e.stopPropagation()}>
         {/* Header */}
@@ -77,7 +78,7 @@ export function CorporateAckModal({
                 ? new Date(ack.acknowledged_at).toLocaleString('uk-UA', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
                 : ''
 
-              return (
+              const modalContent = (
                 <div
                   key={ack.id || idx}
                   style={{
@@ -127,4 +128,6 @@ export function CorporateAckModal({
       </div>
     </div>
   )
+
+  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : modalContent
 }

@@ -63,10 +63,13 @@ export default function CorporateModule() {
     return () => { mounted = false }
   }, [])
 
-  // Calculate pending acks count for current user
+  // Calculate pending acks count for current user (only official announcements, excluding author)
+  const currentUserId = String(currentUser?.id || '')
   const unreadAcksCount = (posts || []).filter(p => {
+    if (p.category !== 'announcement') return false
     if (!p.requires_ack) return false
-    const isAcked = (p.acks || []).some(a => String(a.user_id) === String(currentUser?.id))
+    if (String(p.author_id) === currentUserId) return false
+    const isAcked = (p.acks || []).some(a => String(a.user_id) === currentUserId)
     return !isAcked
   }).length
 

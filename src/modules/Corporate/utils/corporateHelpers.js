@@ -12,10 +12,11 @@ export const bytesToLabel = (bytes) => {
 }
 
 export const POST_CATEGORIES = {
-  announcement: { id: 'announcement', label: 'Оголошення / Наказ', color: '#ef4444' },
-  discussion: { id: 'discussion', label: 'Робоче питання', color: '#3b82f6' },
-  technical: { id: 'technical', label: 'Техніка / Обладнання', color: '#f59e0b' },
-  general: { id: 'general', label: 'Загальне', color: '#10b981' }
+  announcement: { id: 'announcement', label: 'Офіційні накази', color: '#ef4444' },
+  discussion: { id: 'discussion', label: 'Робочі питання', color: '#3b82f6' },
+  technical: { id: 'technical', label: 'Техніка & Обладнання', color: '#f59e0b' },
+  suggestion: { id: 'suggestion', label: 'Пропозиції та ідеї', color: '#10b981' },
+  general: { id: 'suggestion', label: 'Пропозиції та ідеї', color: '#10b981' }
 }
 
 export const TASK_STATUSES = {

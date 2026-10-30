@@ -17,6 +17,7 @@ import { POST_CATEGORIES, renderFormattedContent, bytesToLabel } from '../../uti
 import { CorporateComments } from './CorporateComments'
 import { CorporateAckModal } from './CorporateAckModal'
 import { CorporateAvatar } from '../common/CorporateAvatar'
+import { CorporateImageLightbox } from '../common/CorporateImageLightbox'
 
 export function CorporatePostCard({
   post,
@@ -29,6 +30,7 @@ export function CorporatePostCard({
 }) {
   const [showComments, setShowComments] = useState(false)
   const [showAckModal, setShowAckModal] = useState(false)
+  const [lightboxIndex, setLightboxIndex] = useState(null)
 
   const author = post.author
   const authorName = author
@@ -183,25 +185,31 @@ export function CorporatePostCard({
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: imageAttachments.length === 1 ? '1fr' : (imageAttachments.length === 2 ? '1fr 1fr' : 'repeat(auto-fit, minmax(200px, 1fr))'),
-              gap: '10px',
+              gridTemplateColumns: imageAttachments.length === 1 ? '1fr' : (imageAttachments.length === 2 ? '1fr 1fr' : 'repeat(auto-fit, minmax(220px, 1fr))'),
+              gap: '12px',
               borderRadius: '16px',
               overflow: 'hidden'
             }}
           >
             {imageAttachments.map((att, idx) => (
-              <a
+              <div
                 key={idx}
-                href={att.url}
-                target="_blank"
-                rel="noreferrer"
+                className="corp-post-image-thumb"
+                onClick={() => setLightboxIndex(idx)}
+                role="button"
+                tabIndex={0}
+                title="Натисніть для перегляду фото на весь екран"
                 style={{
                   borderRadius: '14px',
                   overflow: 'hidden',
                   border: '1px solid var(--ch-border)',
-                  display: 'block',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
                   background: 'var(--ch-surface-inset)',
-                  maxHeight: imageAttachments.length === 1 ? '420px' : '240px'
+                  maxHeight: imageAttachments.length === 1 ? '560px' : '320px',
+                  cursor: 'zoom-in',
+                  position: 'relative'
                 }}
               >
                 <img
@@ -209,20 +217,22 @@ export function CorporatePostCard({
                   alt={att.name || 'Зображення публікації'}
                   loading="lazy"
                   style={{
-                    width: '100%',
-                    height: '100%',
-                    minHeight: '140px',
-                    objectFit: 'cover',
+                    maxWidth: '100%',
+                    maxHeight: imageAttachments.length === 1 ? '560px' : '320px',
+                    width: imageAttachments.length === 1 ? 'auto' : '100%',
+                    height: 'auto',
+                    objectFit: 'contain',
                     display: 'block',
+                    margin: '0 auto',
                     transition: 'transform 0.25s ease'
                   }}
-                  onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.02)'}
+                  onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.015)'}
                   onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
                   onError={e => {
                     e.currentTarget.style.display = 'none'
                   }}
                 />
-              </a>
+              </div>
             ))}
           </div>
         </div>
@@ -254,8 +264,8 @@ export function CorporatePostCard({
         </div>
       )}
 
-      {/* Official Acknowledgment Hero Callout (When post requires_ack) */}
-      {post.requires_ack && (
+      {/* Official Acknowledgment Hero Callout (Only for Official Announcements) */}
+      {post.requires_ack && post.category === 'announcement' && (
         <div className={`corp-ack-hero-box ${isAckedByMe ? 'acknowledged' : ''}`}>
           <div className="corp-ack-hero-text">
             <div
@@ -359,6 +369,14 @@ export function CorporatePostCard({
           onClose={() => setShowAckModal(false)}
         />
       )}
+
+      {/* Social Media Style Image Lightbox Viewer */}
+      <CorporateImageLightbox
+        isOpen={lightboxIndex !== null}
+        onClose={() => setLightboxIndex(null)}
+        images={imageAttachments}
+        initialIndex={lightboxIndex !== null ? lightboxIndex : 0}
+      />
     </article>
   )
 }

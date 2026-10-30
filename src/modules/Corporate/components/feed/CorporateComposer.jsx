@@ -1,8 +1,18 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Send, Pin, CheckSquare, AtSign, AlertCircle, ShieldAlert } from 'lucide-react'
+import {
+  Send,
+  Pin,
+  CheckSquare,
+  X,
+  Paperclip,
+  Megaphone,
+  MessageSquare,
+  ShieldAlert
+} from 'lucide-react'
 import { POST_CATEGORIES, extractMentionedUserIds } from '../../utils/corporateHelpers'
 import { MentionAutocomplete } from '../common/MentionAutocomplete'
 import { AttachmentDropzone } from '../common/AttachmentDropzone'
+import { CorporateAvatar } from '../common/CorporateAvatar'
 import { useCorporateAttachmentManager } from '../../hooks/useCorporateImageCompressor'
 
 export function CorporateComposer({
@@ -12,6 +22,7 @@ export function CorporateComposer({
   isSubmitting = false,
   initialCategory = 'discussion'
 }) {
+  const [isExpanded, setIsExpanded] = useState(false)
   const [category, setCategory] = useState(initialCategory)
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
@@ -82,6 +93,16 @@ export function CorporateComposer({
     }, 50)
   }
 
+  const handleCancel = () => {
+    if (content.trim() || attachments.length > 0) {
+      if (!window.confirm('Скинути чернетку публікації?')) return
+    }
+    setContent('')
+    setTitle('')
+    clearAll()
+    setIsExpanded(false)
+  }
+
   const handleSubmit = async (e) => {
     if (e) e.preventDefault()
     if (!content.trim() && attachments.length === 0) return
@@ -105,39 +126,113 @@ export function CorporateComposer({
     setRequiresAck(false)
     setIsPinned(false)
     clearAll()
+    setIsExpanded(false)
   }
 
+  // ── COLLAPSED PROMPT STATE ────────────────────────────────────────────────
+  if (!isExpanded && !content.trim() && attachments.length === 0) {
+    return (
+      <div
+        className="corp-card corp-composer-collapsed"
+        onClick={() => setIsExpanded(true)}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: 0 }}>
+          <CorporateAvatar user={currentUser} size={38} />
+          <div className="corp-composer-fake-input">
+            Поділіться новиною, оголошенням або робочим питанням...
+          </div>
+        </div>
+
+        <div className="corp-composer-quick-actions">
+          <button
+            type="button"
+            className="corp-quick-action-btn announcement"
+            onClick={(e) => {
+              e.stopPropagation()
+              setCategory('announcement')
+              setRequiresAck(true)
+              setIsExpanded(true)
+            }}
+            title="Створити офіційне оголошення або наказ"
+          >
+            <Megaphone size={14} color="#ef4444" />
+            <span>Наказ</span>
+          </button>
+
+          <button
+            type="button"
+            className="corp-quick-action-btn discussion"
+            onClick={(e) => {
+              e.stopPropagation()
+              setCategory('discussion')
+              setIsExpanded(true)
+            }}
+            title="Задати робоче питання"
+          >
+            <MessageSquare size={14} color="#3b82f6" />
+            <span>Питання</span>
+          </button>
+
+          <button
+            type="button"
+            className="corp-quick-action-btn attachment"
+            onClick={(e) => {
+              e.stopPropagation()
+              setIsExpanded(true)
+            }}
+            title="Додати фото або файл"
+          >
+            <Paperclip size={14} color="#10b981" />
+            <span>Файл</span>
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // ── EXPANDED STUDIO STATE ────────────────────────────────────────────────
   return (
     <div
-      className="corp-card corp-composer-card"
+      className="corp-card corp-composer-card corp-composer-expanded"
       style={{
         overflow: 'visible',
         position: 'relative',
         zIndex: mentionQuery !== null ? 9999 : 20
       }}
     >
-      {/* Category selector pills */}
-      <div className="corp-composer-categories">
-        {Object.values(POST_CATEGORIES).map(cat => {
-          const isSelected = category === cat.id
-          return (
-            <button
-              key={cat.id}
-              type="button"
-              className={`corp-cat-pill ${isSelected ? 'active' : ''}`}
-              style={{
-                '--cat-color': cat.color,
-                '--cat-color-subtle': `${cat.color}18`
-              }}
-              onClick={() => {
-                setCategory(cat.id)
-                if (cat.id === 'announcement') setRequiresAck(true)
-              }}
-            >
-              <span>{cat.label}</span>
-            </button>
-          )
-        })}
+      {/* Category selector row & Close button */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--ch-border)', paddingBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+        <div className="corp-composer-categories">
+          {Object.values(POST_CATEGORIES).map(cat => {
+            const isSelected = category === cat.id
+            return (
+              <button
+                key={cat.id}
+                type="button"
+                className={`corp-cat-pill ${isSelected ? 'active' : ''}`}
+                style={{
+                  '--cat-color': cat.color,
+                  '--cat-color-subtle': `${cat.color}18`
+                }}
+                onClick={() => {
+                  setCategory(cat.id)
+                  if (cat.id === 'announcement') setRequiresAck(true)
+                }}
+              >
+                <span>{cat.label}</span>
+              </button>
+            )
+          })}
+        </div>
+
+        <button
+          type="button"
+          onClick={handleCancel}
+          className="corp-btn-close-composer"
+          title="Згорнути"
+        >
+          <X size={16} />
+        </button>
       </div>
 
       {/* Official Announcement Security Alert Banner */}
@@ -147,12 +242,12 @@ export function CorporateComposer({
             display: 'flex',
             alignItems: 'center',
             gap: '10px',
-            background: 'rgba(245, 158, 11, 0.08)',
-            border: '1px solid rgba(245, 158, 11, 0.3)',
+            background: 'rgba(239, 68, 68, 0.08)',
+            border: '1px solid rgba(239, 68, 68, 0.25)',
             borderRadius: '12px',
             padding: '10px 14px',
             fontSize: '0.8rem',
-            color: '#f59e0b',
+            color: '#ef4444',
             fontWeight: 700
           }}
         >
@@ -171,6 +266,7 @@ export function CorporateComposer({
           value={title}
           onChange={e => setTitle(e.target.value)}
           placeholder={category === 'announcement' ? 'Тема офіційного наказу або розпорядження...' : 'Тема публікації...'}
+          autoFocus={category === 'announcement'}
         />
       )}
 
@@ -183,6 +279,7 @@ export function CorporateComposer({
           onChange={handleTextChange}
           placeholder="Напишіть допис або новину для команди... Введіть @ для згадки колеги"
           rows={3}
+          autoFocus={category !== 'announcement'}
         />
 
         {mentionQuery !== null && (
@@ -205,30 +302,28 @@ export function CorporateComposer({
       {/* Actions Row */}
       <div className="corp-composer-actions-row">
         <div className="corp-composer-tools-left">
-          {/* Require acknowledgment checkbox */}
-          <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: requiresAck ? '#ef4444' : 'var(--ch-text-muted)', cursor: 'pointer', fontWeight: 800 }}>
-            <input
-              type="checkbox"
-              checked={requiresAck}
-              onChange={e => setRequiresAck(e.target.checked)}
-              style={{ accentColor: '#ef4444' }}
-            />
+          {/* Require acknowledgment styled toggle */}
+          <button
+            type="button"
+            className={`corp-toggle-btn ${requiresAck ? 'active-ack' : ''}`}
+            onClick={() => setRequiresAck(prev => !prev)}
+            title="Вимагати від співробітників підтвердження підписом"
+          >
             <CheckSquare size={15} />
             <span>Обов'язкове ознайомлення</span>
-          </label>
+          </button>
 
-          {/* Admin Pin to top */}
+          {/* Admin Pin to top styled toggle */}
           {isAdmin && (
-            <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: isPinned ? '#f59e0b' : 'var(--ch-text-muted)', cursor: 'pointer', fontWeight: 800 }}>
-              <input
-                type="checkbox"
-                checked={isPinned}
-                onChange={e => setIsPinned(e.target.checked)}
-                style={{ accentColor: '#f59e0b' }}
-              />
+            <button
+              type="button"
+              className={`corp-toggle-btn ${isPinned ? 'active-pin' : ''}`}
+              onClick={() => setIsPinned(prev => !prev)}
+              title="Закріпити публікацію нагорі стрічки"
+            >
               <Pin size={15} />
               <span>Закріпити нагорі</span>
-            </label>
+            </button>
           )}
 
           {/* Audience picker */}
@@ -247,6 +342,15 @@ export function CorporateComposer({
         </div>
 
         <div className="corp-composer-tools-right">
+          <button
+            type="button"
+            onClick={handleCancel}
+            className="corp-btn-subtle"
+            style={{ padding: '9px 16px', borderRadius: '12px' }}
+          >
+            Скасувати
+          </button>
+
           <button
             type="button"
             className="corp-btn-primary"

@@ -31,5 +31,13 @@ describe('Corporate Module Helpers', () => {
     })
     expect(tokens[2]).toBe(' регламент оновлено')
   })
+
+  it('validates post categories map to standard company channels', () => {
+    const { POST_CATEGORIES } = require('../src/modules/Corporate/utils/corporateHelpers')
+    expect(POST_CATEGORIES.announcement.label).toBe('Офіційні накази')
+    expect(POST_CATEGORIES.discussion.label).toBe('Робочі питання')
+    expect(POST_CATEGORIES.technical.label).toBe('Техніка & Обладнання')
+    expect(POST_CATEGORIES.suggestion.label).toBe('Пропозиції та ідеї')
+  })
 })
 

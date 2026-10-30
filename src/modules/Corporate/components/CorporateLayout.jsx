@@ -69,9 +69,11 @@ export function CorporateLayout({
     })
     .slice(0, 5)
 
-  // Unread urgent official announcements for right widget
+  // Unread urgent official announcements for right widget (only announcements, excluding author)
   const unreadAnnouncements = (posts || []).filter(p => {
+    if (p.category !== 'announcement') return false
     if (!p.requires_ack) return false
+    if (String(p.author_id) === currentUserId) return false
     const isAcked = (p.acks || []).some(a => String(a.user_id) === currentUserId)
     return !isAcked
   }).slice(0, 3)
@@ -268,68 +270,78 @@ export function CorporateLayout({
         {/* ── CENTER: FEED OR TASKS MAIN VIEW ────────────────────────── */}
         <main className="corp-feed-col">
           {/* Top Header Bar */}
-          <div className="corp-card corp-header-bar">
-            <div className="corp-header-title-wrap">
-              <div className="corp-header-icon-box">
-                {activeTab === 'feed' ? <Building2 size={22} /> : <CheckSquare size={22} />}
-              </div>
-              <div>
-                <h1 className="corp-header-title">
-                  {activeTab === 'feed'
-                    ? (selectedCategory === 'announcement'
-                        ? 'Офіційні накази та розпорядження'
-                        : selectedCategory === 'pinned'
-                        ? 'Закріплені публікації'
-                        : 'Корпоративна стрічка')
-                    : 'Командний задачник'}
-                </h1>
-                <p className="corp-header-subtitle">
-                  {activeTab === 'feed'
-                    ? 'Комунікація підприємства, накази керівництва та координація змін'
-                    : 'Оперативні доручення, чек-листи та контроль виконання'}
-                </p>
-              </div>
-            </div>
+          {(() => {
+            const currentChannelHeader = activeTab === 'feed'
+              ? (selectedCategory === 'announcement'
+                  ? { title: 'Офіційні накази та розпорядження', subtitle: 'Обов\'язкові накази керівництва та регламенти підприємства', icon: Bell, color: '#ef4444' }
+                  : selectedCategory === 'discussion'
+                  ? { title: 'Робочі питання та координація', subtitle: 'Оперативні виробничі обговорення та узгодження', icon: MessageSquare, color: '#3b82f6' }
+                  : selectedCategory === 'technical'
+                  ? { title: 'Техніка & Обладнання', subtitle: 'Стан верстатів ЧПК, інструменту та технічні інциденти', icon: Wrench, color: '#f59e0b' }
+                  : selectedCategory === 'suggestion'
+                  ? { title: 'Пропозиції та ідеї', subtitle: 'Раціоналізаторські ініціативи та оптимізація виробництва', icon: Lightbulb, color: '#10b981' }
+                  : selectedCategory === 'pinned'
+                  ? { title: 'Закріплені публікації', subtitle: 'Важливі закріплені матеріали та регламенти', icon: Pin, color: '#f59e0b' }
+                  : { title: 'Корпоративна стрічка підприємства', subtitle: 'Комунікація підприємства, накази керівництва та координація змін', icon: Building2, color: 'var(--ch-accent)' })
+              : { title: 'Командний задачник', subtitle: 'Оперативні доручення, чек-листи та контроль виконання', icon: CheckSquare, color: 'var(--ch-accent)' }
+            const HeaderIcon = currentChannelHeader.icon
 
-            {/* Actions: Tab toggles & Refresh */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div className="corp-tabs-group">
-                <button
-                  type="button"
-                  className={`corp-tab-btn ${activeTab === 'feed' ? 'active' : ''}`}
-                  onClick={() => onTabChange('feed')}
-                >
-                  <MessageSquare size={15} />
-                  <span>Стрічка</span>
-                  {unreadAcksCount > 0 && (
-                    <span style={{ fontSize: '0.65rem', background: '#ef4444', color: '#fff', padding: '1px 6px', borderRadius: '10px', fontWeight: 900 }}>
-                      {unreadAcksCount}
-                    </span>
-                  )}
-                </button>
+            return (
+              <div className="corp-card corp-header-bar">
+                <div className="corp-header-title-wrap">
+                  <div
+                    className="corp-header-icon-box"
+                    style={currentChannelHeader.color ? { background: currentChannelHeader.color } : {}}
+                  >
+                    <HeaderIcon size={22} />
+                  </div>
+                  <div>
+                    <h1 className="corp-header-title">{currentChannelHeader.title}</h1>
+                    <p className="corp-header-subtitle">{currentChannelHeader.subtitle}</p>
+                  </div>
+                </div>
 
-                <button
-                  type="button"
-                  className={`corp-tab-btn ${activeTab === 'tasks' ? 'active' : ''}`}
-                  onClick={() => onTabChange('tasks')}
-                >
-                  <CheckSquare size={15} />
-                  <span>Завдання ({tasksCount})</span>
-                </button>
+                {/* Actions: Tab toggles & Refresh */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div className="corp-tabs-group">
+                    <button
+                      type="button"
+                      className={`corp-tab-btn ${activeTab === 'feed' ? 'active' : ''}`}
+                      onClick={() => onTabChange('feed')}
+                    >
+                      <MessageSquare size={15} />
+                      <span>Стрічка</span>
+                      {unreadAcksCount > 0 && (
+                        <span style={{ fontSize: '0.65rem', background: '#ef4444', color: '#fff', padding: '1px 6px', borderRadius: '10px', fontWeight: 900 }}>
+                          {unreadAcksCount}
+                        </span>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      className={`corp-tab-btn ${activeTab === 'tasks' ? 'active' : ''}`}
+                      onClick={() => onTabChange('tasks')}
+                    >
+                      <CheckSquare size={15} />
+                      <span>Завдання ({tasksCount})</span>
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={onRefresh}
+                    disabled={loading}
+                    className="corp-btn-subtle"
+                    title="Оновити дані"
+                    style={{ padding: '8px 10px' }}
+                  >
+                    <RefreshCw size={15} className={loading ? 'spin' : ''} />
+                  </button>
+                </div>
               </div>
-
-              <button
-                type="button"
-                onClick={onRefresh}
-                disabled={loading}
-                className="corp-btn-subtle"
-                title="Оновити дані"
-                style={{ padding: '8px 10px' }}
-              >
-                <RefreshCw size={15} className={loading ? 'spin' : ''} />
-              </button>
-            </div>
-          </div>
+            )
+          })()}
 
           {/* Children: CorporateFeed or CorporateTasksView */}
           {children}
