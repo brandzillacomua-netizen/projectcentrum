@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useMES } from '../../MESContext'
 import { supabase } from '../../supabase'
 import './CorporateHub.css'
