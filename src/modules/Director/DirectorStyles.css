@@ -582,6 +582,226 @@
           white-space: nowrap;
         }
 
+        /* KPI & Filter bar */
+        .gcal-kpi-bar {
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+          margin-bottom: 14px;
+        }
+        .gcal-kpi-filters {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          overflow-x: auto;
+          padding-bottom: 4px;
+        }
+        .gcal-filter-btn {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          padding: 6px 12px;
+          border-radius: 10px;
+          background: #141414;
+          border: 1px solid #2a2a2a;
+          color: #94a3b8;
+          font-size: 0.75rem;
+          font-weight: 700;
+          cursor: pointer;
+          transition: all 0.2s;
+          white-space: nowrap;
+        }
+        .gcal-filter-btn:hover {
+          background: #1e1e1e;
+          color: #fff;
+          border-color: #444;
+        }
+        .gcal-filter-btn.active {
+          background: #252525;
+          color: #fff;
+          border-color: #ff9000;
+          box-shadow: 0 0 10px rgba(255, 144, 0, 0.2);
+        }
+        .gcal-filter-btn.btn-overdue.active {
+          border-color: #ef4444;
+          box-shadow: 0 0 10px rgba(239, 68, 68, 0.25);
+        }
+        .gcal-filter-btn.btn-today.active {
+          border-color: #f59e0b;
+          box-shadow: 0 0 10px rgba(245, 158, 11, 0.25);
+        }
+        .gcal-filter-btn.btn-shipped.active {
+          border-color: #10b981;
+          box-shadow: 0 0 10px rgba(16, 185, 129, 0.25);
+        }
+        .gcal-filter-btn.btn-progress.active {
+          border-color: #3b82f6;
+          box-shadow: 0 0 10px rgba(59, 130, 246, 0.25);
+        }
+        .gcal-badge-count {
+          padding: 2px 6px;
+          border-radius: 6px;
+          font-size: 0.65rem;
+          font-weight: 900;
+          background: #222;
+          color: #ccc;
+        }
+        .gcal-badge-count.count-red {
+          background: rgba(239, 68, 68, 0.18);
+          color: #ef4444;
+          border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+        .gcal-badge-count.count-amber {
+          background: rgba(245, 158, 11, 0.18);
+          color: #f59e0b;
+          border: 1px solid rgba(245, 158, 11, 0.3);
+        }
+        .gcal-badge-count.count-blue {
+          background: rgba(59, 130, 246, 0.18);
+          color: #3b82f6;
+          border: 1px solid rgba(59, 130, 246, 0.3);
+        }
+        .gcal-badge-count.count-green {
+          background: rgba(16, 185, 129, 0.18);
+          color: #10b981;
+          border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+        .gcal-active-filter-hint {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 0.72rem;
+          color: #ff9000;
+          background: rgba(255, 144, 0, 0.08);
+          padding: 5px 12px;
+          border-radius: 8px;
+          border: 1px solid rgba(255, 144, 0, 0.2);
+        }
+        .gcal-btn-reset-filter {
+          background: none;
+          border: 1px solid rgba(255, 144, 0, 0.4);
+          color: #ff9000;
+          font-size: 0.65rem;
+          font-weight: 800;
+          padding: 2px 8px;
+          border-radius: 5px;
+          cursor: pointer;
+        }
+        .gcal-btn-reset-filter:hover {
+          background: #ff9000;
+          color: #000;
+        }
+
+        /* Statuses on event cards */
+        .gcal-event-card.status-shipped-ontime {
+          border-left-color: #10b981 !important;
+          background: #101c15;
+          border-color: rgba(16, 185, 129, 0.25);
+        }
+        .gcal-event-card.status-shipped-late {
+          border-left-color: #10b981 !important;
+          background: #141812;
+        }
+        .gcal-event-card.status-overdue {
+          border-left-color: #ef4444 !important;
+          background: #1d1212;
+          border-color: rgba(239, 68, 68, 0.35);
+          box-shadow: inset 0 0 10px rgba(239, 68, 68, 0.06);
+        }
+        .gcal-event-card.status-due-today {
+          border-left-color: #f59e0b !important;
+          background: #1c1811;
+          border-color: rgba(245, 158, 11, 0.35);
+        }
+        .gcal-event-card.status-in-progress {
+          border-left-color: #ff9000 !important;
+        }
+
+        .gcal-icon-shipped {
+          color: #10b981;
+          display: flex;
+          align-items: center;
+          flex-shrink: 0;
+        }
+        .gcal-icon-overdue {
+          color: #ef4444;
+          display: flex;
+          align-items: center;
+          flex-shrink: 0;
+        }
+        .gcal-icon-today {
+          color: #f59e0b;
+          display: flex;
+          align-items: center;
+          flex-shrink: 0;
+        }
+        .gcal-icon-progress {
+          color: #38bdf8;
+          display: flex;
+          align-items: center;
+          flex-shrink: 0;
+        }
+
+        /* Progress Footer in Event Card */
+        .gcal-event-footer {
+          margin-top: 4px;
+          padding-top: 4px;
+          border-top: 1px solid rgba(255, 255, 255, 0.06);
+        }
+        .gcal-progress-wrap {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+        .gcal-progress-track {
+          flex: 1;
+          height: 4px;
+          background: #252525;
+          border-radius: 2px;
+          overflow: hidden;
+        }
+        .gcal-progress-fill {
+          height: 100%;
+          border-radius: 2px;
+          transition: width 0.3s;
+        }
+        .gcal-progress-fill.fill-shipped-ontime,
+        .gcal-progress-fill.fill-shipped-late {
+          background: #10b981;
+        }
+        .gcal-progress-fill.fill-overdue {
+          background: #ef4444;
+        }
+        .gcal-progress-fill.fill-due-today {
+          background: #f59e0b;
+        }
+        .gcal-progress-fill.fill-in-progress {
+          background: #38bdf8;
+        }
+        .gcal-progress-label {
+          font-size: 0.62rem;
+          color: #94a3b8;
+          white-space: nowrap;
+          font-weight: 700;
+        }
+
+        /* Day cell highlights */
+        .gcal-day-cell.day-has-overdue {
+          background: rgba(239, 68, 68, 0.03);
+          border-color: rgba(239, 68, 68, 0.2);
+        }
+        .gcal-day-alert-dot {
+          font-size: 0.65rem;
+          line-height: 1;
+        }
+        .gcal-day-qty-badge.all-shipped {
+          background: rgba(16, 185, 129, 0.15) !important;
+          color: #10b981 !important;
+          border: 1px solid rgba(16, 185, 129, 0.3) !important;
+          display: inline-flex;
+          align-items: center;
+        }
+
         /* Light theme overrides for Director Google Calendar & Dossier */
         .light-theme .google-calendar-container,
         body.light-theme .google-calendar-container,
@@ -637,6 +857,47 @@
         body.light-theme .gcal-event-card {
           background: #f1f5f9 !important;
           border-color: #cbd5e1 !important;
+        }
+        .light-theme .gcal-filter-btn,
+        body.light-theme .gcal-filter-btn {
+          background: #f8fafc !important;
+          border-color: #cbd5e1 !important;
+          color: #475569 !important;
+        }
+        .light-theme .gcal-filter-btn:hover,
+        body.light-theme .gcal-filter-btn:hover {
+          background: #e2e8f0 !important;
+          color: #0f172a !important;
+        }
+        .light-theme .gcal-filter-btn.active,
+        body.light-theme .gcal-filter-btn.active {
+          background: #ffffff !important;
+          color: #0f172a !important;
+          border-color: #ff9000 !important;
+          box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08) !important;
+        }
+        .light-theme .gcal-event-card.status-shipped-ontime,
+        body.light-theme .gcal-event-card.status-shipped-ontime {
+          background: #f0fdf4 !important;
+          border-color: #86efac !important;
+        }
+        .light-theme .gcal-event-card.status-overdue,
+        body.light-theme .gcal-event-card.status-overdue {
+          background: #fef2f2 !important;
+          border-color: #fca5a5 !important;
+        }
+        .light-theme .gcal-event-card.status-due-today,
+        body.light-theme .gcal-event-card.status-due-today {
+          background: #fffbeb !important;
+          border-color: #fde68a !important;
+        }
+        .light-theme .gcal-progress-track,
+        body.light-theme .gcal-progress-track {
+          background: #e2e8f0 !important;
+        }
+        .light-theme .gcal-event-footer,
+        body.light-theme .gcal-event-footer {
+          border-top-color: #e2e8f0 !important;
         }
         .light-theme .gcal-event-card:hover,
         body.light-theme .gcal-event-card:hover {

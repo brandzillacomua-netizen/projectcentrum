@@ -47,6 +47,7 @@ export const getAllModules = (badgeCount = 0, chatBadgeCount = 0) => [
   { id: 'packaging', title: 'Пакування & Комплектація', icon: <Package />, path: '/packaging', desc: 'Збирання готової продукції', color: '#10b981', pillar: 'erp' },
   { id: 'shipping', title: 'Логістика & Відвантаження', icon: <Truck />, path: '/shipping', desc: 'Відвантаження замовнику', color: '#10b981', pillar: 'erp' },
   { id: 'director', title: 'Кабінет Директора', icon: <ShieldCheck size={24} />, path: '/director', desc: 'Фінальні погодження та моніторинг', color: '#10b981', pillar: 'erp' },
+  { id: 'director_team', title: 'Аналітика команди (AI Директор)', icon: <Users size={24} />, path: '/director?tab=team', desc: 'AI-аудит, рейтинг та порівняння працівників', color: '#10b981', pillar: 'erp' },
   { id: 'analytics', title: 'Аналітика & KPI', icon: <TrendingUp />, path: '/analytics', desc: 'Статистика продуктивності та випуску', color: '#10b981', pillar: 'erp' },
   { id: 'reports', title: 'Звіти (1С / Леджер)', icon: <BarChart2 />, path: '/reports', desc: 'Зведена аналітика та експорт', color: '#10b981', pillar: 'erp' },
   { id: 'access', title: 'Система Доступу (СКУД)', icon: <ShieldCheck />, path: '/access', desc: 'Контроль проходів Fortnet', color: '#10b981', pillar: 'erp' },
@@ -101,6 +102,9 @@ export const getAvailableModules = (currentUser, badgeCount, chatBadgeCount = 0)
     }
     if (m.id === 'foreman') {
       return checkRight('foreman') || checkRight('foreman2');
+    }
+    if (m.id === 'director' || m.id === 'director_team') {
+      return checkRight('director') || checkRight('director_team');
     }
     if (m.id === 'corporate') {
       return rights.corporate !== false;

@@ -343,15 +343,13 @@ export function Shop1QCOpsModal({
     }
   }, [showQCOpsModal, currentCard?.id, isSmallMachine, smallMachineSheetOptions])
 
-  if (!showQCOpsModal || !currentCard) return null
-
-  const nowTimeShort = () => {
-    const d = new Date()
-    return d.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' }) + ' ' +
-      d.toLocaleDateString('uk-UA', { day: '2-digit', month: '2-digit' })
-  }
-
-  const isInspectorValid = Boolean(inspectorName && inspectorName.trim().length >= 2)
+  // Current sheet key on small machine: '1-2' or '3-4' or 'all'
+  const currentSheetKey = useMemo(() => {
+    if (!isSmallMachine || isAllSheetsSelected) return 'all'
+    if (selectedSheet && selectedSheet.includes('1') && selectedSheet.includes('2')) return '1-2'
+    if (selectedSheet && selectedSheet.includes('3') && selectedSheet.includes('4')) return '3-4'
+    return selectedSheet
+  }, [isSmallMachine, isAllSheetsSelected, selectedSheet])
 
   // Guard: check if any stamps, sheets status or hourly confirm changed
   const hasChanges = useMemo(() => {
@@ -362,13 +360,15 @@ export function Shop1QCOpsModal({
     return false
   }, [stampedOps, sheetsVerified, isHourlyConfirmed, initialState])
 
-  // Current sheet key on small machine: '1-2' or '3-4' or 'all'
-  const currentSheetKey = useMemo(() => {
-    if (!isSmallMachine || isAllSheetsSelected) return 'all'
-    if (selectedSheet.includes('1') && selectedSheet.includes('2')) return '1-2'
-    if (selectedSheet.includes('3') && selectedSheet.includes('4')) return '3-4'
-    return selectedSheet
-  }, [isSmallMachine, isAllSheetsSelected, selectedSheet])
+  if (!showQCOpsModal || !currentCard) return null
+
+  const nowTimeShort = () => {
+    const d = new Date()
+    return d.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' }) + ' ' +
+      d.toLocaleDateString('uk-UA', { day: '2-digit', month: '2-digit' })
+  }
+
+  const isInspectorValid = Boolean(inspectorName && inspectorName.trim().length >= 2)
 
   const toggleOpStamp = (item) => {
     if (!isInspectorValid) return

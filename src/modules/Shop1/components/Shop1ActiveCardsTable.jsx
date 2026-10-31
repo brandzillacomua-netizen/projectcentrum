@@ -282,7 +282,7 @@ export function Shop1ActiveCardsTable({
                       </div>
                     </td>
                     <td style={{ padding: '10px 14px', color: '#eab308', fontFamily: 'monospace', fontWeight: 700 }}>
-                      {formatSec(timeMetrics.currentSec)}
+                      {formatSec(inBuf ? timeMetrics.currentSec : (timeMetrics.shiftSec ?? timeMetrics.currentSec))}
                     </td>
                     <td style={{ padding: '10px 14px', textAlign: 'right' }}>
                       <button onClick={(e) => { e.stopPropagation(); setSelectedCardId && setSelectedCardId(card.id); setSelectedOperator && setSelectedOperator('') }}

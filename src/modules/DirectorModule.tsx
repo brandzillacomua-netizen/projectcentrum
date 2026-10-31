@@ -7,6 +7,8 @@ import { GoogleCalendarView } from './Director/components/GoogleCalendarView'
 import { ProductionMatrixView } from './Director/components/ProductionMatrixView'
 import { ApprovalsDrawer } from './Director/components/ApprovalsDrawer'
 import { OrderDossierModal } from './Director/components/OrderDossierModal'
+import { DirectorProductCalculator } from './Director/calculator/DirectorProductCalculator'
+import { DirectorTeamAnalytics } from './Director/team/DirectorTeamAnalytics'
 import './Director/DirectorStyles.css'
 
 export interface CalendarDay {
@@ -28,6 +30,10 @@ export interface CalendarEvent {
   status: string
   isOrder?: boolean
   isBatch?: boolean
+  deadline?: string | null
+  deliveryStatus?: 'shipped-ontime' | 'shipped-late' | 'overdue' | 'due-today' | 'in-progress'
+  progressPercent?: number
+  daysDiff?: number
 }
 
 const toLocalISO = (dateVal: string | number | Date | null | undefined): string | null => {
@@ -54,7 +60,7 @@ export const DirectorModule: React.FC = () => {
   const requests = useStore((state: any) => state.requests)
   const workCards = useStore((state: any) => state.workCards)
   const [viewDate, setViewDate] = useState<Date>(new Date())
-  const [viewMode, setViewMode] = useState<'calendar' | 'matrix'>('calendar')
+  const [viewMode, setViewMode] = useState<'calendar' | 'matrix' | 'calculator' | 'team'>('calendar')
   const [isApprovalsOpen, setIsApprovalsOpen] = useState(false)
   const [selectedCell, setSelectedCell] = useState<any>(null)
   const [hoveredPid, setHoveredPid] = useState<any>(null)
@@ -62,6 +68,15 @@ export const DirectorModule: React.FC = () => {
   const [expandedReqs, setExpandedReqs] = useState<Record<string, boolean>>({})
   const [expandedNaryads, setExpandedNaryads] = useState<Record<string, boolean>>({})
   const [allOrdersMap, setAllOrdersMap] = useState<Record<string, any>>({})
+
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search)
+      if (params.get('tab') === 'team') {
+        setViewMode('team')
+      }
+    } catch (_) {}
+  }, [])
 
   const calendarGridDays = useMemo(() => {
     const year = viewDate.getFullYear()
@@ -130,6 +145,18 @@ export const DirectorModule: React.FC = () => {
       map[dateKey].push(event)
     }
 
+    const todayISO = toLocalISO(new Date()) || ''
+
+    const calcDaysDiff = (targetISO: string, currentISO: string): number => {
+      try {
+        const t = new Date(targetISO).getTime()
+        const c = new Date(currentISO).getTime()
+        return Math.round((c - t) / (1000 * 60 * 60 * 24))
+      } catch {
+        return 0
+      }
+    }
+
     const combinedOrders = [...orders]
     Object.values(allOrdersMap).forEach(o => {
       if (!combinedOrders.find(co => String(co.id) === String(o.id))) {
@@ -143,12 +170,19 @@ export const DirectorModule: React.FC = () => {
 
       const orderTasks = tasks.filter((t: any) => String(t.order_id) === String(o.id))
       const batches: Record<string, number> = {}
+      let totalPlannedSets = 0
+      let totalCompletedSets = 0
+
       orderTasks.forEach((t: any) => {
         const key = t.batch_index || `task_${t.id}`
         const qty = Number(t.planned_sets) || 0
         if (!batches[key] || qty > batches[key]) {
           batches[key] = qty
         }
+        const p = Number(t.planned_sets) || 0
+        const c = Number(t.completed_sets || t.actual_sets) || (t.status === 'completed' ? p : 0)
+        totalPlannedSets += p
+        totalCompletedSets += c
       })
       const totalPlanned = Object.values(batches).reduce((acc, q) => acc + q, 0)
       const totalOrderQty = o.order_items?.reduce((sum: number, it: any) => sum + (Number(it.quantity) || 0), 0) || Number(o.quantity) || 0
@@ -158,6 +192,38 @@ export const DirectorModule: React.FC = () => {
         return nom ? nom.name : null
       }).filter(Boolean).join(', ') || 'Замовлення'
 
+      const isShippedOrDone = o.status === 'shipped' || o.status === 'completed' || o.status === 'packaged'
+      const actualShipDate = toLocalISO(o.actual_delivery_date || o.completed_at || o.shipped_at)
+      const daysDiff = calcDaysDiff(orderDeadline, todayISO)
+
+      let deliveryStatus: 'shipped-ontime' | 'shipped-late' | 'overdue' | 'due-today' | 'in-progress' = 'in-progress'
+      if (isShippedOrDone) {
+        if (actualShipDate && actualShipDate > orderDeadline) {
+          deliveryStatus = 'shipped-late'
+        } else {
+          deliveryStatus = 'shipped-ontime'
+        }
+      } else {
+        if (orderDeadline < todayISO) {
+          deliveryStatus = 'overdue'
+        } else if (orderDeadline === todayISO) {
+          deliveryStatus = 'due-today'
+        } else {
+          deliveryStatus = 'in-progress'
+        }
+      }
+
+      let progressPercent = 0
+      if (isShippedOrDone) {
+        progressPercent = 100
+      } else if (o.status === 'packaged') {
+        progressPercent = 95
+      } else if (totalPlannedSets > 0) {
+        progressPercent = Math.min(95, Math.round((totalCompletedSets / totalPlannedSets) * 100))
+      } else {
+        progressPercent = o.status === 'in-progress' ? 35 : 0
+      }
+
       addEvent(orderDeadline, {
         id: o.id,
         orderNum: o.order_num,
@@ -165,7 +231,11 @@ export const DirectorModule: React.FC = () => {
         productName,
         qty: totalOrderQty > 0 ? totalOrderQty : (totalPlanned || 1),
         status: o.status || 'in-progress',
-        isOrder: true
+        isOrder: true,
+        deadline: orderDeadline,
+        deliveryStatus,
+        progressPercent,
+        daysDiff
       })
     })
 
@@ -184,6 +254,31 @@ export const DirectorModule: React.FC = () => {
 
         const existing = (map[taskDeadline] || []).find(e => String(e.id) === String(order.id))
         if (!existing) {
+          const isTaskDone = t.status === 'completed'
+          const actualShipDate = toLocalISO(t.completed_at)
+          const daysDiff = calcDaysDiff(taskDeadline, todayISO)
+
+          let deliveryStatus: 'shipped-ontime' | 'shipped-late' | 'overdue' | 'due-today' | 'in-progress' = 'in-progress'
+          if (isTaskDone) {
+            if (actualShipDate && actualShipDate > taskDeadline) {
+              deliveryStatus = 'shipped-late'
+            } else {
+              deliveryStatus = 'shipped-ontime'
+            }
+          } else {
+            if (taskDeadline < todayISO) {
+              deliveryStatus = 'overdue'
+            } else if (taskDeadline === todayISO) {
+              deliveryStatus = 'due-today'
+            } else {
+              deliveryStatus = 'in-progress'
+            }
+          }
+
+          const planned = Number(t.planned_sets) || batchQty
+          const done = Number(t.completed_sets || t.actual_sets) || (isTaskDone ? planned : 0)
+          const progressPercent = isTaskDone ? 100 : (planned > 0 ? Math.min(95, Math.round((done / planned) * 100)) : 20)
+
           addEvent(taskDeadline, {
             id: order.id,
             taskId: t.id,
@@ -192,7 +287,11 @@ export const DirectorModule: React.FC = () => {
             productName,
             qty: batchQty,
             status: t.status === 'completed' ? 'completed' : 'in-progress',
-            isBatch: true
+            isBatch: true,
+            deadline: taskDeadline,
+            deliveryStatus,
+            progressPercent,
+            daysDiff
           })
         }
       }
@@ -422,7 +521,7 @@ export const DirectorModule: React.FC = () => {
             setSelectedCell={setSelectedCell}
             setSelectedOrderId={setSelectedOrderId}
           />
-        ) : (
+        ) : viewMode === 'matrix' ? (
           <ProductionMatrixView
             activeProducts={activeProducts}
             daysInMonth={daysInMonth}
@@ -432,6 +531,10 @@ export const DirectorModule: React.FC = () => {
             setSelectedCell={setSelectedCell}
             setSelectedOrderId={setSelectedOrderId}
           />
+        ) : viewMode === 'calculator' ? (
+          <DirectorProductCalculator onBack={() => setViewMode('calendar')} />
+        ) : (
+          <DirectorTeamAnalytics onBack={() => setViewMode('calendar')} />
         )}
       </main>
 

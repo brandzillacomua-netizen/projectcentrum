@@ -553,7 +553,6 @@ export function CorporateTasksView({
                       aria-level={3}
                       onClick={() => setEditingTask(task)}
                       className="corp-task-card-title"
-                      style={{ color: '#ffffff' }}
                       title="Натисніть для перегляду та редагування"
                     >
                       {task.title}

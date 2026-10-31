@@ -133,11 +133,13 @@ export function useShop1Data({
   }
 
   const getCardTimeMetrics = (card) => {
-    if (!card) return { totalSec: 0, currentSec: 0 }
+    if (!card) return { totalSec: 0, currentSec: 0, shiftSec: 0 }
     const nowMs = currentTime.getTime()
     const isGaltCurrent = card.operation?.startsWith('Галтовка')
+    const inBuf = card.status === 'at-buffer'
 
     let totalHistorySec = 0
+    let shiftHistorySec = 0
     if (workCardHistory && workCardHistory.length > 0) {
       const cardHistory = workCardHistory.filter(h => {
         if (String(h.card_id) !== String(card.id)) return false
@@ -147,29 +149,54 @@ export function useShop1Data({
           return h.stage_name === 'Розкрій' || h.stage_name === 'Буфер Розкрою' || h.stage_name === 'Розкрій (перезмінка)'
         }
       })
+
+      let lastHandoverMs = 0
+      for (const h of cardHistory) {
+        const stage = String(h?.stage_name || '').toLowerCase()
+        if (stage.includes('перезмінка') || String(h?.card_info || '').includes('[REPLACED_BY:')) {
+          const t = parseDBTime(h?.completed_at || h?.started_at)?.getTime() || 0
+          if (t > lastHandoverMs) lastHandoverMs = t
+        }
+      }
+
+      const cardShift = String(card?.shift_name || '').trim()
+
       cardHistory.forEach(h => {
         if (h.started_at && h.completed_at) {
           if (String(h.stage_name).includes('пауза') || String(h.stage_name).includes('зупинка')) return
           const s = parseDBTime(h.started_at)?.getTime() || 0
           const c = parseDBTime(h.completed_at)?.getTime() || 0
-          if (s && c) {
-            totalHistorySec += Math.max(0, Math.floor((c - s) / 1000))
+          if (s && c && c > s) {
+            const dur = Math.max(0, Math.floor((c - s) / 1000))
+            totalHistorySec += dur
+            const hShift = String(h.shift_name || '').trim()
+            const matchShift = !cardShift || !hShift || cardShift === hShift
+            if ((!lastHandoverMs || c > lastHandoverMs) && matchShift) {
+              shiftHistorySec += dur
+            }
           }
         }
       })
     }
 
-    let currentSec = 0
+    let activeSec = 0
     if (card.status === 'in-progress') {
       const s = parseDBTime(card.started_at)?.getTime() || 0
-      currentSec = s ? Math.max(0, Math.floor((nowMs - s) / 1000)) : 0
-    } else if (card.status === 'at-buffer') {
-      const bufferStart = card.completed_at || card.started_at
-      const s = parseDBTime(bufferStart)?.getTime() || 0
-      currentSec = s ? Math.max(0, Math.floor((nowMs - s) / 1000)) : 0
+      activeSec = s ? Math.max(0, Math.floor((nowMs - s) / 1000)) : 0
     }
 
-    return { totalSec: totalHistorySec + currentSec, currentSec }
+    let bufferSec = 0
+    if (inBuf) {
+      const bufferStart = card.completed_at || card.started_at
+      const s = parseDBTime(bufferStart)?.getTime() || 0
+      bufferSec = s ? Math.max(0, Math.floor((nowMs - s) / 1000)) : 0
+    }
+
+    const shiftSec = inBuf ? 0 : (shiftHistorySec + activeSec)
+    const currentSec = inBuf ? bufferSec : shiftSec
+    const totalSec = inBuf ? (totalHistorySec + bufferSec) : (totalHistorySec + activeSec)
+
+    return { totalSec, currentSec, shiftSec }
   }
 
   const getCuttersForCard = (card) => {

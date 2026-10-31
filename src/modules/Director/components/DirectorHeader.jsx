@@ -1,5 +1,5 @@
 import React from 'react'
-import { ArrowLeft, LayoutDashboard, Bell, ChevronLeft, ChevronRight, Calendar, Layers } from 'lucide-react'
+import { ArrowLeft, LayoutDashboard, Bell, ChevronLeft, ChevronRight, Calendar, Layers, Calculator, Users, Sparkles } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 export const DirectorHeader = ({
@@ -58,6 +58,20 @@ export const DirectorHeader = ({
               onClick={() => setViewMode('matrix')}
             >
               <Layers size={16} /> <span>МАТРИЦЯ</span>
+            </button>
+            <button
+              className={`gcal-toggle-btn ${viewMode === 'calculator' ? 'active' : ''}`}
+              onClick={() => setViewMode('calculator')}
+              title="Калькулятор готових виробів та розрахунок матеріалів"
+            >
+              <Calculator size={16} /> <span>КАЛЬКУЛЯТОР</span>
+            </button>
+            <button
+              className={`gcal-toggle-btn ${viewMode === 'team' ? 'active' : ''}`}
+              onClick={() => setViewMode('team')}
+              title="CENTRUM AI — інтелектуальний аналіз команди, виробництва та показників"
+            >
+              <Sparkles size={16} className="text-amber-400" /> <span>CENTRUM AI</span>
             </button>
           </div>
 

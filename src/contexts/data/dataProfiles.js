@@ -122,7 +122,7 @@ export const ROUTE_DATA_PROFILES = Object.freeze({
   '/packaging': ['orders', 'tasks', 'nomenclatures', 'bom_items', 'material_requests', 'inventory', 'system_users'],
   '/engineer': ['nomenclatures', 'bom_items', 'machines', 'machine_operations', 'tasks', 'orders', 'machine_calls'],
   '/engineer-v2': ['nomenclatures', 'bom_items', 'machines', 'machine_operations', 'tasks', 'orders', 'machine_calls'],
-  '/director': ['tasks', 'orders', 'nomenclatures', 'material_requests', 'work_cards'],
+  '/director': ['tasks', 'orders', 'nomenclatures', 'bom_items', 'inventory', 'material_requests', 'work_cards', 'work_card_history', 'system_users'],
   '/shipping': ['orders', 'tasks', 'nomenclatures', 'system_users'],
   '/supply': ['inventory', 'nomenclatures', 'reception_docs', 'purchase_requests', 'material_requests', 'tasks', 'system_users'],
   '/procurement': ['inventory', 'nomenclatures', 'reception_docs', 'purchase_requests', 'system_users'],

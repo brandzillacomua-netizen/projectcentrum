@@ -1917,8 +1917,8 @@ body:not(.light-theme) .corp-task-card {
 /* ── TASK CARD HEADER: CONTRASTING OBSIDIAN / SLATE BANNER ── */
 .corp-task-card-header {
   padding: 13px 18px 12px 18px;
-  background: #0f172a !important;
-  border-bottom: 2px solid #1e293b !important;
+  background: #0a0d14 !important;
+  border-bottom: 1.5px solid rgba(255, 255, 255, 0.1) !important;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -1927,19 +1927,16 @@ body:not(.light-theme) .corp-task-card {
 :root.light-theme .corp-task-card-header,
 body.light-theme .corp-task-card-header,
 .light-theme .corp-task-card-header {
-  background: #0f172a !important;
-  border-bottom: 2px solid #1e293b !important;
+  background: #f1f5f9 !important;
+  border-bottom: 1.5px solid #cbd5e1 !important;
 }
 
 body:not(.light-theme) .corp-task-card-header {
   background: #0a0d14 !important;
-  border-bottom: 1.5px solid rgba(255, 255, 255, 0.12) !important;
+  border-bottom: 1.5px solid rgba(255, 255, 255, 0.1) !important;
 }
 
-.corp-task-card-title,
-:root.light-theme .corp-task-card-title,
-body.light-theme .corp-task-card-title,
-.light-theme .corp-task-card-title {
+.corp-task-card-title {
   margin: 0;
   font-size: 1.05rem;
   font-weight: 850;
@@ -1950,20 +1947,45 @@ body.light-theme .corp-task-card-title,
   transition: color 0.15s ease;
 }
 
+:root.light-theme .corp-task-card-title,
+body.light-theme .corp-task-card-title,
+.light-theme .corp-task-card-title {
+  color: #0f172a !important;
+}
+
+body:not(.light-theme) .corp-task-card-title {
+  color: #ffffff !important;
+}
+
 .corp-task-card-title:hover {
   color: #818cf8 !important;
 }
 
 /* Action buttons inside header */
 .corp-task-card-header .corp-btn-subtle {
-  background: rgba(255, 255, 255, 0.12) !important;
-  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
   color: #f1f5f9 !important;
+}
+
+:root.light-theme .corp-task-card-header .corp-btn-subtle,
+body.light-theme .corp-task-card-header .corp-btn-subtle,
+.light-theme .corp-task-card-header .corp-btn-subtle {
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #1e293b !important;
 }
 
 .corp-task-card-header .corp-btn-subtle:hover {
   background: rgba(255, 255, 255, 0.22) !important;
   color: #ffffff !important;
+}
+
+:root.light-theme .corp-task-card-header .corp-btn-subtle:hover,
+body.light-theme .corp-task-card-header .corp-btn-subtle:hover,
+.light-theme .corp-task-card-header .corp-btn-subtle:hover {
+  background: #e2e8f0 !important;
+  color: #0f172a !important;
 }
 
 .corp-task-card-body {
@@ -2300,17 +2322,24 @@ body:not(.light-theme) .corp-task-card-desc {
   }
 
   .light-theme .corp-task-card-header {
-    background: #0f172a !important;
-    border-bottom: 2px solid #1e293b !important;
+    background: #f1f5f9 !important;
+    border-bottom: 1.5px solid #cbd5e1 !important;
   }
 
   body:not(.light-theme) .corp-task-card-header {
     background: #0a0d14 !important;
-    border-bottom: 1.5px solid rgba(255, 255, 255, 0.12) !important;
+    border-bottom: 1.5px solid rgba(255, 255, 255, 0.1) !important;
   }
 
   .corp-task-card-title {
     font-size: 0.98rem !important;
+  }
+
+  .light-theme .corp-task-card-title {
+    color: #0f172a !important;
+  }
+
+  body:not(.light-theme) .corp-task-card-title {
     color: #ffffff !important;
   }
 
