@@ -35,6 +35,26 @@ export async function deductInventoryAtomic(supabase, {
     }
 
     if (error) {
+      if (String(error.message || '').includes('Insufficient stock')) {
+        console.warn(`[deductInventoryAtomic] Insufficient stock in RPC (${error.message}). Attempting negative stock deduction fallback for inventory ${inventoryId}.`)
+        try {
+          const { data: invRow } = await supabase.from('inventory').select('*').eq('id', inventoryId).maybeSingle()
+          if (invRow) {
+            const newTotal = (Number(invRow.total_qty) || 0) - numDeduct
+            const newReserved = Math.max(0, (Number(invRow.reserved_qty) || 0) - numRelease)
+            const { error: directErr } = await supabase.from('inventory').update({
+              total_qty: newTotal,
+              reserved_qty: newReserved,
+              updated_at: new Date().toISOString()
+            }).eq('id', inventoryId)
+            if (!directErr) {
+              return { success: true, allowedNegative: true, data: { success: true, new_total: newTotal, new_reserved: newReserved } }
+            }
+          }
+        } catch (fErr) {
+          console.error('[deductInventoryAtomic] Fallback failed:', fErr)
+        }
+      }
       console.error('[atomicInventoryService] RPC error (Fail-Closed):', error.message);
       throw error;
     }
@@ -86,6 +106,57 @@ export async function consumeCuttingInventoryOnce(supabase, {
     if (String(error.message || '').includes('Cutting consumption retry has different quantities')) {
       console.warn(`[consumeCuttingInventoryOnce] Card ${cardId} key ${consumptionKey} was already consumed in previous run (${error.message}). Replaying existing receipt.`)
       return { success: true, replayed: true, warning: error.message }
+    }
+    // Allow negative stock deduction fallback if RPC is blocked by an unmigrated positive stock check
+    if (String(error.message || '').includes('Insufficient stock')) {
+      console.warn(`[consumeCuttingInventoryOnce] Card ${cardId} stock check failed in RPC (${error.message}). Attempting negative stock deduction fallback.`)
+      try {
+        const { data: invRow } = await supabase.from('inventory').select('*').eq('id', inventoryId).maybeSingle()
+        if (invRow) {
+          const newTotal = (Number(invRow.total_qty) || 0) - numDeduct
+          const newReserved = Math.max(0, (Number(invRow.reserved_qty) || 0) - numRelease)
+          const { error: directErr } = await supabase
+            .from('inventory')
+            .update({
+              total_qty: newTotal,
+              reserved_qty: newReserved,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', inventoryId)
+
+          if (!directErr) {
+            if (Array.isArray(requestAllocations)) {
+              for (const alloc of requestAllocations) {
+                if (alloc?.id && alloc?.quantity > 0) {
+                  const { data: mReq } = await supabase.from('material_requests').select('quantity').eq('id', alloc.id).maybeSingle()
+                  if (mReq) {
+                    const newReqQty = Math.max(0, (Number(mReq.quantity) || 0) - Number(alloc.quantity))
+                    await supabase.from('material_requests').update({
+                      quantity: newReqQty,
+                      status: newReqQty === 0 ? 'completed' : undefined,
+                      updated_at: new Date().toISOString()
+                    }).eq('id', alloc.id)
+                  }
+                }
+              }
+            }
+            return {
+              success: true,
+              allowedNegative: true,
+              card_id: cardId,
+              inventory_id: inventoryId,
+              deducted_total: numDeduct,
+              released_reserved: numRelease,
+              new_total: newTotal,
+              new_reserved: newReserved
+            }
+          } else {
+            console.warn('[consumeCuttingInventoryOnce] Direct negative deduction failed (DB constraint check_inventory_total_qty_positive):', directErr.message)
+          }
+        }
+      } catch (fallbackErr) {
+        console.error('[consumeCuttingInventoryOnce] Direct negative deduction fallback failed:', fallbackErr)
+      }
     }
     throw error
   }

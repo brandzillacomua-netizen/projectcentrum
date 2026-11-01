@@ -88,4 +88,63 @@ describe('cutting inventory consumption', () => {
     expect(res.success).toBe(true)
     expect(res.replayed).toBe(true)
   })
+
+  it('falls back to negative stock deduction when RPC rejects with Insufficient stock', async () => {
+    let updatedPayload = null
+    const supabase = {
+      rpc: async () => ({
+        data: null,
+        error: { message: 'Insufficient stock: available 2.00, requested 4' }
+      }),
+      from: (table) => {
+        if (table === 'inventory') {
+          return {
+            select: () => ({
+              eq: () => ({
+                maybeSingle: async () => ({
+                  data: { id: 'stock-1', total_qty: 2, reserved_qty: 2 }
+                })
+              })
+            }),
+            update: (payload) => ({
+              eq: async () => {
+                updatedPayload = payload
+                return { error: null }
+              }
+            })
+          }
+        }
+        if (table === 'material_requests') {
+          return {
+            select: () => ({
+              eq: () => ({
+                maybeSingle: async () => ({
+                  data: { id: 'req-1', quantity: 2 }
+                })
+              })
+            }),
+            update: () => ({
+              eq: async () => ({ error: null })
+            })
+          }
+        }
+        return {}
+      }
+    }
+
+    const res = await consumeCuttingInventoryOnce(supabase, {
+      cardId: 'card-1',
+      consumptionKey: 'sheet:stock-1',
+      inventoryId: 'stock-1',
+      deductTotal: 4,
+      releaseReserved: 2,
+      requestAllocations: [{ id: 'req-1', quantity: 2 }]
+    })
+
+    expect(res.success).toBe(true)
+    expect(res.allowedNegative).toBe(true)
+    expect(res.new_total).toBe(-2)
+    expect(updatedPayload?.total_qty).toBe(-2)
+    expect(updatedPayload?.reserved_qty).toBe(0)
+  })
 })
