@@ -8,7 +8,8 @@ SET statement_timeout = '60s';
 
 begin;
 
--- 1. Drop check constraint requiring total_qty >= 0 so inventory can track negative physical balances
+-- 1. Drop check constraints requiring total_qty >= 0 so inventory can track negative physical balances
+ALTER TABLE public.inventory DROP CONSTRAINT IF EXISTS check_inventory_positive_stock;
 ALTER TABLE public.inventory DROP CONSTRAINT IF EXISTS check_inventory_total_qty_positive;
 
 -- 2. Update rpc_consume_cutting_inventory_once to allow deducting into negative stock
