@@ -920,8 +920,17 @@ export function createProductionCardsActions({
     if (isRework || (card.card_info || '').includes('[ADMIN_MANUAL]')) {
       const nom = nomenclatures.find(n => n.id === card.nomenclature_id)
       if (nom && qtyCompleted > 0) {
-        const { data: finItem } = await supabase.from('inventory').select('*').eq('nomenclature_id', nom.id).eq('warehouse', 'sgp').eq('type', 'finished').limit(1).maybeSingle()
-        if (finItem) await supabase.from('inventory').update({ total_qty: (Number(finItem.total_qty) || 0) + qtyCompleted }).eq('id', finItem.id)
+        const { data: finItem } = await supabase
+          .from('inventory')
+          .select('*')
+          .eq('nomenclature_id', nom.id)
+          .eq('warehouse', 'sgp')
+          .in('type', ['finished', 'bz', 'bz_shop2', 'wip_bz', 'semi', 'semi_shop2', 'part', 'product'])
+          .is('pocket_owner', null)
+          .order('type', { ascending: true })
+          .limit(1)
+          .maybeSingle()
+        if (finItem) await supabase.from('inventory').update({ total_qty: (Number(finItem.total_qty) || 0) + qtyCompleted, type: 'finished' }).eq('id', finItem.id)
         else await supabase.from('inventory').insert([{ nomenclature_id: nom.id, name: nom.name, unit: nom.unit || 'шт', total_qty: qtyCompleted, reserved_qty: 0, type: 'finished', pocket_owner: null, warehouse: 'sgp' }])
       }
     } else if (!isShop2) {
