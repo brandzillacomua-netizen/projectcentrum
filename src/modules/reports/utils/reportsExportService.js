@@ -18,7 +18,8 @@ export const exportReportToExcel = async ({
   warehouseReport,
   supplyStats,
   cuttersStats,
-  generalStats
+  generalStats,
+  machineReport
 }) => {
   const XLSX = await getXLSX()
   const periodStr = `${startDate || 'Всі дати'} — ${endDate || 'Всі дати'}`
@@ -112,6 +113,60 @@ export const exportReportToExcel = async ({
       'Одиниця виміру': i.unit || 'шт'
     }))
     workbookData = { 'Звіт Склад': rows }
+  } else if (activeTab === 'machines') {
+    const formatDur = (sec) => {
+      const h = Math.floor((sec || 0) / 3600)
+      const m = Math.floor(((sec || 0) % 3600) / 60)
+      return `${h}г ${m}хв`
+    }
+
+    const summaryRows = (machineReport?.machineAnalytics || []).map(m => ({
+      'Верстат': m.name + (m.sequence_number ? ` (№${m.sequence_number})` : ''),
+      'Тип': m.type || '—',
+      'Час різки': formatDur(m.totalWorkSec),
+      'Час пауз': formatDur(m.totalPauseSec),
+      'К-сть пауз': m.pauseCount,
+      'Проведено ТО': m.maintenanceLogs.length,
+      'Карт порізано': m.cardsCount,
+      'Деталей випущено': m.producedQty,
+      'Брак (шт)': m.scrapQty,
+      'Листів порізано': m.sheetsCount,
+      'Оператори': (m.operatorsList || []).join(', ')
+    }))
+
+    const cardsRows = []
+    ;(machineReport?.machineAnalytics || []).forEach(m => {
+      ;(m.cards || []).forEach(c => {
+        cardsRows.push({
+          'Верстат': m.name,
+          'Картка': `#${String(c.card_id || c.id).slice(0, 8)}`,
+          'Оператор': c.operator_name || '—',
+          'Початок': c.started_at ? new Date(c.started_at).toLocaleString('uk-UA') : '—',
+          'Кінець': c.completed_at ? new Date(c.completed_at).toLocaleString('uk-UA') : (c.is_active ? 'В процесі' : '—'),
+          'Час різки': formatDur(c.workSec),
+          'Час паузи': formatDur(c.pauseSec),
+          'Причини пауз': (c.pauseReasons || []).map(r => r.reason).join(', ') || '—',
+          'Деталей (шт)': c.qty_completed || 0,
+          'Брак (шт)': c.scrap_qty || 0,
+          'Листів': c.sheets || 0
+        })
+      })
+    })
+
+    const maintRows = (machineReport?.maintenanceLogs || []).map(l => ({
+      'Дата': l.triggered_at ? new Date(l.triggered_at).toLocaleString('uk-UA') : '—',
+      'Верстат ID': l.machine_id,
+      'Вид ТО': l.maintenance_type || '—',
+      'Голова / Вузол': l.machine_head || l.spare_part || '—',
+      'Хто виконував': l.performed_by || '—',
+      'Примітки': l.notes || '—'
+    }))
+
+    workbookData = {
+      'Огляд верстатів': summaryRows,
+      'Журнал карт': cardsRows,
+      'Обслуговування ТО': maintRows
+    }
   } else {
     // Default fallback summary sheet
     const rows = [

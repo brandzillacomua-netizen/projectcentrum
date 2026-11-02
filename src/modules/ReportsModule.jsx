@@ -10,6 +10,7 @@ import { EmployeeReportView } from './reports/components/EmployeeReportView'
 import { ScrapReportView } from './reports/components/ScrapReportView'
 import { SuppliesReportView } from './reports/components/SuppliesReportView'
 import { CuttersReportView } from './reports/components/CuttersReportView'
+import { MachinesReportView } from './reports/components/MachinesReportView'
 import { ArchiveReportView } from './reports/components/ArchiveReportView'
 import { AnalyticsReportView } from './reports/components/AnalyticsReportView'
 import './reports/ReportsStyles.css'
@@ -84,6 +85,7 @@ const ReportsModule = () => {
     cutterEventsList,
     totalCuttersUsed,
     totalCuttersSupplied,
+    machineReport,
     setArchiveLoaded,
     setAllArchiveTasks
   } = useReportsModuleData()
@@ -219,6 +221,16 @@ const ReportsModule = () => {
             cutterEventsList={cutterEventsList}
             totalCuttersUsed={totalCuttersUsed}
             totalCuttersSupplied={totalCuttersSupplied}
+          />
+        )
+
+      case 'machines':
+        return (
+          <MachinesReportView
+            machineReport={machineReport}
+            startDate={startDate}
+            endDate={endDate}
+            isSyncing={isSyncing}
           />
         )
 

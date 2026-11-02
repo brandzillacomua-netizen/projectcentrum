@@ -136,7 +136,7 @@ export const ROUTE_DATA_PROFILES = Object.freeze({
   '/corporate': ['management_tasks', 'task_projects', 'system_users', 'company_structure'],
   '/chat': ['system_users'],
   '/access': [],
-  '/reports': ['inventory', 'system_users', 'work_card_history', 'tasks', 'orders', 'nomenclatures', 'reception_docs', 'material_requests'],
+  '/reports': ['inventory', 'system_users', 'work_card_history', 'tasks', 'orders', 'nomenclatures', 'reception_docs', 'material_requests', 'machines', 'work_cards'],
   '/settings': ['system_users', 'company_structure', 'company_positions', 'nomenclatures', 'bom_items', 'inventory']
 })
 

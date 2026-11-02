@@ -7,9 +7,10 @@ import { useEmployeeReport, isNonProductionEntity, isTechnicalHistoryStage } fro
 import { useScrapReport } from './useScrapReport'
 import { useSuppliesReport } from './useSuppliesReport'
 import { useCuttersReport } from './useCuttersReport'
+import { useMachinesReport } from './useMachinesReport'
 import { exportReportToExcel } from '../utils/reportsExportService'
 
-export const HISTORY_REPORT_TABS = new Set(['employees', 'scrap', 'supplies', 'sheets', 'cutters', 'analytics'])
+export const HISTORY_REPORT_TABS = new Set(['employees', 'scrap', 'supplies', 'sheets', 'cutters', 'analytics', 'machines'])
 export const REPORT_CACHE_TTL_MS = 30 * 1000
 
 export const dateInputBoundaryIso = (value, nextDay = false) => {
@@ -20,6 +21,7 @@ export const dateInputBoundaryIso = (value, nextDay = false) => {
 }
 
 export function useReportsModuleData() {
+  const mes = useMES()
   const { 
     inventory, 
     systemUsers, 
@@ -30,9 +32,11 @@ export function useReportsModuleData() {
     receptionDocs,
     requests,
     workCards,
-    machines = [],
+    machines: rawMachines,
     normalize
-  } = useMES()
+  } = mes
+
+  const machines = useMemo(() => Array.isArray(rawMachines) ? rawMachines : [], [rawMachines])
 
   const [activeTab, setActiveTab] = useState('warehouse')
   const [scrapReportSubTab, setScrapReportSubTab] = useState('cases')
@@ -148,7 +152,7 @@ export function useReportsModuleData() {
     const cached = historyRangeCacheRef.current.get(cacheKey)
     if (cached && Date.now() - cached.savedAt < REPORT_CACHE_TTL_MS) return cached.rows
 
-    const columns = 'id,card_id,task_id,nomenclature_id,operator_name,shift_name,stage_name,qty_completed,scrap_qty,qc_scrap_comment,completed_at,created_at,card_info,machine,machine_id,machine_name'
+    const columns = 'id,card_id,task_id,nomenclature_id,operator_name,shift_name,stage_name,qty_completed,scrap_qty,qc_scrap_comment,completed_at,created_at,card_info,machine,machine_id,machine_name,started_at'
     const pageSize = 1000
     const rows = []
 
@@ -398,6 +402,20 @@ export function useReportsModuleData() {
     searchQuery
   })
 
+  const machineReport = useMachinesReport({
+    machines,
+    workCardHistory,
+    workCards,
+    orders,
+    tasks,
+    nomenclatures,
+    filterByDate,
+    selectedShiftFilter,
+    searchQuery,
+    startDate,
+    endDate
+  })
+
   // General Stats
   const generalStats = useMemo(() => {
     const filteredTasks = tasks.filter(t => filterByDate(t.created_at))
@@ -433,13 +451,14 @@ export function useReportsModuleData() {
         supplyStats,
         cuttersStats,
         cutterEventsList,
-        generalStats
+        generalStats,
+        machineReport
       })
     } catch (e) {
       console.error('Failed to export report:', e)
       alert('Помилка при експорті звіту: ' + (e?.message || e))
     }
-  }, [activeTab, startDate, endDate, scrapStats, scrapReasonsStats, employeeStats, warehouseReport, supplyStats, cuttersStats, cutterEventsList, generalStats])
+  }, [activeTab, startDate, endDate, scrapStats, scrapReasonsStats, employeeStats, warehouseReport, supplyStats, cuttersStats, cutterEventsList, generalStats, machineReport])
 
   return {
     inventory,
@@ -450,6 +469,7 @@ export function useReportsModuleData() {
     requests,
     workCards,
     machines,
+    machineReport,
     activeTab,
     setActiveTab: handleSetActiveTab,
     scrapReportSubTab,

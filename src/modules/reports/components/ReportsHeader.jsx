@@ -11,6 +11,7 @@ import {
   Truck,
   PackageCheck,
   Scissors,
+  Cpu,
   TrendingUp,
   Archive,
   Filter,
@@ -102,6 +103,9 @@ export const ReportsHeader = ({
             </button>
             <button onClick={() => setActiveTab('cutters')} className={`report-tab ${activeTab === 'cutters' ? 'active' : ''}`}>
               <Scissors size={16} /> ФРЕЗИ
+            </button>
+            <button onClick={() => setActiveTab('machines')} className={`report-tab ${activeTab === 'machines' ? 'active' : ''}`}>
+              <Cpu size={16} /> ВЕРСТАТИ
             </button>
             <button onClick={() => setActiveTab('analytics')} className={`report-tab ${activeTab === 'analytics' ? 'active' : ''}`}>
               <TrendingUp size={16} /> АНАЛІТИКА
