@@ -1,10 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import { X, Stamp, CheckCircle2, ShieldCheck, CheckSquare, Square, FileCheck2, Clock, Layers } from 'lucide-react'
+import { X, Stamp, CheckCircle2, ShieldCheck, CheckSquare, Square, FileCheck2, Clock, Layers, Lock } from 'lucide-react'
 import { useStore } from '../../../../store/index.js'
 import { supabase } from '../../../../supabase'
 import { parseQcOpsStamps, stripQcOpsStamps } from '../../utils/shop1Helpers'
-
-const STAMP_OPTIONS = ['ВКЯ 1', 'ВКЯ 2', 'ВКЯ 3', 'ВКЯ 4', 'ВКЯ 5', 'ВКЯ 6', 'ВКЯ 7', 'ВКЯ 8']
+import {
+  VKYA_STAMP_ASSIGNMENTS,
+  STAMP_OPTIONS,
+  resolveUserQcStamp,
+  getInspectorNameForStamp
+} from '../../utils/vkyaStampHelpers'
 
 function resolveInspectorName(user, sysUsers = []) {
   if (!user) return ''
@@ -46,12 +50,33 @@ export function Shop1QCOpsModal({
   const setIsProcessing = externalSetProcessing ?? setLocalProcessing
 
   const [localOpConfig, setLocalOpConfig] = useState(null)
-  const [selectedStamp, setSelectedStamp] = useState(() => {
-    try { return localStorage.getItem('centrum_vkya_stamp') || 'ВКЯ 1' } catch { return 'ВКЯ 1' }
-  })
+
   const defaultInspector = useMemo(() => {
     return resolveInspectorName(currentUser, systemUsers)
   }, [currentUser, systemUsers])
+
+  const userAssignedStamp = useMemo(() => {
+    return resolveUserQcStamp(currentUser, systemUsers, defaultInspector)
+  }, [currentUser, systemUsers, defaultInspector])
+
+  const isAdmin = useMemo(() => {
+    return Boolean(
+      currentUser?.role === 'admin' ||
+      currentUser?.login === 'admin' ||
+      currentUser?.login === 'admin@workshop.local' ||
+      (currentUser?.position || '').toLowerCase().includes('адмін') ||
+      currentUser?.access_rights?.settings ||
+      currentUser?.access_rights?.director
+    )
+  }, [currentUser])
+
+  const isStampLocked = Boolean(userAssignedStamp && !isAdmin)
+
+  const [selectedStamp, setSelectedStamp] = useState(() => {
+    const fromUser = resolveUserQcStamp(currentUser, systemUsers, resolveInspectorName(currentUser, systemUsers))
+    if (fromUser) return fromUser
+    try { return localStorage.getItem('centrum_vkya_stamp') || 'ВКЯ 1' } catch { return 'ВКЯ 1' }
+  })
 
   const [inspectorName, setInspectorName] = useState(() => {
     const autoResolved = resolveInspectorName(currentUser, systemUsers)
@@ -65,17 +90,23 @@ export function Shop1QCOpsModal({
 
   // Auto-fill or sync when currentUser/systemUsers becomes available
   useEffect(() => {
+    if (userAssignedStamp) {
+      setSelectedStamp(userAssignedStamp)
+    }
     if (defaultInspector && (!inspectorName || inspectorName === '—')) {
       setInspectorName(defaultInspector)
     }
-  }, [defaultInspector])
+  }, [userAssignedStamp, defaultInspector])
 
   // Sync when logged in user changes
   useEffect(() => {
+    if (userAssignedStamp) {
+      setSelectedStamp(userAssignedStamp)
+    }
     if (defaultInspector) {
       setInspectorName(defaultInspector)
     }
-  }, [currentUser?.id, currentUser?.login])
+  }, [userAssignedStamp, defaultInspector, currentUser?.id, currentUser?.login])
 
   // Persist valid inspector name
   useEffect(() => {
@@ -286,11 +317,12 @@ export function Shop1QCOpsModal({
   }, [allItems, isSmallMachine, isAllSheetsSelected])
 
   const qcStaffList = useMemo(() => {
+    const fromAssignments = VKYA_STAMP_ASSIGNMENTS.map(a => a.name).filter(Boolean)
     const list = (systemUsers || []).filter(u =>
       u?.access_rights?.brak ||
       (u?.position && (u.position.toLowerCase().includes('вкя') || u.position.toLowerCase().includes('якост') || u.position.toLowerCase().includes('контрол')))
     ).map(u => [u.last_name, u.first_name].filter(Boolean).join(' ').trim() || u.login).filter(Boolean)
-    return Array.from(new Set(list))
+    return Array.from(new Set([...fromAssignments, ...list]))
   }, [systemUsers])
 
   // Hydrate existing stamps when modal opens
@@ -309,29 +341,18 @@ export function Shop1QCOpsModal({
     setIsHourlyConfirmed(false)
     setActiveSideTab('all')
 
-    if (parsed) {
-      if (parsed.lastStamp) setSelectedStamp(parsed.lastStamp)
-      if (parsed.lastInspector) setInspectorName(parsed.lastInspector)
-      if (parsed.lastHourlyCheck?.sheetText && isSmallMachine) {
-        setSelectedSheet(parsed.lastHourlyCheck.sheetText)
-      } else {
-        setSelectedSheet(smallMachineSheetOptions[0] || 'Лист 1, 2')
-      }
-    } else {
-      setSheetsVerified(false)
-      setSheetsStampInfo(null)
-      setStampedOps({})
-      setSelectedSheet(smallMachineSheetOptions[0] || 'Лист 1, 2')
+    // Always prioritize the currently logged in inspector's assigned stamp and name
+    if (userAssignedStamp) {
+      setSelectedStamp(userAssignedStamp)
+    } else if (parsed?.lastStamp) {
+      setSelectedStamp(parsed.lastStamp)
     }
 
-    setInitialState({
-      ops: existingOps,
-      sheetsVerified: existingSheetsVerified,
-      checksCount: existingChecks.length,
-      updatedAt: parsed?.updatedAt || null
-    })
-
-    if (!parsed?.lastInspector) {
+    if (defaultInspector && defaultInspector !== '—' && defaultInspector !== 'admin') {
+      setInspectorName(defaultInspector)
+    } else if (parsed?.lastInspector) {
+      setInspectorName(parsed.lastInspector)
+    } else {
       const savedInspector = (() => {
         try { return localStorage.getItem('centrum_vkya_inspector') || '' } catch { return '' }
       })()
@@ -341,7 +362,20 @@ export function Shop1QCOpsModal({
         : ([currentUser?.last_name, currentUser?.first_name].filter(Boolean).join(' ').trim() || '')
       setInspectorName(savedInspector || currentFullName)
     }
-  }, [showQCOpsModal, currentCard?.id, isSmallMachine, smallMachineSheetOptions])
+
+    if (parsed?.lastHourlyCheck?.sheetText && isSmallMachine) {
+      setSelectedSheet(parsed.lastHourlyCheck.sheetText)
+    } else {
+      setSelectedSheet(smallMachineSheetOptions[0] || 'Лист 1, 2')
+    }
+
+    setInitialState({
+      ops: existingOps,
+      sheetsVerified: existingSheetsVerified,
+      checksCount: existingChecks.length,
+      updatedAt: parsed?.updatedAt || null
+    })
+  }, [showQCOpsModal, currentCard?.id, isSmallMachine, smallMachineSheetOptions, userAssignedStamp, defaultInspector])
 
   // Current sheet key on small machine: '1-2' or '3-4' or 'all'
   const currentSheetKey = useMemo(() => {
@@ -909,30 +943,88 @@ export function Shop1QCOpsModal({
             gap: '12px'
           }}>
             <div>
-              <label style={{ fontSize: '0.62rem', fontWeight: 900, color: 'var(--text-dim)', textTransform: 'uppercase', display: 'block', marginBottom: '7px' }}>
-                Номер печатки ВКЯ
-              </label>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '7px', flexWrap: 'wrap', gap: '6px' }}>
+                <label style={{ fontSize: '0.62rem', fontWeight: 900, color: 'var(--text-dim)', textTransform: 'uppercase' }}>
+                  Номер печатки ВКЯ {isStampLocked && <span style={{ color: '#10b981' }}>(зафіксовано)</span>}
+                </label>
+                {userAssignedStamp && (
+                  <span style={{ fontSize: '0.68rem', fontWeight: 900, color: '#10b981', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                    {isStampLocked ? <Lock size={12} /> : <ShieldCheck size={13} />}
+                    {isStampLocked ? 'Печатка закріплена за вашим акаунтом:' : 'Ваша персональна печатка:'} <strong>{userAssignedStamp}</strong>
+                  </span>
+                )}
+              </div>
               <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                {STAMP_OPTIONS.map(stamp => {
+                {VKYA_STAMP_ASSIGNMENTS.map(item => {
+                  const stamp = item.stamp
                   const active = selectedStamp === stamp
+                  const isUserOwn = userAssignedStamp === stamp
+                  const isDisabled = isStampLocked && !isUserOwn
+                  const assignedName = item.shortName || item.name
                   return (
                     <button
                       key={stamp}
                       type="button"
-                      onClick={() => setSelectedStamp(stamp)}
+                      disabled={isDisabled}
+                      onClick={() => {
+                        if (isDisabled) return
+                        setSelectedStamp(stamp)
+                        if (item.name) {
+                          setInspectorName(item.name)
+                        }
+                      }}
                       style={{
                         background: active ? '#10b981' : 'var(--surface-2)',
                         color: active ? '#000' : 'var(--text-strong)',
-                        border: active ? '1.5px solid #10b981' : '1px solid var(--border-subtle)',
+                        border: active
+                          ? '1.5px solid #10b981'
+                          : isUserOwn
+                            ? '1.5px dashed #10b981'
+                            : '1px solid var(--border-subtle)',
                         borderRadius: '999px',
-                        padding: '6px 12px',
+                        padding: '6px 13px',
                         fontSize: '0.74rem',
                         fontWeight: 950,
-                        cursor: 'pointer',
-                        transition: 'all 0.15s'
+                        cursor: isDisabled ? 'not-allowed' : 'pointer',
+                        opacity: isDisabled ? 0.35 : 1,
+                        transition: 'all 0.15s',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        boxShadow: active ? '0 2px 8px rgba(16, 185, 129, 0.3)' : 'none'
                       }}
+                      title={
+                        isDisabled
+                          ? `Печатка ${stamp} закріплена за ${assignedName || 'іншим працівником'} (заблоковано)`
+                          : item.name ? `Закріплено за: ${item.name}` : `Печатка ${stamp}`
+                      }
                     >
-                      💮 {stamp}
+                      <span>💮 {stamp}</span>
+                      {assignedName && (
+                        <span style={{
+                          fontSize: '0.68rem',
+                          fontWeight: 800,
+                          opacity: active ? 0.9 : 0.65
+                        }}>
+                          ({assignedName})
+                        </span>
+                      )}
+                      {isUserOwn && (
+                        <span style={{
+                          fontSize: '0.58rem',
+                          fontWeight: 1000,
+                          background: active ? '#064e3b' : 'rgba(16, 185, 129, 0.2)',
+                          color: active ? '#a7f3d0' : '#10b981',
+                          padding: '1px 5px',
+                          borderRadius: '6px',
+                          textTransform: 'uppercase',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '3px'
+                        }}>
+                          {isStampLocked && <Lock size={9} />} Моя
+                        </span>
+                      )}
                     </button>
                   )
                 })}
@@ -945,22 +1037,37 @@ export function Shop1QCOpsModal({
               </label>
               <input
                 type="text"
-                list="qc-inspectors-datalist"
+                list={isStampLocked ? undefined : 'qc-inspectors-datalist'}
+                readOnly={isStampLocked}
                 placeholder="Спочатку оберіть або введіть ПІБ інспектора ВКЯ..."
                 value={inspectorName}
-                onChange={e => setInspectorName(e.target.value)}
+                onChange={e => {
+                  if (isStampLocked) return
+                  const val = e.target.value
+                  setInspectorName(val)
+                  const matchedStamp = resolveUserQcStamp(null, systemUsers, val)
+                  if (matchedStamp) {
+                    setSelectedStamp(matchedStamp)
+                  }
+                }}
                 style={{
                   width: '100%',
-                  background: 'var(--surface-2)',
-                  border: !isInspectorValid ? '1.5px solid #ef4444' : '1px solid var(--border-subtle)',
+                  background: isStampLocked ? 'rgba(255, 255, 255, 0.04)' : 'var(--surface-2)',
+                  border: !isInspectorValid ? '1.5px solid #ef4444' : isStampLocked ? '1.5px solid rgba(16, 185, 129, 0.4)' : '1px solid var(--border-subtle)',
                   color: 'var(--text-strong)',
                   padding: '11px 13px',
                   borderRadius: '11px',
                   fontSize: '0.88rem',
                   fontWeight: 800,
-                  boxSizing: 'border-box'
+                  boxSizing: 'border-box',
+                  cursor: isStampLocked ? 'default' : 'text'
                 }}
               />
+              {isStampLocked && (
+                <div style={{ fontSize: '0.68rem', color: '#10b981', fontWeight: 800, marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <Lock size={11} /> ПІБ контролера та номер печатки зафіксовані за вашим акаунтом ВКЯ
+                </div>
+              )}
               {!isInspectorValid && (
                 <div style={{ fontSize: '0.68rem', color: '#ef4444', fontWeight: 800, marginTop: '5px' }}>
                   ⚠️ Спочатку вкажіть ПІБ працівника ВКЯ, щоб розблокувати проставлення печаток

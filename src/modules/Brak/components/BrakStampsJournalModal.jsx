@@ -16,18 +16,15 @@ import {
   RotateCcw
 } from 'lucide-react'
 import { parseQcOpsStamps } from '../../Shop1/utils/shop1Helpers.js'
+import { VKYA_STAMP_ASSIGNMENTS } from '../../Shop1/utils/vkyaStampHelpers.js'
 import { extractCardSequence } from '../hooks/useBrakData.js'
 
 const STAMP_FILTER_OPTIONS = [
-  'Всі печатки',
-  'ВКЯ 1',
-  'ВКЯ 2',
-  'ВКЯ 3',
-  'ВКЯ 4',
-  'ВКЯ 5',
-  'ВКЯ 6',
-  'ВКЯ 7',
-  'ВКЯ 8',
+  { id: 'Всі печатки', label: 'Всі печатки' },
+  ...VKYA_STAMP_ASSIGNMENTS.map(a => ({
+    id: a.stamp,
+    label: a.name ? `${a.stamp} (${a.name})` : a.stamp
+  }))
 ]
 
 const PERIOD_OPTIONS = [
@@ -765,11 +762,15 @@ export const BrakStampsJournalModal = React.memo(({
                   outline: 'none',
                 }}
               >
-                {STAMP_FILTER_OPTIONS.map(st => (
-                  <option key={st} value={st} style={{ background: 'var(--modal-bg, #fff)', color: 'var(--text-color, #000)' }}>
-                    {st}
-                  </option>
-                ))}
+                {STAMP_FILTER_OPTIONS.map(st => {
+                  const val = typeof st === 'string' ? st : st.id
+                  const label = typeof st === 'string' ? st : st.label
+                  return (
+                    <option key={val} value={val} style={{ background: 'var(--modal-bg, #fff)', color: 'var(--text-color, #000)' }}>
+                      {label}
+                    </option>
+                  )
+                })}
               </select>
 
               <select
