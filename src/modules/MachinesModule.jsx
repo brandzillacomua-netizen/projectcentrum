@@ -139,6 +139,8 @@ const MachinesModule = () => {
         setIsScanning={setIsScanning}
         scanError={scanError}
         setScanError={setScanError}
+        machines={machines}
+        onSelectMachine={setSelectedMachineId}
       />
 
       <MachinesGlobalMaintenanceModal

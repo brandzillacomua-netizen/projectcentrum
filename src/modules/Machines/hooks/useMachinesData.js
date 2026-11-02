@@ -4,7 +4,6 @@ import { useMES } from '../../../MESContext.jsx'
 import { apiService } from '../../../services/apiDispatcher.js'
 import { supabase } from '../../../supabase.js'
 import { isCardAssignedToMachine, parseMaintenanceLog } from '../utils/machineDashboardUtils.js'
-import { parseMachineQRId } from '../../../utils/machineQrUtils.js'
 
 export const MACHINE_TYPES = [
   'CNC 1200x800 - 4 листи (Малий)',
@@ -107,48 +106,6 @@ export function useMachinesData() {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000)
     return () => clearInterval(timer)
   }, [])
-
-  useEffect(() => {
-    let html5QrCode = null
-    if (isScanning && window.Html5Qrcode) {
-      html5QrCode = new window.Html5Qrcode("machine-qr-reader", {
-        experimentalFeatures: { useBarCodeDetectorIfSupported: true },
-        verbose: false
-      })
-      const config = { fps: 20, qrbox: { width: 260, height: 260 } }
-      const stopAndClose = async () => {
-        if (html5QrCode && html5QrCode.isScanning) await html5QrCode.stop().catch(() => { })
-        setIsScanning(false)
-      }
-      html5QrCode.start({ facingMode: "environment" }, config, async (decodedText) => {
-        try {
-          const machineId = parseMachineQRId(decodedText)
-          if (machineId) {
-            const foundMach = (machines || []).find(m => String(m.id).trim() === machineId.trim())
-            if (foundMach) {
-              setSelectedMachineId(foundMach.id)
-              setScanError(null)
-              await stopAndClose()
-            } else {
-              setScanError("Верстат не знайдено в базі даних.")
-            }
-          } else {
-            setScanError("Невірний QR-код верстата. Скануйте лише QR-код обладнання.")
-          }
-        } catch {
-          setScanError("Помилка зчитування QR-коду.")
-        }
-      }).catch(err => {
-        setScanError("Помилка камери: " + err)
-        setIsScanning(false)
-      })
-    }
-    return () => {
-      if (html5QrCode && html5QrCode.isScanning) {
-        html5QrCode.stop().catch(() => {})
-      }
-    }
-  }, [isScanning, machines])
 
   const isCardOnMachine = (c, m) => {
     return isCardAssignedToMachine(c, m)
