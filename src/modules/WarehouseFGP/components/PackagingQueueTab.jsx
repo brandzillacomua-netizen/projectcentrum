@@ -28,6 +28,9 @@ export function PackagingQueueTab({
   getSgpStock,
   handleIssueAllForOrder,
   isIssuingReq,
+  issuingOrderKey,
+  issuingReqId,
+  issuingProgress,
   handleIssueRequest,
   inventory,
   setViewMode
@@ -627,32 +630,50 @@ export function PackagingQueueTab({
                 {/* Bulk action on right */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   {itemsWithStock.some(i => i.req.status !== 'completed' && i.req.status !== 'issued') ? (
-                    <button
-                      type="button"
-                      onClick={() => handleIssueAllForOrder(group)}
-                      disabled={isIssuingReq || hasShortage}
-                      title={hasShortage ? 'Спочатку потрібно забезпечити повний залишок усіх позицій наряду' : 'Видати та зарезервувати всі позиції наряду'}
-                      style={{
-                        background: '#10b981',
-                        color: '#ffffff',
-                        border: 'none',
-                        borderRadius: '10px',
-                        padding: '9px 18px',
-                        fontSize: '0.82rem',
-                        fontWeight: 1000,
-                        cursor: isIssuingReq || hasShortage ? 'not-allowed' : 'pointer',
-                        opacity: hasShortage ? 0.55 : 1,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        boxShadow: '0 2px 10px rgba(16, 185, 129, 0.3)',
-                        transition: 'all 0.15s ease'
-                      }}
-                      onMouseEnter={e => { if (!isIssuingReq) e.currentTarget.style.background = '#059669' }}
-                      onMouseLeave={e => { if (!isIssuingReq) e.currentTarget.style.background = '#10b981' }}
-                    >
-                      <Check size={16} /> ВИДАТИ Всі запити НА НАРЯД
-                    </button>
+                    (() => {
+                      const isThisOrderIssuing = isIssuingReq && (issuingOrderKey === group.key || issuingOrderKey === group.orderNum)
+                      return (
+                        <button
+                          type="button"
+                          onClick={() => handleIssueAllForOrder(group)}
+                          disabled={isIssuingReq || hasShortage}
+                          title={hasShortage ? 'Спочатку потрібно забезпечити повний залишок усіх позицій наряду' : 'Видати та зарезервувати всі позиції наряду'}
+                          style={{
+                            background: isThisOrderIssuing ? '#059669' : '#10b981',
+                            color: '#ffffff',
+                            border: 'none',
+                            borderRadius: '10px',
+                            padding: '9px 18px',
+                            fontSize: '0.82rem',
+                            fontWeight: 1000,
+                            cursor: isIssuingReq || hasShortage ? (isThisOrderIssuing ? 'wait' : 'not-allowed') : 'pointer',
+                            opacity: hasShortage ? 0.55 : 1,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            boxShadow: '0 2px 10px rgba(16, 185, 129, 0.3)',
+                            transition: 'all 0.15s ease'
+                          }}
+                          onMouseEnter={e => { if (!isIssuingReq && !hasShortage) e.currentTarget.style.background = '#059669' }}
+                          onMouseLeave={e => { if (!isIssuingReq && !hasShortage) e.currentTarget.style.background = '#10b981' }}
+                        >
+                          {isThisOrderIssuing ? (
+                            <>
+                              <RefreshCw size={16} style={{ animation: 'spin 1s linear infinite' }} />
+                              <span>
+                                {issuingProgress?.total > 0
+                                  ? `Видача (${issuingProgress.current} з ${issuingProgress.total})...`
+                                  : 'Видача всіх запитів...'}
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <Check size={16} /> ВИДАТИ Всі запити НА НАРЯД
+                            </>
+                          )}
+                        </button>
+                      )
+                    })()
                   ) : (
                     <div style={{
                       background: t.readyBadgeBg,
@@ -730,6 +751,7 @@ export function PackagingQueueTab({
                       <tbody>
                         {itemsWithStock.map((item, itemIndex) => {
                           const { req, displayName, badge, sgpStock, neededQty, isAlreadyIssued, isBzReservation, hasEnough } = item
+                          const isThisReqIssuing = isIssuingReq && (issuingReqId === req.id || issuingOrderKey === group.key || issuingOrderKey === group.orderNum)
 
                           return (
                             <tr
@@ -857,14 +879,14 @@ export function PackagingQueueTab({
                                     disabled={isIssuingReq || !hasEnough}
                                     title={!hasEnough ? `Недостатньо залишку: бракує ${neededQty - sgpStock} шт` : 'Видати та зарезервувати позицію'}
                                     style={{
-                                      background: t.issueBtnBg,
-                                      color: t.issueBtnText,
-                                      border: `1.5px solid ${t.issueBtnBorder}`,
+                                      background: isThisReqIssuing ? (isDark ? '#065f46' : '#a7f3d0') : t.issueBtnBg,
+                                      color: isThisReqIssuing ? (isDark ? '#6ee7b7' : '#065f46') : t.issueBtnText,
+                                      border: `1.5px solid ${isThisReqIssuing ? '#10b981' : t.issueBtnBorder}`,
                                       borderRadius: '8px',
                                       padding: '6px 14px',
                                       fontSize: '0.78rem',
                                       fontWeight: 900,
-                                      cursor: isIssuingReq || !hasEnough ? 'not-allowed' : 'pointer',
+                                      cursor: isIssuingReq || !hasEnough ? (isThisReqIssuing ? 'wait' : 'not-allowed') : 'pointer',
                                       opacity: !hasEnough ? 0.55 : 1,
                                       display: 'inline-flex',
                                       alignItems: 'center',
@@ -875,7 +897,16 @@ export function PackagingQueueTab({
                                     onMouseEnter={e => { if (!isIssuingReq) { e.currentTarget.style.background = '#10b981'; e.currentTarget.style.color = '#ffffff' } }}
                                     onMouseLeave={e => { if (!isIssuingReq) { e.currentTarget.style.background = t.issueBtnBg; e.currentTarget.style.color = t.issueBtnText } }}
                                   >
-                                    <Check size={14} /> Видати
+                                    {isThisReqIssuing ? (
+                                      <>
+                                        <RefreshCw size={13} style={{ animation: 'spin 1s linear infinite' }} />
+                                        <span>Видача...</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Check size={14} /> Видати
+                                      </>
+                                    )}
                                   </button>
                                 )}
                               </td>

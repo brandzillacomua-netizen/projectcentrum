@@ -175,7 +175,7 @@ export const shop2CardService = {
       }
 
       // 2. Add to finished on sgp
-      const { data: finishedItem } = await supabase
+      let { data: finishedItem } = await supabase
         .from('inventory')
         .select('*')
         .in('nomenclature_id', allNomIds)
@@ -184,18 +184,41 @@ export const shop2CardService = {
         .limit(1)
         .maybeSingle()
 
+      let nom = null
+      const { data: nomV2 } = await supabase
+        .from('nomenclatures_v2')
+        .select('name, unit')
+        .eq('id', nomenclatureId)
+        .maybeSingle()
+      nom = nomV2
+      if (!nom) {
+        const { data: nomV1 } = await supabase
+          .from('nomenclatures')
+          .select('name, unit')
+          .eq('id', nomenclatureId)
+          .maybeSingle()
+        nom = nomV1
+      }
+
+      if (!finishedItem && nom?.name) {
+        const { data: byName } = await supabase
+          .from('inventory')
+          .select('*')
+          .eq('warehouse', 'sgp')
+          .eq('type', 'finished')
+          .ilike('name', nom.name.trim())
+          .limit(1)
+          .maybeSingle()
+        finishedItem = byName
+      }
+
       if (finishedItem) {
         await supabase.from('inventory').update({
+          nomenclature_id: nomenclatureId,
           total_qty: (Number(finishedItem.total_qty) || 0) + directPackQty,
           updated_at: new Date().toISOString()
         }).eq('id', finishedItem.id)
       } else {
-        const { data: nom } = await supabase
-          .from('nomenclatures_v2')
-          .select('name, unit')
-          .eq('id', nomenclatureId)
-          .maybeSingle()
-
         await supabase.from('inventory').insert([{
           nomenclature_id: nomenclatureId,
           name: nom?.name || 'Деталь',

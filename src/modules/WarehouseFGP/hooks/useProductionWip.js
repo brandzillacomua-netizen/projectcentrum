@@ -107,8 +107,13 @@ export function useProductionWip({
       if (op === 'склад бз' || op.includes('пакування/сгп') || op === 'сгп') {
         return false
       }
-      const qty = Number(c.quantity || 0)
-      return qty > 0
+      const totalQty = Number(c.quantity || 0)
+      const usedQty = Number(c.used_in_shop2_qty || 0)
+      const remainingQty = (status === 'at-shop2-buffer' || usedQty > 0)
+        ? Math.max(0, totalQty - usedQty)
+        : totalQty
+
+      return remainingQty > 0
     })
   }, [workCards])
 
@@ -125,7 +130,14 @@ export function useProductionWip({
     }
 
     activeWipCards.forEach(card => {
-      const qty = Number(card.quantity || 0)
+      const status = String(card.status || '').toLowerCase()
+      const totalQty = Number(card.quantity || 0)
+      const usedQty = Number(card.used_in_shop2_qty || 0)
+      const qty = (status === 'at-shop2-buffer' || usedQty > 0)
+        ? Math.max(0, totalQty - usedQty)
+        : totalQty
+
+      if (qty <= 0) return
       const stageInfo = classifyWorkCardStage(card, shop2TaskIdsSet)
 
       // Find nomenclature details
@@ -188,6 +200,7 @@ export function useProductionWip({
 
       row.cards.push({
         ...card,
+        quantity: qty,
         stage: stageInfo.stage,
         stageName: stageInfo.stageName,
         subStage: stageInfo.subStage,

@@ -130,6 +130,9 @@ export const WarehouseFGPModule: React.FC = () => {
     handleIssueRequest,
     handleIssueAllForOrder,
     isIssuingReq,
+    issuingOrderKey,
+    issuingReqId,
+    issuingProgress,
     activePackagingRequests,
     completedPackagingRequests,
     allPackagingRequests,
@@ -404,6 +407,9 @@ export const WarehouseFGPModule: React.FC = () => {
           getSgpStock={getSgpStock}
           handleIssueAllForOrder={handleIssueAllForOrder}
           isIssuingReq={isIssuingReq}
+          issuingOrderKey={issuingOrderKey}
+          issuingReqId={issuingReqId}
+          issuingProgress={issuingProgress}
           handleIssueRequest={handleIssueRequest}
           inventory={inventory}
           setViewMode={setViewMode}

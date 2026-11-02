@@ -99,11 +99,24 @@ export const getAvailableStockByNomenclatureId = (inventory, nomenclatureId) => 
 }
 
 export const getGroupedSgpRow = (groupedItems, nomenclatures, request) => {
-  if (!request?.nomenclature_id) return 0
-  const requestNomId = resolveCanonicalNomId(request.nomenclature_id, nomenclatures)
-  return (groupedItems || []).find(item => (
-    resolveCanonicalNomId(item.nomenclature_id, nomenclatures) === requestNomId
-  )) || null
+  if (!request) return null
+  const requestNomId = request.nomenclature_id ? resolveCanonicalNomId(request.nomenclature_id, nomenclatures) : null
+  const reqName = normalizeKey(request.name || request.nomenclature_name)
+
+  if (requestNomId) {
+    const matchedById = (groupedItems || []).find(item => {
+      const itemNomId = item.nomenclature_id ? resolveCanonicalNomId(item.nomenclature_id, nomenclatures) : null
+      return itemNomId && itemNomId === requestNomId
+    })
+    if (matchedById) return matchedById
+  }
+
+  if (reqName) {
+    const matchedByName = (groupedItems || []).find(item => normalizeKey(item.name) === reqName)
+    if (matchedByName) return matchedByName
+  }
+
+  return null
 }
 
 export const getGroupedSgpAvailableStock = (groupedItems, nomenclatures, request) => {
@@ -119,6 +132,9 @@ export const getGroupedSgpIssueRow = (groupedItems, nomenclatures, request) => {
   return (groupedRow?.rawItems || [])
     .filter(isSgpStockRow)
     .sort((a, b) => {
+      const isSgpA = a.warehouse === 'sgp' ? 1 : 0
+      const isSgpB = b.warehouse === 'sgp' ? 1 : 0
+      if (isSgpA !== isSgpB) return isSgpB - isSgpA
       const availableA = (Number(a.total_qty) || 0) - (Number(a.reserved_qty) || 0)
       const availableB = (Number(b.total_qty) || 0) - (Number(b.reserved_qty) || 0)
       return availableB - availableA
@@ -134,7 +150,12 @@ export const getGroupedSgpIssueAllocations = (groupedItems, nomenclatures, reque
       availableQty: Math.max(0, (Number(item.total_qty) || 0) - (Number(item.reserved_qty) || 0))
     }))
     .filter(entry => entry.availableQty > 0)
-    .sort((a, b) => b.availableQty - a.availableQty)
+    .sort((a, b) => {
+      const isSgpA = a.item?.warehouse === 'sgp' ? 1 : 0
+      const isSgpB = b.item?.warehouse === 'sgp' ? 1 : 0
+      if (isSgpA !== isSgpB) return isSgpB - isSgpA
+      return b.availableQty - a.availableQty
+    })
 
   let remainingQty = Math.max(0, Number(requestedQty) || 0)
   const allocations = []

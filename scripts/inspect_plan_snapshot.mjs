@@ -7,12 +7,24 @@ const supabase = createClient(url, key)
 async function main() {
   await supabase.auth.signInWithPassword({ email: 'vvv@centrum.local', password: 'vvv' })
 
-  const { data: nom } = await supabase
-    .from('nomenclatures')
+  const { data: req } = await supabase
+    .from('material_requests')
     .select('*')
-    .eq('id', 'f68e6acf-1880-4bf1-bb22-c2feacd86612')
+    .eq('id', 'fb1dbe01-a371-4837-a69e-447696cdb2e5')
+    .single()
 
-  console.log('Nomenclature f68e6acf-1880-4bf1-bb22-c2feacd86612:', nom)
+  console.log('Request fb1dbe01:', req)
+
+  if (req?.task_id) {
+    const { data: task } = await supabase.from('tasks').select('*').eq('id', req.task_id).single()
+    console.log('Task for this request:', {
+      id: task?.id,
+      order_id: task?.order_id,
+      step: task?.step,
+      planned_sets: task?.planned_sets,
+      plan_snapshot: task?.plan_snapshot
+    })
+  }
 }
 
 main().catch(console.error)

@@ -27,6 +27,9 @@ export function usePackagingQueue({
   refreshTable
 }) {
   const [isIssuingReq, setIsIssuingReq] = useState(false)
+  const [issuingOrderKey, setIssuingOrderKey] = useState(null)
+  const [issuingReqId, setIssuingReqId] = useState(null)
+  const [issuingProgress, setIssuingProgress] = useState(null)
   const [collapsedOrders, setCollapsedOrders] = useState(() => new Set())
 
   // Merge live requests with context requests
@@ -175,15 +178,16 @@ export function usePackagingQueue({
     ;(inventory || []).forEach(item => {
       if (!item) return
       if (!isSgpStockRow(item) && !isHardware(item)) return
+      const normName = normalizeKey(item.name)
+      const resolvedNom = (nomenclatures || []).find(n => normalizeKey(n.name) === normName)
       const canonicalNomId = item.nomenclature_id
         ? resolveCanonicalNomId(item.nomenclature_id, nomenclatures)
-        : null
-      const normName = normalizeKey(item.name)
+        : (resolvedNom ? resolveCanonicalNomId(resolvedNom.id, nomenclatures) : null)
       const key = canonicalNomId ? `nom_${canonicalNomId}` : `name_${normName}`
       if (!map.has(key)) {
         map.set(key, {
           key,
-          nomenclature_id: canonicalNomId || item.nomenclature_id,
+          nomenclature_id: canonicalNomId || item.nomenclature_id || resolvedNom?.id,
           name: item.name,
           unit: item.unit || 'шт',
           total_qty: 0,
@@ -219,7 +223,8 @@ export function usePackagingQueue({
     return Math.max(0, (Number(groupedRow.total_qty) || 0) - (Number(groupedRow.reserved_qty) || 0) + ownShop2Reserved)
   }
 
-  const issueRequest = async (req) => {
+  const issueRequest = async (req, options = {}) => {
+    const { skipRefetch = false } = options
     if (!req) throw new Error('Запит не знайдено')
       // If Shop 2 already auto-reserved parts for this order/nomenclature under [AUTO_SHOP2_RESERVATION],
       // release those temporary auto-reservations before issuing the explicit packaging request so reserve is not doubled.
@@ -305,42 +310,80 @@ export function usePackagingQueue({
         if (writeError) throw writeError
       }
 
-      if (typeof refreshTable === 'function') {
-        refreshTable('material_requests')
-        refreshTable('inventory')
-      }
-      if (typeof fetchData === 'function') {
-        fetchData(['material_requests', 'inventory', 'orders'])
-      }
-      if (typeof fetchQueueFromDb === 'function') {
-        await fetchQueueFromDb()
+      if (!skipRefetch) {
+        if (typeof refreshTable === 'function') {
+          refreshTable('material_requests')
+          refreshTable('inventory')
+        }
+        if (typeof fetchData === 'function') {
+          fetchData(['material_requests', 'inventory', 'orders'])
+        }
+        if (typeof fetchQueueFromDb === 'function') {
+          await fetchQueueFromDb()
+        }
       }
   }
 
   const handleIssueRequest = async (req) => {
     if (!req || isIssuingReq) return
     setIsIssuingReq(true)
+    setIssuingReqId(req.id)
     try {
       await issueRequest(req)
     } catch (err) {
       alert(`Помилка видачі: ${err.message || err}`)
     } finally {
       setIsIssuingReq(false)
+      setIssuingReqId(null)
     }
   }
 
   const handleIssueAllForOrder = async (orderGroup) => {
     if (!orderGroup || !orderGroup.items?.length || isIssuingReq) return
+    const pendingItems = (orderGroup.items || []).filter(
+      r => r && r.status !== 'completed' && r.status !== 'issued'
+    )
+    if (pendingItems.length === 0) return
+
     setIsIssuingReq(true)
+    setIssuingOrderKey(orderGroup.key || orderGroup.orderNum)
+    setIssuingProgress({ current: 0, total: pendingItems.length })
+
+    let hasErrors = false
     try {
-      for (const req of orderGroup.items) {
-        await issueRequest(req)
+      let count = 0
+      for (const req of pendingItems) {
+        count++
+        setIssuingProgress({ current: count, total: pendingItems.length })
+        await issueRequest(req, { skipRefetch: true })
       }
-      alert(`✅ Всі комплектуючі для наряду №${orderGroup.orderNum} успішно видано з СГП!`)
     } catch (err) {
+      hasErrors = true
       alert(`Помилка при видачі: ${err.message || err}`)
     } finally {
+      try {
+        if (typeof refreshTable === 'function') {
+          refreshTable('material_requests')
+          refreshTable('inventory')
+        }
+        if (typeof fetchData === 'function') {
+          await fetchData(['material_requests', 'inventory', 'orders'])
+        }
+        if (typeof fetchQueueFromDb === 'function') {
+          await fetchQueueFromDb()
+        }
+      } catch (refreshErr) {
+        console.warn('[PackagingQueue] Error refreshing after bulk issue:', refreshErr)
+      }
       setIsIssuingReq(false)
+      setIssuingOrderKey(null)
+      setIssuingProgress(null)
+
+      if (!hasErrors) {
+        setTimeout(() => {
+          alert(`✅ Всі комплектуючі для наряду №${orderGroup.orderNum} успішно видано з СГП!`)
+        }, 150)
+      }
     }
   }
 
@@ -356,6 +399,9 @@ export function usePackagingQueue({
     handleIssueRequest,
     handleIssueAllForOrder,
     isIssuingReq,
+    issuingOrderKey,
+    issuingReqId,
+    issuingProgress,
     activePackagingRequests,
     completedPackagingRequests,
     allPackagingRequests,
