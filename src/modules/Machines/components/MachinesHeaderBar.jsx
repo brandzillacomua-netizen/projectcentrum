@@ -2,69 +2,77 @@ import React from 'react'
 import { Camera, Plus, X, Wrench, Printer } from 'lucide-react'
 import { MACHINE_TYPES } from '../hooks/useMachinesData.js'
 
-export function MachinesHeaderBar({ setIsScanning, showAdd, setShowAdd, setForm, onOpenGlobalMaintenance, onOpenBatchQrPrint }) {
+export function MachinesHeaderBar({
+  setIsScanning,
+  showAdd,
+  setShowAdd,
+  setForm,
+  onOpenGlobalMaintenance,
+  onOpenBatchQrPrint
+}) {
+  const handleToggleAdd = () => {
+    setShowAdd(!showAdd)
+    if (!showAdd) {
+      setForm({
+        id: null,
+        name: '',
+        type: MACHINE_TYPES[0],
+        capacity: '1',
+        sequence_number: '',
+        inventory_no: '',
+        floor: '',
+        description: '',
+        status: 'idle'
+      })
+    }
+  }
+
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '40px' }}>
-      <div>
-        <h2 style={{ fontSize: '2rem', fontWeight: 1000, margin: 0, letterSpacing: '-1px' }}>МОНІТОР ВЕРСТАТІВ</h2>
-        <p style={{ color: '#444', fontWeight: 700, margin: '5px 0 0' }}>Контроль завантаженості та технічні дані</p>
+    <div className="machines-header-bar">
+      <div className="machines-header-title-box">
+        <h2 className="machines-header-title">МОНІТОР ВЕРСТАТІВ</h2>
+        <p className="machines-header-subtitle">Контроль завантаженості та технічні дані</p>
       </div>
-      <div style={{ display: 'flex', gap: '15px' }}>
+
+      <div className="machines-header-actions">
         <button 
+          type="button"
+          onClick={() => setIsScanning(true)}
+          className="machines-action-btn machines-btn-scan"
+          title="Сканувати QR-код верстата для швидкого відкриття досьє або замовлень"
+        >
+          <Camera size={18} />
+          <span>СКАНУВАТИ QR</span>
+        </button>
+
+        <button 
+          type="button"
+          onClick={handleToggleAdd}
+          className={`machines-action-btn ${showAdd ? 'machines-btn-cancel' : 'machines-btn-add'}`}
+          title={showAdd ? 'Скасувати створення верстата' : 'Додати новий верстат'}
+        >
+          {showAdd ? <X size={18} /> : <Plus size={18} />}
+          <span>{showAdd ? 'СКАСУВАТИ' : 'НОВИЙ ВЕРСТАТ'}</span>
+        </button>
+
+        <button 
+          type="button"
           onClick={onOpenBatchQrPrint}
-          style={{ 
-            background: 'rgba(255, 144, 0, 0.12)', 
-            color: '#ff9000', 
-            border: '1px solid rgba(255, 144, 0, 0.35)', padding: '14px 22px', borderRadius: '14px', 
-            fontWeight: 950, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px',
-            transition: '0.2s',
-            boxShadow: '0 4px 15px rgba(255,144,0,0.08)'
-          }}
+          className="machines-action-btn machines-btn-secondary"
           title="Друк QR-кодів верстатів (по 6, 8 або 4 на аркуш А4)"
         >
-          <Printer size={20} />
-          ДРУК QR
+          <Printer size={18} />
+          <span>ДРУК QR</span>
         </button>
+
         <button 
+          type="button"
           onClick={onOpenGlobalMaintenance}
-          style={{ 
-            background: 'rgba(255, 144, 0, 0.12)', 
-            color: '#ff9000', 
-            border: '1px solid rgba(255, 144, 0, 0.35)', padding: '14px 22px', borderRadius: '14px', 
-            fontWeight: 950, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px',
-            transition: '0.2s',
-            boxShadow: '0 4px 15px rgba(255,144,0,0.08)'
-          }}
+          className="machines-action-btn machines-btn-secondary"
+          title="Загальний журнал ТО та обслуговування верстатів"
         >
-          <Wrench size={20} />
-          ЖУРНАЛ ТО
-        </button>
-        <button 
-          onClick={() => setIsScanning(true)}
-          style={{ 
-            background: 'rgba(255, 144, 0, 0.1)', 
-            color: '#ff9000', 
-            border: '1px solid rgba(255, 144, 0, 0.3)', padding: '14px 30px', borderRadius: '14px', 
-            fontWeight: 950, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px',
-            transition: '0.2s'
-          }}
-        >
-          <Camera size={20} />
-          СКАНУВАТИ QR
-        </button>
-        <button 
-          onClick={() => { setShowAdd(!showAdd); if(!showAdd) setForm({id:null, name:'', type: MACHINE_TYPES[0], capacity:'1', sequence_number:'', inventory_no:'', floor:'', description:'', status:'idle'}) }}
-          style={{ 
-            background: showAdd ? 'var(--surface-2)' : '#ff9000', 
-            color: showAdd ? '#fff' : '#000', 
-            border: 'none', padding: '14px 30px', borderRadius: '14px', 
-            fontWeight: 950, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px',
-            boxShadow: showAdd ? 'none' : '0 10px 30px rgba(255,144,0,0.2)',
-            transition: '0.2s'
-          }}
-        >
-          {showAdd ? <X size={20} /> : <Plus size={20} />}
-          {showAdd ? 'СКАСУВАТИ' : 'НОВИЙ ВЕРСТАТ'}
+          <Wrench size={18} />
+          <span>ЖУРНАЛ ТО</span>
         </button>
       </div>
     </div>

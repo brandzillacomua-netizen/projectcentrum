@@ -311,6 +311,16 @@ export function useDataState() {
 
     const fetchPromises = targetTables.map(async (table) => {
       try {
+        if (table === 'inventory' && (inventoryRef.current?.length || 0) === 0) {
+          return { table, rows: [], failed: true }
+        }
+        if (table === 'tasks' && (tasksRef.current?.length || 0) === 0) {
+          return { table, rows: [], failed: true }
+        }
+        if (table === 'orders' && (ordersRef.current?.length || 0) === 0) {
+          return { table, rows: [], failed: true }
+        }
+
         const { data, error } = await supabase
           .from(table)
           .select('*')
@@ -338,7 +348,15 @@ export function useDataState() {
       } else if (table === 'tasks') {
         rows.forEach((r: any) => wsBatcher.enqueue('tasks', { eventType: 'UPDATE', new: r }))
       } else if (table === 'inventory') {
-        rows.forEach((r: any) => wsBatcher.enqueue('inventory', { eventType: 'UPDATE', new: r }))
+        setInventory(prev => {
+          let next = [...prev]
+          rows.forEach((r: any) => {
+            const idx = next.findIndex(item => item.id === r.id)
+            if (idx >= 0) next[idx] = { ...next[idx], ...r }
+            else next.push(r)
+          })
+          return next.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')))
+        })
       } else if (table === 'material_requests') {
         setRequests(prev => {
           let next = [...prev]

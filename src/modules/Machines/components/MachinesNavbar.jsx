@@ -4,26 +4,32 @@ import { ArrowLeft, Activity } from 'lucide-react'
 
 export function MachinesNavbar({ stats }) {
   return (
-    <nav className="module-nav" style={{ 
-      flexShrink: 0, padding: '0 30px', height: '70px', background: 'var(--surface-black)', 
-      borderBottom: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' 
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-        <Link to="/" style={{ color: 'var(--text-dim)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', fontWeight: 700 }}>
-          <ArrowLeft size={18} /> На головну
+    <nav className="module-nav machines-top-nav">
+      <div className="machines-nav-left">
+        <Link to="/" className="machines-nav-back">
+          <ArrowLeft size={18} />
+          <span>На головну</span>
         </Link>
-        <div style={{ width: '1px', height: '20px', background: 'var(--surface-3)' }} />
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <Activity className="text-orange" size={24} color="#ff9000" />
-          <h1 style={{ fontSize: '1rem', fontWeight: 950, textTransform: 'uppercase', letterSpacing: '1px', margin: 0 }}>Парк обладнання</h1>
+        <div className="machines-nav-divider" />
+        <div className="machines-nav-brand">
+          <Activity className="text-orange" size={22} color="#ff9000" />
+          <h1 className="machines-nav-title">Парк обладнання</h1>
         </div>
       </div>
       
-      <div style={{ display: 'flex', gap: '20px' }}>
-        <div className="stat-pill">Всього: <strong>{stats.total}</strong></div>
-        <div className="stat-pill">Зайняті: <strong style={{color: '#ef4444'}}>{stats.busy}</strong></div>
-        <div className="stat-pill">Вільні: <strong style={{color: '#10b981'}}>{stats.idle}</strong></div>
-        <div className="stat-pill">В ремонті: <strong style={{color: '#eab308'}}>{stats.repair}</strong></div>
+      <div className="machines-nav-stats">
+        <div className="stat-pill">
+          <span className="stat-label">Всього:</span> <strong>{stats.total}</strong>
+        </div>
+        <div className="stat-pill stat-pill-busy">
+          <span className="stat-label">Зайняті:</span> <strong style={{ color: '#ef4444' }}>{stats.busy}</strong>
+        </div>
+        <div className="stat-pill stat-pill-idle">
+          <span className="stat-label">Вільні:</span> <strong style={{ color: '#10b981' }}>{stats.idle}</strong>
+        </div>
+        <div className="stat-pill stat-pill-repair">
+          <span className="stat-label">В ремонті:</span> <strong style={{ color: '#eab308' }}>{stats.repair}</strong>
+        </div>
       </div>
     </nav>
   )

@@ -99,6 +99,23 @@ export function MachineDossier({
   const [callMenuOpen, setCallMenuOpen] = useState(false)
 
   useEffect(() => {
+    if (!selectedMachineId) return
+    const prevBodyOverflow = document.body.style.overflow
+    const prevHtmlOverflow = document.documentElement.style.overflow
+    const prevOverscroll = document.body.style.overscrollBehavior
+
+    document.body.style.overflow = 'hidden'
+    document.documentElement.style.overflow = 'hidden'
+    document.body.style.overscrollBehavior = 'none'
+
+    return () => {
+      document.body.style.overflow = prevBodyOverflow
+      document.documentElement.style.overflow = prevHtmlOverflow
+      document.body.style.overscrollBehavior = prevOverscroll
+    }
+  }, [selectedMachineId])
+
+  useEffect(() => {
     if (!selectedMachine?.id) return
     let active = true
     fetchPublicMachineCallContext(selectedMachine.id).then(ctx => {

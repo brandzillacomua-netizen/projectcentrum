@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import {
   Wrench,
   X,
@@ -67,6 +67,34 @@ export function MachinesGlobalMaintenanceModal({
   const [typeFilter, setTypeFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
+  const [showFiltersMobile, setShowFiltersMobile] = useState(false)
+
+  const activeFiltersCount = useMemo(() => {
+    let count = 0
+    if (dateFilterMode !== 'all') count++
+    if (machineFilter !== 'all') count++
+    if (typeFilter !== 'all') count++
+    if (statusFilter !== 'all') count++
+    if (searchQuery.trim()) count++
+    return count
+  }, [dateFilterMode, machineFilter, typeFilter, statusFilter, searchQuery])
+
+  useEffect(() => {
+    if (!isOpen) return
+    const prevBodyOverflow = document.body.style.overflow
+    const prevHtmlOverflow = document.documentElement.style.overflow
+    const prevOverscroll = document.body.style.overscrollBehavior
+
+    document.body.style.overflow = 'hidden'
+    document.documentElement.style.overflow = 'hidden'
+    document.body.style.overscrollBehavior = 'none'
+
+    return () => {
+      document.body.style.overflow = prevBodyOverflow
+      document.documentElement.style.overflow = prevHtmlOverflow
+      document.body.style.overscrollBehavior = prevOverscroll
+    }
+  }, [isOpen])
 
   // Map machines by ID for fast lookup
   const machinesById = useMemo(() => {
@@ -252,7 +280,7 @@ export function MachinesGlobalMaintenanceModal({
 
   return (
     <div
-      className="modal-overlay"
+      className="modal-overlay global-maint-overlay"
       style={{
         position: 'fixed',
         inset: 0,
@@ -267,7 +295,7 @@ export function MachinesGlobalMaintenanceModal({
       onClick={onClose}
     >
       <div
-        className="modal-content"
+        className="modal-content global-maint-content"
         style={{
           width: '100%',
           maxWidth: '1280px',
@@ -285,6 +313,7 @@ export function MachinesGlobalMaintenanceModal({
       >
         {/* Header */}
         <div
+          className="global-maint-header"
           style={{
             padding: '20px 28px',
             borderBottom: '1px solid var(--border-subtle, rgba(255, 255, 255, 0.08))',
@@ -311,7 +340,7 @@ export function MachinesGlobalMaintenanceModal({
               <Wrench size={22} />
             </div>
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                 <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 950, letterSpacing: '-0.3px' }}>
                   ЗАГАЛЬНИЙ ЖУРНАЛ ТО ТА ОБСЛУГОВУВАННЯ
                 </h3>
@@ -335,7 +364,7 @@ export function MachinesGlobalMaintenanceModal({
             </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div className="global-maint-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <button
               onClick={onRefresh}
               disabled={loading}
@@ -399,8 +428,113 @@ export function MachinesGlobalMaintenanceModal({
           </div>
         </div>
 
+        {/* Mobile Quick Action Bar (Visible only on mobile <= 768px) */}
+        <div className="global-maint-mobile-bar">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
+            <button
+              type="button"
+              onClick={() => setShowFiltersMobile(!showFiltersMobile)}
+              className="global-maint-mobile-filter-btn"
+              style={{
+                background: showFiltersMobile ? 'rgba(255, 144, 0, 0.2)' : 'var(--surface-2, #1c1d25)',
+                border: showFiltersMobile ? '1px solid #ff9000' : '1px solid var(--border-subtle, rgba(255,255,255,0.12))',
+                color: showFiltersMobile ? '#ff9000' : 'var(--text-strong, #fff)',
+                padding: '8px 12px',
+                borderRadius: '10px',
+                fontSize: '0.75rem',
+                fontWeight: 900,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              <Filter size={14} />
+              <span>{showFiltersMobile ? 'Сховати фільтри ▲' : `Фільтри ${activeFiltersCount > 0 ? `(${activeFiltersCount})` : ''} ▼`}</span>
+            </button>
+
+            <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>
+              <Search
+                size={14}
+                style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#888' }}
+              />
+              <input
+                type="text"
+                placeholder="Пошук верстата..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                style={{
+                  width: '100%',
+                  background: 'var(--surface-2, #1c1d25)',
+                  border: '1px solid var(--border-subtle, rgba(255,255,255,0.1))',
+                  borderRadius: '10px',
+                  padding: '7px 10px 7px 30px',
+                  color: 'var(--text-strong, #fff)',
+                  fontSize: '0.76rem',
+                  fontWeight: 700,
+                  outline: 'none',
+                  boxSizing: 'border-box'
+                }}
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  style={{
+                    position: 'absolute',
+                    right: '8px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'none',
+                    border: 'none',
+                    color: '#888',
+                    cursor: 'pointer',
+                    padding: 0
+                  }}
+                >
+                  <X size={12} />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {!showFiltersMobile && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                marginTop: '8px',
+                fontSize: '0.68rem',
+                fontWeight: 800,
+                color: 'var(--text-muted, #888)',
+                overflowX: 'auto',
+                whiteSpace: 'nowrap',
+                paddingBottom: '2px'
+              }}
+            >
+              <span style={{ color: 'var(--text-strong, #fff)', background: 'var(--surface-2, #1c1d25)', padding: '3px 8px', borderRadius: '6px' }}>
+                Записів: <strong>{filteredLogs.length}</strong>
+              </span>
+              <span style={{ color: '#10b981', background: 'rgba(16, 185, 129, 0.1)', padding: '3px 8px', borderRadius: '6px' }}>
+                Виконано: <strong>{stats.completed}</strong>
+              </span>
+              {stats.inProgress + stats.pending > 0 && (
+                <span style={{ color: '#ff9000', background: 'rgba(255, 144, 0, 0.1)', padding: '3px 8px', borderRadius: '6px' }}>
+                  В роботі: <strong>{stats.inProgress + stats.pending}</strong>
+                </span>
+              )}
+              <span style={{ color: '#38bdf8', background: 'rgba(56, 189, 248, 0.1)', padding: '3px 8px', borderRadius: '6px' }}>
+                Час: <strong>{stats.totalDurationFormatted}</strong>
+              </span>
+            </div>
+          )}
+        </div>
+
         {/* KPI Summary Cards */}
         <div
+          className={`global-maint-kpis ${!showFiltersMobile ? 'mobile-hidden' : ''}`}
           style={{
             padding: '16px 28px',
             background: 'var(--surface-2, #16171f)',
@@ -448,6 +582,7 @@ export function MachinesGlobalMaintenanceModal({
 
         {/* Toolbar & Filters */}
         <div
+          className={`global-maint-filters ${!showFiltersMobile ? 'mobile-hidden' : ''}`}
           style={{
             padding: '16px 28px',
             background: 'var(--surface-1, #131418)',
@@ -606,7 +741,7 @@ export function MachinesGlobalMaintenanceModal({
         </div>
 
         {/* Table Content */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '0 28px 20px' }}>
+        <div className="global-maint-table-scroll" style={{ flex: '1 1 0%', minHeight: 0, overflowY: 'auto', overflowX: 'auto', padding: '0 28px 20px', overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
           {loading ? (
             <div style={{ padding: '80px 20px', textAlign: 'center', color: '#888' }}>
               <RefreshCw size={28} className="scanner-spin" style={{ color: '#ff9000', margin: '0 auto 12px' }} />
@@ -859,6 +994,123 @@ export function MachinesGlobalMaintenanceModal({
           )}
         </div>
       </div>
+
+      <style dangerouslySetInnerHTML={{ __html: `
+        .global-maint-mobile-bar {
+          display: none;
+        }
+
+        @media (max-width: 768px) {
+          .global-maint-overlay {
+            position: fixed !important;
+            inset: 0 !important;
+            padding: 0 !important;
+            width: 100vw !important;
+            height: 100dvh !important;
+            overflow: hidden !important;
+            overscroll-behavior: contain !important;
+            touch-action: none !important;
+          }
+          .global-maint-content {
+            position: fixed !important;
+            inset: 0 !important;
+            width: 100vw !important;
+            height: 100dvh !important;
+            max-height: 100dvh !important;
+            min-height: 0 !important;
+            border-radius: 0 !important;
+            border: none !important;
+            overflow: hidden !important;
+            overscroll-behavior: contain !important;
+          }
+          .global-maint-header {
+            flex-direction: column !important;
+            align-items: stretch !important;
+            gap: 10px !important;
+            padding: 10px 14px !important;
+            border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08)) !important;
+          }
+          .global-maint-header h3 {
+            font-size: 1.05rem !important;
+            line-height: 1.2 !important;
+          }
+          .global-maint-header-actions {
+            justify-content: flex-end !important;
+            width: 100% !important;
+            gap: 8px !important;
+          }
+          .global-maint-mobile-bar {
+            display: flex !important;
+            flex-direction: column !important;
+            padding: 10px 14px !important;
+            background: var(--surface-2, #181920) !important;
+            border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08)) !important;
+          }
+          .mobile-hidden {
+            display: none !important;
+          }
+          .global-maint-kpis {
+            grid-template-columns: repeat(2, 1fr) !important;
+            padding: 10px 14px !important;
+            gap: 8px !important;
+            max-height: 220px !important;
+            overflow-y: auto !important;
+            -webkit-overflow-scrolling: touch !important;
+          }
+          .global-maint-filters {
+            padding: 10px 14px !important;
+            gap: 8px !important;
+            max-height: 240px !important;
+            overflow-y: auto !important;
+            -webkit-overflow-scrolling: touch !important;
+          }
+          .global-maint-table-scroll {
+            padding: 0 10px 16px !important;
+            flex: 1 1 0% !important;
+            min-height: 0 !important;
+            overflow-y: auto !important;
+            overscroll-behavior: contain !important;
+            -webkit-overflow-scrolling: touch !important;
+            touch-action: pan-y !important;
+          }
+        }
+
+        /* Light theme adjustments for global maintenance modal */
+        body.light-theme .global-maint-content,
+        .light-theme .global-maint-content {
+          background: #ffffff !important;
+          color: #0f172a !important;
+        }
+        body.light-theme .global-maint-header,
+        .light-theme .global-maint-header,
+        body.light-theme .global-maint-mobile-bar,
+        .light-theme .global-maint-mobile-bar {
+          background: #f8fafc !important;
+          border-bottom: 1px solid #e2e8f0 !important;
+        }
+        body.light-theme .global-maint-kpis,
+        .light-theme .global-maint-kpis {
+          background: #f1f5f9 !important;
+          border-bottom: 1px solid #e2e8f0 !important;
+        }
+        body.light-theme .global-maint-filters,
+        .light-theme .global-maint-filters {
+          background: #ffffff !important;
+          border-bottom: 1px solid #e2e8f0 !important;
+        }
+        body.light-theme .global-maint-mobile-bar input,
+        .light-theme .global-maint-mobile-bar input {
+          background: #ffffff !important;
+          border: 1px solid #cbd5e1 !important;
+          color: #0f172a !important;
+        }
+        body.light-theme .global-maint-mobile-filter-btn,
+        .light-theme .global-maint-mobile-filter-btn {
+          background: #ffffff !important;
+          border: 1px solid #cbd5e1 !important;
+          color: #0f172a !important;
+        }
+      `}} />
     </div>
   )
 }

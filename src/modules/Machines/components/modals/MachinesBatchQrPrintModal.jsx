@@ -87,6 +87,22 @@ export function MachinesBatchQrPrintModal({
   const [borderStyle, setBorderStyle] = useState('dashed') // 'dashed' | 'solid'
   const [activeTab, setActiveTab] = useState('preview') // 'preview' | 'selection'
 
+  // Lock background scrolling when modal is open
+  React.useEffect(() => {
+    if (!isOpen) return
+    const prevBody = document.body.style.overflow
+    const prevHtml = document.documentElement.style.overflow
+    const prevOver = document.body.style.overscrollBehavior
+    document.body.style.overflow = 'hidden'
+    document.documentElement.style.overflow = 'hidden'
+    document.body.style.overscrollBehavior = 'none'
+    return () => {
+      document.body.style.overflow = prevBody
+      document.documentElement.style.overflow = prevHtml
+      document.body.style.overscrollBehavior = prevOver
+    }
+  }, [isOpen])
+
   // When initialSelectedId changes, update selection if modal opens
   React.useEffect(() => {
     if (isOpen) {

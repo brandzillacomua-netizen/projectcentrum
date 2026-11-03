@@ -69,6 +69,22 @@ export function MachinesQrScanModal({
     }
   }
 
+  // Lock background scrolling when scanner modal is active
+  useEffect(() => {
+    if (!active) return
+    const prevBody = document.body.style.overflow
+    const prevHtml = document.documentElement.style.overflow
+    const prevOver = document.body.style.overscrollBehavior
+    document.body.style.overflow = 'hidden'
+    document.documentElement.style.overflow = 'hidden'
+    document.body.style.overscrollBehavior = 'none'
+    return () => {
+      document.body.style.overflow = prevBody
+      document.documentElement.style.overflow = prevHtml
+      document.body.style.overscrollBehavior = prevOver
+    }
+  }, [active])
+
   // Scanner lifecycle
   useEffect(() => {
     if (!active) {
@@ -220,7 +236,7 @@ export function MachinesQrScanModal({
         alignItems: 'center',
         justifyContent: 'center',
         zIndex: 10050,
-        padding: '20px'
+        padding: '12px'
       }}
     >
       <div

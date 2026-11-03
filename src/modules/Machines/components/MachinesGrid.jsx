@@ -19,12 +19,15 @@ export function MachinesGrid({
   return (
     <>
       <button 
+        type="button"
         onClick={() => setSelectedType(null)} 
-        style={{ background: 'transparent', border: 'none', color: '#888', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginBottom: '20px', fontWeight: 800, padding: 0 }}
+        className="machines-back-btn"
       >
-        <ArrowLeft size={16} /> Назад до типів обладнання
+        <ArrowLeft size={16} />
+        <span>Назад до типів обладнання</span>
       </button>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '25px' }}>
+
+      <div className="machines-cards-grid">
         {machines.filter(m => selectedType === 'Інші' ? !MACHINE_TYPES.includes(m.type) : m.type === selectedType).map(m => {
           const activeTask = activeWorkForMachine(m)
           const parentTask = activeTask ? tasks.find(t => String(t.id).trim() === String(activeTask.task_id).trim()) : null
@@ -47,24 +50,44 @@ export function MachinesGrid({
           const progressPercent = estimatedMin > 0 ? Math.min(100, (elapsedMin / estimatedMin) * 100) : 0
           
           return (
-            <div key={m.id} className={`machine-card-v3 ${m.status === 'repair' ? 'is-repair' : m.status === 'maintenance_required' ? 'is-maintenance-req' : m.status === 'under_maintenance' ? 'is-under-maintenance' : activeTask ? 'is-busy' : 'is-idle'}`} onClick={() => setSelectedMachineId(m.id)}>
+            <div
+              key={m.id}
+              className={`machine-card-v3 ${m.status === 'repair' ? 'is-repair' : m.status === 'maintenance_required' ? 'is-maintenance-req' : m.status === 'under_maintenance' ? 'is-under-maintenance' : activeTask ? 'is-busy' : 'is-idle'}`}
+              onClick={() => setSelectedMachineId(m.id)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setSelectedMachineId(m.id) }}
+            >
               <div className="card-top">
                 <div className="machine-icon-box">
-                  <Cpu size={24} />
+                  <Cpu size={22} />
                 </div>
                 <div className="status-badge">
                   <div className="status-dot" />
                   {m.status === 'repair' ? 'В РЕМОНТІ' : m.status === 'maintenance_required' ? 'ПОТРЕБУЄ ЧИСТКИ' : m.status === 'under_maintenance' ? 'ОБСЛУГОВУЄТЬСЯ' : activeTask ? 'ЗАЙНЯТИЙ' : 'ВІЛЬНИЙ'}
                 </div>
                 <div className="card-actions">
-                  <button onClick={(e) => { e.stopPropagation(); handleEdit(m) }}><Edit3 size={16} /></button>
-                  <button onClick={(e) => { e.stopPropagation(); handleDelete(m.id, m.name) }} className="btn-del"><Trash2 size={16} /></button>
+                  <button 
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); handleEdit(m) }}
+                    title="Редагувати параметри"
+                  >
+                    <Edit3 size={16} />
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); handleDelete(m.id, m.name) }}
+                    className="btn-del"
+                    title="Видалити верстат"
+                  >
+                    <Trash2 size={16} />
+                  </button>
                 </div>
               </div>
 
               <div className="card-main">
-                <div className="inv-no" style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>
+                <div className="inv-no">
+                  <span className="inv-no-text">
                     {m.sequence_number ? `ПОРЯДКОВИЙ №${m.sequence_number}` : 'ПОРЯДКОВИЙ ВІДСУТНІЙ'} 
                     {' | '}
                     {m.inventory_no || 'БЕЗ ІНВЕНТАРНОГО'}
@@ -74,36 +97,36 @@ export function MachinesGrid({
                   </span>
                 </div>
                 <h3 className="machine-name">{m.name}</h3>
-                <div style={{ fontSize: '0.75rem', color: '#ff9000', fontWeight: 800, marginTop: '5px' }}>{m.type || 'Не вказано'}</div>
-                <div className="location-info" style={{ marginTop: '5px' }}><MapPin size={14} /> {m.floor || 'Локація не вказана'}</div>
+                <div className="machine-type-label">{m.type || 'Не вказано'}</div>
+                <div className="location-info"><MapPin size={14} /> {m.floor || 'Локація не вказана'}</div>
               </div>
 
               <div className="card-footer">
                 {m.status === 'repair' ? (
                   <div className="idle-info" style={{ color: '#eab308' }}>
-                    <span className="capacity-info" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><AlertTriangle size={14} /> НА ОБСЛУГОВУВАННІ</span>
+                    <span className="capacity-info"><AlertTriangle size={14} /> НА ОБСЛУГОВУВАННІ</span>
                     <span className="history-link" style={{ color: '#eab308' }}>АНАЛІТИКА <BarChart3 size={14} /></span>
                   </div>
                 ) : m.status === 'maintenance_required' ? (
                   <div className="idle-info" style={{ color: '#ef4444' }}>
-                    <span className="capacity-info" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><AlertTriangle size={14} /> ПОТРЕБУЄ ЧИСТКИ СТОЛА</span>
+                    <span className="capacity-info"><AlertTriangle size={14} /> ПОТРЕБУЄ ЧИСТКИ СТОЛА</span>
                     <span className="history-link" style={{ color: '#ef4444' }}>АНАЛІТИКА <BarChart3 size={14} /></span>
                   </div>
                 ) : m.status === 'under_maintenance' ? (
                   <div className="idle-info" style={{ color: '#3b82f6' }}>
-                    <span className="capacity-info" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Activity size={14} /> ПРОВОДИТЬСЯ ЧИСТКА</span>
+                    <span className="capacity-info"><Activity size={14} /> ПРОВОДИТЬСЯ ЧИСТКА</span>
                     <span className="history-link" style={{ color: '#3b82f6' }}>АНАЛІТИКА <BarChart3 size={14} /></span>
                   </div>
                 ) : activeTask ? (
                   <div className="active-work-info">
-                    <div className="work-header" style={{ marginBottom: '15px' }}>
+                    <div className="work-header">
                       <div style={{ display: 'flex', flexDirection: 'column' }}>
                         <span className="task-type">У РОБОТІ</span>
-                        <span className="timer" style={{ fontSize: '1.4rem', marginTop: '5px' }}><Clock size={16} /> {formatElapsed(activeTask.started_at)}</span>
+                        <span className="timer"><Clock size={15} /> {formatElapsed(activeTask.started_at)}</span>
                       </div>
                       <div style={{ textAlign: 'right' }}>
                         <div style={{ fontSize: '0.65rem', color: 'var(--text-dim)', fontWeight: 1000, textTransform: 'uppercase' }}>Плановий час</div>
-                        <div style={{ fontSize: '1rem', color: '#ff9000', fontWeight: 900 }}>{formatPlanned(estimatedMin)}</div>
+                        <div style={{ fontSize: '0.95rem', color: '#ff9000', fontWeight: 900 }}>{formatPlanned(estimatedMin)}</div>
                       </div>
                     </div>
                     <div className="work-detail">{nomName || 'Деталізація...'}</div>

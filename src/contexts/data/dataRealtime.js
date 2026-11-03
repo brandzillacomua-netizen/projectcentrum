@@ -129,7 +129,12 @@ export function useDataRealtime(state, fetchers) {
         let next = [...prev]
         batchEvents.forEach(payload => {
           if (payload.eventType === 'UPDATE') {
-            next = next.map(i => i.id === payload.new.id ? { ...i, ...payload.new } : i)
+            const exists = next.some(i => i.id === payload.new?.id)
+            if (exists) {
+              next = next.map(i => i.id === payload.new.id ? { ...i, ...payload.new } : i)
+            } else if (payload.new) {
+              next.push(payload.new)
+            }
           } else if (payload.eventType === 'INSERT') {
             next = next.some(i => i.id === payload.new.id) ? next : [payload.new, ...next]
           } else if (payload.eventType === 'DELETE') {

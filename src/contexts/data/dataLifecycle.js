@@ -26,7 +26,8 @@ export function useDataLifecycle(state, fetchers) {
     targetRefreshLastRef,
     fullFetchInFlightRef,
     visibilityRefreshTimerRef,
-    performIncrementalCatchUp
+    performIncrementalCatchUp,
+    inventoryRef
   } = state
 
   const {
@@ -114,12 +115,24 @@ export function useDataLifecycle(state, fetchers) {
       })
       
       if (routeTargets.length > 0) {
-        const catchupSupported = new Set(['tasks', 'work_cards', 'orders', 'inventory', 'material_requests'])
-        const catchupTargets = routeTargets.filter(t => catchupSupported.has(t))
-        const fetchTargets = routeTargets.filter(t => !catchupSupported.has(t))
+        const isTableLoaded = (table) => {
+          const lastRun = targetRefreshLastRef.current.get(getTargetRefreshKey(table)) || 0
+          if (lastRun === 0) return false
+          if (table === 'inventory') return (inventoryRef?.current?.length || 0) > 0
+          return true
+        }
+        const catchupSupported = new Set(['tasks', 'work_cards', 'orders', 'material_requests'])
+        const catchupTargets = routeTargets.filter(t => catchupSupported.has(t) && isTableLoaded(t))
+        const fetchTargets = routeTargets.filter(t => !catchupSupported.has(t) || !isTableLoaded(t))
         
         const promises = []
-        if (catchupTargets.length > 0) promises.push(performIncrementalCatchUp(catchupTargets))
+        if (catchupTargets.length > 0) {
+          promises.push(
+            performIncrementalCatchUp(catchupTargets).then(res => {
+              if (res?.failedTables?.length > 0) return fetchData(res.failedTables, { force: true })
+            }).catch(() => fetchData(catchupTargets, { force: true }))
+          )
+        }
         if (fetchTargets.length > 0) promises.push(fetchData(fetchTargets))
         
         Promise.all(promises)
@@ -137,6 +150,7 @@ export function useDataLifecycle(state, fetchers) {
     currentUserIdRef,
     fetchData,
     performIncrementalCatchUp,
+    inventoryRef,
     getTargetRefreshKey,
     isPublicDataRoute,
     needsProductionSummary,
@@ -184,12 +198,24 @@ export function useDataLifecycle(state, fetchers) {
         
         const targets = getReactivationTargets()
         if (targets.length > 0) {
-          const catchupSupported = new Set(['tasks', 'work_cards', 'orders', 'inventory', 'material_requests'])
-          const catchupTargets = targets.filter(t => catchupSupported.has(t))
-          const fetchTargets = targets.filter(t => !catchupSupported.has(t))
+          const isTableLoaded = (table) => {
+            const lastRun = targetRefreshLastRef.current.get(getTargetRefreshKey(table)) || 0
+            if (lastRun === 0) return false
+            if (table === 'inventory') return (inventoryRef?.current?.length || 0) > 0
+            return true
+          }
+          const catchupSupported = new Set(['tasks', 'work_cards', 'orders', 'material_requests'])
+          const catchupTargets = targets.filter(t => catchupSupported.has(t) && isTableLoaded(t))
+          const fetchTargets = targets.filter(t => !catchupSupported.has(t) || !isTableLoaded(t))
           
           const promises = []
-          if (catchupTargets.length > 0) promises.push(performIncrementalCatchUp(catchupTargets))
+          if (catchupTargets.length > 0) {
+            promises.push(
+              performIncrementalCatchUp(catchupTargets).then(res => {
+                if (res?.failedTables?.length > 0) return fetchData(res.failedTables, { force: true })
+              }).catch(() => fetchData(catchupTargets, { force: true }))
+            )
+          }
           if (fetchTargets.length > 0) promises.push(fetchData(fetchTargets, { force: true }))
           
           Promise.all(promises)
@@ -219,6 +245,7 @@ export function useDataLifecycle(state, fetchers) {
   }, [
     currentUser?.id,
     performIncrementalCatchUp,
+    inventoryRef,
     fetchData,
     fullFetchInFlightRef,
     isPublicDataRoute,

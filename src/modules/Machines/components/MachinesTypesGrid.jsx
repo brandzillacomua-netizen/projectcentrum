@@ -4,7 +4,7 @@ import { MACHINE_TYPES } from '../hooks/useMachinesData.js'
 
 export function MachinesTypesGrid({ machines, setSelectedType, activeWorkForMachine }) {
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '25px' }}>
+    <div className="machines-types-grid">
       {MACHINE_TYPES.concat(['Інші']).map(type => {
         const typeMachines = machines.filter(m => type === 'Інші' ? !MACHINE_TYPES.includes(m.type) : m.type === type)
         if (typeMachines.length === 0 && type === 'Інші') return null
@@ -15,16 +15,23 @@ export function MachinesTypesGrid({ machines, setSelectedType, activeWorkForMach
         const idle = total - busy - repair
 
         return (
-          <div key={type} className="machine-card-v3" onClick={() => setSelectedType(type)} style={{ justifyContent: 'center', alignItems: 'center', textAlign: 'center', minHeight: '200px' }}>
-            <div style={{ background: 'var(--surface-1)', width: '64px', height: '64px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ff9000', marginBottom: '15px' }}>
-              <Layers size={32} />
+          <div
+            key={type}
+            className="machine-card-v3 machine-type-card"
+            onClick={() => setSelectedType(type)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setSelectedType(type) }}
+          >
+            <div className="type-icon-box">
+              <Layers size={28} />
             </div>
-            <h3 style={{ margin: '0 0 10px', fontSize: '1.4rem', fontWeight: 900 }}>{type}</h3>
-            <div style={{ display: 'flex', gap: '15px', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 800, flexWrap: 'wrap' }}>
-              <span style={{ color: '#71717a' }}>Всього: {total}</span>
-              <span style={{ color: '#10b981' }}>Вільні: {idle}</span>
-              <span style={{ color: '#ef4444' }}>У роботі: {busy}</span>
-              <span style={{ color: '#eab308' }}>В ремонті: {repair}</span>
+            <h3 className="type-title">{type}</h3>
+            <div className="type-stats-row">
+              <span className="type-stat-total">Всього: {total}</span>
+              <span className="type-stat-idle">Вільні: {idle}</span>
+              <span className="type-stat-busy">У роботі: {busy}</span>
+              <span className="type-stat-repair">В ремонті: {repair}</span>
             </div>
           </div>
         )

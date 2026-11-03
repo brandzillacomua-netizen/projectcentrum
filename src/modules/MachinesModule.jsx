@@ -68,7 +68,7 @@ const MachinesModule = () => {
     <div className="machines-module-v3" style={{ background: 'var(--surface-inset)', minHeight: '100vh', color: 'var(--text-strong)', display: 'flex', flexDirection: 'column' }}>
       <MachinesNavbar stats={stats} />
 
-      <div className="module-content" style={{ padding: '30px', overflowY: 'auto', flex: 1 }}>
+      <div className="module-content machines-module-content">
         <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
           <MachinesHeaderBar
             setIsScanning={setIsScanning}
@@ -164,6 +164,67 @@ const MachinesModule = () => {
       />
 
       <style dangerouslySetInnerHTML={{ __html: `
+        .machines-module-content { padding: 30px; overflow-y: auto; flex: 1; }
+
+        /* Navigation */
+        .machines-top-nav {
+          flex-shrink: 0; padding: 0 30px; height: 70px; background: var(--surface-black); 
+          border-bottom: 1px solid var(--border-subtle); display: flex; justify-content: space-between; align-items: center;
+        }
+        .machines-nav-left { display: flex; align-items: center; gap: 20px; }
+        .machines-nav-back { color: var(--text-dim); text-decoration: none; display: flex; align-items: center; gap: 8px; font-size: 0.85rem; font-weight: 700; transition: color 0.2s; }
+        .machines-nav-back:hover { color: #fff; }
+        .machines-nav-divider { width: 1px; height: 20px; background: var(--surface-3); }
+        .machines-nav-brand { display: flex; align-items: center; gap: 10px; }
+        .machines-nav-title { font-size: 1rem; font-weight: 950; text-transform: uppercase; letter-spacing: 1px; margin: 0; color: #fff; }
+        .machines-nav-stats { display: flex; gap: 15px; align-items: center; }
+
+        /* Header bar */
+        .machines-header-bar { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 36px; gap: 20px; }
+        .machines-header-title-box { min-width: 0; }
+        .machines-header-title { font-size: 2rem; font-weight: 1000; margin: 0; letter-spacing: -1px; line-height: 1.15; color: #fff; }
+        .machines-header-subtitle { color: #666; font-weight: 700; margin: 5px 0 0; font-size: 0.88rem; }
+        .machines-header-actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+        .machines-action-btn {
+          border-radius: 14px; font-weight: 950; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+          gap: 9px; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); padding: 13px 22px; font-size: 0.82rem; letter-spacing: 0.3px;
+          border: 1px solid transparent; white-space: nowrap; text-decoration: none;
+        }
+        .machines-btn-scan { background: rgba(255, 144, 0, 0.12); color: #ff9000; border-color: rgba(255, 144, 0, 0.38); box-shadow: 0 4px 16px rgba(255, 144, 0, 0.1); }
+        .machines-btn-scan:hover { background: rgba(255, 144, 0, 0.2); border-color: #ff9000; transform: translateY(-1px); }
+        .machines-btn-add { background: #ff9000; color: #000; border: none; box-shadow: 0 10px 25px rgba(255, 144, 0, 0.28); }
+        .machines-btn-add:hover { background: #ff9d1a; transform: translateY(-1px); box-shadow: 0 12px 28px rgba(255, 144, 0, 0.35); }
+        .machines-btn-cancel { background: var(--surface-2); color: #fff; border-color: var(--border-subtle); }
+        .machines-btn-secondary { background: rgba(255, 144, 0, 0.08); color: #ff9000; border-color: rgba(255, 144, 0, 0.28); box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2); }
+        .machines-btn-secondary:hover { background: rgba(255, 144, 0, 0.16); border-color: rgba(255, 144, 0, 0.45); }
+
+        /* Types grid */
+        .machines-types-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 22px; }
+        .machine-type-card { justify-content: center; align-items: center; text-align: center; min-height: 200px; }
+        .type-icon-box { background: var(--surface-1); width: 60px; height: 60px; border-radius: 16px; display: flex; align-items: center; justify-content: center; color: #ff9000; margin-bottom: 14px; }
+        .type-title { margin: 0 0 10px; font-size: 1.35rem; font-weight: 900; letter-spacing: -0.3px; color: #fff; }
+        .type-stats-row { display: flex; gap: 14px; justify-content: center; font-size: 0.8rem; font-weight: 800; flex-wrap: wrap; }
+        .type-stat-total { color: #71717a; }
+        .type-stat-idle { color: #10b981; }
+        .type-stat-busy { color: #ef4444; }
+        .type-stat-repair { color: #eab308; }
+
+        /* Machines cards grid */
+        .machines-cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 22px; }
+        .machines-back-btn { background: transparent; border: none; color: #888; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 20px; font-weight: 800; padding: 0; font-size: 0.88rem; transition: color 0.2s; }
+        .machines-back-btn:hover { color: #fff; }
+        .machine-type-label { font-size: 0.75rem; color: #ff9000; font-weight: 800; margin-top: 5px; }
+
+        /* Form card */
+        .machines-form-card { background: var(--surface-inset); border: 1px solid var(--border-subtle); border-radius: 28px; padding: 36px; margin-bottom: 36px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
+        .machines-form-title { font-size: 0.75rem; font-weight: 1000; color: #ff9000; text-transform: uppercase; margin-bottom: 22px; letter-spacing: 2px; }
+        .machines-form-body { display: flex; flex-direction: column; gap: 20px; }
+        .machines-form-grid-1 { display: grid; grid-template-columns: 2fr 2fr 1fr 1.5fr; gap: 18px; }
+        .machines-form-grid-2 { display: grid; grid-template-columns: 1fr 1fr 1fr 2fr; gap: 18px; }
+        .machines-form-select { width: 100%; background: var(--surface-black); border: 1px solid var(--border-subtle); color: var(--text-strong); padding: 15px; border-radius: 12px; font-size: 0.9rem; outline: none; transition: 0.2s; cursor: pointer; }
+        .machines-form-submit-btn { background: var(--text-strong); color: #000; border: none; padding: 18px; border-radius: 16px; font-weight: 1000; cursor: pointer; font-size: 0.95rem; margin-top: 8px; transition: 0.2s; }
+        .machines-form-submit-btn:hover { opacity: 0.9; transform: translateY(-1px); }
+
         .stat-pill { background: #111; padding: 6px 15px; border-radius: 10px; font-size: 0.75rem; border: 1px solid var(--border-subtle); color: #555; font-weight: 800; }
         .input-group label { display: flex; align-items: center; gap: 8px; font-size: 0.65rem; color: #444; text-transform: uppercase; font-weight: 900; margin-bottom: 8px; }
         .input-group input { width: 100%; background: #000; border: 1px solid var(--border-subtle); color: #fff; padding: 15px; border-radius: 12px; font-size: 0.9rem; outline: none; transition: 0.2s; }
@@ -344,6 +405,46 @@ const MachinesModule = () => {
           .machine-pagination { align-items: stretch; flex-direction: column; }
           .machine-pagination-pages { justify-content: center; flex-wrap: wrap; }
           .machine-call-cards-grid { grid-template-columns: 1fr !important; }
+        }
+
+        @media (max-width: 768px) {
+          .machines-module-content { padding: 14px 12px !important; }
+          .machines-top-nav { height: auto !important; padding: 10px 12px !important; flex-direction: column !important; align-items: stretch !important; gap: 10px !important; }
+          .machines-nav-left { justify-content: space-between !important; width: 100% !important; gap: 10px !important; }
+          .machines-nav-title { font-size: 0.88rem !important; }
+          .machines-nav-stats { display: grid !important; grid-template-columns: repeat(4, 1fr) !important; gap: 6px !important; width: 100% !important; }
+          .machines-nav-stats .stat-pill { padding: 6px 3px !important; border-radius: 8px !important; font-size: 0.65rem !important; display: flex !important; flex-direction: column !important; align-items: center !important; justify-content: center !important; gap: 2px !important; line-height: 1.1 !important; text-align: center !important; white-space: nowrap !important; }
+          .machines-nav-stats .stat-pill strong { font-size: 0.82rem !important; }
+
+          .machines-header-bar { flex-direction: column !important; align-items: stretch !important; margin-bottom: 18px !important; gap: 12px !important; }
+          .machines-header-title { font-size: 1.35rem !important; letter-spacing: -0.4px !important; }
+          .machines-header-subtitle { font-size: 0.76rem !important; margin-top: 3px !important; }
+          .machines-header-actions { display: grid !important; grid-template-columns: repeat(2, 1fr) !important; gap: 8px !important; width: 100% !important; }
+          .machines-action-btn { width: 100% !important; height: 44px !important; padding: 0 8px !important; font-size: 0.76rem !important; border-radius: 12px !important; justify-content: center !important; gap: 6px !important; }
+          .machines-action-btn svg { width: 16px !important; height: 16px !important; }
+
+          .machines-types-grid, .machines-cards-grid { grid-template-columns: 1fr !important; gap: 12px !important; }
+          .machine-card-v3 { padding: 16px 14px !important; border-radius: 20px !important; gap: 14px !important; }
+          .machine-type-card { min-height: auto !important; padding: 18px 14px !important; }
+          .type-icon-box { width: 48px !important; height: 48px !important; border-radius: 14px !important; margin-bottom: 10px !important; }
+          .type-title { font-size: 1.15rem !important; margin-bottom: 8px !important; }
+          .type-stats-row { gap: 8px !important; font-size: 0.74rem !important; }
+          .machine-name { font-size: 1.25rem !important; letter-spacing: -0.3px !important; }
+          .card-actions { opacity: 1 !important; }
+          .card-actions button { padding: 4px !important; }
+          .machines-back-btn { padding: 8px 12px !important; background: rgba(255,255,255,0.04) !important; border: 1px solid var(--border-subtle) !important; border-radius: 10px !important; font-size: 0.8rem !important; margin-bottom: 14px !important; }
+
+          .machines-form-card { padding: 16px 14px !important; border-radius: 18px !important; margin-bottom: 18px !important; }
+          .machines-form-grid-1, .machines-form-grid-2 { grid-template-columns: 1fr !important; gap: 12px !important; }
+          .input-group input, .machines-form-select { padding: 12px 14px !important; font-size: 0.88rem !important; border-radius: 10px !important; }
+          .machines-form-submit-btn { padding: 14px !important; font-size: 0.88rem !important; border-radius: 12px !important; }
+        }
+
+        @media (max-width: 420px) {
+          .machines-nav-stats .stat-pill .stat-label { font-size: 0.58rem !important; }
+          .machines-nav-stats .stat-pill strong { font-size: 0.78rem !important; }
+          .machines-header-title { font-size: 1.25rem !important; }
+          .machines-action-btn { font-size: 0.72rem !important; }
         }
 
         @media (max-width: 560px) {
@@ -1320,6 +1421,45 @@ const MachinesModule = () => {
         .light-theme .machine-call-row small,
         body.light-theme .machine-call-row small {
           color: #64748b !important;
+        }
+
+        .light-theme .machines-top-nav,
+        body.light-theme .machines-top-nav {
+          background: #ffffff !important;
+          border-bottom: 1px solid #e2e8f0 !important;
+        }
+        .light-theme .machines-nav-title,
+        body.light-theme .machines-nav-title,
+        .light-theme .machines-header-title,
+        body.light-theme .machines-header-title,
+        .light-theme .type-title,
+        body.light-theme .type-title,
+        .light-theme .machine-name,
+        body.light-theme .machine-name {
+          color: #0f172a !important;
+        }
+        .light-theme .machines-header-subtitle,
+        body.light-theme .machines-header-subtitle {
+          color: #64748b !important;
+        }
+        .light-theme .machines-nav-stats .stat-pill,
+        body.light-theme .machines-nav-stats .stat-pill {
+          background: #f8fafc !important;
+          border: 1px solid #e2e8f0 !important;
+          color: #64748b !important;
+        }
+        .light-theme .machines-types-grid .machine-card-v3,
+        body.light-theme .machines-types-grid .machine-card-v3,
+        .light-theme .machines-cards-grid .machine-card-v3,
+        body.light-theme .machines-cards-grid .machine-card-v3 {
+          background: #ffffff !important;
+          border: 1px solid #e2e8f0 !important;
+          box-shadow: 0 4px 15px rgba(0,0,0,0.04) !important;
+        }
+        .light-theme .machines-form-card,
+        body.light-theme .machines-form-card {
+          background: #ffffff !important;
+          border: 1px solid #e2e8f0 !important;
         }
       `}} />
     </div>

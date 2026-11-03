@@ -310,6 +310,14 @@ export function ConnectionStatus() {
 export function ServiceWorkerUpdateManager() {
   const [registration, setRegistration] = React.useState(null)
   const [updateReady, setUpdateReady] = React.useState(false)
+  const [isUpdating, setIsUpdating] = React.useState(false)
+  const [isDismissed, setIsDismissed] = React.useState(() => {
+    try {
+      return sessionStorage.getItem('dismissed_sw_update') === 'true'
+    } catch {
+      return false
+    }
+  })
   const activationRequestedRef = React.useRef(false)
 
   React.useEffect(() => {
@@ -377,46 +385,143 @@ export function ServiceWorkerUpdateManager() {
     }
   }, [])
 
-  const activateUpdate = () => {
-    const waitingWorker = registration?.waiting
-    if (!waitingWorker) {
-      registration?.update().catch(() => {})
-      return
+  const activateUpdate = async (e) => {
+    if (e) {
+      e.preventDefault?.()
+      e.stopPropagation?.()
     }
+    if (isUpdating) return
+    setIsUpdating(true)
     activationRequestedRef.current = true
-    waitingWorker.postMessage('SKIP_WAITING')
+
+    let reloaded = false
+    const triggerReload = () => {
+      if (reloaded) return
+      reloaded = true
+      window.location.reload()
+    }
+
+    try {
+      // 1. Send SKIP_WAITING to all active/waiting/installing workers
+      const regs = await navigator.serviceWorker.getRegistrations().catch(() => [])
+      regs.forEach(reg => {
+        reg.waiting?.postMessage('SKIP_WAITING')
+        reg.installing?.postMessage('SKIP_WAITING')
+      })
+
+      if (registration?.waiting) {
+        registration.waiting.postMessage('SKIP_WAITING')
+      }
+      if (registration?.installing) {
+        registration.installing.postMessage('SKIP_WAITING')
+      }
+      if (navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage('SKIP_WAITING')
+      }
+
+      // 2. Clear old browser caches if available to fetch fresh assets
+      if (typeof window !== 'undefined' && 'caches' in window) {
+        const cacheKeys = await window.caches.keys().catch(() => [])
+        await Promise.all(cacheKeys.map(k => window.caches.delete(k))).catch(() => {})
+      }
+    } catch (err) {
+      console.warn('[SW] Error during activateUpdate:', err)
+    }
+
+    // 3. Fallback: Force reload within 350ms on all devices (especially tablets where controllerchange might not fire)
+    setTimeout(triggerReload, 350)
   }
 
-  if (!updateReady) return null
+  const handleDismiss = (e) => {
+    if (e) {
+      e.preventDefault?.()
+      e.stopPropagation?.()
+    }
+    setIsDismissed(true)
+    try {
+      sessionStorage.setItem('dismissed_sw_update', 'true')
+    } catch {}
+  }
+
+  if (!updateReady || isDismissed) return null
 
   return (
-    <div className="no-print" style={{
-      position: 'fixed',
-      top: 18,
-      left: '50%',
-      transform: 'translateX(-50%)',
-      zIndex: 100001,
-      display: 'flex',
-      alignItems: 'center',
-      gap: 16,
-      maxWidth: 'calc(100vw - 24px)',
-      padding: '13px 18px',
-      border: '1px solid #ff9000',
-      borderRadius: 14,
-      color: '#fff',
-      background: 'rgba(10, 10, 15, 0.97)',
-      boxShadow: '0 10px 30px rgba(0,0,0,.4)'
-    }}>
-      <div>
-        <strong style={{ display: 'block', fontSize: 13 }}>Доступна стабільніша версія</strong>
-        <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>Оновлення доступне також на екрані входу.</span>
+    <div
+      className="no-print"
+      style={{
+        position: 'fixed',
+        top: 14,
+        left: '50%',
+        transform: 'translateX(-50%)',
+        zIndex: 100050,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 14,
+        maxWidth: 'calc(100vw - 24px)',
+        padding: '10px 16px',
+        border: '1px solid #ff9000',
+        borderRadius: 14,
+        color: '#fff',
+        background: 'rgba(10, 10, 15, 0.98)',
+        backdropFilter: 'blur(10px)',
+        boxShadow: '0 12px 36px rgba(0,0,0,.6)',
+        boxSizing: 'border-box'
+      }}
+    >
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <strong style={{ display: 'block', fontSize: 13, fontWeight: 900, color: '#ff9000' }}>
+          Доступна нова версія системи
+        </strong>
+        <span style={{ color: '#aaa', fontSize: 11 }}>
+          Натисніть «Оновити» для застосування останніх змін.
+        </span>
       </div>
       <button
         type="button"
+        disabled={isUpdating}
         onClick={activateUpdate}
-        style={{ border: 0, borderRadius: 9, padding: '8px 14px', background: '#ff9000', color: '#000', cursor: 'pointer', fontWeight: 900 }}
+        onTouchEnd={activateUpdate}
+        style={{
+          border: 0,
+          borderRadius: 10,
+          padding: '8px 16px',
+          background: isUpdating ? '#666' : '#ff9000',
+          color: '#000',
+          cursor: isUpdating ? 'wait' : 'pointer',
+          fontWeight: 900,
+          fontSize: 12,
+          flexShrink: 0,
+          touchAction: 'manipulation',
+          transition: 'all 0.2s ease',
+          boxShadow: isUpdating ? 'none' : '0 4px 12px rgba(255, 144, 0, 0.35)'
+        }}
       >
-        ОНОВИТИ
+        {isUpdating ? 'ОНОВЛЕННЯ...' : 'ОНОВИТИ'}
+      </button>
+      <button
+        type="button"
+        onClick={handleDismiss}
+        onTouchEnd={handleDismiss}
+        title="Сховати сповіщення"
+        style={{
+          border: 0,
+          background: 'rgba(255, 255, 255, 0.08)',
+          color: '#aaa',
+          cursor: 'pointer',
+          borderRadius: 8,
+          width: 28,
+          height: 28,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+          padding: 0,
+          fontSize: 14,
+          fontWeight: 700,
+          touchAction: 'manipulation'
+        }}
+      >
+        ✕
       </button>
     </div>
   )

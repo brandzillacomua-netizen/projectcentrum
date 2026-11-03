@@ -58,9 +58,16 @@ export const WarehouseModuleV2: React.FC = () => {
   // Load warehouse-specific data on mount
   useEffect(() => { 
     if (typeof fetchData === 'function') {
-      fetchData(['reception_docs'])
+      fetchData(['inventory', 'material_requests', 'reception_docs'], { force: true })
     }
   }, [])
+
+  // Auto-heal: If inventory is empty on the warehouse page, trigger immediate fetch
+  useEffect(() => {
+    if ((!inventory || inventory.length === 0) && typeof fetchData === 'function') {
+      fetchData(['inventory', 'material_requests'])
+    }
+  }, [inventory?.length, fetchData])
 
   const [activeTab, setActiveTab] = useState<string>(() => {
     return searchParams.get('tab') || 'raw'
@@ -342,7 +349,13 @@ export const WarehouseModuleV2: React.FC = () => {
         {/* Tabs Bar */}
         <WarehouseTabsBar
           isStockView={isStockView}
-          onToggleStock={() => changeWorkspace(isStockView ? 'queue' : 'stock')}
+          onToggleStock={() => {
+            const nextView = isStockView ? 'queue' : 'stock'
+            changeWorkspace(nextView)
+            if (nextView === 'stock' && (!inventory || inventory.length === 0) && typeof fetchData === 'function') {
+              fetchData(['inventory', 'material_requests'])
+            }
+          }}
           tabs={tabs.map(tab => tab.id === 'raw' ? { ...tab, label: 'Видача на наряди', count: undefined } : tab)}
           activeTab={isStockView ? null : activeTab}
           setActiveTab={setActiveTab}
