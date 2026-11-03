@@ -193,6 +193,9 @@ export const Shop1Terminal: React.FC = () => {
               requests={s.requests || []}
               tasks={tasks || []}
               nomenclatures={nomenclatures || []}
+              currentUser={currentUser}
+              systemUsers={systemUsers}
+              setWorkCards={setWorkCards}
             />
           ) : (
             <Shop1Dashboard

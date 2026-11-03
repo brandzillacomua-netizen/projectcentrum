@@ -1,5 +1,5 @@
 import React from 'react'
-import { RefreshCw, Eye } from 'lucide-react'
+import { RefreshCw, Eye, MessageSquare, Camera } from 'lucide-react'
 import {
   translateCyrillic,
   CHAIN,
@@ -8,6 +8,7 @@ import {
   formatMachine
 } from '../utils/shop1Helpers'
 import { getCardCuttingPlanSeconds, formatCuttingTime } from '../../../utils/cuttingTimeUtils.js'
+import { parseCardComments } from '../../../services/cardCommentsService.js'
 
 export function Shop1ActiveCardsTable({
   workCards = [],
@@ -61,6 +62,7 @@ export function Shop1ActiveCardsTable({
               <th style={{ padding: '12px 14px' }}>ЗМІНА</th>
               <th style={{ padding: '12px 14px' }}>ОПЕРАТОР</th>
               <th style={{ padding: '12px 14px' }}>ВЕРСТАТ</th>
+              <th style={{ padding: '12px 14px', color: '#3b82f6' }}>КОМЕНТАРІ</th>
               <th className="th-time-total" style={{ padding: '12px 14px', color: '#10b981' }}>ЗАГАЛЬНИЙ ЧАС</th>
               <th className="th-time-shift" style={{ padding: '12px 14px', color: '#eab308' }}>ЧАС ЗМІНИ</th>
               <th style={{ padding: '12px 14px' }}></th>
@@ -225,6 +227,41 @@ export function Shop1ActiveCardsTable({
                     <td style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>{card.operator_name || '—'}</td>
                     <td className="s1-machine-cell" style={{ padding: '10px 14px', color: '#eab308', fontWeight: 850 }}>{formatMachine(card.machine)}</td>
                     <td style={{ padding: '10px 14px', whiteSpace: 'nowrap' }}>
+                      {(() => {
+                        const comments = parseCardComments(card.card_info)
+                        const commentsCount = comments.length
+                        if (commentsCount === 0) {
+                          return <span style={{ color: 'var(--text-dim, #555)', fontSize: '0.8rem', paddingLeft: '8px' }}>—</span>
+                        }
+                        const hasPhotos = comments.some(c => Array.isArray(c.photos) && c.photos.length > 0)
+                        const latest = comments[commentsCount - 1]
+                        const tooltip = `Коментарів: ${commentsCount}\nОстанній [${latest?.author_name || 'Працівник'}]: ${latest?.text || ''}${latest?.stage ? ` (${latest.stage})` : ''}`
+
+                        return (
+                          <span
+                            className="s1-table-comment-badge"
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '5px',
+                              padding: '3px 8px',
+                              borderRadius: '8px',
+                              background: 'rgba(59, 130, 246, 0.15)',
+                              border: '1px solid rgba(59, 130, 246, 0.35)',
+                              color: '#3b82f6',
+                              fontWeight: 900,
+                              fontSize: '0.72rem'
+                            }}
+                            title={tooltip}
+                          >
+                            <MessageSquare size={13} />
+                            <span>{commentsCount}</span>
+                            {hasPhotos && <Camera size={12} style={{ opacity: 0.85 }} />}
+                          </span>
+                        )
+                      })()}
+                    </td>
+                    <td style={{ padding: '10px 14px', whiteSpace: 'nowrap' }}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                           <span className={isOvertime ? 's1-time-overtime' : 's1-time-normal'} style={{
@@ -303,7 +340,7 @@ export function Shop1ActiveCardsTable({
                     <tr key={`header-${op}`} 
                         onClick={() => setCollapsedGroups && setCollapsedGroups(prev => ({ ...prev, [op]: !prev[op] }))}
                         style={{ background: 'var(--surface-inset)', cursor: 'pointer', userSelect: 'none' }}>
-                      <td colSpan={11} style={{ padding: '12px 14px', fontSize: '0.7rem', fontWeight: 950, color: '#eab308', textTransform: 'uppercase', letterSpacing: '0.15em', borderBottom: '1px solid var(--border-subtle)', borderTop: '1px solid var(--border-subtle)' }}>
+                      <td colSpan={12} style={{ padding: '12px 14px', fontSize: '0.7rem', fontWeight: 950, color: '#eab308', textTransform: 'uppercase', letterSpacing: '0.15em', borderBottom: '1px solid var(--border-subtle)', borderTop: '1px solid var(--border-subtle)' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <div style={{ width: '0', height: '0', borderLeft: '5px solid transparent', borderRight: '5px solid transparent', borderTop: isCollapsed ? 'none' : '5px solid #eab308', borderBottom: isCollapsed ? '5px solid #eab308' : 'none', transform: isCollapsed ? 'rotate(-90deg)' : 'none', transition: 'transform 0.2s' }} />
                           {op} <span style={{ color: 'var(--text-dim)' }}>({grouped[op].length})</span>

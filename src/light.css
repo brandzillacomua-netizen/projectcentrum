@@ -7404,3 +7404,134 @@ body.light-theme .shop2-floating-controls .shop2-floating-qr-icon {
   stroke: #7c3aed !important;
 }
 
+/* ── LIGHT THEME: SHOP 1 CARD HEADER & COMMENTS ── */
+.light-theme .s1-card-title,
+body.light-theme .s1-card-title {
+  color: #0f172a !important;
+}
+
+.light-theme .s1-card-subtitle,
+body.light-theme .s1-card-subtitle {
+  color: #64748b !important;
+}
+
+.light-theme .s1-close-btn-desktop,
+body.light-theme .s1-close-btn-desktop,
+.light-theme .s1-close-btn-mobile,
+body.light-theme .s1-close-btn-mobile {
+  background: #f1f5f9 !important;
+  color: #475569 !important;
+  border: 1px solid #cbd5e1 !important;
+}
+
+.light-theme .s1-close-btn-desktop:hover,
+body.light-theme .s1-close-btn-desktop:hover,
+.light-theme .s1-close-btn-mobile:hover,
+body.light-theme .s1-close-btn-mobile:hover {
+  background: #e2e8f0 !important;
+  color: #0f172a !important;
+}
+
+.light-theme .s1-btn-comments,
+body.light-theme .s1-btn-comments {
+  background: #eff6ff !important;
+  border-color: #93c5fd !important;
+  color: #1d4ed8 !important;
+}
+
+.light-theme .s1-btn-comments.has-comments,
+body.light-theme .s1-btn-comments.has-comments {
+  background: #dbeafe !important;
+  border-color: #3b82f6 !important;
+  color: #1e40af !important;
+}
+
+.light-theme .s1-btn-vkya,
+body.light-theme .s1-btn-vkya {
+  background: #ecfdf5 !important;
+  border-color: #a7f3d0 !important;
+  color: #047857 !important;
+}
+
+.light-theme .s1-btn-vkya.has-stamps,
+body.light-theme .s1-btn-vkya.has-stamps {
+  background: #d1fae5 !important;
+  border-color: #10b981 !important;
+  color: #065f46 !important;
+}
+
+.light-theme .s1-btn-scrap,
+body.light-theme .s1-btn-scrap {
+  background: #fef2f2 !important;
+  border-color: #fecaca !important;
+  color: #b91c1c !important;
+}
+
+.light-theme .s1-btn-naryad,
+body.light-theme .s1-btn-naryad {
+  background: #f8fafc !important;
+  border-color: #cbd5e1 !important;
+  color: #2563eb !important;
+}
+
+/* Comments Modal Light Theme */
+.light-theme .s1-comments-modal-content,
+body.light-theme .s1-comments-modal-content {
+  background: #ffffff !important;
+  border-color: #93c5fd !important;
+  color: #0f172a !important;
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.2) !important;
+}
+
+.light-theme .s1-comments-header,
+body.light-theme .s1-comments-header {
+  background: #f8fafc !important;
+  border-bottom: 1.5px solid #e2e8f0 !important;
+}
+
+.light-theme .s1-comments-timeline,
+body.light-theme .s1-comments-timeline {
+  background: #f1f5f9 !important;
+}
+
+.light-theme .s1-comment-item,
+body.light-theme .s1-comment-item {
+  background: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04) !important;
+}
+
+.light-theme .s1-comment-item span,
+body.light-theme .s1-comment-item span,
+.light-theme .s1-comment-item div,
+body.light-theme .s1-comment-item div {
+  color: #0f172a;
+}
+
+.light-theme .s1-comments-form,
+body.light-theme .s1-comments-form {
+  background: #f8fafc !important;
+  border-top: 1.5px solid #e2e8f0 !important;
+}
+
+.light-theme .s1-comments-form textarea,
+body.light-theme .s1-comments-form textarea {
+  background: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+.light-theme .s1-comments-form textarea::placeholder,
+body.light-theme .s1-comments-form textarea::placeholder {
+  color: #94a3b8 !important;
+}
+
+.light-theme .s1-table-comment-badge,
+body.light-theme .s1-table-comment-badge {
+  background: #eff6ff !important;
+  border-color: #93c5fd !important;
+  color: #1d4ed8 !important;
+}
+
+
+

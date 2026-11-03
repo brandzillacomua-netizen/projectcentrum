@@ -1,6 +1,7 @@
 import React from 'react'
-import { Camera, Layers, RefreshCw, Eye } from 'lucide-react'
+import { Camera, Layers, RefreshCw, Eye, MessageSquare } from 'lucide-react'
 import { getCardCuttingPlanSeconds } from '../../../utils/cuttingTimeUtils.js'
+import { parseCardComments } from '../../../services/cardCommentsService.js'
 
 export const OperatorProductionOverview = ({
   setIsScanning,
@@ -115,6 +116,7 @@ export const OperatorProductionOverview = ({
               <th style={{ padding: '12px 15px' }}>ЗМІНА</th>
               <th style={{ padding: '12px 15px' }}>ОПЕРАТОР</th>
               <th style={{ padding: '12px 15px' }}>ВЕРСТАТ</th>
+              <th style={{ padding: '12px 15px', color: '#3b82f6' }}>КОМЕНТАРІ</th>
               <th style={{ padding: '12px 15px' }}>ПЛАН. ЧАС</th>
               <th style={{ padding: '12px 15px' }}>ЧАС</th>
               <th style={{ padding: '12px 15px' }}></th>
@@ -132,6 +134,38 @@ export const OperatorProductionOverview = ({
                 <td style={{ padding: '12px 15px', color: 'var(--text-muted)' }}>{card.shift_name || '—'}</td>
                 <td style={{ padding: '12px 15px', color: 'var(--text-muted)' }}>{card.operator_name || '—'}</td>
                 <td style={{ padding: '12px 15px', color: '#eab308', fontWeight: 800 }}>{formatMachine(machines.find(m => String(m.id) === String(card.machine_id))?.name || card.machine)}</td>
+                <td style={{ padding: '12px 15px', whiteSpace: 'nowrap' }}>
+                  {(() => {
+                    const comments = parseCardComments(card.card_info)
+                    const count = comments.length
+                    if (count === 0) return <span style={{ color: 'var(--text-dim, #555)', fontSize: '0.8rem', paddingLeft: '8px' }}>—</span>
+                    const hasPhotos = comments.some(c => Array.isArray(c.photos) && c.photos.length > 0)
+                    const latest = comments[count - 1]
+                    const tooltip = `Коментарів: ${count}\nОстанній [${latest?.author_name || 'Працівник'}]: ${latest?.text || ''}`
+                    return (
+                      <span
+                        className="s1-table-comment-badge"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                          padding: '3px 8px',
+                          borderRadius: '8px',
+                          background: 'rgba(59, 130, 246, 0.15)',
+                          border: '1px solid rgba(59, 130, 246, 0.35)',
+                          color: '#3b82f6',
+                          fontWeight: 900,
+                          fontSize: '0.72rem'
+                        }}
+                        title={tooltip}
+                      >
+                        <MessageSquare size={13} />
+                        <span>{count}</span>
+                        {hasPhotos && <Camera size={12} style={{ opacity: 0.85 }} />}
+                      </span>
+                    )
+                  })()}
+                </td>
                 <td style={{ padding: '12px 15px', color: '#3b82f6', fontWeight: 700 }}>{formatPlanned(getPlannedTime(card))}</td>
                 <td style={{ padding: '12px 15px', color: '#10b981' }}>{formatElapsedTime(card.started_at)}</td>
                 <td style={{ padding: '12px 15px', textAlign: 'right' }}>

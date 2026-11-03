@@ -1,9 +1,11 @@
-import React from 'react'
+import React, { useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { ChevronRight, X, ArrowRight } from 'lucide-react'
+import { ChevronRight, X, ArrowRight, MessageSquare } from 'lucide-react'
 import { MACHINE_TYPES, getMachineSequenceConfig, parseQcOpsStamps } from '../utils/shop1Helpers'
 import { getPendingRequestsForCard } from '../../../utils/materialCardMatching.js'
 import { getCardCuttingPlanSeconds, formatCuttingTime } from '../../../utils/cuttingTimeUtils.js'
+import { parseCardComments } from '../../../services/cardCommentsService.js'
+import { Shop1CardCommentsModal } from './modals/Shop1CardCommentsModal.jsx'
 
 export function Shop1CardDetails({
   currentCard,
@@ -52,8 +54,13 @@ export function Shop1CardDetails({
   scrapCount,
   requests = [],
   tasks = [],
-  nomenclatures = []
+  nomenclatures = [],
+  currentUser,
+  systemUsers = [],
+  setWorkCards
 }) {
+  const [showCommentsModal, setShowCommentsModal] = useState(false)
+
   if (!currentCard) return null
 
   const nom = getNom(currentCard)
@@ -67,6 +74,9 @@ export function Shop1CardDetails({
   const qcOpsData = parseQcOpsStamps(currentCard.card_info)
   const stampedOpsList = Object.entries(qcOpsData?.ops || {})
   const hasQcOpsStamps = Boolean(qcOpsData?.sheets?.verified || stampedOpsList.length > 0)
+
+  const cardComments = useMemo(() => parseCardComments(currentCard?.card_info), [currentCard?.card_info])
+  const commentsCount = cardComments.length
 
   const labelStyle = { fontSize: '0.6rem', fontWeight: 900, color: 'var(--text-dim)', textTransform: 'uppercase', marginBottom: '6px', display: 'block' }
   const selectStyle = { width: '100%', background: 'var(--surface-2)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', padding: '12px', borderRadius: '12px', fontSize: '0.9rem', fontWeight: 700 }
@@ -95,50 +105,96 @@ export function Shop1CardDetails({
         })}
       </div>
 
-      {/* Заголовок */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
-        <div style={{ flex: 1 }}>
-          <h2 style={{ margin: 0, fontSize: '1.6rem', fontWeight: 950, letterSpacing: '-0.02em', lineHeight: 1.1 }}>
-            {nom?.name || 'Деталь'}
-          </h2>
-          <div style={{ fontSize: '0.65rem', color: 'var(--text-dim)', fontWeight: 800, marginTop: '6px', textTransform: 'uppercase' }}>
-            ЗАМОВЛЕННЯ №{orders?.find(o => o.id === currentCard.order_id)?.order_num || '—'} · Картка #{currentCard.id.slice(-8).toUpperCase()} · {(() => {
-              const bz = Number(currentCard.buffer_qty) || Number(currentCard.card_info?.match(/\[BZ:(\d+)\]/)?.[1]) || 0
-              const need = Number(currentCard.card_info?.match(/\[REQ:(\d+)\]/)?.[1]) || Number(currentCard.card_info?.match(/\[NEED:(\d+)\]/)?.[1]) || (Number(currentCard.quantity) - bz)
-              if (bz > 0) return `${currentCard.quantity} шт (${need} + ${bz} БЗ)`
-              return `${currentCard.quantity} шт`
-            })()}
+      {/* Заголовок та адаптивна панель дій */}
+      <div className="s1-card-header">
+        <div className="s1-card-header-top">
+          <div className="s1-card-title-col">
+            <h2 className="s1-card-title">
+              {nom?.name || 'Деталь'}
+            </h2>
+            <div className="s1-card-subtitle">
+              ЗАМОВЛЕННЯ №{orders?.find(o => o.id === currentCard.order_id)?.order_num || '—'} · Картка #{currentCard.id.slice(-8).toUpperCase()} · {(() => {
+                const bz = Number(currentCard.buffer_qty) || Number(currentCard.card_info?.match(/\[BZ:(\d+)\]/)?.[1]) || 0
+                const need = Number(currentCard.card_info?.match(/\[REQ:(\d+)\]/)?.[1]) || Number(currentCard.card_info?.match(/\[NEED:(\d+)\]/)?.[1]) || (Number(currentCard.quantity) - bz)
+                if (bz > 0) return `${currentCard.quantity} шт (${need} + ${bz} БЗ)`
+                return `${currentCard.quantity} шт`
+              })()}
+            </div>
           </div>
+
+          {/* Мобільна кнопка закриття */}
+          <button
+            className="s1-close-btn s1-close-btn-mobile"
+            onClick={() => setSelectedCardId(null)}
+            aria-label="Закрити картку"
+          >
+            <X size={22} />
+          </button>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          {currentCard.task_id && (
-            <Link
-              to={`/foreman?task=${currentCard.task_id}`}
-              state={{ taskId: currentCard.task_id }}
-              style={{ background: '#3b82f615', border: '1px solid #3b82f640', color: '#3b82f6', padding: '10px 14px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', textDecoration: 'none' }}
-              title="Перейти до батьківського наряду">
-              📋 <span className="hide-mobile">НАРЯД</span>
-            </Link>
-          )}
+
+        {/* Панель кнопок дій */}
+        <div className="s1-card-actions-bar">
+          {/* КОМЕНТАРІ */}
+          <button
+            onClick={() => setShowCommentsModal(true)}
+            className={`s1-action-btn s1-btn-comments ${commentsCount > 0 ? 'has-comments' : ''}`}
+            title="Історія коментарів та фотофіксація по картці"
+          >
+            <MessageSquare size={16} />
+            <span className="s1-btn-label">КОМЕНТАРІ</span>
+            {commentsCount > 0 && (
+              <span className="s1-btn-badge s1-badge-comments">
+                {commentsCount}
+              </span>
+            )}
+          </button>
+
+          {/* ПЕЧАТКА ВКЯ */}
           {setShowQCOpsModal && (
-            <button onClick={() => setShowQCOpsModal(true)}
-              style={{ background: hasQcOpsStamps ? '#10b98120' : '#10b98115', border: `1px solid ${hasQcOpsStamps ? '#10b98180' : '#10b98145'}`, color: '#10b981', padding: '10px 14px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
-              title="Погодження операцій розкрою та печатка ВКЯ">
-              💮 <span className="hide-mobile">ПЕЧАТКА ВКЯ</span>
+            <button
+              onClick={() => setShowQCOpsModal(true)}
+              className={`s1-action-btn s1-btn-vkya ${hasQcOpsStamps ? 'has-stamps' : ''}`}
+              title="Погодження операцій розкрою та печатка ВКЯ"
+            >
+              <span>💮</span>
+              <span className="s1-btn-label">ПЕЧАТКА ВКЯ</span>
               {stampedOpsList.length > 0 && (
-                <span style={{ background: '#10b981', color: '#000', borderRadius: '999px', padding: '1px 7px', fontSize: '0.68rem', fontWeight: 1000 }}>
+                <span className="s1-btn-badge s1-badge-vkya">
                   {stampedOpsList.length}
                 </span>
               )}
             </button>
           )}
-          <button onClick={() => setShowQCModal(true)}
-            style={{ background: '#ef444415', border: '1px solid #ef444440', color: '#ef4444', padding: '10px 14px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
-            title="Внести додатковий брак ВКЯ">
-            🛡️ <span className="hide-mobile">БРАК ВКЯ</span>
+
+          {/* БРАК ВКЯ */}
+          <button
+            onClick={() => setShowQCModal(true)}
+            className="s1-action-btn s1-btn-scrap"
+            title="Внести додатковий брак ВКЯ"
+          >
+            <span>🛡️</span>
+            <span className="s1-btn-label">БРАК ВКЯ</span>
           </button>
-          <button className="s1-close-btn" onClick={() => setSelectedCardId(null)}
-            style={{ background: 'var(--surface-1)', border: 'none', color: '#555', padding: '10px', borderRadius: '12px', cursor: 'pointer' }}>
+
+          {/* НАРЯД */}
+          {currentCard.task_id && (
+            <Link
+              to={`/foreman?task=${currentCard.task_id}`}
+              state={{ taskId: currentCard.task_id }}
+              className="s1-action-btn s1-btn-naryad"
+              title="Перейти до батьківського наряду"
+            >
+              <span>📋</span>
+              <span className="s1-btn-label">НАРЯД</span>
+            </Link>
+          )}
+
+          {/* Десктопна кнопка закриття */}
+          <button
+            className="s1-close-btn s1-close-btn-desktop"
+            onClick={() => setSelectedCardId(null)}
+            aria-label="Закрити картку"
+          >
             <X size={22} />
           </button>
         </div>
@@ -914,6 +970,21 @@ export function Shop1CardDetails({
         })()}
 
       </div>
+
+      {/* Модальне вікно коментарів до картки */}
+      {showCommentsModal && (
+        <Shop1CardCommentsModal
+          isOpen={showCommentsModal}
+          onClose={() => setShowCommentsModal(false)}
+          currentCard={currentCard}
+          nom={nom}
+          orderNum={orders?.find(o => o.id === currentCard.order_id)?.order_num || ''}
+          currentUser={currentUser}
+          systemUsers={systemUsers}
+          selectedOperator={selectedOperator}
+          setWorkCards={setWorkCards}
+        />
+      )}
     </div>
   )
 }

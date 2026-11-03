@@ -1696,3 +1696,201 @@ body {
     gap: 10px !important;
   }
 }
+
+/* ── SHOP 1 CARD HEADER & COMMENTS ACTIONS ── */
+.s1-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 20px;
+  gap: 16px;
+}
+
+.s1-card-header-top {
+  flex: 1;
+  min-width: 0;
+}
+
+.s1-card-title {
+  margin: 0;
+  font-size: 1.6rem;
+  font-weight: 950;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  color: var(--text-strong, #fff);
+}
+
+.s1-card-subtitle {
+  font-size: 0.65rem;
+  color: var(--text-dim, #94a3b8);
+  font-weight: 800;
+  margin-top: 6px;
+  text-transform: uppercase;
+}
+
+.s1-card-actions-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.s1-close-btn-mobile {
+  display: none !important;
+}
+
+.s1-close-btn-desktop {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-1, rgba(255, 255, 255, 0.05));
+  border: none;
+  color: var(--text-muted, #777);
+  padding: 10px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.s1-close-btn-desktop:hover,
+.s1-close-btn-mobile:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+.s1-action-btn {
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 900;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  text-decoration: none;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+
+.s1-btn-comments {
+  background: rgba(59, 130, 246, 0.12);
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  color: #3b82f6;
+}
+
+.s1-btn-comments.has-comments {
+  background: rgba(59, 130, 246, 0.22);
+  border: 1.5px solid #3b82f6;
+}
+
+.s1-btn-vkya {
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  color: #10b981;
+}
+
+.s1-btn-vkya.has-stamps {
+  background: rgba(16, 185, 129, 0.22);
+  border: 1.5px solid #10b981;
+}
+
+.s1-btn-scrap {
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #ef4444;
+}
+
+.s1-btn-naryad {
+  background: rgba(59, 130, 246, 0.12);
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  color: #3b82f6;
+}
+
+.s1-btn-badge {
+  border-radius: 999px;
+  padding: 1px 7px;
+  font-size: 0.68rem;
+  font-weight: 1000;
+}
+
+.s1-badge-comments {
+  background: #3b82f6;
+  color: #fff;
+}
+
+.s1-badge-vkya {
+  background: #10b981;
+  color: #000;
+}
+
+/* Mobile responsive layout for Shop 1 Card Details */
+@media (max-width: 768px) {
+  .s1-card-header {
+    flex-direction: column !important;
+    gap: 12px !important;
+    margin-bottom: 16px !important;
+    width: 100% !important;
+  }
+
+  .s1-card-header-top {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: flex-start !important;
+    width: 100% !important;
+    gap: 10px !important;
+  }
+
+  .s1-card-title-col {
+    flex: 1 !important;
+    min-width: 0 !important;
+  }
+
+  .s1-card-title {
+    font-size: 1.35rem !important;
+    line-height: 1.2 !important;
+    word-break: break-word !important;
+  }
+
+  .s1-card-subtitle {
+    font-size: 0.62rem !important;
+  }
+
+  .s1-close-btn-mobile {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0 !important;
+    background: var(--surface-1, rgba(255, 255, 255, 0.08)) !important;
+    border: none !important;
+    color: var(--text-muted, #94a3b8) !important;
+    padding: 8px !important;
+    border-radius: 12px !important;
+    cursor: pointer;
+  }
+
+  .s1-close-btn-desktop {
+    display: none !important;
+  }
+
+  .s1-card-actions-bar {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+
+  .s1-action-btn {
+    width: 100% !important;
+    justify-content: center !important;
+    padding: 10px 8px !important;
+    font-size: 0.72rem !important;
+    height: 42px !important;
+    border-radius: 12px !important;
+  }
+
+  .s1-action-btn .s1-btn-label {
+    display: inline !important;
+  }
+}
+
