@@ -210,7 +210,7 @@ export function useNavNotifications({
     const hasOrderCreationAccess = hasModule('director') || hasModule('master') || hasModule('foreman');
     if (hasOrderCreationAccess && orders) {
       orders.forEach(order => {
-        if (order.order_num && (order.order_num.startsWith('ВБ') || order.order_num.startsWith('VB'))) return;
+        if (order.order_num && (order.order_num.startsWith('ВБ') || order.order_num.startsWith('VB') || order.order_num.startsWith('СГП') || order.order_num.startsWith('SGP'))) return;
 
         const orderTasks = (tasks || []).filter(t => t.order_id === order.id);
         if (orderTasks.length === 0 && order.status !== 'completed' && order.status !== 'cancelled' && order.status !== 'shipped') {

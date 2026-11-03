@@ -57,7 +57,7 @@ export const Shop2Terminal: React.FC = () => {
         )}
 
         {/* Main Content Area */}
-        <div className="content-panel" style={{ flex: 1, padding: '20px 15px', background: 'var(--surface-inset)', overflowY: 'auto', position: 'relative' }}>
+        <div className="content-panel" style={{ flex: 1, minWidth: 0, padding: '20px 15px 100px', background: 'var(--surface-inset)', overflowY: 'auto', position: 'relative' }}>
           {state.scanError && (
             <div style={{ background: '#ef444422', border: '1px solid #ef444455', color: '#ef4444', padding: '15px', borderRadius: '15px', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontWeight: 800, fontSize: '0.8rem' }}>{state.scanError}</span>
@@ -453,6 +453,12 @@ export const Shop2Terminal: React.FC = () => {
             background: #f1f5f9 !important;
             background-color: #f1f5f9 !important;
             border: 1px solid #cbd5e1 !important;
+          }
+        }
+
+        @media (max-width: 768px) {
+          .content-panel {
+            padding-bottom: 120px !important;
           }
         }
 

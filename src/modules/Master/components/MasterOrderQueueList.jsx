@@ -237,7 +237,7 @@ export function MasterOrderQueueList({
             lineHeight: 1.2
           }}
         >
-          ВЛАСНА РОБОЧА КАРТКА
+          НАРЯД НА СГП
         </button>
       </div>
 

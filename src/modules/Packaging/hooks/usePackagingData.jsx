@@ -230,7 +230,7 @@ export function usePackagingData() {
       const order = orderContext.parentOrder
       const effectiveOrderId = orderContext.parentOrderId
       if (!order || order.status === 'deleted' || order.status === 'cancelled' || order.status === 'shipped') return
-      if (order.order_num && (order.order_num.startsWith('ВБ') || order.order_num.startsWith('VB'))) return
+      if (order.order_num && (order.order_num.startsWith('ВБ') || order.order_num.startsWith('VB') || order.order_num.startsWith('СГП') || order.order_num.startsWith('SGP'))) return
       if (order.order_num && (order.order_num.startsWith('2608') || order.order_num.startsWith('2609') || order.order_num.startsWith('TEST'))) return
       
       let schedule = []

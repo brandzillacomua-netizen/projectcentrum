@@ -171,7 +171,7 @@ export function createProductionHandoversActions({
       }
       if (!order) return
       if (['shipped', 'completed', 'cancelled', 'delivered'].includes(String(order.status || '').toLowerCase())) return
-      if (String(order.order_num || '').startsWith('ВБ')) return // Internal accumulation order stays 100% free on SGP
+      if (String(order.order_num || '').startsWith('ВБ') || String(order.order_num || '').startsWith('СГП') || String(order.order_num || '').startsWith('SGP')) return // Internal accumulation / SGP order stays 100% free on SGP
 
       let task = taskId ? tasks.find(t => String(t.id) === String(taskId)) : null
       if (!task && taskId) {

@@ -56,9 +56,9 @@ export function Shop1ActiveCardsTable({
             <tr className="s1-active-table-head" style={{ background: 'var(--surface-inset)', fontSize: '0.65rem', fontWeight: 900, color: 'var(--text-dim, #555)', textTransform: 'uppercase' }}>
               <th style={{ padding: '12px 14px' }}>ДАТА І ЧАС</th>
               <th style={{ padding: '12px 14px' }}>ДЕТАЛЬ</th>
-              <th style={{ padding: '12px 14px' }}>ЕТАП</th>
-              <th style={{ padding: '12px 14px' }}>СТАТУС</th>
               <th style={{ padding: '12px 14px' }}>К-СТЬ</th>
+              <th style={{ padding: '12px 14px' }}>СТАТУС</th>
+              <th style={{ padding: '12px 14px' }}>ЕТАП</th>
               <th style={{ padding: '12px 14px' }}>ЗМІНА</th>
               <th style={{ padding: '12px 14px' }}>ОПЕРАТОР</th>
               <th style={{ padding: '12px 14px' }}>ВЕРСТАТ</th>
@@ -180,7 +180,7 @@ export function Shop1ActiveCardsTable({
                         <span>{nom?.name || '—'}</span>
                       </div>
                     </td>
-                    <td style={{ padding: '10px 14px' }}>{card.operation}</td>
+                    <td style={{ padding: '10px 14px', fontWeight: 900 }}>{card.quantity} шт</td>
                     <td style={{ padding: '10px 14px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'nowrap' }}>
                         <span className={`s1-status-pill ${(inBuf && card.operation === 'Сортування') ? 's1-status-sorting' : inBuf ? 's1-status-buffer' : (card.status === 'paused' || card.status === 'hold') ? 's1-status-pause' : 's1-status-work'}`} style={{
@@ -222,7 +222,7 @@ export function Shop1ActiveCardsTable({
                         })()}
                       </div>
                     </td>
-                    <td style={{ padding: '10px 14px', fontWeight: 900 }}>{card.quantity} шт</td>
+                    <td style={{ padding: '10px 14px' }}>{card.operation}</td>
                     <td style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>{card.shift_name || '—'}</td>
                     <td style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>{card.operator_name || '—'}</td>
                     <td className="s1-machine-cell" style={{ padding: '10px 14px', color: '#eab308', fontWeight: 850 }}>{formatMachine(card.machine)}</td>

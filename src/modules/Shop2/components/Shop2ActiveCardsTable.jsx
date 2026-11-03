@@ -12,12 +12,13 @@ export function Shop2ActiveCardsTable({
   const activeCards = workCards.filter(c => isShop2Card(c) && (c.status === 'in-progress' || c.status === 'at-buffer'))
 
   return (
-    <div style={{ background: 'var(--surface-1)', borderRadius: '24px', border: '1px solid var(--border-subtle)', overflowX: 'auto' }}>
+    <div style={{ background: 'var(--surface-1)', borderRadius: '24px', border: '1px solid var(--border-subtle)', overflow: 'hidden' }}>
       <div style={{ padding: '25px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 900 }}>ДЕТАЛІ В ПРОЦЕСІ (ЦЕХ №2)</h3>
         {isSyncing && <RefreshCw className="animate-spin" size={16} color="#8b5cf6" />}
       </div>
-      <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '1200px' }}>
+      <div style={{ overflowX: 'auto', maxWidth: '100%', border: 'none', borderRadius: 0, width: '100%', WebkitOverflowScrolling: 'touch' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '1200px' }}>
         <thead style={{ background: 'var(--surface-inset)', fontSize: '0.65rem', fontWeight: 900, color: '#555', textTransform: 'uppercase' }}>
           <tr>
             <th style={{ padding: '12px 15px' }}>ДЕТАЛЬ</th>
@@ -88,6 +89,7 @@ export function Shop2ActiveCardsTable({
           )}
         </tbody>
       </table>
+      </div>
     </div>
   )
 }

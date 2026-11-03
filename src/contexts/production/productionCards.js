@@ -1010,8 +1010,8 @@ export function createProductionCardsActions({
       if (!order) {
         order = {
           id: validOrderId || `internal_${Date.now()}`,
-          order_num: (orderId && String(orderId).startsWith('ВБ')) ? String(orderId) : 'ВБ-НАКОПИЧЕННЯ',
-          customer: 'Власні потреби (Накопичення)',
+          order_num: (orderId && (String(orderId).startsWith('ВБ') || String(orderId).startsWith('СГП') || String(orderId).startsWith('SGP'))) ? String(orderId) : 'СГП-НАКОПИЧЕННЯ',
+          customer: (orderId && (String(orderId).startsWith('СГП') || String(orderId).startsWith('SGP'))) ? 'НАРЯД НА СГП' : 'Власні потреби (Накопичення)',
           deadline: customDeadline || new Date(Date.now() + 86400000 * 7).toISOString().split('T')[0],
           order_items: []
         }
@@ -1400,7 +1400,8 @@ export function createProductionCardsActions({
       if (taskError) throw taskError
 
       // Створюємо випереджальне завдання для Відділу Пакування (замовлення метизів/коробок та очікування деталей з СГП)
-      if (tData) {
+      const isInternalStockOrder = order.order_num && (order.order_num.startsWith('ВБ') || order.order_num.startsWith('СГП') || order.order_num.startsWith('SGP'));
+      if (tData && !isInternalStockOrder) {
         const { data: newPackagingTask } = await supabase.from('tasks').insert([{
           order_id: validOrderId,
           step: 'Пакування',

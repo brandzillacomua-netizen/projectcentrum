@@ -7,6 +7,12 @@ import { supabase } from '../../../supabase'
 import { MACHINE_TYPES, isShop1Task } from '../utils/masterHelpers'
 import { getAvailableSGPStock, findWorkingSheetNom } from '../../Nomenclature/utils/nomenclatureHelpers'
 
+const resolveNextSgpOrderNum = (dbOrders, localOrders) => {
+  const combined = [...(dbOrders || []), ...(localOrders || []).filter(o => o.order_num && /^(СГП|SGP)/i.test(o.order_num))]
+  const numbers = combined.map(o => parseInt((o.order_num || '').replace(/^(СГП|SGP)-?/i, '')) || 0)
+  return `СГП${String(numbers.length > 0 ? Math.max(0, ...numbers) + 1 : 1).padStart(5, '0')}`
+}
+
 export function useMasterState() {
   const [searchParams, setSearchParams] = useSearchParams()
   const {
@@ -119,30 +125,15 @@ export function useMasterState() {
 
     setIsSubmitting(true)
     try {
-      const { data: bzOrders, error: bzErr } = await supabase
-        .from('orders')
-        .select('order_num')
-        .like('order_num', 'ВБ%')
-
-      if (bzErr) throw bzErr
-
-      let nextNum = 1
-      if (bzOrders && bzOrders.length > 0) {
-        const numbers = bzOrders.map(o => {
-          const numPart = o.order_num.replace('ВБ', '')
-          return parseInt(numPart) || 0
-        })
-        nextNum = Math.max(...numbers) + 1
-      }
-      const newOrderNum = `ВБ${String(nextNum).padStart(4, '0')}`
-
+      const { data: sgpOrders } = await supabase.from('orders').select('order_num').or('order_num.like.СГП%,order_num.like.SGP%')
+      const newOrderNum = resolveNextSgpOrderNum(sgpOrders, orders)
       const selectedNom = nomenclatures.find(n => n.id === customCardNomId)
 
       const { data: newOrder, error: orderErr } = await supabase
         .from('orders')
         .insert([{
           order_num: newOrderNum,
-          customer: 'ВЛАСНИЙ ВИПУСК (НАЧ. ЦЕХУ)',
+          customer: 'НАРЯД НА СГП',
           status: 'in-progress',
           source: 'Виробництво',
           nomenclature_id: customCardNomId,
@@ -200,29 +191,18 @@ export function useMasterState() {
     setNaryadParts({})
     setNaryadQtys({})
 
-    let nextNum = 1
+    let newOrderNum = 'СГП00001'
     try {
-      const { data: bzOrders, error: bzErr } = await supabase
-        .from('orders')
-        .select('order_num')
-        .like('order_num', 'ВБ%')
-
-      if (!bzErr && bzOrders && bzOrders.length > 0) {
-        const numbers = bzOrders.map(o => {
-          const numPart = o.order_num.replace('ВБ', '')
-          return parseInt(numPart) || 0
-        })
-        nextNum = Math.max(...numbers) + 1
-      }
+      const { data: sgpOrders } = await supabase.from('orders').select('order_num').or('order_num.like.СГП%,order_num.like.SGP%')
+      newOrderNum = resolveNextSgpOrderNum(sgpOrders, orders)
     } catch (e) {
       console.error(e)
     }
-    const newOrderNum = `ВБ${String(nextNum).padStart(4, '0')}`
 
     const virtualOrder = {
       id: 'draft-' + Date.now(),
       order_num: newOrderNum,
-      customer: 'ВЛАСНИЙ ВИПУСК (НАЧ. ЦЕХУ)',
+      customer: 'НАРЯД НА СГП',
       status: 'in-progress',
       source: 'Виробництво',
       isVirtualDraft: true,
@@ -245,7 +225,7 @@ export function useMasterState() {
         .from('orders')
         .insert([{
           order_num: activeNaryadOrder.order_num,
-          customer: 'ВЛАСНИЙ ВИПУСК (НАЧ. ЦЕХУ)',
+          customer: activeNaryadOrder.customer || 'НАРЯД НА СГП',
           status: 'in-progress',
           source: 'Виробництво',
           deadline: naryadDeadline || null,

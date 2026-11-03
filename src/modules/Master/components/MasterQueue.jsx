@@ -33,7 +33,7 @@ export function MasterQueue({
             onClick={handleOpenCustomVirtualNaryad}
             style={{ background: '#ff9000', color: '#000', border: 'none', padding: '6px 12px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer' }}
           >
-            ВЛАСНА РОБОЧА КАРТКА
+            НАРЯД НА СГП
           </button>
         </div>
         <div style={{ position: 'relative' }}>
