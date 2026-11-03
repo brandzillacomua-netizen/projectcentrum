@@ -111,34 +111,24 @@ export const Shop2Terminal: React.FC = () => {
       </div>
 
       {/* Floating Controls */}
-      <div className="floating-controls-container">
+      <div className="floating-controls-container shop2-floating-controls">
         <form
           onSubmit={state.handleManualEntry}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            background: 'rgba(10, 10, 10, 0.95)',
-            border: '1px solid var(--border-subtle)',
-            padding: '10px 14px',
-            borderRadius: '24px',
-            boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
-            backdropFilter: 'blur(10px)'
-          }}
+          className="shop2-floating-search-form"
         >
-          <Search size={16} color="#6b7280" />
+          <Search size={16} className="shop2-floating-search-icon" />
           <input
             type="text"
             placeholder="Введіть системний номер..."
             value={state.manualId}
             onChange={e => state.setManualId(e.target.value)}
             disabled={state.isProcessing}
-            style={{ background: 'transparent', border: 'none', color: 'var(--text-strong)', fontSize: '0.85rem', fontWeight: 700, outline: 'none', width: '100%' }}
+            className="shop2-floating-search-input"
           />
           <button
             type="submit"
             disabled={state.isProcessing}
-            style={{ background: '#8b5cf6', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '16px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', flexShrink: 0 }}
+            className="shop2-floating-search-btn"
           >
             {state.isProcessing ? <RefreshCw size={12} className="anim-spin" /> : 'ЗНАЙТИ'}
           </button>
@@ -146,24 +136,10 @@ export const Shop2Terminal: React.FC = () => {
 
         <button
           onClick={() => state.setIsScanning(true)}
-          className="hover-lift"
-          style={{ 
-            background: '#8b5cf6', 
-            border: 'none', 
-            color: '#000', 
-            width: '64px',
-            height: '64px',
-            borderRadius: '50%', 
-            display: 'flex', 
-            justifyContent: 'center',
-            alignItems: 'center', 
-            cursor: 'pointer',
-            boxShadow: '0 10px 30px rgba(139,92,246,0.4)',
-            transition: 'all 0.2s',
-            flexShrink: 0
-          }}
+          className="shop2-floating-qr-btn hover-lift"
+          title="Сканувати QR-код"
         >
-          <QrCode size={32} />
+          <QrCode size={30} className="shop2-floating-qr-icon" />
         </button>
       </div>
 
@@ -265,7 +241,7 @@ export const Shop2Terminal: React.FC = () => {
 
       <style dangerouslySetInnerHTML={{
         __html: `
-        .floating-controls-container {
+        .shop2-floating-controls {
           position: fixed;
           bottom: 30px;
           right: 30px;
@@ -275,27 +251,211 @@ export const Shop2Terminal: React.FC = () => {
           z-index: 1000;
           transition: all 0.3s ease;
         }
+
+        .shop2-floating-search-form {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          background: rgba(14, 14, 18, 0.95);
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          padding: 8px 10px 8px 16px;
+          border-radius: 26px;
+          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
+          backdrop-filter: blur(12px);
+          min-width: 290px;
+          box-sizing: border-box;
+          transition: all 0.2s ease;
+        }
+        .shop2-floating-search-form:focus-within {
+          border-color: rgba(139, 92, 246, 0.6);
+          box-shadow: 0 10px 35px rgba(0, 0, 0, 0.6), 0 0 0 2px rgba(139, 92, 246, 0.2);
+        }
+
+        .shop2-floating-search-icon {
+          color: #94a3b8;
+          flex-shrink: 0;
+        }
+
+        .shop2-floating-search-input {
+          background: transparent !important;
+          background-color: transparent !important;
+          border: none !important;
+          box-shadow: none !important;
+          color: #f8fafc !important;
+          font-size: 0.88rem;
+          font-weight: 700;
+          outline: none !important;
+          width: 100%;
+          padding: 4px 0 !important;
+          margin: 0 !important;
+          font-family: inherit;
+        }
+        .shop2-floating-search-input::placeholder {
+          color: #64748b !important;
+          opacity: 1;
+        }
+
+        .shop2-floating-search-btn {
+          background: #8b5cf6;
+          color: #ffffff !important;
+          border: none;
+          padding: 7px 15px;
+          border-radius: 18px;
+          font-size: 0.76rem;
+          font-weight: 950;
+          letter-spacing: 0.4px;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          flex-shrink: 0;
+          box-shadow: 0 4px 14px rgba(139, 92, 246, 0.35);
+          transition: all 0.18s ease;
+        }
+        .shop2-floating-search-btn:hover:not(:disabled) {
+          background: #7c3aed;
+          transform: translateY(-1px);
+          box-shadow: 0 6px 18px rgba(139, 92, 246, 0.45);
+        }
+        .shop2-floating-search-btn:active:not(:disabled) {
+          transform: translateY(0);
+        }
+
+        .shop2-floating-qr-btn {
+          background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+          border: none;
+          color: #ffffff !important;
+          width: 58px;
+          height: 58px;
+          border-radius: 50%;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          cursor: pointer;
+          box-shadow: 0 10px 30px rgba(139, 92, 246, 0.45);
+          transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+          flex-shrink: 0;
+        }
+        .shop2-floating-qr-btn:hover {
+          transform: scale(1.06) translateY(-2px);
+          box-shadow: 0 14px 35px rgba(139, 92, 246, 0.55);
+        }
+        .shop2-floating-qr-btn:active {
+          transform: scale(0.96);
+        }
+        .shop2-floating-qr-icon {
+          color: #ffffff;
+          stroke: #ffffff;
+        }
+
+        /* Light Theme Overrides */
+        body.light-theme .shop2-floating-search-form,
+        .light-theme .shop2-floating-search-form {
+          background: rgba(255, 255, 255, 0.96) !important;
+          background-color: rgba(255, 255, 255, 0.96) !important;
+          border: 1px solid #cbd5e1 !important;
+          box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12), 0 2px 6px rgba(15, 23, 42, 0.04) !important;
+        }
+        body.light-theme .shop2-floating-search-form:focus-within,
+        .light-theme .shop2-floating-search-form:focus-within {
+          border-color: #8b5cf6 !important;
+          box-shadow: 0 10px 35px rgba(139, 92, 246, 0.2), 0 0 0 2px rgba(139, 92, 246, 0.25) !important;
+        }
+
+        body.light-theme .shop2-floating-search-icon,
+        .light-theme .shop2-floating-search-icon {
+          color: #64748b !important;
+        }
+
+        body.light-theme .shop2-floating-search-input,
+        .light-theme .shop2-floating-search-input {
+          background: transparent !important;
+          background-color: transparent !important;
+          border: none !important;
+          box-shadow: none !important;
+          color: #0f172a !important;
+          caret-color: #7c3aed !important;
+        }
+        body.light-theme .shop2-floating-search-input::placeholder,
+        .light-theme .shop2-floating-search-input::placeholder {
+          color: #94a3b8 !important;
+          opacity: 1;
+        }
+
+        body.light-theme .shop2-floating-search-btn,
+        .light-theme .shop2-floating-search-btn {
+          background: #7c3aed !important;
+          background-color: #7c3aed !important;
+          color: #ffffff !important;
+          box-shadow: 0 4px 14px rgba(124, 58, 237, 0.35) !important;
+        }
+        body.light-theme .shop2-floating-search-btn:hover:not(:disabled),
+        .light-theme .shop2-floating-search-btn:hover:not(:disabled) {
+          background: #6d28d9 !important;
+          box-shadow: 0 6px 18px rgba(124, 58, 237, 0.45) !important;
+        }
+
+        body.light-theme .shop2-floating-qr-btn,
+        .light-theme .shop2-floating-qr-btn {
+          background: #ffffff !important;
+          background-color: #ffffff !important;
+          border: 1.5px solid #cbd5e1 !important;
+          color: #7c3aed !important;
+          box-shadow: 0 10px 25px rgba(15, 23, 42, 0.1), 0 2px 6px rgba(15, 23, 42, 0.04) !important;
+        }
+        body.light-theme .shop2-floating-qr-btn:hover,
+        .light-theme .shop2-floating-qr-btn:hover {
+          border-color: #8b5cf6 !important;
+          box-shadow: 0 12px 30px rgba(139, 92, 246, 0.25) !important;
+        }
+        body.light-theme .shop2-floating-qr-btn .shop2-floating-qr-icon,
+        .light-theme .shop2-floating-qr-btn .shop2-floating-qr-icon {
+          color: #7c3aed !important;
+          stroke: #7c3aed !important;
+        }
+
         @media (max-width: 600px) {
-          .floating-controls-container {
+          .shop2-floating-controls {
             bottom: 0;
             left: 0;
             right: 0;
             width: 100%;
-            background: rgba(10, 10, 12, 0.96) !important;
+            background: rgba(10, 10, 14, 0.96) !important;
             border-top: 1px solid rgba(255, 255, 255, 0.08);
-            padding: 14px 20px;
+            padding: 12px 16px;
             justify-content: space-between;
             border-radius: 0;
-            box-shadow: 0 -10px 35px rgba(0,0,0,0.9);
+            box-shadow: 0 -10px 35px rgba(0, 0, 0, 0.8);
             backdrop-filter: blur(15px);
+            box-sizing: border-box;
           }
-          .floating-controls-container form {
+          .shop2-floating-controls .shop2-floating-search-form {
             flex: 1;
+            min-width: 0;
             box-shadow: none !important;
-            background: #000 !important;
-            border: 1px solid var(--border-subtle) !important;
+            background: #14141b !important;
+            border: 1px solid rgba(255, 255, 255, 0.12) !important;
+            padding: 6px 8px 6px 12px;
+          }
+          .shop2-floating-controls .shop2-floating-qr-btn {
+            width: 48px;
+            height: 48px;
+          }
+
+          body.light-theme .shop2-floating-controls,
+          .light-theme .shop2-floating-controls {
+            background: rgba(255, 255, 255, 0.97) !important;
+            border-top: 1px solid #e2e8f0 !important;
+            box-shadow: 0 -10px 30px rgba(15, 23, 42, 0.08) !important;
+          }
+          body.light-theme .shop2-floating-controls .shop2-floating-search-form,
+          .light-theme .shop2-floating-controls .shop2-floating-search-form {
+            background: #f1f5f9 !important;
+            background-color: #f1f5f9 !important;
+            border: 1px solid #cbd5e1 !important;
           }
         }
+
         .animate-spin { animation: spin 1s linear infinite; }
         @keyframes spin { 100% { transform: rotate(360deg); } }
         ::-webkit-scrollbar { width: 6px; }

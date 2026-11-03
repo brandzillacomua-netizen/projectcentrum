@@ -115,6 +115,113 @@ export function getActiveCuttingCards(workCards = [], nomMapOrList = null) {
   return Array.from(uniqueMap.values())
 }
 
+export const MACHINE_TYPE_CATEGORIES = [
+  {
+    id: 'malyi',
+    label: 'Малий',
+    color: '#3b82f6',
+    matcher: (raw) => {
+      const n = (raw || '').toLowerCase().replace(/х/g, 'x').replace(/×/g, 'x')
+      return n.includes('12x8') || n.includes('1200x800') || n.includes('малий') || n.includes('мал')
+    }
+  },
+  {
+    id: 'feya',
+    label: 'Фея',
+    color: '#10b981',
+    matcher: (raw) => {
+      const n = (raw || '').toLowerCase()
+      return n.includes('фея') || n.includes('фею') || n.includes('феі') ||
+             n.includes('ke xin') || n.includes('kexin') || n.includes('кексін') ||
+             n.includes('кексин') || n.includes('fea') || n.includes('feia') ||
+             n.includes('№ф') || n.includes('ф№')
+    }
+  },
+  {
+    id: 'shvydkisnyi',
+    label: 'Швидкісний',
+    color: '#06b6d4',
+    matcher: (raw) => {
+      const n = (raw || '').toLowerCase().replace(/х/g, 'x').replace(/×/g, 'x')
+      return n.includes('3050') || n.includes('швидкісн') || n.includes('швыдк') || n.includes('16x16')
+    }
+  },
+  {
+    id: 'tryholovyi',
+    label: 'Триголовий',
+    color: '#8b5cf6',
+    matcher: (raw) => {
+      const n = (raw || '').toLowerCase().replace(/х/g, 'x').replace(/×/g, 'x')
+      return n.includes('3060') || n.includes('три голов') || n.includes('триголов') || n.includes('30x16')
+    }
+  },
+  {
+    id: 'drakon',
+    label: 'Дракон',
+    color: '#f97316',
+    matcher: (raw) => {
+      const n = (raw || '').toLowerCase().replace(/х/g, 'x').replace(/×/g, 'x')
+      return n.includes('дракон') || n.includes('60x20') || n.includes('6000x2000') || n.includes('dragon')
+    }
+  }
+]
+
+export function resolveCardMachineType(card, machinesList = []) {
+  if (!card) return 'other'
+
+  if (Array.isArray(machinesList) && machinesList.length > 0) {
+    const cardMacId = card.machine_id ? String(card.machine_id) : null
+    const cardMacName = String(card.machine || '').trim().toLowerCase()
+    const found = machinesList.find(m =>
+      (cardMacId && String(m.id) === cardMacId) ||
+      (cardMacName && String(m.name || '').trim().toLowerCase() === cardMacName)
+    )
+    if (found) {
+      const candidate = `${found.name || ''} ${found.type || ''}`
+      for (const cat of MACHINE_TYPE_CATEGORIES) {
+        if (cat.matcher(candidate)) return cat.id
+      }
+    }
+  }
+
+  const rawMac = String(card.machine || '').trim()
+  if (rawMac) {
+    for (const cat of MACHINE_TYPE_CATEGORIES) {
+      if (cat.matcher(rawMac)) return cat.id
+    }
+  }
+
+  const rawInfo = String(card.card_info || '')
+  if (rawInfo) {
+    for (const cat of MACHINE_TYPE_CATEGORIES) {
+      if (cat.matcher(rawInfo)) return cat.id
+    }
+  }
+
+  return 'other'
+}
+
+export function matchesInspectionTier(item, filterTier = 'all') {
+  if (!item) return false
+  if (filterTier === 'uninspected') return !item.hasAnyStamp
+  if (filterTier === 'needs_recheck') return item.inspectionTier === 'urgent_recheck' || item.inspectionTier === 'needs_recheck'
+  if (filterTier === 'inspected') return item.inspectionTier === 'fresh'
+  return true // 'all' or default
+}
+
+export function countCardsByMachineType(cards = []) {
+  const counts = { all: cards.length, malyi: 0, feya: 0, shvydkisnyi: 0, tryholovyi: 0, drakon: 0, other: 0 }
+  for (const c of cards) {
+    const tid = c?.machineTypeId || 'other'
+    if (counts[tid] !== undefined) {
+      counts[tid]++
+    } else {
+      counts.other++
+    }
+  }
+  return counts
+}
+
 export const BrakActiveCuttingModal = React.memo(({
   isOpen,
   onClose,
@@ -128,6 +235,7 @@ export const BrakActiveCuttingModal = React.memo(({
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedFilter, setSelectedFilter] = useState('all') // 'all' | 'uninspected' | 'needs_recheck' | 'inspected'
   const [selectedMachine, setSelectedMachine] = useState('all')
+  const [selectedMachineType, setSelectedMachineType] = useState('all') // 'all' | 'malyi' | 'feya' | 'shvydkisnyi' | 'tryholovyi' | 'drakon' | 'other'
   const [sortBy, setSortBy] = useState('duration_desc') // 'duration_desc' | 'qc_urgency' | 'machine'
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [now, setNow] = useState(() => Date.now())
@@ -250,29 +358,92 @@ export const BrakActiveCuttingModal = React.memo(({
         shortHex,
         inspectionTier,
         machineName: card.machine || 'ЧПК',
+        machineTypeId: resolveCardMachineType(card, machines),
         operatorName: card.operator_name || 'Не вказано'
       }
     })
-  }, [workCards, ordersMap, nomMap, workCardHistory, now])
+  }, [workCards, ordersMap, nomMap, workCardHistory, machines, now])
 
-  // Extract unique machines list
+  const handleSelectFilter = (filterId) => {
+    setSelectedFilter(filterId)
+    setSelectedMachine('all')
+  }
+
+  // Cards filtered by active inspection stage / tier
+  const tierFilteredCards = useMemo(() => {
+    if (selectedFilter === 'all') return cuttingCards
+    return cuttingCards.filter(card => matchesInspectionTier(card, selectedFilter))
+  }, [cuttingCards, selectedFilter])
+
+  // Count cutting cards grouped by machine type within the currently active inspection stage / tier
+  const machineTypeCounts = useMemo(() => {
+    return countCardsByMachineType(tierFilteredCards)
+  }, [tierFilteredCards])
+
+  // Badges list: "Всі" + standard categories + "Інші" (if any)
+  const machineTypeBadges = useMemo(() => {
+    const badges = [
+      { id: 'all', label: 'Всі верстати', count: machineTypeCounts.all }
+    ]
+
+    for (const cat of MACHINE_TYPE_CATEGORIES) {
+      badges.push({
+        id: cat.id,
+        label: cat.label,
+        count: machineTypeCounts[cat.id] || 0
+      })
+    }
+
+    if (machineTypeCounts.other > 0) {
+      badges.push({
+        id: 'other',
+        label: 'Інші',
+        count: machineTypeCounts.other
+      })
+    }
+
+    return badges
+  }, [machineTypeCounts])
+
+  const handleSelectMachineType = (typeId) => {
+    if (selectedMachineType === typeId) {
+      setSelectedMachineType('all')
+    } else {
+      setSelectedMachineType(typeId)
+    }
+    setSelectedMachine('all')
+  }
+
+  // Extract unique machines list (scoped to active stage and selected machine type if active)
   const availableMachines = useMemo(() => {
-    const list = Array.from(new Set(cuttingCards.map(c => c.machineName).filter(Boolean)))
+    const baseCards = selectedMachineType === 'all'
+      ? tierFilteredCards
+      : tierFilteredCards.filter(c => c.machineTypeId === selectedMachineType)
+    const list = Array.from(new Set(baseCards.map(c => c.machineName).filter(Boolean)))
     return list.sort((a, b) => a.localeCompare(b, 'uk', { numeric: true, sensitivity: 'base' }))
-  }, [cuttingCards])
+  }, [tierFilteredCards, selectedMachineType])
+
+  // Reset selectedMachine if it no longer exists in availableMachines for current stage
+  useEffect(() => {
+    if (selectedMachine !== 'all' && !availableMachines.includes(selectedMachine)) {
+      setSelectedMachine('all')
+    }
+  }, [availableMachines, selectedMachine])
 
   // Filter & Sort
   const filteredCards = useMemo(() => {
-    return cuttingCards.filter(item => {
-      // Machine filter
+    return tierFilteredCards.filter(item => {
+      // Machine Type filter
+      if (selectedMachineType !== 'all') {
+        if (item.machineTypeId !== selectedMachineType) {
+          return false
+        }
+      }
+
+      // Individual Machine filter
       if (selectedMachine !== 'all' && item.machineName !== selectedMachine) {
         return false
       }
-
-      // Tier filter
-      if (selectedFilter === 'uninspected' && item.hasAnyStamp) return false
-      if (selectedFilter === 'needs_recheck' && (item.inspectionTier !== 'urgent_recheck' && item.inspectionTier !== 'needs_recheck')) return false
-      if (selectedFilter === 'inspected' && item.inspectionTier !== 'fresh') return false
 
       // Search query
       if (searchQuery.trim()) {
@@ -305,7 +476,7 @@ export const BrakActiveCuttingModal = React.memo(({
       }
       return 0
     })
-  }, [cuttingCards, selectedMachine, selectedFilter, searchQuery, sortBy])
+  }, [cuttingCards, selectedMachineType, selectedMachine, selectedFilter, searchQuery, sortBy])
 
   // Stats
   const stats = useMemo(() => {
@@ -469,7 +640,18 @@ export const BrakActiveCuttingModal = React.memo(({
             flexShrink: 0
           }}
         >
-          <div className="brak-kpi-card brak-kpi-total" style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)', borderRadius: '12px', padding: '8px 12px' }}>
+          <div
+            onClick={() => handleSelectFilter('all')}
+            className={`brak-kpi-card brak-kpi-total ${selectedFilter === 'all' ? 'active' : ''}`}
+            style={{
+              background: selectedFilter === 'all' ? 'rgba(245,158,11,0.2)' : 'rgba(245,158,11,0.08)',
+              border: selectedFilter === 'all' ? '1.5px solid #f59e0b' : '1px solid rgba(245,158,11,0.25)',
+              borderRadius: '12px',
+              padding: '8px 12px',
+              cursor: 'pointer',
+              transition: 'all 0.15s ease'
+            }}
+          >
             <div className="kpi-label" style={{ fontSize: '0.62rem', fontWeight: 900, color: '#f59e0b', textTransform: 'uppercase' }}>В розкрої зараз</div>
             <div className="kpi-val" style={{ fontSize: '1.25rem', fontWeight: 950, color: 'var(--text-strong, #fff)', marginTop: '2px' }}>
               {stats.total} <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted, #94a3b8)' }}>карток</span>
@@ -477,14 +659,19 @@ export const BrakActiveCuttingModal = React.memo(({
           </div>
 
           <div
-            onClick={() => setSelectedFilter(selectedFilter === 'uninspected' ? 'all' : 'uninspected')}
-            className="brak-kpi-card brak-kpi-uninspected"
+            onClick={() => handleSelectFilter(selectedFilter === 'uninspected' ? 'all' : 'uninspected')}
+            className={`brak-kpi-card brak-kpi-uninspected ${selectedFilter === 'uninspected' ? 'active' : ''}`}
             style={{
-              background: stats.uninspected > 0 ? 'rgba(239,68,68,0.12)' : 'rgba(255,255,255,0.03)',
-              border: stats.uninspected > 0 ? '1.5px solid #ef4444' : '1px solid var(--border-color, rgba(255,255,255,0.08))',
+              background: selectedFilter === 'uninspected'
+                ? 'rgba(239,68,68,0.22)'
+                : (stats.uninspected > 0 ? 'rgba(239,68,68,0.12)' : 'rgba(255,255,255,0.03)'),
+              border: selectedFilter === 'uninspected'
+                ? '1.5px solid #ef4444'
+                : (stats.uninspected > 0 ? '1px solid rgba(239,68,68,0.5)' : '1px solid var(--border-color, rgba(255,255,255,0.08))'),
               borderRadius: '12px',
               padding: '8px 12px',
-              cursor: 'pointer'
+              cursor: 'pointer',
+              transition: 'all 0.15s ease'
             }}
           >
             <div className="kpi-label" style={{ fontSize: '0.62rem', fontWeight: 900, color: stats.uninspected > 0 ? '#ef4444' : 'var(--text-muted, #94a3b8)', textTransform: 'uppercase' }}>
@@ -496,14 +683,19 @@ export const BrakActiveCuttingModal = React.memo(({
           </div>
 
           <div
-            onClick={() => setSelectedFilter(selectedFilter === 'needs_recheck' ? 'all' : 'needs_recheck')}
-            className="brak-kpi-card brak-kpi-recheck"
+            onClick={() => handleSelectFilter(selectedFilter === 'needs_recheck' ? 'all' : 'needs_recheck')}
+            className={`brak-kpi-card brak-kpi-recheck ${selectedFilter === 'needs_recheck' ? 'active' : ''}`}
             style={{
-              background: stats.needsRecheck > 0 ? 'rgba(245,158,11,0.12)' : 'rgba(255,255,255,0.03)',
-              border: stats.needsRecheck > 0 ? '1px solid rgba(245,158,11,0.4)' : '1px solid var(--border-color, rgba(255,255,255,0.08))',
+              background: selectedFilter === 'needs_recheck'
+                ? 'rgba(245,158,11,0.22)'
+                : (stats.needsRecheck > 0 ? 'rgba(245,158,11,0.12)' : 'rgba(255,255,255,0.03)'),
+              border: selectedFilter === 'needs_recheck'
+                ? '1.5px solid #f59e0b'
+                : (stats.needsRecheck > 0 ? '1px solid rgba(245,158,11,0.4)' : '1px solid var(--border-color, rgba(255,255,255,0.08))'),
               borderRadius: '12px',
               padding: '8px 12px',
-              cursor: 'pointer'
+              cursor: 'pointer',
+              transition: 'all 0.15s ease'
             }}
           >
             <div className="kpi-label" style={{ fontSize: '0.62rem', fontWeight: 900, color: '#f59e0b', textTransform: 'uppercase' }}>
@@ -515,14 +707,19 @@ export const BrakActiveCuttingModal = React.memo(({
           </div>
 
           <div
-            onClick={() => setSelectedFilter(selectedFilter === 'inspected' ? 'all' : 'inspected')}
-            className="brak-kpi-card brak-kpi-fresh"
+            onClick={() => handleSelectFilter(selectedFilter === 'inspected' ? 'all' : 'inspected')}
+            className={`brak-kpi-card brak-kpi-fresh ${selectedFilter === 'inspected' ? 'active' : ''}`}
             style={{
-              background: 'rgba(16,185,129,0.08)',
-              border: '1px solid rgba(16,185,129,0.25)',
+              background: selectedFilter === 'inspected'
+                ? 'rgba(16,185,129,0.22)'
+                : (stats.fresh > 0 ? 'rgba(16,185,129,0.08)' : 'rgba(255,255,255,0.03)'),
+              border: selectedFilter === 'inspected'
+                ? '1.5px solid #10b981'
+                : (stats.fresh > 0 ? '1px solid rgba(16,185,129,0.35)' : '1px solid var(--border-color, rgba(255,255,255,0.08))'),
               borderRadius: '12px',
               padding: '8px 12px',
-              cursor: 'pointer'
+              cursor: 'pointer',
+              transition: 'all 0.15s ease'
             }}
           >
             <div className="kpi-label" style={{ fontSize: '0.62rem', fontWeight: 900, color: '#10b981', textTransform: 'uppercase' }}>
@@ -600,7 +797,7 @@ export const BrakActiveCuttingModal = React.memo(({
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setSelectedFilter(tab.id)}
+                  onClick={() => handleSelectFilter(tab.id)}
                   className={`brak-filter-pill ${active ? 'active' : ''}`}
                   style={{
                     height: '30px',
@@ -623,7 +820,7 @@ export const BrakActiveCuttingModal = React.memo(({
 
           {/* Selects: Machine & Sorting */}
           <div className="brak-cutting-selects-row" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto' }}>
-            {availableMachines.length > 1 && (
+            {availableMachines.length > 0 && (
               <select
                 className="brak-cutting-machine-select"
                 value={selectedMachine}
@@ -640,7 +837,11 @@ export const BrakActiveCuttingModal = React.memo(({
                   outline: 'none'
                 }}
               >
-                <option value="all">Всі верстати ({availableMachines.length})</option>
+                <option value="all">
+                  {selectedMachineType !== 'all'
+                    ? `Всі верстати типу (${availableMachines.length})`
+                    : `Всі верстати (${availableMachines.length})`}
+                </option>
                 {availableMachines.map(m => (
                   <option key={m} value={m}>{m}</option>
                 ))}
@@ -667,6 +868,104 @@ export const BrakActiveCuttingModal = React.memo(({
               <option value="duration_asc">⏳ Найменше в роботі</option>
               <option value="machine">🔤 Верстат (А-Я)</option>
             </select>
+          </div>
+        </div>
+
+        {/* Machine Types Badge Row */}
+        <div
+          className="brak-cutting-types-bar"
+          style={{
+            padding: '8px 16px',
+            background: 'var(--card-inner-bg, rgba(255,255,255,0.02))',
+            borderBottom: '1px solid var(--border-color, rgba(255,255,255,0.06))',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            overflowX: 'auto',
+            WebkitOverflowScrolling: 'touch',
+            flexShrink: 0
+          }}
+        >
+          <div
+            className="brak-cutting-types-label"
+            style={{
+              fontSize: '0.66rem',
+              fontWeight: 900,
+              color: 'var(--text-muted, #94a3b8)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              whiteSpace: 'nowrap',
+              flexShrink: 0
+            }}
+          >
+            <Cpu size={14} style={{ color: '#f59e0b' }} />
+            <span>Тип верстата:</span>
+          </div>
+
+          <div
+            className="brak-cutting-types-list"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              flexWrap: 'wrap'
+            }}
+          >
+            {machineTypeBadges.map(badge => {
+              const active = selectedMachineType === badge.id
+              const isZero = badge.count === 0 && badge.id !== 'all'
+              return (
+                <button
+                  key={badge.id}
+                  onClick={() => handleSelectMachineType(badge.id)}
+                  className={`brak-type-badge ${active ? 'active' : ''} ${isZero ? 'zero-count' : ''}`}
+                  style={{
+                    height: '28px',
+                    padding: '0 10px',
+                    borderRadius: '8px',
+                    border: active
+                      ? '1.5px solid #f59e0b'
+                      : isZero
+                        ? '1px dashed var(--border-color, rgba(255,255,255,0.08))'
+                        : '1px solid var(--border-color, rgba(255,255,255,0.1))',
+                    background: active
+                      ? 'rgba(245,158,11,0.2)'
+                      : isZero
+                        ? 'transparent'
+                        : 'var(--card-inner-bg, rgba(255,255,255,0.04))',
+                    color: active
+                      ? '#f59e0b'
+                      : isZero
+                        ? 'var(--text-muted, #64748b)'
+                        : 'var(--text-color, #fff)',
+                    fontSize: '0.72rem',
+                    fontWeight: active ? 950 : 850,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    opacity: isZero && !active ? 0.6 : 1,
+                    transition: 'all 0.15s ease'
+                  }}
+                  title={isZero ? `Немає активних карток на верстатах типу ${badge.label}` : `Фільтрувати за типом: ${badge.label}`}
+                >
+                  <span>{badge.label}</span>
+                  <span
+                    className="brak-type-badge-count"
+                    style={{
+                      fontWeight: 950,
+                      opacity: active ? 1 : 0.85
+                    }}
+                  >
+                    ({badge.count})
+                  </span>
+                </button>
+              )
+            })}
           </div>
         </div>
 
