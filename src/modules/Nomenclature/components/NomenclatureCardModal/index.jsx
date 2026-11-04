@@ -8,6 +8,11 @@ import { QRCodeSVG } from 'qrcode.react'
 import JsBarcode from 'jsbarcode'
 import { supabase } from '../../../../supabase'
 import { buildFlattenedGroupOptions } from '../../utils/nomenclatureHelpers'
+import { formatMinutesToHours } from '../../../../utils/cuttingTimeUtils.js'
+import { CncOperationTimingsTable } from './CncOperationTimingsTable.jsx'
+import { TumblingOperationTimingsTable } from './TumblingOperationTimingsTable.jsx'
+import { ReceptionOperationTimingsTable } from './ReceptionOperationTimingsTable.jsx'
+import { SortingOperationTimingsTable } from './SortingOperationTimingsTable.jsx'
 
 const KNOWN_CUTTER_TYPES = {
   '1ba4c09f-2fcf-4fc8-957d-80fca75d371a': { name: 'Фреза ф3', code: 'CUT-F3', type: 'Фреза ф3 кінцева' },
@@ -24,6 +29,55 @@ const KNOWN_CUTTER_TYPES = {
   'type_f6_90': { name: 'Фреза ф6 (90°)', code: 'CUT-F6-90', type: 'Фреза ф6 90°' }
 }
 
+export const isDetailItem = (item, groups = []) => {
+  if (!item) return false
+
+  const grp = Array.isArray(groups) ? groups.find(g => g.id === item.group_id) : null
+  const grpName = String(grp?.name || item.group_name || '').toLowerCase()
+  const grpCode = String(grp?.code || '').toLowerCase()
+  const grpRule = String(grp?.rule_type || '').toLowerCase()
+  const itemType = String(item.type || '').toLowerCase()
+  const itemRule = String(item.rule_type || item.rule_params?.rule_type || '').toLowerCase()
+  const groupId = String(item.group_id || '').toLowerCase()
+
+  let parentGrp = null
+  if (grp?.parent_id && Array.isArray(groups)) {
+    parentGrp = groups.find(g => g.id === grp.parent_id)
+  }
+  const parentName = String(parentGrp?.name || '').toLowerCase()
+
+  // 1. Group checks: explicitly in details group or parent is details
+  if (
+    grpName.includes('детал') ||
+    parentName.includes('детал') ||
+    grpCode === 'parts' ||
+    grpRule === 'frame_part' ||
+    groupId === 'cat_parts' ||
+    groupId === 'grp_frame_parts'
+  ) {
+    return true
+  }
+
+  // 2. Rule check
+  if (itemRule === 'frame_part') {
+    return true
+  }
+
+  // 3. Exclude non-parts explicitly
+  const isNonPart = (
+    itemType === 'raw' || itemType === 'hardware' || itemType === 'product' ||
+    itemType === 'packaging' || itemType === 'tool' || itemType === 'service' ||
+    grpName.includes('сировин') || grpName.includes('метиз') || grpName.includes('готов') ||
+    grpName.includes('продукц') || grpName.includes('пакув') || grpName.includes('інструмент')
+  )
+
+  if (!isNonPart && (itemType === 'part' || itemType === 'деталь' || itemType === 'frame_part')) {
+    return true
+  }
+
+  return false
+}
+
 export const NomenclatureCardModal = ({
   isOpen,
   onClose,
@@ -37,6 +91,28 @@ export const NomenclatureCardModal = ({
     setCurrentItem(initialItem)
   }, [initialItem])
   const item = currentItem || initialItem
+
+  // Detail status check
+  const isDetail = useMemo(() => isDetailItem(item, groups), [item, groups])
+
+  // Lock background body scroll when modal is open
+  useEffect(() => {
+    if (!isOpen) return
+
+    const originalOverflow = document.body.style.overflow
+    const originalPaddingRight = document.body.style.paddingRight
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth
+
+    document.body.style.overflow = 'hidden'
+    if (scrollbarWidth > 0) {
+      document.body.style.paddingRight = `${scrollbarWidth}px`
+    }
+
+    return () => {
+      document.body.style.overflow = originalOverflow
+      document.body.style.paddingRight = originalPaddingRight
+    }
+  }, [isOpen])
 
   // Edit Modal State
   const [isEditOpen, setIsEditOpen] = useState(false)
@@ -142,6 +218,13 @@ export const NomenclatureCardModal = ({
   }
 
   const [activeTab, setActiveTab] = useState('identification') // identification | params | cnc | inventory | bom
+
+  // If item is not a detail, ensure 'cnc' tab cannot be active
+  useEffect(() => {
+    if (!isDetail && activeTab === 'cnc') {
+      setActiveTab('identification')
+    }
+  }, [isDetail, activeTab])
   const [copiedKey, setCopiedKey] = useState(null)
   const [labelSize, setLabelSize] = useState('58x40') // '58x40' | '50x30'
   const [labelMode, setLabelMode] = useState('barcode') // 'barcode' | 'qr' | 'combo'
@@ -150,6 +233,15 @@ export const NomenclatureCardModal = ({
   const [cncOperations, setCncOperations] = useState(null)
   const [loadingCnc, setLoadingCnc] = useState(false)
   const [cuttersMap, setCuttersMap] = useState({})
+  const [operationTimingsByMachine, setOperationTimingsByMachine] = useState({})
+  const [selectedMachineIdx, setSelectedMachineIdx] = useState(0)
+  const [cncTotals, setCncTotals] = useState({})
+  const [tumblingTimings, setTumblingTimings] = useState({})
+  const [tumblingTotals, setTumblingTotals] = useState({})
+  const [receptionTimings, setReceptionTimings] = useState({})
+  const [receptionTotals, setReceptionTotals] = useState({})
+  const [sortingTimings, setSortingTimings] = useState({})
+  const [sortingTotals, setSortingTotals] = useState({})
 
   const [inventoryBalances, setInventoryBalances] = useState([])
   const [loadingInventory, setLoadingInventory] = useState(false)
@@ -231,7 +323,7 @@ export const NomenclatureCardModal = ({
 
   // Fetch CNC Operations and Cutter Nomenclatures when switching to CNC tab
   useEffect(() => {
-    if (!isOpen || !item || activeTab !== 'cnc') return
+    if (!isOpen || !item || activeTab !== 'cnc' || !isDetail) return
     const fetchCnc = async () => {
       setLoadingCnc(true)
       try {
@@ -288,6 +380,28 @@ export const NomenclatureCardModal = ({
           
           setCuttersMap(cMap)
         }
+
+        // Fetch operation timings
+        try {
+          const { data: timingRows } = await supabase
+            .from('cutting_operation_timings')
+            .select('*')
+            .in('nomenclature_id', idsToQuery)
+          const timingsMap = { ...(item.rule_params?.operation_timings || {}) }
+          if (Array.isArray(timingRows) && timingRows.length > 0) {
+            timingRows.forEach(row => {
+              if (!timingsMap[row.machine_type]) timingsMap[row.machine_type] = {}
+              timingsMap[row.machine_type][row.operation_name] = row.timings || {}
+            })
+          }
+          setOperationTimingsByMachine(timingsMap)
+        } catch (timingErr) {
+          console.warn('[NomenclatureCard] Error loading cutting_operation_timings:', timingErr)
+          setOperationTimingsByMachine(item.rule_params?.operation_timings || {})
+        }
+        setTumblingTimings(item?.rule_params?.tumbling_operation_timings || {})
+        setReceptionTimings(item?.rule_params?.reception_operation_timings || {})
+        setSortingTimings(item?.rule_params?.sorting_operation_timings || {})
       } catch (err) {
         console.warn('[NomenclatureCard] Error loading CNC ops:', err)
         setCncOperations([])
@@ -297,6 +411,113 @@ export const NomenclatureCardModal = ({
     }
     fetchCnc()
   }, [isOpen, item, activeTab])
+
+  // Save operation timings per machine type
+  const handleSaveOperationTimings = async (machineType, newTimings, totalsPerSheet) => {
+    if (!item?.id) return
+    const upsertRows = Object.entries(newTimings).map(([opName, tObj]) => ({
+      nomenclature_id: item.id,
+      machine_type: machineType,
+      operation_name: opName,
+      timings: tObj,
+      updated_at: new Date().toISOString()
+    }))
+    try {
+      if (upsertRows.length > 0) {
+        await supabase.from('cutting_operation_timings').upsert(upsertRows, { onConflict: 'nomenclature_id,machine_type,operation_name' })
+      }
+    } catch (dbErr) {
+      console.warn('Could not upsert into cutting_operation_timings, fallback to rule_params:', dbErr)
+    }
+    const currentRuleParams = { ...(item.rule_params || {}) }
+    const currentOpTimings = { ...(currentRuleParams.operation_timings || {}) }
+    currentOpTimings[machineType] = newTimings
+    currentRuleParams.operation_timings = currentOpTimings
+    const currentLoadTimings = { ...(currentRuleParams.loadTimings || {}) }
+    Object.entries(totalsPerSheet).forEach(([sheets, data]) => {
+      if (data && data.sum > 0) {
+        currentLoadTimings[sheets] = data.sum
+      }
+    })
+    currentRuleParams.loadTimings = currentLoadTimings
+    const { error: nomErr } = await supabase.from('nomenclatures').update({
+      rule_params: currentRuleParams,
+      updated_at: new Date().toISOString()
+    }).eq('id', item.id)
+    if (nomErr) throw nomErr
+    const updated = { ...item, rule_params: currentRuleParams }
+    setCurrentItem(updated)
+    setOperationTimingsByMachine(prev => ({
+      ...prev,
+      [machineType]: newTimings
+    }))
+    if (typeof onItemUpdated === 'function') {
+      onItemUpdated(updated)
+    }
+  }
+
+  // Save tumbling operation timings
+  const handleSaveTumblingTimings = async (newTimings, totalsPerSheet) => {
+    if (!item?.id) return
+    const currentRuleParams = { ...(item.rule_params || {}) }
+    currentRuleParams.tumbling_operation_timings = newTimings
+
+    const { error: nomErr } = await supabase.from('nomenclatures').update({
+      rule_params: currentRuleParams,
+      updated_at: new Date().toISOString()
+    }).eq('id', item.id)
+
+    if (nomErr) throw nomErr
+    const updated = { ...item, rule_params: currentRuleParams }
+    setCurrentItem(updated)
+    setTumblingTimings(newTimings)
+    setTumblingTotals(totalsPerSheet)
+    if (typeof onItemUpdated === 'function') {
+      onItemUpdated(updated)
+    }
+  }
+
+  // Save reception operation timings
+  const handleSaveReceptionTimings = async (newTimings, totalsPerSheet) => {
+    if (!item?.id) return
+    const currentRuleParams = { ...(item.rule_params || {}) }
+    currentRuleParams.reception_operation_timings = newTimings
+
+    const { error: nomErr } = await supabase.from('nomenclatures').update({
+      rule_params: currentRuleParams,
+      updated_at: new Date().toISOString()
+    }).eq('id', item.id)
+
+    if (nomErr) throw nomErr
+    const updated = { ...item, rule_params: currentRuleParams }
+    setCurrentItem(updated)
+    setReceptionTimings(newTimings)
+    setReceptionTotals(totalsPerSheet)
+    if (typeof onItemUpdated === 'function') {
+      onItemUpdated(updated)
+    }
+  }
+
+  // Save sorting operation timings
+  const handleSaveSortingTimings = async (newTimings, totalsPerSheet) => {
+    if (!item?.id) return
+    const currentRuleParams = { ...(item.rule_params || {}) }
+    currentRuleParams.sorting_operation_timings = newTimings
+
+    const { error: nomErr } = await supabase.from('nomenclatures').update({
+      rule_params: currentRuleParams,
+      updated_at: new Date().toISOString()
+    }).eq('id', item.id)
+
+    if (nomErr) throw nomErr
+    const updated = { ...item, rule_params: currentRuleParams }
+    setCurrentItem(updated)
+    setSortingTimings(newTimings)
+    setSortingTotals(totalsPerSheet)
+    if (typeof onItemUpdated === 'function') {
+      onItemUpdated(updated)
+    }
+  }
 
   // Fetch Inventory balances when switching to inventory tab
   useEffect(() => {
@@ -617,7 +838,8 @@ export const NomenclatureCardModal = ({
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '20px'
+        padding: '20px',
+        overscrollBehavior: 'contain'
       }}
       onClick={onClose}
     >
@@ -645,7 +867,8 @@ export const NomenclatureCardModal = ({
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          gap: '16px'
+          gap: '16px',
+          flexShrink: 0
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flex: 1, minWidth: 0 }}>
             <div style={{
@@ -785,12 +1008,13 @@ export const NomenclatureCardModal = ({
           background: 'var(--card-bg, #ffffff)',
           padding: '0 24px',
           overflowX: 'auto',
-          gap: '8px'
+          gap: '8px',
+          flexShrink: 0
         }}>
           {[
             { id: 'identification', label: 'Ідентифікація & Друк', icon: Barcode },
             { id: 'params', label: 'Параметри та Сировина', icon: Layers },
-            { id: 'cnc', label: 'Операції ЧПК', icon: Cpu },
+            ...(isDetail ? [{ id: 'cnc', label: 'Операції Цех №1', icon: Cpu }] : []),
             { id: 'inventory', label: 'Складські залишки', icon: Boxes },
             { id: 'bom', label: 'Специфікація BOM', icon: Package }
           ].map(tab => {
@@ -827,6 +1051,7 @@ export const NomenclatureCardModal = ({
         <div style={{
           flex: 1,
           overflowY: 'auto',
+          overscrollBehavior: 'contain',
           padding: '24px 28px',
           background: 'var(--bg, #f8fafc)'
         }}>
@@ -1264,45 +1489,6 @@ export const NomenclatureCardModal = ({
                 </div>
               </div>
 
-              {/* Load Timings (Таймінги навантаження на лист) */}
-              <div style={{
-                background: 'var(--card-bg, #ffffff)',
-                borderRadius: '16px',
-                padding: '20px 24px',
-                border: '1px solid var(--border-color, #e2e8f0)'
-              }}>
-                <h3 style={{ margin: '0 0 14px 0', fontSize: '0.95rem', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Clock size={18} color="#ff9000" />
-                  Таймінги завантаження ЧПК (залежно від партії листів):
-                </h3>
-
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '12px' }}>
-                  {[1, 2, 4, 8, 12, 16].map(sheets => {
-                    const timeVal = item.rule_params?.loadTimings ? item.rule_params.loadTimings[sheets] : null
-                    const hasVal = timeVal !== '' && timeVal !== null && timeVal !== undefined
-                    return (
-                      <div 
-                        key={sheets}
-                        style={{
-                          background: hasVal ? 'rgba(255, 144, 0, 0.08)' : 'var(--bg, #f1f5f9)',
-                          border: hasVal ? '1px solid rgba(255, 144, 0, 0.3)' : '1px solid var(--border-color, #e2e8f0)',
-                          borderRadius: '12px',
-                          padding: '12px',
-                          textAlign: 'center'
-                        }}
-                      >
-                        <div style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-muted, #64748b)' }}>
-                          {sheets} {sheets === 1 ? 'лист' : (sheets < 5 ? 'листи' : 'листів')}
-                        </div>
-                        <div style={{ fontSize: '1.1rem', fontWeight: 900, color: hasVal ? '#d97706' : 'var(--text-muted, #94a3b8)', marginTop: '4px' }}>
-                          {hasVal ? `${timeVal} хв` : '—'}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-
               {/* Full Rule Params JSON Explorer */}
               <div style={{
                 background: 'var(--card-bg, #ffffff)',
@@ -1348,8 +1534,205 @@ export const NomenclatureCardModal = ({
           {/* ══════════════════════════════════════════════════════════════════════
               TAB 3: CNC OPERATIONS (ТЕХНОЛОГІЧНІ ОПЕРАЦІЇ ЧПК)
               ══════════════════════════════════════════════════════════════════════ */}
-          {activeTab === 'cnc' && (
+          {isDetail && activeTab === 'cnc' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              {/* TOP SECTION: Planned Operation Timings with Machine Switcher */}
+              {cncOperations && cncOperations.length > 0 && (() => {
+                const activeMachineOp = cncOperations[selectedMachineIdx] || cncOperations[0]
+                const mType = activeMachineOp?.machine_type || 'Стандартний ЧПК'
+                const side1Ops = (activeMachineOp?.side1_ops || []).filter(s => typeof s === 'string' && !s.startsWith('__CUTTER__'))
+                const side2Ops = (activeMachineOp?.side2_ops || []).filter(s => typeof s === 'string' && !s.startsWith('__CUTTER__'))
+                const cutOps = (activeMachineOp?.side2_cut_ops || []).filter(s => typeof s === 'string' && !s.startsWith('__CUTTER__'))
+                const allOps = [
+                  ...side1Ops.map(name => ({ name, side: 'side1' })),
+                  ...side2Ops.map(name => ({ name, side: 'side2' })),
+                  ...cutOps.map(name => ({ name, side: 'side2_cut' }))
+                ]
+                const initialM = operationTimingsByMachine[mType] || item.rule_params?.operation_timings?.[mType] || {}
+
+                return (
+                  <div style={{
+                    background: 'var(--card-bg, #ffffff)',
+                    borderRadius: '16px',
+                    padding: '20px 24px',
+                    border: '1.5px solid rgba(245, 158, 11, 0.35)',
+                    boxShadow: '0 4px 18px rgba(245, 158, 11, 0.08)'
+                  }}>
+                    {/* Machine Switcher Tabs if multiple setups exist */}
+                    {cncOperations.length > 1 && (
+                      <div style={{ marginBottom: '16px' }}>
+                        <div style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-muted, #64748b)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span>🖥️</span>
+                          <span>Оберіть верстат для перегляду та налаштування таймінгів:</span>
+                        </div>
+                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                          {cncOperations.map((op, idx) => {
+                            const isSelected = (selectedMachineIdx || 0) === idx
+                            return (
+                              <button
+                                key={op.id || idx}
+                                type="button"
+                                onClick={() => setSelectedMachineIdx(idx)}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '8px',
+                                  padding: '8px 16px',
+                                  borderRadius: '10px',
+                                  border: isSelected ? '2px solid #f59e0b' : '1px solid var(--border-color, #e2e8f0)',
+                                  background: isSelected ? 'rgba(245, 158, 11, 0.12)' : 'var(--bg, #f8fafc)',
+                                  color: isSelected ? '#d97706' : 'var(--text, #0f172a)',
+                                  fontWeight: isSelected ? 900 : 700,
+                                  fontSize: '0.84rem',
+                                  cursor: 'pointer',
+                                  transition: 'all 0.15s'
+                                }}
+                              >
+                                <span>{isSelected ? '🎯' : '🖥️'}</span>
+                                <span>{op.machine_type || `Верстат #${idx + 1}`}</span>
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Timings Table for Active Machine */}
+                    {allOps.length > 0 ? (
+                      <CncOperationTimingsTable
+                        nomenclatureId={item.id}
+                        machineType={mType}
+                        operations={allOps}
+                        initialTimings={initialM}
+                        onSave={handleSaveOperationTimings}
+                        onTotalsChange={setCncTotals}
+                        isLight={typeof document !== 'undefined' && document.body.classList.contains('light-theme')}
+                      />
+                    ) : (
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted, #64748b)', padding: '12px', textAlign: 'center' }}>
+                        Для верстата «{mType}» ще не зафіксовано операцій
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
+
+              {/* Tumbling Planned Timings Table */}
+              <TumblingOperationTimingsTable
+                nomenclatureId={item.id}
+                initialTimings={tumblingTimings || item?.rule_params?.tumbling_operation_timings || {}}
+                onSave={handleSaveTumblingTimings}
+                onTotalsChange={setTumblingTotals}
+                isLight={typeof document !== 'undefined' && document.body.classList.contains('light-theme')}
+              />
+
+              {/* Reception Planned Timings Table */}
+              <ReceptionOperationTimingsTable
+                nomenclatureId={item.id}
+                initialTimings={receptionTimings || item?.rule_params?.reception_operation_timings || {}}
+                onSave={handleSaveReceptionTimings}
+                onTotalsChange={setReceptionTotals}
+                isLight={typeof document !== 'undefined' && document.body.classList.contains('light-theme')}
+              />
+
+              {/* Sorting Planned Timings Table */}
+              <SortingOperationTimingsTable
+                nomenclatureId={item.id}
+                initialTimings={sortingTimings || item?.rule_params?.sorting_operation_timings || {}}
+                onSave={handleSaveSortingTimings}
+                onTotalsChange={setSortingTotals}
+                isLight={typeof document !== 'undefined' && document.body.classList.contains('light-theme')}
+              />
+
+              {/* Combined Total Summary: Cutting + Tumbling + Reception + Sorting (Цех №1) */}
+              <div style={{
+                background: 'linear-gradient(135deg, rgba(255, 144, 0, 0.09) 0%, rgba(139, 92, 246, 0.06) 50%, rgba(16, 185, 129, 0.06) 100%)',
+                borderRadius: '16px',
+                padding: '18px 22px',
+                border: '1.5px solid rgba(255, 144, 0, 0.4)',
+                boxShadow: '0 6px 20px rgba(255, 144, 0, 0.09)'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <span style={{ fontSize: '1.4rem' }}>⏱️</span>
+                    <div>
+                      <div style={{ fontSize: '0.95rem', fontWeight: 900, color: 'var(--text, #0f172a)', letterSpacing: '0.01em' }}>
+                        РАЗОМ ЦЕХ №1: РОЗКРІЙ + ГАЛТОВКА + ПРИЙОМКА + СОРТУВАННЯ
+                      </div>
+                      <div style={{ fontSize: '0.74rem', color: 'var(--text-muted, #64748b)' }}>
+                        Повний плановий цикл обробки деталі в Цеху №1 (до передачі напівфабрикату на Цех №2)
+                      </div>
+                    </div>
+                  </div>
+                  <span style={{
+                    fontSize: '0.76rem',
+                    fontWeight: 900,
+                    padding: '4px 12px',
+                    borderRadius: '20px',
+                    background: 'rgba(255, 144, 0, 0.16)',
+                    color: '#d97706',
+                    border: '1px solid rgba(255, 144, 0, 0.35)'
+                  }}>
+                    Цех №1 • Повний технологічний цикл
+                  </span>
+                </div>
+
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(115px, 1fr))',
+                  gap: '8px'
+                }}>
+                  {[1, 2, 3, 4, 8, 12, 16].map(sheets => {
+                    const cM = cncTotals[sheets]?.sum || 0
+                    const tM = tumblingTotals[sheets]?.sum || 0
+                    const rM = receptionTotals[sheets]?.sum || 0
+                    const sM = sortingTotals[sheets]?.sum || 0
+                    const totalM = cM + tM + rM + sM
+                    const hasAny = totalM > 0
+
+                    return (
+                      <div
+                        key={sheets}
+                        style={{
+                          background: hasAny ? 'var(--card-bg, #ffffff)' : 'rgba(0, 0, 0, 0.02)',
+                          borderRadius: '10px',
+                          padding: '10px',
+                          border: hasAny ? '1.5px solid #f59e0b' : '1px dashed var(--border-color, #cbd5e1)',
+                          textAlign: 'center',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '2px',
+                          boxShadow: hasAny ? '0 2px 6px rgba(0,0,0,0.03)' : 'none'
+                        }}
+                      >
+                        <div style={{ fontSize: '0.72rem', fontWeight: 800, color: '#b45309' }}>
+                          {sheets} л.
+                        </div>
+                        <div style={{ fontSize: '0.96rem', fontWeight: 900, color: hasAny ? 'var(--text, #0f172a)' : 'var(--text-muted, #94a3b8)' }}>
+                          {hasAny ? `${totalM} хв` : '—'}
+                        </div>
+                        {hasAny && (
+                          <>
+                            <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#0284c7' }}>
+                              ≈ {formatMinutesToHours(totalM)}
+                            </div>
+                            <div style={{
+                              fontSize: '0.64rem',
+                              color: 'var(--text-muted, #64748b)',
+                              marginTop: '3px',
+                              borderTop: '1px solid rgba(0,0,0,0.06)',
+                              paddingTop: '3px',
+                              lineHeight: '1.2'
+                            }}>
+                              ✂️{cM} 🌀{tM}<br />🔍{rM} 📦{sM}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
               
               {/* Multi-Machine Cutters Summary Matrix */}
               {cncOperations && cncOperations.length > 0 && (
@@ -1536,7 +1919,7 @@ export const NomenclatureCardModal = ({
                           {realCutOps.length > 0 && (
                             <div style={{ background: 'var(--bg, #f8fafc)', borderRadius: '12px', padding: '14px', border: '1px solid var(--border-color, #e2e8f0)', gridColumn: '1 / -1' }}>
                               <div style={{ fontSize: '0.75rem', fontWeight: 900, color: '#d97706', marginBottom: '8px' }}>
-                                ✂️ Відрізні операції (Side 2 Cut Ops)
+                                ✂️ Вирізка
                               </div>
                               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                                 {realCutOps.map((s, i) => (

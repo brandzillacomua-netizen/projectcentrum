@@ -11,6 +11,7 @@ import { ScrapReportView } from './reports/components/ScrapReportView'
 import { SuppliesReportView } from './reports/components/SuppliesReportView'
 import { CuttersReportView } from './reports/components/CuttersReportView'
 import { MachinesReportView } from './reports/components/MachinesReportView'
+import { EfficiencyReportView } from './reports/components/EfficiencyReportView'
 import { ArchiveReportView } from './reports/components/ArchiveReportView'
 import { AnalyticsReportView } from './reports/components/AnalyticsReportView'
 import './reports/ReportsStyles.css'
@@ -86,6 +87,7 @@ const ReportsModule = () => {
     totalCuttersUsed,
     totalCuttersSupplied,
     machineReport,
+    efficiencyReport,
     setArchiveLoaded,
     setAllArchiveTasks
   } = useReportsModuleData()
@@ -231,6 +233,17 @@ const ReportsModule = () => {
             startDate={startDate}
             endDate={endDate}
             isSyncing={isSyncing}
+          />
+        )
+
+      case 'efficiency':
+        return (
+          <EfficiencyReportView
+            efficiencyReport={efficiencyReport}
+            isSyncing={isSyncing}
+            startDate={startDate}
+            endDate={endDate}
+            onExport={handleExport}
           />
         )
 

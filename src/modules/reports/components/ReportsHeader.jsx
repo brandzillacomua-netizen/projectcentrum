@@ -12,6 +12,7 @@ import {
   PackageCheck,
   Scissors,
   Cpu,
+  Zap,
   TrendingUp,
   Archive,
   Filter,
@@ -106,6 +107,9 @@ export const ReportsHeader = ({
             </button>
             <button onClick={() => setActiveTab('machines')} className={`report-tab ${activeTab === 'machines' ? 'active' : ''}`}>
               <Cpu size={16} /> ВЕРСТАТИ
+            </button>
+            <button onClick={() => setActiveTab('efficiency')} className={`report-tab ${activeTab === 'efficiency' ? 'active' : ''}`}>
+              <Zap size={16} /> ЕФЕКТИВНІСТЬ
             </button>
             <button onClick={() => setActiveTab('analytics')} className={`report-tab ${activeTab === 'analytics' ? 'active' : ''}`}>
               <TrendingUp size={16} /> АНАЛІТИКА

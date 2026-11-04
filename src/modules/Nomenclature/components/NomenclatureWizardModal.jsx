@@ -859,66 +859,6 @@ export const NomenclatureWizardModal = ({
                     />
                   </div>
                 </div>
-
-                {/* LOAD TIMINGS SECTION */}
-                <div style={{ background: 'rgba(255,144,0,0.06)', border: '1px solid rgba(255,144,0,0.25)', borderRadius: '16px', padding: '16px', marginTop: '4px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <Clock size={16} color="#ff9000" />
-                      <span style={{ fontSize: '0.75rem', fontWeight: 900, color: 'var(--text, #0f172a)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                        ТАЙМІНГИ ОБРОБКИ ДЛЯ ВАРІАНТІВ ЗАГРУЗКИ (ХВИЛИНИ)
-                      </span>
-                    </div>
-                    <span style={{ fontSize: '0.68rem', color: 'var(--text-muted, #64748b)', fontWeight: 700 }}>Час виконання на партію</span>
-                  </div>
-
-                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted, #64748b)', marginBottom: '12px', lineHeight: '1.3' }}>
-                    Вкажіть час обробки деталі (в хвилинах) для кожної кількості листів при завантаженні у верстат:
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
-                    {['1', '2', '4', '8', '12', '16'].map(sheets => {
-                      const val = wizardParams.loadTimings?.[sheets] ?? '';
-                      return (
-                        <div key={sheets} style={{ background: 'var(--card-bg, #ffffff)', border: '1px solid var(--border-color, #cbd5e1)', borderRadius: '12px', padding: '10px 12px' }}>
-                          <div style={{ fontSize: '0.72rem', fontWeight: 900, color: '#d97706', marginBottom: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span>{sheets} {sheets === '1' ? 'лист' : (sheets === '2' || sheets === '4' ? 'листи' : 'листів')}:</span>
-                            <span style={{ fontSize: '0.65rem', color: 'var(--text-muted, #64748b)' }}>хв</span>
-                          </div>
-                          <input 
-                            type="number"
-                            step="0.1"
-                            min="0"
-                            value={val}
-                            onChange={e => {
-                              const updatedVal = e.target.value;
-                              setWizardParams(prev => ({
-                                ...prev,
-                                loadTimings: {
-                                  ...(prev.loadTimings || DEFAULT_LOAD_TIMINGS),
-                                  [sheets]: updatedVal
-                                }
-                              }));
-                            }}
-                            placeholder="напр. 15"
-                            style={{ 
-                              width: '100%', 
-                              background: 'var(--input-bg, #f8fafc)', 
-                              border: '1px solid var(--border-color, #cbd5e1)', 
-                              borderRadius: '8px', 
-                              padding: '8px 10px', 
-                              color: 'var(--text, #0f172a)', 
-                              fontSize: '0.88rem', 
-                              fontWeight: 800,
-                              boxSizing: 'border-box',
-                              outline: 'none'
-                            }} 
-                          />
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
               </>
             )}
 

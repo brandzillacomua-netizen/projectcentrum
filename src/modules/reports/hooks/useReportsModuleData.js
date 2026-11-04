@@ -8,9 +8,10 @@ import { useScrapReport } from './useScrapReport'
 import { useSuppliesReport } from './useSuppliesReport'
 import { useCuttersReport } from './useCuttersReport'
 import { useMachinesReport } from './useMachinesReport'
+import { useEfficiencyReport } from './useEfficiencyReport'
 import { exportReportToExcel } from '../utils/reportsExportService'
 
-export const HISTORY_REPORT_TABS = new Set(['employees', 'scrap', 'supplies', 'sheets', 'cutters', 'analytics', 'machines'])
+export const HISTORY_REPORT_TABS = new Set(['employees', 'scrap', 'supplies', 'sheets', 'cutters', 'analytics', 'machines', 'efficiency'])
 export const REPORT_CACHE_TTL_MS = 30 * 1000
 
 export const dateInputBoundaryIso = (value, nextDay = false) => {
@@ -416,6 +417,21 @@ export function useReportsModuleData() {
     endDate
   })
 
+  const efficiencyReport = useEfficiencyReport({
+    workCardHistory,
+    nomenclatures,
+    machines,
+    workCards,
+    tasks,
+    orders,
+    filterByDate,
+    selectedShiftFilter,
+    selectedEmployeeFilter,
+    searchQuery,
+    startDate,
+    endDate
+  })
+
   // General Stats
   const generalStats = useMemo(() => {
     const filteredTasks = tasks.filter(t => filterByDate(t.created_at))
@@ -452,13 +468,14 @@ export function useReportsModuleData() {
         cuttersStats,
         cutterEventsList,
         generalStats,
-        machineReport
+        machineReport,
+        efficiencyReport
       })
     } catch (e) {
       console.error('Failed to export report:', e)
       alert('Помилка при експорті звіту: ' + (e?.message || e))
     }
-  }, [activeTab, startDate, endDate, scrapStats, scrapReasonsStats, employeeStats, warehouseReport, supplyStats, cuttersStats, cutterEventsList, generalStats, machineReport])
+  }, [activeTab, startDate, endDate, scrapStats, scrapReasonsStats, employeeStats, warehouseReport, supplyStats, cuttersStats, cutterEventsList, generalStats, machineReport, efficiencyReport])
 
   return {
     inventory,
@@ -470,6 +487,7 @@ export function useReportsModuleData() {
     workCards,
     machines,
     machineReport,
+    efficiencyReport,
     activeTab,
     setActiveTab: handleSetActiveTab,
     scrapReportSubTab,

@@ -158,4 +158,55 @@ describe('cuttingTimeUtils', () => {
       expect(laterCuttingWorkSec - planSec).toBe(7200) // Still exactly 2 hours (frozen)!
     })
   })
+
+  describe('operation_timings per machine type', () => {
+    const nomWithOpTimings = {
+      id: 'nom-2',
+      name: 'Деталь Х',
+      rule_params: {
+        operation_timings: {
+          'CNC 1200x800 - 4 листи (Малий)': {
+            'уп1 отвори': { '1': 10, '2': 18, '3': 25, '4': 32 },
+            'уп2 контур': { '1': 20, '2': 35, '3': 50, '4': 65 }
+          },
+          'CNC KE XIN - 4 - 16 листів (ФЕЯ)': {
+            'уп1 ф3 отвори': { '4': 15, '8': 28, '16': 50 },
+            'уп2 ф2 контур': { '4': 45, '8': 85, '16': 160 }
+          }
+        }
+      }
+    }
+
+    it('sums operation timings for exact sheet match on specific machine', () => {
+      // Малий, 3 листи: 25 + 50 = 75 хв = 4500 сек
+      expect(getCuttingEstimatedSeconds(nomWithOpTimings, 3, 0, 'CNC 1200x800 - 4 листи (Малий)')).toBe(75 * 60)
+      // Малий, 4 листи: 32 + 65 = 97 хв = 5820 сек
+      expect(getCuttingEstimatedSeconds(nomWithOpTimings, 4, 0, 'CNC 1200x800 - 4 листи (Малий)')).toBe(97 * 60)
+    })
+
+    it('calculates for different machine types independently', () => {
+      // ФЕЯ, 4 листи: 15 + 45 = 60 хв = 3600 сек
+      expect(getCuttingEstimatedSeconds(nomWithOpTimings, 4, 0, 'CNC KE XIN - 4 - 16 листів (ФЕЯ)')).toBe(60 * 60)
+      // ФЕЯ, 8 листів: 28 + 85 = 113 хв = 6780 сек
+      expect(getCuttingEstimatedSeconds(nomWithOpTimings, 8, 0, 'CNC KE XIN - 4 - 16 листів (ФЕЯ)')).toBe(113 * 60)
+    })
+
+    it('resolves machine type automatically from card.machine name', () => {
+      const cardSmall = {
+        operation: 'Розкрій',
+        machine: 'CNC 12*8 №1.11',
+        card_info: '№1 [SHEETS:3]'
+      }
+      // Малий, 3 листи = 75 хв
+      expect(getCardCuttingPlanSeconds(cardSmall, nomWithOpTimings)).toBe(75 * 60)
+
+      const cardFeya = {
+        operation: 'Розкрій',
+        machine: 'CNC KE XIN Ф5',
+        card_info: '№1 [SHEETS:4]'
+      }
+      // ФЕЯ, 4 листи = 60 хв
+      expect(getCardCuttingPlanSeconds(cardFeya, nomWithOpTimings)).toBe(60 * 60)
+    })
+  })
 })

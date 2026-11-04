@@ -19,7 +19,8 @@ export const exportReportToExcel = async ({
   supplyStats,
   cuttersStats,
   generalStats,
-  machineReport
+  machineReport,
+  efficiencyReport
 }) => {
   const XLSX = await getXLSX()
   const periodStr = `${startDate || 'Всі дати'} — ${endDate || 'Всі дати'}`
@@ -166,6 +167,77 @@ export const exportReportToExcel = async ({
       'Огляд верстатів': summaryRows,
       'Журнал карт': cardsRows,
       'Обслуговування ТО': maintRows
+    }
+  } else if (activeTab === 'efficiency') {
+    const totals = efficiencyReport?.totals || {}
+    const operatorsList = efficiencyReport?.operatorsList || []
+    const partsComparison = efficiencyReport?.partsComparison || []
+    const shiftChangesLog = efficiencyReport?.shiftChangesLog || []
+
+    const summaryRows = [
+      { 'Показник': 'Період звіту', 'Значення': periodStr },
+      { 'Показник': 'Середня ефективність розкрою цеху', 'Значення': `${totals.overallShopEfficiency || 0}%` },
+      { 'Показник': 'Вироблено нормо-годин (План)', 'Значення': `${totals.totalPlanHours || 0} год (${totals.totalPlanMinutes || 0} хв)` },
+      { 'Показник': 'Відпрацьовано фактично (Факт)', 'Значення': `${totals.totalFactHours || 0} год (${totals.totalFactMinutes || 0} хв)` },
+      { 'Показник': 'Баланс часу (+/- год)', 'Значення': `${(totals.totalDeltaHours || 0) >= 0 ? '+' : ''}${totals.totalDeltaHours || 0} год` },
+      { 'Показник': 'Кількість задіяних операторів', 'Значення': totals.activeOperatorsCount || 0 },
+      { 'Показник': 'Оброблено унікальних карт', 'Значення': totals.totalCardsCut || 0 },
+      { 'Показник': 'Всього робочих сесій розкрою', 'Значення': totals.totalSessionsCount || 0 },
+      { 'Показник': 'Зафіксовано перезмінок на ЧПК', 'Значення': totals.handoverCount || 0 },
+      { 'Показник': 'Лідер ефективності', 'Значення': totals.topOperator ? `${totals.topOperator.operatorName} (${totals.topOperator.avgEfficiencyPercent}%)` : '—' }
+    ]
+
+    const operatorsRows = operatorsList.map((op, idx) => ({
+      'Ранг': idx + 1,
+      'Оператор': op.operatorName,
+      'Зміна': op.shiftName,
+      'Унікальних карт': op.cardsCount,
+      'Кількість сесій': op.sessionsCount,
+      'План (год)': op.totalPlanHours,
+      'Факт (год)': op.totalFactHours,
+      'Баланс (+/- год)': op.deltaHours,
+      'Ефективність (%)': `${op.avgEfficiencyPercent}%`
+    }))
+
+    const partsRows = []
+    partsComparison.forEach(p => {
+      p.operators.forEach(op => {
+        partsRows.push({
+          'Деталь': p.nomenclatureName,
+          'Артикул': p.nomenclatureCode,
+          'Всього запусків деталі': p.totalRuns,
+          'Оператор': op.operatorName,
+          'Зміна': op.shiftName,
+          'Запусків оператором': op.runsCount,
+          'Сер. факт час (хв)': op.avgFactMinutes,
+          'Сер. план час (хв)': op.avgPlanMinutes,
+          'Ефективність на деталі (%)': `${op.efficiencyPercent}%`,
+          'Статус': op.operatorName === p.fastestOperator?.operatorName && p.operators.length > 1 ? 'Найшвидший' : '—'
+        })
+      })
+    })
+
+    const handoversRows = shiftChangesLog.map(h => ({
+      'Дата': h.date ? new Date(h.date).toLocaleString('uk-UA') : '—',
+      'Картка': h.cardCode,
+      'Деталь': h.nomenclatureName,
+      'Верстат': h.machineName,
+      'Листів': h.sheetCount,
+      'Здав зміну': h.operatorName,
+      'Зміна того хто здав': h.shiftName,
+      'Прийняв зміну': h.replacedBy,
+      'Відмітка зупинки ([LAST_OP])': h.rawHandoverText,
+      'Виконано операцій': h.operationsCount,
+      'План відрізку (хв)': h.planMinutes,
+      'Факт відрізку (хв)': h.factMinutes,
+      'Ефективність (%)': `${h.efficiencyPercent}%`
+    }))
+
+    workbookData = {
+      'Зведення ефективності': summaryRows,
+      'Рейтинг операторів': operatorsRows,
+      'Порівняння по деталях': partsRows,
+      'Журнал перезмінок ЧПК': handoversRows
     }
   } else {
     // Default fallback summary sheet
