@@ -438,6 +438,15 @@ export function MasterNaryadModal({
                                                     itemParts[pIdx] = { ...itemParts[pIdx], nom: n }
                                                     return { ...prev, [it.id]: itemParts }
                                                   })
+                                                  setActiveNaryadOrder(prev => {
+                                                    if (!prev) return prev
+                                                    return {
+                                                      ...prev,
+                                                      order_items: (prev.order_items || []).map(item =>
+                                                        item.id === it.id ? { ...item, nomenclature_id: n.id, nomenclature: n } : item
+                                                      )
+                                                    }
+                                                  })
                                                   setOpenDropdownRowKey(null)
                                                 }}
                                                 style={{ padding: '10px 12px', borderBottom: '1px solid #1a1a1a', cursor: 'pointer', fontSize: '0.85rem', color: '#fff' }}
@@ -481,6 +490,43 @@ export function MasterNaryadModal({
                                     {part.nom.nomenclature_code}
                                   </span>
                                 )}
+                                {activeNaryadOrder.isVirtualDraft && !isReprintMode && (
+                                  <button
+                                    type="button"
+                                    title="Видалити деталь"
+                                    onClick={() => {
+                                      setActiveNaryadOrder(prev => {
+                                        if (!prev) return prev
+                                        return {
+                                          ...prev,
+                                          order_items: (prev.order_items || []).filter(item => item.id !== it.id)
+                                        }
+                                      })
+                                      setNaryadQtys(prev => {
+                                        const next = { ...prev }
+                                        delete next[it.id]
+                                        return next
+                                      })
+                                      setNaryadParts(prev => {
+                                        const next = { ...prev }
+                                        delete next[it.id]
+                                        return next
+                                      })
+                                    }}
+                                    style={{
+                                      background: 'rgba(239, 68, 68, 0.1)',
+                                      border: '1px solid rgba(239, 68, 68, 0.3)',
+                                      color: '#ef4444',
+                                      borderRadius: '6px',
+                                      padding: '3px 7px',
+                                      fontSize: '0.75rem',
+                                      cursor: 'pointer',
+                                      marginLeft: '6px'
+                                    }}
+                                  >
+                                    ✕
+                                  </button>
+                                )}
                               </div>
                             </div>
                           ) : (
@@ -505,6 +551,15 @@ export function MasterNaryadModal({
                                   ...prev,
                                   [it.id]: val
                                 }))
+                                setActiveNaryadOrder(prev => {
+                                  if (!prev) return prev
+                                  return {
+                                    ...prev,
+                                    order_items: (prev.order_items || []).map(item =>
+                                      item.id === it.id ? { ...item, quantity: val } : item
+                                    )
+                                  }
+                                })
                               }}
                               style={{
                                 width: '65px',

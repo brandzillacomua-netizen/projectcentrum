@@ -110,13 +110,6 @@ export function useMasterState() {
   const [materialSplits, setMaterialSplits] = useState({})
   const [stockInfoModalData, setStockInfoModalData] = useState(null)
 
-  useEffect(() => {
-    if (isSavingDraftOrder && activeNaryadOrder && !activeNaryadOrder.isVirtualDraft) {
-      setIsSavingDraftOrder(false)
-      handlePrint()
-    }
-  }, [isSavingDraftOrder, activeNaryadOrder])
-
   const handleCreateCustomCard = async () => {
     if (!customCardNomId) return alert('Оберіть номенклатуру!')
     const qty = parseInt(customCardQty) || 0
@@ -213,82 +206,7 @@ export function useMasterState() {
   }
 
   const handleSaveVirtualDraft = async () => {
-    if (!activeNaryadOrder || !activeNaryadOrder.isVirtualDraft) return;
-    if (!activeNaryadOrder.order_items || activeNaryadOrder.order_items.length === 0) {
-      alert("Додайте принаймні одну деталь!");
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      const { data: newOrder, error: orderErr } = await supabase
-        .from('orders')
-        .insert([{
-          order_num: activeNaryadOrder.order_num,
-          customer: activeNaryadOrder.customer || 'НАРЯД НА СГП',
-          status: 'in-progress',
-          source: 'Виробництво',
-          deadline: naryadDeadline || null,
-          accessories: activeNaryadOrder.order_items.map(it => it.nomenclature?.name || '').join(', ')
-        }])
-        .select();
-
-      if (orderErr) throw orderErr;
-      const createdOrder = newOrder[0];
-
-      const itemsToInsert = activeNaryadOrder.order_items.map(it => {
-        const qty = naryadQtys[it.id] || 0;
-        return {
-          order_id: createdOrder.id,
-          nomenclature_id: it.nomenclature_id,
-          quantity: qty
-        };
-      });
-
-      const { data: newItems, error: itemsErr } = await supabase
-        .from('order_items')
-        .insert(itemsToInsert)
-        .select();
-
-      if (itemsErr) throw itemsErr;
-
-      const tempIdToRealId = {};
-      activeNaryadOrder.order_items.forEach((it, idx) => {
-        const realItem = newItems[idx];
-        if (realItem) {
-          tempIdToRealId[it.id] = realItem.id;
-        }
-      });
-
-      const updatedNaryadQtys = {};
-      const updatedNaryadParts = {};
-      Object.entries(naryadQtys).forEach(([key, val]) => {
-        const realId = tempIdToRealId[key] || key;
-        updatedNaryadQtys[realId] = val;
-      });
-
-      Object.entries(naryadParts).forEach(([key, val]) => {
-        const realId = tempIdToRealId[key] || key;
-        updatedNaryadParts[realId] = val;
-      });
-
-      setNaryadQtys(updatedNaryadQtys);
-      setNaryadParts(updatedNaryadParts);
-
-      await fetchModuleData('master');
-
-      const finalOrder = {
-        ...createdOrder,
-        order_items: newItems
-      };
-
-      setIsSavingDraftOrder(true);
-      setActiveNaryadOrder(finalOrder);
-    } catch (err) {
-      console.error(err);
-      alert("Помилка при створенні наряду: " + err.message);
-      setIsSubmitting(false);
-    }
+    return handlePrint();
   };
 
   const handleCreatePrepOrder = async () => {
@@ -611,21 +529,121 @@ export function useMasterState() {
       return
     }
 
+    let orderToProcess = activeNaryadOrder
+    let qtysToProcess = naryadQtys
+    let partsToProcess = naryadParts
+
+    if (activeNaryadOrder.isVirtualDraft && !isReprintMode) {
+      if (!activeNaryadOrder.order_items || activeNaryadOrder.order_items.length === 0) {
+        alert('Додайте принаймні одну деталь у наряд!')
+        return
+      }
+      const hasQty = activeNaryadOrder.order_items.some(it => (naryadQtys[it.id] || 0) > 0)
+      if (!hasQty) {
+        alert('Вкажіть кількість хоча б для однієї деталі!')
+        return
+      }
+
+      setIsSubmitting(true)
+      try {
+        let finalOrderNum = activeNaryadOrder.order_num || 'СГП00001'
+        try {
+          const { data: sgpOrders } = await supabase.from('orders').select('order_num').or('order_num.like.СГП%,order_num.like.SGP%')
+          finalOrderNum = resolveNextSgpOrderNum(sgpOrders, orders)
+        } catch (e) {
+          console.error(e)
+        }
+
+        const accessoriesText = activeNaryadOrder.order_items.map(it => {
+          const chosenNom = naryadParts[it.id]?.[0]?.nom || nomenclatures.find(n => n.id === it.nomenclature_id)
+          return chosenNom?.name || ''
+        }).filter(Boolean).join(', ')
+
+        const { data: newOrder, error: orderErr } = await supabase
+          .from('orders')
+          .insert([{
+            order_num: finalOrderNum,
+            customer: activeNaryadOrder.customer || 'НАРЯД НА СГП',
+            status: 'in-progress',
+            source: 'Виробництво',
+            deadline: naryadDeadline || null,
+            accessories: accessoriesText
+          }])
+          .select()
+
+        if (orderErr) throw orderErr
+        const createdOrder = newOrder[0]
+
+        const itemsToInsert = activeNaryadOrder.order_items.map(it => {
+          const qty = naryadQtys[it.id] || 0
+          const chosenNom = naryadParts[it.id]?.[0]?.nom
+          return {
+            order_id: createdOrder.id,
+            nomenclature_id: chosenNom ? chosenNom.id : it.nomenclature_id,
+            quantity: qty
+          }
+        })
+
+        const { data: newItems, error: itemsErr } = await supabase
+          .from('order_items')
+          .insert(itemsToInsert)
+          .select()
+
+        if (itemsErr) throw itemsErr
+
+        const tempIdToRealId = {}
+        activeNaryadOrder.order_items.forEach((it, idx) => {
+          const realItem = newItems[idx]
+          if (realItem) {
+            tempIdToRealId[it.id] = realItem.id
+          }
+        })
+
+        const updatedQtys = {}
+        const updatedParts = {}
+        Object.entries(naryadQtys).forEach(([key, val]) => {
+          const realId = tempIdToRealId[key] || key
+          updatedQtys[realId] = val
+        })
+        Object.entries(naryadParts).forEach(([key, val]) => {
+          const realId = tempIdToRealId[key] || key
+          updatedParts[realId] = val
+        })
+
+        orderToProcess = {
+          ...createdOrder,
+          order_items: newItems,
+          isVirtualDraft: false
+        }
+        qtysToProcess = updatedQtys
+        partsToProcess = updatedParts
+
+        setNaryadQtys(updatedQtys)
+        setNaryadParts(updatedParts)
+        setActiveNaryadOrder(orderToProcess)
+      } catch (err) {
+        console.error('Virtual draft order saving error:', err)
+        alert('Помилка збереження наряду: ' + err.message)
+        setIsSubmitting(false)
+        return
+      }
+    }
+
     const oldTitle = document.title;
     const batchSuffix = getBatchSuffix();
     const dateStr = new Date().toLocaleDateString('uk-UA').replace(/\//g, '.');
-    const customerStr = activeNaryadOrder.customer || '';
+    const customerStr = orderToProcess.customer || '';
 
-    if (activeNaryadOrder.isPrepOrder) {
+    if (orderToProcess.isPrepOrder) {
       setIsSubmitting(true)
-      document.title = `НАРЯД № ${activeNaryadOrder.order_num} ${dateStr} ВИРОБНИЦТВО`;
+      document.title = `НАРЯД № ${orderToProcess.order_num} ${dateStr} ВИРОБНИЦТВО`;
       try {
         if (isReprintMode) {
           window.print()
           setReprintTask(null)
           setActiveNaryadOrder(null)
         } else {
-          await apiService.submitCreateTask(activeNaryadOrder.id, 'PREP-TERM', (oid, m) => createNaryad(oid, m, naryadQtys, naryadDeadline))
+          await apiService.submitCreateTask(orderToProcess.id, 'PREP-TERM', (oid, m) => createNaryad(oid, m, qtysToProcess, naryadDeadline))
           window.print()
           setActiveNaryadOrder(null)
         }
@@ -639,7 +657,7 @@ export function useMasterState() {
       return
     }
 
-    document.title = `НАРЯД № ${activeNaryadOrder.order_num}${batchSuffix} ${dateStr} ${customerStr}`;
+    document.title = `НАРЯД № ${orderToProcess.order_num}${batchSuffix} ${dateStr} ${customerStr}`;
 
     const taskMachineName = "Не призначено"
 
@@ -650,11 +668,11 @@ export function useMasterState() {
         setReprintTask(null)
         setActiveNaryadOrder(null)
       } else {
-        const createdTask = await apiService.submitCreateTask(activeNaryadOrder.id, taskMachineName, (oid, m) => createNaryad(oid, m, naryadQtys, naryadDeadline, rowMachines, materialSplits, selectedCutters, naryadParts, partCutterOverrides, rowMachinesSplits, useStockBZ, partBZOverrides))
+        const createdTask = await apiService.submitCreateTask(orderToProcess.id, taskMachineName, (oid, m) => createNaryad(oid, m, qtysToProcess, naryadDeadline, rowMachines, materialSplits, selectedCutters, partsToProcess, partCutterOverrides, rowMachinesSplits, useStockBZ, partBZOverrides))
         
         if (createdTask) {
           setReprintTask(createdTask);
-          if (activeNaryadOrder.order_num?.startsWith('ВБ')) {
+          if (orderToProcess.order_num?.startsWith('ВБ')) {
             await supabase.from('tasks').update({
               engineer_conf: true,
               director_conf: true
@@ -665,6 +683,7 @@ export function useMasterState() {
         window.print()
         setReprintTask(null)
         setActiveNaryadOrder(null)
+        await fetchModuleData('master')
       }
     } catch (err) {
       console.error("Naryad creation error:", err)

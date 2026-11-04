@@ -1007,6 +1007,14 @@ export function createProductionCardsActions({
     try {
       const validOrderId = (orderId && /^[0-9a-fA-F-]{36}$/.test(String(orderId))) ? orderId : null
       let order = orders.find(o => String(o.id) === String(orderId))
+      if (!order && validOrderId) {
+        try {
+          const { data: dbOrder } = await supabase.from('orders').select('*, order_items(*)').eq('id', validOrderId).maybeSingle()
+          if (dbOrder) order = dbOrder
+        } catch (err) {
+          console.warn('Could not fetch order from DB:', err)
+        }
+      }
       if (!order) {
         order = {
           id: validOrderId || `internal_${Date.now()}`,
@@ -1429,7 +1437,7 @@ export function createProductionCardsActions({
         // Actual total_qty deduction happens atomically upon packaging shipment (complete_packaging_shipment).
         const cardsToInsert = bzStockDeductions.map(allocation => ({
           task_id: tData.id,
-          order_id: orderId,
+          order_id: validOrderId,
           nomenclature_id: allocation.nomenclature_id,
           quantity: allocation.quantity,
           status: 'completed',
@@ -1467,7 +1475,7 @@ export function createProductionCardsActions({
         .map(info => {
           const qtyToRequest = info.sheets
           return {
-            order_id: orderId,
+            order_id: validOrderId,
             task_id: tData.id,
             quantity: qtyToRequest,
             status: 'pending',
@@ -1533,9 +1541,10 @@ export function createProductionCardsActions({
       const allRequestsToInsert = [...requestsToInsert, ...sgpRequestsToInsert]
 
       // ── Run remaining DB writes in parallel (no sequential waits) ─────────
-      const parallelWrites = [
-        supabase.from('orders').update({ status: 'in-progress' }).eq('id', orderId)
-      ]
+      const parallelWrites = []
+      if (validOrderId) {
+        parallelWrites.push(supabase.from('orders').update({ status: 'in-progress' }).eq('id', validOrderId))
+      }
       if (allRequestsToInsert.length > 0) parallelWrites.push(supabase.from('material_requests').insert(allRequestsToInsert))
       const writeResults = await Promise.all(parallelWrites)
       const writeError = writeResults.find(result => result?.error)?.error
