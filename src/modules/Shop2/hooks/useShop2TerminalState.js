@@ -454,28 +454,12 @@ export function useShop2TerminalState() {
         machine: selectedMachine || null
       }
 
-      const historyData = {
-        card_id: currentCard.id,
-        nomenclature_id: currentCard.nomenclature_id,
-        stage_name: stage,
-        operator_name: selectedOperator,
-        qty_at_start: currentCard.quantity || 0,
-        qty_completed: currentCard.quantity || 0,
-        scrap_qty: 0,
-        started_at: now,
-        completed_at: now,
-        shift_name: selectedShift || null,
-        manager_name: selectedManager || null,
-        machine_name: selectedMachine || null,
-        card_info: `[ЦЕХ №2] ${currentCard.card_info || ''}`.trim()
-      }
-
       const idempotencyKey = `start_shop2_${currentCard.id}_${Date.now()}`
 
       const res = await executeAtomicCardTransition({
         cardId: currentCard.id,
         cardUpdate,
-        historyData,
+        historyData: null,
         idempotencyKey,
         fallbackFn: async () => {
           await apiService.submitOperatorAction('start', currentCard.task_id, currentCard.id, selectedOperator, {
