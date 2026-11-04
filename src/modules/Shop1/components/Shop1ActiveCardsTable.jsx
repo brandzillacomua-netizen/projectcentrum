@@ -132,6 +132,8 @@ export function Shop1ActiveCardsTable({
               const rows = []
               const renderCardRow = (card) => {
                 const inBuf = card.status === 'at-buffer'
+                const isPaused = card.status === 'paused'
+                const pauseReason = isPaused ? (card.card_info?.match(/\[PAUSED:([^\]]+)\]/)?.[1] || 'Без причини') : null
                 const seqMatch = (card.card_info || '').match(/(\d+\/\d+)/)
                 const cardSeq = seqMatch ? seqMatch[1] : ''
                 const timeMetrics = getCardTimeMetrics ? getCardTimeMetrics(card) : { totalSec: 0, currentSec: 0 }
@@ -182,7 +184,7 @@ export function Shop1ActiveCardsTable({
                     </td>
                     <td style={{ padding: '10px 14px', fontWeight: 900 }}>{card.quantity} шт</td>
                     <td style={{ padding: '10px 14px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'nowrap' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                         <span className={`s1-status-pill ${(inBuf && card.operation === 'Сортування') ? 's1-status-sorting' : inBuf ? 's1-status-buffer' : (card.status === 'paused' || card.status === 'hold') ? 's1-status-pause' : 's1-status-work'}`} style={{
                           fontSize: '0.7rem', fontWeight: 900, textTransform: 'uppercase',
                           background: (inBuf && card.operation === 'Сортування') ? '#8b5cf618' : inBuf ? '#f59e0b18' : (card.status === 'paused' || card.status === 'hold') ? '#ef444418' : '#3b82f618',
@@ -192,6 +194,20 @@ export function Shop1ActiveCardsTable({
                         }}>
                           {(inBuf && card.operation === 'Сортування') ? '🟣 БУФЕР' : inBuf ? '▣ БУФЕР' : card.status === 'paused' ? '⏸ ПАУЗА' : card.status === 'hold' ? '⏹ ЗУПИНЕНО' : '▶ РОБОТА'}
                         </span>
+                        {isPaused && (
+                          <span className="s1-table-pause-reason" style={{
+                            fontSize: '0.65rem',
+                            fontWeight: 800,
+                            background: '#ef444415',
+                            color: '#ef4444',
+                            padding: '3px 8px',
+                            borderRadius: '6px',
+                            border: '1px solid #ef444430',
+                            whiteSpace: 'nowrap'
+                          }} title={`Причина паузи: ${pauseReason}`}>
+                            🚨 {pauseReason}
+                          </span>
+                        )}
                         {inBuf && isOvertime && (
                           <span className="s1-overtime-badge" style={{
                             fontSize: '0.62rem', fontWeight: 900,

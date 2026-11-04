@@ -1,8 +1,9 @@
-import React from 'react'
+import React, { useState, useMemo } from 'react'
 import { ScannerPanel } from './Warehouse/components/ScannerPanel'
 import { AlertTriangle, X } from 'lucide-react'
 
 import { Shop1PauseModal } from './Shop1/components/modals/Shop1PauseModal'
+import { Shop1BulkPauseModal } from './Shop1/components/modals/Shop1BulkPauseModal'
 import { Shop1ShiftChangeModal } from './Shop1/components/modals/Shop1ShiftChangeModal'
 import { Shop1MachineCallModal } from './Shop1/components/modals/Shop1MachineCallModal'
 import { Shop1QCModal } from './Shop1/components/modals/Shop1QCModal'
@@ -66,6 +67,12 @@ export const Shop1Terminal: React.FC = () => {
   const hasCuttersFact = !requiresCuttersFact || completeModalCutters.some((name: string) => Number(cuttersBreakdown[name]) > 0) || completeModalCutters.every((name: string) => cuttersTouched[name])
   const completeToBufferDisabled = isProcessing || !hasCuttersFact
 
+  const [showBulkPauseModal, setShowBulkPauseModal] = useState(false)
+  const pausedMachinesCount = useMemo(() => {
+    const pausedCards = (workCards || []).filter((c: any) => c.status === 'paused')
+    return new Set(pausedCards.map((c: any) => c.machine || c.id)).size
+  }, [workCards])
+
   return (
     <div style={{ background: 'var(--surface-inset)', height: '100vh', display: 'flex', flexDirection: 'column', color: 'var(--text-strong)', overflow: 'hidden' }}>
 
@@ -74,6 +81,9 @@ export const Shop1Terminal: React.FC = () => {
         currentTime={currentTime}
         queueCardsCount={queueCards.length}
         onOpenDrawer={() => setIsDrawerOpen(true)}
+        onOpenBulkPause={() => setShowBulkPauseModal(true)}
+        pausedMachinesCount={pausedMachinesCount}
+        theme={s.theme}
       />
 
       {/* Layout */}
@@ -194,6 +204,7 @@ export const Shop1Terminal: React.FC = () => {
               tasks={tasks || []}
               nomenclatures={nomenclatures || []}
               currentUser={currentUser}
+        theme={s.theme}
               systemUsers={systemUsers}
               setWorkCards={setWorkCards}
             />
@@ -318,6 +329,16 @@ export const Shop1Terminal: React.FC = () => {
       />
 
       {/* QC Scrap Correction Modal */}
+      <Shop1BulkPauseModal
+        isOpen={showBulkPauseModal}
+        onClose={() => setShowBulkPauseModal(false)}
+        machines={s.machines || []}
+        workCards={workCards}
+        nomenclatures={nomenclatures}
+        fetchData={fetchData}
+        currentUser={currentUser}
+        theme={s.theme}
+      />
       <Shop1QCModal
         showQCModal={showQCModal}
         onClose={() => setShowQCModal(false)}
@@ -346,6 +367,7 @@ export const Shop1Terminal: React.FC = () => {
         nomenclature={getNom(currentCard)}
         tasks={tasks}
         currentUser={currentUser}
+        theme={s.theme}
         systemUsers={systemUsers}
         supabase={supabase}
         setWorkCards={setWorkCards}
