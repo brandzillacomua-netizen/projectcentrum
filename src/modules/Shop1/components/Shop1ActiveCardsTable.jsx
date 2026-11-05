@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { RefreshCw, Eye, MessageSquare, Camera } from 'lucide-react'
 import {
   translateCyrillic,
@@ -9,6 +9,7 @@ import {
 } from '../utils/shop1Helpers'
 import { getCardCuttingPlanSeconds, formatCuttingTime } from '../../../utils/cuttingTimeUtils.js'
 import { parseCardComments } from '../../../services/cardCommentsService.js'
+import { CardCommentsBadge, CardCommentsModal } from '../../../components/common/CardCommentsBadge.jsx'
 
 export function Shop1ActiveCardsTable({
   workCards = [],
@@ -27,6 +28,8 @@ export function Shop1ActiveCardsTable({
   getCardStartDate,
   getCardTimeMetrics
 }) {
+  const [selectedCardForComments, setSelectedCardForComments] = useState(null)
+
   return (
     <div style={{ background: 'var(--surface-1)', borderRadius: '24px', border: '1px solid var(--border-subtle)', overflow: 'hidden' }}>
       <div style={{ padding: '20px 25px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
@@ -242,40 +245,12 @@ export function Shop1ActiveCardsTable({
                     <td style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>{card.shift_name || '—'}</td>
                     <td style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>{card.operator_name || '—'}</td>
                     <td className="s1-machine-cell" style={{ padding: '10px 14px', color: '#eab308', fontWeight: 850 }}>{formatMachine(card.machine)}</td>
-                    <td style={{ padding: '10px 14px', whiteSpace: 'nowrap' }}>
-                      {(() => {
-                        const comments = parseCardComments(card.card_info)
-                        const commentsCount = comments.length
-                        if (commentsCount === 0) {
-                          return <span style={{ color: 'var(--text-dim, #555)', fontSize: '0.8rem', paddingLeft: '8px' }}>—</span>
-                        }
-                        const hasPhotos = comments.some(c => Array.isArray(c.photos) && c.photos.length > 0)
-                        const latest = comments[commentsCount - 1]
-                        const tooltip = `Коментарів: ${commentsCount}\nОстанній [${latest?.author_name || 'Працівник'}]: ${latest?.text || ''}${latest?.stage ? ` (${latest.stage})` : ''}`
-
-                        return (
-                          <span
-                            className="s1-table-comment-badge"
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '5px',
-                              padding: '3px 8px',
-                              borderRadius: '8px',
-                              background: 'rgba(59, 130, 246, 0.15)',
-                              border: '1px solid rgba(59, 130, 246, 0.35)',
-                              color: '#3b82f6',
-                              fontWeight: 900,
-                              fontSize: '0.72rem'
-                            }}
-                            title={tooltip}
-                          >
-                            <MessageSquare size={13} />
-                            <span>{commentsCount}</span>
-                            {hasPhotos && <Camera size={12} style={{ opacity: 0.85 }} />}
-                          </span>
-                        )
-                      })()}
+                    <td style={{ padding: '10px 14px', whiteSpace: 'nowrap' }} onClick={(e) => e.stopPropagation()}>
+                      <CardCommentsBadge
+                        card={card}
+                        onClick={(c) => setSelectedCardForComments(c)}
+                        showEmpty={true}
+                      />
                     </td>
                     <td style={{ padding: '10px 14px', whiteSpace: 'nowrap' }}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
@@ -375,6 +350,12 @@ export function Shop1ActiveCardsTable({
           </tbody>
         </table>
       </div>
+
+      <CardCommentsModal
+        isOpen={!!selectedCardForComments}
+        onClose={() => setSelectedCardForComments(null)}
+        card={selectedCardForComments}
+      />
     </div>
   )
 }

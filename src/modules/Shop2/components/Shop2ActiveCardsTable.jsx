@@ -1,6 +1,7 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { RefreshCw, Eye } from 'lucide-react'
 import { formatElapsedTime, formatPlanned, getPlannedTime, formatMachine } from '../utils/shop2Helpers'
+import { CardCommentsBadge, CardCommentsModal } from '../../../components/common/CardCommentsBadge.jsx'
 
 export function Shop2ActiveCardsTable({
   workCards = [],
@@ -9,6 +10,7 @@ export function Shop2ActiveCardsTable({
   setSelectedCardId = () => {},
   getNomFromCard = () => null
 }) {
+  const [selectedCardForComments, setSelectedCardForComments] = useState(null)
   const activeCards = workCards.filter(c => isShop2Card(c) && (c.status === 'in-progress' || c.status === 'at-buffer'))
 
   return (
@@ -30,6 +32,7 @@ export function Shop2ActiveCardsTable({
             <th style={{ padding: '12px 15px' }}>ЗМІНА</th>
             <th style={{ padding: '12px 15px' }}>ОПЕРАТОР</th>
             <th style={{ padding: '12px 15px' }}>ВЕРСТАТ</th>
+            <th style={{ padding: '12px 15px', color: '#3b82f6' }}>КОМЕНТАРІ</th>
             <th style={{ padding: '12px 15px' }}>ПЛАН. ЧАС</th>
             <th style={{ padding: '12px 15px' }}>ЧАС</th>
             <th style={{ padding: '12px 15px' }}></th>
@@ -72,6 +75,13 @@ export function Shop2ActiveCardsTable({
                 <td style={{ padding: '12px 15px', color: 'var(--text-muted)' }}>{card.shift_name || '—'}</td>
                 <td style={{ padding: '12px 15px', color: 'var(--text-muted)' }}>{card.operator_name || '—'}</td>
                 <td style={{ padding: '12px 15px', color: '#eab308', fontWeight: 800 }}>{formatMachine(card.machine)}</td>
+                <td style={{ padding: '12px 15px', whiteSpace: 'nowrap' }} onClick={(e) => e.stopPropagation()}>
+                  <CardCommentsBadge
+                    card={card}
+                    onClick={(c) => setSelectedCardForComments(c)}
+                    showEmpty={true}
+                  />
+                </td>
                 <td style={{ padding: '12px 15px', color: '#3b82f6', fontWeight: 700 }}>{formatPlanned(getPlannedTime(card, getNomFromCard))}</td>
                 <td style={{ padding: '12px 15px', color: '#10b981' }}>{formatElapsedTime(card.started_at)}</td>
                 <td style={{ padding: '12px 15px', textAlign: 'right' }}>
@@ -85,11 +95,17 @@ export function Shop2ActiveCardsTable({
             )
           })}
           {activeCards.length === 0 && (
-            <tr><td colSpan="12" style={{ padding: '40px', textAlign: 'center', color: '#333', fontSize: '0.8rem' }}>Немає активних процесів у другому цеху</td></tr>
+            <tr><td colSpan="13" style={{ padding: '40px', textAlign: 'center', color: '#333', fontSize: '0.8rem' }}>Немає активних процесів у другому цеху</td></tr>
           )}
         </tbody>
       </table>
       </div>
+
+      <CardCommentsModal
+        isOpen={!!selectedCardForComments}
+        onClose={() => setSelectedCardForComments(null)}
+        card={selectedCardForComments}
+      />
     </div>
   )
 }

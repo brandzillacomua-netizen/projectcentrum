@@ -186,6 +186,7 @@ export function useMachinesReport({
   const ordersById = useMemo(() => new Map((Array.isArray(orders) ? orders : []).map(o => [String(o.id), o])), [orders])
   const tasksById = useMemo(() => new Map((Array.isArray(tasks) ? tasks : []).map(t => [String(t.id), t])), [tasks])
   const nomsById = useMemo(() => new Map((Array.isArray(nomenclatures) ? nomenclatures : []).map(n => [String(n.id), n])), [nomenclatures])
+  const workCardsById = useMemo(() => new Map((Array.isArray(workCards) ? workCards : []).map(w => [String(w.id), w])), [workCards])
 
   // 5. Build Comprehensive Machine Analytics
   const machineAnalytics = useMemo(() => {
@@ -213,12 +214,17 @@ export function useMachinesReport({
 
     safeMList.forEach(m => {
       if (!m || !m.id) return
+      const seqStr = String(m.sequence_number || '').trim()
+      const formattedSeq = seqStr ? (seqStr.startsWith('№') ? seqStr : `№${seqStr}`) : ''
+      const fullName = formattedSeq && !m.name.includes(seqStr) ? `${m.name} ${formattedSeq}` : m.name
+
       statsByMachine.set(String(m.id), {
         machine: m,
         id: m.id,
         name: m.name,
-        type: m.type || '—',
         sequence_number: m.sequence_number || '',
+        fullName,
+        type: m.type || '—',
         status: m.status || 'idle',
         totalWorkSec: 0,
         totalPauseSec: 0,
@@ -240,6 +246,9 @@ export function useMachinesReport({
       if (!log || !log.machine_id) return
       const mStat = statsByMachine.get(String(log.machine_id))
       if (mStat) {
+        log.machineName = mStat.fullName || mStat.name
+        log.machineSequenceNumber = mStat.sequence_number
+        log.machineType = mStat.type
         mStat.maintenanceLogs.push(log)
         const mType = log.maintenance_type || 'Обслуговування'
         mStat.maintenanceCountsByType[mType] = (mStat.maintenanceCountsByType[mType] || 0) + 1
@@ -304,9 +313,16 @@ export function useMachinesReport({
       if (opName) mStat.operators.add(opName)
 
       if (!existing) {
+        const realCard = workCardsById.get(cardId)
+        const actualCardInfo = realCard?.card_info || h.card_info || ''
+
         const item = {
           id: h.id,
           card_id: cardId,
+          machine_id: mStat.id,
+          machineName: mStat.fullName || mStat.name,
+          machineSequenceNumber: mStat.sequence_number,
+          machineType: mStat.type,
           task_id: h.task_id,
           nomenclature_id: h.nomenclature_id,
           operator_name: opName || 'Не вказано',
@@ -321,7 +337,7 @@ export function useMachinesReport({
           qty_completed: Number(h.qty_completed) || 0,
           scrap_qty: Number(h.scrap_qty) || 0,
           sheets: cardSheets,
-          card_info: h.card_info || '',
+          card_info: actualCardInfo,
           is_active: false
         }
         cardsGroupedByMachineAndCard.set(`${mStat.id}_${cardId}`, item)
@@ -423,6 +439,10 @@ export function useMachinesReport({
       mStat.cards.push({
         id: c.id,
         card_id: c.id,
+        machine_id: mStat.id,
+        machineName: mStat.fullName || mStat.name,
+        machineSequenceNumber: mStat.sequence_number,
+        machineType: mStat.type,
         task_id: c.task_id,
         nomenclature_id: c.nomenclature_id,
         operator_name: opName || 'Не вказано',
@@ -545,6 +565,7 @@ export function useMachinesReport({
     loadMaintenanceLogs,
     ordersById,
     tasksById,
-    nomsById
+    nomsById,
+    workCardsById
   }
 }

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { CheckCircle2, Search, Archive, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react'
 import { isShop2WorkCard } from '../hooks/useShop2BufferData'
+import { CardCommentsBadge, CardCommentsModal } from '../../../components/common/CardCommentsBadge.jsx'
 
 export function Shop2HistoryCardsList({
   workCards = [],
@@ -12,6 +13,7 @@ export function Shop2HistoryCardsList({
   const [searchTerm, setSearchTerm] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(50)
+  const [selectedCardForComments, setSelectedCardForComments] = useState(null)
 
   useEffect(() => {
     setCurrentPage(1)
@@ -118,6 +120,7 @@ export function Shop2HistoryCardsList({
               <th style={{ padding: '16px 20px' }}>Наряд</th>
               <th style={{ padding: '16px 20px' }}>Етап</th>
               <th style={{ padding: '16px 20px', textAlign: 'center' }}>Виконано</th>
+              <th style={{ padding: '16px 20px', color: '#3b82f6' }}>Коментарі</th>
               <th style={{ padding: '16px 20px' }}>Дата / час</th>
               <th style={{ padding: '16px 20px', textAlign: 'right' }}>Статус</th>
             </tr>
@@ -125,7 +128,7 @@ export function Shop2HistoryCardsList({
           <tbody>
             {displayedCards.length === 0 ? (
               <tr>
-                <td colSpan="6" style={{ padding: '50px 20px', textAlign: 'center', color: 'var(--text-muted, #64748b)' }}>
+                <td colSpan="7" style={{ padding: '50px 20px', textAlign: 'center', color: 'var(--text-muted, #64748b)' }}>
                   <Archive size={40} style={{ margin: '0 auto 12px', opacity: 0.3 }} />
                   <div style={{ fontSize: '0.95rem', fontWeight: 900 }}>
                     {isLoading ? 'Завантаження архіву виконаних РК Цеху №2…' : 'Архів виконаних РК Цеху №2 порожній.'}
@@ -159,6 +162,13 @@ export function Shop2HistoryCardsList({
                     </td>
                     <td style={{ padding: '16px 20px', textAlign: 'center', fontWeight: 950, color: '#059669', fontSize: '1rem' }}>
                       {card.quantity} <span style={{ fontSize: '0.7rem', color: 'var(--text-muted, #64748b)' }}>шт</span>
+                    </td>
+                    <td style={{ padding: '16px 20px', whiteSpace: 'nowrap' }}>
+                      <CardCommentsBadge
+                        card={card}
+                        onClick={(c) => setSelectedCardForComments(c)}
+                        showEmpty={true}
+                      />
                     </td>
                     <td style={{ padding: '16px 20px', color: 'var(--text-muted, #64748b)', fontWeight: 750, whiteSpace: 'nowrap' }}>
                       {card.completed_at
@@ -273,6 +283,12 @@ export function Shop2HistoryCardsList({
           </div>
         </div>
       </div>
+
+      <CardCommentsModal
+        isOpen={!!selectedCardForComments}
+        onClose={() => setSelectedCardForComments(null)}
+        card={selectedCardForComments}
+      />
     </div>
   )
 }

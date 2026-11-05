@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { Clock, Search, Cpu, Printer, X, CheckSquare, Square, CheckCircle2 } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import { isShop2WorkCard } from '../hooks/useShop2BufferData'
+import { CardCommentsBadge, CardCommentsModal } from '../../../components/common/CardCommentsBadge.jsx'
 
 export function Shop2ActiveCardsList({
   workCards = [],
@@ -12,6 +13,7 @@ export function Shop2ActiveCardsList({
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCardIds, setSelectedCardIds] = useState(new Set())
   const [printModalCards, setPrintModalCards] = useState(null)
+  const [selectedCardForComments, setSelectedCardForComments] = useState(null)
 
   // Filter cards belonging to Shop 2 that are in active status
   const activeCards = workCards.filter(card => {
@@ -276,7 +278,13 @@ export function Shop2ActiveCardsList({
                     </span>
                   </div>
 
-                  {getStatusBadge(card.status)}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }} onClick={e => e.stopPropagation()}>
+                    <CardCommentsBadge
+                      card={card}
+                      onClick={(c) => setSelectedCardForComments(c)}
+                    />
+                    {getStatusBadge(card.status)}
+                  </div>
                 </div>
 
                 {/* Nomenclature Name */}
@@ -540,6 +548,12 @@ export function Shop2ActiveCardsList({
           </div>
         </div>
       )}
+
+      <CardCommentsModal
+        isOpen={!!selectedCardForComments}
+        onClose={() => setSelectedCardForComments(null)}
+        card={selectedCardForComments}
+      />
 
       {/* Print CSS Rules */}
       <style>{`

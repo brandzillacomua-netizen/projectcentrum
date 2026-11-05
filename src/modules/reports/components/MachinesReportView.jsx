@@ -16,9 +16,11 @@ import {
   Hammer,
   ShieldAlert,
   ArrowUpDown,
-  RefreshCw
+  RefreshCw,
+  X
 } from 'lucide-react'
 import { formatDurationSec } from '../hooks/useMachinesReport'
+import { CardCommentsBadge, CardCommentsModal } from '../../../components/common/CardCommentsBadge.jsx'
 
 const formatDateTime = (value) => {
   if (!value) return '—'
@@ -48,10 +50,13 @@ export function MachinesReportView({
     totals,
     ordersById,
     tasksById,
-    nomsById
+    nomsById,
+    workCardsById
   } = machineReport
 
   const [activeSubTab, setActiveSubTab] = useState('overview') // 'overview' | 'cards' | 'maintenance'
+  const [selectedCardForComments, setSelectedCardForComments] = useState(null)
+  const [selectedMachineForMaintenance, setSelectedMachineForMaintenance] = useState(null)
   const [cardSearch, setCardSearch] = useState('')
   const [operatorFilter, setOperatorFilter] = useState('all')
   const [sortBy, setSortBy] = useState('totalWorkSec') // 'totalWorkSec' | 'totalPauseSec' | 'cardsCount' | 'name'
@@ -69,7 +74,33 @@ export function MachinesReportView({
   const sortedMachineStats = useMemo(() => {
     const list = [...(machineAnalytics || [])].filter(m => {
       if (!m) return false
-      if (selectedMachineType !== 'all' && (m.type || '').trim() !== selectedMachineType) return false
+
+      // Фільтр за типом верстата
+      if (selectedMachineType !== 'all' && (m.type || '').trim() !== selectedMachineType) {
+        return false
+      }
+
+      // Фільтр за конкретно обраним верстатом
+      if (selectedMachineId !== 'all' && String(m.id) !== String(selectedMachineId)) {
+        return false
+      }
+
+      // Фільтр за обраним оператором
+      if (operatorFilter !== 'all') {
+        const hasOp = (m.operatorsList || []).some(op => op === operatorFilter)
+        if (!hasOp) return false
+      }
+
+      // Пошуковий рядок (пошук верстата за назвою, номером, типом або оператором)
+      if (cardSearch && cardSearch.trim()) {
+        const q = cardSearch.toLowerCase().trim()
+        const matchName = String(m.name || '').toLowerCase().includes(q)
+        const matchSeq = String(m.sequence_number || '').toLowerCase().includes(q)
+        const matchType = String(m.type || '').toLowerCase().includes(q)
+        const matchOp = (m.operatorsList || []).some(op => op.toLowerCase().includes(q))
+        if (!matchName && !matchSeq && !matchType && !matchOp) return false
+      }
+
       return true
     })
 
@@ -83,19 +114,29 @@ export function MachinesReportView({
     })
 
     return list
-  }, [machineAnalytics, selectedMachineType, sortBy, sortAsc])
+  }, [machineAnalytics, selectedMachineType, selectedMachineId, operatorFilter, cardSearch, sortBy, sortAsc])
 
   // 3. Filtered Cards List (for Cards tab or Detail View)
   const displayCards = useMemo(() => {
     let cards = []
     if (selectedMachineStat) {
-      cards = selectedMachineStat.cards || []
+      const fallbackMachineName = selectedMachineStat.fullName || (selectedMachineStat.name + (selectedMachineStat.sequence_number ? ` №${selectedMachineStat.sequence_number}` : ''))
+      cards = (selectedMachineStat.cards || []).map(c => ({
+        ...c,
+        machineName: c.machineName || fallbackMachineName,
+        machineType: selectedMachineStat.type
+      }))
     } else {
       // All cards across filtered machines
       (machineAnalytics || []).forEach(m => {
         if (!m) return
         if (selectedMachineType !== 'all' && (m.type || '').trim() !== selectedMachineType) return
-        cards.push(...(m.cards || []).map(c => ({ ...c, machineName: m.name, machineType: m.type })))
+        const fallbackMachineName = m.fullName || (m.name + (m.sequence_number ? ` №${m.sequence_number}` : ''))
+        cards.push(...(m.cards || []).map(c => ({
+          ...c,
+          machineName: c.machineName || fallbackMachineName,
+          machineType: m.type
+        })))
       })
     }
 
@@ -128,12 +169,22 @@ export function MachinesReportView({
   const displayMaintenanceLogs = useMemo(() => {
     let logs = []
     if (selectedMachineStat) {
-      logs = selectedMachineStat.maintenanceLogs || []
+      const fallbackMachineName = selectedMachineStat.fullName || (selectedMachineStat.name + (selectedMachineStat.sequence_number ? ` №${selectedMachineStat.sequence_number}` : ''))
+      logs = (selectedMachineStat.maintenanceLogs || []).map(l => ({
+        ...l,
+        machineName: l.machineName || fallbackMachineName,
+        machineType: selectedMachineStat.type
+      }))
     } else {
       (machineAnalytics || []).forEach(m => {
         if (!m) return
         if (selectedMachineType !== 'all' && (m.type || '').trim() !== selectedMachineType) return
-        logs.push(...(m.maintenanceLogs || []).map(l => ({ ...l, machineName: m.name, machineType: m.type })))
+        const fallbackMachineName = m.fullName || (m.name + (m.sequence_number ? ` №${m.sequence_number}` : ''))
+        logs.push(...(m.maintenanceLogs || []).map(l => ({
+          ...l,
+          machineName: l.machineName || fallbackMachineName,
+          machineType: m.type
+        })))
       })
     }
     return logs.sort((a, b) => new Date(b.triggered_at || 0) - new Date(a.triggered_at || 0))
@@ -203,40 +254,42 @@ export function MachinesReportView({
         </div>
 
         {/* Operator Filter & Search */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          {activeSubTab === 'cards' && (
-            <>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Users size={14} className="machines-cell-dim" />
-                <select
-                  value={operatorFilter}
-                  onChange={(e) => setOperatorFilter(e.target.value)}
-                  className={`machines-filter-select ${operatorFilter !== 'all' ? 'is-active' : ''}`}
-                >
-                  <option value="all">Всі оператори</option>
-                  {currentOperators.map(op => (
-                    <option key={op} value={op}>{op}</option>
-                  ))}
-                </select>
-              </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Users size={14} className="machines-cell-dim" />
+            <select
+              value={operatorFilter}
+              onChange={(e) => setOperatorFilter(e.target.value)}
+              className={`machines-filter-select ${operatorFilter !== 'all' ? 'is-active' : ''}`}
+            >
+              <option value="all">Всі оператори</option>
+              {currentOperators.map(op => (
+                <option key={op} value={op}>{op}</option>
+              ))}
+            </select>
+          </div>
 
-              <div style={{ position: 'relative' }}>
-                <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} className="machines-cell-dim" />
-                <input
-                  type="text"
-                  value={cardSearch}
-                  onChange={(e) => setCardSearch(e.target.value)}
-                  placeholder="Пошук картки / деталі..."
-                  className="machines-search-input"
-                />
-              </div>
-            </>
-          )}
+          <div style={{ position: 'relative' }}>
+            <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} className="machines-cell-dim" />
+            <input
+              type="text"
+              value={cardSearch}
+              onChange={(e) => setCardSearch(e.target.value)}
+              placeholder={activeSubTab === 'overview' ? "Пошук верстата / оператора..." : "Пошук картки / деталі..."}
+              className="machines-search-input"
+            />
+          </div>
 
-          {selectedMachineId !== 'all' && (
+          {(selectedMachineId !== 'all' || selectedMachineType !== 'all' || operatorFilter !== 'all' || cardSearch.trim() !== '') && (
             <button
-              onClick={() => setSelectedMachineId('all')}
+              onClick={() => {
+                setSelectedMachineId('all')
+                setSelectedMachineType('all')
+                setOperatorFilter('all')
+                setCardSearch('')
+              }}
               className="machines-reset-btn"
+              title="Скинути всі активні фільтри"
             >
               Скинути вибір
             </button>
@@ -348,13 +401,28 @@ export function MachinesReportView({
       {activeSubTab === 'overview' && (
         <div className="glass-panel machines-table-card">
           <div className="machines-table-header">
-            <h3>
-              <Cpu size={18} color="#ff9000" />
-              РЕЙТИНГ ТА ЗАВАНТАЖЕННЯ ВЕРСТАТІВ ({sortedMachineStats.length})
-            </h3>
-            <div className="machines-cell-dim" style={{ fontSize: '0.78rem' }}>
-              Клікніть на рядок верстата для перегляду його карток
+            <div>
+              <h3>
+                <Cpu size={18} color="#ff9000" />
+                РЕЙТИНГ ТА ЗАВАНТАЖЕННЯ ВЕРСТАТІВ ({sortedMachineStats.length})
+                {selectedMachineStat && <span style={{ color: '#ff9000' }}> • {selectedMachineStat.name}</span>}
+              </h3>
+              <div className="machines-cell-dim" style={{ fontSize: '0.78rem', marginTop: '2px' }}>
+                {selectedMachineStat
+                  ? 'Показано показники обраного верстата. Клікніть «Карти» для переходу в журнал.'
+                  : 'Клікніть на рядок верстата для перегляду його карток'}
+              </div>
             </div>
+
+            {selectedMachineStat && (
+              <button
+                onClick={() => setSelectedMachineId('all')}
+                className="machines-action-btn"
+                style={{ padding: '6px 14px' }}
+              >
+                Показати всі верстати
+              </button>
+            )}
           </div>
 
           <div style={{ overflowX: 'auto' }}>
@@ -419,16 +487,34 @@ export function MachinesReportView({
                       </td>
                       <td style={{ padding: '12px 16px', textAlign: 'center' }}>
                         {hasMaintenance ? (
-                          <span style={{
-                            background: 'rgba(245,158,11,0.15)',
-                            color: '#f59e0b',
-                            padding: '3px 8px',
-                            borderRadius: '6px',
-                            fontWeight: 800,
-                            fontSize: '0.75rem'
-                          }}>
-                            🛠 {m.maintenanceLogs.length}
-                          </span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setSelectedMachineForMaintenance(m)
+                            }}
+                            title={`Клікніть, щоб переглянути проведене ТО (${m.maintenanceLogs.length})`}
+                            style={{
+                              background: 'rgba(245, 158, 11, 0.18)',
+                              color: '#f59e0b',
+                              border: '1px solid rgba(245, 158, 11, 0.45)',
+                              padding: '4px 10px',
+                              borderRadius: '8px',
+                              fontWeight: 900,
+                              fontSize: '0.78rem',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '5px',
+                              transition: 'all 0.15s ease-in-out',
+                              boxShadow: '0 2px 6px rgba(245, 158, 11, 0.2)'
+                            }}
+                            onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.05)'; e.currentTarget.style.background = 'rgba(245, 158, 11, 0.3)' }}
+                            onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.background = 'rgba(245, 158, 11, 0.18)' }}
+                          >
+                            <Wrench size={12} />
+                            <span>{m.maintenanceLogs.length}</span>
+                          </button>
                         ) : (
                           <span className="machines-cell-dim">—</span>
                         )}
@@ -460,6 +546,13 @@ export function MachinesReportView({
                     </tr>
                   )
                 })}
+                {sortedMachineStats.length === 0 && (
+                  <tr>
+                    <td colSpan={9} style={{ textAlign: 'center', padding: '40px' }} className="machines-cell-dim">
+                      За обраними фільтрами верстатів не знайдено.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -474,7 +567,11 @@ export function MachinesReportView({
               <h3>
                 <Layers size={18} color="#ff9000" />
                 ЖУРНАЛ КАРТ РОЗКРОЮ ТА ОПЕРАТОРІВ
-                {selectedMachineStat && <span style={{ color: '#ff9000' }}> • {selectedMachineStat.name}</span>}
+                {selectedMachineStat && (
+                  <span style={{ color: '#ff9000' }}>
+                    {' '}• {selectedMachineStat.fullName || (selectedMachineStat.name + (selectedMachineStat.sequence_number ? ` №${selectedMachineStat.sequence_number}` : ''))}
+                  </span>
+                )}
               </h3>
               <div className="machines-cell-dim" style={{ fontSize: '0.75rem', marginTop: '3px' }}>
                 Всього знайдено карток: {displayCards.length}
@@ -531,15 +628,38 @@ export function MachinesReportView({
                         )}
                       </td>
                       <td className="machines-name-text" style={{ padding: '12px 16px' }}>
-                        {c.machineName || selectedMachineStat?.name || '—'}
+                        {c.machineName || selectedMachineStat?.fullName || (selectedMachineStat ? `${selectedMachineStat.name}${selectedMachineStat.sequence_number ? ` №${selectedMachineStat.sequence_number}` : ''}` : '—')}
                       </td>
                       <td style={{ padding: '12px 16px' }}>
-                        <div style={{ fontWeight: 800, color: '#ff9000' }}>
-                          #{String(c.card_id || c.id).slice(0, 8)}
-                        </div>
-                        <small className="machines-cell-dim">
-                          {order?.order_num ? `Наряд №${order.order_num}` : '—'}
-                        </small>
+                        {(() => {
+                          const realCard = workCardsById?.get?.(String(c.card_id || c.id)) || c
+                          const cardInfo = realCard?.card_info || c.card_info || ''
+                          const cardForModal = {
+                            ...c,
+                            ...realCard,
+                            id: c.card_id || c.id,
+                            card_info: cardInfo,
+                            operator_name: c.operator_name || realCard?.operator_name
+                          }
+
+                          return (
+                            <>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                <span style={{ fontWeight: 800, color: '#ff9000' }}>
+                                  #{String(c.card_id || c.id).slice(0, 8)}
+                                </span>
+                                <CardCommentsBadge
+                                  card={cardForModal}
+                                  cardInfo={cardInfo}
+                                  onClick={() => setSelectedCardForComments(cardForModal)}
+                                />
+                              </div>
+                              <small className="machines-cell-dim">
+                                {order?.order_num ? `Наряд №${order.order_num}` : '—'}
+                              </small>
+                            </>
+                          )
+                        })()}
                       </td>
                       <td style={{ padding: '12px 16px' }}>
                         <div className="machines-cell-strong">
@@ -647,7 +767,7 @@ export function MachinesReportView({
                       {formatDateTime(log.triggered_at || log.created_at)}
                     </td>
                     <td className="machines-name-text" style={{ padding: '12px 16px' }}>
-                      {log.machineName || selectedMachineStat?.name || '—'}
+                      {log.machineName || selectedMachineStat?.fullName || (selectedMachineStat ? `${selectedMachineStat.name}${selectedMachineStat.sequence_number ? ` №${selectedMachineStat.sequence_number}` : ''}` : '—')}
                     </td>
                     <td style={{ padding: '12px 16px' }}>
                       <span style={{
@@ -682,6 +802,253 @@ export function MachinesReportView({
                 )}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      <CardCommentsModal
+        isOpen={!!selectedCardForComments}
+        onClose={() => setSelectedCardForComments(null)}
+        card={selectedCardForComments}
+        nom={selectedCardForComments?.nomenclature_id ? nomsById?.get?.(String(selectedCardForComments.nomenclature_id)) : null}
+        orderNum={selectedCardForComments?.task_id ? ordersById?.get?.(String(tasksById?.get?.(String(selectedCardForComments.task_id))?.order_id))?.order_num : ''}
+      />
+
+      {/* ── MACHINE MAINTENANCE MODAL ── */}
+      {selectedMachineForMaintenance && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.75)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10000,
+            padding: '20px',
+            backdropFilter: 'blur(5px)'
+          }}
+          onClick={() => setSelectedMachineForMaintenance(null)}
+        >
+          <div
+            style={{
+              background: 'var(--surface-1, #181c22)',
+              width: '100%',
+              maxWidth: '750px',
+              maxHeight: '85vh',
+              borderRadius: '24px',
+              border: '1px solid var(--border-subtle, rgba(255, 255, 255, 0.1))',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+              boxShadow: '0 25px 60px rgba(0,0,0,0.85)',
+              color: 'var(--text-strong, #fff)'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div
+              style={{
+                padding: '18px 24px',
+                background: 'var(--surface-2, #21262d)',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                borderBottom: '1px solid var(--border-subtle, rgba(255, 255, 255, 0.08))'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div
+                  style={{
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: '10px',
+                    background: 'rgba(245, 158, 11, 0.15)',
+                    color: '#f59e0b',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                >
+                  <Wrench size={20} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 950 }}>
+                    ТО ВЕРСТАТА • {selectedMachineForMaintenance.name} {selectedMachineForMaintenance.sequence_number ? `(№${selectedMachineForMaintenance.sequence_number})` : ''}
+                  </h3>
+                  <div style={{ fontSize: '0.72rem', color: '#f59e0b', fontWeight: 800, marginTop: '2px' }}>
+                    Зафіксовано записів ТО: {selectedMachineForMaintenance.maintenanceLogs.length}
+                  </div>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSelectedMachineForMaintenance(null)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--text-muted, #94a3b8)',
+                  cursor: 'pointer',
+                  padding: '6px',
+                  borderRadius: '8px'
+                }}
+              >
+                <X size={22} />
+              </button>
+            </div>
+
+            {/* Logs List */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {selectedMachineForMaintenance.maintenanceLogs.map((log, idx) => {
+                const dateStr = formatDateTime(log.triggered_at || log.created_at)
+                const isCompleted = log.status === 'completed' || !log.status
+
+                return (
+                  <div
+                    key={log.id || idx}
+                    style={{
+                      background: 'var(--surface-2, rgba(255, 255, 255, 0.035))',
+                      border: '1px solid var(--border-subtle, rgba(255, 255, 255, 0.08))',
+                      borderRadius: '16px',
+                      padding: '16px 18px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '10px'
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span
+                          style={{
+                            background: 'rgba(245, 158, 11, 0.15)',
+                            color: '#f59e0b',
+                            border: '1px solid rgba(245, 158, 11, 0.35)',
+                            padding: '3px 8px',
+                            borderRadius: '6px',
+                            fontWeight: 900,
+                            fontSize: '0.75rem'
+                          }}
+                        >
+                          🛠 {log.maintenance_type || 'Обслуговування'}
+                        </span>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted, #94a3b8)', fontWeight: 700 }}>
+                          {dateStr}
+                        </span>
+                      </div>
+
+                      <span
+                        style={{
+                          background: isCompleted ? 'rgba(16, 185, 129, 0.15)' : 'rgba(59, 130, 246, 0.15)',
+                          color: isCompleted ? '#10b981' : '#3b82f6',
+                          padding: '3px 8px',
+                          borderRadius: '6px',
+                          fontWeight: 900,
+                          fontSize: '0.7rem',
+                          textTransform: 'uppercase'
+                        }}
+                      >
+                        {isCompleted ? '✓ ВИКОНАНО' : (log.status || 'В ПРОЦЕСІ')}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', fontSize: '0.8rem' }}>
+                      <div>
+                        <span style={{ color: 'var(--text-muted, #94a3b8)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 800 }}>Вузол / Голова:</span>
+                        <div style={{ fontWeight: 800, marginTop: '2px', color: 'var(--text-strong, #fff)' }}>
+                          {log.machine_head || 'Всі робочі вузли'}
+                        </div>
+                      </div>
+
+                      {log.spare_part && (
+                        <div>
+                          <span style={{ color: 'var(--text-muted, #94a3b8)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 800 }}>Деталь:</span>
+                          <div style={{ fontWeight: 800, marginTop: '2px', color: '#a78bfa' }}>
+                            {log.spare_part}
+                          </div>
+                        </div>
+                      )}
+
+                      <div>
+                        <span style={{ color: 'var(--text-muted, #94a3b8)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 800 }}>Хто виконував:</span>
+                        <div style={{ fontWeight: 800, marginTop: '2px', color: 'var(--text-strong, #fff)' }}>
+                          {log.performed_by || 'Не вказано'}
+                        </div>
+                      </div>
+
+                      {log.maintenance_duration_seconds > 0 && (
+                        <div>
+                          <span style={{ color: 'var(--text-muted, #94a3b8)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 800 }}>Тривалість робіт:</span>
+                          <div style={{ fontWeight: 800, marginTop: '2px', color: '#38bdf8' }}>
+                            {formatDurationSec(log.maintenance_duration_seconds)}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div style={{ background: 'var(--surface-inset, rgba(0, 0, 0, 0.25))', padding: '10px 12px', borderRadius: '10px', fontSize: '0.78rem', color: (log.notes || log.comment || log.description || log.details) ? 'var(--text-strong, #fff)' : 'var(--text-muted, #94a3b8)', lineHeight: 1.4, border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                      <strong style={{ color: '#f59e0b' }}>Коментар / Примітки: </strong>
+                      {(log.notes || log.comment || log.description || log.details) ? (
+                        <span>{log.notes || log.comment || log.description || log.details}</span>
+                      ) : (
+                        <span style={{ fontStyle: 'italic', color: 'var(--text-muted, #94a3b8)' }}>Без коментаря (користувач не залишив приміток)</span>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Footer */}
+            <div
+              style={{
+                padding: '14px 24px',
+                background: 'var(--surface-2, #21262d)',
+                borderTop: '1px solid var(--border-subtle, rgba(255, 255, 255, 0.08))',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: '12px'
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedMachineId(selectedMachineForMaintenance.id)
+                  setActiveSubTab('maintenance')
+                  setSelectedMachineForMaintenance(null)
+                }}
+                style={{
+                  background: 'rgba(245, 158, 11, 0.15)',
+                  color: '#f59e0b',
+                  border: '1px solid rgba(245, 158, 11, 0.4)',
+                  padding: '8px 16px',
+                  borderRadius: '10px',
+                  fontSize: '0.78rem',
+                  fontWeight: 900,
+                  cursor: 'pointer'
+                }}
+              >
+                Відкрити у повному журналі ТО →
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSelectedMachineForMaintenance(null)}
+                style={{
+                  background: 'var(--surface-1, #30363d)',
+                  color: 'var(--text-strong, #fff)',
+                  border: 'none',
+                  padding: '8px 18px',
+                  borderRadius: '10px',
+                  fontSize: '0.8rem',
+                  fontWeight: 800,
+                  cursor: 'pointer'
+                }}
+              >
+                Закрити
+              </button>
+            </div>
           </div>
         </div>
       )}

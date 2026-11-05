@@ -15,7 +15,7 @@ export function parseMaintenanceLog(rawLog) {
   let maintenance_type = rawLog.maintenance_type || null
   let machine_head = rawLog.machine_head || null
   let spare_part = rawLog.spare_part || null
-  let notes = rawLog.notes || null
+  let notes = rawLog.notes || rawLog.comment || rawLog.description || rawLog.details || rawLog.reason || null
   let performed_by = rawLog.performed_by || ''
 
   const rawPerformed = String(performed_by || '')
@@ -30,14 +30,14 @@ export function parseMaintenanceLog(rawLog) {
     const spareMatch = rawPerformed.match(/\[SPARE:([^\]]*)\]/i)
     if (spareMatch && !spare_part) spare_part = spareMatch[1].trim()
 
-    const notesMatch = rawPerformed.match(/\[NOTES:([^\]]*)\]/i)
+    const notesMatch = rawPerformed.match(/\[(?:NOTES|COMMENT|DESC):([^\]]*)\]/i)
     if (notesMatch && !notes) notes = notesMatch[1].trim()
 
     performed_by = rawPerformed
       .replace(/\[TYPE:[^\]]*\]/gi, '')
       .replace(/\[HEAD:[^\]]*\]/gi, '')
       .replace(/\[SPARE:[^\]]*\]/gi, '')
-      .replace(/\[NOTES:[^\]]*\]/gi, '')
+      .replace(/\[(?:NOTES|COMMENT|DESC):[^\]]*\]/gi, '')
       .trim()
   } else if (rawPerformed.startsWith('{') && rawPerformed.endsWith('}')) {
     try {
@@ -45,7 +45,9 @@ export function parseMaintenanceLog(rawLog) {
       if (parsed.type && !maintenance_type) maintenance_type = parsed.type
       if (parsed.head && !machine_head) machine_head = parsed.head
       if (parsed.spare && !spare_part) spare_part = parsed.spare
-      if (parsed.notes && !notes) notes = parsed.notes
+      if ((parsed.notes || parsed.comment || parsed.description) && !notes) {
+        notes = parsed.notes || parsed.comment || parsed.description
+      }
       if (parsed.user) performed_by = parsed.user
     } catch {}
   }

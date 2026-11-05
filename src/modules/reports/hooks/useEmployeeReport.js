@@ -528,6 +528,7 @@ export function useEmployeeReport({
   searchQuery = ''
 }) {
   const employeeStats = useMemo(() => {
+    const workCardsById = new Map((Array.isArray(workCards) ? workCards : []).map(w => [String(w.id), w]))
     // Pre-index classifications by source_history_id and card_id
     const classificationsByHistoryId = new Map()
     const confirmedAssignedQtyByHistoryId = new Map()
@@ -834,6 +835,8 @@ export function useEmployeeReport({
 
       // Determine production flags
       const cardId = h.card_id || h.work_card_id || null
+      const realCard = cardId ? workCardsById.get(String(cardId)) : null
+      const actualCardInfo = realCard?.card_info || h.card_info || ''
       const isCutting = isShop1CuttingOperation(h.stage_name, qtyProduced)
       const isShop2Op = isShop2HistoryRecord(h, user, empStat.department)
 
@@ -841,6 +844,7 @@ export function useEmployeeReport({
       empStat.history.push({
         id: h.id,
         cardId: cardId ? String(cardId) : null,
+        card_info: actualCardInfo,
         rawStage: h.stage_name || '',
         isCutting,
         isShop2: isShop2Op,
@@ -976,8 +980,14 @@ export function useEmployeeReport({
       empStat.util += cUtil
 
       const nom = c.nomenclature_id ? nomMap.get(String(c.nomenclature_id)) : null
+      const cardId = c.card_id || sourceHistory?.card_id || null
+      const realCard = cardId ? workCardsById.get(String(cardId)) : null
+      const actualCardInfo = realCard?.card_info || sourceHistory?.card_info || c.card_info || ''
+
       empStat.history.push({
         id: event.key,
+        cardId: cardId ? String(cardId) : null,
+        card_info: actualCardInfo,
         date: sourceHistory?.completed_at || sourceHistory?.created_at || c.classified_at || c.created_at,
         stage: isNonHuman
           ? `${c.source_stage_name || sourceHistory?.stage_name || 'Контроль ВКЯ'} (Без вини персоналу: ${sourceOperator || 'технічне'})`

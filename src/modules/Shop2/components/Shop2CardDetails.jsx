@@ -1,7 +1,9 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { X, ClipboardList, Layers, Box, Gauge, CheckCircle, Package } from 'lucide-react'
+import { X, ClipboardList, Layers, Box, Gauge, CheckCircle, Package, MessageSquare } from 'lucide-react'
 import { formatElapsedTime } from '../utils/shop2Helpers'
+import { parseCardComments } from '../../../services/cardCommentsService.js'
+import { CardCommentsModal } from '../../../components/common/CardCommentsBadge.jsx'
 
 export function Shop2CardDetails({
   currentCard,
@@ -28,6 +30,10 @@ export function Shop2CardDetails({
   isProcessing,
   setIsProcessing
 }) {
+  const [isCommentsModalOpen, setIsCommentsModalOpen] = useState(false)
+  const comments = parseCardComments(currentCard?.card_info)
+  const commentsCount = comments.length
+
   const SpecCard = ({ icon: Icon, label, value, color = "#8b5cf6" }) => (
     <div style={{ background: 'var(--fill-subtle)', border: '1px solid var(--border-subtle)', padding: '18px', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '8px', minWidth: '130px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-dim)', fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase' }}>
@@ -63,6 +69,41 @@ export function Shop2CardDetails({
           </h2>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button
+            type="button"
+            onClick={() => setIsCommentsModalOpen(true)}
+            style={{
+              background: '#3b82f6',
+              border: 'none',
+              color: '#ffffff',
+              padding: '10px 16px',
+              borderRadius: '12px',
+              fontSize: '0.8rem',
+              fontWeight: 950,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              boxShadow: '0 4px 15px rgba(59, 130, 246, 0.4)'
+            }}
+            title="Коментарі та зауваження до карти"
+          >
+            <MessageSquare size={16} />
+            <span className="hide-mobile">КОМЕНТАРІ</span>
+            {commentsCount > 0 && (
+              <span style={{
+                background: '#fff',
+                color: '#3b82f6',
+                borderRadius: '999px',
+                padding: '1px 7px',
+                fontSize: '0.7rem',
+                fontWeight: 950,
+                marginLeft: '2px'
+              }}>
+                {commentsCount}
+              </span>
+            )}
+          </button>
           {currentCard.task_id && (
             <Link
               to="/shop2-card-gen"
@@ -226,6 +267,16 @@ export function Shop2CardDetails({
           </div>
         )}
       </div>
+
+      <CardCommentsModal
+        isOpen={isCommentsModalOpen}
+        onClose={() => setIsCommentsModalOpen(false)}
+        card={currentCard}
+        nom={nom}
+        orderNum={orderNum}
+        selectedOperator={selectedOperator || currentCard?.operator_name}
+        defaultRole="Цех №2"
+      />
     </div>
   )
 }

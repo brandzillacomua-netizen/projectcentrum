@@ -20,6 +20,7 @@ import {
   extractUniqueReportCards,
   sortRowsByCardSequence
 } from '../../Foreman/utils/naryadReport.js'
+import { CardCommentsBadge, CardCommentsModal } from '../../../components/common/CardCommentsBadge.jsx'
 
 const statusMeta = (s) => {
   const map = {
@@ -67,6 +68,7 @@ export const NariadReportsView = ({
 }) => {
   const [internalCardFilter, setInternalCardFilter] = useState('All')
   const [groupHandovers, setGroupHandovers] = useState(true)
+  const [selectedCardForComments, setSelectedCardForComments] = useState(null)
   const nariadCardFilter = propCardFilter !== undefined ? propCardFilter : internalCardFilter
   const setNariadCardFilter = propSetCardFilter || setInternalCardFilter
 
@@ -536,7 +538,7 @@ export const NariadReportsView = ({
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.7rem' }}>
                     <thead>
                       <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                        {['Деталь / Картка','ID Картки','Час (початок / завершення)','План. час','Факт. час','Етап','Оператор / Зміна','Робоче місце','Готово / Брак'].map(col => (
+                        {['Деталь / Картка','ID Картки','Час (початок / завершення)','План. час','Факт. час','Етап','Оператор / Зміна','Робоче місце','Коментарі','Готово / Брак'].map(col => (
                           <th key={col} style={{ padding: '8px 10px', textAlign: 'left', color: '#444', fontWeight: 900, textTransform: 'uppercase', fontSize: '0.58rem', whiteSpace: 'nowrap' }}>{col}</th>
                         ))}
                       </tr>
@@ -624,12 +626,27 @@ export const NariadReportsView = ({
                               })()}
                             </td>
                             <td style={{ padding: '8px 10px', color: 'var(--text-dim)', fontWeight: 700 }}>{row.machine_name || '—'}</td>
+                            <td style={{ padding: '8px 10px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                              <CardCommentsBadge
+                                card={card || { id: row.card_id, card_info: row.card_info }}
+                                cardInfo={card?.card_info || row.card_info}
+                                onClick={() => setSelectedCardForComments(card || {
+                                  id: row.card_id,
+                                  card_info: row.card_info,
+                                  operator_name: row.operator_name,
+                                  nomenclature_id: row.nomenclature_id || card?.nomenclature_id,
+                                  shift_name: row.shift_name,
+                                  machine: row.machine_name
+                                })}
+                                showEmpty={true}
+                              />
+                            </td>
                             <td style={{ padding: '8px 10px', fontWeight: 900, textAlign: 'right' }}><div style={{ color: '#10b981' }}>{Number(row.qty_completed) || 0} шт</div><div style={{ color: hasScrap ? '#ef4444' : '#333', marginTop: '3px' }}>{Number(row.scrap_qty) || 0} брак</div></td>
                           </tr>
                         )
                       })}
                       {logRows.length === 0 && (
-                        <tr><td colSpan={8} style={{ padding: '30px', textAlign: 'center', color: '#444', fontWeight: 700 }}>Немає записів для відображення</td></tr>
+                        <tr><td colSpan={10} style={{ padding: '30px', textAlign: 'center', color: '#444', fontWeight: 700 }}>Немає записів для відображення</td></tr>
                       )}
                     </tbody>
                   </table>
@@ -640,6 +657,16 @@ export const NariadReportsView = ({
           )
         })()}
       </div>
+
+      {selectedCardForComments && (
+        <CardCommentsModal
+          isOpen={Boolean(selectedCardForComments)}
+          onClose={() => setSelectedCardForComments(null)}
+          currentCard={selectedCardForComments}
+          nom={nomenclatures?.find(n => String(n.id) === String(selectedCardForComments.nomenclature_id))}
+          orderNum={selectedOrder?.order_num || ''}
+        />
+      )}
     </div>
   )
 }

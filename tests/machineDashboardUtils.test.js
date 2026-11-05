@@ -47,4 +47,25 @@ describe('machine dossier view model', () => {
     expect(isCardAssignedToMachine({ machine: 'CNC 12x8 №1.11' }, machine)).toBe(false)
     expect(isCardAssignedToMachine({ machine_id: 'm-11', machine: 'CNC 12x8 №1.10' }, machine)).toBe(false)
   })
+
+  it('parses maintenance log notes and comments correctly', async () => {
+    const { parseMaintenanceLog } = await import('../src/modules/Machines/utils/machineDashboardUtils.js')
+    
+    // Fallback comment / description
+    const parsedWithComment = parseMaintenanceLog({
+      id: 'log-1',
+      maintenance_type: 'Заміна цанги',
+      comment: 'Зношена різьба'
+    })
+    expect(parsedWithComment.notes).toBe('Зношена різьба')
+
+    // Embedded in performed_by
+    const parsedWithNotesTag = parseMaintenanceLog({
+      id: 'log-2',
+      performed_by: 'Волошин [TYPE:Заміна цанги][HEAD:2 Голова][NOTES:Потрібна заміна гайки]'
+    })
+    expect(parsedWithNotesTag.notes).toBe('Потрібна заміна гайки')
+    expect(parsedWithNotesTag.machine_head).toBe('2 Голова')
+    expect(parsedWithNotesTag.performed_by).toBe('Волошин')
+  })
 })

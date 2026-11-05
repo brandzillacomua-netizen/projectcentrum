@@ -1,3 +1,5 @@
+import { parseCardComments } from '../../../services/cardCommentsService.js'
+
 const getXLSX = async () => {
   try {
     const xlsxMod = await import('xlsx')
@@ -42,6 +44,9 @@ export const exportReportToExcel = async ({
     // 2. Cases detail sheet
     const casesRows = (scrapStats?.list || []).map(h => {
       const dateDisplay = h.completed_at || h.created_at ? new Date(h.completed_at || h.created_at).toLocaleDateString('uk-UA') : '—'
+      const comments = parseCardComments(h.card_info || h.cardInfo)
+      const commentsText = comments.map(c => `[${c.author_name || 'Працівник'}]: ${c.text || ''}${c.photos?.length ? ` (📷 ${c.photos.length})` : ''}`).join(' | ')
+
       return {
         'Дата': dateDisplay,
         'Деталь / Номенклатура': h.nom_name || 'Невідома деталь',
@@ -51,7 +56,8 @@ export const exportReportToExcel = async ({
         'Карантин (Кат. 3)': h.cat3 || 0,
         'Утиль (Кат. 4)': h.cat4 || 0,
         'Не класифіковано': h.unclassified || 0,
-        'Всього браку (шт)': Number(h.scrap_qty) || 0
+        'Всього браку (шт)': Number(h.scrap_qty) || 0,
+        'Коментарі картки': commentsText || '—'
       }
     })
 
@@ -138,6 +144,9 @@ export const exportReportToExcel = async ({
     const cardsRows = []
     ;(machineReport?.machineAnalytics || []).forEach(m => {
       ;(m.cards || []).forEach(c => {
+        const comments = parseCardComments(c.card_info)
+        const commentsText = comments.map(cm => `[${cm.author_name || 'Працівник'}]: ${cm.text || ''}${cm.photos?.length ? ` (📷 ${cm.photos.length})` : ''}`).join(' | ')
+
         cardsRows.push({
           'Верстат': m.name,
           'Картка': `#${String(c.card_id || c.id).slice(0, 8)}`,
@@ -149,7 +158,8 @@ export const exportReportToExcel = async ({
           'Причини пауз': (c.pauseReasons || []).map(r => r.reason).join(', ') || '—',
           'Деталей (шт)': c.qty_completed || 0,
           'Брак (шт)': c.scrap_qty || 0,
-          'Листів': c.sheets || 0
+          'Листів': c.sheets || 0,
+          'Коментарі картки': commentsText || '—'
         })
       })
     })
@@ -217,21 +227,27 @@ export const exportReportToExcel = async ({
       })
     })
 
-    const handoversRows = shiftChangesLog.map(h => ({
-      'Дата': h.date ? new Date(h.date).toLocaleString('uk-UA') : '—',
-      'Картка': h.cardCode,
-      'Деталь': h.nomenclatureName,
-      'Верстат': h.machineName,
-      'Листів': h.sheetCount,
-      'Здав зміну': h.operatorName,
-      'Зміна того хто здав': h.shiftName,
-      'Прийняв зміну': h.replacedBy,
-      'Відмітка зупинки ([LAST_OP])': h.rawHandoverText,
-      'Виконано операцій': h.operationsCount,
-      'План відрізку (хв)': h.planMinutes,
-      'Факт відрізку (хв)': h.factMinutes,
-      'Ефективність (%)': `${h.efficiencyPercent}%`
-    }))
+    const handoversRows = shiftChangesLog.map(h => {
+      const comments = parseCardComments(h.cardInfo || h.card_info)
+      const commentsText = comments.map(c => `[${c.author_name || 'Працівник'}]: ${c.text || ''}${c.photos?.length ? ` (📷 ${c.photos.length})` : ''}`).join(' | ')
+
+      return {
+        'Дата': h.date ? new Date(h.date).toLocaleString('uk-UA') : '—',
+        'Картка': h.cardCode,
+        'Деталь': h.nomenclatureName,
+        'Верстат': h.machineName,
+        'Листів': h.sheetCount,
+        'Здав зміну': h.operatorName,
+        'Зміна того хто здав': h.shiftName,
+        'Прийняв зміну': h.replacedBy,
+        'Відмітка зупинки ([LAST_OP])': h.rawHandoverText,
+        'Виконано операцій': h.operationsCount,
+        'План відрізку (хв)': h.planMinutes,
+        'Факт відрізку (хв)': h.factMinutes,
+        'Ефективність (%)': `${h.efficiencyPercent}%`,
+        'Коментарі картки': commentsText || '—'
+      }
+    })
 
     workbookData = {
       'Зведення ефективності': summaryRows,

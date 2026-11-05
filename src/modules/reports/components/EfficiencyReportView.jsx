@@ -19,6 +19,7 @@ import {
   FileSpreadsheet
 } from 'lucide-react'
 import { formatMinutesToHours } from '../../../utils/cuttingTimeUtils.js'
+import { CardCommentsBadge, CardCommentsModal } from '../../../components/common/CardCommentsBadge.jsx'
 
 export function EfficiencyReportView({
   efficiencyReport,
@@ -40,6 +41,7 @@ export function EfficiencyReportView({
   const [expandedOperator, setExpandedOperator] = useState(null)
   const [expandedPart, setExpandedPart] = useState(null)
   const [localSearch, setLocalSearch] = useState('')
+  const [selectedCardForComments, setSelectedCardForComments] = useState(null)
 
   const toggleOperator = (name) => {
     setExpandedOperator(prev => (prev === name ? null : name))
@@ -582,6 +584,7 @@ export function EfficiencyReportView({
                                       <th style={{ padding: '8px 12px', fontWeight: 900, color: 'var(--text-muted)' }}>Виконані операції</th>
                                       <th style={{ padding: '8px 12px', fontWeight: 900, color: 'var(--text-muted)', textAlign: 'right' }}>План</th>
                                       <th style={{ padding: '8px 12px', fontWeight: 900, color: 'var(--text-muted)', textAlign: 'right' }}>Факт</th>
+                                      <th style={{ padding: '8px 12px', fontWeight: 900, color: 'var(--text-muted)', textAlign: 'center' }}>Коментарі</th>
                                       <th style={{ padding: '8px 12px', fontWeight: 900, color: 'var(--text-muted)', textAlign: 'center' }}>KPI</th>
                                     </tr>
                                   </thead>
@@ -627,6 +630,21 @@ export function EfficiencyReportView({
                                         </td>
                                         <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 900, color: 'var(--text-strong)' }}>
                                           {formatMinutesToHours(s.factMinutes)}
+                                        </td>
+                                        <td style={{ padding: '8px 12px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                                          <CardCommentsBadge
+                                            card={s.card || { id: s.cardId, card_info: s.cardInfo }}
+                                            cardInfo={s.cardInfo}
+                                            onClick={() => setSelectedCardForComments(s.card || {
+                                              id: s.cardId,
+                                              card_info: s.cardInfo,
+                                              operator_name: s.operatorName,
+                                              nomenclature_id: s.nomenclatureId,
+                                              shift_name: s.shiftName,
+                                              machine: s.machineName
+                                            })}
+                                            showEmpty={true}
+                                          />
                                         </td>
                                         <td style={{ padding: '8px 12px', textAlign: 'center' }}>
                                           {getKpiBadge(s.efficiencyPercent, s.status)}
@@ -853,6 +871,7 @@ export function EfficiencyReportView({
                     <th style={{ padding: '14px 16px', fontWeight: 900, color: 'var(--text-muted)' }}>Відмітка зупинки ([LAST_OP])</th>
                     <th style={{ padding: '14px 16px', fontWeight: 900, color: 'var(--text-muted)', textAlign: 'right' }}>План відрізку</th>
                     <th style={{ padding: '14px 16px', fontWeight: 900, color: 'var(--text-muted)', textAlign: 'right' }}>Факт відрізку</th>
+                    <th style={{ padding: '14px 16px', fontWeight: 900, color: 'var(--text-muted)', textAlign: 'center' }}>Коментарі</th>
                     <th style={{ padding: '14px 16px', fontWeight: 900, color: 'var(--text-muted)', textAlign: 'center' }}>Ефективність</th>
                   </tr>
                 </thead>
@@ -903,6 +922,21 @@ export function EfficiencyReportView({
                       <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 900, color: 'var(--text-strong)' }}>
                         {formatMinutesToHours(h.factMinutes)}
                       </td>
+                      <td style={{ padding: '12px 16px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                        <CardCommentsBadge
+                          card={h.card || { id: h.cardId, card_info: h.cardInfo }}
+                          cardInfo={h.cardInfo}
+                          onClick={() => setSelectedCardForComments(h.card || {
+                            id: h.cardId,
+                            card_info: h.cardInfo,
+                            operator_name: h.operatorName,
+                            nomenclature_id: h.nomenclatureId,
+                            shift_name: h.shiftName,
+                            machine: h.machineName
+                          })}
+                          showEmpty={true}
+                        />
+                      </td>
                       <td style={{ padding: '12px 16px', textAlign: 'center' }}>
                         {getKpiBadge(h.efficiencyPercent, h.status)}
                       </td>
@@ -913,6 +947,15 @@ export function EfficiencyReportView({
             </div>
           )}
         </div>
+      )}
+      {selectedCardForComments && (
+        <CardCommentsModal
+          isOpen={Boolean(selectedCardForComments)}
+          onClose={() => setSelectedCardForComments(null)}
+          currentCard={selectedCardForComments}
+          nom={{ name: selectedCardForComments.nomenclatureName || selectedCardForComments.name }}
+          orderNum={selectedCardForComments.orderNumber || ''}
+        />
       )}
     </div>
   )

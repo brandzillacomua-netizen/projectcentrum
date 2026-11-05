@@ -18,6 +18,7 @@ import {
   Activity
 } from 'lucide-react'
 import { isShop1CuttingOperation, isShop2HistoryRecord } from '../hooks/useEmployeeReport'
+import { CardCommentsBadge, CardCommentsModal } from '../../../components/common/CardCommentsBadge.jsx'
 
 /**
  * Clean up messy raw metadata tags like "[MACHINE_ID:] [STAGE:...] №1/1 [REQ:6454]"
@@ -693,6 +694,7 @@ export const EmployeeReportView = ({
 function EmployeeDetailModal({ employee, onClose, startDate, endDate }) {
   const [modalSearch, setModalSearch] = useState('')
   const [modalFilter, setModalFilter] = useState('ALL') // 'ALL' | 'SCRAP_ONLY' | 'REWORK' | 'QUARANTINE' | 'UTIL'
+  const [selectedCardForComments, setSelectedCardForComments] = useState(null)
 
   const history = employee.history || []
 
@@ -884,11 +886,32 @@ function EmployeeDetailModal({ employee, onClose, startDate, endDate }) {
                         {item.date ? new Date(item.date).toLocaleString('uk-UA', { dateStyle: 'short', timeStyle: 'short' }) : '—'}
                       </td>
 
-                      {/* Naryad */}
+                      {/* Naryad & Card Comments */}
                       <td className="emp-modal-order-td">
-                        <span className="order-pill" title={item.orderNum}>
-                          {displayOrder}
-                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                          <span className="order-pill" title={item.orderNum}>
+                            {displayOrder}
+                          </span>
+                          {item.cardId && (
+                            <CardCommentsBadge
+                              card={{
+                                id: item.cardId,
+                                card_info: item.card_info,
+                                operator_name: employee.name,
+                                nomenclature_name: item.nomenclatureName,
+                                order_num: displayOrder
+                              }}
+                              cardInfo={item.card_info}
+                              onClick={() => setSelectedCardForComments({
+                                id: item.cardId,
+                                card_info: item.card_info,
+                                operator_name: employee.name,
+                                nomenclature_name: item.nomenclatureName,
+                                order_num: displayOrder
+                              })}
+                            />
+                          )}
+                        </div>
                       </td>
 
                       {/* Nomenclature */}
@@ -985,6 +1008,14 @@ function EmployeeDetailModal({ employee, onClose, startDate, endDate }) {
           </button>
         </div>
       </div>
+
+      <CardCommentsModal
+        isOpen={!!selectedCardForComments}
+        onClose={() => setSelectedCardForComments(null)}
+        card={selectedCardForComments}
+        nom={{ name: selectedCardForComments?.nomenclature_name || 'Деталь' }}
+        orderNum={selectedCardForComments?.order_num || ''}
+      />
     </div>
   )
 }

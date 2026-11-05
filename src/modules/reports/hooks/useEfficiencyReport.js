@@ -319,7 +319,8 @@ export function useEfficiencyReport({
           deltaMinutes: efficiency ? efficiency.deltaMinutes : null,
           deltaHours: efficiency ? efficiency.deltaHours : null,
           status: efficiency ? efficiency.status : 'unrated',
-          cardInfo: h.card_info || ''
+          cardInfo: card?.card_info || h.card_info || '',
+          card: card || { id: cardId, card_info: h.card_info }
         }
 
         processedSessions.push(sessionObj)

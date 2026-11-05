@@ -6,6 +6,7 @@ import { calculateGeneratedSheetTotal, getCardSheets } from '../features/shortag
 import { CardScrapHistoryModal } from '../../Brak/components/modals/CardScrapHistoryModal.jsx'
 import { getCardCuttingPlanSeconds } from '../../../utils/cuttingTimeUtils.js'
 import { parseQcOpsStamps, stripQcOpsStamps } from '../../Shop1/utils/shop1Helpers.js'
+import { CardCommentsBadge, CardCommentsModal } from '../../../components/common/CardCommentsBadge.jsx'
 
 const panelStyle = {
   background: 'var(--surface-1)',
@@ -125,7 +126,7 @@ const isCardCheckedByVkya = (card) => {
   return Boolean(qcOpsData?.sheets?.verified || Object.keys(qcOpsData?.ops || {}).length > 0)
 }
 
-const WorkCardTile = ({ card, unitsPerSheet, onClick, scrapInfo, onOpenScrapHistory }) => {
+const WorkCardTile = ({ card, unitsPerSheet, onClick, scrapInfo, onOpenScrapHistory, onOpenComments }) => {
   const status = getCardStatus(card)
   const isRedo = card?.is_rework || String(card?.card_info || '').includes('[REDO]')
   const cardCode = String(card?.id || '').slice(-8).toUpperCase()
@@ -196,6 +197,10 @@ const WorkCardTile = ({ card, unitsPerSheet, onClick, scrapInfo, onOpenScrapHist
         <span style={{ color: 'var(--text-strong)', background: status.color, borderRadius: '6px', padding: '4px 8px', fontSize: '0.6rem', fontWeight: 950, textTransform: 'uppercase' }}>
           {status.label}
         </span>
+        <CardCommentsBadge
+          card={card}
+          onClick={(c) => onOpenComments && onOpenComments(c)}
+        />
         {hasVkyaStamp && (
           <span
             title={vkyaTooltip}
@@ -356,7 +361,7 @@ const getMachineType = (rawName) => {
   return baseName
 }
 
-const WorkCardsArchive = ({ parts, task, expandedId, onToggle, onOpenReissue, onMachineChange, onPrintCards, isLoading, cardScrapMap = {}, onOpenScrapHistory }) => {
+const WorkCardsArchive = ({ parts, task, expandedId, onToggle, onOpenReissue, onMachineChange, onPrintCards, isLoading, cardScrapMap = {}, onOpenScrapHistory, onOpenComments }) => {
   const [expandedMachines, setExpandedMachines] = useState({})
 
   const toggleMachine = (machineKey) => {
@@ -566,6 +571,7 @@ const WorkCardsArchive = ({ parts, task, expandedId, onToggle, onOpenReissue, on
                                   unitsPerSheet={part.unitsPerSheet}
                                   scrapInfo={cardScrapMap[card.id]}
                                   onOpenScrapHistory={(c) => onOpenScrapHistory && onOpenScrapHistory(c)}
+                                  onOpenComments={(c) => onOpenComments && onOpenComments(c)}
                                   onClick={() => {
                                     if (onPrintCards) {
                                       onPrintCards(part, [{
@@ -614,6 +620,7 @@ export default function TaskDetails({ model, nomenclatures = [], allCards, onOpe
   const [expandedArchivePartId, setExpandedArchivePartId] = useState(null)
   const [isCompletingTask, setIsCompletingTask] = useState(false)
   const [selectedCardForScrapHistory, setSelectedCardForScrapHistory] = useState(null)
+  const [selectedCardForComments, setSelectedCardForComments] = useState(null)
   const [rowCapacities, setRowCapacities] = useState({})
 
   const cardScrapMap = useMemo(() => {
@@ -1005,6 +1012,8 @@ export default function TaskDetails({ model, nomenclatures = [], allCards, onOpe
                                   card={card} 
                                   unitsPerSheet={part.unitsPerSheet}
                                   scrapInfo={cardScrapMap[card.id]}
+                                  onOpenScrapHistory={(c) => setSelectedCardForScrapHistory(c)}
+                                  onOpenComments={(c) => setSelectedCardForComments(c)}
                                   onClick={() => {
                                     if (onPrintCards) {
                                       onPrintCards(part, [{
@@ -1056,6 +1065,7 @@ export default function TaskDetails({ model, nomenclatures = [], allCards, onOpe
         onPrintCards={onPrintCards}
         cardScrapMap={cardScrapMap}
         onOpenScrapHistory={(c) => setSelectedCardForScrapHistory(c)}
+        onOpenComments={(c) => setSelectedCardForComments(c)}
       />
       {adminCardsPanel}
       {selectedCardForScrapHistory && (
@@ -1064,6 +1074,11 @@ export default function TaskDetails({ model, nomenclatures = [], allCards, onOpe
           onClose={() => setSelectedCardForScrapHistory(null)} 
         />
       )}
+      <CardCommentsModal
+        isOpen={!!selectedCardForComments}
+        onClose={() => setSelectedCardForComments(null)}
+        card={selectedCardForComments}
+      />
     </main>
   )
 }

@@ -18,6 +18,16 @@ import {
   uploadCommentPhoto,
   saveCardComment
 } from '../../../../services/cardCommentsService.js'
+import { useStore } from '../../../../store/index.js'
+
+function formatUserNameCandidate(user) {
+  if (!user) return ''
+  const last = String(user.last_name || '').trim()
+  const first = String(user.first_name || '').trim()
+  if (last && first) return `${last} ${first}`
+  if (first || last) return first || last
+  return String(user.name || user.login || user.email?.split('@')[0] || '').trim()
+}
 
 function getInitials(name = '') {
   const parts = String(name || '').trim().split(/\s+/)
@@ -58,15 +68,34 @@ function formatCommentDate(isoStr) {
 export function Shop1CardCommentsModal({
   isOpen,
   onClose,
-  currentCard,
+  currentCard: initialCard,
+  card,
   nom,
   orderNum = '',
   currentUser,
   systemUsers = [],
   selectedOperator = '',
+  defaultRole,
   onCommentSaved,
   setWorkCards
 }) {
+  const storeUser = useStore(state => state.currentUser)
+  const storeUsers = useStore(state => state.systemUsers)
+  const activeUser = currentUser || storeUser || null
+  const effectiveUsers = (systemUsers && systemUsers.length > 0) ? systemUsers : (storeUsers || [])
+
+  const currentCard = initialCard || card || null
+
+  const isShop2Card = Boolean(
+    currentCard?.operation?.toLowerCase().includes('прес') ||
+    currentCard?.operation?.toLowerCase().includes('порізка') ||
+    currentCard?.operation?.toLowerCase().includes('фрезер') ||
+    currentCard?.operation?.toLowerCase().includes('шліф') ||
+    String(currentCard?.card_info || '').includes('[ЦЕХ №2]') ||
+    String(currentCard?.card_info || '').includes('[ЦЕХ 2]')
+  )
+  const resolvedDefaultRole = defaultRole || (isShop2Card ? 'Цех №2' : 'Цех №1')
+
   const [commentText, setCommentText] = useState('')
   const [selectedPhotos, setSelectedPhotos] = useState([])
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -78,6 +107,7 @@ export function Shop1CardCommentsModal({
   const [isChangingAuthor, setIsChangingAuthor] = useState(false)
   const [authorName, setAuthorName] = useState('')
   const [authorRole, setAuthorRole] = useState('')
+  const [authorId, setAuthorId] = useState(null)
 
   const fileInputRef = useRef(null)
   const listEndRef = useRef(null)
@@ -87,16 +117,19 @@ export function Shop1CardCommentsModal({
     return parseCardComments(currentCard?.card_info)
   }, [currentCard?.card_info])
 
-  // Resolve initial default author
+  // Resolve initial default author (автор, який зараз пише)
   useEffect(() => {
     if (!isOpen) return
 
     let defName = ''
-    let defRole = 'Цех №1'
+    let defRole = resolvedDefaultRole
+    let defId = null
 
-    if (currentUser?.first_name || currentUser?.last_name) {
-      defName = [currentUser.first_name, currentUser.last_name].filter(Boolean).join(' ').trim()
-      defRole = currentUser.position || currentUser.role || 'Користувач'
+    // 1. ПЕРШИЙ І ГОЛОВНИЙ ПРІОРИТЕТ: залогінений користувач системи, який зараз пише
+    if (activeUser) {
+      defId = activeUser.id || null
+      defName = formatUserNameCandidate(activeUser)
+      defRole = activeUser.position || activeUser.role || resolvedDefaultRole
     } else if (selectedOperator) {
       defName = selectedOperator
       defRole = 'Оператор'
@@ -105,9 +138,10 @@ export function Shop1CardCommentsModal({
       defRole = 'Оператор'
     } else {
       defName = 'Працівник'
-      defRole = 'Цех №1'
+      defRole = resolvedDefaultRole
     }
 
+    setAuthorId(defId)
     setAuthorName(defName)
     setAuthorRole(defRole)
     setIsChangingAuthor(false)
@@ -115,7 +149,7 @@ export function Shop1CardCommentsModal({
     setSelectedPhotos([])
     setErrorMsg('')
     setSuccessMsg('')
-  }, [isOpen, currentUser, selectedOperator, currentCard?.operator_name])
+  }, [isOpen, activeUser, selectedOperator, currentCard?.operator_name, resolvedDefaultRole])
 
   // Scroll to bottom when new comment is added or opened
   useEffect(() => {
@@ -129,7 +163,7 @@ export function Shop1CardCommentsModal({
   if (!isOpen || !currentCard) return null
 
   const shortHex = String(currentCard.id || '').slice(-8).toUpperCase()
-  const partName = nom?.name || currentCard.nomenclature_name || 'Деталь'
+  const partName = nom?.name || currentCard.nomenclature_name || currentCard.name || (currentCard.card_info?.split('] ').pop()) || 'Деталь'
 
   // Photo pick handler
   const handlePhotoSelect = (e) => {
@@ -188,11 +222,11 @@ export function Shop1CardCommentsModal({
       const { updatedCardInfo, newComment, updatedComments } = await saveCardComment({
         card: currentCard,
         authorName: cleanAuthor,
-        authorRole: authorRole.trim() || 'Цех №1',
-        authorId: currentUser?.id || null,
+        authorRole: authorRole.trim() || resolvedDefaultRole,
+        authorId: authorId || activeUser?.id || null,
         text: cleanText,
         photos: uploadedPhotosList,
-        stage: currentCard.operation || 'Розкрій',
+        stage: currentCard.operation || (isShop2Card ? 'Цех №2' : 'Розкрій'),
         machine: currentCard.machine || null
       })
 
@@ -619,65 +653,133 @@ export function Shop1CardCommentsModal({
           {isChangingAuthor && (
             <div
               style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
+                display: 'flex',
+                flexDirection: 'column',
                 gap: '8px',
-                padding: '8px 10px',
+                padding: '10px 12px',
                 background: 'var(--surface-inset, #0d0f12)',
-                borderRadius: '10px',
+                borderRadius: '12px',
                 border: '1px solid rgba(59, 130, 246, 0.3)'
               }}
             >
-              <div>
-                <label style={{ display: 'block', fontSize: '0.62rem', fontWeight: 800, color: '#94a3b8', marginBottom: '3px' }}>
-                  Ім'я / Прізвище
-                </label>
-                <input
-                  type="text"
-                  value={authorName}
-                  onChange={e => setAuthorName(e.target.value)}
-                  placeholder="Введіть ваше ім'я..."
-                  style={{
-                    width: '100%',
-                    background: 'var(--surface-1, #121418)',
-                    border: '1px solid var(--border-color, rgba(255,255,255,0.1))',
-                    borderRadius: '8px',
-                    padding: '6px 8px',
-                    fontSize: '0.75rem',
-                    color: '#fff',
-                    outline: 'none',
-                    boxSizing: 'border-box'
-                  }}
-                />
+              {effectiveUsers.length > 0 && (
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.62rem', fontWeight: 800, color: '#94a3b8', marginBottom: '3px' }}>
+                    Обрати зі списку співробітників:
+                  </label>
+                  <select
+                    onChange={e => {
+                      const uid = e.target.value
+                      if (!uid) return
+                      const found = effectiveUsers.find(u => String(u.id) === String(uid))
+                      if (found) {
+                        setAuthorId(found.id)
+                        setAuthorName(formatUserNameCandidate(found))
+                        setAuthorRole(found.position || found.role || resolvedDefaultRole)
+                      }
+                    }}
+                    defaultValue=""
+                    style={{
+                      width: '100%',
+                      background: 'var(--surface-1, #121418)',
+                      border: '1px solid var(--border-color, rgba(255,255,255,0.1))',
+                      borderRadius: '8px',
+                      padding: '6px 8px',
+                      fontSize: '0.75rem',
+                      color: '#fff',
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
+                  >
+                    <option value="" disabled>-- Оберіть користувача --</option>
+                    {effectiveUsers.map(u => (
+                      <option key={u.id} value={u.id}>
+                        {formatUserNameCandidate(u)} {u.position ? `(${u.position})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.62rem', fontWeight: 800, color: '#94a3b8', marginBottom: '3px' }}>
+                    Ім'я / Прізвище
+                  </label>
+                  <input
+                    type="text"
+                    value={authorName}
+                    onChange={e => setAuthorName(e.target.value)}
+                    placeholder="Введіть ім'я..."
+                    style={{
+                      width: '100%',
+                      background: 'var(--surface-1, #121418)',
+                      border: '1px solid var(--border-color, rgba(255,255,255,0.1))',
+                      borderRadius: '8px',
+                      padding: '6px 8px',
+                      fontSize: '0.75rem',
+                      color: '#fff',
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.62rem', fontWeight: 800, color: '#94a3b8', marginBottom: '3px' }}>
+                    Посада / Відділ
+                  </label>
+                  <select
+                    value={authorRole}
+                    onChange={e => setAuthorRole(e.target.value)}
+                    style={{
+                      width: '100%',
+                      background: 'var(--surface-1, #121418)',
+                      border: '1px solid var(--border-color, rgba(255,255,255,0.1))',
+                      borderRadius: '8px',
+                      padding: '6px 8px',
+                      fontSize: '0.75rem',
+                      color: '#fff',
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
+                  >
+                    <option value="Оператор">Оператор ЧПК</option>
+                    <option value="Цех №2">Цех №2</option>
+                    <option value="Пресування">Пресування</option>
+                    <option value="Порізка">Порізка</option>
+                    <option value="ВКЯ">Фахівець ВКЯ</option>
+                    <option value="Майстер">Майстер зміни</option>
+                    <option value="Інженер">Інженер-технолог</option>
+                    <option value="Галтовка">Галтовка / Мийка</option>
+                    <option value="Сортування">Сортування</option>
+                    <option value="Керівник">Керівник / Адмін</option>
+                    <option value="Цех №1">Цех №1</option>
+                  </select>
+                </div>
               </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.62rem', fontWeight: 800, color: '#94a3b8', marginBottom: '3px' }}>
-                  Посада / Відділ
-                </label>
-                <select
-                  value={authorRole}
-                  onChange={e => setAuthorRole(e.target.value)}
-                  style={{
-                    width: '100%',
-                    background: 'var(--surface-1, #121418)',
-                    border: '1px solid var(--border-color, rgba(255,255,255,0.1))',
-                    borderRadius: '8px',
-                    padding: '6px 8px',
-                    fontSize: '0.75rem',
-                    color: '#fff',
-                    outline: 'none',
-                    boxSizing: 'border-box'
-                  }}
-                >
-                  <option value="Оператор">Оператор ЧПК</option>
-                  <option value="ВКЯ">Фахівець ВКЯ</option>
-                  <option value="Майстер">Майстер зміни</option>
-                  <option value="Інженер">Інженер-технолог</option>
-                  <option value="Галтовка">Галтовка / Мийка</option>
-                  <option value="Сортування">Сортування</option>
-                  <option value="Керівник">Керівник</option>
-                </select>
-              </div>
+
+              {activeUser && (
+                <div style={{ textAlign: 'right' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthorId(activeUser.id)
+                      setAuthorName(formatUserNameCandidate(activeUser))
+                      setAuthorRole(activeUser.position || activeUser.role || resolvedDefaultRole)
+                    }}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#10b981',
+                      fontSize: '0.68rem',
+                      fontWeight: 800,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    ↩ Повернути мій профіль ({formatUserNameCandidate(activeUser)})
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
