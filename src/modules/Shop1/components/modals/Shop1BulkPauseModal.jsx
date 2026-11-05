@@ -239,10 +239,23 @@ export function Shop1BulkPauseModal({
   const targetWorkingCount = targetMachines.filter(m => m.isWorking).length
   const targetPausedCount = targetMachines.filter(m => m.isPaused).length
 
+  // List of machines currently on pause
+  const pausedMachines = useMemo(() => {
+    return machineList.filter(m => m.isPaused && m.activeCard)
+  }, [machineList])
+
   // Quick select helpers for custom mode (select active machines)
   const handleSelectAllActive = () => {
     const next = {}
     filteredMachines.forEach(m => {
+      next[m.key] = true
+    })
+    setSelectedMachineKeys(next)
+  }
+
+  const handleSelectAllPaused = () => {
+    const next = {}
+    pausedMachines.forEach(m => {
       next[m.key] = true
     })
     setSelectedMachineKeys(next)
@@ -263,6 +276,62 @@ export function Shop1BulkPauseModal({
       ...prev,
       [key]: !prev[key]
     }))
+  }
+
+  // Restore single paused machine directly
+  const handleResumeSingleMachine = async (machineItem) => {
+    if (!machineItem?.activeCard || isSubmitting) return
+    setIsSubmitting(true)
+    setFeedbackMsg(null)
+
+    try {
+      const now = new Date().toISOString()
+      const card = machineItem.activeCard
+      const pausedAtStr = card.card_info?.match(/\[PAUSED_AT:([^\]]+)\]/)?.[1]
+      const reasonText = card.card_info?.match(/\[PAUSED:([^\]]+)\]/)?.[1] || 'Без причини'
+      const pausedAt = pausedAtStr ? new Date(pausedAtStr).toISOString() : now
+
+      await supabase.from('work_card_history').insert([{
+        card_id: card.id,
+        nomenclature_id: card.nomenclature_id,
+        stage_name: `${card.operation || 'Розкрій'} (зупинка)`,
+        operator_name: card.operator_name || currentUser?.name || 'Не вказано',
+        qty_at_start: card.quantity || 0,
+        qty_completed: 0,
+        scrap_qty: 0,
+        started_at: pausedAt,
+        completed_at: now,
+        shift_name: card.shift_name || 'Без зміни',
+        manager_name: card.manager_name || 'Не вказано',
+        machine_name: card.machine || machineItem.name,
+        card_info: `Причина зупинки: ${reasonText}`
+      }])
+
+      const cleanInfo = (card.card_info || '')
+        .replace(/\[PAUSED:[^\]]+\]/g, '')
+        .replace(/\[PAUSED_AT:[^\]]+\]/g, '')
+        .trim()
+
+      await supabase.from('work_cards').update({
+        status: 'in-progress',
+        started_at: now,
+        card_info: cleanInfo
+      }).eq('id', card.id)
+
+      if (typeof fetchData === 'function') {
+        await fetchData(['work_cards', 'work_card_history'])
+      }
+
+      setFeedbackMsg({
+        type: 'success',
+        text: `▶️ Відновлено роботу: ${machineItem.sequenceNumber ? '№' + machineItem.sequenceNumber + ' ' : ''}${machineItem.name}`
+      })
+    } catch (err) {
+      console.error('Single resume error:', err)
+      setFeedbackMsg({ type: 'error', text: 'Помилка відновлення: ' + err.message })
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   // --- ACTIONS ---
@@ -780,6 +849,119 @@ export function Shop1BulkPauseModal({
         {/* Modal Body */}
         <div className="shop1-pause-modal-body">
 
+          {/* Блок верстатів, які зараз на паузі */}
+          {pausedMachines.length > 0 && (
+            <div style={{
+              background: isLight ? '#fff5f5' : 'rgba(218, 54, 51, 0.08)',
+              border: isLight ? '1.5px solid #fecaca' : '1.5px solid rgba(218, 54, 51, 0.4)',
+              borderRadius: '16px',
+              padding: '12px 16px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '10px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', fontWeight: 950, color: isLight ? '#b91c1c' : '#f85149', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                  <PauseCircle size={17} />
+                  <span>ВЕРСТАТИ ЗАРАЗ НА ПАУЗІ ({pausedMachines.length}):</span>
+                </div>
+                <span style={{ fontSize: '0.72rem', color: isLight ? '#991b1b' : '#ff7b72', fontWeight: 700 }}>
+                  Ви можете відновити кожен верстат окремо або всі разом кнопкою внизу
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {pausedMachines.map(pm => {
+                  const pReason = pm.activeCard?.card_info?.match(/\[PAUSED:([^\]]+)\]/)?.[1] || 'Без причини'
+                  const pAt = pm.activeCard?.card_info?.match(/\[PAUSED_AT:([^\]]+)\]/)?.[1]
+                  const pTimeFormatted = pAt ? new Date(pAt).toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' }) : null
+                  const cardSeq = (pm.activeCard?.card_info || '').match(/(\d+\/\d+)/)?.[1]
+
+                  return (
+                    <div
+                      key={pm.key}
+                      style={{
+                        background: isLight ? '#ffffff' : '#161b22',
+                        border: isLight ? '1px solid #fca5a5' : '1px solid rgba(218, 54, 51, 0.35)',
+                        borderRadius: '12px',
+                        padding: '10px 14px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '12px',
+                        flexWrap: 'wrap'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: '220px', flex: 1 }}>
+                        {pm.sequenceNumber && (
+                          <span style={{
+                            background: isLight ? '#fef3c7' : '#eab30825',
+                            color: isLight ? '#b45309' : '#eab308',
+                            border: isLight ? '1px solid #fde68a' : '1px solid #eab30850',
+                            padding: '3px 8px',
+                            borderRadius: '8px',
+                            fontSize: '0.85rem',
+                            fontWeight: 950,
+                            whiteSpace: 'nowrap'
+                          }}>
+                            №{pm.sequenceNumber}
+                          </span>
+                        )}
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                            <strong style={{ fontSize: '0.9rem', color: isLight ? '#0f172a' : '#f0f6fc' }}>
+                              {pm.name}
+                            </strong>
+                            <span style={{
+                              fontSize: '0.72rem',
+                              fontWeight: 900,
+                              background: isLight ? '#fee2e2' : 'rgba(239, 68, 68, 0.2)',
+                              color: '#ef4444',
+                              border: isLight ? '1px solid #fecaca' : '1px solid rgba(239, 68, 68, 0.4)',
+                              padding: '2px 8px',
+                              borderRadius: '6px'
+                            }}>
+                              🚨 {pReason} {pTimeFormatted ? `(з ${pTimeFormatted})` : ''}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: '0.72rem', color: isLight ? '#64748b' : '#8b949e', marginTop: '3px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                            {cardSeq && <span style={{ color: '#eab308', fontWeight: 800 }}>Картка {cardSeq}</span>}
+                            <span>Деталь: <strong style={{ color: isLight ? '#334155' : '#c9d1d9' }}>{pm.nomenclature?.name || '—'}</strong></span>
+                            <span>Оператор: <strong style={{ color: isLight ? '#334155' : '#c9d1d9' }}>{pm.activeCard?.operator_name || '—'}</strong></span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleResumeSingleMachine(pm)}
+                        disabled={isSubmitting}
+                        style={{
+                          background: isLight ? '#16a34a' : '#238636',
+                          border: 'none',
+                          color: '#ffffff',
+                          padding: '8px 14px',
+                          borderRadius: '8px',
+                          fontSize: '0.78rem',
+                          fontWeight: 900,
+                          cursor: isSubmitting ? 'not-allowed' : 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          boxShadow: isLight ? '0 2px 6px rgba(22, 163, 74, 0.25)' : '0 2px 6px rgba(35, 134, 54, 0.35)',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        <PlayCircle size={15} />
+                        <span>Відновити верстат</span>
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Mode Switcher Tabs */}
           <div>
             <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 900, color: isLight ? '#475569' : '#8b949e', textTransform: 'uppercase', marginBottom: '8px' }}>
@@ -937,6 +1119,24 @@ export function Shop1BulkPauseModal({
                   >
                     ✓ Обрати всі ({filteredMachines.length})
                   </button>
+                  {stats.paused > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleSelectAllPaused}
+                      style={{
+                        background: isLight ? '#fef2f2' : 'rgba(218, 54, 51, 0.15)',
+                        border: isLight ? '1px solid #fecaca' : '1px solid #da3633',
+                        color: isLight ? '#dc2626' : '#f85149',
+                        padding: '5px 12px',
+                        borderRadius: '8px',
+                        fontSize: '0.75rem',
+                        fontWeight: 800,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      ⏸ Тільки на паузі ({stats.paused})
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={handleClearSelection}

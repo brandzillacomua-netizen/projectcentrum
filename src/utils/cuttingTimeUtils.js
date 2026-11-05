@@ -114,46 +114,8 @@ export const getCuttingEstimatedSeconds = (nomenclature, sheetsCount, quantity =
     }
   }
 
-  // 2. Legacy fallback to nomenclature.rule_params.loadTimings
-  const loadTimings = nomenclature?.rule_params?.loadTimings
-  if (loadTimings && typeof loadTimings === 'object') {
-    // 2a. Direct match (e.g., '1', '2', '3', '4', '8', '12', '16')
-    const direct = loadTimings[String(sheets)] ?? loadTimings[Number(sheets)]
-    if (direct !== undefined && direct !== null && direct !== '') {
-      const num = Number(direct)
-      if (!isNaN(num) && num > 0) {
-        return Math.round(num * 60)
-      }
-    }
-
-    // 2b. Proportional from 1 sheet if available
-    const oneSheet = loadTimings['1'] ?? loadTimings[1]
-    if (oneSheet !== undefined && oneSheet !== null && oneSheet !== '') {
-      const num1 = Number(oneSheet)
-      if (!isNaN(num1) && num1 > 0) {
-        return Math.round(num1 * sheets * 60)
-      }
-    }
-
-    // 2c. Proportional from closest defined sheet timing
-    const valid = Object.entries(loadTimings)
-      .map(([k, v]) => ({ sheets: Number(k), minutes: Number(v) }))
-      .filter(entry => entry.sheets > 0 && !isNaN(entry.minutes) && entry.minutes > 0)
-
-    if (valid.length > 0) {
-      valid.sort((a, b) => Math.abs(a.sheets - sheets) - Math.abs(b.sheets - sheets))
-      const closest = valid[0]
-      const ratePerSheet = closest.minutes / closest.sheets
-      return Math.round(sheets * ratePerSheet * 60)
-    }
-  }
-
-  // 3. Fallback to time_per_unit if specified
-  const unitTime = Number(nomenclature?.time_per_unit)
-  if (!isNaN(unitTime) && unitTime > 0 && quantity > 0) {
-    return Math.round(unitTime * quantity * 60)
-  }
-
+  // Тільки новий метод: всі старі методи (loadTimings, time_per_unit) повністю відключено.
+  // Якщо операції за новим методом ще не заповнено — плановий час дорівнює 0.
   return 0
 }
 
@@ -217,13 +179,8 @@ export const getCardCuttingPlanSeconds = (card, nomenclature, isCuttingStage = f
 
   const sheets = getCardSheetsCount(card, nomenclature)
   const machineType = resolveMachineTypeFromCard(card, machines)
-  const estSec = getCuttingEstimatedSeconds(nomenclature, sheets, Number(card.quantity) || 0, machineType)
-
-  if (estSec > 0) {
-    return estSec
-  }
-
-  return Math.round(Number(card.estimated_time || card.estimated_seconds) || 0)
+  // Тільки новий поопераційний метод: жодних фолбеків на старий estimated_time
+  return getCuttingEstimatedSeconds(nomenclature, sheets, Number(card.quantity) || 0, machineType)
 }
 
 export const formatCuttingTime = (seconds) => {

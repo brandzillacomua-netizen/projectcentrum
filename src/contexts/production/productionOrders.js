@@ -172,8 +172,24 @@ export function createProductionOrdersActions({
     if (delErr) throw delErr
   }
 
+  // Safeguard: an order whose cards were already started/finished on the shop floor
+  // must never be hard-deleted from the UI (physical work has already been done).
+  const assertOrderHasNoStartedWork = async (orderId) => {
+    const { data: startedCards, error } = await supabase
+      .from('work_cards')
+      .select('id, status')
+      .eq('order_id', orderId)
+      .not('status', 'in', '(new,pending)')
+      .limit(1)
+    if (error) throw new Error('Не вдалося перевірити стан карток замовлення: ' + error.message)
+    if (startedCards && startedCards.length > 0) {
+      throw new Error('Видалення заблоковано: по замовленню вже є картки в роботі або виконані. Закрийте замовлення (статус «завершено») замість видалення.')
+    }
+  }
+
   const deleteOrder = async (orderId) => {
     try {
+      await assertOrderHasNoStartedWork(orderId)
       const idempotencyKey = `void_order_${orderId}_${Date.now()}`
       const { error: rpcErr } = await supabase.rpc('rpc_void_order_atomic', { 
         p_order_id: orderId,
@@ -201,6 +217,7 @@ export function createProductionOrdersActions({
 
   const superDeleteOrder = async (orderId) => {
     try {
+      await assertOrderHasNoStartedWork(orderId)
       const idempotencyKey = `void_super_order_${orderId}_${Date.now()}`
       const { error: rpcErr } = await supabase.rpc('rpc_void_order_atomic', { 
         p_order_id: orderId,

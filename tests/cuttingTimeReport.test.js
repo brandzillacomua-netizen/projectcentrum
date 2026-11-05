@@ -57,7 +57,7 @@ describe('cutting time report', () => {
     expect(getHistoryRowDurationSeconds(work)).toBe(4530)
   })
 
-  it('calculates total cutting plan seconds across task cards using loadTimings', () => {
+  it('calculates total cutting plan seconds across task cards using operation_timings', () => {
     const taskCards = [
       { id: 'c1', nomenclature_id: 'n1', operation: 'Розкрій', quantity: 184, card_info: '№1 [SHEETS:4]' },
       { id: 'c2', nomenclature_id: 'n1', operation: 'Розкрій', quantity: 92, card_info: '№2 [SHEETS:2]' },
@@ -67,7 +67,11 @@ describe('cutting time report', () => {
       id: 'n1',
       units_per_sheet: 46,
       rule_params: {
-        loadTimings: { '2': '45', '4': '60' }
+        operation_timings: {
+          'default': {
+            'op1': { '2': 45, '4': 60 }
+          }
+        }
       }
     }]
 

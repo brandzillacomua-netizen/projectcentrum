@@ -90,5 +90,31 @@ describe('Shop 1 Bulk Machine Pause Configuration & Logic', () => {
     expect(filteredForCustom.some(m => m.id === 'm-3')).toBe(false)
     expect(filteredForCustom.some(m => m.id === 'm-4')).toBe(false)
   })
+
+  it('identifies and extracts details for machines currently on pause', () => {
+    const mockMachine = {
+      id: 'm-2',
+      name: 'CNC KE XIN №Ф10',
+      sequenceNumber: 'Ф10',
+      isPaused: true,
+      activeCard: {
+        id: 'c-1',
+        operator_name: 'Зварич В.',
+        card_info: '[PAUSED:Повітряна тривога][PAUSED_AT:2026-11-05T05:35:00.000Z] (169/177)'
+      },
+      nomenclature: { name: 'Київ К-ІП10-11-П-7-44' }
+    }
+
+    const pReason = mockMachine.activeCard.card_info.match(/\[PAUSED:([^\]]+)\]/)?.[1]
+    const pAt = mockMachine.activeCard.card_info.match(/\[PAUSED_AT:([^\]]+)\]/)?.[1]
+    const cardSeq = mockMachine.activeCard.card_info.match(/(\d+\/\d+)/)?.[1]
+
+    expect(mockMachine.sequenceNumber).toBe('Ф10')
+    expect(pReason).toBe('Повітряна тривога')
+    expect(pAt).toBe('2026-11-05T05:35:00.000Z')
+    expect(cardSeq).toBe('169/177')
+    expect(mockMachine.activeCard.operator_name).toBe('Зварич В.')
+    expect(mockMachine.nomenclature.name).toBe('Київ К-ІП10-11-П-7-44')
+  })
 })
 

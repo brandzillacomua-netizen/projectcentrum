@@ -7,7 +7,7 @@ import {
 } from '../src/utils/cuttingTimeUtils.js'
 
 describe('cuttingTimeUtils', () => {
-  const sampleNom = {
+  const legacyNom = {
     id: 'nom-1',
     name: 'Київ К-ІП9-10-П-7-46',
     units_per_sheet: 46,
@@ -23,30 +23,18 @@ describe('cuttingTimeUtils', () => {
     }
   }
 
-  describe('getCuttingEstimatedSeconds', () => {
-    it('returns exact seconds for direct sheet matches (1, 2, 4, 8, 12, 16)', () => {
-      expect(getCuttingEstimatedSeconds(sampleNom, 1)).toBe(30 * 60)
-      expect(getCuttingEstimatedSeconds(sampleNom, 2)).toBe(45 * 60)
-      expect(getCuttingEstimatedSeconds(sampleNom, 4)).toBe(60 * 60)
-      expect(getCuttingEstimatedSeconds(sampleNom, 8)).toBe(100 * 60)
-      expect(getCuttingEstimatedSeconds(sampleNom, 12)).toBe(150 * 60)
-      expect(getCuttingEstimatedSeconds(sampleNom, 16)).toBe(200 * 60)
+  describe('getCuttingEstimatedSeconds (strict new method only)', () => {
+    it('returns 0 for legacy loadTimings (legacy methods disabled)', () => {
+      expect(getCuttingEstimatedSeconds(legacyNom, 1)).toBe(0)
+      expect(getCuttingEstimatedSeconds(legacyNom, 2)).toBe(0)
+      expect(getCuttingEstimatedSeconds(legacyNom, 4)).toBe(0)
     })
 
-    it('handles string sheet counts', () => {
-      expect(getCuttingEstimatedSeconds(sampleNom, '4')).toBe(3600)
-    })
-
-    it('estimates proportionally when sheet count is not an exact key', () => {
-      // 1 sheet is 30m, 3 sheets should use 1-sheet rate -> 3 * 30 = 90 min
-      expect(getCuttingEstimatedSeconds(sampleNom, 3)).toBe(3 * 30 * 60)
-    })
-
-    it('falls back to time_per_unit when loadTimings is missing or empty', () => {
+    it('returns 0 for legacy time_per_unit', () => {
       const nomWithUnitTime = {
         time_per_unit: 0.5 // 0.5 min per piece
       }
-      expect(getCuttingEstimatedSeconds(nomWithUnitTime, 4, 100)).toBe(Math.round(0.5 * 100 * 60))
+      expect(getCuttingEstimatedSeconds(nomWithUnitTime, 4, 100)).toBe(0)
     })
 
     it('returns 0 when no timings are defined', () => {
@@ -56,30 +44,30 @@ describe('cuttingTimeUtils', () => {
 
   describe('getCardSheetsCount', () => {
     it('reads sheetsPerLoading if present', () => {
-      expect(getCardSheetsCount({ sheetsPerLoading: 4 }, sampleNom)).toBe(4)
+      expect(getCardSheetsCount({ sheetsPerLoading: 4 }, legacyNom)).toBe(4)
     })
 
     it('reads [SHEETS:X] from card_info', () => {
-      expect(getCardSheetsCount({ card_info: '№1 [SHEETS:4] [BZ:0]' }, sampleNom)).toBe(4)
+      expect(getCardSheetsCount({ card_info: '№1 [SHEETS:4] [BZ:0]' }, legacyNom)).toBe(4)
     })
 
     it('derives from [REQ:X] + [BZ:Y] and units_per_sheet', () => {
-      expect(getCardSheetsCount({ card_info: '№1 [REQ:92] [BZ:0]' }, sampleNom)).toBe(2)
+      expect(getCardSheetsCount({ card_info: '№1 [REQ:92] [BZ:0]' }, legacyNom)).toBe(2)
     })
 
     it('derives from quantity and units_per_sheet', () => {
-      expect(getCardSheetsCount({ quantity: 184 }, sampleNom)).toBe(4)
+      expect(getCardSheetsCount({ quantity: 184 }, legacyNom)).toBe(4)
     })
   })
 
   describe('getCardCuttingPlanSeconds', () => {
-    it('returns plan time for cutting card based on nomenclature loadTimings', () => {
+    it('returns 0 for cutting card if nomenclature only has legacy loadTimings', () => {
       const card = {
         operation: 'Розкрій',
         quantity: 184,
         card_info: '№1 [SHEETS:4]'
       }
-      expect(getCardCuttingPlanSeconds(card, sampleNom)).toBe(3600)
+      expect(getCardCuttingPlanSeconds(card, legacyNom)).toBe(0)
     })
 
     it('returns existing estimated_time for non-cutting cards', () => {
@@ -87,24 +75,24 @@ describe('cuttingTimeUtils', () => {
         operation: 'Галтовка',
         estimated_time: 1200
       }
-      expect(getCardCuttingPlanSeconds(card, sampleNom)).toBe(1200)
+      expect(getCardCuttingPlanSeconds(card, legacyNom)).toBe(1200)
     })
 
-    it('resolves cutting plan for cards moved to sorting when isCuttingStage is true', () => {
+    it('returns 0 for cutting stage card if no new operation_timings defined', () => {
       const card = {
         operation: 'Сортування',
         card_info: '№5/51 [SHEETS:4]',
-        estimated_time: 0
+        estimated_time: 2400
       }
-      expect(getCardCuttingPlanSeconds(card, sampleNom, true)).toBe(3600)
+      expect(getCardCuttingPlanSeconds(card, legacyNom, true)).toBe(0)
     })
 
-    it('falls back to card.estimated_time if nomenclature has no loadTimings', () => {
+    it('does NOT fall back to legacy card.estimated_time for cutting cards', () => {
       const card = {
         operation: 'Розкрій',
         estimated_time: 2400
       }
-      expect(getCardCuttingPlanSeconds(card, null)).toBe(2400)
+      expect(getCardCuttingPlanSeconds(card, null)).toBe(0)
     })
   })
 
