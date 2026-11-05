@@ -51,39 +51,41 @@ export const DirectorHeader = ({
               className={`gcal-toggle-btn ${viewMode === 'calendar' ? 'active' : ''}`}
               onClick={() => setViewMode('calendar')}
             >
-              <Calendar size={16} /> <span>КАЛЕНДАР</span>
+              <Calendar size={15} /> <span>КАЛЕНДАР</span>
             </button>
             <button
               className={`gcal-toggle-btn ${viewMode === 'matrix' ? 'active' : ''}`}
               onClick={() => setViewMode('matrix')}
             >
-              <Layers size={16} /> <span>МАТРИЦЯ</span>
+              <Layers size={15} /> <span>МАТРИЦЯ</span>
             </button>
             <button
               className={`gcal-toggle-btn ${viewMode === 'calculator' ? 'active' : ''}`}
               onClick={() => setViewMode('calculator')}
               title="Калькулятор готових виробів та розрахунок матеріалів"
             >
-              <Calculator size={16} /> <span>КАЛЬКУЛЯТОР</span>
+              <Calculator size={15} /> <span>КАЛЬКУЛЯТОР</span>
             </button>
             <button
               className={`gcal-toggle-btn ${viewMode === 'team' ? 'active' : ''}`}
               onClick={() => setViewMode('team')}
               title="CENTRUM AI — інтелектуальний аналіз команди, виробництва та показників"
             >
-              <Sparkles size={16} className="text-amber-400" /> <span>CENTRUM AI</span>
+              <Sparkles size={15} className="text-amber-400" /> <span>CENTRUM AI</span>
             </button>
           </div>
 
-          <button onClick={() => setViewDate(new Date())} className="btn-jump-today">
-            <Calendar size={16} />
-            <span>СЬОГОДНІ</span>
-          </button>
-          <div className="analysis-summary-mini">
-            <span className="meta-label">ЗАГАЛЬНИЙ ПЛАН:</span>
-            <span className="meta-val text-orange">
-              {totalPlannedSets} ШТ
-            </span>
+          <div className="header-meta-subrow">
+            <button onClick={() => setViewDate(new Date())} className="btn-jump-today">
+              <Calendar size={14} />
+              <span>СЬОГОДНІ</span>
+            </button>
+            <div className="analysis-summary-mini">
+              <span className="meta-label">ПЛАН:</span>
+              <span className="meta-val text-orange">
+                {(totalPlannedSets || 0).toLocaleString()} ШТ
+              </span>
+            </div>
           </div>
         </div>
       </div>

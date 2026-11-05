@@ -1188,96 +1188,810 @@
           color: #475569 !important;
         }
 
+        /* ── PHONE CALENDAR VIEW: COMPACT MONTH GRID + DAY DETAILS ── */
+        .phone-calendar-view {
+          display: none;
+          flex-direction: column;
+          gap: 16px;
+          width: 100%;
+        }
+        .phone-cal-widget {
+          background: #0d0d0d;
+          border: 1px solid #1f1f23;
+          border-radius: 16px;
+          padding: 12px 10px;
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+        .phone-cal-weekdays {
+          display: grid;
+          grid-template-columns: repeat(7, 1fr);
+          text-align: center;
+          font-size: 0.72rem;
+          font-weight: 900;
+          color: #71717a;
+          padding-bottom: 4px;
+        }
+        .phone-cal-weekday.weekend {
+          color: #f59e0b;
+        }
+        .phone-cal-grid {
+          display: grid;
+          grid-template-columns: repeat(7, 1fr);
+          gap: 3px;
+        }
+        .phone-cal-cell {
+          position: relative;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: flex-start;
+          padding: 6px 2px;
+          min-height: 48px;
+          background: transparent;
+          border: 1px solid transparent;
+          border-radius: 10px;
+          cursor: pointer;
+          transition: all 0.15s ease;
+          user-select: none;
+        }
+        .phone-cal-cell:active {
+          transform: scale(0.94);
+        }
+        .phone-cal-cell.other-month {
+          opacity: 0.25;
+        }
+        .phone-cal-cell.weekend .phone-cal-num {
+          color: #fbbf24;
+        }
+        .phone-cal-num {
+          width: 28px;
+          height: 28px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 0.82rem;
+          font-weight: 850;
+          color: #e4e4e7;
+          transition: all 0.2s;
+        }
+        .phone-cal-cell.is-today .phone-cal-num {
+          border: 2px solid #ff9000;
+          color: #ff9000;
+        }
+        .phone-cal-cell.is-selected .phone-cal-num {
+          background: #ff9000 !important;
+          color: #000 !important;
+          font-weight: 1000 !important;
+          box-shadow: 0 0 12px rgba(255, 144, 0, 0.4);
+        }
+        .phone-cal-cell.is-selected {
+          background: rgba(255, 144, 0, 0.08);
+          border-color: rgba(255, 144, 0, 0.3);
+        }
+
+        /* Event indicator dots */
+        .phone-cal-dots {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 2px;
+          margin-top: 2px;
+          height: 5px;
+        }
+        .p-dot {
+          width: 4px;
+          height: 4px;
+          border-radius: 50%;
+        }
+        .dot-overdue { background: #ef4444; }
+        .dot-today { background: #f59e0b; }
+        .dot-progress { background: #3b82f6; }
+        .dot-shipped { background: #10b981; }
+
+        .phone-cal-qty-pill {
+          font-size: 0.55rem;
+          font-weight: 900;
+          color: #ff9000;
+          background: rgba(255, 144, 0, 0.12);
+          padding: 1px 4px;
+          border-radius: 4px;
+          margin-top: 2px;
+          line-height: 1;
+        }
+
+        /* Selected day details panel */
+        .phone-day-details-panel {
+          background: #0d0d0d;
+          border: 1px solid #1f1f23;
+          border-radius: 16px;
+          padding: 14px;
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+        .phone-day-details-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+          padding-bottom: 10px;
+          gap: 8px;
+        }
+        .phone-day-header-left {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+        .phone-day-badge {
+          width: 34px;
+          height: 34px;
+          border-radius: 10px;
+          background: #18181b;
+          border: 1px solid #27272a;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-weight: 950;
+          font-size: 1rem;
+          color: #fff;
+        }
+        .phone-day-badge.today-badge {
+          background: #ff9000;
+          color: #000;
+          border-color: #ff9000;
+        }
+        .phone-day-header-text {
+          display: flex;
+          flex-direction: column;
+          gap: 1px;
+        }
+        .phone-day-title {
+          font-size: 0.95rem;
+          font-weight: 950;
+          color: #f1f5f9;
+        }
+        .phone-day-weekday {
+          font-size: 0.75rem;
+          font-weight: 700;
+          color: #a1a1aa;
+        }
+        .phone-day-header-right {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+        .phone-day-cards-list {
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+        }
+        .phone-day-empty {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          padding: 30px 16px;
+          text-align: center;
+          gap: 10px;
+          color: #71717a;
+          font-size: 0.85rem;
+        }
+
+        /* ── MOBILE AGENDA & SWITCHER BASE STYLES ── */
+        .gcal-mobile-view-switch {
+          display: none;
+          background: #111;
+          border: 1px solid #222;
+          border-radius: 12px;
+          padding: 3px;
+          gap: 4px;
+          margin-bottom: 8px;
+        }
+        .gcal-switch-btn {
+          flex: 1;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+          padding: 8px 12px;
+          border-radius: 9px;
+          border: none;
+          background: transparent;
+          color: #71717a;
+          font-size: 0.75rem;
+          font-weight: 850;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+        .gcal-switch-btn.active {
+          background: #ff9000;
+          color: #000;
+          font-weight: 950;
+          box-shadow: 0 2px 8px rgba(255, 144, 0, 0.3);
+        }
+
+        .gcal-agenda-view {
+          display: none;
+          flex-direction: column;
+          gap: 14px;
+          width: 100%;
+        }
+        .gcal-agenda-day-block {
+          background: #0d0d0d;
+          border: 1px solid #1a1a1a;
+          border-radius: 16px;
+          padding: 14px;
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+          transition: border-color 0.2s;
+        }
+        .gcal-agenda-day-block.is-today {
+          border-color: rgba(255, 144, 0, 0.4);
+          background: rgba(255, 144, 0, 0.03);
+        }
+        .gcal-agenda-day-block.has-overdue {
+          border-color: rgba(239, 68, 68, 0.35);
+        }
+        .gcal-agenda-day-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+          padding-bottom: 10px;
+          flex-wrap: wrap;
+          gap: 6px;
+        }
+        .gcal-agenda-date-info {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+        .gcal-agenda-day-badge {
+          width: 34px;
+          height: 34px;
+          border-radius: 10px;
+          background: #18181b;
+          border: 1px solid #27272a;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-weight: 950;
+          font-size: 0.95rem;
+          color: #fff;
+        }
+        .gcal-agenda-day-badge.today-badge {
+          background: #ff9000;
+          color: #000;
+          border-color: #ff9000;
+        }
+        .gcal-agenda-day-titles {
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+        }
+        .gcal-agenda-weekday {
+          font-size: 0.88rem;
+          font-weight: 850;
+          color: #e4e4e7;
+        }
+        .gcal-agenda-overdue-tag {
+          background: rgba(239, 68, 68, 0.15);
+          color: #ef4444;
+          border: 1px solid rgba(239, 68, 68, 0.3);
+          padding: 2px 8px;
+          border-radius: 6px;
+          font-size: 0.68rem;
+          font-weight: 900;
+        }
+        .gcal-agenda-cards-list {
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+        }
+        .gcal-agenda-card {
+          background: #141414;
+          border: 1px solid #222;
+          border-left-width: 4px;
+          border-radius: 12px;
+          padding: 12px 14px;
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+        .gcal-agenda-card:active {
+          transform: scale(0.99);
+        }
+        .gcal-agenda-card-head {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 8px;
+        }
+        .gcal-agenda-card-num-group {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+        .gcal-agenda-card-num-group .gcal-event-num {
+          font-size: 0.85rem;
+          font-weight: 950;
+          color: #ff9000;
+        }
+        .gcal-agenda-card-qty {
+          font-size: 0.82rem;
+          font-weight: 900;
+          color: #fff;
+          background: rgba(255, 255, 255, 0.08);
+          padding: 2px 8px;
+          border-radius: 6px;
+        }
+        .gcal-agenda-status-pill span {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          font-size: 0.7rem;
+          font-weight: 850;
+          padding: 3px 8px;
+          border-radius: 6px;
+        }
+        .pill-shipped { background: rgba(16, 185, 129, 0.15); color: #10b981; }
+        .pill-overdue { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+        .pill-today { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
+        .pill-progress { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
+
+        .gcal-agenda-card-prod {
+          font-size: 0.85rem;
+          font-weight: 850;
+          color: #f1f5f9;
+          line-height: 1.35;
+        }
+        .gcal-agenda-card-cust {
+          font-size: 0.75rem;
+          color: #a1a1aa;
+        }
+        .gcal-agenda-card-footer {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          margin-top: 4px;
+          padding-top: 8px;
+          border-top: 1px solid rgba(255, 255, 255, 0.04);
+        }
+        .gcal-agenda-arrow {
+          color: #52525b;
+        }
+        .gcal-agenda-no-orders {
+          padding: 16px;
+          text-align: center;
+          font-size: 0.78rem;
+          color: #71717a;
+          background: rgba(255, 255, 255, 0.02);
+          border-radius: 10px;
+        }
+        .gcal-agenda-empty {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          padding: 40px 20px;
+          text-align: center;
+          gap: 12px;
+          color: #71717a;
+          background: #0d0d0d;
+          border-radius: 16px;
+          border: 1px dashed #27272a;
+        }
+        .gcal-grid-mobile-hint {
+          display: none;
+          font-size: 0.68rem;
+          color: #ff9000;
+          text-align: center;
+          padding: 5px 10px;
+          background: rgba(255, 144, 0, 0.08);
+          border-radius: 8px;
+          margin-bottom: 8px;
+          font-weight: 750;
+        }
+
+        .header-meta-subrow {
+          display: flex;
+          align-items: center;
+          gap: 15px;
+        }
+
+        /* Light theme support for mobile calendar and agenda */
+        .light-theme .phone-cal-widget,
+        body.light-theme .phone-cal-widget,
+        .light-theme .phone-day-details-panel,
+        body.light-theme .phone-day-details-panel {
+          background: #ffffff !important;
+          border-color: #e2e8f0 !important;
+        }
+        .light-theme .phone-cal-num,
+        body.light-theme .phone-cal-num {
+          color: #0f172a !important;
+        }
+        .light-theme .phone-cal-cell.is-selected,
+        body.light-theme .phone-cal-cell.is-selected {
+          background: #fff7ed !important;
+          border-color: #ff9000 !important;
+        }
+        .light-theme .phone-day-badge,
+        body.light-theme .phone-day-badge {
+          background: #f1f5f9 !important;
+          border-color: #cbd5e1 !important;
+          color: #0f172a !important;
+        }
+        .light-theme .phone-day-title,
+        body.light-theme .phone-day-title {
+          color: #0f172a !important;
+        }
+        .light-theme .phone-day-weekday,
+        body.light-theme .phone-day-weekday {
+          color: #64748b !important;
+        }
+        .light-theme .gcal-mobile-view-switch,
+        body.light-theme .gcal-mobile-view-switch {
+          background: #f1f5f9 !important;
+          border-color: #cbd5e1 !important;
+        }
+        .light-theme .gcal-switch-btn,
+        body.light-theme .gcal-switch-btn {
+          color: #64748b !important;
+        }
+        .light-theme .gcal-switch-btn.active,
+        body.light-theme .gcal-switch-btn.active {
+          background: #ff9000 !important;
+          color: #000 !important;
+        }
+        .light-theme .gcal-agenda-day-block,
+        body.light-theme .gcal-agenda-day-block {
+          background: #ffffff !important;
+          border-color: #e2e8f0 !important;
+        }
+        .light-theme .gcal-agenda-day-block.is-today,
+        body.light-theme .gcal-agenda-day-block.is-today {
+          background: #fff7ed !important;
+          border-color: #ff9000 !important;
+        }
+        .light-theme .gcal-agenda-day-badge,
+        body.light-theme .gcal-agenda-day-badge {
+          background: #f1f5f9 !important;
+          border-color: #cbd5e1 !important;
+          color: #0f172a !important;
+        }
+        .light-theme .gcal-agenda-day-badge.today-badge,
+        body.light-theme .gcal-agenda-day-badge.today-badge {
+          background: #ff9000 !important;
+          color: #000 !important;
+          border-color: #ff9000 !important;
+        }
+        .light-theme .gcal-agenda-weekday,
+        body.light-theme .gcal-agenda-weekday {
+          color: #0f172a !important;
+        }
+        .light-theme .gcal-agenda-card,
+        body.light-theme .gcal-agenda-card {
+          background: #f8fafc !important;
+          border-color: #e2e8f0 !important;
+        }
+        .light-theme .gcal-agenda-card-prod,
+        body.light-theme .gcal-agenda-card-prod {
+          color: #0f172a !important;
+        }
+        .light-theme .gcal-agenda-card-cust,
+        body.light-theme .gcal-agenda-card-cust {
+          color: #64748b !important;
+        }
+        .light-theme .gcal-agenda-card-qty,
+        body.light-theme .gcal-agenda-card-qty {
+          background: #e2e8f0 !important;
+          color: #0f172a !important;
+        }
+        .light-theme .gcal-grid-mobile-hint,
+        body.light-theme .gcal-grid-mobile-hint {
+          background: #fff7ed !important;
+          color: #c2410c !important;
+        }
+
+        /* ── RESPONSIVE ADAPTATION (TABLETS & SMARTPHONES) ── */
         @media (max-width: 768px) {
-          .drawer-content { width: 100%; }
-          .modal-content { width: 95vw; max-width: 95vw; border-radius: 20px; }
-          .matrix-container { padding: 10px; }
-          .sticky-col-strategic { width: 60px; min-width: 60px; }
-          .day-num-small { font-size: 0.95rem; }
-          
-          /* Navigation Bar optimization */
-          .glass-nav-director {
-            padding: 0 15px 0 75px !important;
-            height: 70px;
+          .drawer-content {
+            width: 100% !important;
+            max-width: 100vw !important;
           }
-          .brand-group { gap: 8px; }
-          .brand-group h1 { font-size: 1rem !important; }
-          .brand-group h1 .text-dim { display: none !important; }
-          .brand-group svg { width: 20px; height: 20px; }
+          .modal-content {
+            width: 96vw !important;
+            max-width: 96vw !important;
+            border-radius: 18px !important;
+            max-height: 94vh !important;
+          }
+          .modal-header {
+            padding: 14px 18px !important;
+          }
+          .matrix-section {
+            padding: 10px !important;
+            overflow-x: auto !important;
+            -webkit-overflow-scrolling: touch !important;
+          }
+          .matrix-content-area {
+            overflow-x: auto !important;
+            -webkit-overflow-scrolling: touch !important;
+          }
+          .production-grid {
+            min-width: 600px !important;
+          }
+          .sticky-col-strategic {
+            width: 52px !important;
+            min-width: 52px !important;
+          }
+          .day-num-small {
+            font-size: 0.9rem !important;
+          }
           
-          /* Confirm button in nav always visible & compact */
+          /* Navigation Bar: Eliminate overflow and fix left margin */
+          .glass-nav-director {
+            padding: 0 12px !important;
+            height: 56px !important;
+            gap: 8px !important;
+          }
+          .nav-left {
+            display: flex !important;
+            align-items: center !important;
+            gap: 8px !important;
+            min-width: 0 !important;
+          }
+          .btn-back-director {
+            padding: 6px 10px !important;
+            border-radius: 10px !important;
+            font-size: 0.72rem !important;
+            gap: 5px !important;
+            flex-shrink: 0 !important;
+          }
+          .brand-group {
+            display: flex !important;
+            align-items: center !important;
+            gap: 6px !important;
+            min-width: 0 !important;
+          }
+          .brand-group h1 {
+            font-size: 0.95rem !important;
+            font-weight: 950 !important;
+            margin: 0 !important;
+            white-space: nowrap !important;
+          }
+          .brand-group h1 .text-dim {
+            display: none !important;
+          }
+          .brand-group svg {
+            width: 18px !important;
+            height: 18px !important;
+          }
+          
+          /* Notification / Confirm button in nav */
           .btn-notifications {
             min-width: auto !important;
-            padding: 8px 12px !important;
-            border-radius: 10px;
-            gap: 8px !important;
+            padding: 6px 10px !important;
+            border-radius: 10px !important;
+            gap: 6px !important;
+            font-size: 0.7rem !important;
+            flex-shrink: 0 !important;
           }
           .btn-notifications .btn-label {
             display: inline-block !important;
-            font-size: 0.7rem !important;
+            font-size: 0.65rem !important;
           }
           
-          /* Strategic Header (Calendar & Meta) */
+          /* Strategic Header (Month & Navigation Tabs) */
           .strategic-header {
-            height: auto;
-            min-height: auto;
-            padding: 12px 15px !important;
-            flex-direction: column;
-            gap: 12px;
-            align-items: stretch;
-            border-bottom: 1px solid #222;
+            height: auto !important;
+            min-height: auto !important;
+            padding: 10px 12px !important;
+            flex-direction: column !important;
+            gap: 10px !important;
+            align-items: stretch !important;
+            border-bottom: 1px solid #1a1a1a !important;
           }
           .month-selector-group {
-            justify-content: space-between;
-            width: 100%;
+            justify-content: space-between !important;
+            width: 100% !important;
           }
           .month-info-badge {
-            padding: 6px 16px;
-            font-size: 0.9rem;
+            padding: 6px 14px !important;
+            font-size: 0.85rem !important;
           }
           .month-name-compact, .year-val-compact {
-            font-size: 0.9rem;
-          }
-          .header-meta-actions {
-            justify-content: space-between;
-            width: 100%;
-            gap: 10px;
-          }
-          .analysis-summary-mini {
-            font-size: 0.7rem;
+            font-size: 0.85rem !important;
           }
 
+          .header-meta-actions {
+            display: flex !important;
+            flex-direction: column !important;
+            width: 100% !important;
+            gap: 8px !important;
+          }
+          .gcal-view-toggle-group {
+            display: flex !important;
+            overflow-x: auto !important;
+            white-space: nowrap !important;
+            -webkit-overflow-scrolling: touch !important;
+            scrollbar-width: none !important;
+            width: 100% !important;
+            padding: 3px !important;
+            gap: 4px !important;
+          }
+          .gcal-view-toggle-group::-webkit-scrollbar {
+            display: none;
+          }
+          .gcal-toggle-btn {
+            padding: 7px 12px !important;
+            font-size: 0.72rem !important;
+            gap: 6px !important;
+            flex-shrink: 0 !important;
+          }
+          .header-meta-subrow {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: space-between !important;
+            width: 100% !important;
+            gap: 10px !important;
+          }
+          .btn-jump-today {
+            padding: 6px 12px !important;
+            font-size: 0.72rem !important;
+            border-radius: 8px !important;
+          }
+          .analysis-summary-mini {
+            font-size: 0.72rem !important;
+          }
+
+          /* Calendar Container */
           .google-calendar-container {
-            padding: 10px;
+            padding: 8px 10px !important;
+          }
+          .gcal-kpi-bar {
+            gap: 8px !important;
+            margin-bottom: 10px !important;
+          }
+          .gcal-kpi-filters {
+            overflow-x: auto !important;
+            -webkit-overflow-scrolling: touch !important;
+            scrollbar-width: none !important;
+            white-space: nowrap !important;
+            padding-bottom: 2px !important;
+            width: 100% !important;
+          }
+          .gcal-kpi-filters::-webkit-scrollbar {
+            display: none;
+          }
+          .gcal-filter-btn {
+            padding: 6px 10px !important;
+            font-size: 0.72rem !important;
+            flex-shrink: 0 !important;
+          }
+          .gcal-active-filter-hint {
+            font-size: 0.68rem !important;
+            padding: 4px 10px !important;
+          }
+
+          /* Mobile Phone Calendar vs Agenda vs Grid switch */
+          .gcal-mobile-view-switch {
+            display: flex !important;
+          }
+          .phone-calendar-view.is-visible-mobile {
+            display: flex !important;
+          }
+          .phone-calendar-view.is-hidden-mobile {
+            display: none !important;
+          }
+          .gcal-agenda-view.is-visible-mobile {
+            display: flex !important;
+          }
+          .gcal-agenda-view.is-hidden-mobile {
+            display: none !important;
+          }
+          .gcal-grid-scroll-wrap.is-visible-mobile {
+            display: block !important;
+            overflow-x: auto !important;
+            -webkit-overflow-scrolling: touch !important;
+            width: 100% !important;
+            padding-bottom: 8px !important;
+          }
+          .gcal-grid-scroll-wrap.is-hidden-mobile {
+            display: none !important;
+          }
+          .gcal-grid-mobile-hint {
+            display: block !important;
+          }
+          .gcal-grid-scroll-wrap .gcal-weekdays-header,
+          .gcal-grid-scroll-wrap .gcal-month-grid {
+            min-width: 680px !important;
           }
           .gcal-month-grid {
-            grid-auto-rows: minmax(90px, 1fr);
-            gap: 4px;
+            grid-auto-rows: minmax(100px, 1fr) !important;
+            gap: 4px !important;
           }
           .gcal-day-cell {
-            padding: 6px;
-            min-height: 90px;
+            padding: 6px !important;
+            min-height: 100px !important;
           }
 
           /* Table details modal stacking */
           .dossier-main-grid {
             grid-template-columns: 1fr !important;
-            height: auto;
+            height: auto !important;
           }
           .order-dossier-dashboard {
-            height: 80vh;
+            height: auto !important;
+            max-height: 82vh !important;
+            overflow-y: auto !important;
           }
           .dossier-left, .dossier-right {
-            padding: 15px !important;
-            overflow-y: visible;
+            padding: 14px !important;
+            overflow-y: visible !important;
           }
-          
-          /* Adjust cells spacing */
+          .dossier-card {
+            padding: 18px !important;
+            margin-bottom: 14px !important;
+            border-radius: 16px !important;
+          }
+          .dossier-header-top {
+            flex-direction: column !important;
+            gap: 10px !important;
+            align-items: flex-start !important;
+          }
+          .customer-name {
+            font-size: 1.4rem !important;
+          }
+          .header-meta {
+            flex-direction: column !important;
+            gap: 12px !important;
+          }
           .product-head {
-            width: 200px;
-            min-width: 200px;
+            width: 160px !important;
+            min-width: 160px !important;
           }
           .product-name-horizontal {
-            font-size: 0.8rem;
+            font-size: 0.78rem !important;
+          }
+        }
+
+        /* ── EXTRA SMALL MOBILE DEVICES (< 480px) ── */
+        @media (max-width: 480px) {
+          .btn-back-director span {
+            display: none !important;
+          }
+          .btn-back-director {
+            padding: 6px 8px !important;
+          }
+          .brand-group h1 {
+            font-size: 0.88rem !important;
+          }
+          .btn-notifications .btn-label {
+            display: none !important;
+          }
+          .btn-notifications {
+            padding: 6px 8px !important;
+          }
+          .month-info-badge {
+            padding: 4px 10px !important;
+          }
+          .gcal-switch-btn {
+            font-size: 0.7rem !important;
+            padding: 7px 8px !important;
+          }
+          .dossier-card {
+            padding: 14px !important;
+            border-radius: 14px !important;
+          }
+          .customer-name {
+            font-size: 1.25rem !important;
           }
         }
