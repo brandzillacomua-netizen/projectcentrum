@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { X, Printer, Loader2 } from 'lucide-react'
-import { calculateCuttersForBatch } from '../../../../utils/cutterCalculator.js'
+import { calculateCuttersForBatch, isMachineMatch } from '../../../../utils/cutterCalculator.js'
 import { CutterSelectorRow } from './components/CutterSelectorRow.jsx'
 import { useMES } from '../../../../MESContext.jsx'
 import { getCardSheets } from '../shortage/shortageCalculations.js'
@@ -144,6 +144,71 @@ export default function GenerateCardsModal({
   const [selectedCutters, setSelectedCutters] = useState({})
   
   const MACHINE_TYPES = useMemo(() => [...new Set((machines || []).map(m => m.name))], [machines])
+  const [showAllMachines, setShowAllMachines] = useState(false)
+
+  // Reset showAllMachines when opening modal with a new part
+  useEffect(() => {
+    setShowAllMachines(false)
+  }, [config?.part?.id, config?.part?.nomId, config?.part?.name])
+
+  // Resolve part nomenclature and its legacy IDs
+  const partNom = useMemo(() => {
+    return config?.part?.nom || (nomenclatures || []).find(n => 
+      String(n.id) === String(config?.part?.nomId || config?.part?.id) ||
+      (Array.isArray(n.legacy_ids) && n.legacy_ids.map(String).includes(String(config?.part?.nomId || config?.part?.id)))
+    ) || config?.part
+  }, [config?.part, nomenclatures])
+
+  const targetNomId = String(partNom?.id || config?.part?.nomId || config?.part?.id || '')
+  const legacyNomIds = useMemo(() => (partNom?.legacy_ids || []).map(String), [partNom])
+
+  // Find operations for this part in engineering machineOperations
+  const partMachineOps = useMemo(() => {
+    if (!targetNomId && legacyNomIds.length === 0) return []
+    return (machineOperations || []).filter(o => {
+      const opNomId = String(o.nomenclature_id || '')
+      return opNomId === targetNomId || legacyNomIds.includes(opNomId)
+    })
+  }, [machineOperations, targetNomId, legacyNomIds])
+
+  // Filter ops that have filled operations (side1, side2, cutters, or defined machine)
+  const configuredMachineOps = useMemo(() => {
+    const filled = partMachineOps.filter(op => {
+      const hasSide1 = Array.isArray(op.side1_ops) && op.side1_ops.some(s => s && String(s).trim())
+      const hasSide2 = Array.isArray(op.side2_ops) && op.side2_ops.some(s => s && String(s).trim())
+      const hasSide2Cut = Array.isArray(op.side2_cut_ops) && op.side2_cut_ops.some(s => s && String(s).trim())
+      const hasCutters = Boolean(op.cutters && typeof op.cutters === 'object' && Object.keys(op.cutters).length > 0)
+      return hasSide1 || hasSide2 || hasSide2Cut || hasCutters
+    })
+    return filled.length > 0 ? filled : partMachineOps
+  }, [partMachineOps])
+
+  // Machines from MACHINE_TYPES that match configured operations
+  const configuredMachineTypes = useMemo(() => {
+    if (configuredMachineOps.length === 0) return []
+    return MACHINE_TYPES.filter(mName => {
+      return configuredMachineOps.some(op => {
+        if (op.machine_type && isMachineMatch(op.machine_type, mName)) return true
+        if (op.machine_id && isMachineMatch(op.machine_id, mName)) return true
+        if (op.machine_id) {
+          const mac = (machines || []).find(m => String(m.id) === String(op.machine_id))
+          if (mac && (mac.name === mName || isMachineMatch(mac.name, mName))) return true
+        }
+        return false
+      })
+    })
+  }, [MACHINE_TYPES, configuredMachineOps, machines])
+
+  // List of machines to display in the dropdown
+  const displayedMachineTypes = useMemo(() => {
+    if (showAllMachines || configuredMachineTypes.length === 0) {
+      return MACHINE_TYPES
+    }
+    if (machineName && !configuredMachineTypes.includes(machineName)) {
+      return [...configuredMachineTypes, machineName]
+    }
+    return configuredMachineTypes
+  }, [showAllMachines, configuredMachineTypes, MACHINE_TYPES, machineName])
 
   const findMachine = (mName) => {
     return findMachineByName(mName, machines || [])
@@ -152,7 +217,7 @@ export default function GenerateCardsModal({
   const isMachineSelected = useMemo(() => {
     if (!machineName || !String(machineName).trim()) return false
     const str = String(machineName).trim()
-    if (str.includes('--')) return false
+    if (str.includes('--') || str === '__SHOW_ALL__') return false
     const lower = str.toLowerCase()
     if (lower === 'не призначено' || lower === 'не вказано' || lower === 'без верстата' || lower === 'всі верстати') return false
     const found = findMachine(str) || MACHINE_TYPES.find(t => t === str || t.toLowerCase() === lower)
@@ -163,7 +228,10 @@ export default function GenerateCardsModal({
     if (config) {
       const rawDefault = config.part?.machine || config.task?.machine_name || ''
       const validMac = findMachine(rawDefault) || MACHINE_TYPES.find(t => t === rawDefault)
-      const defaultMachine = validMac ? (typeof validMac === 'object' ? validMac.name : validMac) : ''
+      let defaultMachine = validMac ? (typeof validMac === 'object' ? validMac.name : validMac) : ''
+      if (!defaultMachine && configuredMachineTypes.length === 1) {
+        defaultMachine = configuredMachineTypes[0]
+      }
       setMachineName(defaultMachine)
       setSelectedCutters({})
       const cap = config.capacityOverride || (defaultMachine ? (findMachine(defaultMachine)?.sheet_capacity || 1) : 1)
@@ -171,7 +239,7 @@ export default function GenerateCardsModal({
       const rec = Math.max(1, Math.ceil((targetSheets || 1) / (Number(cap) || 1)))
       setTotal(config.count > 1 ? config.count : rec)
     }
-  }, [config, machines, MACHINE_TYPES])
+  }, [config, machines, MACHINE_TYPES, configuredMachineTypes])
 
   // Recalculate total cards when targetSheets changes
   useEffect(() => {
@@ -553,13 +621,68 @@ export default function GenerateCardsModal({
               </div>
 
               <div>
-                <label style={{ display: 'block', color: isMachineSelected ? (isLight ? '#64748b' : 'var(--text-muted)') : '#eab308', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>
-                  {isMachineSelected ? 'Оберіть верстат для цієї партії:' : '⚠️ ОБОВ\'ЯЗКОВО ОБЕРІТЬ ВЕРСТАТ ДЛЯ ЦІЄЇ ПАРТІЇ:'}
-                </label>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: isMachineSelected ? (isLight ? '#64748b' : 'var(--text-muted)') : '#eab308', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase' }}>
+                    {isMachineSelected ? 'Оберіть верстат для цієї партії:' : '⚠️ ОБОВ\'ЯЗКОВО ОБЕРІТЬ ВЕРСТАТ ДЛЯ ЦІЄЇ ПАРТІЇ:'}
+                    {configuredMachineTypes.length > 0 && !showAllMachines && (
+                      <span style={{ 
+                        background: 'rgba(16,185,129,0.12)', 
+                        color: '#10b981', 
+                        padding: '1px 6px', 
+                        borderRadius: '6px', 
+                        fontSize: '0.62rem', 
+                        fontWeight: 800,
+                        border: '1px solid rgba(16,185,129,0.25)',
+                        textTransform: 'none'
+                      }}>
+                        налаштовано в ЧПК: {configuredMachineTypes.length}
+                      </span>
+                    )}
+                  </label>
+
+                  {configuredMachineTypes.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAllMachines(!showAllMachines)}
+                      title={showAllMachines ? 'Показати тільки верстати, на які налаштовані операції ЧПК для цієї деталі' : 'Показати всі наявні типи верстатів'}
+                      style={{
+                        background: showAllMachines 
+                          ? (isLight ? '#f1f5f9' : 'rgba(255,255,255,0.08)')
+                          : (isLight ? 'rgba(59,130,246,0.1)' : 'rgba(59,130,246,0.16)'),
+                        color: showAllMachines
+                          ? (isLight ? '#475569' : '#cbd5e1')
+                          : (isLight ? '#2563eb' : '#60a5fa'),
+                        border: showAllMachines
+                          ? (isLight ? '1px solid #cbd5e1' : '1px solid rgba(255,255,255,0.18)')
+                          : (isLight ? '1px solid rgba(59,130,246,0.35)' : '1px solid rgba(96,165,250,0.4)'),
+                        padding: '3px 10px',
+                        borderRadius: '8px',
+                        fontSize: '0.7rem',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      {showAllMachines ? (
+                        <>⚙️ Тільки зі специфікації ({configuredMachineTypes.length})</>
+                      ) : (
+                        <>🌐 Показати всі ({MACHINE_TYPES.length})</>
+                      )}
+                    </button>
+                  )}
+                </div>
+
                 <select
                   value={machineName}
                   onChange={(e) => {
                     const newMachineName = e.target.value
+                    if (newMachineName === '__SHOW_ALL__') {
+                      setShowAllMachines(true)
+                      return
+                    }
                     const resolvedMachine = findMachine(newMachineName)
                     const newCapacity = Number(resolvedMachine?.sheet_capacity) || 1
                     setMachineName(newMachineName)
@@ -579,14 +702,36 @@ export default function GenerateCardsModal({
                     boxShadow: !isMachineSelected ? '0 0 12px rgba(234, 179, 8, 0.3)' : 'none'
                   }}
                 >
-                  <option value="">-- Оберіть верстат --</option>
-                  {MACHINE_TYPES.map(t => {
+                  <option value="">
+                    {configuredMachineTypes.length > 0 && !showAllMachines
+                      ? '-- Оберіть верстат (' + configuredMachineTypes.length + ' налаштовано в ЧПК) --'
+                      : '-- Оберіть верстат --'
+                    }
+                  </option>
+                  {displayedMachineTypes.map(t => {
                     const cap = findMachine(t)?.sheet_capacity || 1
+                    const isConfigured = configuredMachineTypes.includes(t)
+                    const suffix = showAllMachines && configuredMachineTypes.length > 0
+                      ? (isConfigured ? ' • ✅ в специфікації' : '')
+                      : ''
                     return (
-                      <option key={t} value={t}>{t} (місткість за замовчуванням: {cap} л.)</option>
+                      <option key={t} value={t}>
+                        {t} (місткість: {cap} л.){suffix}
+                      </option>
                     )
                   })}
+                  {!showAllMachines && configuredMachineTypes.length > 0 && configuredMachineTypes.length < MACHINE_TYPES.length && (
+                    <option value="__SHOW_ALL__" style={{ color: '#3b82f6', fontWeight: 800 }}>
+                      ➕ Показати всі інші верстати ({MACHINE_TYPES.length})...
+                    </option>
+                  )}
                 </select>
+
+                {configuredMachineTypes.length === 0 && (
+                  <div style={{ marginTop: '5px', fontSize: '0.7rem', color: isLight ? '#94a3b8' : 'var(--text-dim)', fontStyle: 'italic' }}>
+                    ℹ️ Для цієї деталі в інженерній специфікації ще не призначено операцій верстатів (показано всі верстати).
+                  </div>
+                )}
               </div>
 
               {!isRepair && (

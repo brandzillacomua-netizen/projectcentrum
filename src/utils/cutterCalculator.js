@@ -153,7 +153,7 @@ export const resolveMachineType = (machineName) => {
     return 'CNC 6000x2000 - 4 - 96 листів (Дракон)'
   } else if (normMac.includes('малий') || normMac.includes('12x8') || normMac.includes('1200x800') || normMac.includes('12х8') || normMac.includes('1200х800')) {
     return 'CNC 1200x800 - 1-6 листів (Малий)'
-  } else if (normMac.includes('три головий') || normMac.includes('триголовий') || normMac.includes('3060') || normMac.includes('30x16') || normMac.includes('30х16')) {
+  } else if (normMac.includes('три головий') || normMac.includes('триголовий') || normMac.includes('3-головий') || normMac.includes('3-голов') || normMac.includes('3 голов') || normMac.includes('3060') || normMac.includes('30x16') || normMac.includes('30х16')) {
     return 'CNC 3060х1600 - 3-36 листів (Три Головий)'
   } else if (normMac.includes('фея') || normMac.includes('фею') || normMac.includes('феі') || normMac.includes('ke xin') || normMac.includes('kexin') || normMac.includes('кексін') || normMac.includes('кексин') || normMac.includes('fea') || normMac.includes('feia') || normMac.includes('feu')) {
     return 'CNC KE XIN - 4 - 16 листів (ФЕЯ)'
@@ -179,8 +179,8 @@ export const isMachineMatch = (opMachine, targetMachine) => {
   const machineGroups = [
     ['1200', '12x8', '12х8', 'мал'],
     ['3050', '16x16', '16х16'],
-    ['3060', '30x16', '30х16', 'три головий', 'триголовий'],
-    ['6000', '60x20', '60х20', 'дракон'],
+    ['3060', '30x16', '30х16', 'три головий', 'триголовий', '3-головий', '3-голов', '3 голов', '3-х голов'],
+    ['6000', '60x20', '60х20', 'дракон', 'дракона', 'dragon'],
     ['ke xin', 'kexin', 'фея', 'фею', 'феі', 'кексін', 'кексин', 'fea', 'feia', 'feu']
   ]
 
