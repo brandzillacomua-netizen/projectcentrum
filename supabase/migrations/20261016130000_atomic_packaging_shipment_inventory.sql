@@ -87,11 +87,18 @@ begin
     select 1
     from public.material_requests mr
     where mr.inventory_id = i.id
-      and mr.task_id = any(p_task_ids)
+      and (
+        mr.task_id = any(p_task_ids)
+        or (mr.order_id = p_order_id and (mr.category = 'packaging' or mr.target_warehouse = 'sgp'))
+      )
       and mr.status = 'issued'
-      and mr.details ilike '%ЗАПИТ НА КОМПЛЕКТУВАННЯ%'
-      and mr.details not ilike '%лист%'
-      and mr.details not ilike '%sheet%'
+      and (
+        mr.details ilike '%ЗАПИТ НА КОМПЛЕКТУВАННЯ%'
+        or mr.category = 'packaging'
+        or mr.target_warehouse = 'sgp'
+      )
+      and coalesce(mr.category, '') <> 'sheet'
+      and coalesce(mr.category, '') <> 'cutter'
       and mr.details not ilike '%фрез%'
   )
   order by i.id
@@ -101,11 +108,18 @@ begin
     select i.id, i.total_qty, sum(mr.quantity)::numeric as qty
     from public.material_requests mr
     join public.inventory i on i.id = mr.inventory_id
-    where mr.task_id = any(p_task_ids)
+    where (
+        mr.task_id = any(p_task_ids)
+        or (mr.order_id = p_order_id and (mr.category = 'packaging' or mr.target_warehouse = 'sgp'))
+      )
       and mr.status = 'issued'
-      and mr.details ilike '%ЗАПИТ НА КОМПЛЕКТУВАННЯ%'
-      and mr.details not ilike '%лист%'
-      and mr.details not ilike '%sheet%'
+      and (
+        mr.details ilike '%ЗАПИТ НА КОМПЛЕКТУВАННЯ%'
+        or mr.category = 'packaging'
+        or mr.target_warehouse = 'sgp'
+      )
+      and coalesce(mr.category, '') <> 'sheet'
+      and coalesce(mr.category, '') <> 'cutter'
       and mr.details not ilike '%фрез%'
     group by i.id, i.total_qty
     order by i.id
@@ -117,6 +131,7 @@ begin
 
     update public.inventory
     set total_qty = total_qty - v_inventory.qty,
+        reserved_qty = greatest(0, coalesce(reserved_qty, 0) - v_inventory.qty),
         updated_at = now()
     where id = v_inventory.id;
     v_deducted_qty := v_deducted_qty + v_inventory.qty;
@@ -124,11 +139,18 @@ begin
 
   update public.material_requests mr
   set status = 'completed'
-  where mr.task_id = any(p_task_ids)
+  where (
+      mr.task_id = any(p_task_ids)
+      or (mr.order_id = p_order_id and (mr.category = 'packaging' or mr.target_warehouse = 'sgp'))
+    )
     and mr.status = 'issued'
-    and mr.details ilike '%ЗАПИТ НА КОМПЛЕКТУВАННЯ%'
-    and mr.details not ilike '%лист%'
-    and mr.details not ilike '%sheet%'
+    and (
+      mr.details ilike '%ЗАПИТ НА КОМПЛЕКТУВАННЯ%'
+      or mr.category = 'packaging'
+      or mr.target_warehouse = 'sgp'
+    )
+    and coalesce(mr.category, '') <> 'sheet'
+    and coalesce(mr.category, '') <> 'cutter'
     and mr.details not ilike '%фрез%';
   get diagnostics v_completed_requests = row_count;
 
@@ -139,6 +161,7 @@ begin
     coalesce(t.plan_snapshot->'_metadata', '{}'::jsonb)
       || coalesce(p_shipping_metadata, '{}'::jsonb)
       || jsonb_build_object(
+        'is_packaged', true,
         'is_shipped', true,
         'shipped_at', coalesce(
           p_shipping_metadata->>'shipped_at',
@@ -154,9 +177,31 @@ begin
   select bool_and(coalesce((t.plan_snapshot #>> '{_metadata,is_shipped}')::boolean, false))
   into v_all_shipped
   from public.tasks t
-  where t.order_id = p_order_id;
+  where t.order_id = p_order_id
+    and (t.step is null or lower(t.step) like '%пакув%');
 
   if coalesce(v_all_shipped, false) then
+    update public.tasks t
+    set plan_snapshot = jsonb_set(
+      coalesce(t.plan_snapshot, '{}'::jsonb),
+      '{_metadata}',
+      coalesce(t.plan_snapshot->'_metadata', '{}'::jsonb)
+        || coalesce(p_shipping_metadata, '{}'::jsonb)
+        || jsonb_build_object(
+          'is_packaged', true,
+          'is_shipped', true,
+          'shipped_at', coalesce(
+            p_shipping_metadata->>'shipped_at',
+            t.plan_snapshot #>> '{_metadata,shipped_at}',
+            now()::text
+          ),
+          'packing_slip_number', v_slip_number
+        ),
+      true
+    )
+    where t.order_id = p_order_id
+      and coalesce((t.plan_snapshot #>> '{_metadata,is_shipped}')::boolean, false) = false;
+
     update public.orders set status = 'shipped' where id = p_order_id;
   end if;
 

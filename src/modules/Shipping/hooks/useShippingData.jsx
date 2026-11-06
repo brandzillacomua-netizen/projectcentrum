@@ -678,7 +678,71 @@ export function useShippingData() {
         throw new Error('База не повернула номер пакувального листа')
       }
 
-      await fetchData(['tasks', 'orders'])
+      // Reconcile sibling production tasks (e.g. Rozkriy) & ensure order.status is updated to 'shipped'
+      try {
+        const { data: dbOrderTasks } = await supabase.from('tasks').select('id, step, status, plan_snapshot').eq('order_id', batch.orderId)
+        if (Array.isArray(dbOrderTasks) && dbOrderTasks.length > 0) {
+          const packTasks = dbOrderTasks.filter(t => !t.step || t.step.toLowerCase().includes('пакув'))
+          const allPackShipped = packTasks.length === 0 || packTasks.every(t => t.plan_snapshot?._metadata?.is_shipped)
+          if (allPackShipped) {
+            const siblingTasksToShip = dbOrderTasks.filter(t => !t.plan_snapshot?._metadata?.is_shipped)
+            for (const sib of siblingTasksToShip) {
+              const newSnapshot = {
+                ...(sib.plan_snapshot || {}),
+                _metadata: {
+                  ...(sib.plan_snapshot?._metadata || {}),
+                  ...shippingMetadata,
+                  is_packaged: true,
+                  is_shipped: true,
+                  packing_slip_number: nextSlipNumber
+                }
+              }
+              await supabase.from('tasks').update({
+                plan_snapshot: newSnapshot,
+                status: 'completed',
+                completed_at: sib.completed_at || shippingMetadata.shipped_at || new Date().toISOString()
+              }).eq('id', sib.id)
+            }
+            await supabase.from('orders').update({ status: 'shipped' }).eq('id', batch.orderId)
+          }
+        }
+      } catch (reconcileErr) {
+        console.warn('[useShippingData] sibling task reconciliation warning:', reconcileErr)
+      }
+
+      // Ensure any issued packaging requests (even if containing 'Лист' in part name) are deducted from SGP
+      try {
+        const { data: remReqs } = await supabase
+          .from('material_requests')
+          .select('id, inventory_id, quantity, details')
+          .eq('order_id', batch.orderId)
+          .eq('status', 'issued')
+          .ilike('details', '%ЗАПИТ НА КОМПЛЕКТУВАННЯ%')
+
+        if (Array.isArray(remReqs) && remReqs.length > 0) {
+          for (const req of remReqs) {
+            if (req.inventory_id && Number(req.quantity) > 0) {
+              const { data: invRow } = await supabase.from('inventory').select('id, total_qty, reserved_qty').eq('id', req.inventory_id).maybeSingle()
+              if (invRow) {
+                const dQty = Number(req.quantity) || 0
+                await supabase.from('inventory').update({
+                  total_qty: Math.max(0, (Number(invRow.total_qty) || 0) - dQty),
+                  reserved_qty: Math.max(0, (Number(invRow.reserved_qty) || 0) - dQty),
+                  updated_at: new Date().toISOString()
+                }).eq('id', invRow.id)
+              }
+              await supabase.from('material_requests').update({
+                status: 'completed',
+                details: `${req.details || ''} [СПИСАНО ЛОГІСТИКОЮ]`
+              }).eq('id', req.id)
+            }
+          }
+        }
+      } catch (remReqErr) {
+        console.warn('[useShippingData] packaging requests SGP deduction warning:', remReqErr)
+      }
+
+      await fetchData(['tasks', 'orders', 'material_requests', 'inventory'])
 
       // 4. Генеруємо пакувальний лист
       const order = (orders || []).find(o => String(o.id) === String(batch.orderId))

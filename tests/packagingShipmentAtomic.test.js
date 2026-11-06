@@ -26,6 +26,6 @@ describe('atomic packaging shipment migration', () => {
 
   it('is replay-safe because only still-issued requests are deducted', () => {
     expect(migration.match(/mr\.status = 'issued'/g)?.length).toBeGreaterThanOrEqual(3)
-    expect(migration).toContain("where mr.task_id = any(p_task_ids)")
+    expect(migration).toContain("mr.task_id = any(p_task_ids)")
   })
 })

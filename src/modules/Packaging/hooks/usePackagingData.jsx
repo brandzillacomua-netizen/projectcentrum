@@ -51,6 +51,7 @@ export function usePackagingData() {
     if (tasks?.length && !localTasksLoadedRef.current) {
       const relevant = tasks.filter(t => {
         if (t.plan_snapshot?._metadata?.is_packaged === true) return false
+        if (t.plan_snapshot?._metadata?.is_shipped === true || t.status === 'shipped') return false
         return t.status === 'in-progress' || t.status === 'completed' || t.status === 'active' || t.status === 'new'
       })
       if (relevant.length > 0) setLocalTasks(relevant)
@@ -79,7 +80,11 @@ export function usePackagingData() {
 
       const all = [...(active || []), ...(completed || [])]
       const unique = Array.from(new Map(all.map(t => [t.id, t])).values())
-      const unpackagedTasks = unique.filter(t => t.plan_snapshot?._metadata?.is_packaged !== true)
+      const unpackagedTasks = unique.filter(t => {
+        if (t.plan_snapshot?._metadata?.is_packaged === true) return false
+        if (t.plan_snapshot?._metadata?.is_shipped === true || t.status === 'shipped') return false
+        return true
+      })
       
       setLocalTasks(unpackagedTasks)
       localTasksLoadedRef.current = true
@@ -125,7 +130,16 @@ export function usePackagingData() {
       tasks.forEach(t => {
         if (map.has(t.id)) {
           const existing = map.get(t.id)
-          map.set(t.id, { ...existing, ...t, plan_snapshot: t.plan_snapshot ?? existing.plan_snapshot })
+          const merged = { ...existing, ...t, plan_snapshot: t.plan_snapshot ?? existing.plan_snapshot }
+          if (
+            merged.plan_snapshot?._metadata?.is_packaged === true ||
+            merged.plan_snapshot?._metadata?.is_shipped === true ||
+            merged.status === 'shipped'
+          ) {
+            map.delete(t.id)
+          } else {
+            map.set(t.id, merged)
+          }
         }
       })
       return Array.from(map.values())
@@ -222,6 +236,7 @@ export function usePackagingData() {
   const batchList = useMemo(() => {
     const relevantTasks = localTasks.filter(t => {
       if (t.plan_snapshot?._metadata?.is_packaged === true) return false
+      if (t.plan_snapshot?._metadata?.is_shipped === true || t.status === 'shipped') return false
       return t.status === 'in-progress' || t.status === 'completed' || t.status === 'active' || t.status === 'new'
     })
     const batchGroups = {}
@@ -232,6 +247,16 @@ export function usePackagingData() {
       if (!order || order.status === 'deleted' || order.status === 'cancelled' || order.status === 'shipped') return
       if (order.order_num && (order.order_num.startsWith('ВБ') || order.order_num.startsWith('VB') || order.order_num.startsWith('СГП') || order.order_num.startsWith('SGP'))) return
       if (order.order_num && (order.order_num.startsWith('2608') || order.order_num.startsWith('2609') || order.order_num.startsWith('TEST'))) return
+      
+      // If this batch/task has already been shipped, never show in packaging queue
+      const taskMeta = task.plan_snapshot?._metadata || {}
+      if (taskMeta.is_shipped === true || taskMeta.is_shipped === 'true') return
+      const anyShippedForBatch = (tasks || []).some(ot =>
+        (String(ot.order_id) === String(effectiveOrderId) || isOrderInPackagingScope(ot.order_id, orderContext.scopeOrderIds)) &&
+        (!task.batch_index || ot.batch_index === task.batch_index) &&
+        (ot.plan_snapshot?._metadata?.is_shipped === true || ot.plan_snapshot?._metadata?.is_shipped === 'true')
+      )
+      if (anyShippedForBatch) return
       
       let schedule = []
       try {
