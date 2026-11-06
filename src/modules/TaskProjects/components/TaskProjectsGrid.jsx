@@ -1,12 +1,13 @@
 import React from 'react'
-import { CheckCircle2, FolderKanban, Users } from 'lucide-react'
+import { CheckCircle2, FolderKanban, Plus, Users } from 'lucide-react'
 
 export const TaskProjectsGrid = ({
   filteredProjects,
   managementTasks,
   setActiveId,
   projectMembers,
-  canCreateProject
+  canCreateProject,
+  openProjectForm
 }) => {
   return (
     <main className="tp-grid">
@@ -31,7 +32,29 @@ export const TaskProjectsGrid = ({
         <div className="tp-empty">
           <FolderKanban size={44} />
           <h2>Проєктів поки немає</h2>
-          <p>{canCreateProject ? 'Створіть перший проєкт і сформуйте його команду.' : 'Вас ще не додано до жодного активного проєкту.'}</p>
+          <p>Створіть свій перший проєкт або дочекайтеся запрошення в команду.</p>
+          <button
+            type="button"
+            className="tp-primary"
+            onClick={() => openProjectForm?.()}
+            style={{
+              marginTop: '14px',
+              background: '#ff9000',
+              color: '#000',
+              padding: '10px 18px',
+              borderRadius: '10px',
+              fontWeight: 800,
+              fontSize: '0.85rem',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              cursor: 'pointer',
+              border: 'none'
+            }}
+          >
+            <Plus size={16} />
+            <span>Створити перший проєкт</span>
+          </button>
         </div>
       )}
     </main>

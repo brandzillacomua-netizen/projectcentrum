@@ -80,22 +80,41 @@ export function useKanbanState() {
   const isTaskRelevantToUser = useCallback((task, user) => {
     if (!user || !task) return false
     const login = user.login
-    if (task.created_by === login) return true
-    if (getAssignees(task).includes(login)) return true
-    if (Array.isArray(task.checklist) && task.checklist.some(item => getChecklistAssignees(item).includes(login))) return true
-    if (task.is_collective) {
-      const userDept = getUserDeptId(user.department, companyStructure)
-      if (task.department === 'all' || (userDept && task.department === userDept)) return true
-    }
+    const userId = user.id ? String(user.id) : null
+    const taskCreator = String(task.created_by || '')
+
+    // Author
+    if (login && taskCreator === login) return true
+    if (userId && taskCreator === userId) return true
+
+    // Direct Assignee
+    const assignees = getAssignees(task).map(String)
+    if (login && assignees.includes(login)) return true
+    if (userId && assignees.includes(userId)) return true
+    if (task.assigned_to && (task.assigned_to === login || (userId && String(task.assigned_to) === userId))) return true
+
+    // Checklist Assignee
+    if (Array.isArray(task.checklist) && task.checklist.some(item => {
+      const itemAssignees = getChecklistAssignees(item).map(String)
+      return (login && itemAssignees.includes(login)) || (userId && itemAssignees.includes(userId))
+    })) return true
+
     return false
-  }, [companyStructure])
+  }, [])
 
   const canManageTask = useCallback((task) => {
     if (!task || !currentUser) return false
-    const login = currentUser.login
-    if (task.created_by === login) return true
-    if (getAssignees(task).includes(login)) return true
     if (isDirector) return true
+    const login = currentUser.login
+    const userId = currentUser.id ? String(currentUser.id) : null
+    const taskCreator = String(task.created_by || '')
+
+    if (login && taskCreator === login) return true
+    if (userId && taskCreator === userId) return true
+    const assignees = getAssignees(task).map(String)
+    if (login && assignees.includes(login)) return true
+    if (userId && assignees.includes(userId)) return true
+    if (task.assigned_to && (task.assigned_to === login || (userId && String(task.assigned_to) === userId))) return true
     return isManager
   }, [currentUser, isDirector, isManager])
 
@@ -248,7 +267,7 @@ export function useKanbanState() {
       list = list.filter(t => (t.title || '').toLowerCase().includes(q) || (t.description || '').toLowerCase().includes(q))
     }
     return list
-  }, [managementTasks, isManager, filterMode, statsFilter, searchQuery, currentUser, selectedDeptFilter, systemUsers, companyStructure])
+  }, [managementTasks, isDirector, isTaskRelevantToUser, filterMode, statsFilter, searchQuery, currentUser, selectedDeptFilter, systemUsers, companyStructure])
 
   // ─── Comments helpers ───────────────────────────────────────────────────
   const parseComments = (desc) => {

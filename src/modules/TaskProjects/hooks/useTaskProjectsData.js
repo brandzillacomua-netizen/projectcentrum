@@ -53,7 +53,7 @@ export const useTaskProjectsData = () => {
   } = useMES()
 
   const isDirector = isDirectorUser(currentUser)
-  const canCreateProject = isDirector || isManagerUser(currentUser)
+  const canCreateProject = !!currentUser
   const [searchParams, setSearchParams] = useSearchParams()
   const urlProjectId = searchParams.get('project')
   const savedProjectId = localStorage.getItem('centrum_active_project_id')
@@ -106,10 +106,34 @@ export const useTaskProjectsData = () => {
 
   const visibleProjects = useMemo(() => taskProjects.filter(project => {
     if (project.status === 'archived') return false
-    if (isDirector || project.created_by === currentUser?.login) return true
-    if (asArray(project.member_logins).includes(currentUser?.login)) return true
-    return asArray(project.department_ids).some(id => userDepartmentIds.includes(String(id)))
-  }), [taskProjects, isDirector, currentUser, userDepartmentIds])
+    if (isDirector) return true
+
+    const userLogin = currentUser?.login
+    const userId = currentUser?.id ? String(currentUser.id) : null
+
+    // 1. Author of project
+    if (userLogin && project.created_by === userLogin) return true
+    if (userId && (String(project.created_by) === userId || String(project.user_id) === userId)) return true
+
+    // 2. Participant (member) of project
+    const members = asArray(project.member_logins).map(String)
+    if (userLogin && members.includes(userLogin)) return true
+    if (userId && members.includes(userId)) return true
+
+    // 3. Has task in project addressed to user or created by user
+    const hasProjectTask = (managementTasks || []).some(t => {
+      if (String(t.project_id || '') !== String(project.id)) return false
+      if (userLogin && t.created_by === userLogin) return true
+      if (userId && String(t.created_by) === userId) return true
+      const assignees = (Array.isArray(t.assignees) ? t.assignees : [t.assigned_to]).filter(Boolean).map(String)
+      if (userLogin && assignees.includes(userLogin)) return true
+      if (userId && assignees.includes(userId)) return true
+      return false
+    })
+    if (hasProjectTask) return true
+
+    return false
+  }), [taskProjects, isDirector, currentUser, managementTasks])
 
   const activeProject = visibleProjects.find(p => p.id === activeId)
   const projectTasks = useMemo(() => managementTasks.filter(t => String(t.project_id || '') === String(activeId || '')), [managementTasks, activeId])
@@ -121,7 +145,10 @@ export const useTaskProjectsData = () => {
       name: project.name || '', description: project.description || '', color: project.color || COLORS[0],
       member_logins: asArray(project.member_logins), department_ids: asArray(project.department_ids).map(String),
       columns: Array.isArray(project.columns) && project.columns.length > 0 ? project.columns : DEFAULT_COLUMNS,
-    } : emptyProject)
+    } : {
+      ...emptyProject,
+      member_logins: currentUser?.login ? [currentUser.login] : []
+    })
     setProjectModal(true)
   }
 

@@ -11,7 +11,10 @@ export default function TaskProjectsModule() {
   const tp = useTaskProjectsData()
 
   if (tp.activeProject) {
-    const isOwnerOrManager = tp.isDirector || tp.activeProject.created_by === tp.currentUser?.login
+    const isOwnerOrManager = tp.isDirector ||
+      tp.activeProject.created_by === tp.currentUser?.login ||
+      (tp.currentUser?.id && String(tp.activeProject.created_by) === String(tp.currentUser.id)) ||
+      (tp.currentUser?.id && String(tp.activeProject.user_id) === String(tp.currentUser.id))
     const projectColumns = (Array.isArray(tp.activeProject?.columns) && tp.activeProject.columns.length > 0)
       ? tp.activeProject.columns
       : (getSavedProjectColumns(tp.activeProject?.id) || DEFAULT_COLUMNS)
@@ -99,7 +102,30 @@ export default function TaskProjectsModule() {
           <Search size={16} />
           <input placeholder="Пошук проєктів…" value={tp.query} onChange={e => tp.setQuery(e.target.value)} />
         </div>
-        <span>{tp.filteredProjects.length} проєктів</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <span>{tp.filteredProjects.length} проєктів</span>
+          <button
+            type="button"
+            className="tp-primary"
+            onClick={() => tp.openProjectForm()}
+            style={{
+              background: '#ff9000',
+              color: '#000',
+              padding: '8px 14px',
+              borderRadius: '10px',
+              fontSize: '0.8rem',
+              fontWeight: 800,
+              border: 'none',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
+          >
+            <Plus size={16} />
+            <span>Створити проєкт</span>
+          </button>
+        </div>
       </div>
 
       <TaskProjectsGrid
@@ -108,6 +134,7 @@ export default function TaskProjectsModule() {
         setActiveId={tp.setActiveId}
         projectMembers={tp.projectMembers}
         canCreateProject={tp.canCreateProject}
+        openProjectForm={tp.openProjectForm}
       />
 
       {tp.projectModal && (
@@ -148,12 +175,10 @@ export default function TaskProjectsModule() {
           <div className="tp-add-popup">
             {!tp.selectingProject ? (
               <>
-                {tp.canCreateProject && (
-                  <button className="tp-menu-item" onClick={() => { tp.openProjectForm(); tp.setAddMenuOpen(false); }}>
-                    <Plus size={16} color="#ff9000" />
-                    <span>Створити проєкт</span>
-                  </button>
-                )}
+                <button className="tp-menu-item" onClick={() => { tp.openProjectForm(); tp.setAddMenuOpen(false); }}>
+                  <Plus size={16} color="#ff9000" />
+                  <span>Створити проєкт</span>
+                </button>
                 <button className="tp-menu-item" onClick={() => { tp.setSelectingProject(true); }}>
                   <CheckSquare size={16} color="#3b82f6" />
                   <span>Створити задачу по проєкту</span>
