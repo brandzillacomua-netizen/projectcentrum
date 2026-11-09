@@ -940,6 +940,8 @@ body {
   transition: width 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   flex-shrink: 0;
   box-shadow: 10px 0 30px rgba(0,0,0,0.3);
+  overscroll-behavior: contain;
+  overscroll-behavior-y: contain;
 }
 
 .app-sidebar.collapsed {
@@ -951,6 +953,8 @@ body {
   scrollbar-width: none !important;
   -ms-overflow-style: none !important;
   padding: 12px 6px;
+  overscroll-behavior: contain;
+  overscroll-behavior-y: contain;
 }
 
 .app-sidebar.collapsed .sidebar-nav-container::-webkit-scrollbar {
@@ -1032,6 +1036,9 @@ body {
 .sidebar-nav-container {
   flex: 1;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  overscroll-behavior-y: contain;
+  touch-action: pan-y;
   padding: 12px 8px;
   display: flex;
   flex-direction: column;
@@ -1264,6 +1271,8 @@ body {
     height: 100vh !important;
     z-index: 999999 !important;
     box-shadow: 10px 0 50px rgba(0, 0, 0, 0.5) !important;
+    overscroll-behavior: contain !important;
+    overscroll-behavior-y: contain !important;
   }
 }
 

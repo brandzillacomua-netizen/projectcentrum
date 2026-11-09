@@ -169,6 +169,7 @@
   display: flex; align-items: center; justify-content: center; padding: 20px;
   backdrop-filter: blur(20px);
   animation: fadeIn 0.3s ease-out;
+  overscroll-behavior: contain;
 }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
@@ -180,6 +181,7 @@
   border-radius: 28px; 
   box-shadow: 0 30px 70px rgba(0, 0, 0, 0.8), inset 0 1px 1px rgba(255, 255, 255, 0.05); 
   overflow: hidden;
+  overscroll-behavior: contain;
 }
 
 .modal-header-modern { 

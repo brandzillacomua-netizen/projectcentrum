@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react'
+import React, { useState, useMemo, useEffect, useRef } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   ChevronRight,
@@ -27,6 +27,7 @@ export const AppSidebar = ({ isCollapsed, setIsCollapsed, chatUnreadCount, isMob
   const navigate = useNavigate()
   const [collapsedGroups, setCollapsedGroups] = useState({ crm: false, erp: false, mes: false })
   const [sidebarFilter, setSidebarFilter] = useState('')
+  const sidebarRef = useRef(null)
 
   const modules = useMemo(() => {
     return getAvailableModules(currentUser, 0, chatUnreadCount)
@@ -36,7 +37,7 @@ export const AppSidebar = ({ isCollapsed, setIsCollapsed, chatUnreadCount, isMob
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (isCollapsed) return
-      const sidebarEl = document.querySelector('.app-sidebar')
+      const sidebarEl = sidebarRef.current || document.querySelector('.app-sidebar')
       if (!sidebarEl) return
       
       // If click is inside sidebar or on toggle buttons/backdrop, do nothing
@@ -55,6 +56,54 @@ export const AppSidebar = ({ isCollapsed, setIsCollapsed, chatUnreadCount, isMob
     document.addEventListener('click', handleClickOutside)
     return () => document.removeEventListener('click', handleClickOutside)
   }, [isCollapsed, setIsCollapsed])
+
+  // Isolate sidebar wheel scrolling so reaching edges NEVER scrolls the background page
+  useEffect(() => {
+    const sidebarEl = sidebarRef.current
+    if (!sidebarEl) return
+
+    const handleWheel = (e) => {
+      const nav = sidebarEl.querySelector('.sidebar-nav-container')
+      if (!nav) return
+
+      const delta = e.deltaY
+      if (delta === 0) return
+
+      const { scrollTop, scrollHeight, clientHeight } = nav
+      const isScrollable = scrollHeight > clientHeight
+
+      // When the sidebar is expanded but short enough to fit without scrolling:
+      // scrolling over the sidebar menu should not scroll the background page
+      if (!isScrollable) {
+        if (!isCollapsed) {
+          e.preventDefault()
+        }
+        return
+      }
+
+      // If wheel event was triggered outside the nav list (e.g. over logo header, search, footer):
+      // scroll the nav list directly and prevent page scroll
+      if (!nav.contains(e.target) && nav !== e.target) {
+        nav.scrollTop += delta
+        e.preventDefault()
+        return
+      }
+
+      const isScrollingUp = delta < 0
+      const isScrollingDown = delta > 0
+      const isAtTop = scrollTop <= 0
+      const isAtBottom = Math.ceil(scrollTop + clientHeight) >= scrollHeight - 1
+
+      // When user hits either the top or bottom edge of the menu list,
+      // prevent the scroll from chaining into the background page
+      if ((isScrollingUp && isAtTop) || (isScrollingDown && isAtBottom)) {
+        e.preventDefault()
+      }
+    }
+
+    sidebarEl.addEventListener('wheel', handleWheel, { passive: false })
+    return () => sidebarEl.removeEventListener('wheel', handleWheel)
+  }, [isCollapsed])
 
   const toggleGroup = (pillar) => {
     setCollapsedGroups(prev => ({ ...prev, [pillar]: !prev[pillar] }))
@@ -154,6 +203,7 @@ export const AppSidebar = ({ isCollapsed, setIsCollapsed, chatUnreadCount, isMob
       )}
 
       <aside
+        ref={sidebarRef}
         className={`app-sidebar no-print ${isCollapsed ? 'collapsed' : ''}`}
         onClick={(e) => {
           if (isCollapsed) {
