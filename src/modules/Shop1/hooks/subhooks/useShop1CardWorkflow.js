@@ -294,19 +294,48 @@ export function useShop1CardWorkflow({
       );
     }
 
-    // Build effective breakdown
-    let effectiveBreakdown = { ...(breakdown || {}) };
-    if (Object.keys(effectiveBreakdown).length === 0) {
-      const reqCutters = typeof getCuttersForCard === 'function' ? getCuttersForCard(card) : [];
-      if (reqCutters && reqCutters.length > 0) {
-        reqCutters.forEach(name => { effectiveBreakdown[name] = 0; });
-      } else if (Array.isArray(task?.plan_snapshot?.consumables)) {
-        task.plan_snapshot.consumables.forEach(c => {
-          if (c.name && c.name.toLowerCase().includes('фрез')) {
-            effectiveBreakdown[c.name.trim()] = 0;
+    // Build effective breakdown: ALWAYS collect ALL planned cutters for this card and task.
+    // Even if operator specified a replacement quantity for only ONE cutter (or none),
+    // ALL planned cutters on this card MUST have their planned reservation quota released from reserve.
+    const effectiveBreakdown = {};
+
+    // 1. All cutters configured for this card
+    const reqCutters = typeof getCuttersForCard === 'function' ? getCuttersForCard(card) : [];
+    if (Array.isArray(reqCutters)) {
+      reqCutters.forEach(name => {
+        if (name) effectiveBreakdown[name.trim()] = 0;
+      });
+    }
+
+    // 2. All cutters from task consumables snapshot
+    if (Array.isArray(task?.plan_snapshot?.consumables)) {
+      task.plan_snapshot.consumables.forEach(c => {
+        if (c?.name && c.name.toLowerCase().includes('фрез')) {
+          effectiveBreakdown[c.name.trim()] = 0;
+        }
+      });
+    }
+
+    // 3. All cutters with active material_requests for this card/task
+    if (Array.isArray(dbTaskRequests)) {
+      dbTaskRequests.forEach(r => {
+        const details = (r.details || '').toLowerCase();
+        if (details.includes('фрез') && r.nomenclature_id) {
+          const nom = nomenclatures?.find(n => String(n.id) === String(r.nomenclature_id));
+          if (nom?.name) {
+            effectiveBreakdown[nom.name.trim()] = 0;
           }
-        });
-      }
+        }
+      });
+    }
+
+    // 4. Merge any actual operator-entered replacement quantities
+    if (breakdown && typeof breakdown === 'object') {
+      Object.entries(breakdown).forEach(([name, val]) => {
+        if (name) {
+          effectiveBreakdown[name.trim()] = Number(val) || 0;
+        }
+      });
     }
 
     const processedRequestIds = new Set();

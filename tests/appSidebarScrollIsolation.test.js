@@ -80,3 +80,4 @@ describe('AppSidebar Scroll Isolation & Overscroll Prevention', () => {
     expect(headerScroll.navScrollTop).toBe(90)
   })
 })
+
