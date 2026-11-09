@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react'
-import { LayoutDashboard, ArrowLeft } from 'lucide-react'
+import { LayoutDashboard, ArrowLeft, Plus } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
 import { useStore } from '../store/index.js'
@@ -12,6 +12,7 @@ import { BatchScheduleModal } from './Manager/components/BatchScheduleModal'
 import { OrderDetailsModal } from './Manager/components/OrderDetailsModal'
 import { OrderForm } from './Manager/components/OrderForm'
 import { OrdersTable } from './Manager/components/OrdersTable'
+import { getOrderPaintingInfo } from './Manager/constants/paintingConstants'
 import './Manager/ManagerStyles.css'
 
 const ManagerModule = () => {
@@ -154,6 +155,7 @@ const ManagerModule = () => {
   const [localCustomers, setLocalCustomers] = useState([])
   const searchTimeout = useRef(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isNewOrderOpen, setIsNewOrderOpen] = useState(false)
 
   // Product Creation Modal State
   const [isCreateProductOpen, setIsCreateProductOpen] = useState(false)
@@ -181,7 +183,10 @@ const ManagerModule = () => {
     invoice_num: '',
     nomenclature_id: '',
     quantity: 1,
-    deadline: ''
+    deadline: '',
+    painting_type: 'none',
+    painting_color: '',
+    painting_notes: ''
   })
 
   const handleBatchScheduleInit = (order) => {
@@ -307,7 +312,10 @@ const ManagerModule = () => {
     unit: 'шт',
     quantity: 1,
     deadline: '',
-    source: 'Виробництво'
+    source: 'Виробництво',
+    painting_type: '',
+    painting_color: '',
+    painting_notes: ''
   })
 
   useEffect(() => {
@@ -332,6 +340,7 @@ const ManagerModule = () => {
   const handleEditInit = (order) => {
     setSelectedOrder(order)
     setIsEditMode(true)
+    const pInfo = getOrderPaintingInfo(order)
     setEditingOrderHeader({
       customer: order.customer || '',
       customer_id: order.customer_id || null,
@@ -339,7 +348,10 @@ const ManagerModule = () => {
       invoice_num: order.invoice_num || '',
       nomenclature_id: order.nomenclature_id || '',
       quantity: order.quantity || 1,
-      deadline: order.deadline ? order.deadline.split('T')[0] : ''
+      deadline: order.deadline ? order.deadline.split('T')[0] : '',
+      painting_type: pInfo.type || 'none',
+      painting_color: pInfo.color || '',
+      painting_notes: pInfo.notes || ''
     })
   }
 
@@ -347,6 +359,16 @@ const ManagerModule = () => {
     e.preventDefault()
     if (!editingOrderHeader.customer || !editingOrderHeader.nomenclature_id || !editingOrderHeader.deadline) {
       alert('Будь ласка, заповніть Замовника, оберіть Продукт та вкажіть Термін (Дедлайн)')
+      return
+    }
+
+    if (!editingOrderHeader.painting_type) {
+      alert('Будь ласка, оберіть варіант постобробки / фарбування')
+      return
+    }
+
+    if ((editingOrderHeader.painting_type === 'full' || editingOrderHeader.painting_type === 'edges') && !editingOrderHeader.painting_color?.trim()) {
+      alert('Будь ласка, оберіть колір фарбування')
       return
     }
 
@@ -359,7 +381,10 @@ const ManagerModule = () => {
         invoice_num: editingOrderHeader.invoice_num,
         deadline: editingOrderHeader.deadline,
         quantity: editingOrderHeader.quantity,
-        productName: selectedProduct?.name || ''
+        productName: selectedProduct?.name || '',
+        painting_type: editingOrderHeader.painting_type || 'none',
+        painting_color: editingOrderHeader.painting_color || '',
+        painting_notes: editingOrderHeader.painting_notes || ''
       }
       const items = [{ nomenclature_id: editingOrderHeader.nomenclature_id, quantity: editingOrderHeader.quantity }]
 
@@ -472,10 +497,26 @@ const ManagerModule = () => {
       return
     }
 
+    if (!orderHeader.painting_type) {
+      alert('Будь ласка, оберіть варіант постобробки / фарбування')
+      return
+    }
+
+    if ((orderHeader.painting_type === 'full' || orderHeader.painting_type === 'edges') && !orderHeader.painting_color?.trim()) {
+      alert('Будь ласка, оберіть колір фарбування')
+      return
+    }
+
     setIsSubmitting(true)
     try {
       const selectedProduct = allNomenclaturesList.find(p => String(p.id) === String(orderHeader.nomenclature_id)) || v2FinishedProductsOnly.find(p => String(p.id) === String(orderHeader.nomenclature_id))
-      const headerWithInfo = { ...orderHeader, productName: selectedProduct?.name || '' }
+      const headerWithInfo = {
+        ...orderHeader,
+        productName: selectedProduct?.name || '',
+        painting_type: orderHeader.painting_type || 'none',
+        painting_color: orderHeader.painting_color || '',
+        painting_notes: orderHeader.painting_notes || ''
+      }
 
       const items = [{ nomenclature_id: orderHeader.nomenclature_id, quantity: orderHeader.quantity }]
       await apiService.submitOrder(headerWithInfo, items, addOrder, currentUser?.token)
@@ -491,9 +532,13 @@ const ManagerModule = () => {
         official_customer: '',
         nomenclature_id: '',
         quantity: 1,
-        deadline: ''
+        deadline: '',
+        painting_type: '',
+        painting_color: '',
+        painting_notes: ''
       })
       alert('Замовлення успішно додано!')
+      setIsNewOrderOpen(false)
       fetchOrders(0, false, { searchQuery, dateRange: dateFilter })
     } catch (err) {
       alert('Помилка при додаванні замовлення: ' + err.message)
@@ -509,46 +554,22 @@ const ManagerModule = () => {
   }
 
   return (
-    <div className="manager-module-modern" style={{ background: 'var(--bg, #050505)', minHeight: '100vh', color: 'var(--text, #fff)', display: 'flex', flexDirection: 'column', fontFamily: '"Outfit", sans-serif' }}>
+    <div className="manager-module-modern">
       
       {/* Header Overlay */}
-      <nav className="glass-nav" style={{
-        position: 'sticky', top: 0, zIndex: 100,
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        padding: '12px 25px 12px 75px', background: 'rgba(10,10,10,0.8)', backdropFilter: 'blur(12px)',
-        borderBottom: '1px solid var(--border-subtle)'
-      }}>
+      <nav className="glass-nav manager-nav">
         <Link to="/" className="back-btn-modern">
           <ArrowLeft size={18} /> <span>НАЗАД</span>
         </Link>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <LayoutDashboard className="text-orange" size={24} />
-          <h1 style={{ fontSize: '1.2rem', fontWeight: 800, letterSpacing: '1px', margin: 0 }}>MANAGER <span className="text-dim">CONSOLE</span></h1>
-          <span className="pillar-badge-crm" style={{ padding: '3px 8px', borderRadius: '12px', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase' }}>
-            CRM & ERP Pillar
-          </span>
+          <h1 className="manager-nav-title" style={{ fontSize: '1.2rem', fontWeight: 800, letterSpacing: '1px', margin: 0 }}>
+            MANAGER <span className="text-dim">CONSOLE</span>
+          </h1>
         </div>
       </nav>
 
       <div className="content-scrollbox" style={{ padding: '30px', maxWidth: '1400px', margin: '0 auto', width: '100%' }}>
-        
-        {/* NEW ORDER SECTION */}
-        <OrderForm
-          orderHeader={orderHeader}
-          setOrderHeader={setOrderHeader}
-          handleOrderSubmit={handleOrderSubmit}
-          handleCustomerChange={handleCustomerChange}
-          showCustomerHints={showCustomerHints}
-          setShowCustomerHints={setShowCustomerHints}
-          localCustomers={localCustomers}
-          selectCustomer={selectCustomer}
-          nomenclatures={v2FinishedProductsOnly}
-          setCreateProductQuery={setCreateProductQuery}
-          setTargetProductField={setTargetProductField}
-          setIsCreateProductOpen={setIsCreateProductOpen}
-          isSubmitting={isSubmitting}
-        />
-
         {/* REGISTRY SECTION */}
         <OrdersTable
           clientOrders={clientOrders}
@@ -564,8 +585,28 @@ const ManagerModule = () => {
           loading={loading}
           hasMoreOrders={hasMoreOrders}
           loadMore={loadMore}
+          onOpenNewOrder={() => setIsNewOrderOpen(true)}
         />
       </div>
+
+      {/* NEW ORDER MODAL */}
+      <OrderForm
+        isOpen={isNewOrderOpen}
+        onClose={() => setIsNewOrderOpen(false)}
+        orderHeader={orderHeader}
+        setOrderHeader={setOrderHeader}
+        handleOrderSubmit={handleOrderSubmit}
+        handleCustomerChange={handleCustomerChange}
+        showCustomerHints={showCustomerHints}
+        setShowCustomerHints={setShowCustomerHints}
+        localCustomers={localCustomers}
+        selectCustomer={selectCustomer}
+        nomenclatures={v2FinishedProductsOnly}
+        setCreateProductQuery={setCreateProductQuery}
+        setTargetProductField={setTargetProductField}
+        setIsCreateProductOpen={setIsCreateProductOpen}
+        isSubmitting={isSubmitting}
+      />
 
       {/* DETAIL & EDIT MODAL */}
       <OrderDetailsModal

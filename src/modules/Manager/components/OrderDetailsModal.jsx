@@ -1,6 +1,7 @@
 import React from 'react'
-import { X, User, FileText, Calendar, Package, Trash2 } from 'lucide-react'
+import { X, User, FileText, Calendar, Package, Trash2, Palette, Droplet } from 'lucide-react'
 import { ProductSearchSelect } from './ProductSearchSelect'
+import { DEFAULT_PAINTING_COLORS, getOrderPaintingInfo } from '../constants/paintingConstants'
 
 export const OrderDetailsModal = ({
   selectedOrder,
@@ -22,6 +23,8 @@ export const OrderDetailsModal = ({
   onCreateNewProduct
 }) => {
   if (!selectedOrder) return null
+
+  const paintingInfo = getOrderPaintingInfo(selectedOrder)
 
   return (
     <div className="modal-backdrop-modern">
@@ -106,6 +109,73 @@ export const OrderDetailsModal = ({
                   </div>
                 </div>
               </div>
+
+              {/* ПОСТОБРОБКА / ФАРБУВАННЯ (ЦЕХ №2) */}
+              <div className="form-group-modern" style={{ background: 'rgba(255,144,0,0.03)', border: '1px solid rgba(255,144,0,0.18)', borderRadius: '16px', padding: '16px', marginTop: '5px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                  <Palette size={16} className="text-orange" />
+                  <span style={{ fontSize: '0.75rem', fontWeight: 900, color: '#ff9000', letterSpacing: '0.8px', textTransform: 'uppercase' }}>
+                    ПОСТОБРОБКА / ФАРБУВАННЯ (ЦЕХ №2)
+                  </span>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
+                  <div className="form-group-modern" style={{ margin: 0 }}>
+                    <label>ТИП ФАРБУВАННЯ</label>
+                    <div className="input-wrapper">
+                      <Palette size={16} />
+                      <select
+                        value={editingOrderHeader.painting_type || ''}
+                        onChange={e => setEditingOrderHeader({
+                          ...editingOrderHeader,
+                          painting_type: e.target.value,
+                          painting_color: (e.target.value === 'none' || !e.target.value) ? '' : (editingOrderHeader.painting_color || '')
+                        })}
+                      >
+                        <option value="">-- Оберіть варіант --</option>
+                        <option value="none">Без фарбування</option>
+                        <option value="full">Повне фарбування</option>
+                        <option value="edges">Фарбування торців</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {(editingOrderHeader.painting_type === 'full' || editingOrderHeader.painting_type === 'edges') && (
+                    <>
+                      <div className="form-group-modern" style={{ margin: 0 }}>
+                        <label>КОЛІР ФАРБУВАННЯ</label>
+                        <div className="input-wrapper">
+                          <Droplet size={16} />
+                          <select
+                            value={editingOrderHeader.painting_color || ''}
+                            onChange={e => setEditingOrderHeader({ ...editingOrderHeader, painting_color: e.target.value })}
+                          >
+                            <option value="">-- Оберіть колір --</option>
+                            {DEFAULT_PAINTING_COLORS.map(c => (
+                              <option key={c} value={c}>{c}</option>
+                            ))}
+                            {editingOrderHeader.painting_color && !DEFAULT_PAINTING_COLORS.includes(editingOrderHeader.painting_color) && (
+                              <option value={editingOrderHeader.painting_color}>{editingOrderHeader.painting_color}</option>
+                            )}
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="form-group-modern" style={{ margin: 0, gridColumn: '1 / -1' }}>
+                        <label>ПРИМІТКА ДО МАЛЯРКИ (ОПЦІОНАЛЬНО)</label>
+                        <div className="input-wrapper">
+                          <FileText size={16} />
+                          <input
+                            value={editingOrderHeader.painting_notes || ''}
+                            onChange={e => setEditingOrderHeader({ ...editingOrderHeader, painting_notes: e.target.value })}
+                            placeholder="Особливі вказівки маляру..."
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
             </div>
 
             <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '10px' }}>
@@ -151,6 +221,34 @@ export const OrderDetailsModal = ({
               <div className="detail-item">
                 <label>ОФІЦІЙНА НАЗВА</label>
                 <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>{selectedOrder.official_customer || '—'}</div>
+              </div>
+              <div className="detail-item detail-item-painting-box" style={{ gridColumn: '1 / -1', padding: '12px 16px', borderRadius: '12px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+                  <Palette size={14} className="text-orange" />
+                  ПОСТОБРОБКА / ФАРБУВАННЯ (ЦЕХ №2)
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                  {paintingInfo.type === 'full' && (
+                    <span style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '4px 10px', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                      🎨 Повне фарбування {paintingInfo.color && `• ${paintingInfo.color}`}
+                    </span>
+                  )}
+                  {paintingInfo.type === 'edges' && (
+                    <span style={{ background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', border: '1px solid rgba(245, 158, 11, 0.3)', padding: '4px 10px', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                      🖌️ Фарбування торців {paintingInfo.color && `• ${paintingInfo.color}`}
+                    </span>
+                  )}
+                  {(!paintingInfo.type || paintingInfo.type === 'none') && (
+                    <span style={{ color: 'var(--text-dim)', fontSize: '0.85rem' }}>
+                      Без фарбування
+                    </span>
+                  )}
+                  {paintingInfo.notes && (
+                    <span style={{ fontSize: '0.8rem', color: '#94a3b8', fontStyle: 'italic' }}>
+                      Вказівка: "{paintingInfo.notes}"
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
             

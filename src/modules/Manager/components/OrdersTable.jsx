@@ -1,5 +1,6 @@
 import React from 'react'
-import { Layers, Search, Pencil, Calendar } from 'lucide-react'
+import { Layers, Search, Pencil, Calendar, Plus } from 'lucide-react'
+import { getOrderPaintingInfo } from '../constants/paintingConstants'
 
 export const OrdersTable = ({
   clientOrders,
@@ -14,14 +15,36 @@ export const OrdersTable = ({
   setSearchQuery,
   loading,
   hasMoreOrders,
-  loadMore
+  loadMore,
+  onOpenNewOrder
 }) => {
   return (
     <section className="registry-section-modern">
       <div className="registry-header-modern">
-        <div className="registry-title-group">
-          <Layers className="text-orange" size={28} />
-          <h3>РЕЄСТР ЗАМОВЛЕННЯ</h3>
+        <div className="registry-title-group" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', flexWrap: 'wrap', gap: '15px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+            <Layers className="text-orange" size={28} />
+            <h3 style={{ margin: 0 }}>РЕЄСТР ЗАМОВЛЕНЬ</h3>
+          </div>
+          {onOpenNewOrder && (
+            <button
+              type="button"
+              onClick={onOpenNewOrder}
+              className="btn-primary-modern"
+              style={{
+                padding: '12px 24px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontSize: '0.85rem',
+                fontWeight: 900,
+                borderRadius: '14px',
+                cursor: 'pointer'
+              }}
+            >
+              <Plus size={18} /> НОВЕ ЗАМОВЛЕННЯ
+            </button>
+          )}
         </div>
 
         <div className="filters-container-modern">
@@ -70,6 +93,7 @@ export const OrdersTable = ({
                 const ordQty = order.quantity || 0;
                 const prog = getOrderProductionProgress(order.id);
                 const inWorkQty = Math.max(0, prog.planned - prog.packaged);
+                const paintingInfo = getOrderPaintingInfo(order);
                 return (
                   <tr key={order.id} onClick={() => setSelectedOrder(order)}>
                     <td className="order-num-cell">#{order.order_num}</td>
@@ -77,7 +101,23 @@ export const OrdersTable = ({
                       {order.invoice_num ? `№ ${order.invoice_num}` : '—'}
                     </td>
                     <td className="customer-cell">{order.customer}</td>
-                    <td className="product-cell">{prodName}</td>
+                    <td className="product-cell">
+                      <div>{prodName}</div>
+                      {paintingInfo.type === 'full' && (
+                        <div style={{ marginTop: '4px' }}>
+                          <span style={{ fontSize: '0.72rem', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '2px 8px', borderRadius: '6px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                            🎨 Повне {paintingInfo.color ? `• ${paintingInfo.color}` : ''}
+                          </span>
+                        </div>
+                      )}
+                      {paintingInfo.type === 'edges' && (
+                        <div style={{ marginTop: '4px' }}>
+                          <span style={{ fontSize: '0.72rem', background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', border: '1px solid rgba(245, 158, 11, 0.3)', padding: '2px 8px', borderRadius: '6px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                            🖌️ Торці {paintingInfo.color ? `• ${paintingInfo.color}` : ''}
+                          </span>
+                        </div>
+                      )}
+                    </td>
                     <td className="qty-cell">
                       <strong>{prog.packaged}</strong>
                       {inWorkQty > 0 && (
@@ -126,6 +166,7 @@ export const OrdersTable = ({
             const ordQty = order.quantity || 0;
             const prog = getOrderProductionProgress(order.id);
             const inWorkQty = Math.max(0, prog.planned - prog.packaged);
+            const paintingInfo = getOrderPaintingInfo(order);
             return (
               <div key={order.id} onClick={() => setSelectedOrder(order)} className="mobile-order-card">
                 <div className="card-top">
@@ -133,7 +174,23 @@ export const OrdersTable = ({
                   <span className={`status-pill ${prog.status}`}>{getStatusLabel(prog.status)}</span>
                 </div>
                 <div className="card-customer">{order.customer}</div>
-                <div className="card-product">{prodName}</div>
+                <div className="card-product">
+                  {prodName}
+                  {paintingInfo.type === 'full' && (
+                    <div style={{ marginTop: '4px' }}>
+                      <span style={{ fontSize: '0.72rem', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '2px 8px', borderRadius: '6px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                        🎨 Повне {paintingInfo.color ? `• ${paintingInfo.color}` : ''}
+                      </span>
+                    </div>
+                  )}
+                  {paintingInfo.type === 'edges' && (
+                    <div style={{ marginTop: '4px' }}>
+                      <span style={{ fontSize: '0.72rem', background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', border: '1px solid rgba(245, 158, 11, 0.3)', padding: '2px 8px', borderRadius: '6px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                        🖌️ Торці {paintingInfo.color ? `• ${paintingInfo.color}` : ''}
+                      </span>
+                    </div>
+                  )}
+                </div>
                 <div className="card-footer">
                   <span>
                     <strong>{prog.packaged}</strong>

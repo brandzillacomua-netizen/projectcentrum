@@ -52,6 +52,32 @@ export function createProductionOrdersActions({
       updatePayload.invoice_num = header.invoice_num || header.invoiceNum || null;
     }
 
+    if (header.report !== undefined || header.painting !== undefined || header.painting_type !== undefined) {
+      let currentReport = {}
+      try {
+        const { data: ordRow } = await supabase.from('orders').select('report').eq('id', orderId).maybeSingle()
+        if (ordRow?.report) {
+          currentReport = typeof ordRow.report === 'string' ? JSON.parse(ordRow.report) : (ordRow.report || {})
+        }
+      } catch (e) {}
+      if (header.report) {
+        try {
+          const parsed = typeof header.report === 'string' ? JSON.parse(header.report) : (header.report || {})
+          currentReport = { ...currentReport, ...parsed }
+        } catch (e) {}
+      }
+      if (header.painting) {
+        currentReport.painting = header.painting
+      } else if (header.painting_type !== undefined) {
+        currentReport.painting = {
+          type: header.painting_type,
+          color: header.painting_color || '',
+          notes: header.painting_notes || ''
+        }
+      }
+      updatePayload.report = JSON.stringify(currentReport)
+    }
+
     const { error } = await supabase.from('orders').update(updatePayload).eq('id', orderId)
     
     if (error) throw error
@@ -287,6 +313,25 @@ export function createProductionOrdersActions({
     };
     if (customerId) {
       orderPayload.customer_id = customerId;
+    }
+
+    let initialReport = {}
+    if (header.report) {
+      try {
+        initialReport = typeof header.report === 'string' ? JSON.parse(header.report) : (header.report || {})
+      } catch (e) {}
+    }
+    if (header.painting) {
+      initialReport.painting = header.painting
+    } else if (header.painting_type) {
+      initialReport.painting = {
+        type: header.painting_type,
+        color: header.painting_color || '',
+        notes: header.painting_notes || ''
+      }
+    }
+    if (Object.keys(initialReport).length > 0) {
+      orderPayload.report = JSON.stringify(initialReport)
     }
 
     let insertedData = null;
