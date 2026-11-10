@@ -3,6 +3,7 @@ import {
   FileText, Search, Filter, CheckCircle2, Clock, Scan, 
   ArrowRight, Zap, RefreshCw, Layers, Calendar, ChevronRight 
 } from 'lucide-react'
+import '../PackagingResponsive.css'
 
 export const Packaging1CJournal = ({
   batchList = [],
@@ -78,7 +79,7 @@ export const Packaging1CJournal = ({
   }
 
   return (
-    <div style={{
+    <div className="packaging-journal-card" style={{
       display: 'flex',
       flexDirection: 'column',
       height: '100%',
@@ -89,7 +90,7 @@ export const Packaging1CJournal = ({
       fontFamily: 'Inter, system-ui, -apple-system, sans-serif'
     }}>
       {/* 1C TOP TOOLBAR */}
-      <div style={{
+      <div className="packaging-journal-header" style={{
         background: '#f8fafc',
         borderBottom: '1.5px solid #e2e8f0',
         padding: '12px 18px',
@@ -141,7 +142,7 @@ export const Packaging1CJournal = ({
       </div>
 
       {/* KPI STATS BAR (LIGHT THEME ELEVATED TILES) */}
-      <div style={{
+      <div className="packaging-kpi-grid" style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
         gap: '10px',
@@ -151,6 +152,7 @@ export const Packaging1CJournal = ({
       }}>
         <div 
           onClick={() => setStatusFilter('all')}
+          className="packaging-kpi-tile"
           style={{
             background: '#ffffff',
             border: `1.5px solid ${statusFilter === 'all' ? '#0284c7' : '#cbd5e1'}`,
@@ -169,6 +171,7 @@ export const Packaging1CJournal = ({
 
         <div 
           onClick={() => setStatusFilter('ready')}
+          className="packaging-kpi-tile"
           style={{
             background: statusFilter === 'ready' ? '#f0fdf4' : '#ffffff',
             border: `1.5px solid ${statusFilter === 'ready' ? '#16a34a' : '#bbf7d0'}`,
@@ -187,6 +190,7 @@ export const Packaging1CJournal = ({
 
         <div 
           onClick={() => setStatusFilter('processing')}
+          className="packaging-kpi-tile"
           style={{
             background: statusFilter === 'processing' ? '#fffbeb' : '#ffffff',
             border: `1.5px solid ${statusFilter === 'processing' ? '#d97706' : '#fde68a'}`,
@@ -205,6 +209,7 @@ export const Packaging1CJournal = ({
 
         <div 
           onClick={() => setStatusFilter('completed')}
+          className="packaging-kpi-tile"
           style={{
             background: statusFilter === 'completed' ? '#f1f5f9' : '#ffffff',
             border: `1.5px solid ${statusFilter === 'completed' ? '#475569' : '#cbd5e1'}`,
@@ -223,7 +228,7 @@ export const Packaging1CJournal = ({
       </div>
 
       {/* FILTER & SEARCH ROW */}
-      <div style={{
+      <div className="packaging-search-row" style={{
         padding: '10px 18px',
         borderBottom: '1.5px solid #e2e8f0',
         display: 'flex',
@@ -257,9 +262,9 @@ export const Packaging1CJournal = ({
         </div>
       </div>
 
-      {/* 1C ERP REGISTRY TABLE (CLEAN, HIGH CONTRAST) */}
-      <div style={{ flex: 1, overflowY: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.82rem' }}>
+      {/* 1C ERP REGISTRY TABLE (DESKTOP) */}
+      <div className="packaging-table-container" style={{ flex: 1, overflowY: 'auto' }}>
+        <table className="packaging-desktop-table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.82rem' }}>
           <thead>
             <tr style={{ background: '#f8fafc', borderBottom: '2px solid #cbd5e1', color: '#334155', position: 'sticky', top: 0, zIndex: 10 }}>
               <th 
@@ -467,8 +472,100 @@ export const Packaging1CJournal = ({
         </table>
       </div>
 
+      {/* MOBILE ORDERS LIST (Active <= 768px) */}
+      <div className="packaging-mobile-orders-list">
+        {filteredBatches.map(batch => {
+          const isCompleted = batch.packStatus === 'completed'
+          const isReady = batch.packStatus === 'ready'
+          const isProc = batch.packStatus === 'processing'
+
+          let badgeClass = 'waiting', statusText = 'ОЧІКУЄ ЗАПИТУ'
+          if (isCompleted) { badgeClass = 'completed'; statusText = 'СПАКОВАНО' }
+          else if (isReady) { badgeClass = 'ready'; statusText = 'ГОТОВО ДО ПАКУВАННЯ' }
+          else if (isProc) { badgeClass = 'processing'; statusText = 'В ОБРОБЦІ' }
+
+          return (
+            <div
+              key={batch.key}
+              className="packaging-mobile-order-card"
+              onClick={() => onSelectBatch(batch)}
+            >
+              {/* Top row: Order Num + Status badge */}
+              <div className="packaging-card-top-row">
+                <div className="packaging-card-order-num">
+                  <span>№ {batch.orderNum}{batch.batchIndex ? `/${batch.batchIndex}` : ''}</span>
+                  {batch.batchIndex && (
+                    <span style={{ background: '#0284c7', color: '#fff', padding: '2px 5px', borderRadius: '4px', fontSize: '0.62rem', fontWeight: 900 }}>
+                      Партія {batch.batchIndex}
+                    </span>
+                  )}
+                  {batch.hasPendingScheduleSplit && (
+                    <span style={{ background: '#f59e0b', color: '#fff', padding: '2px 5px', borderRadius: '4px', fontSize: '0.62rem', fontWeight: 900, display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                      <Zap size={10} /> {batch.batchSchedule?.length} ПАРТІЇ
+                    </span>
+                  )}
+                </div>
+                <span className={`packaging-card-badge ${badgeClass}`}>
+                  {statusText}
+                </span>
+              </div>
+
+              {/* Customer */}
+              {batch.customer && (
+                <div className="packaging-card-field">
+                  <span className="field-label">Замовник:</span>
+                  <span className="field-val">{batch.customer}</span>
+                </div>
+              )}
+
+              {/* Product */}
+              <div className="packaging-card-field">
+                <span className="field-label">Виріб:</span>
+                <span className="field-val" style={{ color: '#d97706' }}>{batch.productNames || '—'}</span>
+              </div>
+
+              {/* Metrics grid: Plan + Deadline */}
+              <div className="packaging-card-metrics-grid">
+                <div className="packaging-card-metric">
+                  <span className="metric-label">План пакування:</span>
+                  <span className="metric-val" style={{ color: '#059669' }}>
+                    {batch.plannedSets || 0} <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748b' }}>шт.</span>
+                  </span>
+                </div>
+                <div className="packaging-card-metric">
+                  <span className="metric-label">Дедлайн:</span>
+                  <span className="metric-val" style={{ color: '#334155', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                    <Calendar size={13} color="#64748b" /> {formatDate(batch.deadline)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Action Button */}
+              <button
+                type="button"
+                className="packaging-card-open-btn"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onSelectBatch(batch)
+                }}
+              >
+                <span>Відкрити наряд на пакування</span>
+                <ChevronRight size={15} />
+              </button>
+            </div>
+          )
+        })}
+
+        {filteredBatches.length === 0 && (
+          <div style={{ padding: '30px 16px', textAlign: 'center', color: '#64748b', background: '#f8fafc', borderRadius: '10px' }}>
+            <div style={{ fontSize: '0.9rem', fontWeight: 800 }}>Не знайдено нарядів</div>
+            <div style={{ fontSize: '0.75rem', marginTop: '4px' }}>Спробуйте змінити пошуковий запит або статус</div>
+          </div>
+        )}
+      </div>
+
       {/* 1C BOTTOM STATUS LINE */}
-      <div style={{
+      <div className="packaging-journal-footer" style={{
         background: '#f8fafc',
         borderTop: '1.5px solid #e2e8f0',
         padding: '10px 18px',

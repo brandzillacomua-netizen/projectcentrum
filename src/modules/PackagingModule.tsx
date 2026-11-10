@@ -12,6 +12,7 @@ import { PackagingSplitModal } from './Packaging/components/PackagingSplitModal.
 import { PackagingActionRow } from './Packaging/components/PackagingActionRow.jsx'
 import { Packaging1CJournal } from './Packaging/components/Packaging1CJournal.jsx'
 import { Packaging1CDocumentView } from './Packaging/components/Packaging1CDocumentView.jsx'
+import './Packaging/PackagingResponsive.css'
 
 export const PackagingModule: React.FC = () => {
   const [layoutMode] = React.useState<string>('1c') // '1c' | 'split'
@@ -108,7 +109,7 @@ export const PackagingModule: React.FC = () => {
       <div className="module-content module-content-container" style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
         {layoutMode === '1c' ? (
           /* 1C ERP REGISTRY OR DOCUMENT VIEW */
-          <div style={{ maxWidth: '1600px', margin: '0 auto', height: 'calc(100vh - 120px)' }}>
+          <div className="packaging-container-outer" style={{ maxWidth: '1600px', margin: '0 auto', height: 'calc(100vh - 120px)' }}>
             {selectedBatch && activeBatchData ? (
               <Packaging1CDocumentView
                 activeBatchData={activeBatchData}

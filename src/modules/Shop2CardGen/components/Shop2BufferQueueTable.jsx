@@ -1,5 +1,7 @@
+import { useState } from 'react'
 import { Play, Search, Package, ArrowUpDown, Box, AlertTriangle, ShieldCheck } from 'lucide-react'
 import { isRerunOrder } from '../utils/shop2BufferCalculations'
+import '../Shop2CardGen.css'
 
 export function Shop2BufferQueueTable({
   rows = [],
@@ -15,20 +17,122 @@ export function Shop2BufferQueueTable({
   orders = [],
   onOpenGenModal
 }) {
+  const [showOrdersColumn, setShowOrdersColumn] = useState(() => {
+    try {
+      const saved = localStorage.getItem('shop2_buffer_show_orders_col')
+      return saved === 'true'
+    } catch {
+      return false
+    }
+  })
+
+  const handleToggleOrdersColumn = (val) => {
+    setShowOrdersColumn(val)
+    try {
+      localStorage.setItem('shop2_buffer_show_orders_col', String(val))
+    } catch {}
+  }
+
+  const renderMobileCards = (rowsList) => (
+    <div className="shop2-mobile-cards-list">
+      {rowsList.map(row => {
+        const canLaunch = row.availableQty > 0
+        const hasScrap = row.shop2ScrapQty > 0
+        const hasUtil = row.shop2UtilQty > 0
+
+        return (
+          <div key={row.key} className="shop2-mobile-card">
+            {/* Header: Part info & Available Badge */}
+            <div className="shop2-mobile-card-header">
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="shop2-mobile-part-name">{row.nomName}</div>
+                {row.nomCode && <div className="shop2-mobile-part-code">{row.nomCode}</div>}
+              </div>
+              <div className={`shop2-mobile-avail-badge ${canLaunch ? 'active' : 'zero'}`}>
+                <span className="avail-val">{row.availableQty.toLocaleString()}</span>
+                <span className="avail-unit">вільно</span>
+              </div>
+            </div>
+
+            {/* Metrics 2x2 grid */}
+            <div className="shop2-mobile-metrics-grid">
+              <div className="shop2-metric-pill total">
+                <span className="pill-label">СУМА (Є / ПОТРЕБА):</span>
+                <span className="pill-val mono">{row.totalReceived} / {row.totalOrderRequirement}</span>
+              </div>
+              <div className="shop2-metric-pill">
+                <span className="pill-label">З БЗ:</span>
+                <span className="pill-val">{row.stockBzQty.toLocaleString()} шт</span>
+              </div>
+              <div className="shop2-metric-pill">
+                <span className="pill-label">Цех 1 (робота):</span>
+                <span className="pill-val" style={{ color: row.awaitingShop1Qty > 0 ? '#0284c7' : 'inherit' }}>
+                  {row.awaitingShop1Qty.toLocaleString()} шт
+                </span>
+              </div>
+              <div className="shop2-metric-pill">
+                <span className="pill-label">ВКЯ Цех 1:</span>
+                <span className="pill-val" style={{ color: row.shop1VkyaQty > 0 ? '#f59e0b' : 'inherit' }}>
+                  {row.shop1VkyaQty.toLocaleString()} шт
+                </span>
+              </div>
+              <div className="shop2-metric-pill">
+                <span className="pill-label">Цех 2 (робота):</span>
+                <span className="pill-val">{row.inProgressQty.toLocaleString()} шт</span>
+              </div>
+              <div className="shop2-metric-pill">
+                <span className="pill-label">Вихід СГП:</span>
+                <span className="pill-val" style={{ color: '#059669' }}>{row.netPackagingQty.toLocaleString()} шт</span>
+              </div>
+              {hasScrap && (
+                <div className="shop2-metric-pill scrap">
+                  <span className="pill-label">Брак Цеху 2:</span>
+                  <span className="pill-val">{row.shop2ScrapQty.toLocaleString()} шт</span>
+                </div>
+              )}
+              {hasUtil && (
+                <div className="shop2-metric-pill util">
+                  <span className="pill-label">Утиль Цеху 2:</span>
+                  <span className="pill-val">{row.shop2UtilQty.toLocaleString()} шт</span>
+                </div>
+              )}
+            </div>
+
+            {/* Conditional Orders row if showOrdersColumn is toggled */}
+            {showOrdersColumn && row.ordersList && row.ordersList.length > 0 && (
+              <div className="shop2-mobile-orders-row">
+                <div className="orders-label">Наряди у купі:</div>
+                <div className="orders-badges">
+                  {row.ordersList.map((o, idx) => (
+                    <span
+                      key={idx}
+                      className={`order-badge ${o.availableQty > 0 ? 'active' : ''}`}
+                    >
+                      {o.orderNum} ({o.availableQty})
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Action button */}
+            <button
+              disabled={!canLaunch}
+              onClick={() => onOpenGenModal(row)}
+              className={`shop2-mobile-launch-btn ${canLaunch ? 'ready' : 'disabled'}`}
+            >
+              <Play size={15} fill={canLaunch ? '#ffffff' : 'none'} />
+              Створити РК {canLaunch ? `(${row.availableQty} шт)` : ''}
+            </button>
+          </div>
+        )
+      })}
+    </div>
+  )
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       {/* ── Filters, Grouping & Sort Header ───────────────────────────────── */}
-      <div style={{
-        display: 'flex',
-        gap: '15px',
-        alignItems: 'center',
-        flexWrap: 'wrap',
-        background: 'var(--card-bg, #ffffff)',
-        padding: '18px 22px',
-        borderRadius: '20px',
-        border: '1px solid var(--border, #e2e8f0)',
-        boxShadow: '0 4px 15px rgba(0,0,0,0.02)'
-      }}>
+      <div className="shop2-filters-bar">
         {/* Search */}
         <div style={{ position: 'relative', flex: '1 1 260px' }}>
           <Search size={16} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted, #64748b)' }} />
@@ -52,7 +156,7 @@ export function Shop2BufferQueueTable({
         </div>
 
         {/* Group By selector */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div className="shop2-group-by-wrapper" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <label style={{ fontSize: '0.72rem', color: 'var(--text-muted, #64748b)', fontWeight: 800, textTransform: 'uppercase' }}>Вигляд:</label>
           <div style={{ display: 'flex', background: 'var(--input-bg, #f1f5f9)', border: '1px solid var(--border, #cbd5e1)', padding: '3px', borderRadius: '12px' }}>
             <button
@@ -154,6 +258,26 @@ export function Shop2BufferQueueTable({
             })}
           </select>
         </div>
+
+        {/* Orders Column Toggle */}
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+          <label
+            className="shop2-toggle-orders-pill"
+            style={{
+              background: showOrdersColumn ? 'rgba(255, 144, 0, 0.12)' : 'var(--input-bg, #f1f5f9)',
+              border: showOrdersColumn ? '1px solid rgba(255, 144, 0, 0.4)' : '1px solid var(--border, #cbd5e1)',
+              color: showOrdersColumn ? '#d97706' : 'var(--text-muted, #64748b)'
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={showOrdersColumn}
+              onChange={(e) => handleToggleOrdersColumn(e.target.checked)}
+              style={{ accentColor: '#ff9000', cursor: 'pointer', width: '15px', height: '15px' }}
+            />
+            <span>Показувати колонку «Наряди»</span>
+          </label>
+        </div>
       </div>
 
       {/* ── Product Sections View (When groupBy === 'product') ───────────── */}
@@ -166,18 +290,9 @@ export function Shop2BufferQueueTable({
             </div>
           ) : (
             productSections.map(sec => (
-              <div key={sec.title} style={{ background: 'var(--card-bg, #ffffff)', borderRadius: '20px', border: '1px solid var(--border, #e2e8f0)', boxShadow: '0 4px 20px rgba(0,0,0,0.03)', overflow: 'hidden' }}>
+              <div key={sec.title} className="shop2-section-card">
                 {/* Product Section Header */}
-                <div style={{
-                  background: 'var(--header-bg, #f8fafc)',
-                  borderBottom: '1px solid var(--border, #e2e8f0)',
-                  padding: '16px 24px',
-                  display: 'flex',
-                  justify: 'space-between',
-                  alignItems: 'center',
-                  flexWrap: 'wrap',
-                  gap: '12px'
-                }}>
+                <div className="shop2-section-header">
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <div style={{ background: 'rgba(255, 144, 0, 0.12)', border: '1px solid rgba(255, 144, 0, 0.3)', width: '36px', height: '36px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <Box size={18} color="#ff9000" />
@@ -222,228 +337,235 @@ export function Shop2BufferQueueTable({
                   </div>
                 </div>
 
-                {/* Section Parts Table */}
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
-                  <thead>
-                    <tr style={{ background: 'var(--table-head, #f8fafc)', borderBottom: '1px solid var(--border, #e2e8f0)', color: 'var(--text-muted, #64748b)', fontSize: '0.68rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                      <th style={{ padding: '14px 20px' }}>Деталь & Код</th>
-                      <th style={{ padding: '14px 20px' }}>Наряди у купі</th>
-                      <th style={{ padding: '14px 20px', textAlign: 'center', color: '#d97706' }}>СУМА (Є / ПОТРЕБА)</th>
-                      <th style={{ padding: '14px 20px', textAlign: 'center', color: '#eab308' }}>ВЗЯТО З БЗ</th>
-                      <th style={{ padding: '14px 20px', textAlign: 'center', color: '#0284c7' }}>В РОБОТІ (ЦЕХ 1)</th>
-                      <th style={{ padding: '14px 20px', textAlign: 'center', color: '#f59e0b' }}>НА ВКЯ (ЦЕХ 1)</th>
-                      <th style={{ padding: '14px 20px', textAlign: 'center' }}>В роботі (Цех 2)</th>
-                      <th style={{ padding: '14px 20px', textAlign: 'center' }}>БРАК ЦЕХУ 2</th>
-                      <th style={{ padding: '14px 20px', textAlign: 'center', color: '#b91c1c' }}>УТИЛЬ ЦЕХУ 2</th>
-                      <th style={{ padding: '14px 20px', textAlign: 'center' }}>ФАКТИЧНИЙ ВИХІД (СГП / ПАКУВАННЯ)</th>
-                      <th style={{ padding: '14px 20px', textAlign: 'center' }}>ВІЛЬНО ДЛЯ РК</th>
-                      <th style={{ padding: '14px 20px', textAlign: 'right' }}>Дія</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sec.rows.map(row => {
-                      const canLaunch = row.availableQty > 0
-                      const hasScrap = row.shop2ScrapQty > 0
-                      const hasUtil = row.shop2UtilQty > 0
+                {/* Section Parts Table (Desktop) */}
+                <div className="shop2-table-wrapper">
+                  <table className="shop2-desktop-table" style={{ minWidth: '950px' }}>
+                    <thead>
+                      <tr style={{ background: 'var(--table-head, #f8fafc)', borderBottom: '1px solid var(--border, #e2e8f0)', color: 'var(--text-muted, #64748b)', fontSize: '0.68rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        <th style={{ padding: '14px 20px' }}>Деталь & Код</th>
+                        {showOrdersColumn && <th style={{ padding: '14px 20px' }}>Наряди у купі</th>}
+                        <th style={{ padding: '14px 20px', textAlign: 'center', color: '#d97706' }}>СУМА (Є / ПОТРЕБА)</th>
+                        <th style={{ padding: '14px 20px', textAlign: 'center', color: '#eab308' }}>ВЗЯТО З БЗ</th>
+                        <th style={{ padding: '14px 20px', textAlign: 'center', color: '#0284c7' }}>В РОБОТІ (ЦЕХ 1)</th>
+                        <th style={{ padding: '14px 20px', textAlign: 'center', color: '#f59e0b' }}>НА ВКЯ (ЦЕХ 1)</th>
+                        <th style={{ padding: '14px 20px', textAlign: 'center' }}>В роботі (Цех 2)</th>
+                        <th style={{ padding: '14px 20px', textAlign: 'center' }}>БРАК ЦЕХУ 2</th>
+                        <th style={{ padding: '14px 20px', textAlign: 'center', color: '#b91c1c' }}>УТИЛЬ ЦЕХУ 2</th>
+                        <th style={{ padding: '14px 20px', textAlign: 'center' }}>ФАКТИЧНИЙ ВИХІД (СГП / ПАКУВАННЯ)</th>
+                        <th style={{ padding: '14px 20px', textAlign: 'center' }}>ВІЛЬНО ДЛЯ РК</th>
+                        <th style={{ padding: '14px 20px', textAlign: 'right' }}>Дія</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sec.rows.map(row => {
+                        const canLaunch = row.availableQty > 0
+                        const hasScrap = row.shop2ScrapQty > 0
+                        const hasUtil = row.shop2UtilQty > 0
 
-                      return (
-                        <tr key={row.key} style={{ borderBottom: '1px solid var(--border, #f1f5f9)', transition: 'background 0.2s' }}>
-                          <td style={{ padding: '14px 20px' }}>
-                            <div style={{ fontWeight: 900, color: 'var(--text, #0f172a)', fontSize: '0.9rem' }}>{row.nomName}</div>
-                            {row.nomCode && <div style={{ fontSize: '0.7rem', color: 'var(--text-muted, #64748b)', marginTop: '2px' }}>{row.nomCode}</div>}
-                          </td>
+                        return (
+                          <tr key={row.key} style={{ borderBottom: '1px solid var(--border, #f1f5f9)', transition: 'background 0.2s' }}>
+                            <td style={{ padding: '14px 20px' }}>
+                              <div style={{ fontWeight: 900, color: 'var(--text, #0f172a)', fontSize: '0.9rem' }}>{row.nomName}</div>
+                              {row.nomCode && <div style={{ fontSize: '0.7rem', color: 'var(--text-muted, #64748b)', marginTop: '2px' }}>{row.nomCode}</div>}
+                            </td>
 
-                          <td style={{ padding: '14px 20px' }}>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', maxWidth: '240px' }}>
-                              {row.ordersList && row.ordersList.length > 0 ? (
-                                row.ordersList.map((o, idx) => (
-                                  <span key={idx} style={{ background: 'var(--input-bg, #f1f5f9)', color: o.availableQty > 0 ? '#d97706' : 'var(--text-muted, #64748b)', border: o.availableQty > 0 ? '1px solid rgba(217, 119, 6, 0.4)' : '1px solid var(--border, #cbd5e1)', padding: '2px 7px', borderRadius: '5px', fontSize: '0.68rem', fontWeight: 800 }}>
-                                    {o.orderNum} ({o.availableQty})
-                                  </span>
-                                ))
-                              ) : (
-                                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted, #64748b)' }}>Без наряду</span>
-                              )}
-                            </div>
-                          </td>
+                            {showOrdersColumn && (
+                              <td style={{ padding: '14px 20px' }}>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', maxWidth: '240px' }}>
+                                  {row.ordersList && row.ordersList.length > 0 ? (
+                                    row.ordersList.map((o, idx) => (
+                                      <span key={idx} style={{ background: 'var(--input-bg, #f1f5f9)', color: o.availableQty > 0 ? '#d97706' : 'var(--text-muted, #64748b)', border: o.availableQty > 0 ? '1px solid rgba(217, 119, 6, 0.4)' : '1px solid var(--border, #cbd5e1)', padding: '2px 7px', borderRadius: '5px', fontSize: '0.68rem', fontWeight: 800 }}>
+                                        {o.orderNum} ({o.availableQty})
+                                      </span>
+                                    ))
+                                  ) : (
+                                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted, #64748b)' }}>Без наряду</span>
+                                  )}
+                                </div>
+                              </td>
+                            )}
 
-                          {/* СУМА (Є / ПОТРЕБА) */}
-                          <td style={{ padding: '14px 20px', textAlign: 'center' }}>
-                            <span style={{
-                              background: 'rgba(255, 144, 0, 0.1)',
-                              border: '1px solid rgba(255, 144, 0, 0.4)',
-                              color: '#d97706',
-                              padding: '5px 14px',
-                              borderRadius: '10px',
-                              fontWeight: 950,
-                              fontSize: '0.92rem',
-                              fontFamily: 'monospace',
-                              display: 'inline-block'
-                            }}>
-                              {row.totalReceived} / {row.totalOrderRequirement}
-                            </span>
-                          </td>
-
-                          {/* ВЗЯТО З БЗ */}
-                          <td style={{ padding: '14px 20px', textAlign: 'center' }}>
-                            <span style={{
-                              color: row.stockBzQty > 0 ? '#d97706' : 'var(--text-muted, #94a3b8)',
-                              fontWeight: 950,
-                              background: row.stockBzQty > 0 ? 'rgba(234, 179, 8, 0.08)' : 'transparent',
-                              border: row.stockBzQty > 0 ? '1px solid rgba(234, 179, 8, 0.3)' : 'none',
-                              padding: row.stockBzQty > 0 ? '4px 10px' : '0',
-                              borderRadius: '8px',
-                              fontSize: '0.85rem'
-                            }}>
-                              {row.stockBzQty.toLocaleString()} <span style={{ fontSize: '0.65rem' }}>шт</span>
-                            </span>
-                          </td>
-
-                          {/* ОЧІКУЄМО З ЦЕХУ 1 */}
-                          <td style={{ padding: '14px 20px', textAlign: 'center' }}>
-                            <span
-                              title={`В роботі (Цех 1): ${row.awaitingShop1Qty.toLocaleString()} шт${row.activeRerunQty > 0 ? `\n• Включно з довипуском: ${row.activeRerunQty.toLocaleString()} шт` : ''}`}
-                              style={{
-                                color: row.awaitingShop1Qty > 0 ? '#0284c7' : 'var(--text-muted, #94a3b8)',
+                            {/* СУМА (Є / ПОТРЕБА) */}
+                            <td style={{ padding: '14px 20px', textAlign: 'center' }}>
+                              <span style={{
+                                background: 'rgba(255, 144, 0, 0.1)',
+                                border: '1px solid rgba(255, 144, 0, 0.4)',
+                                color: '#d97706',
+                                padding: '5px 14px',
+                                borderRadius: '10px',
                                 fontWeight: 950,
-                                background: row.awaitingShop1Qty > 0 ? 'rgba(2, 132, 199, 0.08)' : 'transparent',
-                                border: row.awaitingShop1Qty > 0 ? '1px solid rgba(2, 132, 199, 0.3)' : 'none',
+                                fontSize: '0.92rem',
+                                fontFamily: 'monospace',
+                                display: 'inline-block'
+                              }}>
+                                {row.totalReceived} / {row.totalOrderRequirement}
+                              </span>
+                            </td>
+
+                            {/* ВЗЯТО З БЗ */}
+                            <td style={{ padding: '14px 20px', textAlign: 'center' }}>
+                              <span style={{
+                                color: row.stockBzQty > 0 ? '#d97706' : 'var(--text-muted, #94a3b8)',
+                                fontWeight: 950,
+                                background: row.stockBzQty > 0 ? 'rgba(234, 179, 8, 0.08)' : 'transparent',
+                                border: row.stockBzQty > 0 ? '1px solid rgba(234, 179, 8, 0.3)' : 'none',
+                                padding: row.stockBzQty > 0 ? '4px 10px' : '0',
+                                borderRadius: '8px',
+                                fontSize: '0.85rem'
+                              }}>
+                                {row.stockBzQty.toLocaleString()} <span style={{ fontSize: '0.65rem' }}>шт</span>
+                              </span>
+                            </td>
+
+                            {/* ОЧІКУЄМО З ЦЕХУ 1 */}
+                            <td style={{ padding: '14px 20px', textAlign: 'center' }}>
+                              <span
+                                title={`В роботі (Цех 1): ${row.awaitingShop1Qty.toLocaleString()} шт${row.activeRerunQty > 0 ? `\n• Включно з довипуском: ${row.activeRerunQty.toLocaleString()} шт` : ''}`}
+                                style={{
+                                  color: row.awaitingShop1Qty > 0 ? '#0284c7' : 'var(--text-muted, #94a3b8)',
+                                  fontWeight: 950,
+                                  background: row.awaitingShop1Qty > 0 ? 'rgba(2, 132, 199, 0.08)' : 'transparent',
+                                  border: row.awaitingShop1Qty > 0 ? '1px solid rgba(2, 132, 199, 0.3)' : 'none',
+                                  padding: '4px 10px',
+                                  borderRadius: '8px',
+                                  fontSize: '0.85rem'
+                                }}
+                              >
+                                {row.awaitingShop1Qty.toLocaleString()} <span style={{ fontSize: '0.65rem' }}>шт</span>
+                              </span>
+                            </td>
+
+                            {/* НА ВКЯ (ЦЕХ 1) */}
+                            <td style={{ padding: '14px 20px', textAlign: 'center' }}>
+                              <span style={{
+                                color: row.shop1VkyaQty > 0 ? '#f59e0b' : 'var(--text-muted, #94a3b8)',
+                                fontWeight: 950,
+                                background: row.shop1VkyaQty > 0 ? 'rgba(245, 158, 11, 0.08)' : 'transparent',
+                                border: row.shop1VkyaQty > 0 ? '1px solid rgba(245, 158, 11, 0.3)' : 'none',
                                 padding: '4px 10px',
                                 borderRadius: '8px',
                                 fontSize: '0.85rem'
-                              }}
-                            >
-                              {row.awaitingShop1Qty.toLocaleString()} <span style={{ fontSize: '0.65rem' }}>шт</span>
-                            </span>
-                          </td>
-
-                          {/* НА ВКЯ (ЦЕХ 1) */}
-                          <td style={{ padding: '14px 20px', textAlign: 'center' }}>
-                            <span style={{
-                              color: row.shop1VkyaQty > 0 ? '#f59e0b' : 'var(--text-muted, #94a3b8)',
-                              fontWeight: 950,
-                              background: row.shop1VkyaQty > 0 ? 'rgba(245, 158, 11, 0.08)' : 'transparent',
-                              border: row.shop1VkyaQty > 0 ? '1px solid rgba(245, 158, 11, 0.3)' : 'none',
-                              padding: '4px 10px',
-                              borderRadius: '8px',
-                              fontSize: '0.85rem'
-                            }}>
-                              {row.shop1VkyaQty.toLocaleString()} <span style={{ fontSize: '0.65rem' }}>шт</span>
-                            </span>
-                          </td>
-
-                          <td style={{ padding: '14px 20px', textAlign: 'center' }}>
-                            <span style={{ color: row.inProgressQty > 0 ? '#d97706' : 'var(--text-muted, #94a3b8)', fontWeight: 900 }}>
-                              {row.inProgressQty.toLocaleString()} <span style={{ fontSize: '0.65rem' }}>шт</span>
-                            </span>
-                          </td>
-
-                          {/* БРАК ЦЕХУ 2 */}
-                          <td style={{ padding: '14px 20px', textAlign: 'center' }}>
-                            <span style={{
-                              color: hasScrap ? '#ef4444' : 'var(--text-muted, #94a3b8)',
-                              fontWeight: 950,
-                              background: hasScrap ? 'rgba(239, 68, 68, 0.1)' : 'transparent',
-                              border: hasScrap ? '1px solid rgba(239, 68, 68, 0.3)' : 'none',
-                              padding: hasScrap ? '4px 10px' : '0',
-                              borderRadius: '8px',
-                              fontSize: '0.85rem'
-                            }}>
-                              {row.shop2ScrapQty.toLocaleString()} <span style={{ fontSize: '0.65rem' }}>шт</span>
-                            </span>
-                          </td>
-
-                          {/* УТИЛЬ ЦЕХУ 2 — лише остаточна категорія 4 після класифікації ВКЯ */}
-                          <td style={{ padding: '14px 20px', textAlign: 'center' }}>
-                            <span
-                              title={`Остаточний утиль після класифікації ВКЯ (категорія 4): ${row.shop2UtilQty.toLocaleString()} шт${row.activeRerunQty > 0 ? `\n• Вже у довипуску в Цеху 1: ${row.activeRerunQty.toLocaleString()} шт` : ''}`}
-                              style={{
-                                color: hasUtil ? '#b91c1c' : 'var(--text-muted, #94a3b8)',
-                                fontWeight: 950,
-                                background: hasUtil ? 'rgba(127, 29, 29, 0.1)' : 'transparent',
-                                border: hasUtil ? '1px solid rgba(185, 28, 28, 0.35)' : 'none',
-                                padding: '4px 10px',
-                                borderRadius: '8px',
-                                fontSize: '0.85rem',
-                                display: 'inline-flex',
-                                flexDirection: 'column',
-                                alignItems: 'center'
-                              }}
-                            >
-                              <span>{row.shop2UtilQty.toLocaleString()} <span style={{ fontSize: '0.65rem' }}>шт</span></span>
-                              {row.activeRerunQty > 0 && (
-                                <span style={{ fontSize: '0.62rem', color: '#059669', fontWeight: 800 }}>
-                                  (у роботі: {row.activeRerunQty.toLocaleString()})
-                                </span>
-                              )}
-                            </span>
-                          </td>
-
-                          {/* ФАКТИЧНИЙ ВИХІД (ПАКУВАННЯ) */}
-                          <td style={{ padding: '14px 20px', textAlign: 'center' }}>
-                            <span
-                              title={
-                                row.ordersList && row.ordersList.length > 0
-                                  ? `Фактичний вихід у пакування / СГП:\n` + row.ordersList.map(o => `• Наряд ${o.orderNum}: ${(o.netPackagingQty || 0).toLocaleString()} шт`).join('\n')
-                                  : 'Фактичний вихід у пакування / СГП'
-                              }
-                              style={{
-                                color: '#059669',
-                                fontWeight: 950,
-                                background: 'rgba(16, 185, 129, 0.1)',
-                                border: '1px solid rgba(16, 185, 129, 0.3)',
-                                padding: '4px 12px',
-                                borderRadius: '10px',
-                                fontSize: '0.9rem',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '6px',
-                                cursor: 'help'
-                              }}
-                            >
-                              <ShieldCheck size={14} />
-                              {row.netPackagingQty.toLocaleString()} <span style={{ fontSize: '0.65rem', opacity: 0.8 }}>шт</span>
-                            </span>
-                          </td>
-
-                          <td style={{ padding: '14px 20px', textAlign: 'center' }}>
-                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: canLaunch ? 'rgba(16, 185, 129, 0.1)' : 'rgba(0,0,0,0.02)', border: canLaunch ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid var(--border, #cbd5e1)', padding: '4px 12px', borderRadius: '10px' }}>
-                              <span style={{ fontSize: '0.92rem', fontWeight: 950, color: canLaunch ? '#059669' : 'var(--text-muted, #94a3b8)' }}>
-                                {row.availableQty.toLocaleString()}
+                              }}>
+                                {row.shop1VkyaQty.toLocaleString()} <span style={{ fontSize: '0.65rem' }}>шт</span>
                               </span>
-                              <span style={{ fontSize: '0.65rem', color: canLaunch ? '#059669' : 'var(--text-muted, #94a3b8)', fontWeight: 800 }}>шт</span>
-                            </div>
-                          </td>
+                            </td>
 
-                          <td style={{ padding: '14px 20px', textAlign: 'right' }}>
-                            <button
-                              disabled={!canLaunch}
-                              onClick={() => onOpenGenModal(row)}
-                              style={{
-                                background: canLaunch ? 'linear-gradient(135deg, #ff9000, #ff5500)' : 'var(--border, #cbd5e1)',
-                                color: canLaunch ? '#ffffff' : 'var(--text-muted, #94a3b8)',
-                                border: 'none',
-                                padding: '8px 16px',
-                                borderRadius: '10px',
-                                fontSize: '0.75rem',
+                            <td style={{ padding: '14px 20px', textAlign: 'center' }}>
+                              <span style={{ color: row.inProgressQty > 0 ? '#d97706' : 'var(--text-muted, #94a3b8)', fontWeight: 900 }}>
+                                {row.inProgressQty.toLocaleString()} <span style={{ fontSize: '0.65rem' }}>шт</span>
+                              </span>
+                            </td>
+
+                            {/* БРАК ЦЕХУ 2 */}
+                            <td style={{ padding: '14px 20px', textAlign: 'center' }}>
+                              <span style={{
+                                color: hasScrap ? '#ef4444' : 'var(--text-muted, #94a3b8)',
                                 fontWeight: 950,
-                                cursor: canLaunch ? 'pointer' : 'not-allowed',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '6px',
-                                boxShadow: canLaunch ? '0 4px 14px rgba(255, 144, 0, 0.3)' : 'none',
-                                transition: '0.2s'
-                              }}
-                            >
-                              <Play size={12} fill={canLaunch ? '#ffffff' : 'none'} />
-                              Створити РК
-                            </button>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
+                                background: hasScrap ? 'rgba(239, 68, 68, 0.1)' : 'transparent',
+                                border: hasScrap ? '1px solid rgba(239, 68, 68, 0.3)' : 'none',
+                                padding: hasScrap ? '4px 10px' : '0',
+                                borderRadius: '8px',
+                                fontSize: '0.85rem'
+                              }}>
+                                {row.shop2ScrapQty.toLocaleString()} <span style={{ fontSize: '0.65rem' }}>шт</span>
+                              </span>
+                            </td>
+
+                            {/* УТИЛЬ ЦЕХУ 2 — лише остаточна категорія 4 після класифікації ВКЯ */}
+                            <td style={{ padding: '14px 20px', textAlign: 'center' }}>
+                              <span
+                                title={`Остаточний утиль після класифікації ВКЯ (категорія 4): ${row.shop2UtilQty.toLocaleString()} шт${row.activeRerunQty > 0 ? `\n• Вже у довипуску в Цеху 1: ${row.activeRerunQty.toLocaleString()} шт` : ''}`}
+                                style={{
+                                  color: hasUtil ? '#b91c1c' : 'var(--text-muted, #94a3b8)',
+                                  fontWeight: 950,
+                                  background: hasUtil ? 'rgba(127, 29, 29, 0.1)' : 'transparent',
+                                  border: hasUtil ? '1px solid rgba(185, 28, 28, 0.35)' : 'none',
+                                  padding: '4px 10px',
+                                  borderRadius: '8px',
+                                  fontSize: '0.85rem',
+                                  display: 'inline-flex',
+                                  flexDirection: 'column',
+                                  alignItems: 'center'
+                                }}
+                              >
+                                <span>{row.shop2UtilQty.toLocaleString()} <span style={{ fontSize: '0.65rem' }}>шт</span></span>
+                                {row.activeRerunQty > 0 && (
+                                  <span style={{ fontSize: '0.62rem', color: '#059669', fontWeight: 800 }}>
+                                    (у роботі: {row.activeRerunQty.toLocaleString()})
+                                  </span>
+                                )}
+                              </span>
+                            </td>
+
+                            {/* ФАКТИЧНИЙ ВИХІД (ПАКУВАННЯ) */}
+                            <td style={{ padding: '14px 20px', textAlign: 'center' }}>
+                              <span
+                                title={
+                                  row.ordersList && row.ordersList.length > 0
+                                    ? `Фактичний вихід у пакування / СГП:\n` + row.ordersList.map(o => `• Наряд ${o.orderNum}: ${(o.netPackagingQty || 0).toLocaleString()} шт`).join('\n')
+                                    : 'Фактичний вихід у пакування / СГП'
+                                }
+                                style={{
+                                  color: '#059669',
+                                  fontWeight: 950,
+                                  background: 'rgba(16, 185, 129, 0.1)',
+                                  border: '1px solid rgba(16, 185, 129, 0.3)',
+                                  padding: '4px 12px',
+                                  borderRadius: '10px',
+                                  fontSize: '0.9rem',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '6px',
+                                  cursor: 'help'
+                                }}
+                              >
+                                <ShieldCheck size={14} />
+                                {row.netPackagingQty.toLocaleString()} <span style={{ fontSize: '0.65rem', opacity: 0.8 }}>шт</span>
+                              </span>
+                            </td>
+
+                            <td style={{ padding: '14px 20px', textAlign: 'center' }}>
+                              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: canLaunch ? 'rgba(16, 185, 129, 0.1)' : 'rgba(0,0,0,0.02)', border: canLaunch ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid var(--border, #cbd5e1)', padding: '4px 12px', borderRadius: '10px' }}>
+                                <span style={{ fontSize: '0.92rem', fontWeight: 950, color: canLaunch ? '#059669' : 'var(--text-muted, #94a3b8)' }}>
+                                  {row.availableQty.toLocaleString()}
+                                </span>
+                                <span style={{ fontSize: '0.65rem', color: canLaunch ? '#059669' : 'var(--text-muted, #94a3b8)', fontWeight: 800 }}>шт</span>
+                              </div>
+                            </td>
+
+                            <td style={{ padding: '14px 20px', textAlign: 'right' }}>
+                              <button
+                                disabled={!canLaunch}
+                                onClick={() => onOpenGenModal(row)}
+                                style={{
+                                  background: canLaunch ? 'linear-gradient(135deg, #ff9000, #ff5500)' : 'var(--border, #cbd5e1)',
+                                  color: canLaunch ? '#ffffff' : 'var(--text-muted, #94a3b8)',
+                                  border: 'none',
+                                  padding: '8px 16px',
+                                  borderRadius: '10px',
+                                  fontSize: '0.75rem',
+                                  fontWeight: 950,
+                                  cursor: canLaunch ? 'pointer' : 'not-allowed',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '6px',
+                                  boxShadow: canLaunch ? '0 4px 14px rgba(255, 144, 0, 0.3)' : 'none',
+                                  transition: '0.2s'
+                                }}
+                              >
+                                <Play size={12} fill={canLaunch ? '#ffffff' : 'none'} />
+                                Створити РК
+                              </button>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Mobile Cards for Section */}
+                {renderMobileCards(sec.rows)}
               </div>
             ))
           )}
@@ -452,239 +574,246 @@ export function Shop2BufferQueueTable({
 
       {/* ── Flat Table View (When groupBy !== 'product') ──────────────────── */}
       {groupBy !== 'product' && (
-        <div style={{ background: 'var(--card-bg, #ffffff)', borderRadius: '20px', border: '1px solid var(--border, #e2e8f0)', boxShadow: '0 4px 20px rgba(0,0,0,0.03)', overflow: 'hidden' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
-            <thead>
-              <tr style={{ background: 'var(--table-head, #f8fafc)', borderBottom: '1px solid var(--border, #e2e8f0)', color: 'var(--text-muted, #64748b)', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                <th style={{ padding: '16px 20px' }}>Деталь & Серія виробу</th>
-                <th style={{ padding: '16px 20px' }}>Наряди у купі</th>
-                <th style={{ padding: '16px 20px', textAlign: 'center', color: '#d97706' }}>СУМА (Є / ПОТРЕБА)</th>
-                <th style={{ padding: '16px 20px', textAlign: 'center', color: '#eab308' }}>ВЗЯТО З БЗ</th>
-                <th style={{ padding: '16px 20px', textAlign: 'center', color: '#0284c7' }}>В РОБОТІ (ЦЕХ 1)</th>
-                <th style={{ padding: '16px 20px', textAlign: 'center', color: '#f59e0b' }}>НА ВКЯ (ЦЕХ 1)</th>
-                <th style={{ padding: '16px 20px', textAlign: 'center' }}>В роботі (Цех 2)</th>
-                <th style={{ padding: '16px 20px', textAlign: 'center' }}>БРАК ЦЕХУ 2</th>
-                <th style={{ padding: '16px 20px', textAlign: 'center', color: '#b91c1c' }}>УТИЛЬ ЦЕХУ 2</th>
-                <th style={{ padding: '16px 20px', textAlign: 'center' }}>ФАКТИЧНИЙ ВИХІД (СГП / ПАКУВАННЯ)</th>
-                <th style={{ padding: '16px 20px', textAlign: 'center' }}>ВІЛЬНО ДЛЯ РК</th>
-                <th style={{ padding: '16px 20px', textAlign: 'right' }}>Дія</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.length === 0 ? (
-                <tr>
-                  <td colSpan="11" style={{ padding: '50px 20px', textAlign: 'center', color: 'var(--text-muted, #64748b)' }}>
-                    <Package size={36} style={{ margin: '0 auto 12px', opacity: 0.3 }} />
-                    <div>Буфер Цеху №2 порожній або немає деталей за фільтрами.</div>
-                  </td>
+        <div className="shop2-section-card">
+          <div className="shop2-table-wrapper">
+            <table className="shop2-desktop-table" style={{ minWidth: '950px' }}>
+              <thead>
+                <tr style={{ background: 'var(--table-head, #f8fafc)', borderBottom: '1px solid var(--border, #e2e8f0)', color: 'var(--text-muted, #64748b)', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  <th style={{ padding: '16px 20px' }}>Деталь & Серія виробу</th>
+                  {showOrdersColumn && <th style={{ padding: '16px 20px' }}>Наряди у купі</th>}
+                  <th style={{ padding: '16px 20px', textAlign: 'center', color: '#d97706' }}>СУМА (Є / ПОТРЕБА)</th>
+                  <th style={{ padding: '16px 20px', textAlign: 'center', color: '#eab308' }}>ВЗЯТО З БЗ</th>
+                  <th style={{ padding: '16px 20px', textAlign: 'center', color: '#0284c7' }}>В РОБОТІ (ЦЕХ 1)</th>
+                  <th style={{ padding: '16px 20px', textAlign: 'center', color: '#f59e0b' }}>НА ВКЯ (ЦЕХ 1)</th>
+                  <th style={{ padding: '16px 20px', textAlign: 'center' }}>В роботі (Цех 2)</th>
+                  <th style={{ padding: '16px 20px', textAlign: 'center' }}>БРАК ЦЕХУ 2</th>
+                  <th style={{ padding: '16px 20px', textAlign: 'center', color: '#b91c1c' }}>УТИЛЬ ЦЕХУ 2</th>
+                  <th style={{ padding: '16px 20px', textAlign: 'center' }}>ФАКТИЧНИЙ ВИХІД (СГП / ПАКУВАННЯ)</th>
+                  <th style={{ padding: '16px 20px', textAlign: 'center' }}>ВІЛЬНО ДЛЯ РК</th>
+                  <th style={{ padding: '16px 20px', textAlign: 'right' }}>Дія</th>
                 </tr>
-              ) : (
-                rows.map(row => {
-                  const canLaunch = row.availableQty > 0
-                  const hasScrap = row.shop2ScrapQty > 0
-                  const hasUtil = row.shop2UtilQty > 0
+              </thead>
+              <tbody>
+                {rows.length === 0 ? (
+                  <tr>
+                    <td colSpan={showOrdersColumn ? 12 : 11} style={{ padding: '50px 20px', textAlign: 'center', color: 'var(--text-muted, #64748b)' }}>
+                      <Package size={36} style={{ margin: '0 auto 12px', opacity: 0.3 }} />
+                      <div>Буфер Цеху №2 порожній або немає деталей за фільтрами.</div>
+                    </td>
+                  </tr>
+                ) : (
+                  rows.map(row => {
+                    const canLaunch = row.availableQty > 0
+                    const hasScrap = row.shop2ScrapQty > 0
+                    const hasUtil = row.shop2UtilQty > 0
 
-                  return (
-                    <tr key={row.key} style={{ borderBottom: '1px solid var(--border, #f1f5f9)', transition: 'background 0.2s' }}>
-                      <td style={{ padding: '16px 20px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span style={{ fontWeight: 900, color: 'var(--text, #0f172a)', fontSize: '0.92rem' }}>{row.nomName}</span>
-                        </div>
-                        {row.nomCode && <div style={{ fontSize: '0.7rem', color: 'var(--text-muted, #64748b)', marginTop: '2px' }}>{row.nomCode}</div>}
-                      </td>
+                    return (
+                      <tr key={row.key} style={{ borderBottom: '1px solid var(--border, #f1f5f9)', transition: 'background 0.2s' }}>
+                        <td style={{ padding: '16px 20px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ fontWeight: 900, color: 'var(--text, #0f172a)', fontSize: '0.92rem' }}>{row.nomName}</span>
+                          </div>
+                          {row.nomCode && <div style={{ fontSize: '0.7rem', color: 'var(--text-muted, #64748b)', marginTop: '2px' }}>{row.nomCode}</div>}
+                        </td>
 
-                      <td style={{ padding: '16px 20px' }}>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', maxWidth: '240px' }}>
-                          {row.ordersList && row.ordersList.length > 0 ? (
-                            row.ordersList.map((o, idx) => (
-                              <span key={idx} style={{ background: 'var(--input-bg, #f1f5f9)', color: o.availableQty > 0 ? '#d97706' : 'var(--text-muted, #64748b)', border: o.availableQty > 0 ? '1px solid rgba(217,119,6,0.3)' : '1px solid var(--border, #cbd5e1)', padding: '2px 7px', borderRadius: '5px', fontSize: '0.68rem', fontWeight: 800 }}>
-                                {o.orderNum} ({o.availableQty})
-                              </span>
-                            ))
-                          ) : (
-                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted, #64748b)' }}>Без наряду</span>
-                          )}
-                        </div>
-                      </td>
+                        {showOrdersColumn && (
+                          <td style={{ padding: '16px 20px' }}>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', maxWidth: '240px' }}>
+                              {row.ordersList && row.ordersList.length > 0 ? (
+                                row.ordersList.map((o, idx) => (
+                                  <span key={idx} style={{ background: 'var(--input-bg, #f1f5f9)', color: o.availableQty > 0 ? '#d97706' : 'var(--text-muted, #64748b)', border: o.availableQty > 0 ? '1px solid rgba(217,119,6,0.3)' : '1px solid var(--border, #cbd5e1)', padding: '2px 7px', borderRadius: '5px', fontSize: '0.68rem', fontWeight: 800 }}>
+                                    {o.orderNum} ({o.availableQty})
+                                  </span>
+                                ))
+                              ) : (
+                                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted, #64748b)' }}>Без наряду</span>
+                              )}
+                            </div>
+                          </td>
+                        )}
 
-                      {/* СУМА (Є / ПОТРЕБА) */}
-                      <td style={{ padding: '16px 20px', textAlign: 'center' }}>
-                        <span style={{
-                          background: 'rgba(255, 144, 0, 0.1)',
-                          border: '1px solid rgba(255, 144, 0, 0.4)',
-                          color: '#d97706',
-                          padding: '5px 14px',
-                          borderRadius: '10px',
-                          fontWeight: 950,
-                          fontSize: '0.92rem',
-                          fontFamily: 'monospace',
-                          display: 'inline-block'
-                        }}>
-                          {row.totalReceived} / {row.totalOrderRequirement}
-                        </span>
-                      </td>
-
-                      {/* ВЗЯТО З БЗ */}
-                      <td style={{ padding: '16px 20px', textAlign: 'center' }}>
-                        <span style={{
-                          color: row.stockBzQty > 0 ? '#d97706' : 'var(--text-muted, #94a3b8)',
-                          fontWeight: 950,
-                          background: row.stockBzQty > 0 ? 'rgba(234, 179, 8, 0.08)' : 'transparent',
-                          border: row.stockBzQty > 0 ? '1px solid rgba(234, 179, 8, 0.3)' : 'none',
-                          padding: row.stockBzQty > 0 ? '4px 10px' : '0',
-                          borderRadius: '8px',
-                          fontSize: '0.85rem'
-                        }}>
-                          {row.stockBzQty.toLocaleString()} <span style={{ fontSize: '0.65rem' }}>шт</span>
-                        </span>
-                      </td>
-
-                      {/* ОЧІКУЄМО З ЦЕХУ 1 */}
-                      <td style={{ padding: '16px 20px', textAlign: 'center' }}>
-                        <span
-                          title={`В роботі (Цех 1): ${row.awaitingShop1Qty.toLocaleString()} шт${row.activeRerunQty > 0 ? `\n• Включно з довипуском: ${row.activeRerunQty.toLocaleString()} шт` : ''}`}
-                          style={{
-                            color: row.awaitingShop1Qty > 0 ? '#0284c7' : 'var(--text-muted, #94a3b8)',
+                        {/* СУМА (Є / ПОТРЕБА) */}
+                        <td style={{ padding: '16px 20px', textAlign: 'center' }}>
+                          <span style={{
+                            background: 'rgba(255, 144, 0, 0.1)',
+                            border: '1px solid rgba(255, 144, 0, 0.4)',
+                            color: '#d97706',
+                            padding: '5px 14px',
+                            borderRadius: '10px',
                             fontWeight: 950,
-                            background: row.awaitingShop1Qty > 0 ? 'rgba(2, 132, 199, 0.08)' : 'transparent',
-                            border: row.awaitingShop1Qty > 0 ? '1px solid rgba(2, 132, 199, 0.3)' : 'none',
+                            fontSize: '0.92rem',
+                            fontFamily: 'monospace',
+                            display: 'inline-block'
+                          }}>
+                            {row.totalReceived} / {row.totalOrderRequirement}
+                          </span>
+                        </td>
+
+                        {/* ВЗЯТО З БЗ */}
+                        <td style={{ padding: '16px 20px', textAlign: 'center' }}>
+                          <span style={{
+                            color: row.stockBzQty > 0 ? '#d97706' : 'var(--text-muted, #94a3b8)',
+                            fontWeight: 950,
+                            background: row.stockBzQty > 0 ? 'rgba(234, 179, 8, 0.08)' : 'transparent',
+                            border: row.stockBzQty > 0 ? '1px solid rgba(234, 179, 8, 0.3)' : 'none',
+                            padding: row.stockBzQty > 0 ? '4px 10px' : '0',
+                            borderRadius: '8px',
+                            fontSize: '0.85rem'
+                          }}>
+                            {row.stockBzQty.toLocaleString()} <span style={{ fontSize: '0.65rem' }}>шт</span>
+                          </span>
+                        </td>
+
+                        {/* ОЧІКУЄМО З ЦЕХУ 1 */}
+                        <td style={{ padding: '16px 20px', textAlign: 'center' }}>
+                          <span
+                            title={`В роботі (Цех 1): ${row.awaitingShop1Qty.toLocaleString()} шт${row.activeRerunQty > 0 ? `\n• Включно з довипуском: ${row.activeRerunQty.toLocaleString()} шт` : ''}`}
+                            style={{
+                              color: row.awaitingShop1Qty > 0 ? '#0284c7' : 'var(--text-muted, #94a3b8)',
+                              fontWeight: 950,
+                              background: row.awaitingShop1Qty > 0 ? 'rgba(2, 132, 199, 0.08)' : 'transparent',
+                              border: row.awaitingShop1Qty > 0 ? '1px solid rgba(2, 132, 199, 0.3)' : 'none',
+                              padding: '4px 10px',
+                              borderRadius: '8px',
+                              fontSize: '0.85rem'
+                            }}
+                          >
+                            {row.awaitingShop1Qty.toLocaleString()} <span style={{ fontSize: '0.65rem' }}>шт</span>
+                          </span>
+                        </td>
+
+                        {/* НА ВКЯ (ЦЕХ 1) */}
+                        <td style={{ padding: '16px 20px', textAlign: 'center' }}>
+                          <span style={{
+                            color: row.shop1VkyaQty > 0 ? '#f59e0b' : 'var(--text-muted, #94a3b8)',
+                            fontWeight: 950,
+                            background: row.shop1VkyaQty > 0 ? 'rgba(245, 158, 11, 0.08)' : 'transparent',
+                            border: row.shop1VkyaQty > 0 ? '1px solid rgba(245, 158, 11, 0.3)' : 'none',
                             padding: '4px 10px',
                             borderRadius: '8px',
                             fontSize: '0.85rem'
-                          }}
-                        >
-                          {row.awaitingShop1Qty.toLocaleString()} <span style={{ fontSize: '0.65rem' }}>шт</span>
-                        </span>
-                      </td>
-
-                      {/* НА ВКЯ (ЦЕХ 1) */}
-                      <td style={{ padding: '16px 20px', textAlign: 'center' }}>
-                        <span style={{
-                          color: row.shop1VkyaQty > 0 ? '#f59e0b' : 'var(--text-muted, #94a3b8)',
-                          fontWeight: 950,
-                          background: row.shop1VkyaQty > 0 ? 'rgba(245, 158, 11, 0.08)' : 'transparent',
-                          border: row.shop1VkyaQty > 0 ? '1px solid rgba(245, 158, 11, 0.3)' : 'none',
-                          padding: '4px 10px',
-                          borderRadius: '8px',
-                          fontSize: '0.85rem'
-                        }}>
-                          {row.shop1VkyaQty.toLocaleString()} <span style={{ fontSize: '0.65rem' }}>шт</span>
-                        </span>
-                      </td>
-
-                      <td style={{ padding: '16px 20px', textAlign: 'center' }}>
-                        <span style={{ color: row.inProgressQty > 0 ? '#d97706' : 'var(--text-muted, #94a3b8)', fontWeight: 900 }}>
-                          {row.inProgressQty.toLocaleString()} <span style={{ fontSize: '0.65rem' }}>шт</span>
-                        </span>
-                      </td>
-
-                      {/* БРАК ЦЕХУ 2 */}
-                      <td style={{ padding: '16px 20px', textAlign: 'center' }}>
-                        <span style={{
-                          color: hasScrap ? '#ef4444' : 'var(--text-muted, #94a3b8)',
-                          fontWeight: 950,
-                          background: hasScrap ? 'rgba(239, 68, 68, 0.1)' : 'transparent',
-                          border: hasScrap ? '1px solid rgba(239, 68, 68, 0.3)' : 'none',
-                          padding: hasScrap ? '4px 10px' : '0',
-                          borderRadius: '8px',
-                          fontSize: '0.85rem'
-                        }}>
-                          {row.shop2ScrapQty.toLocaleString()} <span style={{ fontSize: '0.65rem' }}>шт</span>
-                        </span>
-                      </td>
-
-                      {/* УТИЛЬ ЦЕХУ 2 — лише остаточна категорія 4 після класифікації ВКЯ */}
-                      <td style={{ padding: '16px 20px', textAlign: 'center' }}>
-                        <span
-                          title={`Остаточний утиль після класифікації ВКЯ (категорія 4): ${row.shop2UtilQty.toLocaleString()} шт${row.activeRerunQty > 0 ? `\n• Вже у довипуску в Цеху 1: ${row.activeRerunQty.toLocaleString()} шт` : ''}`}
-                          style={{
-                            color: hasUtil ? '#b91c1c' : 'var(--text-muted, #94a3b8)',
-                            fontWeight: 950,
-                            background: hasUtil ? 'rgba(127, 29, 29, 0.1)' : 'transparent',
-                            border: hasUtil ? '1px solid rgba(185, 28, 28, 0.35)' : 'none',
-                            padding: '4px 10px',
-                            borderRadius: '8px',
-                            fontSize: '0.85rem',
-                            display: 'inline-flex',
-                            flexDirection: 'column',
-                            alignItems: 'center'
-                          }}
-                        >
-                          <span>{row.shop2UtilQty.toLocaleString()} <span style={{ fontSize: '0.65rem' }}>шт</span></span>
-                          {row.activeRerunQty > 0 && (
-                            <span style={{ fontSize: '0.62rem', color: '#059669', fontWeight: 800 }}>
-                              (у роботі: {row.activeRerunQty.toLocaleString()})
-                            </span>
-                          )}
-                        </span>
-                      </td>
-
-                      {/* ФАКТИЧНИЙ ВИХІД (ПАКУВАННЯ) */}
-                      <td style={{ padding: '16px 20px', textAlign: 'center' }}>
-                        <span
-                          title={
-                            row.ordersList && row.ordersList.length > 0
-                              ? `Фактичний вихід у пакування / СГП:\n` + row.ordersList.map(o => `• Наряд ${o.orderNum}: ${(o.netPackagingQty || 0).toLocaleString()} шт`).join('\n')
-                              : 'Фактичний вихід у пакування / СГП'
-                          }
-                          style={{
-                            color: '#059669',
-                            fontWeight: 950,
-                            background: 'rgba(16, 185, 129, 0.1)',
-                            border: '1px solid rgba(16, 185, 129, 0.3)',
-                            padding: '4px 12px',
-                            borderRadius: '10px',
-                            fontSize: '0.9rem',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            cursor: 'help'
-                          }}
-                        >
-                          <ShieldCheck size={14} />
-                          {row.netPackagingQty.toLocaleString()} <span style={{ fontSize: '0.65rem', opacity: 0.8 }}>шт</span>
-                        </span>
-                      </td>
-
-                      <td style={{ padding: '16px 20px', textAlign: 'center' }}>
-                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: canLaunch ? 'rgba(16, 185, 129, 0.1)' : 'rgba(0,0,0,0.02)', border: canLaunch ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid var(--border, #cbd5e1)', padding: '6px 14px', borderRadius: '12px' }}>
-                          <span style={{ fontSize: '0.98rem', fontWeight: 950, color: canLaunch ? '#059669' : 'var(--text-muted, #94a3b8)' }}>
-                            {row.availableQty.toLocaleString()}
+                          }}>
+                            {row.shop1VkyaQty.toLocaleString()} <span style={{ fontSize: '0.65rem' }}>шт</span>
                           </span>
-                          <span style={{ fontSize: '0.65rem', color: canLaunch ? '#059669' : 'var(--text-muted, #94a3b8)', fontWeight: 800 }}>ВІЛЬНО</span>
-                        </div>
-                      </td>
+                        </td>
 
-                      <td style={{ padding: '16px 20px', textAlign: 'right' }}>
-                        <button
-                          disabled={!canLaunch}
-                          onClick={() => onOpenGenModal(row)}
-                          style={{
-                            background: canLaunch ? 'linear-gradient(135deg, #ff9000, #ff5500)' : 'var(--border, #cbd5e1)',
-                            color: canLaunch ? '#ffffff' : 'var(--text-muted, #94a3b8)',
-                            border: 'none',
-                            padding: '10px 18px',
-                            borderRadius: '12px',
-                            fontSize: '0.78rem',
+                        <td style={{ padding: '16px 20px', textAlign: 'center' }}>
+                          <span style={{ color: row.inProgressQty > 0 ? '#d97706' : 'var(--text-muted, #94a3b8)', fontWeight: 900 }}>
+                            {row.inProgressQty.toLocaleString()} <span style={{ fontSize: '0.65rem' }}>шт</span>
+                          </span>
+                        </td>
+
+                        {/* БРАК ЦЕХУ 2 */}
+                        <td style={{ padding: '16px 20px', textAlign: 'center' }}>
+                          <span style={{
+                            color: hasScrap ? '#ef4444' : 'var(--text-muted, #94a3b8)',
                             fontWeight: 950,
-                            cursor: canLaunch ? 'pointer' : 'not-allowed',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            boxShadow: canLaunch ? '0 4px 14px rgba(255, 144, 0, 0.3)' : 'none',
-                            transition: '0.2s'
-                          }}
-                        >
-                          <Play size={14} fill={canLaunch ? '#ffffff' : 'none'} />
-                          Створити РК
-                        </button>
-                      </td>
-                    </tr>
-                  )
-                })
-              )}
-            </tbody>
-          </table>
+                            background: hasScrap ? 'rgba(239, 68, 68, 0.1)' : 'transparent',
+                            border: hasScrap ? '1px solid rgba(239, 68, 68, 0.3)' : 'none',
+                            padding: hasScrap ? '4px 10px' : '0',
+                            borderRadius: '8px',
+                            fontSize: '0.85rem'
+                          }}>
+                            {row.shop2ScrapQty.toLocaleString()} <span style={{ fontSize: '0.65rem' }}>шт</span>
+                          </span>
+                        </td>
+
+                        {/* УТИЛЬ ЦЕХУ 2 — лише остаточна категорія 4 після класифікації ВКЯ */}
+                        <td style={{ padding: '16px 20px', textAlign: 'center' }}>
+                          <span
+                            title={`Остаточний утиль після класифікації ВКЯ (категорія 4): ${row.shop2UtilQty.toLocaleString()} шт${row.activeRerunQty > 0 ? `\n• Вже у довипуску в Цеху 1: ${row.activeRerunQty.toLocaleString()} шт` : ''}`}
+                            style={{
+                              color: hasUtil ? '#b91c1c' : 'var(--text-muted, #94a3b8)',
+                              fontWeight: 950,
+                              background: hasUtil ? 'rgba(127, 29, 29, 0.1)' : 'transparent',
+                              border: hasUtil ? '1px solid rgba(185, 28, 28, 0.35)' : 'none',
+                              padding: '4px 10px',
+                              borderRadius: '8px',
+                              fontSize: '0.85rem',
+                              display: 'inline-flex',
+                              flexDirection: 'column',
+                              alignItems: 'center'
+                            }}
+                          >
+                            <span>{row.shop2UtilQty.toLocaleString()} <span style={{ fontSize: '0.65rem' }}>шт</span></span>
+                            {row.activeRerunQty > 0 && (
+                              <span style={{ fontSize: '0.62rem', color: '#059669', fontWeight: 800 }}>
+                                (у роботі: {row.activeRerunQty.toLocaleString()})
+                              </span>
+                            )}
+                          </span>
+                        </td>
+
+                        {/* ФАКТИЧНИЙ ВИХІД (ПАКУВАННЯ) */}
+                        <td style={{ padding: '16px 20px', textAlign: 'center' }}>
+                          <span
+                            title={
+                              row.ordersList && row.ordersList.length > 0
+                                ? `Фактичний вихід у пакування / СГП:\n` + row.ordersList.map(o => `• Наряд ${o.orderNum}: ${(o.netPackagingQty || 0).toLocaleString()} шт`).join('\n')
+                                : 'Фактичний вихід у пакування / СГП'
+                            }
+                            style={{
+                              color: '#059669',
+                              fontWeight: 950,
+                              background: 'rgba(16, 185, 129, 0.1)',
+                              border: '1px solid rgba(16, 185, 129, 0.3)',
+                              padding: '4px 12px',
+                              borderRadius: '10px',
+                              fontSize: '0.9rem',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              cursor: 'help'
+                            }}
+                          >
+                            <ShieldCheck size={14} />
+                            {row.netPackagingQty.toLocaleString()} <span style={{ fontSize: '0.65rem', opacity: 0.8 }}>шт</span>
+                          </span>
+                        </td>
+
+                        <td style={{ padding: '16px 20px', textAlign: 'center' }}>
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: canLaunch ? 'rgba(16, 185, 129, 0.1)' : 'rgba(0,0,0,0.02)', border: canLaunch ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid var(--border, #cbd5e1)', padding: '6px 14px', borderRadius: '12px' }}>
+                            <span style={{ fontSize: '0.98rem', fontWeight: 950, color: canLaunch ? '#059669' : 'var(--text-muted, #94a3b8)' }}>
+                              {row.availableQty.toLocaleString()}
+                            </span>
+                            <span style={{ fontSize: '0.65rem', color: canLaunch ? '#059669' : 'var(--text-muted, #94a3b8)', fontWeight: 800 }}>ВІЛЬНО</span>
+                          </div>
+                        </td>
+
+                        <td style={{ padding: '16px 20px', textAlign: 'right' }}>
+                          <button
+                            disabled={!canLaunch}
+                            onClick={() => onOpenGenModal(row)}
+                            style={{
+                              background: canLaunch ? 'linear-gradient(135deg, #ff9000, #ff5500)' : 'var(--border, #cbd5e1)',
+                              color: canLaunch ? '#ffffff' : 'var(--text-muted, #94a3b8)',
+                              border: 'none',
+                              padding: '10px 18px',
+                              borderRadius: '12px',
+                              fontSize: '0.78rem',
+                              fontWeight: 950,
+                              cursor: canLaunch ? 'pointer' : 'not-allowed',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              boxShadow: canLaunch ? '0 4px 14px rgba(255, 144, 0, 0.3)' : 'none',
+                              transition: '0.2s'
+                            }}
+                          >
+                            <Play size={14} fill={canLaunch ? '#ffffff' : 'none'} />
+                            Створити РК
+                          </button>
+                        </td>
+                      </tr>
+                    )
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Mobile Cards for Flat View */}
+          {rows.length > 0 && renderMobileCards(rows)}
         </div>
       )}
     </div>

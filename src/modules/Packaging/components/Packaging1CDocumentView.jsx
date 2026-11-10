@@ -6,6 +6,7 @@ import {
 import { PackagingBomList } from './PackagingBomList.jsx'
 import { PackagingBoxSummary } from './PackagingBoxSummary.jsx'
 import { getPackagingItemFulfillment } from '../utils/packagingHelpers'
+import '../PackagingResponsive.css'
 
 export const Packaging1CDocumentView = ({
   activeBatchData,
@@ -66,7 +67,7 @@ export const Packaging1CDocumentView = ({
   const canComplete = allBoxesFilled && !isProcessing && !activeBatchData.isPackaged
 
   return (
-    <div style={{
+    <div className="packaging-doc-container" style={{
       display: 'flex',
       flexDirection: 'column',
       height: '100%',
@@ -76,8 +77,8 @@ export const Packaging1CDocumentView = ({
       overflow: 'hidden',
       fontFamily: 'Inter, system-ui, -apple-system, sans-serif'
     }}>
-      {/* 1C DOCUMENT COMMAND BAR (ПА НЕЛЬ ДІЙ ДОКУМЕНТА) */}
-      <div style={{
+      {/* 1C DOCUMENT COMMAND BAR (ПАНЕЛЬ ДІЙ ДОКУМЕНТА) */}
+      <div className="packaging-doc-commands" style={{
         background: '#f8fafc',
         borderBottom: '1.5px solid #cbd5e1',
         padding: '8px 16px',
@@ -244,9 +245,10 @@ export const Packaging1CDocumentView = ({
         </div>
 
         {/* RIGHT COMMAND: 1C "ПРОВЕСТИ ТА СПАКУВАТИ" */}
-        <div>
+        <div className="cmd-primary-btn-wrapper">
           <button
             type="button"
+            className="cmd-primary-btn"
             onClick={handleCompleteClick}
             disabled={!canComplete}
             style={{
@@ -270,7 +272,7 @@ export const Packaging1CDocumentView = ({
       </div>
 
       {/* 1C DOCUMENT HEADER (ШАПКА ДОКУМЕНТА) */}
-      <div style={{
+      <div className="packaging-doc-header" style={{
         background: '#f1f5f9',
         borderBottom: '1.5px solid #cbd5e1',
         padding: '12px 18px',
@@ -375,7 +377,7 @@ export const Packaging1CDocumentView = ({
       )}
 
       {/* 1C DOCUMENT TABLE PART (ТАБЛИЧНА ЧАСТИНА ДОКУМЕНТА) */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', background: '#ffffff' }}>
+      <div className="packaging-doc-body" style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', background: '#ffffff' }}>
         {showBoxSummary ? (
           <PackagingBoxSummary boxSummary={boxSummary} />
         ) : (
@@ -399,7 +401,7 @@ export const Packaging1CDocumentView = ({
       </div>
 
       {/* 1C DOCUMENT FOOTER BAR */}
-      <div style={{
+      <div className="packaging-doc-footer" style={{
         background: '#f8fafc',
         borderTop: '1.5px solid #cbd5e1',
         padding: '8px 18px',

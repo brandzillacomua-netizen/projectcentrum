@@ -12,6 +12,7 @@ import { GenerateShop2CardModal } from './components/GenerateShop2CardModal'
 import { DeficitRerunListModal } from './components/DeficitRerunListModal'
 import { Shop2ActiveCardsList } from './components/Shop2ActiveCardsList'
 import { Shop2HistoryCardsList } from './components/Shop2HistoryCardsList'
+import './Shop2CardGen.css'
 
 export default function Shop2CardGenModule() {
   const {
@@ -109,13 +110,7 @@ export default function Shop2CardGenModule() {
   const totalPackagingYield = bufferRows.reduce((sum, r) => sum + (r.netPackagingQty || 0), 0)
 
   return (
-    <div style={{
-      background: 'var(--bg, #f8fafc)',
-      minHeight: '100vh',
-      color: 'var(--text, #0f172a)',
-      padding: '24px',
-      fontFamily: 'Inter, system-ui, sans-serif'
-    }}>
+    <div className="shop2-cardgen-container">
       {/* CSS Keyframes for Pulsing Red Alert Button */}
       <style>{`
         @keyframes pulseRedAlert {
@@ -138,7 +133,7 @@ export default function Shop2CardGenModule() {
       `}</style>
 
       {/* ── Top Header Navigation ────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
+      <div className="shop2-topbar">
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
           <Link to="/" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '40px', height: '40px', background: 'var(--card-bg, #ffffff)', border: '1px solid var(--border, #cbd5e1)', borderRadius: '12px', color: 'var(--text, #0f172a)', textDecoration: 'none' }}>
             <ArrowLeft size={18} />
@@ -156,7 +151,7 @@ export default function Shop2CardGenModule() {
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
           {/* FLASHING RED ALERT BUTTON FOR DEFICIT (Appears ONLY when totalDeficitQty > 0) */}
           {totalDeficitQty > 0 && (
             <button
@@ -195,38 +190,38 @@ export default function Shop2CardGenModule() {
       </div>
 
       {/* ── Stat Counters ───────────────────────────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '24px' }}>
-        <div style={{ background: 'var(--card-bg, #ffffff)', border: '1px solid var(--border, #e2e8f0)', borderRadius: '18px', padding: '20px', boxShadow: '0 4px 15px rgba(0,0,0,0.02)' }}>
-          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted, #64748b)', textTransform: 'uppercase', fontWeight: 800 }}>Надійшло в Буфер (Цех №1 + ВКЯ)</div>
-          <div style={{ fontSize: '1.6rem', fontWeight: 950, color: '#0284c7', marginTop: '4px' }}>
+      <div className="shop2-stats-grid">
+        <div className="shop2-stat-card">
+          <div className="shop2-stat-title" style={{ fontSize: '0.7rem', color: 'var(--text-muted, #64748b)', textTransform: 'uppercase', fontWeight: 800 }}>Надійшло в Буфер (Цех №1 + ВКЯ)</div>
+          <div className="shop2-stat-val" style={{ fontSize: '1.6rem', fontWeight: 950, color: '#0284c7', marginTop: '4px' }}>
             {totalReceivedQty.toLocaleString()} <small style={{ fontSize: '0.7rem', color: 'var(--text-muted, #64748b)' }}>шт</small>
           </div>
         </div>
 
-        <div style={{ background: 'var(--card-bg, #ffffff)', border: '1px solid var(--border, #e2e8f0)', borderRadius: '18px', padding: '20px', boxShadow: '0 4px 15px rgba(0,0,0,0.02)' }}>
-          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted, #64748b)', textTransform: 'uppercase', fontWeight: 800 }}>В роботі (Цех №2)</div>
-          <div style={{ fontSize: '1.6rem', fontWeight: 950, color: '#d97706', marginTop: '4px' }}>
+        <div className="shop2-stat-card">
+          <div className="shop2-stat-title" style={{ fontSize: '0.7rem', color: 'var(--text-muted, #64748b)', textTransform: 'uppercase', fontWeight: 800 }}>В роботі (Цех №2)</div>
+          <div className="shop2-stat-val" style={{ fontSize: '1.6rem', fontWeight: 950, color: '#d97706', marginTop: '4px' }}>
             {totalInProgressQty.toLocaleString()} <small style={{ fontSize: '0.7rem', color: 'var(--text-muted, #64748b)' }}>шт</small>
           </div>
         </div>
 
-        <div style={{ background: 'var(--card-bg, #ffffff)', border: '1px solid var(--border, #e2e8f0)', borderRadius: '18px', padding: '20px', boxShadow: '0 4px 15px rgba(0,0,0,0.02)' }}>
-          <div style={{ fontSize: '0.7rem', color: '#059669', textTransform: 'uppercase', fontWeight: 800 }}>Фактичний вихід (СГП / Пакування)</div>
-          <div style={{ fontSize: '1.6rem', fontWeight: 950, color: '#059669', marginTop: '4px' }}>
+        <div className="shop2-stat-card">
+          <div className="shop2-stat-title" style={{ fontSize: '0.7rem', color: '#059669', textTransform: 'uppercase', fontWeight: 800 }}>Фактичний вихід (СГП / Пакування)</div>
+          <div className="shop2-stat-val" style={{ fontSize: '1.6rem', fontWeight: 950, color: '#059669', marginTop: '4px' }}>
             {totalPackagingYield.toLocaleString()} <small style={{ fontSize: '0.7rem', color: 'var(--text-muted, #64748b)' }}>шт</small>
           </div>
         </div>
 
-        <div style={{ background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.3)', borderRadius: '18px', padding: '20px' }}>
-          <div style={{ fontSize: '0.7rem', color: '#059669', textTransform: 'uppercase', fontWeight: 900 }}>Доступно до запуску (ВІЛЬНО)</div>
-          <div style={{ fontSize: '1.6rem', fontWeight: 950, color: '#059669', marginTop: '4px' }}>
+        <div className="shop2-stat-card" style={{ background: 'rgba(16, 185, 129, 0.08)', borderColor: 'rgba(16, 185, 129, 0.3)' }}>
+          <div className="shop2-stat-title" style={{ fontSize: '0.7rem', color: '#059669', textTransform: 'uppercase', fontWeight: 900 }}>Доступно до запуску (ВІЛЬНО)</div>
+          <div className="shop2-stat-val" style={{ fontSize: '1.6rem', fontWeight: 950, color: '#059669', marginTop: '4px' }}>
             {totalAvailableQty.toLocaleString()} <small style={{ fontSize: '0.7rem', color: '#047857' }}>шт</small>
           </div>
         </div>
       </div>
 
       {/* ── Tabs Header ──────────────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', gap: '10px', borderBottom: '1px solid var(--border, #e2e8f0)', paddingBottom: '12px', marginBottom: '24px' }}>
+      <div className="shop2-tabs-bar" style={{ borderBottom: '1px solid var(--border, #e2e8f0)' }}>
         <button
           onClick={() => setActiveTab('buffer')}
           style={{

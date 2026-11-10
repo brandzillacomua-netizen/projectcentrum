@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react'
 import { Plus, CheckCircle2, Trash2, Hash, Layers, Wrench, FileArchive, Package, Box, AlertCircle } from 'lucide-react'
 import { getBoxColor, getPackagingItemFulfillment } from '../utils/packagingHelpers'
+import '../PackagingResponsive.css'
 
 export const PackagingBomList = ({
   categorizedBOM,
@@ -104,14 +105,14 @@ export const PackagingBomList = ({
   return (
     <div style={{ fontFamily: 'Inter, system-ui, -apple-system, sans-serif' }}>
       {/* 1C ERP TABULAR SECTION (ВІДОМІСТЬ КОМПЛЕКТУЮЧИХ) */}
-      <div style={{
+      <div className="packaging-bom-table-wrapper" style={{
         background: '#ffffff',
         border: '1.5px solid #cbd5e1',
         borderRadius: '10px',
         overflow: 'hidden',
         boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
       }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.8rem' }}>
+        <table style={{ width: '100%', minWidth: '700px', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.8rem' }}>
           <thead>
             <tr style={{ background: '#f8fafc', borderBottom: '2px solid #cbd5e1', color: '#334155' }}>
               <th style={{ padding: '10px 8px', width: '38px', textAlign: 'center', fontWeight: 900, color: '#64748b' }}>№</th>
