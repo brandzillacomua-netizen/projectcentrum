@@ -287,14 +287,7 @@ export const OrderForm = ({
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="btn-primary-modern"
-                style={{
-                  background: (isPaintingMissing || isColorMissing)
-                    ? 'linear-gradient(135deg, #f59e0b, #d97706)'
-                    : '#ff9000',
-                  color: '#000',
-                  fontWeight: 900
-                }}
+                className={(isPaintingMissing || isColorMissing) ? 'btn-danger-modern' : 'btn-success-modern'}
               >
                 {isSubmitting
                   ? 'ОБРОБКА...'

@@ -1,3 +1,5 @@
+import fs from 'node:fs'
+import path from 'node:path'
 import { describe, it, expect } from 'vitest'
 import {
   PAINTING_TYPES,
@@ -118,5 +120,48 @@ describe('Manager Order Painting Options & Edge/Full Rules', () => {
       baseColor: 'Чорний',
       notes: 'Терміново'
     })
+  })
+})
+
+describe('Manager Modal & Form Button Contrast in Light Theme', () => {
+  const root = process.cwd()
+  const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8')
+
+  it('does not override inline color: rgb(0, 0, 0) elements with white backgrounds in light.css', () => {
+    const lightCss = read('src/light.css')
+    expect(lightCss).not.toContain('.light-theme [style*="rgb(0, 0, 0)"]')
+    expect(lightCss).toContain('.light-theme [style*="background: rgb(0, 0, 0)"]')
+  })
+
+  it('defines semantic red/green/blue/orange button styles for both dark and light themes in ManagerStyles.css', () => {
+    const managerCss = read('src/modules/Manager/ManagerStyles.css')
+    expect(managerCss).toContain('.btn-success-modern')
+    expect(managerCss).toContain('.btn-danger-modern')
+    expect(managerCss).toContain('.btn-danger-outline-modern')
+    expect(managerCss).toContain('.btn-info-modern')
+    expect(managerCss).toContain('.light-theme .btn-success-modern')
+    expect(managerCss).toContain('.light-theme .btn-danger-modern')
+    expect(managerCss).toContain('.light-theme .btn-primary-modern')
+  })
+
+  it('renders red validation CTA when painting/color is missing and green CTA when ready in OrderForm.jsx', () => {
+    const orderForm = read('src/modules/Manager/components/OrderForm.jsx')
+    expect(orderForm).toContain("className={(isPaintingMissing || isColorMissing) ? 'btn-danger-modern' : 'btn-success-modern'}")
+    expect(orderForm).not.toContain("color: '#000'")
+  })
+
+  it('uses semantic colored button classes in OrderDetailsModal, BatchScheduleModal, and CreateProductModal', () => {
+    const detailsModal = read('src/modules/Manager/components/OrderDetailsModal.jsx')
+    const batchModal = read('src/modules/Manager/components/BatchScheduleModal.jsx')
+    const productModal = read('src/modules/Manager/components/CreateProductModal.jsx')
+
+    expect(detailsModal).toContain('className="btn-success-modern"')
+    expect(detailsModal).toContain('className="btn-danger-modern"')
+    expect(detailsModal).toContain('className="btn-danger-outline-modern"')
+    expect(detailsModal).toContain('className="btn-info-modern"')
+    expect(detailsModal).not.toContain("color: '#000'")
+
+    expect(batchModal).toContain('className="btn-success-modern"')
+    expect(productModal).toContain('className="btn-success-modern"')
   })
 })

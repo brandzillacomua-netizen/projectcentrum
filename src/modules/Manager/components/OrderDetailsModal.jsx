@@ -232,8 +232,8 @@ export const OrderDetailsModal = ({
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="btn-primary-modern"
-                style={{ padding: '12px 24px', background: '#3b82f6', color: '#fff', boxShadow: 'none', marginTop: 0 }}
+                className="btn-success-modern"
+                style={{ padding: '12px 24px', marginTop: 0 }}
               >
                 {isSubmitting ? 'ЗБЕРЕЖЕННЯ...' : 'ЗБЕРЕГТИ ЗМІНИ'}
               </button>
@@ -316,17 +316,17 @@ export const OrderDetailsModal = ({
 
             <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', borderTop: '1px solid var(--border-subtle)', paddingTop: '20px', flexWrap: 'wrap' }}>
               {currentUser?.login === 'admin@workshop.local' && (
-                <button onClick={() => handleSuperDeleteClick(selectedOrder.id)} disabled={isSubmitting} className="btn-primary-modern" style={{ background: 'linear-gradient(135deg, #ef4444, #b91c1c)', color: '#fff', border: 'none', padding: '12px 20px', marginTop: 0, display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 14px rgba(239,68,68,0.4)' }}>
+                <button onClick={() => handleSuperDeleteClick(selectedOrder.id)} disabled={isSubmitting} className="btn-danger-modern" style={{ padding: '12px 20px', marginTop: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <Trash2 size={16} /> СУПЕР-ВИДАЛЕННЯ
                 </button>
               )}
-              <button onClick={() => handleDeleteClick(selectedOrder.id)} disabled={isSubmitting} className="btn-load-more" style={{ color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.2)', padding: '12px 20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <button onClick={() => handleDeleteClick(selectedOrder.id)} disabled={isSubmitting} className="btn-danger-outline-modern" style={{ padding: '12px 20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Trash2 size={16} /> ВИДАЛИТИ
               </button>
-              <button onClick={() => handleBatchScheduleInit(selectedOrder)} className="btn-primary-modern" style={{ background: 'linear-gradient(135deg, #ff9000, #e67e00)', color: '#000', boxShadow: '0 4px 14px rgba(255,144,0,0.3)', padding: '12px 20px', marginTop: 0, display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '900' }}>
+              <button onClick={() => handleBatchScheduleInit(selectedOrder)} className="btn-primary-modern" style={{ padding: '12px 20px', marginTop: 0, display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '900' }}>
                 <Calendar size={16} /> КАЛЕНДАР ПАРТІЙ
               </button>
-              <button onClick={() => handleEditInit(selectedOrder)} className="btn-primary-modern" style={{ background: '#3b82f6', color: '#fff', boxShadow: 'none', padding: '12px 20px', marginTop: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <button onClick={() => handleEditInit(selectedOrder)} className="btn-info-modern" style={{ padding: '12px 20px', marginTop: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
                 🔧 РЕДАГУВАТИ
               </button>
             </div>

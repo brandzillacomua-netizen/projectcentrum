@@ -422,8 +422,8 @@ export const CreateProductModal = ({ isOpen, onClose, onCreated, initialQuery = 
             <button 
               type="submit" 
               disabled={isSubmitting} 
-              className="btn-primary-modern" 
-              style={{ padding: '12px 24px', boxShadow: 'none', marginTop: 0, display: 'flex', alignItems: 'center', gap: '8px' }}
+              className="btn-success-modern" 
+              style={{ padding: '12px 24px', marginTop: 0, display: 'flex', alignItems: 'center', gap: '8px' }}
             >
               <Sparkles size={16} />
               {isSubmitting ? 'ЗБЕРЕЖЕННЯ...' : 'ЗБЕРЕГТИ ТА ОБРАТИ ВИРІБ'}

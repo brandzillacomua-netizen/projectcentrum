@@ -93,7 +93,7 @@ export const BatchScheduleModal = ({
             <button
               onClick={onSaveBatchSchedule}
               disabled={isSavingSchedule}
-              className="btn-primary-modern"
+              className="btn-success-modern"
               style={{ padding: '12px 24px', marginTop: 0 }}
             >
               {isSavingSchedule ? 'ЗБЕРЕЖЕННЯ...' : 'ЗБЕРЕГТИ КАЛЕНДАР ПАРТІЙ'}
