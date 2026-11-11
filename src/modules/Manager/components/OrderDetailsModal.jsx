@@ -1,7 +1,7 @@
 import React from 'react'
 import { X, User, FileText, Calendar, Package, Trash2, Palette, Droplet } from 'lucide-react'
 import { ProductSearchSelect } from './ProductSearchSelect'
-import { DEFAULT_PAINTING_COLORS, getOrderPaintingInfo } from '../constants/paintingConstants'
+import { EDGE_PAINTING_COLORS, FULL_PAINTING_BASE_COLOR, formatPaintingColor, extractEdgeColor, getOrderPaintingInfo } from '../constants/paintingConstants'
 
 export const OrderDetailsModal = ({
   selectedOrder,
@@ -126,11 +126,18 @@ export const OrderDetailsModal = ({
                       <Palette size={16} />
                       <select
                         value={editingOrderHeader.painting_type || ''}
-                        onChange={e => setEditingOrderHeader({
-                          ...editingOrderHeader,
-                          painting_type: e.target.value,
-                          painting_color: (e.target.value === 'none' || !e.target.value) ? '' : (editingOrderHeader.painting_color || '')
-                        })}
+                        onChange={e => {
+                          const nextType = e.target.value
+                          const curEdge = editingOrderHeader.painting_edge_color || extractEdgeColor(editingOrderHeader.painting_color) || ''
+                          const nextEdge = (nextType === 'none' || !nextType) ? '' : curEdge
+                          const nextColor = formatPaintingColor(nextType, nextEdge)
+                          setEditingOrderHeader({
+                            ...editingOrderHeader,
+                            painting_type: nextType,
+                            painting_edge_color: nextEdge,
+                            painting_color: nextColor
+                          })
+                        }}
                       >
                         <option value="">-- Оберіть варіант --</option>
                         <option value="none">Без фарбування</option>
@@ -140,22 +147,57 @@ export const OrderDetailsModal = ({
                     </div>
                   </div>
 
+                  {editingOrderHeader.painting_type === 'full' && (
+                    <div className="form-group-modern" style={{ margin: 0 }}>
+                      <label style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span>ОСНОВНИЙ КОЛІР</span>
+                        <span style={{ color: '#10b981', fontWeight: 800 }}>фіксований</span>
+                      </label>
+                      <div
+                        className="input-wrapper"
+                        style={{
+                          background: 'var(--fill-subtle, rgba(0,0,0,0.03))',
+                          opacity: 0.95
+                        }}
+                      >
+                        <Droplet size={16} color="#0f172a" />
+                        <input
+                          type="text"
+                          readOnly
+                          value={FULL_PAINTING_BASE_COLOR}
+                          style={{ fontWeight: 800, color: 'var(--text, #0f172a)', cursor: 'default' }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
                   {(editingOrderHeader.painting_type === 'full' || editingOrderHeader.painting_type === 'edges') && (
                     <>
                       <div className="form-group-modern" style={{ margin: 0 }}>
-                        <label>КОЛІР ФАРБУВАННЯ</label>
+                        <label>КОЛІР ТОРЦІВ</label>
                         <div className="input-wrapper">
                           <Droplet size={16} />
                           <select
-                            value={editingOrderHeader.painting_color || ''}
-                            onChange={e => setEditingOrderHeader({ ...editingOrderHeader, painting_color: e.target.value })}
+                            value={editingOrderHeader.painting_edge_color || extractEdgeColor(editingOrderHeader.painting_color) || ''}
+                            onChange={e => {
+                              const nextEdge = e.target.value
+                              const nextColor = formatPaintingColor(editingOrderHeader.painting_type, nextEdge)
+                              setEditingOrderHeader({
+                                ...editingOrderHeader,
+                                painting_edge_color: nextEdge,
+                                painting_color: nextColor
+                              })
+                            }}
                           >
-                            <option value="">-- Оберіть колір --</option>
-                            {DEFAULT_PAINTING_COLORS.map(c => (
+                            <option value="">-- Оберіть колір торців --</option>
+                            {EDGE_PAINTING_COLORS.map(c => (
                               <option key={c} value={c}>{c}</option>
                             ))}
-                            {editingOrderHeader.painting_color && !DEFAULT_PAINTING_COLORS.includes(editingOrderHeader.painting_color) && (
-                              <option value={editingOrderHeader.painting_color}>{editingOrderHeader.painting_color}</option>
+                            {(editingOrderHeader.painting_edge_color || editingOrderHeader.painting_color) && 
+                             !EDGE_PAINTING_COLORS.includes(editingOrderHeader.painting_edge_color || extractEdgeColor(editingOrderHeader.painting_color)) && (
+                              <option value={editingOrderHeader.painting_edge_color || extractEdgeColor(editingOrderHeader.painting_color)}>
+                                {editingOrderHeader.painting_edge_color || extractEdgeColor(editingOrderHeader.painting_color)}
+                              </option>
                             )}
                           </select>
                         </div>

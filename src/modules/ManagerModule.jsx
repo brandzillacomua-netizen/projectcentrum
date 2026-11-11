@@ -12,7 +12,7 @@ import { BatchScheduleModal } from './Manager/components/BatchScheduleModal'
 import { OrderDetailsModal } from './Manager/components/OrderDetailsModal'
 import { OrderForm } from './Manager/components/OrderForm'
 import { OrdersTable } from './Manager/components/OrdersTable'
-import { getOrderPaintingInfo } from './Manager/constants/paintingConstants'
+import { getOrderPaintingInfo, formatPaintingColor, extractEdgeColor } from './Manager/constants/paintingConstants'
 import './Manager/ManagerStyles.css'
 
 const ManagerModule = () => {
@@ -186,6 +186,7 @@ const ManagerModule = () => {
     deadline: '',
     painting_type: 'none',
     painting_color: '',
+    painting_edge_color: '',
     painting_notes: ''
   })
 
@@ -315,6 +316,7 @@ const ManagerModule = () => {
     source: 'Виробництво',
     painting_type: '',
     painting_color: '',
+    painting_edge_color: '',
     painting_notes: ''
   })
 
@@ -351,6 +353,7 @@ const ManagerModule = () => {
       deadline: order.deadline ? order.deadline.split('T')[0] : '',
       painting_type: pInfo.type || 'none',
       painting_color: pInfo.color || '',
+      painting_edge_color: pInfo.edgeColor || extractEdgeColor(pInfo.color) || '',
       painting_notes: pInfo.notes || ''
     })
   }
@@ -367,14 +370,16 @@ const ManagerModule = () => {
       return
     }
 
-    if ((editingOrderHeader.painting_type === 'full' || editingOrderHeader.painting_type === 'edges') && !editingOrderHeader.painting_color?.trim()) {
-      alert('Будь ласка, оберіть колір фарбування')
+    const edgeColor = editingOrderHeader.painting_edge_color || extractEdgeColor(editingOrderHeader.painting_color) || ''
+    if ((editingOrderHeader.painting_type === 'full' || editingOrderHeader.painting_type === 'edges') && !edgeColor.trim()) {
+      alert('Будь ласка, оберіть колір торців')
       return
     }
 
     setIsSubmitting(true)
     try {
       const selectedProduct = allNomenclaturesList.find(p => String(p.id) === String(editingOrderHeader.nomenclature_id)) || v2FinishedProductsOnly.find(p => String(p.id) === String(editingOrderHeader.nomenclature_id))
+      const finalColor = formatPaintingColor(editingOrderHeader.painting_type, edgeColor)
       const headerWithInfo = {
         customer: editingOrderHeader.customer,
         official_customer: editingOrderHeader.official_customer,
@@ -383,7 +388,8 @@ const ManagerModule = () => {
         quantity: editingOrderHeader.quantity,
         productName: selectedProduct?.name || '',
         painting_type: editingOrderHeader.painting_type || 'none',
-        painting_color: editingOrderHeader.painting_color || '',
+        painting_color: finalColor,
+        painting_edge_color: edgeColor,
         painting_notes: editingOrderHeader.painting_notes || ''
       }
       const items = [{ nomenclature_id: editingOrderHeader.nomenclature_id, quantity: editingOrderHeader.quantity }]
@@ -502,19 +508,22 @@ const ManagerModule = () => {
       return
     }
 
-    if ((orderHeader.painting_type === 'full' || orderHeader.painting_type === 'edges') && !orderHeader.painting_color?.trim()) {
-      alert('Будь ласка, оберіть колір фарбування')
+    const edgeColor = orderHeader.painting_edge_color || extractEdgeColor(orderHeader.painting_color) || ''
+    if ((orderHeader.painting_type === 'full' || orderHeader.painting_type === 'edges') && !edgeColor.trim()) {
+      alert('Будь ласка, оберіть колір торців')
       return
     }
 
     setIsSubmitting(true)
     try {
       const selectedProduct = allNomenclaturesList.find(p => String(p.id) === String(orderHeader.nomenclature_id)) || v2FinishedProductsOnly.find(p => String(p.id) === String(orderHeader.nomenclature_id))
+      const finalColor = formatPaintingColor(orderHeader.painting_type, edgeColor)
       const headerWithInfo = {
         ...orderHeader,
         productName: selectedProduct?.name || '',
         painting_type: orderHeader.painting_type || 'none',
-        painting_color: orderHeader.painting_color || '',
+        painting_color: finalColor,
+        painting_edge_color: edgeColor,
         painting_notes: orderHeader.painting_notes || ''
       }
 
@@ -535,6 +544,7 @@ const ManagerModule = () => {
         deadline: '',
         painting_type: '',
         painting_color: '',
+        painting_edge_color: '',
         painting_notes: ''
       })
       alert('Замовлення успішно додано!')

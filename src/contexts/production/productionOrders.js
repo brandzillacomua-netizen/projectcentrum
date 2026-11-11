@@ -72,6 +72,7 @@ export function createProductionOrdersActions({
         currentReport.painting = {
           type: header.painting_type,
           color: header.painting_color || '',
+          edge_color: header.painting_edge_color || '',
           notes: header.painting_notes || ''
         }
       }
@@ -327,6 +328,7 @@ export function createProductionOrdersActions({
       initialReport.painting = {
         type: header.painting_type,
         color: header.painting_color || '',
+        edge_color: header.painting_edge_color || '',
         notes: header.painting_notes || ''
       }
     }

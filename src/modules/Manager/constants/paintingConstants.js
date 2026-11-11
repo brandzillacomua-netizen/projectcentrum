@@ -4,42 +4,75 @@ export const PAINTING_TYPES = [
   { value: 'edges', label: 'Фарбування торців', badgeColor: '#f59e0b' }
 ]
 
-// Попередній список до надання клієнтом точного списку кольорів
-export const DEFAULT_PAINTING_COLORS = [
-  'Зелений',
+// Фіксований колір основного виробу при повному фарбуванні
+export const FULL_PAINTING_BASE_COLOR = 'Чорний'
+
+// Можливі кольори фарбування торців (для повного фарбування та фарбування торців)
+export const EDGE_PAINTING_COLORS = [
+  'Помаранчевий',
   'Червоний',
-  'Чорний мат',
-  'Чорний глянець',
-  'Білий',
-  'Синій',
-  'Жовтий',
-  'Сірий'
+  'Синій'
 ]
 
+// Для зворотної сумісності з існуючими селектами
+export const DEFAULT_PAINTING_COLORS = EDGE_PAINTING_COLORS
+
+export function formatPaintingColor(type, edgeColor) {
+  if (!edgeColor) return ''
+  if (type === 'full') {
+    return `${FULL_PAINTING_BASE_COLOR} (торці: ${edgeColor})`
+  }
+  if (type === 'edges') {
+    return edgeColor
+  }
+  return edgeColor
+}
+
+export function extractEdgeColor(colorStr) {
+  if (!colorStr) return ''
+  const match = colorStr.match(/торці:\s*([^)]+)/i)
+  if (match) return match[1].trim()
+  return colorStr
+}
+
 export function getOrderPaintingInfo(order) {
-  if (!order) return { type: 'none', color: '', notes: '' }
+  if (!order) return { type: 'none', color: '', edgeColor: '', baseColor: '', notes: '' }
 
   // 1. Check direct fields if present
-  if (order.painting_type) {
-    return {
-      type: order.painting_type,
-      color: order.painting_color || '',
-      notes: order.painting_notes || ''
-    }
-  }
+  let type = order.painting_type
+  let color = order.painting_color || ''
+  let notes = order.painting_notes || ''
+  let edgeColor = order.painting_edge_color || ''
+  let baseColor = ''
 
   // 2. Structured report JSON
   try {
     const report = typeof order.report === 'string' ? JSON.parse(order.report) : (order.report || {})
     if (report?.painting) {
-      return {
-        type: report.painting.type || 'none',
-        color: report.painting.color || '',
-        notes: report.painting.notes || ''
-      }
+      if (!type) type = report.painting.type
+      if (!color) color = report.painting.color
+      if (!notes) notes = report.painting.notes
+      if (!edgeColor) edgeColor = report.painting.edge_color
+      if (!baseColor) baseColor = report.painting.base_color
     }
   } catch (e) {}
 
-  return { type: 'none', color: '', notes: '' }
+  type = type || 'none'
+  if (type === 'full') {
+    baseColor = baseColor || FULL_PAINTING_BASE_COLOR
+  } else {
+    baseColor = baseColor || ''
+  }
+  if (!edgeColor && color) {
+    edgeColor = extractEdgeColor(color)
+  }
+
+  return {
+    type,
+    color,
+    edgeColor: edgeColor || '',
+    baseColor: baseColor || '',
+    notes
+  }
 }
 

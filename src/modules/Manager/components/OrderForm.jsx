@@ -1,7 +1,7 @@
 import React from 'react'
 import { Plus, Package, FileText, User, Calendar, Palette, Droplet, X } from 'lucide-react'
 import { ProductSearchSelect } from './ProductSearchSelect'
-import { DEFAULT_PAINTING_COLORS } from '../constants/paintingConstants'
+import { EDGE_PAINTING_COLORS, FULL_PAINTING_BASE_COLOR, formatPaintingColor, extractEdgeColor } from '../constants/paintingConstants'
 
 export const OrderForm = ({
   isOpen,
@@ -23,7 +23,8 @@ export const OrderForm = ({
   if (!isOpen) return null
 
   const isPaintingMissing = !orderHeader.painting_type
-  const isColorMissing = (orderHeader.painting_type === 'full' || orderHeader.painting_type === 'edges') && !orderHeader.painting_color?.trim()
+  const selectedEdgeColor = orderHeader.painting_edge_color || extractEdgeColor(orderHeader.painting_color) || ''
+  const isColorMissing = (orderHeader.painting_type === 'full' || orderHeader.painting_type === 'edges') && !selectedEdgeColor?.trim()
 
   return (
     <div className="modal-backdrop-modern" onClick={(e) => { if (e.target === e.currentTarget && onClose) onClose() }}>
@@ -170,11 +171,18 @@ export const OrderForm = ({
                     <Palette size={16} />
                     <select
                       value={orderHeader.painting_type || ''}
-                      onChange={e => setOrderHeader({
-                        ...orderHeader,
-                        painting_type: e.target.value,
-                        painting_color: (e.target.value === 'none' || !e.target.value) ? '' : (orderHeader.painting_color || '')
-                      })}
+                      onChange={e => {
+                        const nextType = e.target.value
+                        const curEdge = orderHeader.painting_edge_color || extractEdgeColor(orderHeader.painting_color) || ''
+                        const nextEdge = (nextType === 'none' || !nextType) ? '' : curEdge
+                        const nextColor = formatPaintingColor(nextType, nextEdge)
+                        setOrderHeader({
+                          ...orderHeader,
+                          painting_type: nextType,
+                          painting_edge_color: nextEdge,
+                          painting_color: nextColor
+                        })
+                      }}
                       style={{ fontWeight: orderHeader.painting_type ? 700 : 400 }}
                     >
                       <option value="">-- Оберіть варіант --</option>
@@ -185,11 +193,35 @@ export const OrderForm = ({
                   </div>
                 </div>
 
+                {orderHeader.painting_type === 'full' && (
+                  <div className="form-group-modern" style={{ margin: 0 }}>
+                    <label style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span>ОСНОВНИЙ КОЛІР</span>
+                      <span style={{ color: '#10b981', fontWeight: 800 }}>фіксований</span>
+                    </label>
+                    <div
+                      className="input-wrapper"
+                      style={{
+                        background: 'var(--fill-subtle, rgba(0,0,0,0.03))',
+                        opacity: 0.95
+                      }}
+                    >
+                      <Droplet size={16} color="#0f172a" />
+                      <input
+                        type="text"
+                        readOnly
+                        value={FULL_PAINTING_BASE_COLOR}
+                        style={{ fontWeight: 800, color: 'var(--text, #0f172a)', cursor: 'default' }}
+                      />
+                    </div>
+                  </div>
+                )}
+
                 {(orderHeader.painting_type === 'full' || orderHeader.painting_type === 'edges') && (
                   <>
                     <div className="form-group-modern" style={{ margin: 0 }}>
                       <label style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span>КОЛІР ФАРБУВАННЯ</span>
+                        <span>КОЛІР ТОРЦІВ</span>
                         {isColorMissing && <span style={{ color: '#ef4444' }}>* обов'язково</span>}
                       </label>
                       <div
@@ -201,16 +233,24 @@ export const OrderForm = ({
                       >
                         <Droplet size={16} />
                         <select
-                          value={orderHeader.painting_color || ''}
-                          onChange={e => setOrderHeader({ ...orderHeader, painting_color: e.target.value })}
-                          style={{ fontWeight: orderHeader.painting_color ? 700 : 400 }}
+                          value={selectedEdgeColor}
+                          onChange={e => {
+                            const nextEdge = e.target.value
+                            const nextColor = formatPaintingColor(orderHeader.painting_type, nextEdge)
+                            setOrderHeader({
+                              ...orderHeader,
+                              painting_edge_color: nextEdge,
+                              painting_color: nextColor
+                            })
+                          }}
+                          style={{ fontWeight: selectedEdgeColor ? 700 : 400 }}
                         >
-                          <option value="">-- Оберіть колір --</option>
-                          {DEFAULT_PAINTING_COLORS.map(c => (
+                          <option value="">-- Оберіть колір торців --</option>
+                          {EDGE_PAINTING_COLORS.map(c => (
                             <option key={c} value={c}>{c}</option>
                           ))}
-                          {orderHeader.painting_color && !DEFAULT_PAINTING_COLORS.includes(orderHeader.painting_color) && (
-                            <option value={orderHeader.painting_color}>{orderHeader.painting_color}</option>
+                          {selectedEdgeColor && !EDGE_PAINTING_COLORS.includes(selectedEdgeColor) && (
+                            <option value={selectedEdgeColor}>{selectedEdgeColor}</option>
                           )}
                         </select>
                       </div>
@@ -261,7 +301,7 @@ export const OrderForm = ({
                   : isPaintingMissing
                   ? '⚠️ ОБЕРІТЬ ВАРІАНТ ФАРБУВАННЯ'
                   : isColorMissing
-                  ? '⚠️ ОБЕРІТЬ КОЛІР ФАРБУВАННЯ'
+                  ? '⚠️ ОБЕРІТЬ КОЛІР ТОРЦІВ'
                   : 'ЗАРЕЄСТРУВАТИ ЗАМОВЛЕННЯ'}
               </button>
             </div>
