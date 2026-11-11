@@ -1,5 +1,6 @@
 import { ClipboardList, Camera, X } from 'lucide-react'
 import { formatMinutesToHours } from '../../../utils/cuttingTimeUtils'
+import { Shop2PaintingBadge } from '../../../components/common/Shop2PaintingBadge.jsx'
 
 export function Shop2QueueList({
   queuedCards,
@@ -9,6 +10,7 @@ export function Shop2QueueList({
   setScanError,
   setIsScanning,
   getNomFromCard = () => null,
+  getCardDisplayInfo = null,
   isMobile = false
 }) {
   const renderQueue = () => (
@@ -19,7 +21,8 @@ export function Shop2QueueList({
         </div>
       )}
       {queuedCards.map(card => {
-        const nom = typeof getNomFromCard === 'function' ? getNomFromCard(card) : null
+        const displayInfo = typeof getCardDisplayInfo === 'function' ? getCardDisplayInfo(card) : null
+        const nom = displayInfo?.nom || (typeof getNomFromCard === 'function' ? getNomFromCard(card) : null)
         const isActive = String(selectedCardId) === String(card.id)
         return (
           <div key={card.id} onClick={() => { setSelectedCardId(card.id); if (isMobile) setIsDrawerOpen(false); setScanError(null); }} style={{ background: isActive ? '#8b5cf6' : 'var(--surface-2)', borderRadius: '12px', padding: '15px', marginBottom: '10px', cursor: 'pointer', border: '1px solid', borderColor: isActive ? '#8b5cf6' : 'var(--border-subtle)', transition: '0.2s', color: '#fff' }}>
@@ -27,6 +30,11 @@ export function Shop2QueueList({
               <strong style={{ display: 'block', fontSize: '0.9rem', fontWeight: 800 }}>{nom?.name || 'Без назви'}</strong>
               <span style={{ fontSize: '0.65rem', color: '#8b5cf6', fontWeight: 800 }}>#{card.id.slice(-8).toUpperCase()}</span>
               <div style={{ fontSize: '0.65rem', opacity: 0.7 }}>{card.quantity} шт | Етап: {card.status === 'at-buffer' ? `Буфер ${card.operation?.toLowerCase()}` : (card.operation || '—')}</div>
+              {displayInfo?.routing?.shouldPaint && (
+                <div style={{ marginTop: '5px' }}>
+                  <Shop2PaintingBadge routing={displayInfo.routing} compact={true} />
+                </div>
+              )}
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
               <span style={{ fontSize: '0.6rem', background: isActive ? 'var(--fill-inset)' : 'rgba(139, 92, 246, 0.1)', color: isActive ? '#fff' : '#8b5cf6', padding: '2px 6px', borderRadius: '4px', fontWeight: 900, textTransform: 'uppercase' }}>ОЧІКУЄ</span>

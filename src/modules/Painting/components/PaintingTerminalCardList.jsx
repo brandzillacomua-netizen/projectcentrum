@@ -1,10 +1,12 @@
 import React from 'react'
 import { Layers, Clock, Play, CheckCircle } from 'lucide-react'
 import { ACCENT, ACCENT_RGB } from '../hooks/usePaintingTerminalData'
+import { Shop2PaintingBadge } from '../../../components/common/Shop2PaintingBadge.jsx'
 
 export default function PaintingTerminalCardList({
   displayedCards,
   getNom,
+  getCardDisplayInfo,
   formatDuration,
   setPendingStartCard,
   openCompleteModal,
@@ -19,7 +21,10 @@ export default function PaintingTerminalCardList({
         </div>
       ) : (
         displayedCards.map(card => {
-          const nom = getNom(card)
+          const displayInfo = typeof getCardDisplayInfo === 'function' ? getCardDisplayInfo(card) : null
+          const nom = displayInfo?.nom || getNom(card)
+          const order = displayInfo?.order
+          const routing = displayInfo?.routing
           const isWaiting = card.type === 'waiting'
           const timeStr = isWaiting
             ? (card.completed_at ? formatDuration(card.completed_at) : '—')
@@ -33,6 +38,11 @@ export default function PaintingTerminalCardList({
                   <span style={{ fontSize: '0.62rem', color: '#ff9000', fontWeight: 900, textTransform: 'uppercase' }} className="card-code">
                     Картка #{card.id.slice(-8).toUpperCase()}
                   </span>
+                  {order?.order_num && (
+                    <span style={{ background: 'rgba(2, 132, 199, 0.14)', color: '#38bdf8', border: '1px solid rgba(56, 189, 248, 0.3)', padding: '1px 6px', borderRadius: '4px', fontSize: '0.58rem', fontWeight: 900 }}>
+                      Наряд №{order.order_num}
+                    </span>
+                  )}
                   {(() => {
                     const seqMatch = (card.card_info || '').match(/(\d+\/\d+)/)
                     return seqMatch ? (
@@ -52,7 +62,8 @@ export default function PaintingTerminalCardList({
                 <h4 style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text, #fff)', margin: '0 0 6px 0', lineHeight: 1.3, wordBreak: 'break-word' }} className="card-title">
                   {nom?.name || 'Невказана деталь'}
                 </h4>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }} className="card-details">
+                <Shop2PaintingBadge routing={routing} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', marginTop: routing ? '6px' : 0 }} className="card-details">
                   <span style={{ fontSize: '0.68rem', color: 'var(--text-muted, #6b7280)', fontWeight: 700 }}>
                     К-сть: <strong style={{ color: 'var(--text, #fff)' }}>{card.quantity} шт</strong>
                   </span>

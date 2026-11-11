@@ -14,6 +14,7 @@ import { incrementInventoryStock } from '../../../services/inventoryStockService
 import { isPackagingOperation } from '../../Shop2CardGen/constants/shop2Stages'
 import { parseMachineQRId } from '../../../utils/machineQrUtils.js'
 import { getShop2BufferRemaining } from '../../../utils/productionWipParity.js'
+import { resolveShop2CardDisplayInfo } from '../../../utils/shop2RoutingUtils.js'
 
 
 export function useShop2TerminalState() {
@@ -273,10 +274,20 @@ export function useShop2TerminalState() {
   useEffect(() => { localStorage.setItem('centrum_shop2_scanned', JSON.stringify(scannedCardIds)) }, [scannedCardIds])
   useEffect(() => { const timer = setInterval(() => setCurrentTime(new Date()), 1000); return () => clearInterval(timer) }, [])
 
+  const getCardDisplayInfo = useCallback(
+    (card) => resolveShop2CardDisplayInfo(card, nomenclatures, orders),
+    [nomenclatures, orders]
+  )
+
   useEffect(() => {
     const card = workCards.find(c => String(c.id) === String(selectedCardId))
     if (card) {
-      setSelectedStage(card.operation || '')
+      const displayInfo = resolveShop2CardDisplayInfo(card, nomenclatures, orders)
+      const nextDefaultStage =
+        card.status === 'at-buffer' && card.operation === 'Пресування' && displayInfo.routing?.shouldPaint
+          ? 'Фарбування'
+          : (card.operation || '')
+      setSelectedStage(nextDefaultStage)
       const fullName = [currentUser?.first_name, currentUser?.last_name].filter(Boolean).join(' ')
       const displayName = fullName || currentUser?.login || ''
       const managerName = currentUser?.position ? `${displayName} (${currentUser.position})` : displayName
@@ -720,6 +731,7 @@ export function useShop2TerminalState() {
     handleCreateCall,
     currentCard,
     getNomFromCard,
+    getCardDisplayInfo,
     queuedCards,
     handleStartOperation,
     submitCompletion,

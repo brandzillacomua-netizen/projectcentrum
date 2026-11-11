@@ -7,7 +7,10 @@ import {
   DEFAULT_ERP_GROUPS,
   ERP_CATEGORY_SCHEMAS,
   generateStandardName,
-  buildFlattenedGroupOptions
+  buildFlattenedGroupOptions,
+  getPartShop2RoutingFlags,
+  isMissingColumnDbError,
+  stripOptionalNomColumns
 } from './Nomenclature/utils/nomenclatureHelpers'
 
 import { NomenclatureHeader } from './Nomenclature/components/NomenclatureHeader'
@@ -91,6 +94,7 @@ const NomenclatureV2 = () => {
     grade: 'Т300', dimensions: '500*600', extra: '',
     projType: 'RND', projNum: '', name: '',
     sheetGrade: 'Т300', sheetThickness: '3', unitsPerSheet: 1,
+    requiresPressing: false, requiresPainting: false,
     loadTimings: { ...DEFAULT_LOAD_TIMINGS },
     customName: '', unit: 'шт'
   })
@@ -329,6 +333,7 @@ const NomenclatureV2 = () => {
       const rType = itemToEdit.rule_type || targetGroup?.rule_type || 'generic'
       setWizardGroup(targetGroup)
       setWizardRuleType(rType)
+      const shop2Flags = getPartShop2RoutingFlags(itemToEdit)
       setWizardParams({
         standard: 'DIN912', diameter: '3', length: '10', isBlack: true, isPartialThread: false,
         type: 'TFF', thread: '3', tailLength: '6', outerDiameter: '5', material: 'Алюміній',
@@ -340,7 +345,9 @@ const NomenclatureV2 = () => {
         default_material_id: itemToEdit.default_material_id || itemToEdit.rule_params?.default_material_id || '',
         loadTimings: { ...DEFAULT_LOAD_TIMINGS, ...(itemToEdit.rule_params?.loadTimings || {}) },
         customName: itemToEdit.name || '', unit: itemToEdit.unit || 'шт',
-        ...(itemToEdit.rule_params || {})
+        ...(itemToEdit.rule_params || {}),
+        requiresPressing: shop2Flags.requiresPressing,
+        requiresPainting: shop2Flags.requiresPainting
       })
     } else {
       setEditingItem(null)
@@ -351,6 +358,8 @@ const NomenclatureV2 = () => {
       setWizardParams(prev => ({
         ...prev,
         default_material_id: '',
+        requiresPressing: false,
+        requiresPainting: false,
         loadTimings: { ...DEFAULT_LOAD_TIMINGS },
         isBlack: rType === 'screw_black' ? true : rType === 'screw_silver' ? false : prev.isBlack
       }))
@@ -499,20 +508,39 @@ const NomenclatureV2 = () => {
       if (wizardParams.cutLength === 'custom' && wizardParams.customCutLength) registerCustomValue('millCutLengths', wizardParams.customCutLength)
       if (wizardParams.totalLength === 'custom' && wizardParams.customTotalLength) registerCustomValue('millTotalLengths', wizardParams.customTotalLength)
 
+      const requiresPressing = wizardRuleType === 'frame_part' ? Boolean(wizardParams.requiresPressing) : false
+      const requiresPainting = wizardRuleType === 'frame_part' ? Boolean(wizardParams.requiresPainting) : false
+      const nextRuleParams = {
+        ...wizardParams,
+        requiresPressing,
+        requiresPainting
+      }
+
       if (editingItem) {
         const v2Payload = {
           name: generatedName,
           group_id: wizardGroup?.id || null,
           unit: wizardParams.unit || 'шт',
           rule_type: wizardRuleType,
-          rule_params: wizardParams,
-          default_material_id: wizardParams.default_material_id || null
+          rule_params: nextRuleParams,
+          default_material_id: wizardParams.default_material_id || null,
+          requires_pressing: requiresPressing,
+          requires_painting: requiresPainting
         }
 
-        const { error: updateErr } = await supabase
+        let { error: updateErr } = await supabase
           .from('nomenclatures_v2')
           .update(v2Payload)
           .eq('id', editingItem.id)
+
+        if (updateErr && isMissingColumnDbError(updateErr)) {
+          const legacyPayload = stripOptionalNomColumns(v2Payload)
+          const retry = await supabase
+            .from('nomenclatures_v2')
+            .update(legacyPayload)
+            .eq('id', editingItem.id)
+          updateErr = retry.error
+        }
 
         if (updateErr) console.warn('DB update fallback:', updateErr)
 
@@ -526,6 +554,7 @@ const NomenclatureV2 = () => {
           .eq('nomenclature_id', editingItem.id)
 
         setItems(prev => prev.map(it => it.id === editingItem.id ? { ...it, ...v2Payload } : it))
+        window.dispatchEvent(new CustomEvent('mes:refresh-table', { detail: { table: 'nomenclatures' } }))
         setIsWizardOpen(false)
         setEditingItem(null)
         showToast(`✨ Позицію «${generatedName}» оновлено в каталозі!`)
@@ -541,8 +570,10 @@ const NomenclatureV2 = () => {
         group_id: wizardGroup?.id || null,
         unit: wizardParams.unit || 'шт',
         rule_type: wizardRuleType,
-        rule_params: wizardParams,
+        rule_params: nextRuleParams,
         default_material_id: wizardParams.default_material_id || null,
+        requires_pressing: requiresPressing,
+        requires_painting: requiresPainting,
         status: 'active'
       }
 
@@ -552,12 +583,17 @@ const NomenclatureV2 = () => {
         .select()
         .single()
 
-      if (insertErr && insertErr.code === '42703') {
-        // Fallback if barcode/qr_code columns not migrated yet in DB
-        const { barcode, qr_code, ...legacyPayload } = v2Payload
+      if (insertErr && isMissingColumnDbError(insertErr)) {
+        const legacyPayload = stripOptionalNomColumns(v2Payload)
         const retry = await supabase.from('nomenclatures_v2').insert([legacyPayload]).select().single()
         inserted = retry.data
         insertErr = retry.error
+        if (insertErr && insertErr.code === '42703') {
+          const { barcode, qr_code, ...minimalPayload } = legacyPayload
+          const retry2 = await supabase.from('nomenclatures_v2').insert([minimalPayload]).select().single()
+          inserted = retry2.data
+          insertErr = retry2.error
+        }
       }
 
       if (insertErr) console.warn('DB insert fallback:', insertErr)
@@ -569,6 +605,7 @@ const NomenclatureV2 = () => {
       }
 
       setItems(prev => [newItemObj, ...prev])
+      window.dispatchEvent(new CustomEvent('mes:refresh-table', { detail: { table: 'nomenclatures' } }))
       setIsWizardOpen(false)
       showToast(`✨ Позицію «${generatedName}» збережено в таблицю nomenclatures_v2!`)
     } catch (err) {

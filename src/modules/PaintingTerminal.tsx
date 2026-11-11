@@ -37,6 +37,7 @@ export const PaintingTerminal: React.FC = () => {
     filterMode,
     setFilterMode,
     getNom,
+    getCardDisplayInfo,
     startPaintingCard,
     openCompleteModal,
     submitPaintingComplete,
@@ -92,6 +93,7 @@ export const PaintingTerminal: React.FC = () => {
           <PaintingTerminalCardList
             displayedCards={displayedCards}
             getNom={getNom}
+            getCardDisplayInfo={getCardDisplayInfo}
             formatDuration={formatDuration}
             setPendingStartCard={setPendingStartCard}
             openCompleteModal={openCompleteModal}
@@ -106,6 +108,7 @@ export const PaintingTerminal: React.FC = () => {
         onClose={() => setPendingStartCard(null)}
         startPaintingCard={startPaintingCard}
         getNom={getNom}
+        getCardDisplayInfo={getCardDisplayInfo}
         isProcessing={isProcessing}
       />
 
@@ -120,6 +123,7 @@ export const PaintingTerminal: React.FC = () => {
         setScrapCount={setScrapCount}
         submitPaintingComplete={submitPaintingComplete}
         getNom={getNom}
+        getCardDisplayInfo={getCardDisplayInfo}
         isProcessing={isProcessing}
       />
 

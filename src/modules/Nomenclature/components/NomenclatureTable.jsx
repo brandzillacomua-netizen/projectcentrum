@@ -1,6 +1,6 @@
 import React from 'react'
 import { Search, ChevronRight, ChevronLeft, Package, Plus, Clock, Edit2, Trash2, Barcode, Archive, RotateCcw } from 'lucide-react'
-import { getPlannedShop1SheetTimings } from '../utils/nomenclatureHelpers'
+import { getPlannedShop1SheetTimings, getPartShop2RoutingFlags } from '../utils/nomenclatureHelpers'
 
 const NomenclatureTableRow = React.memo(({
   item,
@@ -73,9 +73,20 @@ const NomenclatureTableRow = React.memo(({
         </div>
         {(() => {
           const plannedSheetTimings = getPlannedShop1SheetTimings(item)
-          if (plannedSheetTimings.length === 0) return null
+          const shop2Flags = isCuttingPart ? getPartShop2RoutingFlags(item) : { requiresPressing: false, requiresPainting: false }
+          if (plannedSheetTimings.length === 0 && !shop2Flags.requiresPressing && !shop2Flags.requiresPainting) return null
           return (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '6px' }}>
+              {shop2Flags.requiresPressing && (
+                <span style={{ background: 'rgba(249, 115, 22, 0.12)', border: '1px solid rgba(249, 115, 22, 0.3)', color: '#ea580c', padding: '2px 6px', borderRadius: '5px', fontSize: '0.68rem', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                  🔩 Пресування
+                </span>
+              )}
+              {shop2Flags.requiresPainting && (
+                <span style={{ background: 'rgba(139, 92, 246, 0.12)', border: '1px solid rgba(139, 92, 246, 0.3)', color: '#7c3aed', padding: '2px 6px', borderRadius: '5px', fontSize: '0.68rem', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                  🎨 Фарбування
+                </span>
+              )}
               {plannedSheetTimings.map(({ sheets, minutes }) => (
                 <span key={sheets} style={{ background: 'rgba(255, 144, 0, 0.12)', border: '1px solid rgba(255, 144, 0, 0.3)', color: '#d97706', padding: '2px 6px', borderRadius: '5px', fontSize: '0.68rem', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
                   <Clock size={10} /> {sheets}л: {minutes}хв

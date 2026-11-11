@@ -36,6 +36,7 @@ export const Shop2Terminal: React.FC = () => {
           setScanError={state.setScanError}
           setIsScanning={state.setIsScanning}
           getNomFromCard={state.getNomFromCard}
+          getCardDisplayInfo={state.getCardDisplayInfo}
           isMobile={false}
         />
 
@@ -52,6 +53,7 @@ export const Shop2Terminal: React.FC = () => {
             setScanError={state.setScanError}
             setIsScanning={state.setIsScanning}
             getNomFromCard={state.getNomFromCard}
+            getCardDisplayInfo={state.getCardDisplayInfo}
             isMobile={true}
           />
         )}
@@ -69,6 +71,7 @@ export const Shop2Terminal: React.FC = () => {
             <Shop2CardDetails
               currentCard={state.currentCard}
               getNomFromCard={state.getNomFromCard}
+              getCardDisplayInfo={state.getCardDisplayInfo}
               orders={state.orders}
               setSelectedCardId={state.setSelectedCardId}
               setShowQCModal={state.setShowQCModal}
@@ -104,6 +107,7 @@ export const Shop2Terminal: React.FC = () => {
                 isSyncing={state.isSyncing}
                 setSelectedCardId={state.setSelectedCardId}
                 getNomFromCard={state.getNomFromCard}
+                getCardDisplayInfo={state.getCardDisplayInfo}
               />
             </div>
           )}

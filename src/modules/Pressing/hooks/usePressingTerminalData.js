@@ -5,6 +5,7 @@ import { supabase } from '../../../supabase'
 import scannerDebounceGuard from '../../../services/scannerDebounceGuard'
 import { executeAtomicCardTransition } from '../../../services/atomicCardTransitionService'
 import { incrementInventoryStock } from '../../../services/inventoryStockService'
+import { isShop2CardTag, resolveShop2CardDisplayInfo } from '../../../utils/shop2RoutingUtils.js'
 
 // Map Cyrillic keyboard characters to English QWERTY for barcode scanners
 const cyrillicToLatinMap = {
@@ -29,6 +30,7 @@ export function usePressingTerminalData() {
 
   const workCards = useStore(state => state.workCards)
   const nomenclatures = useStore(state => state.nomenclatures)
+  const orders = useStore(state => state.orders)
 
   const [currentTime, setCurrentTime] = useState(new Date())
   const [selectedShift, setSelectedShift] = useState('')
@@ -150,13 +152,13 @@ export function usePressingTerminalData() {
     setScanError(null)
     try {
       let card = workCards.find(c => 
-        c.card_info?.includes('[ЦЕХ №2]') && 
+        isShop2CardTag(c.card_info) && 
         (String(c.id).trim() === id || String(c.id).toUpperCase().endsWith(id.toUpperCase()))
       )
       if (!card) {
-        await fetchData('work_cards').catch(() => {})
+        await fetchData(['work_cards', 'orders', 'nomenclatures']).catch(() => {})
         card = workCards.find(c => 
-          c.card_info?.includes('[ЦЕХ №2]') && 
+          isShop2CardTag(c.card_info) && 
           (String(c.id).trim() === id || String(c.id).toUpperCase().endsWith(id.toUpperCase()))
         )
       }
@@ -386,10 +388,12 @@ export function usePressingTerminalData() {
     return [h, m, s].map(v => String(v).padStart(2, '0')).join(':')
   }
 
+  const getCardDisplayInfo = (card) => resolveShop2CardDisplayInfo(card, nomenclatures, orders)
+
   const waitingCards = useMemo(() => {
     return workCards
       .filter(c => 
-        c.card_info?.includes('[ЦЕХ №2]') &&
+        isShop2CardTag(c.card_info) &&
         ((c.status === 'at-shop2-buffer' && c.operation === 'Сортування') || 
          (c.status === 'new' && c.operation === 'Пресування'))
       )
@@ -398,7 +402,7 @@ export function usePressingTerminalData() {
 
   const inWorkCards = useMemo(() => {
     return workCards
-      .filter(c => c.card_info?.includes('[ЦЕХ №2]') && c.status === 'in-progress' && c.operation === 'Пресування')
+      .filter(c => isShop2CardTag(c.card_info) && c.status === 'in-progress' && c.operation === 'Пресування')
       .sort((a, b) => new Date(a.started_at || 0) - new Date(b.started_at || 0))
   }, [workCards])
 
@@ -441,6 +445,7 @@ export function usePressingTerminalData() {
     filterMode,
     setFilterMode,
     getNom,
+    getCardDisplayInfo,
     handleCardActionById,
     startPressingCard,
     openCompleteModal,

@@ -1,15 +1,18 @@
 import React from 'react'
 import { Play, X, RefreshCw } from 'lucide-react'
 import { ACCENT, ACCENT_RGB } from '../../hooks/usePaintingTerminalData'
+import { Shop2PaintingBadge } from '../../../../components/common/Shop2PaintingBadge.jsx'
 
 export default function PaintingStartConfirmModal({
   pendingStartCard,
   onClose,
   startPaintingCard,
   getNom,
+  getCardDisplayInfo,
   isProcessing
 }) {
   if (!pendingStartCard) return null
+  const displayInfo = typeof getCardDisplayInfo === 'function' ? getCardDisplayInfo(pendingStartCard) : null
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10050, padding: '16px', backdropFilter: 'blur(10px)' }}>
@@ -22,9 +25,13 @@ export default function PaintingStartConfirmModal({
         </div>
         <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div style={{ background: 'var(--bg, var(--border-subtle))', border: '1px solid var(--glass-border, var(--border-subtle))', borderRadius: '12px', padding: '12px 14px' }}>
-            <div style={{ fontSize: '0.6rem', color: '#ff9000', fontWeight: 900 }}>#{pendingStartCard.id.slice(-8).toUpperCase()}</div>
-            <div style={{ fontSize: '0.9rem', fontWeight: 900, color: 'var(--text, #fff)', marginTop: '4px' }}>{getNom(pendingStartCard)?.name || 'Деталь'}</div>
+            <div style={{ fontSize: '0.6rem', color: '#ff9000', fontWeight: 900 }}>
+              #{pendingStartCard.id.slice(-8).toUpperCase()}
+              {displayInfo?.order?.order_num ? ` • Наряд №${displayInfo.order.order_num}` : ''}
+            </div>
+            <div style={{ fontSize: '0.9rem', fontWeight: 900, color: 'var(--text, #fff)', marginTop: '4px' }}>{displayInfo?.nom?.name || getNom(pendingStartCard)?.name || 'Деталь'}</div>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted, #6b7280)', fontWeight: 700, marginTop: '2px' }}>К-сть: <strong style={{ color: 'var(--text, #fff)' }}>{pendingStartCard.quantity} шт</strong></div>
+            <Shop2PaintingBadge routing={displayInfo?.routing} />
           </div>
           <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-muted, #9ca3af)', fontWeight: 600, textAlign: 'center', lineHeight: 1.4 }}>
             Підтвердіть що картка переходить у <strong style={{ color: 'var(--text, #fff)' }}>Фарбування</strong>.

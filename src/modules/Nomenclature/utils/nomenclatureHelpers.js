@@ -104,7 +104,7 @@ export const ERP_CATEGORY_SCHEMAS = {
       { key: 'name', label: 'Назва деталі', required: true },
       { key: 'default_material_id', label: 'Робочий матеріал / лист ЧПК', required: true },
       { key: 'unitsPerSheet', label: 'Норма деталей з 1 листа (шт/л)', required: true },
-      { key: 'loadTimings', label: 'Таймінги загрузок (1, 2, 4, 8, 12, 16 л.)', required: false }
+      { key: 'shop2_operations', label: 'Цех №2: Пресування / Фарбування', required: false }
     ]
   },
   full_frame: {
@@ -476,6 +476,8 @@ export const mapV2ToStandardNom = (v) => {
     addInfo = `[QR: ${qrCodeVal}]`;
   }
 
+  const routingFlags = getPartShop2RoutingFlags(v);
+
   return {
     ...v,
     id: v.id,
@@ -488,6 +490,10 @@ export const mapV2ToStandardNom = (v) => {
     units_per_sheet: rawUnitsPerSheet || 1,
     material_type: rawMaterial,
     material: rawMaterial,
+    requires_pressing: routingFlags.requiresPressing,
+    requires_painting: routingFlags.requiresPainting,
+    requiresPressing: routingFlags.requiresPressing,
+    requiresPainting: routingFlags.requiresPainting,
     characteristic: v.characteristic || v.rule_params?.characteristic || v.rule_params?.cutter_type_id || null,
     additional_info: addInfo,
     barcode: v.barcode || '',
@@ -701,4 +707,52 @@ export const getPlannedShop1SheetTimings = (itemOrRuleParams) => {
     }))
     .filter((entry) => entry.sheets > 0 && entry.minutes > 0)
     .sort((a, b) => a.sheets - b.sheets);
+};
+
+const toExplicitBooleanOrUndefined = (val) => {
+  if (typeof val === 'boolean') return val;
+  if (val === 'true') return true;
+  if (val === 'false') return false;
+  return undefined;
+};
+
+/**
+ * Resolves Shop 2 post-processing flags (pressing & painting) from either
+ * explicit DB columns or rule_params JSONB.
+ */
+export const getPartShop2RoutingFlags = (nom) => {
+  const rp = nom?.rule_params && typeof nom.rule_params === 'object' ? nom.rule_params : {};
+  const pressRaw =
+    toExplicitBooleanOrUndefined(nom?.requires_pressing) ??
+    toExplicitBooleanOrUndefined(nom?.requiresPressing) ??
+    toExplicitBooleanOrUndefined(rp.requires_pressing) ??
+    toExplicitBooleanOrUndefined(rp.requiresPressing);
+
+  const paintRaw =
+    toExplicitBooleanOrUndefined(nom?.requires_painting) ??
+    toExplicitBooleanOrUndefined(nom?.requiresPainting) ??
+    toExplicitBooleanOrUndefined(rp.requires_painting) ??
+    toExplicitBooleanOrUndefined(rp.requiresPainting);
+
+  return {
+    requiresPressing: pressRaw ?? false,
+    requiresPainting: paintRaw ?? false,
+    isConfigured: pressRaw !== undefined || paintRaw !== undefined
+  };
+};
+
+/**
+ * Strips optional schema columns when an older database instance returns
+ * undefined-column (42703) or schema-cache miss (PGRST204).
+ */
+export const isMissingColumnDbError = (err) => {
+  if (!err) return false;
+  const code = String(err.code || '');
+  const msg = String(err.message || '').toLowerCase();
+  return code === '42703' || code === 'PGRST204' || msg.includes('column') || msg.includes('schema cache');
+};
+
+export const stripOptionalNomColumns = (payload) => {
+  const { barcode: _b, qr_code: _q, requires_pressing: _rp, requires_painting: _rpa, ...rest } = payload || {};
+  return rest;
 };

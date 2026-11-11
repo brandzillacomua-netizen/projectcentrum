@@ -859,6 +859,73 @@ export const NomenclatureWizardModal = ({
                     />
                   </div>
                 </div>
+
+                {/* ОПЕРАЦІЇ ЦЕХУ №2 (ПОСТОБРОБКА ДЕТАЛІ) */}
+                <div style={{ background: 'var(--card-bg, #ffffff)', border: '1px solid var(--border-color, #e2e8f0)', borderRadius: '16px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text, #0f172a)', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    ⚙️ ОПЕРАЦІЇ ЦЕХУ №2 (ПОСТОБРОБКА ДЕТАЛІ)
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                    <label
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        padding: '12px 14px',
+                        borderRadius: '12px',
+                        border: `2px solid ${wizardParams.requiresPressing ? '#8b5cf6' : 'var(--border-color, #cbd5e1)'}`,
+                        background: wizardParams.requiresPressing ? 'rgba(139, 92, 246, 0.1)' : 'var(--input-bg, #f8fafc)',
+                        cursor: 'pointer',
+                        fontWeight: 800,
+                        fontSize: '0.86rem',
+                        color: wizardParams.requiresPressing ? '#6d28d9' : 'var(--text, #0f172a)',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={Boolean(wizardParams.requiresPressing)}
+                        onChange={e => setWizardParams({ ...wizardParams, requiresPressing: e.target.checked })}
+                        style={{ width: '18px', height: '18px', accentColor: '#8b5cf6', cursor: 'pointer' }}
+                      />
+                      <span>🔩 Пресування</span>
+                    </label>
+
+                    <label
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        padding: '12px 14px',
+                        borderRadius: '12px',
+                        border: `2px solid ${wizardParams.requiresPainting ? '#ec4899' : 'var(--border-color, #cbd5e1)'}`,
+                        background: wizardParams.requiresPainting ? 'rgba(236, 72, 153, 0.1)' : 'var(--input-bg, #f8fafc)',
+                        cursor: 'pointer',
+                        fontWeight: 800,
+                        fontSize: '0.86rem',
+                        color: wizardParams.requiresPainting ? '#be185d' : 'var(--text, #0f172a)',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={Boolean(wizardParams.requiresPainting)}
+                        onChange={e => setWizardParams({ ...wizardParams, requiresPainting: e.target.checked })}
+                        style={{ width: '18px', height: '18px', accentColor: '#ec4899', cursor: 'pointer' }}
+                      />
+                      <span>🎨 Фарбування</span>
+                    </label>
+                  </div>
+                  <div style={{ fontSize: '0.73rem', color: 'var(--text-muted, #64748b)', fontWeight: 600, lineHeight: 1.4 }}>
+                    {wizardParams.requiresPressing && wizardParams.requiresPainting
+                      ? 'Маршрут Цеху №2: Пресування → Фарбування (якщо в замовленні менеджера обрано фарбування, картка покаже колір і торці).'
+                      : wizardParams.requiresPressing
+                        ? 'Маршрут Цеху №2: Тільки пресування → Склад СГП (деталь не фарбується).'
+                        : wizardParams.requiresPainting
+                          ? 'Маршрут Цеху №2: Без пресування → Фарбування (якщо в замовленні менеджера обрано фарбування).'
+                          : 'Якщо нічого не обрано — деталь у Цеху №2 не пресується й не фарбується (передача напряму на СГП).'}
+                  </div>
+                </div>
               </>
             )}
 

@@ -5,6 +5,11 @@ import { supabase } from '../../../supabase'
 import scannerDebounceGuard from '../../../services/scannerDebounceGuard'
 import { executeAtomicCardTransition } from '../../../services/atomicCardTransitionService'
 import { incrementInventoryStock } from '../../../services/inventoryStockService'
+import {
+  isShop2CardTag,
+  resolveShop2CardDisplayInfo,
+  shouldCardGoToPaintingTerminal
+} from '../../../utils/shop2RoutingUtils.js'
 
 // Map Cyrillic keyboard characters to English QWERTY for barcode scanners
 const cyrillicToLatinMap = {
@@ -29,6 +34,7 @@ export function usePaintingTerminalData() {
 
   const workCards = useStore(state => state.workCards)
   const nomenclatures = useStore(state => state.nomenclatures)
+  const orders = useStore(state => state.orders)
 
   const [currentTime, setCurrentTime] = useState(new Date())
   const [selectedShift, setSelectedShift] = useState('')
@@ -66,7 +72,12 @@ export function usePaintingTerminalData() {
     }
   }, [currentUser])
 
-  const getNom = (card) => nomenclatures.find(n => n.id === card?.nomenclature_id)
+  const getNom = (card) => {
+    const info = resolveShop2CardDisplayInfo(card, nomenclatures, orders)
+    return info.nom
+  }
+
+  const getCardDisplayInfo = (card) => resolveShop2CardDisplayInfo(card, nomenclatures, orders)
 
   // Wedge Barcode Scanner
   useEffect(() => {
@@ -150,13 +161,13 @@ export function usePaintingTerminalData() {
     setScanError(null)
     try {
       let card = workCards.find(c => 
-        c.card_info?.includes('[ЦЕХ №2]') && 
+        isShop2CardTag(c.card_info) && 
         (String(c.id).trim() === id || String(c.id).toUpperCase().endsWith(id.toUpperCase()))
       )
       if (!card) {
-        await fetchData('work_cards').catch(() => {})
+        await fetchData(['work_cards', 'orders', 'nomenclatures']).catch(() => {})
         card = workCards.find(c => 
-          c.card_info?.includes('[ЦЕХ №2]') && 
+          isShop2CardTag(c.card_info) && 
           (String(c.id).trim() === id || String(c.id).toUpperCase().endsWith(id.toUpperCase()))
         )
       }
@@ -166,9 +177,14 @@ export function usePaintingTerminalData() {
         return
       }
 
-      const isWaiting = (card.status === 'at-buffer' && card.operation === 'Пресування') || 
-                        (card.status === 'new' && ['Фарбування', 'Малярка'].includes(card.operation))
+      const isWaiting = shouldCardGoToPaintingTerminal(card, nomenclatures, orders) && card.status !== 'in-progress'
       const isInWork = card.status === 'in-progress' && ['Фарбування', 'Малярка'].includes(card.operation)
+
+      if (card.status === 'at-buffer' && card.operation === 'Пресування' && !isWaiting) {
+        setScanError(`Картка #${id.slice(-8).toUpperCase()} не потребує фарбування (за параметрами деталі або наряду)`)
+        setIsProcessing(false)
+        return
+      }
 
       if (isWaiting) {
         setPendingStartCard(card)
@@ -388,17 +404,13 @@ export function usePaintingTerminalData() {
 
   const waitingCards = useMemo(() => {
     return workCards
-      .filter(c => 
-        c.card_info?.includes('[ЦЕХ №2]') &&
-        ((c.status === 'at-buffer' && c.operation === 'Пресування') || 
-         (c.status === 'new' && ['Фарбування', 'Малярка'].includes(c.operation)))
-      )
+      .filter(c => c.status !== 'in-progress' && shouldCardGoToPaintingTerminal(c, nomenclatures, orders))
       .sort((a, b) => new Date(a.completed_at || a.started_at || 0) - new Date(b.completed_at || b.started_at || 0))
-  }, [workCards])
+  }, [workCards, nomenclatures, orders])
 
   const inWorkCards = useMemo(() => {
     return workCards
-      .filter(c => c.card_info?.includes('[ЦЕХ №2]') && c.status === 'in-progress' && ['Фарбування', 'Малярка'].includes(c.operation))
+      .filter(c => isShop2CardTag(c.card_info) && c.status === 'in-progress' && ['Фарбування', 'Малярка'].includes(c.operation))
       .sort((a, b) => new Date(a.started_at || 0) - new Date(b.started_at || 0))
   }, [workCards])
 
@@ -441,6 +453,7 @@ export function usePaintingTerminalData() {
     filterMode,
     setFilterMode,
     getNom,
+    getCardDisplayInfo,
     handleCardActionById,
     startPaintingCard,
     openCompleteModal,

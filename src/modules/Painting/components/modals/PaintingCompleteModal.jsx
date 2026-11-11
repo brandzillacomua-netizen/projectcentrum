@@ -1,6 +1,7 @@
 import React from 'react'
 import { CheckCircle, X, RefreshCw } from 'lucide-react'
 import { ACCENT, ACCENT_RGB } from '../../hooks/usePaintingTerminalData'
+import { Shop2PaintingBadge } from '../../../../components/common/Shop2PaintingBadge.jsx'
 
 export default function PaintingCompleteModal({
   showCompleteModal,
@@ -12,9 +13,11 @@ export default function PaintingCompleteModal({
   setScrapCount,
   submitPaintingComplete,
   getNom,
+  getCardDisplayInfo,
   isProcessing
 }) {
   if (!showCompleteModal || !activeCompletingCard) return null
+  const displayInfo = typeof getCardDisplayInfo === 'function' ? getCardDisplayInfo(activeCompletingCard) : null
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '16px', backdropFilter: 'blur(8px)' }}>
@@ -30,8 +33,11 @@ export default function PaintingCompleteModal({
         </div>
         <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div style={{ background: 'var(--bg, var(--border-subtle))', border: '1px solid var(--glass-border, var(--border-subtle))', padding: '10px 14px', borderRadius: '10px' }}>
-            <div style={{ fontSize: '0.55rem', color: 'var(--text-muted, #555)', fontWeight: 900, textTransform: 'uppercase', marginBottom: '2px' }}>Деталь</div>
-            <div style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text, #fff)' }}>{getNom(activeCompletingCard)?.name || 'Невказана деталь'}</div>
+            <div style={{ fontSize: '0.55rem', color: 'var(--text-muted, #555)', fontWeight: 900, textTransform: 'uppercase', marginBottom: '2px' }}>
+              Деталь {displayInfo?.order?.order_num ? `• Наряд №${displayInfo.order.order_num}` : ''}
+            </div>
+            <div style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text, #fff)' }}>{displayInfo?.nom?.name || getNom(activeCompletingCard)?.name || 'Невказана деталь'}</div>
+            <Shop2PaintingBadge routing={displayInfo?.routing} />
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <div>

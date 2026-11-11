@@ -13,7 +13,8 @@ export function Shop2Dashboard({
   shop2Stages = ['Пресування', 'Фарбування', 'Доопрацювання'],
   isSyncing = false,
   setSelectedCardId = () => {},
-  getNomFromCard = () => null
+  getNomFromCard = () => null,
+  getCardDisplayInfo = null
 }) {
   const bufferQty = calculateTotalBufferParts()
 
@@ -82,6 +83,7 @@ export function Shop2Dashboard({
         isSyncing={isSyncing}
         setSelectedCardId={setSelectedCardId}
         getNomFromCard={getNomFromCard}
+        getCardDisplayInfo={getCardDisplayInfo}
       />
     </div>
   )

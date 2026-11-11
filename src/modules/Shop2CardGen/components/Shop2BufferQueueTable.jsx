@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Play, Search, Package, ArrowUpDown, Box, AlertTriangle, ShieldCheck } from 'lucide-react'
 import { isRerunOrder } from '../utils/shop2BufferCalculations'
+import { resolveShop2BufferRowRouting } from '../../../utils/shop2RoutingUtils'
 import '../Shop2CardGen.css'
 
 export function Shop2BufferQueueTable({
@@ -15,6 +16,7 @@ export function Shop2BufferQueueTable({
   sortBy = 'available_desc',
   setSortBy,
   orders = [],
+  nomenclatures = [],
   onOpenGenModal
 }) {
   const [showOrdersColumn, setShowOrdersColumn] = useState(() => {
@@ -33,6 +35,34 @@ export function Shop2BufferQueueTable({
     } catch {}
   }
 
+  const renderRowRoutingBadges = (row) => {
+    const routing = resolveShop2BufferRowRouting(row, nomenclatures, orders)
+    if (!routing.requiresPressing && !routing.requiresPainting) return null
+
+    return (
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '5px', alignItems: 'center' }}>
+        {routing.requiresPressing && (
+          <span style={{ background: 'rgba(249, 115, 22, 0.12)', color: '#ea580c', border: '1px solid rgba(249, 115, 22, 0.3)', padding: '1px 6px', borderRadius: '5px', fontSize: '0.64rem', fontWeight: 900 }}>
+            🔩 Пресування
+          </span>
+        )}
+        {routing.requiresPainting && routing.paintingSpecs.length > 0 && routing.paintingSpecs.map((spec, idx) => (
+          <span key={idx} style={{ background: 'rgba(139, 92, 246, 0.12)', color: '#7c3aed', border: '1px solid rgba(139, 92, 246, 0.3)', padding: '1px 6px', borderRadius: '5px', fontSize: '0.64rem', fontWeight: 900, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+            {spec.edgeSwatch && (
+              <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: spec.edgeSwatch, display: 'inline-block' }} />
+            )}
+            <span>🎨 {spec.summaryText}</span>
+          </span>
+        ))}
+        {routing.requiresPainting && routing.paintingSpecs.length === 0 && (
+          <span style={{ background: 'rgba(100, 116, 139, 0.1)', color: 'var(--text-muted, #64748b)', border: '1px solid var(--border, #cbd5e1)', padding: '1px 6px', borderRadius: '5px', fontSize: '0.64rem', fontWeight: 800 }}>
+            🎨 Без фарб. у нарядах
+          </span>
+        )}
+      </div>
+    )
+  }
+
   const renderMobileCards = (rowsList) => (
     <div className="shop2-mobile-cards-list">
       {rowsList.map(row => {
@@ -47,6 +77,7 @@ export function Shop2BufferQueueTable({
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div className="shop2-mobile-part-name">{row.nomName}</div>
                 {row.nomCode && <div className="shop2-mobile-part-code">{row.nomCode}</div>}
+                {renderRowRoutingBadges(row)}
               </div>
               <div className={`shop2-mobile-avail-badge ${canLaunch ? 'active' : 'zero'}`}>
                 <span className="avail-val">{row.availableQty.toLocaleString()}</span>
@@ -367,6 +398,7 @@ export function Shop2BufferQueueTable({
                             <td style={{ padding: '14px 20px' }}>
                               <div style={{ fontWeight: 900, color: 'var(--text, #0f172a)', fontSize: '0.9rem' }}>{row.nomName}</div>
                               {row.nomCode && <div style={{ fontSize: '0.7rem', color: 'var(--text-muted, #64748b)', marginTop: '2px' }}>{row.nomCode}</div>}
+                              {renderRowRoutingBadges(row)}
                             </td>
 
                             {showOrdersColumn && (
@@ -614,6 +646,7 @@ export function Shop2BufferQueueTable({
                             <span style={{ fontWeight: 900, color: 'var(--text, #0f172a)', fontSize: '0.92rem' }}>{row.nomName}</span>
                           </div>
                           {row.nomCode && <div style={{ fontSize: '0.7rem', color: 'var(--text-muted, #64748b)', marginTop: '2px' }}>{row.nomCode}</div>}
+                          {renderRowRoutingBadges(row)}
                         </td>
 
                         {showOrdersColumn && (

@@ -1,10 +1,13 @@
-import React, { useState, useEffect } from 'react'
-import { X, Play, Loader2, AlertCircle, PackageCheck } from 'lucide-react'
+import React, { useState, useEffect, useMemo } from 'react'
+import { X, Play, Loader2, AlertCircle, PackageCheck, Paintbrush, Wrench } from 'lucide-react'
 import { isPackagingOperation } from '../constants/shop2Stages'
+import { resolveShop2BufferRowRouting } from '../../../utils/shop2RoutingUtils'
 
 export function GenerateShop2CardModal({
   row,
   stages = [],
+  nomenclatures = [],
+  orders = [],
   isSubmitting = false,
   error = null,
   onClose,
@@ -13,6 +16,11 @@ export function GenerateShop2CardModal({
   const [stage, setStage] = useState('Пресування')
   const [batchSize, setBatchSize] = useState(500)
   const [cardCount, setCardCount] = useState(1)
+
+  const routing = useMemo(
+    () => resolveShop2BufferRowRouting(row, nomenclatures, orders),
+    [row, nomenclatures, orders]
+  )
 
   useEffect(() => {
     if (row) {
@@ -25,8 +33,11 @@ export function GenerateShop2CardModal({
         setBatchSize(0)
         setCardCount(0)
       }
+      if (routing.recommendedStage) {
+        setStage(routing.recommendedStage)
+      }
     }
-  }, [row])
+  }, [row, routing.recommendedStage])
 
   if (!row) return null
 
@@ -69,6 +80,83 @@ export function GenerateShop2CardModal({
         <p style={{ color: 'var(--text-muted, #888)', fontSize: '0.9rem', marginBottom: '16px', fontWeight: 800 }}>
           {row.nomName} {row.nomCode ? `(${row.nomCode})` : ''}
         </p>
+
+        {/* Shop 2 Routing & Order Painting Requirements */}
+        {(routing.requiresPressing || routing.requiresPainting || routing.orderPaintingSpecsRaw.length > 0) && (
+          <div style={{
+            background: routing.shouldPaintAny ? 'rgba(139, 92, 246, 0.08)' : 'rgba(249, 115, 22, 0.07)',
+            border: routing.shouldPaintAny ? '1px solid rgba(139, 92, 246, 0.3)' : '1px solid rgba(249, 115, 22, 0.25)',
+            borderRadius: '14px',
+            padding: '12px 14px',
+            marginBottom: '16px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px'
+          }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '0.72rem', fontWeight: 900, color: 'var(--text-muted, #64748b)', textTransform: 'uppercase' }}>
+                Маршрут деталі (Цех №2):
+              </span>
+              {routing.requiresPressing && (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.74rem', fontWeight: 900, color: '#ea580c', background: 'rgba(249, 115, 22, 0.14)', border: '1px solid rgba(249, 115, 22, 0.35)', padding: '2px 8px', borderRadius: '6px' }}>
+                  <Wrench size={12} /> Пресування
+                </span>
+              )}
+              {routing.requiresPainting && (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.74rem', fontWeight: 900, color: '#7c3aed', background: 'rgba(139, 92, 246, 0.14)', border: '1px solid rgba(139, 92, 246, 0.35)', padding: '2px 8px', borderRadius: '6px' }}>
+                  <Paintbrush size={12} /> Фарбується по номенклатурі
+                </span>
+              )}
+              {routing.isRoutingConfigured && !routing.requiresPainting && (
+                <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#64748b' }}>
+                  (деталь не потребує фарбування)
+                </span>
+              )}
+            </div>
+
+            {routing.requiresPainting && routing.paintingSpecs.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                {routing.paintingSpecs.map((spec, idx) => (
+                  <div key={idx} style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '4px',
+                    background: 'var(--card-bg, rgba(255,255,255,0.04))',
+                    border: '1px solid rgba(139, 92, 246, 0.25)',
+                    borderRadius: '10px',
+                    padding: '8px 10px'
+                  }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px', fontSize: '0.78rem', fontWeight: 900, color: '#7c3aed' }}>
+                      <span>🎨 {spec.typeLabel}: {spec.summaryText}</span>
+                      {spec.edgeSwatch && (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'rgba(0,0,0,0.06)', padding: '2px 7px', borderRadius: '999px', fontSize: '0.72rem', color: 'var(--text, #0f172a)' }}>
+                          <span style={{ width: '9px', height: '9px', borderRadius: '50%', background: spec.edgeSwatch, display: 'inline-block' }} />
+                          Торці: {spec.edgeColor}
+                        </span>
+                      )}
+                      {spec.orderNum && (
+                        <span style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-muted, #64748b)' }}>
+                          ({spec.orderNum})
+                        </span>
+                      )}
+                    </div>
+                    {spec.notes && (
+                      <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted, #64748b)' }}>
+                        Примітка малярці: {spec.notes}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {routing.requiresPainting && routing.paintingSpecs.length === 0 && (
+              <div style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-muted, #64748b)' }}>
+                У нарядах цієї позиції обрано «Без фарбування» — деталь на малярку не направляється.
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Orders Breakdown Badge Pool */}
         {row.ordersList && row.ordersList.length > 0 && (

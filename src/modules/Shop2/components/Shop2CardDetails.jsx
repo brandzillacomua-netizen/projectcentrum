@@ -4,6 +4,7 @@ import { X, ClipboardList, Layers, Box, Gauge, CheckCircle, Package, MessageSqua
 import { formatElapsedTime } from '../utils/shop2Helpers'
 import { parseCardComments } from '../../../services/cardCommentsService.js'
 import { CardCommentsModal } from '../../../components/common/CardCommentsBadge.jsx'
+import { Shop2PaintingBadge } from '../../../components/common/Shop2PaintingBadge.jsx'
 
 export function Shop2CardDetails({
   currentCard,
@@ -11,6 +12,7 @@ export function Shop2CardDetails({
   setScannedCardIds,
   orders,
   getNomFromCard = () => null,
+  getCardDisplayInfo = null,
   setShowQCModal,
   selectedStage,
   setSelectedStage,
@@ -43,8 +45,10 @@ export function Shop2CardDetails({
     </div>
   )
 
-  const nom = typeof getNomFromCard === 'function' ? getNomFromCard(currentCard) : null
-  const orderNum = orders?.find(o => o.id === currentCard.order_id)?.order_num || '—'
+  const displayInfo = typeof getCardDisplayInfo === 'function' ? getCardDisplayInfo(currentCard) : null
+  const nom = displayInfo?.nom || (typeof getNomFromCard === 'function' ? getNomFromCard(currentCard) : null)
+  const routing = displayInfo?.routing
+  const orderNum = displayInfo?.order?.order_num || orders?.find(o => o.id === currentCard.order_id)?.order_num || '—'
 
   return (
     <div style={{ maxWidth: '900px', margin: '0 auto' }}>
@@ -140,6 +144,33 @@ export function Shop2CardDetails({
         />
         <SpecCard icon={Gauge} label="Етап" value={currentCard.status === 'at-buffer' ? `Буфер ${currentCard.operation?.toLowerCase()}` : (currentCard.operation || '—')} />
       </div>
+
+      {routing && (routing.requiresPressing || routing.requiresPainting || routing.shouldPaint) && (
+        <div style={{
+          background: routing.shouldPaint ? 'rgba(236, 72, 153, 0.08)' : 'rgba(249, 115, 22, 0.07)',
+          border: routing.shouldPaint ? '1px solid rgba(236, 72, 153, 0.3)' : '1px solid rgba(249, 115, 22, 0.25)',
+          borderRadius: '18px',
+          padding: '16px 20px',
+          marginBottom: '24px'
+        }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px', marginBottom: routing.shouldPaint ? '6px' : 0 }}>
+            <span style={{ fontSize: '0.7rem', fontWeight: 900, color: 'var(--text-dim)', textTransform: 'uppercase' }}>
+              ТЕХНОЛОГІЧНИЙ МАРШРУТ ДЕТАЛІ (ЦЕХ №2):
+            </span>
+            {routing.requiresPressing && (
+              <span style={{ background: 'rgba(249, 115, 22, 0.14)', color: '#fb923c', border: '1px solid rgba(249, 115, 22, 0.35)', padding: '2px 9px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 900 }}>
+                🔩 Пресування
+              </span>
+            )}
+            {routing.requiresPainting && (
+              <span style={{ background: 'rgba(236, 72, 153, 0.14)', color: '#f472b6', border: '1px solid rgba(236, 72, 153, 0.35)', padding: '2px 9px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 900 }}>
+                🎨 Фарбування (номенклатура)
+              </span>
+            )}
+          </div>
+          <Shop2PaintingBadge routing={routing} />
+        </div>
+      )}
 
       <div style={{ background: 'var(--fill-subtle)', borderRadius: '28px', border: '1px solid var(--border-subtle)', padding: '40px' }}>
         {currentCard.status === 'completed' ? (

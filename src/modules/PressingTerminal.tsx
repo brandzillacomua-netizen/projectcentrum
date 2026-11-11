@@ -37,6 +37,7 @@ export const PressingTerminal: React.FC = () => {
     filterMode,
     setFilterMode,
     getNom,
+    getCardDisplayInfo,
     startPressingCard,
     openCompleteModal,
     submitPressingComplete,
@@ -92,6 +93,7 @@ export const PressingTerminal: React.FC = () => {
           <PressingTerminalCardList
             displayedCards={displayedCards}
             getNom={getNom}
+            getCardDisplayInfo={getCardDisplayInfo}
             formatDuration={formatDuration}
             setPendingStartCard={setPendingStartCard}
             openCompleteModal={openCompleteModal}

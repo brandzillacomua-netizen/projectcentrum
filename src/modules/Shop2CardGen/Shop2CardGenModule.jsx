@@ -297,6 +297,7 @@ export default function Shop2CardGenModule() {
           sortBy={sortBy}
           setSortBy={setSortBy}
           orders={orders}
+          nomenclatures={nomenclatures}
           onOpenGenModal={openGenModal}
         />
       )}
@@ -326,6 +327,8 @@ export default function Shop2CardGenModule() {
           row={selectedRow}
           stages={stages}
           machines={machines}
+          nomenclatures={nomenclatures}
+          orders={orders}
           isSubmitting={isSubmitting}
           error={error}
           onClose={closeGenModal}

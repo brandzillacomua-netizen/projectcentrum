@@ -2,13 +2,15 @@ import React, { useState } from 'react'
 import { RefreshCw, Eye } from 'lucide-react'
 import { formatElapsedTime, formatPlanned, getPlannedTime, formatMachine } from '../utils/shop2Helpers'
 import { CardCommentsBadge, CardCommentsModal } from '../../../components/common/CardCommentsBadge.jsx'
+import { Shop2PaintingBadge } from '../../../components/common/Shop2PaintingBadge.jsx'
 
 export function Shop2ActiveCardsTable({
   workCards = [],
   isShop2Card = () => false,
   isSyncing = false,
   setSelectedCardId = () => {},
-  getNomFromCard = () => null
+  getNomFromCard = () => null,
+  getCardDisplayInfo = null
 }) {
   const [selectedCardForComments, setSelectedCardForComments] = useState(null)
   const activeCards = workCards.filter(c => isShop2Card(c) && (c.status === 'in-progress' || c.status === 'at-buffer'))
@@ -42,13 +44,19 @@ export function Shop2ActiveCardsTable({
           {activeCards.map(card => {
             const scrap = Number(card.scrap_qty || 0)
             const netYield = Math.max(0, Number(card.quantity || 0) - scrap)
-            const nom = typeof getNomFromCard === 'function' ? getNomFromCard(card) : null
+            const displayInfo = typeof getCardDisplayInfo === 'function' ? getCardDisplayInfo(card) : null
+            const nom = displayInfo?.nom || (typeof getNomFromCard === 'function' ? getNomFromCard(card) : null)
             return (
               <tr key={card.id} 
                 onClick={() => setSelectedCardId(card.id)}
                 style={{ borderBottom: '1px solid var(--border-subtle)', fontSize: '0.85rem', cursor: 'pointer' }}>
                 <td style={{ padding: '12px 15px', fontWeight: 800, whiteSpace: 'nowrap', fontSize: '0.75rem' }}>
-                  {nom?.name || (card.card_info?.split('] ').pop() || `Картка #${card.id.slice(0, 8)}`)}
+                  <div>{nom?.name || (card.card_info?.split('] ').pop() || `Картка #${card.id.slice(0, 8)}`)}</div>
+                  {displayInfo?.routing && (
+                    <div style={{ marginTop: '4px' }}>
+                      <Shop2PaintingBadge routing={displayInfo.routing} compact={true} />
+                    </div>
+                  )}
                 </td>
                 <td style={{ padding: '12px 15px' }}>
                   <span style={{ color: card.status === 'at-buffer' ? '#10b981' : '#8b5cf6', fontWeight: 900, fontSize: '0.7rem' }}>

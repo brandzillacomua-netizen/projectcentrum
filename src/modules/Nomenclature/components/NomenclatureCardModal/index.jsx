@@ -7,7 +7,12 @@ import {
 import { QRCodeSVG } from 'qrcode.react'
 import JsBarcode from 'jsbarcode'
 import { supabase } from '../../../../supabase'
-import { buildFlattenedGroupOptions } from '../../utils/nomenclatureHelpers'
+import {
+  buildFlattenedGroupOptions,
+  getPartShop2RoutingFlags,
+  isMissingColumnDbError,
+  stripOptionalNomColumns
+} from '../../utils/nomenclatureHelpers'
 import { formatMinutesToHours } from '../../../../utils/cuttingTimeUtils.js'
 import { CncOperationTimingsTable } from './CncOperationTimingsTable.jsx'
 import { TumblingOperationTimingsTable } from './TumblingOperationTimingsTable.jsx'
@@ -122,10 +127,14 @@ export const NomenclatureCardModal = ({
     unit: 'шт',
     default_material_id: '',
     unitsPerSheet: '',
+    requiresPressing: false,
+    requiresPainting: false,
     description: ''
   })
   const [savingEdit, setSavingEdit] = useState(false)
   const [saveSuccessMsg, setSaveSuccessMsg] = useState('')
+
+  const shop2Flags = useMemo(() => getPartShop2RoutingFlags(item), [item])
 
   const flattenedGroups = useMemo(() => {
     return buildFlattenedGroupOptions(groups || [])
@@ -140,12 +149,15 @@ export const NomenclatureCardModal = ({
 
   const handleOpenEdit = () => {
     if (!item) return
+    const flags = getPartShop2RoutingFlags(item)
     setEditForm({
       name: item.name || '',
       group_id: item.group_id || '',
       unit: item.unit || 'шт',
       default_material_id: item.default_material_id || item.rule_params?.default_material_id || '',
       unitsPerSheet: item.units_per_sheet || item.rule_params?.unitsPerSheet || '',
+      requiresPressing: flags.requiresPressing,
+      requiresPainting: flags.requiresPainting,
       description: item.description || item.rule_params?.description || item.additional_info || ''
     })
     setIsEditOpen(true)
@@ -156,11 +168,18 @@ export const NomenclatureCardModal = ({
     if (!item) return
     setSavingEdit(true)
     try {
+      const targetGroup = groups.find(g => g.id === editForm.group_id)
+      const editIsDetail = isDetailItem({ ...item, group_id: editForm.group_id }, groups) || targetGroup?.rule_type === 'frame_part'
+      const requiresPressing = editIsDetail ? Boolean(editForm.requiresPressing) : false
+      const requiresPainting = editIsDetail ? Boolean(editForm.requiresPainting) : false
+
       const updatedRuleParams = {
         ...(item.rule_params || {}),
         unitsPerSheet: editForm.unitsPerSheet ? Number(editForm.unitsPerSheet) : undefined,
         default_material_id: editForm.default_material_id || undefined,
-        description: editForm.description || undefined
+        description: editForm.description || undefined,
+        requiresPressing,
+        requiresPainting
       }
 
       const payload = {
@@ -168,17 +187,48 @@ export const NomenclatureCardModal = ({
         group_id: editForm.group_id || null,
         unit: editForm.unit || 'шт',
         default_material_id: editForm.default_material_id || null,
-        units_per_sheet: editForm.unitsPerSheet ? Number(editForm.unitsPerSheet) : null,
+        requires_pressing: requiresPressing,
+        requires_painting: requiresPainting,
         rule_params: updatedRuleParams,
         updated_at: new Date().toISOString()
       }
 
-      const { error: errV2 } = await supabase
+      let { error: errV2 } = await supabase
         .from('nomenclatures_v2')
         .update(payload)
         .eq('id', item.id)
 
+      if (errV2 && isMissingColumnDbError(errV2)) {
+        const legacyPayload = stripOptionalNomColumns(payload)
+        const retry = await supabase
+          .from('nomenclatures_v2')
+          .update(legacyPayload)
+          .eq('id', item.id)
+        errV2 = retry.error
+      }
+
       if (errV2) console.warn('DB update warning:', errV2)
+
+      // Keep legacy nomenclatures table in sync if this ID or code also exists there
+      try {
+        const legacyV1Payload = {
+          name: payload.name,
+          unit: payload.unit,
+          units_per_sheet: editForm.unitsPerSheet ? Number(editForm.unitsPerSheet) : null,
+          requires_pressing: requiresPressing,
+          requires_painting: requiresPainting
+        }
+        const { error: v1Err } = await supabase
+          .from('nomenclatures')
+          .update(legacyV1Payload)
+          .eq('id', item.id)
+        if (v1Err && isMissingColumnDbError(v1Err)) {
+          await supabase
+            .from('nomenclatures')
+            .update(stripOptionalNomColumns(legacyV1Payload))
+            .eq('id', item.id)
+        }
+      } catch (_) {}
 
       try {
         await supabase
@@ -193,7 +243,10 @@ export const NomenclatureCardModal = ({
 
       const merged = {
         ...item,
-        ...payload
+        ...payload,
+        units_per_sheet: editForm.unitsPerSheet ? Number(editForm.unitsPerSheet) : null,
+        requiresPressing,
+        requiresPainting
       }
       setCurrentItem(merged)
       setIsEditOpen(false)
@@ -897,6 +950,32 @@ export const NomenclatureCardModal = ({
                 }}>
                   ● Активно
                 </span>
+                {isDetail && shop2Flags.requiresPressing && (
+                  <span style={{
+                    background: 'rgba(249, 115, 22, 0.12)',
+                    color: '#ea580c',
+                    border: '1px solid rgba(249, 115, 22, 0.3)',
+                    fontSize: '0.72rem',
+                    fontWeight: 800,
+                    padding: '2px 8px',
+                    borderRadius: '6px'
+                  }}>
+                    🔩 Пресування
+                  </span>
+                )}
+                {isDetail && shop2Flags.requiresPainting && (
+                  <span style={{
+                    background: 'rgba(139, 92, 246, 0.12)',
+                    color: '#7c3aed',
+                    border: '1px solid rgba(139, 92, 246, 0.3)',
+                    fontSize: '0.72rem',
+                    fontWeight: 800,
+                    padding: '2px 8px',
+                    borderRadius: '6px'
+                  }}>
+                    🎨 Фарбування
+                  </span>
+                )}
               </div>
               <h2 style={{
                 margin: 0,
@@ -2568,6 +2647,67 @@ export const NomenclatureCardModal = ({
                 />
               </div>
             </div>
+
+            {(isDetail || groups.find(g => g.id === editForm.group_id)?.rule_type === 'frame_part') && (
+              <div style={{
+                padding: '12px 14px',
+                borderRadius: '12px',
+                border: '1px solid rgba(249, 115, 22, 0.28)',
+                background: 'rgba(249, 115, 22, 0.06)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px'
+              }}>
+                <label style={{ fontSize: '0.72rem', color: '#ea580c', fontWeight: 900, display: 'block' }}>
+                  ЦЕХ №2: ОПЕРАЦІЇ ПОСТОБРОБКИ ДЕТАЛІ
+                </label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                  <label style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    fontSize: '0.84rem',
+                    fontWeight: 800,
+                    background: editForm.requiresPressing ? 'rgba(249, 115, 22, 0.14)' : 'var(--input-bg, #ffffff)',
+                    border: editForm.requiresPressing ? '1.5px solid #f97316' : '1px solid var(--border-color, #cbd5e1)',
+                    color: editForm.requiresPressing ? '#c2410c' : 'var(--text-main, #0f172a)'
+                  }}>
+                    <input
+                      type="checkbox"
+                      checked={Boolean(editForm.requiresPressing)}
+                      onChange={e => setEditForm(prev => ({ ...prev, requiresPressing: e.target.checked }))}
+                    />
+                    <span>🔩 Пресування</span>
+                  </label>
+                  <label style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    fontSize: '0.84rem',
+                    fontWeight: 800,
+                    background: editForm.requiresPainting ? 'rgba(139, 92, 246, 0.14)' : 'var(--input-bg, #ffffff)',
+                    border: editForm.requiresPainting ? '1.5px solid #8b5cf6' : '1px solid var(--border-color, #cbd5e1)',
+                    color: editForm.requiresPainting ? '#6d28d9' : 'var(--text-main, #0f172a)'
+                  }}>
+                    <input
+                      type="checkbox"
+                      checked={Boolean(editForm.requiresPainting)}
+                      onChange={e => setEditForm(prev => ({ ...prev, requiresPainting: e.target.checked }))}
+                    />
+                    <span>🎨 Фарбування</span>
+                  </label>
+                </div>
+                <div style={{ fontSize: '0.73rem', color: 'var(--text-muted, #64748b)' }}>
+                  Система враховуватиме ці ознаки в буфері Цеху №2 та малярці залежно від вибору фарбування в замовленні.
+                </div>
+              </div>
+            )}
 
             <div>
               <label style={{ fontSize: '0.72rem', color: 'var(--text-muted, #64748b)', fontWeight: 900, display: 'block', marginBottom: '4px' }}>

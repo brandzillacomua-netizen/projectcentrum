@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { Clock, Search, Cpu, Printer, X, CheckSquare, Square, CheckCircle2 } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import { isShop2WorkCard } from '../hooks/useShop2BufferData'
+import { resolveShop2CardDisplayInfo } from '../../../utils/shop2RoutingUtils'
 import { CardCommentsBadge, CardCommentsModal } from '../../../components/common/CardCommentsBadge.jsx'
 
 export function Shop2ActiveCardsList({
@@ -216,8 +217,10 @@ export function Shop2ActiveCardsList({
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '16px' }}>
           {activeCards.map(card => {
-            const nom = nomenclatures.find(n => String(n.id) === String(card.nomenclature_id))
-            const order = orders.find(o => String(o.id) === String(card.order_id))
+            const displayInfo = resolveShop2CardDisplayInfo(card, nomenclatures, orders)
+            const nom = displayInfo.nom
+            const order = displayInfo.order
+            const routing = displayInfo.routing
             const isSelected = selectedCardIds.has(card.id)
 
             return (
@@ -291,6 +294,52 @@ export function Shop2ActiveCardsList({
                 <div style={{ fontWeight: 950, color: 'var(--text, #0f172a)', fontSize: '1.05rem', lineHeight: 1.3 }}>
                   {nom?.name || card.name || 'Невідома деталь'}
                 </div>
+
+                {/* Shop 2 Routing & Painting Requirements */}
+                {(routing.requiresPressing || routing.requiresPainting) && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
+                      {routing.requiresPressing && (
+                        <span style={{ background: 'rgba(249, 115, 22, 0.12)', color: '#ea580c', border: '1px solid rgba(249, 115, 22, 0.35)', padding: '2px 8px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 900 }}>
+                          🔩 Пресування
+                        </span>
+                      )}
+                      {routing.requiresPainting && !routing.shouldPaint && (
+                        <span style={{ background: 'rgba(100, 116, 139, 0.1)', color: 'var(--text-muted, #64748b)', border: '1px solid var(--border, #cbd5e1)', padding: '2px 8px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 800 }}>
+                          🎨 Фарбування: не потрібне за нарядом
+                        </span>
+                      )}
+                    </div>
+                    {routing.shouldPaint && routing.paintingDisplay && (
+                      <div style={{
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        alignItems: 'center',
+                        gap: '6px',
+                        background: 'rgba(139, 92, 246, 0.1)',
+                        border: '1.5px solid rgba(139, 92, 246, 0.35)',
+                        borderRadius: '10px',
+                        padding: '7px 10px',
+                        color: '#7c3aed',
+                        fontSize: '0.78rem',
+                        fontWeight: 900
+                      }}>
+                        <span>🎨 {routing.paintingDisplay.typeLabel}: {routing.paintingDisplay.summaryText}</span>
+                        {routing.paintingDisplay.edgeSwatch && (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'rgba(255,255,255,0.75)', color: '#0f172a', padding: '1px 7px', borderRadius: '999px', fontSize: '0.7rem', fontWeight: 900 }}>
+                            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: routing.paintingDisplay.edgeSwatch, display: 'inline-block' }} />
+                            Торці: {routing.paintingDisplay.edgeColor}
+                          </span>
+                        )}
+                        {routing.paintingDisplay.notes && (
+                          <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#5b21b6', width: '100%' }}>
+                            Прим.: {routing.paintingDisplay.notes}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Operation & Quantity Container - CLEAN HIGH CONTRAST LIGHT/DARK BOX */}
                 <div style={{
@@ -423,8 +472,10 @@ export function Shop2ActiveCardsList({
               padding: '10px'
             }}>
               {printModalCards.map((card) => {
-                const nom = nomenclatures.find(n => String(n.id) === String(card.nomenclature_id))
-                const order = orders.find(o => String(o.id) === String(card.order_id))
+                const displayInfo = resolveShop2CardDisplayInfo(card, nomenclatures, orders)
+                const nom = displayInfo.nom
+                const order = displayInfo.order
+                const routing = displayInfo.routing
 
                 return (
                   <div
@@ -488,6 +539,39 @@ export function Shop2ActiveCardsList({
                         }}>
                           {nom?.name || card.name || 'Деталь'}
                         </div>
+                        {routing.shouldPaint && routing.paintingDisplay && (
+                          <div style={{
+                            marginTop: '3px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            background: '#f5f3ff',
+                            border: '1px solid #c4b5fd',
+                            borderRadius: '5px',
+                            padding: '2px 5px',
+                            fontSize: '8.5px',
+                            fontWeight: 900,
+                            color: '#6d28d9',
+                            lineHeight: 1.15,
+                            overflow: 'hidden',
+                            whiteSpace: 'nowrap',
+                            textOverflow: 'ellipsis'
+                          }}>
+                            {routing.paintingDisplay.edgeSwatch && (
+                              <span style={{
+                                width: '7px',
+                                height: '7px',
+                                borderRadius: '50%',
+                                background: routing.paintingDisplay.edgeSwatch,
+                                flexShrink: 0,
+                                border: '1px solid rgba(0,0,0,0.2)'
+                              }} />
+                            )}
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              🎨 {routing.paintingDisplay.summaryText}
+                            </span>
+                          </div>
+                        )}
                       </div>
 
                       {/* Operation & Qty Box - IDENTICAL TO SCREENSHOT */}

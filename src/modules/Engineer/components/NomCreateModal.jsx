@@ -1,11 +1,13 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import { Sparkles, AlertCircle, X, Clock } from 'lucide-react'
-import { 
-  DEFAULT_ERP_GROUPS, 
-  ERP_CATEGORY_SCHEMAS, 
-  generateStandardName, 
-  buildFlattenedGroupOptions 
-} from '../../NomenclatureV2'
+import {
+  DEFAULT_ERP_GROUPS,
+  ERP_CATEGORY_SCHEMAS,
+  generateStandardName,
+  buildFlattenedGroupOptions,
+  isMissingColumnDbError,
+  stripOptionalNomColumns
+} from '../../Nomenclature/utils/nomenclatureHelpers'
 import { generateNextV2Code } from '../../../utils/codeGenerator'
 
 import { mapV2ToStandardNom } from '../utils/engineerHelpers.jsx'
@@ -40,6 +42,8 @@ export const NomCreateModal = ({
     customName: prefilledName || '', unit: 'шт',
     sheetGrade: 'Т300', sheetThickness: '3', unitsPerSheet: 24,
     default_material_id: '',
+    requiresPressing: false,
+    requiresPainting: false,
     loadTimings: { ...DEFAULT_LOAD_TIMINGS }
   })
   const [saving, setSaving] = useState(false)
@@ -196,6 +200,15 @@ export const NomCreateModal = ({
             : (wizardRuleType === 'screw' || wizardRuleType === 'screw_black' || wizardRuleType === 'screw_silver' || wizardRuleType === 'nut' || wizardRuleType === 'press_nut' || wizardRuleType === 'standoff' || wizardGroup?.id?.startsWith('cat_hw'))
               ? 'hardware'
               : 'consumable'
+      const requiresPressing = wizardRuleType === 'frame_part' ? Boolean(wizardParams.requiresPressing) : false
+      const requiresPainting = wizardRuleType === 'frame_part' ? Boolean(wizardParams.requiresPainting) : false
+      const nextRuleParams = {
+        ...wizardParams,
+        requiresPressing,
+        requiresPainting,
+        category: wizardGroup?.name || 'V2 Номенклатура',
+        type: inferredType
+      }
       const v2Payload = {
         code: codeStr,
         barcode: codeStr,
@@ -204,12 +217,10 @@ export const NomCreateModal = ({
         group_id: wizardGroup?.id || null,
         unit: wizardParams.unit || 'шт',
         rule_type: wizardRuleType,
-        rule_params: {
-          ...wizardParams,
-          category: wizardGroup?.name || 'V2 Номенклатура',
-          type: inferredType
-        },
+        rule_params: nextRuleParams,
         default_material_id: wizardParams.default_material_id || null,
+        requires_pressing: requiresPressing,
+        requires_painting: requiresPainting,
         status: 'active'
       }
 
@@ -219,8 +230,8 @@ export const NomCreateModal = ({
         .select()
         .single()
 
-      if (insertErr && insertErr.code === '42703') {
-        const { barcode, qr_code, ...legacyPayload } = v2Payload
+      if (insertErr && isMissingColumnDbError(insertErr)) {
+        const legacyPayload = stripOptionalNomColumns(v2Payload)
         const retry = await supabase.from('nomenclatures_v2').insert([legacyPayload]).select().single()
         inserted = retry.data
         insertErr = retry.error
