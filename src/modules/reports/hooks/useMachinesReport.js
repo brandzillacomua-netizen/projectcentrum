@@ -18,6 +18,39 @@ export const formatDurationSec = (seconds) => {
 }
 
 /**
+ * Compare two machine records from smallest ordinal sequence number to largest.
+ * Handles alphanumeric codes such as "Ф2", "Ф12", "2", "10", placing machines
+ * without a sequence number at the end and breaking ties naturally.
+ */
+export const compareMachinesBySequenceNumber = (a, b) => {
+  const seqA = String(a?.sequence_number || '').trim()
+  const seqB = String(b?.sequence_number || '').trim()
+
+  if (!seqA && !seqB) {
+    return String(a?.name || '').localeCompare(String(b?.name || ''), 'uk-UA', { numeric: true, sensitivity: 'base' })
+  }
+  if (!seqA) return 1
+  if (!seqB) return -1
+
+  const numMatchA = seqA.match(/\d+/)
+  const numMatchB = seqB.match(/\d+/)
+
+  if (numMatchA && numMatchB) {
+    const numDiff = Number(numMatchA[0]) - Number(numMatchB[0])
+    if (numDiff !== 0) return numDiff
+  } else if (numMatchA) {
+    return -1
+  } else if (numMatchB) {
+    return 1
+  }
+
+  const seqDiff = seqA.localeCompare(seqB, 'uk-UA', { numeric: true, sensitivity: 'base' })
+  if (seqDiff !== 0) return seqDiff
+
+  return String(a?.name || '').localeCompare(String(b?.name || ''), 'uk-UA', { numeric: true, sensitivity: 'base' })
+}
+
+/**
  * Filter out non-person entities such as "Команда", "Буфер", "Система", "Не вказано",
  * because only actual individual CNC machine operators should be attributed to machines.
  */
@@ -163,23 +196,25 @@ export function useMachinesReport({
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'uk-UA'))
   }, [safeMachines])
 
-  // 3. Filtered machines list based on selectedMachineType
+  // 3. Filtered machines list based on selectedMachineType, sorted from smallest sequence_number
   const filteredMachines = useMemo(() => {
-    return (safeMachines || []).filter(m => {
-      if (!m) return false
-      if (selectedMachineType !== 'all' && (m.type || '').trim() !== selectedMachineType) {
-        return false
-      }
-      if (searchQuery) {
-        const q = searchQuery.toLowerCase()
-        const nameMatch = (m.name || '').toLowerCase().includes(q)
-        const numMatch = (m.sequence_number || '').toLowerCase().includes(q)
-        const typeMatch = (m.type || '').toLowerCase().includes(q)
-        const invMatch = (m.inventory_no || '').toLowerCase().includes(q)
-        return nameMatch || numMatch || typeMatch || invMatch
-      }
-      return true
-    })
+    return (safeMachines || [])
+      .filter(m => {
+        if (!m) return false
+        if (selectedMachineType !== 'all' && (m.type || '').trim() !== selectedMachineType) {
+          return false
+        }
+        if (searchQuery) {
+          const q = searchQuery.toLowerCase()
+          const nameMatch = (m.name || '').toLowerCase().includes(q)
+          const numMatch = (m.sequence_number || '').toLowerCase().includes(q)
+          const typeMatch = (m.type || '').toLowerCase().includes(q)
+          const invMatch = (m.inventory_no || '').toLowerCase().includes(q)
+          return nameMatch || numMatch || typeMatch || invMatch
+        }
+        return true
+      })
+      .sort(compareMachinesBySequenceNumber)
   }, [safeMachines, selectedMachineType, searchQuery])
 
   // 4. Precompute helper maps

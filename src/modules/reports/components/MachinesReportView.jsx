@@ -19,7 +19,7 @@ import {
   RefreshCw,
   X
 } from 'lucide-react'
-import { formatDurationSec } from '../hooks/useMachinesReport'
+import { compareMachinesBySequenceNumber, formatDurationSec } from '../hooks/useMachinesReport'
 import { CardCommentsBadge, CardCommentsModal } from '../../../components/common/CardCommentsBadge.jsx'
 
 const formatDateTime = (value) => {
@@ -108,7 +108,13 @@ export function MachinesReportView({
       let valA = a[sortBy] || 0
       let valB = b[sortBy] || 0
       if (sortBy === 'name') {
-        return sortAsc ? (a.name || '').localeCompare(b.name || '', 'uk-UA') : (b.name || '').localeCompare(a.name || '', 'uk-UA')
+        const nameDiff = sortAsc
+          ? (a.name || '').localeCompare(b.name || '', 'uk-UA')
+          : (b.name || '').localeCompare(a.name || '', 'uk-UA')
+        if (nameDiff !== 0) return nameDiff
+        return sortAsc
+          ? compareMachinesBySequenceNumber(a, b)
+          : compareMachinesBySequenceNumber(b, a)
       }
       return sortAsc ? valA - valB : valB - valA
     })
