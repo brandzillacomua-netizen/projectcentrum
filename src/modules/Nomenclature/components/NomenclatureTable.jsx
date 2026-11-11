@@ -1,5 +1,6 @@
 import React from 'react'
 import { Search, ChevronRight, ChevronLeft, Package, Plus, Clock, Edit2, Trash2, Barcode, Archive, RotateCcw } from 'lucide-react'
+import { getPlannedShop1SheetTimings } from '../utils/nomenclatureHelpers'
 
 const NomenclatureTableRow = React.memo(({
   item,
@@ -70,19 +71,19 @@ const NomenclatureTableRow = React.memo(({
             </span>
           )}
         </div>
-        {item.rule_params?.loadTimings && Object.entries(item.rule_params.loadTimings).some(([_, v]) => v !== '' && v !== null && v !== undefined) && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '6px' }}>
-            {Object.entries(item.rule_params.loadTimings)
-              .filter(([_, v]) => v !== '' && v !== null && v !== undefined)
-              .sort(([a], [b]) => Number(a) - Number(b))
-              .map(([k, v]) => (
-                <span key={k} style={{ background: 'rgba(255, 144, 0, 0.12)', border: '1px solid rgba(255, 144, 0, 0.3)', color: '#d97706', padding: '2px 6px', borderRadius: '5px', fontSize: '0.68rem', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                  <Clock size={10} /> {k}л: {v}хв
+        {(() => {
+          const plannedSheetTimings = getPlannedShop1SheetTimings(item)
+          if (plannedSheetTimings.length === 0) return null
+          return (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '6px' }}>
+              {plannedSheetTimings.map(({ sheets, minutes }) => (
+                <span key={sheets} style={{ background: 'rgba(255, 144, 0, 0.12)', border: '1px solid rgba(255, 144, 0, 0.3)', color: '#d97706', padding: '2px 6px', borderRadius: '5px', fontSize: '0.68rem', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                  <Clock size={10} /> {sheets}л: {minutes}хв
                 </span>
-              ))
-            }
-          </div>
-        )}
+              ))}
+            </div>
+          )
+        })()}
       </td>
       <td style={{ padding: '16px 20px', fontSize: '0.82rem' }}>
         {materialDisplay}
@@ -269,32 +270,51 @@ export const NomenclatureTable = ({
         </table>
 
         {/* Pagination Controls */}
-        {totalPages > 1 && (
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderTop: '1px solid var(--border-color, #e2e8f0)', background: 'var(--card-header-bg, #f8fafc)' }}>
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted, #64748b)' }}>
-              Показано {(currentPage - 1) * itemsPerPage + 1}-{Math.min(currentPage * itemsPerPage, visibleItems?.length || 0)} із {visibleItems?.length || 0}
-            </span>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <button
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '6px 12px', background: currentPage === 1 ? 'transparent' : 'var(--text-strong)', border: `1px solid ${currentPage === 1 ? 'transparent' : 'var(--border-color, #cbd5e1)'}`, borderRadius: '8px', color: currentPage === 1 ? 'var(--text-muted, #94a3b8)' : 'var(--text, #0f172a)', cursor: currentPage === 1 ? 'not-allowed' : 'pointer', fontSize: '0.8rem', fontWeight: 600 }}
-              >
-                <ChevronLeft size={14} /> Попередня
-              </button>
-              <span style={{ display: 'inline-flex', alignItems: 'center', padding: '0 8px', fontSize: '0.85rem', fontWeight: 800, color: '#d97706' }}>
-                {currentPage} / {totalPages}
+        {totalPages > 1 && (() => {
+          const getPageButtonStyle = (isDisabled) => ({
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '4px',
+            padding: '6px 12px',
+            background: isDisabled ? 'var(--bg-subtle, rgba(148, 163, 184, 0.08))' : 'var(--surface-1, #ffffff)',
+            border: `1px solid ${isDisabled ? 'var(--border-color, #e2e8f0)' : 'var(--border-color, #cbd5e1)'}`,
+            borderRadius: '8px',
+            color: isDisabled ? 'var(--text-muted, #94a3b8)' : 'var(--text, #0f172a)',
+            boxShadow: isDisabled ? 'none' : '0 1px 2px rgba(15, 23, 42, 0.06)',
+            opacity: isDisabled ? 0.6 : 1,
+            cursor: isDisabled ? 'not-allowed' : 'pointer',
+            fontSize: '0.8rem',
+            fontWeight: 700,
+            transition: 'all 0.15s ease'
+          })
+
+          return (
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', padding: '14px 20px', borderTop: '1px solid var(--border-color, #e2e8f0)', background: 'var(--card-header-bg, #f8fafc)' }}>
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted, #64748b)', fontWeight: 600 }}>
+                Показано {(currentPage - 1) * itemsPerPage + 1}-{Math.min(currentPage * itemsPerPage, visibleItems?.length || 0)} із {visibleItems?.length || 0}
               </span>
-              <button
-                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '6px 12px', background: currentPage === totalPages ? 'transparent' : 'var(--text-strong)', border: `1px solid ${currentPage === totalPages ? 'transparent' : 'var(--border-color, #cbd5e1)'}`, borderRadius: '8px', color: currentPage === totalPages ? 'var(--text-muted, #94a3b8)' : 'var(--text, #0f172a)', cursor: currentPage === totalPages ? 'not-allowed' : 'pointer', fontSize: '0.8rem', fontWeight: 600 }}
-              >
-                Наступна <ChevronRight size={14} />
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <button
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  style={getPageButtonStyle(currentPage === 1)}
+                >
+                  <ChevronLeft size={14} /> Попередня
+                </button>
+                <span style={{ display: 'inline-flex', alignItems: 'center', padding: '5px 12px', borderRadius: '8px', background: 'rgba(255, 144, 0, 0.1)', border: '1px solid rgba(255, 144, 0, 0.25)', fontSize: '0.82rem', fontWeight: 800, color: '#d97706' }}>
+                  {currentPage} / {totalPages}
+                </span>
+                <button
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  style={getPageButtonStyle(currentPage === totalPages)}
+                >
+                  Наступна <ChevronRight size={14} />
+                </button>
+              </div>
             </div>
-          </div>
-        )}
+          )
+        })()}
       </div>
     </main>
   )

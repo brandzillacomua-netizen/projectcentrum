@@ -412,8 +412,42 @@ export const NomenclatureCardModal = ({
     fetchCnc()
   }, [isOpen, item, activeTab])
 
+  const persistShop1RuleParams = async (ruleParamsPatch) => {
+    if (!item?.id) return null
+    const nextRuleParams = {
+      ...(item.rule_params || {}),
+      ...ruleParamsPatch
+    }
+    // Remove legacy loadTimings so cleared/edited Shop 1 timings never fall back to stale values
+    delete nextRuleParams.loadTimings
+
+    const payload = {
+      rule_params: nextRuleParams,
+      updated_at: new Date().toISOString()
+    }
+
+    const [v2Res, v1Res] = await Promise.all([
+      supabase.from('nomenclatures_v2').update(payload).eq('id', item.id),
+      supabase.from('nomenclatures').update(payload).eq('id', item.id)
+    ])
+
+    if (v2Res?.error && v1Res?.error) {
+      throw v2Res.error
+    }
+    if (v2Res?.error || v1Res?.error) {
+      console.warn('[NomenclatureCard] Partial rule_params update:', v2Res?.error || v1Res?.error)
+    }
+
+    const updated = { ...item, rule_params: nextRuleParams }
+    setCurrentItem(updated)
+    if (typeof onItemUpdated === 'function') {
+      onItemUpdated(updated)
+    }
+    return updated
+  }
+
   // Save operation timings per machine type
-  const handleSaveOperationTimings = async (machineType, newTimings, totalsPerSheet) => {
+  const handleSaveOperationTimings = async (machineType, newTimings) => {
     if (!item?.id) return
     const upsertRows = Object.entries(newTimings).map(([opName, tObj]) => ({
       nomenclature_id: item.id,
@@ -429,94 +463,39 @@ export const NomenclatureCardModal = ({
     } catch (dbErr) {
       console.warn('Could not upsert into cutting_operation_timings, fallback to rule_params:', dbErr)
     }
-    const currentRuleParams = { ...(item.rule_params || {}) }
-    const currentOpTimings = { ...(currentRuleParams.operation_timings || {}) }
-    currentOpTimings[machineType] = newTimings
-    currentRuleParams.operation_timings = currentOpTimings
-    const currentLoadTimings = { ...(currentRuleParams.loadTimings || {}) }
-    Object.entries(totalsPerSheet).forEach(([sheets, data]) => {
-      if (data && data.sum > 0) {
-        currentLoadTimings[sheets] = data.sum
-      }
-    })
-    currentRuleParams.loadTimings = currentLoadTimings
-    const { error: nomErr } = await supabase.from('nomenclatures').update({
-      rule_params: currentRuleParams,
-      updated_at: new Date().toISOString()
-    }).eq('id', item.id)
-    if (nomErr) throw nomErr
-    const updated = { ...item, rule_params: currentRuleParams }
-    setCurrentItem(updated)
+    const currentOpTimings = {
+      ...(item.rule_params?.operation_timings || {}),
+      [machineType]: newTimings
+    }
+    await persistShop1RuleParams({ operation_timings: currentOpTimings })
     setOperationTimingsByMachine(prev => ({
       ...prev,
       [machineType]: newTimings
     }))
-    if (typeof onItemUpdated === 'function') {
-      onItemUpdated(updated)
-    }
   }
 
   // Save tumbling operation timings
   const handleSaveTumblingTimings = async (newTimings, totalsPerSheet) => {
     if (!item?.id) return
-    const currentRuleParams = { ...(item.rule_params || {}) }
-    currentRuleParams.tumbling_operation_timings = newTimings
-
-    const { error: nomErr } = await supabase.from('nomenclatures').update({
-      rule_params: currentRuleParams,
-      updated_at: new Date().toISOString()
-    }).eq('id', item.id)
-
-    if (nomErr) throw nomErr
-    const updated = { ...item, rule_params: currentRuleParams }
-    setCurrentItem(updated)
+    await persistShop1RuleParams({ tumbling_operation_timings: newTimings })
     setTumblingTimings(newTimings)
     setTumblingTotals(totalsPerSheet)
-    if (typeof onItemUpdated === 'function') {
-      onItemUpdated(updated)
-    }
   }
 
   // Save reception operation timings
   const handleSaveReceptionTimings = async (newTimings, totalsPerSheet) => {
     if (!item?.id) return
-    const currentRuleParams = { ...(item.rule_params || {}) }
-    currentRuleParams.reception_operation_timings = newTimings
-
-    const { error: nomErr } = await supabase.from('nomenclatures').update({
-      rule_params: currentRuleParams,
-      updated_at: new Date().toISOString()
-    }).eq('id', item.id)
-
-    if (nomErr) throw nomErr
-    const updated = { ...item, rule_params: currentRuleParams }
-    setCurrentItem(updated)
+    await persistShop1RuleParams({ reception_operation_timings: newTimings })
     setReceptionTimings(newTimings)
     setReceptionTotals(totalsPerSheet)
-    if (typeof onItemUpdated === 'function') {
-      onItemUpdated(updated)
-    }
   }
 
   // Save sorting operation timings
   const handleSaveSortingTimings = async (newTimings, totalsPerSheet) => {
     if (!item?.id) return
-    const currentRuleParams = { ...(item.rule_params || {}) }
-    currentRuleParams.sorting_operation_timings = newTimings
-
-    const { error: nomErr } = await supabase.from('nomenclatures').update({
-      rule_params: currentRuleParams,
-      updated_at: new Date().toISOString()
-    }).eq('id', item.id)
-
-    if (nomErr) throw nomErr
-    const updated = { ...item, rule_params: currentRuleParams }
-    setCurrentItem(updated)
+    await persistShop1RuleParams({ sorting_operation_timings: newTimings })
     setSortingTimings(newTimings)
     setSortingTotals(totalsPerSheet)
-    if (typeof onItemUpdated === 'function') {
-      onItemUpdated(updated)
-    }
   }
 
   // Fetch Inventory balances when switching to inventory tab

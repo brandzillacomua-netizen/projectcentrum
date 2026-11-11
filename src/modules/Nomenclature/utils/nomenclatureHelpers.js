@@ -642,3 +642,63 @@ export const findWorkingSheetNom = (typePrefix, thicknessLabel, nomenclatures = 
     return nThick && Math.abs(parseFloat(nThick) - parseFloat(thickNum)) < 0.05;
   }) || null;
 };
+
+const addOperationTimingsToMap = (targetMap, opMap) => {
+  if (!opMap || typeof opMap !== 'object') return;
+  Object.values(opMap).forEach((sheetMap) => {
+    if (!sheetMap || typeof sheetMap !== 'object') return;
+    Object.entries(sheetMap).forEach(([sheetKey, rawVal]) => {
+      if (rawVal === '' || rawVal === null || rawVal === undefined) return;
+      const sheetNum = Number(sheetKey);
+      const val = Number(rawVal);
+      if (Number.isFinite(sheetNum) && sheetNum > 0 && Number.isFinite(val) && val > 0) {
+        targetMap[sheetNum] = (targetMap[sheetNum] || 0) + val;
+      }
+    });
+  });
+};
+
+/**
+ * Computes planned Shop 1 (Цех №1) timing badges per sheet count from active
+ * operation timings (CNC cutting + tumbling + reception + sorting).
+ * Legacy rule_params.loadTimings is intentionally ignored.
+ */
+export const getPlannedShop1SheetTimings = (itemOrRuleParams) => {
+  const ruleParams =
+    itemOrRuleParams && typeof itemOrRuleParams === 'object' && 'rule_params' in itemOrRuleParams
+      ? itemOrRuleParams.rule_params
+      : itemOrRuleParams;
+
+  if (!ruleParams || typeof ruleParams !== 'object') return [];
+
+  const totalsBySheet = {};
+
+  // CNC cutting: take max per sheet column across machine types to avoid double-counting
+  const opTimingsByMachine = ruleParams.operation_timings;
+  if (opTimingsByMachine && typeof opTimingsByMachine === 'object') {
+    const cncMaxBySheet = {};
+    Object.values(opTimingsByMachine).forEach((machineOps) => {
+      const machineTotals = {};
+      addOperationTimingsToMap(machineTotals, machineOps);
+      Object.entries(machineTotals).forEach(([sheetNum, mins]) => {
+        cncMaxBySheet[sheetNum] = Math.max(cncMaxBySheet[sheetNum] || 0, mins);
+      });
+    });
+    Object.entries(cncMaxBySheet).forEach(([sheetNum, mins]) => {
+      totalsBySheet[sheetNum] = (totalsBySheet[sheetNum] || 0) + mins;
+    });
+  }
+
+  // Tumbling, Reception, Sorting
+  addOperationTimingsToMap(totalsBySheet, ruleParams.tumbling_operation_timings);
+  addOperationTimingsToMap(totalsBySheet, ruleParams.reception_operation_timings);
+  addOperationTimingsToMap(totalsBySheet, ruleParams.sorting_operation_timings);
+
+  return Object.entries(totalsBySheet)
+    .map(([sheets, minutes]) => ({
+      sheets: Number(sheets),
+      minutes: Math.round(minutes * 100) / 100
+    }))
+    .filter((entry) => entry.sheets > 0 && entry.minutes > 0)
+    .sort((a, b) => a.sheets - b.sheets);
+};
