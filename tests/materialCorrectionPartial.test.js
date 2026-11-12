@@ -6,6 +6,7 @@ import {
   getOperationalStockForNom
 } from '../src/modules/Foreman2/features/material-correction/useMaterialCorrection.js'
 import { getKittingSheetsForPart } from '../src/modules/Foreman2/features/card-generation/kittingAvailability.js'
+import { getPendingRequestsForCard } from '../src/utils/materialCardMatching.js'
 
 describe('Partial Material Correction with Active + New Cards', () => {
   it('separates safe new cards for deletion, preserves active sheets, and calculates remaining sheets', () => {
@@ -144,6 +145,38 @@ describe('Partial Material Correction with Active + New Cards', () => {
     expect(afterIssue.issuedSheets).toBe(646)
     expect(afterIssue.pendingSheets).toBe(0)
     expect(afterIssue.poolIssuedRemaining).toBeGreaterThan(0)
+  })
+
+  it('does not block pre-existing cards on old material when a MATERIAL_CORRECTION request is pending', () => {
+    const card = {
+      id: 'card-old-t300',
+      task_id: 't1',
+      nomenclature_id: 'part-7',
+      created_at: '2026-11-12T10:00:00Z'
+    }
+    const req = {
+      id: 'req-corr-t700',
+      task_id: 't1',
+      nomenclature_id: 't700-7',
+      status: 'pending',
+      created_at: '2026-11-12T12:00:00Z',
+      details: 'ВИПРАВЛЕНО В НАРЯДІ: Лист Т300 (7мм) → Лист Т700 (7мм) — 2605 л. [MATERIAL_CORRECTION:part-7]'
+    }
+    const task = {
+      id: 't1',
+      plan_snapshot: {
+        materialSummary: {
+          't700-7': {
+            nomenclature_id: 't700-7',
+            matName: 'Лист Т700 (7мм)',
+            components: ['Київ К-ІП9-10-П-7-46: залишок 2605 л.']
+          }
+        }
+      }
+    }
+    const nomenclatures = [{ id: 'part-7', name: 'Київ К-ІП9-10-П-7-46' }]
+
+    expect(getPendingRequestsForCard(card, [req], task, nomenclatures)).toEqual([])
   })
 })
 

@@ -25,6 +25,27 @@ export function isRequestForCard(req, card, task = null, nomenclatures = []) {
   const nom = (nomenclatures || []).find(n => String(n.id) === String(card.nomenclature_id))
   const nomNameNorm = normStr(nom?.name || '')
 
+  // Material-correction requests apply only to remaining sheets on the new material,
+  // never to cards that already existed before the correction (kept on old material) or other parts.
+  const corrMatch = String(req.details || '').match(/\[MATERIAL_CORRECTION:([^\]]+)\]/)
+  if (corrMatch) {
+    if (String(corrMatch[1]) !== String(card.nomenclature_id)) {
+      return false
+    }
+    if (card.created_at && req.created_at && new Date(card.created_at).getTime() < new Date(req.created_at).getTime()) {
+      return false
+    }
+    const matSummary = task?.plan_snapshot?.materialSummary || {}
+    const hasActiveOldMaterial = Object.values(matSummary).some(entry =>
+      entry &&
+      String(entry.nomenclature_id || '') !== String(req.nomenclature_id || '') &&
+      (entry.components || []).some(c => normStr(c).includes(nomNameNorm) && String(c).includes('в роботі'))
+    )
+    if (hasActiveOldMaterial && (!card.created_at || !req.created_at || new Date(card.created_at).getTime() <= new Date(req.created_at).getTime())) {
+      return false
+    }
+  }
+
   // 3. Check if request details explicitly mentions this card's nomenclature name
   if (nomNameNorm && reqDetailsNorm.includes(nomNameNorm)) {
     return true
