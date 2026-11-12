@@ -52,13 +52,7 @@ export const useShop2ForemanData = () => {
 
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear())
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth())
-  const [openAccordions, setOpenAccordions] = useState({
-    '👥 ЗМІНА 1': true,
-    '👥 ЗМІНА 2': true,
-    '👥 ЗМІНА 3': true,
-    '👥 ЗМІНА 4': true,
-    '👥 БЕЗ ЗМІНИ': true
-  })
+  const [openAccordions, setOpenAccordions] = useState({})
 
   const [userForm, setUserForm] = useState({
     id: null,
@@ -101,35 +95,60 @@ export const useShop2ForemanData = () => {
   }, [shop2Users, userSearch])
 
   const categorizedCalendarUsers = useMemo(() => {
-    const shiftGroups = {
-      'Зміна 1': [],
-      'Зміна 2': [],
-      'Зміна 3': [],
-      'Зміна 4': [],
-      'Без зміни': []
-    }
+    const positionGroups = new Map()
 
     shop2Users.forEach(u => {
-      const shift = String(u.shift || 'Без зміни')
-      if (!shiftGroups[shift]) shiftGroups[shift] = []
-      shiftGroups[shift].push(u)
+      const rawPos = String(u.position || '').trim() || 'Без посади'
+      const key = rawPos.toLowerCase()
+      if (!positionGroups.has(key)) {
+        positionGroups.set(key, { label: rawPos, users: [] })
+      }
+      positionGroups.get(key).users.push(u)
     })
 
-    const sortByPosition = (a, b) => {
-      const isMaster = u => ['начальник', 'майстер', 'мастер', 'керівник'].some(kw => String(u.position || '').toLowerCase().includes(kw))
-      const aM = isMaster(a)
-      const bM = isMaster(b)
-      if (aM && !bM) return -1
-      if (!aM && bM) return 1
-      return String(a.last_name || '').localeCompare(String(b.last_name || ''), 'uk')
+    const getPositionOrder = (posLabel) => {
+      const p = posLabel.toLowerCase()
+      if (p.includes('начальник') || p.includes('керівник')) return 10
+      if (p.includes('майстер') || p.includes('мастер')) return 15
+      if ((p.includes('маляр') || p.includes('фарб')) && !p.includes('помічник')) return 20
+      if ((p.includes('маляр') || p.includes('фарб')) && p.includes('помічник')) return 25
+      if (p.includes('лицювальн') || p.includes('полірувальн')) return 30
+      if (p.includes('прес') && !p.includes('помічник')) return 40
+      if (p.includes('прес') && p.includes('помічник')) return 45
+      if (p.includes('доопрац') || p.includes('реставр') || p.includes('слюсар')) return 50
+      if (p.includes('пакувальн')) return 60
+      if (p === 'без посади') return 99
+      return 70
     }
 
-    return Object.entries(shiftGroups)
-      .map(([shiftName, users]) => ({
-        title: `👥 ${shiftName.toUpperCase()}`,
-        users: [...users].sort(sortByPosition)
+    const getPositionIcon = (posLabel) => {
+      const p = posLabel.toLowerCase()
+      if (p.includes('начальник') || p.includes('майстер') || p.includes('мастер') || p.includes('керівник')) return '👑'
+      if (p.includes('помічник') && (p.includes('маляр') || p.includes('фарб'))) return '🖌️'
+      if (p.includes('маляр') || p.includes('фарб')) return '🎨'
+      if (p.includes('лицювальн') || p.includes('полірувальн')) return '✨'
+      if (p.includes('прес')) return '⚙️'
+      if (p.includes('доопрац') || p.includes('реставр') || p.includes('слюсар')) return '🔧'
+      if (p.includes('пакувальн')) return '📦'
+      return '👤'
+    }
+
+    const sortUsers = (a, b) => {
+      const lastCmp = String(a.last_name || '').localeCompare(String(b.last_name || ''), 'uk')
+      if (lastCmp !== 0) return lastCmp
+      return String(a.first_name || '').localeCompare(String(b.first_name || ''), 'uk')
+    }
+
+    return Array.from(positionGroups.values())
+      .sort((a, b) => {
+        const orderDiff = getPositionOrder(a.label) - getPositionOrder(b.label)
+        if (orderDiff !== 0) return orderDiff
+        return a.label.localeCompare(b.label, 'uk')
+      })
+      .map(group => ({
+        title: `${getPositionIcon(group.label)} ${group.label.toUpperCase()}`,
+        users: [...group.users].sort(sortUsers)
       }))
-      .filter(group => group.users.length > 0)
   }, [shop2Users])
 
   const todayKey = getTodayCalendarKey()
@@ -210,7 +229,7 @@ export const useShop2ForemanData = () => {
   }
 
   const toggleAccordion = (title) => {
-    setOpenAccordions(prev => ({ ...prev, [title]: !prev[title] }))
+    setOpenAccordions(prev => ({ ...prev, [title]: prev[title] === false }))
   }
 
   const handleToggleDayShift = async (user, day) => {
