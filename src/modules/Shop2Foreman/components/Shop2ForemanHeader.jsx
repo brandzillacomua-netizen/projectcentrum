@@ -12,7 +12,7 @@ export const Shop2ForemanHeader = ({ activeTab, setActiveTab }) => {
           </Link>
           <div>
             <h1 className="shop1-header-title" style={{ margin: 0, fontSize: '1.4rem', fontWeight: 950, display: 'flex', alignItems: 'center', gap: '8px' }}>
-              👑 КАБІНЕТ НАЧАЛЬНИКА ЦЕХУ №2
+              КАБІНЕТ НАЧАЛЬНИКА ЦЕХУ №2
             </h1>
             <div className="shop1-header-subtitle" style={{ fontSize: '0.75rem', marginTop: '2px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
               Табель змін, формування команди на сьогодні та контроль робіт Цеху №2
