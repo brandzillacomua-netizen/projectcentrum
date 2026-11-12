@@ -26,7 +26,7 @@ export const getShop2RoleCategory = (user) => {
   const pos = String(user?.position || '').toLowerCase()
   if (pos.includes('прес')) return 'pressing'
   if (pos.includes('фарб') || pos.includes('маляр')) return 'painting'
-  if (pos.includes('доопрац') || pos.includes('реставр') || pos.includes('слюсар')) return 'rework'
+  if (pos.includes('доопрац') || pos.includes('реставр') || pos.includes('слюсар') || pos.includes('лицювальн') || pos.includes('полірувальн')) return 'rework'
   if (['начальник', 'майстер', 'мастер', 'керівник'].some(kw => pos.includes(kw))) return 'masters'
   return 'other'
 }
