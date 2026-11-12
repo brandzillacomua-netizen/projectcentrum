@@ -509,7 +509,8 @@ export const useShop1ForemanData = () => {
     let newVal = 'Р'
     if (currentVal === 'Р') newVal = 'В'
     else if (currentVal === 'В') newVal = 'Л'
-    else if (currentVal === 'Л') newVal = null
+    else if (currentVal === 'Л') newVal = 'БЗ'
+    else if (currentVal === 'БЗ') newVal = null
 
     const updatedCal = {
       ...currentCal,

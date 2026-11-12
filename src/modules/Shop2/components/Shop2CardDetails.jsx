@@ -7,6 +7,7 @@ import { CardCommentsModal } from '../../../components/common/CardCommentsBadge.
 import { Shop2PaintingBadge } from '../../../components/common/Shop2PaintingBadge.jsx'
 import { getShop2UnitMinutes } from '../../../utils/shop2RoutingUtils.js'
 import { getTodayCalendarKey } from '../../Shop2Foreman/utils/shop2ForemanUtils.js'
+import { OperatorMultiSelect } from '../../../components/common/OperatorMultiSelect.jsx'
 
 export function Shop2CardDetails({
   currentCard,
@@ -35,12 +36,10 @@ export function Shop2CardDetails({
   setIsProcessing
 }) {
   const [isCommentsModalOpen, setIsCommentsModalOpen] = useState(false)
-  const [showAllOperators, setShowAllOperators] = useState(false)
   const todayKey = getTodayCalendarKey()
   const activeStage = selectedStage || currentCard?.operation
-  const onShiftOperators = selectedShift ? getFilteredOperators('Цех №2', selectedShift, activeStage, { onlyOnShiftDate: todayKey }) : []
-  const allStageOperators = selectedShift ? getFilteredOperators('Цех №2', selectedShift, activeStage) : []
-  const visibleOperators = showAllOperators ? allStageOperators : onShiftOperators
+  const onShiftOperators = getFilteredOperators('Цех №2', null, activeStage, { onlyOnShiftDate: todayKey })
+  const allStageOperators = getFilteredOperators('Цех №2', null, activeStage)
   const comments = parseCardComments(currentCard?.card_info)
   const commentsCount = comments.length
 
@@ -245,52 +244,13 @@ export function Shop2CardDetails({
                 {getFilteredManagers('Цех №2').map(o => <option key={o} value={o}>{o}</option>)}
               </select>
             </div>
-            <div>
-              <label style={{ color: 'var(--text-dim)', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', display: 'block', marginBottom: '10px' }}>Зміна</label>
-              <select value={selectedShift} onChange={(e) => setSelectedShift(e.target.value)} style={{ width: '100%', background: 'var(--surface-1)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', padding: '15px', borderRadius: '15px', fontSize: '1.1rem', fontWeight: 700 }}>
-                <option value="">— Оберіть зміну —</option>
-                <option value="Зміна 1">Зміна 1</option>
-                <option value="Зміна 2">Зміна 2</option>
-                <option value="Зміна 3">Зміна 3</option>
-                <option value="Зміна 4">Зміна 4</option>
-                <option value="Без зміни">Без зміни</option>
-              </select>
-            </div>
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', gap: '8px', flexWrap: 'wrap' }}>
-                <label style={{ color: 'var(--text-dim)', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', margin: 0 }}>
-                  Відповідальний оператор {!showAllOperators && selectedShift ? `(На зміні: ${onShiftOperators.length})` : ''}
-                </label>
-                {selectedShift && (
-                  <button
-                    type="button"
-                    onClick={() => setShowAllOperators(prev => !prev)}
-                    style={{
-                      background: showAllOperators ? 'rgba(139, 92, 246, 0.14)' : 'var(--surface-1)',
-                      border: '1px solid var(--border-subtle)',
-                      color: showAllOperators ? '#8b5cf6' : 'var(--text-muted)',
-                      padding: '4px 10px',
-                      borderRadius: '8px',
-                      fontSize: '0.7rem',
-                      fontWeight: 800,
-                      cursor: 'pointer'
-                    }}
-                  >
-                    {showAllOperators ? 'Тільки на зміні сьогодні' : `Показати всіх (${allStageOperators.length})`}
-                  </button>
-                )}
-              </div>
-              <select value={selectedOperator} onChange={(e) => setSelectedOperator(e.target.value)} disabled={!selectedShift} style={{ width: '100%', background: 'var(--surface-1)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', padding: '15px', borderRadius: '15px', fontSize: '1.1rem', fontWeight: 700, opacity: selectedShift ? 1 : 0.5, cursor: selectedShift ? 'pointer' : 'not-allowed' }}>
-                <option value="">
-                  {!selectedShift
-                    ? '— Спочатку оберіть зміну —'
-                    : (!showAllOperators && onShiftOperators.length === 0)
-                      ? '— Сьогодні нікого не відмічено в табелі (натисніть «Показати всіх») —'
-                      : '— Оберіть оператора —'}
-                </option>
-                {visibleOperators.map(o => <option key={o} value={o}>{o}</option>)}
-              </select>
-            </div>
+            <OperatorMultiSelect
+              label="Відповідальний оператор"
+              onShiftOperators={onShiftOperators}
+              allStageOperators={allStageOperators}
+              selectedOperator={selectedOperator}
+              setSelectedOperator={setSelectedOperator}
+            />
             <button
               disabled={isProcessing || !selectedOperator || (currentCard.status === 'at-buffer' && (selectedStage || currentCard.operation) === currentCard.operation)}
               onClick={handleStartOperation}

@@ -1,20 +1,33 @@
 import React from 'react'
 import { Play, X, RefreshCw } from 'lucide-react'
 import { ACCENT, ACCENT_RGB } from '../../hooks/usePressingTerminalData'
+import { getTodayCalendarKey } from '../../../Shop2Foreman/utils/shop2ForemanUtils.js'
+import { OperatorMultiSelect } from '../../../../components/common/OperatorMultiSelect.jsx'
 
 export default function PressingStartConfirmModal({
   pendingStartCard,
   onClose,
   startPressingCard,
   getNom,
-  isProcessing
+  isProcessing,
+  selectedOperator,
+  setSelectedOperator,
+  getFilteredOperators
 }) {
   if (!pendingStartCard) return null
 
+  const todayKey = getTodayCalendarKey()
+  const onShiftOperators = typeof getFilteredOperators === 'function'
+    ? getFilteredOperators('Цех №2', null, 'Пресування', { onlyOnShiftDate: todayKey })
+    : []
+  const allStageOperators = typeof getFilteredOperators === 'function'
+    ? getFilteredOperators('Цех №2', null, 'Пресування')
+    : []
+
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10050, padding: '16px', backdropFilter: 'blur(10px)' }}>
-      <div style={{ background: 'var(--card-bg, #0e0e12)', width: '100%', maxWidth: '400px', borderRadius: '24px', border: `1px solid rgba(${ACCENT_RGB},0.25)`, overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.6)' }}>
-        <div style={{ padding: '16px 20px', background: `rgba(${ACCENT_RGB},0.06)`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid rgba(${ACCENT_RGB},0.1)` }}>
+      <div style={{ background: 'var(--card-bg, #0e0e12)', width: '100%', maxWidth: '400px', borderRadius: '24px', border: `1px solid rgba(${ACCENT_RGB},0.25)`, boxShadow: '0 20px 60px rgba(0,0,0,0.6)' }}>
+        <div style={{ padding: '16px 20px', background: `rgba(${ACCENT_RGB},0.06)`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid rgba(${ACCENT_RGB},0.1)`, borderTopLeftRadius: '24px', borderTopRightRadius: '24px' }}>
           <h3 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 950, color: ACCENT, display: 'flex', alignItems: 'center', gap: '6px', textTransform: 'uppercase' }}>
             <Play size={14} fill="currentColor" /> Взяти на Пресування
           </h3>
@@ -29,11 +42,21 @@ export default function PressingStartConfirmModal({
           <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-muted, #9ca3af)', fontWeight: 600, textAlign: 'center', lineHeight: 1.4 }}>
             Підтвердіть що картка переходить у <strong style={{ color: 'var(--text, #fff)' }}>Пресування</strong>.
           </p>
+          <OperatorMultiSelect
+            label="Оператори"
+            onShiftOperators={onShiftOperators}
+            allStageOperators={allStageOperators}
+            selectedOperator={selectedOperator}
+            setSelectedOperator={setSelectedOperator}
+            accentColor={ACCENT}
+            accentRgb={ACCENT_RGB}
+            compact
+          />
           <div style={{ display: 'flex', gap: '10px' }}>
             <button onClick={onClose} disabled={isProcessing} style={{ flex: 1, background: 'var(--bg, #1a1a1f)', border: '1px solid var(--glass-border, var(--border-subtle))', color: 'var(--text-sub, #aaa)', padding: '12px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer' }}>
               СКАСУВАТИ
             </button>
-            <button onClick={() => startPressingCard(pendingStartCard)} disabled={isProcessing} style={{ flex: 2, background: ACCENT, border: 'none', color: '#000', padding: '12px', borderRadius: '12px', fontSize: '0.85rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+            <button onClick={() => startPressingCard(pendingStartCard)} disabled={isProcessing || !selectedOperator} style={{ flex: 2, background: ACCENT, border: 'none', color: '#000', padding: '12px', borderRadius: '12px', fontSize: '0.85rem', fontWeight: 900, cursor: (isProcessing || !selectedOperator) ? 'not-allowed' : 'pointer', opacity: (isProcessing || !selectedOperator) ? 0.5 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
               {isProcessing ? <RefreshCw size={14} className="anim-spin" /> : <><Play size={14} fill="currentColor" /> ПРЕСУВАТИ</>}
             </button>
           </div>

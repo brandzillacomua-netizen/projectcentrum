@@ -21,7 +21,7 @@ const includesPositionMarker = (user, markers = OPERATOR_POSITION_MARKERS) => {
 }
 
 const matchesShift = (user, shift) => (
-  !shift || shift === 'Без зміни' || user.shift === shift || user.shift === 'Без зміни'
+  !shift || shift === 'all' || shift === 'Без зміни' || user.shift === shift || user.shift === 'Без зміни'
 )
 
 const sortUsersByName = users => [...users].sort((left, right) => (
@@ -64,7 +64,7 @@ export const selectFilteredOperatorNames = (systemUsers, department, shift, stag
   const users = systemUsers || []
   let list = department ? users.filter(user => matchesDepartment(user.department, department)) : [...users]
 
-  if (shift && shift !== 'Без зміни') {
+  if (shift && shift !== 'all' && shift !== 'Без зміни') {
     list = list.filter(user => matchesShift(user, shift))
   }
 
@@ -89,7 +89,7 @@ export const selectFilteredOperatorNames = (systemUsers, department, shift, stag
         (user.department === 'Доопрацювання' || user.department === 'Відділ Доопрацювання')
       ))
       list = mergeUniqueUsers(
-        list.filter(user => includesPositionMarker(user, ['слюсар', 'майстер', 'доопрац'])),
+        list.filter(user => includesPositionMarker(user, ['слюсар', 'майстер', 'доопрац', 'лицювальн', 'полірувальн'])),
         departmentUsers
       )
     } else if (stageLower === 'фарбування') {

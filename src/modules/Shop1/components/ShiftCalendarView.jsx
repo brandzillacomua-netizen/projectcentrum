@@ -1,4 +1,6 @@
-import React from 'react'
+import React, { useState } from 'react'
+import { FileSpreadsheet } from 'lucide-react'
+import { exportShiftCalendarToExcel } from '../utils/exportShiftCalendarExcel.js'
 
 export const ShiftCalendarView = ({
   currentYear,
@@ -17,6 +19,29 @@ export const ShiftCalendarView = ({
 }) => {
   const now = new Date()
   const todayDay = (currentYear === now.getFullYear() && currentMonth === now.getMonth()) ? now.getDate() : -1
+  const [isExporting, setIsExporting] = useState(false)
+
+  const handleExportExcel = async () => {
+    if (isExporting) return
+    setIsExporting(true)
+    try {
+      await exportShiftCalendarToExcel({
+        categorizedCalendarUsers,
+        currentYear,
+        currentMonth,
+        monthNames,
+        weekDayNames,
+        daysInMonth,
+        masterCheckins,
+        operatorCheckins,
+        formatUserName
+      })
+    } catch (e) {
+      alert('Помилка експорту в Excel: ' + (e?.message || e))
+    } finally {
+      setIsExporting(false)
+    }
+  }
 
   const renderCalendarRow = (user) => {
     const initials = `${user.first_name?.[0] || ''}${user.last_name?.[0] || ''}`.toUpperCase() || '?'
@@ -80,6 +105,7 @@ export const ShiftCalendarView = ({
           if (status === 'Р') { bg = '#22c55e'; color = '#000'; statusClass = 'status-work' }
           else if (status === 'В') { bg = '#3b82f6'; color = '#fff'; statusClass = 'status-off' }
           else if (status === 'Л') { bg = '#ef4444'; color = '#fff'; statusClass = 'status-sick' }
+          else if (status === 'БЗ') { bg = '#f59e0b'; color = '#000'; statusClass = 'status-unpaid' }
           else if (hasCheckins) {
             bg = 'rgba(34, 197, 94, 0.15)'
             color = '#22c55e'
@@ -114,7 +140,7 @@ export const ShiftCalendarView = ({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontSize: '0.68rem',
+                fontSize: (status && String(status).length > 1) ? '0.55rem' : '0.68rem',
                 fontWeight: 900,
                 margin: '0 auto',
                 border: finalBorder,
@@ -151,19 +177,46 @@ export const ShiftCalendarView = ({
     <div className="shift-calendar-view" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       {/* Header controls */}
       <div className="calendar-header-controls" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
           <button onClick={() => handleMonthChange('prev')} className="month-nav-btn">←</button>
           <h2 className="calendar-month-title" style={{ fontSize: '1.1rem', fontWeight: 950, margin: 0, minWidth: '150px', textAlign: 'center' }}>
             {monthNames[currentMonth]} {currentYear}
           </h2>
           <button onClick={() => handleMonthChange('next')} className="month-nav-btn">→</button>
+
+          <button
+            type="button"
+            onClick={handleExportExcel}
+            disabled={isExporting}
+            className="calendar-export-btn"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              background: 'rgba(34, 197, 94, 0.14)',
+              border: '1px solid rgba(34, 197, 94, 0.4)',
+              color: '#22c55e',
+              padding: '6px 14px',
+              borderRadius: '10px',
+              fontSize: '0.75rem',
+              fontWeight: 900,
+              cursor: isExporting ? 'not-allowed' : 'pointer',
+              opacity: isExporting ? 0.6 : 1,
+              transition: 'all 0.15s ease'
+            }}
+            title="Експортувати табель у файл Excel (.xlsx)"
+          >
+            <FileSpreadsheet size={15} />
+            <span>{isExporting ? 'Експорт...' : 'Експорт в Excel'}</span>
+          </button>
         </div>
 
         {/* Legend */}
-        <div className="calendar-legend" style={{ display: 'flex', gap: '12px', alignItems: 'center', fontSize: '0.68rem', fontWeight: 800 }}>
+        <div className="calendar-legend" style={{ display: 'flex', gap: '12px', alignItems: 'center', fontSize: '0.68rem', fontWeight: 800, flexWrap: 'wrap' }}>
           <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ width: 14, height: 14, borderRadius: '4px', background: '#22c55e', display: 'inline-block' }} /> Робочий (Р)</span>
           <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ width: 14, height: 14, borderRadius: '4px', background: '#3b82f6', display: 'inline-block' }} /> Вихідний (В)</span>
           <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ width: 14, height: 14, borderRadius: '4px', background: '#ef4444', display: 'inline-block' }} /> Лікарняний (Л)</span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ width: 14, height: 14, borderRadius: '4px', background: '#f59e0b', display: 'inline-block' }} /> Без збереження ЗП (БЗ)</span>
           <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ width: 14, height: 14, borderRadius: '4px', background: 'rgba(34, 197, 94, 0.15)', border: '1px dashed #22c55e', display: 'inline-block' }} /> Працював по факту (✓)</span>
         </div>
       </div>

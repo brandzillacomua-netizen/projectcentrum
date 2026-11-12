@@ -10,6 +10,7 @@ import {
   resolveShop2CardDisplayInfo,
   shouldCardGoToPaintingTerminal
 } from '../../../utils/shop2RoutingUtils.js'
+import { formatUserName } from '../../../contexts/userDirectorySelectors.js'
 
 // Map Cyrillic keyboard characters to English QWERTY for barcode scanners
 const cyrillicToLatinMap = {
@@ -35,6 +36,7 @@ export function usePaintingTerminalData() {
   const workCards = useStore(state => state.workCards)
   const nomenclatures = useStore(state => state.nomenclatures)
   const orders = useStore(state => state.orders)
+  const systemUsers = useStore(state => state.systemUsers)
 
   const [currentTime, setCurrentTime] = useState(new Date())
   const [selectedShift, setSelectedShift] = useState('')
@@ -61,14 +63,10 @@ export function usePaintingTerminalData() {
     return () => clearInterval(timer)
   }, [])
 
-  // Auto-select user details and shift from the account
+  // Auto-select shift from the account
   useEffect(() => {
     if (currentUser) {
       setSelectedShift(currentUser.shift || 'Без зміни')
-      const fullName = [currentUser.first_name, currentUser.last_name].filter(Boolean).join(' ')
-      const displayName = fullName || currentUser.login || ''
-      const nameWithPosition = currentUser.position ? `${displayName} (${currentUser.position})` : displayName
-      setSelectedOperator(nameWithPosition)
     }
   }, [currentUser])
 
@@ -203,8 +201,8 @@ export function usePaintingTerminalData() {
   }
 
   const startPaintingCard = async (card) => {
-    if (!selectedShift) {
-      setScanError('⚠️ Будь ласка, спочатку оберіть зміну вгорі екрану!')
+    if (!selectedOperator) {
+      setScanError('⚠️ Будь ласка, оберіть відповідального оператора!')
       return
     }
     setIsProcessing(true)
@@ -212,13 +210,16 @@ export function usePaintingTerminalData() {
       const now = new Date().toISOString()
       const bufferStart = card.completed_at || card.started_at || now
       const operatorName = selectedOperator || card.operator_name || 'Команда'
+      const firstOperator = String(operatorName).split(',')[0].trim()
+      const matchedUser = (systemUsers || []).find(u => formatUserName(u) === firstOperator)
+      const resolvedShift = matchedUser?.shift || selectedShift || currentUser?.shift || 'Без зміни'
 
       const cardUpdate = {
         status: 'in-progress',
         operation: 'Фарбування',
         started_at: now,
         operator_name: operatorName,
-        shift_name: selectedShift
+        shift_name: resolvedShift
       }
 
       const historyData = {
@@ -231,7 +232,7 @@ export function usePaintingTerminalData() {
         scrap_qty: 0,
         started_at: bufferStart,
         completed_at: now,
-        shift_name: selectedShift,
+        shift_name: resolvedShift,
         manager_name: card.manager_name || 'Не вказано',
         machine_name: card.machine || 'Не вказано'
       }
@@ -431,6 +432,7 @@ export function usePaintingTerminalData() {
     setSelectedShift,
     selectedOperator,
     setSelectedOperator,
+    getFilteredOperators,
     manualId,
     setManualId,
     scanError,

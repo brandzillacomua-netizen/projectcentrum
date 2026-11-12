@@ -15,6 +15,7 @@ import { isPackagingOperation } from '../../Shop2CardGen/constants/shop2Stages'
 import { parseMachineQRId } from '../../../utils/machineQrUtils.js'
 import { getShop2BufferRemaining } from '../../../utils/productionWipParity.js'
 import { getShop2CardPlannedMinutes, resolveShop2CardDisplayInfo } from '../../../utils/shop2RoutingUtils.js'
+import { formatUserName } from '../../../contexts/userDirectorySelectors.js'
 
 
 export function useShop2TerminalState() {
@@ -452,9 +453,17 @@ export function useShop2TerminalState() {
     )
   }, [workCards, scannedCardIds, isShop2Card])
 
+  const resolveOperatorShift = (operatorName) => {
+    if (!operatorName) return selectedShift || null
+    const firstOperator = String(operatorName).split(',')[0].trim()
+    const matched = (systemUsers || []).find(u => formatUserName(u) === firstOperator)
+    return matched?.shift || selectedShift || null
+  }
+
   const handleStartOperation = async () => {
     if (!currentCard || !selectedOperator) return
     const stage = selectedStage || currentCard.operation
+    const resolvedShift = resolveOperatorShift(selectedOperator)
     setIsProcessing(true)
     try {
       const now = new Date().toISOString()
@@ -465,7 +474,7 @@ export function useShop2TerminalState() {
         operation: stage,
         started_at: now,
         operator_name: selectedOperator,
-        shift_name: selectedShift || null,
+        shift_name: resolvedShift,
         manager_name: selectedManager || null,
         machine: selectedMachine || null,
         ...(plannedMinutes > 0 ? { estimated_time: plannedMinutes } : {})
@@ -483,7 +492,7 @@ export function useShop2TerminalState() {
             stage_name: stage,
             machine_name: selectedMachine,
             manager_name: selectedManager,
-            shift_name: selectedShift
+            shift_name: resolvedShift
           }, startWorkCard)
         }
       })

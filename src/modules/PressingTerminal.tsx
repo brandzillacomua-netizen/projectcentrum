@@ -14,8 +14,9 @@ import PressingQRScannerModal from './Pressing/components/modals/PressingQRScann
 export const PressingTerminal: React.FC = () => {
   const {
     currentTime,
-    selectedShift,
-    setSelectedShift,
+    selectedOperator,
+    setSelectedOperator,
+    getFilteredOperators,
     manualId,
     setManualId,
     scanError,
@@ -54,8 +55,6 @@ export const PressingTerminal: React.FC = () => {
       {/* HEADER */}
       <PressingTerminalHeader
         currentTime={currentTime}
-        selectedShift={selectedShift}
-        setSelectedShift={setSelectedShift}
       />
 
       {/* SCANNER BAR */}
@@ -109,6 +108,9 @@ export const PressingTerminal: React.FC = () => {
         startPressingCard={startPressingCard}
         getNom={getNom}
         isProcessing={isProcessing}
+        selectedOperator={selectedOperator}
+        setSelectedOperator={setSelectedOperator}
+        getFilteredOperators={getFilteredOperators}
       />
 
       {/* COMPLETE MODAL */}

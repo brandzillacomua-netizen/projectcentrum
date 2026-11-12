@@ -14,8 +14,9 @@ import PaintingQRScannerModal from './Painting/components/modals/PaintingQRScann
 export const PaintingTerminal: React.FC = () => {
   const {
     currentTime,
-    selectedShift,
-    setSelectedShift,
+    selectedOperator,
+    setSelectedOperator,
+    getFilteredOperators,
     manualId,
     setManualId,
     scanError,
@@ -54,8 +55,6 @@ export const PaintingTerminal: React.FC = () => {
       {/* HEADER */}
       <PaintingTerminalHeader
         currentTime={currentTime}
-        selectedShift={selectedShift}
-        setSelectedShift={setSelectedShift}
       />
 
       {/* SCANNER BAR */}
@@ -110,6 +109,9 @@ export const PaintingTerminal: React.FC = () => {
         getNom={getNom}
         getCardDisplayInfo={getCardDisplayInfo}
         isProcessing={isProcessing}
+        selectedOperator={selectedOperator}
+        setSelectedOperator={setSelectedOperator}
+        getFilteredOperators={getFilteredOperators}
       />
 
       {/* COMPLETE MODAL */}
