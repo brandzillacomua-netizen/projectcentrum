@@ -7,6 +7,7 @@ import { CardScrapHistoryModal } from '../../Brak/components/modals/CardScrapHis
 import { getCardCuttingPlanSeconds } from '../../../utils/cuttingTimeUtils.js'
 import { parseQcOpsStamps, stripQcOpsStamps } from '../../Shop1/utils/shop1Helpers.js'
 import { CardCommentsBadge, CardCommentsModal } from '../../../components/common/CardCommentsBadge.jsx'
+import { getKittingSheetsForPart } from '../features/card-generation/kittingAvailability.js'
 
 const panelStyle = {
   background: 'var(--surface-1)',
@@ -615,7 +616,7 @@ const WorkCardsArchive = ({ parts, task, expandedId, onToggle, onOpenReissue, on
   )
 }
 
-export default function TaskDetails({ model, nomenclatures = [], allCards, onOpenReissue, onCompleteTask, onOpenReport, onMachineChange, onMaterialCorrection, onGenerateCards, onPrintCards, adminCardsPanel }) {
+export default function TaskDetails({ model, nomenclatures = [], allCards, materialRequests = [], onOpenReissue, onCompleteTask, onOpenReport, onMachineChange, onMaterialCorrection, onGenerateCards, onPrintCards, adminCardsPanel }) {
   const [expandedPartId, setExpandedPartId] = useState(null)
   const [expandedArchivePartId, setExpandedArchivePartId] = useState(null)
   const [isCompletingTask, setIsCompletingTask] = useState(false)
@@ -849,6 +850,14 @@ export default function TaskDetails({ model, nomenclatures = [], allCards, onOpe
                 const expanded = expandedPartId === part.nomId
                 const load = getLoadProgress(part, rowCapacities[part.nomId])
                 const isEngineerApproved = !Array.isArray(model?.task?.plan_snapshot?._engineer_approved_noms) || model.task.plan_snapshot._engineer_approved_noms.map(String).includes(String(part.nomId))
+                const partKitting = getKittingSheetsForPart({
+                  task: model?.task,
+                  part,
+                  materialRequests,
+                  nomenclatures,
+                  workCards: allCards || []
+                })
+                const isWaitingWarehouse = partKitting.hasSheetReqs && partKitting.pendingSheets > 0 && partKitting.poolIssuedRemaining <= 0
                 const redoCards = getRedoProductionCards(part)
                 const surplus = part.plannedSheets > 0 ? Math.max(0, (part.plannedSheets * part.unitsPerSheet) - part.plan) : 0
                 const isWaitingMaterials = part.cards.some(card => card.status === 'waiting-materials' || card.status === 'waiting-cutters')
@@ -924,7 +933,45 @@ export default function TaskDetails({ model, nomenclatures = [], allCards, onOpe
                                 </div>
                               )}
                               {load.remainingSheets > 0 && (
-                                isEngineerApproved ? (
+                                !isEngineerApproved ? (
+                                  <div
+                                    title="Ця деталь очікує погодження програм ЧПК інженером"
+                                    style={{
+                                      background: 'rgba(245, 158, 11, 0.1)',
+                                      border: '1px solid rgba(245, 158, 11, 0.35)',
+                                      color: '#f59e0b',
+                                      padding: '6px 10px',
+                                      borderRadius: '8px',
+                                      fontSize: '0.6rem',
+                                      fontWeight: 900,
+                                      textAlign: 'center',
+                                      textTransform: 'uppercase',
+                                      cursor: 'not-allowed',
+                                      whiteSpace: 'nowrap'
+                                    }}
+                                  >
+                                    ⏳ Очікує ЧПК
+                                  </div>
+                                ) : isWaitingWarehouse ? (
+                                  <div
+                                    title={`Матеріал очікує видачі зі Складу Оперативного (${partKitting.pendingSheets} л.)`}
+                                    style={{
+                                      background: 'rgba(245, 158, 11, 0.1)',
+                                      border: '1px solid rgba(245, 158, 11, 0.35)',
+                                      color: '#f59e0b',
+                                      padding: '6px 10px',
+                                      borderRadius: '8px',
+                                      fontSize: '0.6rem',
+                                      fontWeight: 900,
+                                      textAlign: 'center',
+                                      textTransform: 'uppercase',
+                                      cursor: 'not-allowed',
+                                      whiteSpace: 'nowrap'
+                                    }}
+                                  >
+                                    ⏳ Очікує СО
+                                  </div>
+                                ) : (
                                   <button
                                     type="button"
                                     onClick={(event) => {
@@ -946,25 +993,6 @@ export default function TaskDetails({ model, nomenclatures = [], allCards, onOpe
                                   >
                                     Генерувати
                                   </button>
-                                ) : (
-                                  <div
-                                    title="Ця деталь очікує погодження програм ЧПК інженером"
-                                    style={{
-                                      background: 'rgba(245, 158, 11, 0.1)',
-                                      border: '1px solid rgba(245, 158, 11, 0.35)',
-                                      color: '#f59e0b',
-                                      padding: '6px 10px',
-                                      borderRadius: '8px',
-                                      fontSize: '0.6rem',
-                                      fontWeight: 900,
-                                      textAlign: 'center',
-                                      textTransform: 'uppercase',
-                                      cursor: 'not-allowed',
-                                      whiteSpace: 'nowrap'
-                                    }}
-                                  >
-                                    ⏳ Очікує ЧПК
-                                  </div>
                                 )
                               )}
                             </div>

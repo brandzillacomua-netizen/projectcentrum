@@ -280,8 +280,14 @@ export default function Foreman2Module() {
       })
       setReportData(finalData)
 
+      const { data: freshTaskRow } = await mes.supabase
+        .from('tasks')
+        .select('plan_snapshot')
+        .eq('id', task.id)
+        .maybeSingle()
+
       const updatedSnapshot = {
-        ...(task.plan_snapshot || {}),
+        ...(freshTaskRow?.plan_snapshot || task.plan_snapshot || {}),
         _report_snapshot: finalData
       }
 
@@ -350,6 +356,7 @@ export default function Foreman2Module() {
             model={activeModel}
             nomenclatures={nomenclatures}
             allCards={allCards}
+            materialRequests={materialRequests || []}
             onOpenReport={(task, order) => handleOpenReport(task, order)}
             onOpenReissue={handleOpenReissue}
             onMachineChange={(part) => machineChange.openMachineChange(activeModel.task, part)}

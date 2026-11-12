@@ -180,7 +180,20 @@ export function useMaterialCorrection({ currentUser, nomenclatures = [], invento
     setIsSaving(true)
     setError(null)
 
-    const originalSnapshot = task.plan_snapshot || {}
+    let originalSnapshot = task.plan_snapshot || {}
+    try {
+      const { data: freshTask, error: freshTaskError } = await supabase
+        .from('tasks')
+        .select('plan_snapshot')
+        .eq('id', task.id)
+        .maybeSingle()
+      if (freshTaskError) throw freshTaskError
+      if (freshTask?.plan_snapshot) originalSnapshot = freshTask.plan_snapshot
+    } catch (freshErr) {
+      setError(freshErr.message || 'Не вдалося завантажити актуальний план наряду.')
+      setIsSaving(false)
+      return
+    }
     const snapshot = structuredClone(originalSnapshot)
     const partKey = String(part.nomId)
     const partSnapshot = { ...(snapshot[partKey] || {}) }
@@ -340,19 +353,43 @@ export function useMaterialCorrection({ currentUser, nomenclatures = [], invento
           remainingToTransfer -= take
         }
 
-        const { data: inserted, error: insertError } = await supabase.from('material_requests').insert({
-          order_id: task.order_id,
-          task_id: targetTaskId,
-          quantity: sheetQty,
-          status: 'pending',
-          inventory_id: material.inventory_id,
-          nomenclature_id: material.id,
-          category: 'sheet',
-          target_warehouse: 'operational',
-          details: correctionDetails
-        }).select('id').single()
-        if (insertError) throw insertError
-        insertedIds.push(inserted.id)
+        const existingTargetCorrection = matchingOldRequests.length === 0
+          ? (requests || []).find(req =>
+              !req.card_id &&
+              req.status === 'pending' &&
+              String(req.nomenclature_id) === String(material.id) &&
+              String(req.details || '').includes(`[MATERIAL_CORRECTION:${part.nomId}]`)
+            )
+          : null
+
+        if (existingTargetCorrection) {
+          requestBackups.push(existingTargetCorrection)
+          const { error: syncError } = await supabase
+            .from('material_requests')
+            .update({
+              quantity: sheetQty,
+              inventory_id: material.inventory_id,
+              category: 'sheet',
+              target_warehouse: 'operational',
+              details: correctionDetails
+            })
+            .eq('id', existingTargetCorrection.id)
+          if (syncError) throw syncError
+        } else {
+          const { data: inserted, error: insertError } = await supabase.from('material_requests').insert({
+            order_id: task.order_id,
+            task_id: targetTaskId,
+            quantity: sheetQty,
+            status: 'pending',
+            inventory_id: material.inventory_id,
+            nomenclature_id: material.id,
+            category: 'sheet',
+            target_warehouse: 'operational',
+            details: correctionDetails
+          }).select('id').single()
+          if (insertError) throw insertError
+          insertedIds.push(inserted.id)
+        }
       }
 
       const { error: taskError } = await supabase.from('tasks').update({ plan_snapshot: snapshot }).eq('id', task.id)

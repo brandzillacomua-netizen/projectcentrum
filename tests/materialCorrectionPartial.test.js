@@ -5,6 +5,7 @@ import {
   isSheetMaterial,
   getOperationalStockForNom
 } from '../src/modules/Foreman2/features/material-correction/useMaterialCorrection.js'
+import { getKittingSheetsForPart } from '../src/modules/Foreman2/features/card-generation/kittingAvailability.js'
 
 describe('Partial Material Correction with Active + New Cards', () => {
   it('separates safe new cards for deletion, preserves active sheets, and calculates remaining sheets', () => {
@@ -102,6 +103,47 @@ describe('Partial Material Correction with Active + New Cards', () => {
       nomenclatures: []
     })
     expect(matched.map(r => r.id)).toEqual(['req-pending', 'req-issued'])
+  })
+
+  it('blocks generation (waiting for СО) when material was corrected and 0 sheets of new material are issued', () => {
+    const task = { id: 't1', order_id: 'o1', warehouse_conf: 'partial', plan_snapshot: {} }
+    const part = {
+      nomId: 'p1',
+      name: 'Київ К-ІП9-Х-3-39',
+      material: 'Лист Т700 (3мм)',
+      unitsPerSheet: 39,
+      productionCards: [{ id: 'c1', status: 'in-progress', quantity: 39 * 52, sheets: 52 }]
+    }
+    const nomenclatures = [
+      { id: 'p1', name: 'Київ К-ІП9-Х-3-39', units_per_sheet: 39 },
+      { id: 't700-3', name: 'Лист Т700 (3мм)', type: 'raw' },
+      { id: 't300-3', name: 'Лист Т300 (3мм)', type: 'raw' }
+    ]
+    const materialRequests = [
+      { id: 'r-old', task_id: 't1', nomenclature_id: 't300-3', status: 'issued', quantity: 52, details: 'Лист Т300 (3мм)' },
+      { id: 'r-new', task_id: 't1', nomenclature_id: 't700-3', status: 'pending', quantity: 646, details: 'ВИПРАВЛЕНО В НАРЯДІ: Лист Т300 (3мм) → Лист Т700 (3мм) — 646 л.' }
+    ]
+
+    const res = getKittingSheetsForPart({ task, part, materialRequests, nomenclatures, workCards: part.productionCards })
+    expect(res.issuedSheets).toBe(0)
+    expect(res.pendingSheets).toBe(646)
+    expect(res.poolIssuedRemaining).toBe(0)
+    expect(res.hasSheetReqs).toBe(true)
+
+    // Once СО issues the 646 sheets, generation is unlocked
+    const afterIssue = getKittingSheetsForPart({
+      task,
+      part,
+      materialRequests: [
+        materialRequests[0],
+        { ...materialRequests[1], status: 'issued' }
+      ],
+      nomenclatures,
+      workCards: part.productionCards
+    })
+    expect(afterIssue.issuedSheets).toBe(646)
+    expect(afterIssue.pendingSheets).toBe(0)
+    expect(afterIssue.poolIssuedRemaining).toBeGreaterThan(0)
   })
 })
 

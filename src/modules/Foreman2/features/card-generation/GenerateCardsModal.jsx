@@ -364,7 +364,7 @@ export default function GenerateCardsModal({
 
   const hasUnselectedCutters = (cutterRows || []).length > 0 && unselectedCuttersCount > 0
 
-  const isSingleKittingBlocked = false
+  const isSingleKittingBlocked = !isRepair && singleKitting.hasKittingReqs && singleKitting.pendingSheets > 0 && poolIssuedRemaining <= 0
 
   if (!config || !part) return null
 
