@@ -2,6 +2,7 @@ import React from 'react'
 import { Layers, Clock, Play, CheckCircle } from 'lucide-react'
 import { ACCENT, ACCENT_RGB } from '../hooks/usePressingTerminalData'
 import { Shop2PaintingBadge } from '../../../components/common/Shop2PaintingBadge.jsx'
+import { getShop2CardPlannedMinutes, formatShop2PlannedMinutes } from '../../../utils/shop2RoutingUtils.js'
 
 export default function PressingTerminalCardList({
   displayedCards,
@@ -26,6 +27,7 @@ export default function PressingTerminalCardList({
           const order = displayInfo?.order
           const routing = displayInfo?.routing
           const isWaiting = card.type === 'waiting'
+          const plannedMins = getShop2CardPlannedMinutes({ ...card, operation: isWaiting ? 'Пресування' : card.operation }, nom)
           const timeStr = isWaiting
             ? (card.completed_at ? formatDuration(card.completed_at) : '—')
             : formatDuration(card.started_at)
@@ -91,8 +93,13 @@ export default function PressingTerminalCardList({
                 </div>
               </div>
               <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: '10px', width: '100%', borderTop: '1px solid var(--glass-border, var(--border-subtle))', paddingTop: '8px', marginTop: '4px' }} className="card-mobile-footer">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: isWaiting ? 'var(--text-muted, #6b7280)' : ACCENT, fontSize: '0.68rem', fontWeight: 900, fontFamily: 'monospace' }} className="card-timer">
-                  <Clock size={12} /> {timeStr}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: isWaiting ? 'var(--text-muted, #6b7280)' : ACCENT, fontSize: '0.68rem', fontWeight: 900, fontFamily: 'monospace', flexWrap: 'wrap' }} className="card-timer">
+                  <Clock size={12} /> <span>{isWaiting ? timeStr : `Факт: ${timeStr}`}</span>
+                  {plannedMins > 0 && (
+                    <span style={{ color: '#38bdf8', fontFamily: 'inherit', marginLeft: '4px' }}>
+                      | План: {Math.round(plannedMins)} хв ({formatShop2PlannedMinutes(plannedMins)})
+                    </span>
+                  )}
                 </div>
                 {isWaiting ? (
                   <button

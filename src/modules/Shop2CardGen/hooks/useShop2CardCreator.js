@@ -3,6 +3,7 @@ import { shop2CardService } from '../services/shop2CardService'
 import { isPackagingOperation } from '../constants/shop2Stages'
 import { buildRerunToParentOrderMap } from '../utils/shop2BufferCalculations'
 import { resolveCanonicalNomId } from '../../Nomenclature/utils/nomenclatureHelpers'
+import { calculateShop2PlannedMinutes } from '../../../utils/shop2RoutingUtils'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -94,6 +95,8 @@ export function useShop2CardCreator({ tasks = [], orders = [], nomenclatures = [
       const cardsBatch = []
       const isUuid = str => typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str)
       const isDirectPack = isPackagingOperation(stage)
+      const canonicalPartId = resolveCanonicalNomId(row.nomId, nomenclatures) || String(row.nomId || '')
+      const partNom = (nomenclatures || []).find(n => String(n.id) === canonicalPartId) || null
 
       // Allocate across order pools strictly respecting each pool's availableQty
       for (const pool of availableOrderPools) {
@@ -122,14 +125,19 @@ export function useShop2CardCreator({ tasks = [], orders = [], nomenclatures = [
 
           const baseCardInfo = `[SHOP:2] [STAGE:${stage}] [REQ:${cardQty}]`
           const cardInfo = isDirectPack ? `${baseCardInfo} [ПРЯМА ПЕРЕДАЧА СГП]` : baseCardInfo
+          const targetOperation = isDirectPack ? 'Склад СГП' : (stage || 'Пресування')
+          const plannedMinutes = isDirectPack
+            ? 0
+            : Math.round(calculateShop2PlannedMinutes(partNom, targetOperation, cardQty))
 
           cardsBatch.push({
             taskId,
             orderId,
             nomenclatureId: row.nomId,
-            operation: isDirectPack ? 'Склад СГП' : (stage || 'Пресування'),
+            operation: targetOperation,
             machine: machineName,
             quantity: cardQty,
+            estimatedTime: plannedMinutes,
             actualSheets: Math.ceil(cardQty / (row.unitsPerSheet || 1)),
             bufferQty: 0,
             cardInfo,

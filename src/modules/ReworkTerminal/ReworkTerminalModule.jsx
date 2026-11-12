@@ -13,12 +13,13 @@ export default function ReworkTerminalModule() {
     if (mes && typeof mes.fetchData === 'function') {
       mes.fetchData(['nomenclatures', 'orders', 'tasks']).catch(() => {})
     }
-  }, [mes])
+  }, [])
 
-  const { cards, loading, error } = useReworkData(mes)
+  const { waitingCards, inProgressCards, completedCards, loading, error } = useReworkData(mes)
   const { takeInWork, completeWork, isProcessing } = useReworkActions()
 
   const [operatorName, setOperatorName] = useState('Оператор Доопрацювання')
+  const [viewMode, setViewMode] = useState('active')
 
   if (loading) {
     return (
@@ -36,14 +37,45 @@ export default function ReworkTerminalModule() {
     )
   }
 
-  const newCards = cards.filter(c => c.status === 'new')
-  const inProgressCards = cards.filter(c => c.status === 'in-progress')
-
   return (
     <div className="module-content" style={{ padding: '30px', color: 'var(--text)', minHeight: '100vh', background: 'var(--bg)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '30px' }}>
-        <Wrench size={32} color="var(--primary)" />
-        <h1 style={{ margin: 0, fontSize: '32px', fontWeight: 'bold' }}>Термінал Доопрацювання</h1>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '15px', marginBottom: '30px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+          <Wrench size={32} color="var(--primary)" />
+          <h1 style={{ margin: 0, fontSize: '32px', fontWeight: 'bold' }}>Термінал Доопрацювання</h1>
+        </div>
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <button
+            onClick={() => setViewMode('active')}
+            style={{
+              background: viewMode === 'active' ? 'var(--primary)' : 'var(--card-bg)',
+              color: viewMode === 'active' ? '#fff' : 'var(--text)',
+              border: '1px solid var(--glass-border)',
+              padding: '10px 18px',
+              borderRadius: '10px',
+              fontSize: '14px',
+              fontWeight: 800,
+              cursor: 'pointer'
+            }}
+          >
+            В роботі та черзі ({waitingCards.length + inProgressCards.length})
+          </button>
+          <button
+            onClick={() => setViewMode('completed')}
+            style={{
+              background: viewMode === 'completed' ? '#10b981' : 'var(--card-bg)',
+              color: viewMode === 'completed' ? '#fff' : 'var(--text)',
+              border: '1px solid var(--glass-border)',
+              padding: '10px 18px',
+              borderRadius: '10px',
+              fontSize: '14px',
+              fontWeight: 800,
+              cursor: 'pointer'
+            }}
+          >
+            ВИКОНАНІ ({completedCards.length})
+          </button>
+        </div>
       </div>
 
       <div style={{ marginBottom: '30px', display: 'flex', gap: '15px', alignItems: 'center' }}>
@@ -64,15 +96,33 @@ export default function ReworkTerminalModule() {
         />
       </div>
 
+      {viewMode === 'completed' ? (
+        <div>
+          <h2 style={{ fontSize: '24px', color: '#10b981', marginBottom: '20px', borderBottom: '2px solid var(--glass-border)', paddingBottom: '10px' }}>
+            Виконані картки ({completedCards.length})
+          </h2>
+          {completedCards.length === 0 ? (
+            <div style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Немає виконаних карток доопрацювання</div>
+          ) : (
+            completedCards.map(c => (
+              <ReworkCardTile
+                key={c.id}
+                card={c}
+                isProcessing={isProcessing}
+              />
+            ))
+          )}
+        </div>
+      ) : (
       <div style={{ display: 'flex', gap: '40px' }}>
         <div style={{ flex: 1 }}>
           <h2 style={{ fontSize: '24px', color: 'var(--warning)', marginBottom: '20px', borderBottom: '2px solid var(--glass-border)', paddingBottom: '10px' }}>
-            Очікують ({newCards.length})
+            Очікують ({waitingCards.length})
           </h2>
-          {newCards.length === 0 ? (
+          {waitingCards.length === 0 ? (
             <div style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Немає карток в очікуванні</div>
           ) : (
-            newCards.map(c => (
+            waitingCards.map(c => (
               <ReworkCardTile 
                 key={c.id} 
                 card={c} 
@@ -100,6 +150,7 @@ export default function ReworkTerminalModule() {
           )}
         </div>
       </div>
+      )}
     </div>
   )
 }

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { 
   X, Barcode, QrCode, Printer, Copy, Check, Package, Clock, 
   Cpu, Layers, Boxes, FileText, ExternalLink, Edit3, Save, 
-  Sparkles, RefreshCw, AlertCircle, Tag, CheckCircle2, ChevronRight
+  Sparkles, RefreshCw, AlertCircle, Tag, CheckCircle2, ChevronRight, Wrench
 } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import JsBarcode from 'jsbarcode'
@@ -18,6 +18,7 @@ import { CncOperationTimingsTable } from './CncOperationTimingsTable.jsx'
 import { TumblingOperationTimingsTable } from './TumblingOperationTimingsTable.jsx'
 import { ReceptionOperationTimingsTable } from './ReceptionOperationTimingsTable.jsx'
 import { SortingOperationTimingsTable } from './SortingOperationTimingsTable.jsx'
+import { Shop2OperationTimingsPanel } from './Shop2OperationTimingsPanel.jsx'
 
 const KNOWN_CUTTER_TYPES = {
   '1ba4c09f-2fcf-4fc8-957d-80fca75d371a': { name: 'Фреза ф3', code: 'CUT-F3', type: 'Фреза ф3 кінцева' },
@@ -272,9 +273,9 @@ export const NomenclatureCardModal = ({
 
   const [activeTab, setActiveTab] = useState('identification') // identification | params | cnc | inventory | bom
 
-  // If item is not a detail, ensure 'cnc' tab cannot be active
+  // If item is not a detail, ensure 'cnc' and 'shop2' tabs cannot be active
   useEffect(() => {
-    if (!isDetail && activeTab === 'cnc') {
+    if (!isDetail && (activeTab === 'cnc' || activeTab === 'shop2')) {
       setActiveTab('identification')
     }
   }, [isDetail, activeTab])
@@ -549,6 +550,65 @@ export const NomenclatureCardModal = ({
     await persistShop1RuleParams({ sorting_operation_timings: newTimings })
     setSortingTimings(newTimings)
     setSortingTotals(totalsPerSheet)
+  }
+
+  // Save Shop 2 operations & per-unit planned timings
+  const handleSaveShop2Timings = async ({ shop2_operation_timings, requiresPressing, requiresPainting }) => {
+    if (!item?.id) return
+    const nextRuleParams = {
+      ...(item.rule_params || {}),
+      shop2_operation_timings,
+      requiresPressing,
+      requiresPainting
+    }
+
+    const v2Payload = {
+      rule_params: nextRuleParams,
+      requires_pressing: requiresPressing,
+      requires_painting: requiresPainting,
+      updated_at: new Date().toISOString()
+    }
+
+    let { error: v2Err } = await supabase
+      .from('nomenclatures_v2')
+      .update(v2Payload)
+      .eq('id', item.id)
+
+    if (v2Err && isMissingColumnDbError(v2Err)) {
+      const retry = await supabase
+        .from('nomenclatures_v2')
+        .update(stripOptionalNomColumns(v2Payload))
+        .eq('id', item.id)
+      v2Err = retry.error
+    }
+
+    if (v2Err) console.warn('[NomenclatureCard] Shop 2 timings update warning:', v2Err)
+
+    try {
+      const v1Payload = { requires_pressing: requiresPressing, requires_painting: requiresPainting }
+      const { error: v1Err } = await supabase.from('nomenclatures').update(v1Payload).eq('id', item.id)
+      if (v1Err && isMissingColumnDbError(v1Err)) {
+        // Legacy table does not have rule_params; skip if boolean columns not yet migrated
+      }
+    } catch (_) {}
+
+    const updated = {
+      ...item,
+      rule_params: nextRuleParams,
+      requires_pressing: requiresPressing,
+      requires_painting: requiresPainting,
+      requiresPressing,
+      requiresPainting
+    }
+    setCurrentItem(updated)
+    if (typeof onItemUpdated === 'function') {
+      onItemUpdated(updated)
+    }
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('mes:refresh-table', { detail: { table: 'nomenclatures_v2' } }))
+      window.dispatchEvent(new CustomEvent('mes:refresh-table', { detail: { table: 'nomenclatures' } }))
+    }
+    return updated
   }
 
   // Fetch Inventory balances when switching to inventory tab
@@ -1072,7 +1132,10 @@ export const NomenclatureCardModal = ({
           {[
             { id: 'identification', label: 'Ідентифікація & Друк', icon: Barcode },
             { id: 'params', label: 'Параметри та Сировина', icon: Layers },
-            ...(isDetail ? [{ id: 'cnc', label: 'Операції Цех №1', icon: Cpu }] : []),
+            ...(isDetail ? [
+              { id: 'cnc', label: 'Операції Цех №1', icon: Cpu },
+              { id: 'shop2', label: 'Операції Цеху №2', icon: Wrench }
+            ] : []),
             { id: 'inventory', label: 'Складські залишки', icon: Boxes },
             { id: 'bom', label: 'Специфікація BOM', icon: Package }
           ].map(tab => {
@@ -1594,6 +1657,96 @@ export const NomenclatureCardModal = ({
               ══════════════════════════════════════════════════════════════════════ */}
           {isDetail && activeTab === 'cnc' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              {/* Combined Total Summary: Cutting + Tumbling + Reception + Sorting (Цех №1) */}
+              <div style={{
+                background: 'linear-gradient(135deg, rgba(255, 144, 0, 0.09) 0%, rgba(139, 92, 246, 0.06) 50%, rgba(16, 185, 129, 0.06) 100%)',
+                borderRadius: '16px',
+                padding: '18px 22px',
+                border: '1.5px solid rgba(255, 144, 0, 0.4)',
+                boxShadow: '0 6px 20px rgba(255, 144, 0, 0.09)'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <span style={{ fontSize: '1.4rem' }}>⏱️</span>
+                    <div>
+                      <div style={{ fontSize: '0.95rem', fontWeight: 900, color: 'var(--text, #0f172a)', letterSpacing: '0.01em' }}>
+                        РАЗОМ ЦЕХ №1: РОЗКРІЙ + ГАЛТОВКА + ПРИЙОМКА + СОРТУВАННЯ
+                      </div>
+                      <div style={{ fontSize: '0.74rem', color: 'var(--text-muted, #64748b)' }}>
+                        Повний плановий цикл обробки деталі в Цеху №1 (до передачі напівфабрикату на Цех №2)
+                      </div>
+                    </div>
+                  </div>
+                  <span style={{
+                    fontSize: '0.76rem',
+                    fontWeight: 900,
+                    padding: '4px 12px',
+                    borderRadius: '20px',
+                    background: 'rgba(255, 144, 0, 0.16)',
+                    color: '#d97706',
+                    border: '1px solid rgba(255, 144, 0, 0.35)'
+                  }}>
+                    Цех №1 • Повний технологічний цикл
+                  </span>
+                </div>
+
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(115px, 1fr))',
+                  gap: '8px'
+                }}>
+                  {[1, 2, 3, 4, 8, 12, 16].map(sheets => {
+                    const cM = cncTotals[sheets]?.sum || 0
+                    const tM = tumblingTotals[sheets]?.sum || 0
+                    const rM = receptionTotals[sheets]?.sum || 0
+                    const sM = sortingTotals[sheets]?.sum || 0
+                    const totalM = cM + tM + rM + sM
+                    const hasAny = totalM > 0
+
+                    return (
+                      <div
+                        key={sheets}
+                        style={{
+                          background: hasAny ? 'var(--card-bg, #ffffff)' : 'rgba(0, 0, 0, 0.02)',
+                          borderRadius: '10px',
+                          padding: '10px',
+                          border: hasAny ? '1.5px solid #f59e0b' : '1px dashed var(--border-color, #cbd5e1)',
+                          textAlign: 'center',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '2px',
+                          boxShadow: hasAny ? '0 2px 6px rgba(0,0,0,0.03)' : 'none'
+                        }}
+                      >
+                        <div style={{ fontSize: '0.72rem', fontWeight: 800, color: '#b45309' }}>
+                          {sheets} л.
+                        </div>
+                        <div style={{ fontSize: '0.96rem', fontWeight: 900, color: hasAny ? 'var(--text, #0f172a)' : 'var(--text-muted, #94a3b8)' }}>
+                          {hasAny ? `${totalM} хв` : '—'}
+                        </div>
+                        {hasAny && (
+                          <>
+                            <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#0284c7' }}>
+                              ≈ {formatMinutesToHours(totalM)}
+                            </div>
+                            <div style={{
+                              fontSize: '0.64rem',
+                              color: 'var(--text-muted, #64748b)',
+                              marginTop: '3px',
+                              borderTop: '1px solid rgba(0,0,0,0.06)',
+                              paddingTop: '3px',
+                              lineHeight: '1.2'
+                            }}>
+                              ✂️{cM} 🌀{tM}<br />🔍{rM} 📦{sM}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
               {/* TOP SECTION: Planned Operation Timings with Machine Switcher */}
               {cncOperations && cncOperations.length > 0 && (() => {
                 const activeMachineOp = cncOperations[selectedMachineIdx] || cncOperations[0]
@@ -1702,96 +1855,6 @@ export const NomenclatureCardModal = ({
                 isLight={typeof document !== 'undefined' && document.body.classList.contains('light-theme')}
               />
 
-              {/* Combined Total Summary: Cutting + Tumbling + Reception + Sorting (Цех №1) */}
-              <div style={{
-                background: 'linear-gradient(135deg, rgba(255, 144, 0, 0.09) 0%, rgba(139, 92, 246, 0.06) 50%, rgba(16, 185, 129, 0.06) 100%)',
-                borderRadius: '16px',
-                padding: '18px 22px',
-                border: '1.5px solid rgba(255, 144, 0, 0.4)',
-                boxShadow: '0 6px 20px rgba(255, 144, 0, 0.09)'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <span style={{ fontSize: '1.4rem' }}>⏱️</span>
-                    <div>
-                      <div style={{ fontSize: '0.95rem', fontWeight: 900, color: 'var(--text, #0f172a)', letterSpacing: '0.01em' }}>
-                        РАЗОМ ЦЕХ №1: РОЗКРІЙ + ГАЛТОВКА + ПРИЙОМКА + СОРТУВАННЯ
-                      </div>
-                      <div style={{ fontSize: '0.74rem', color: 'var(--text-muted, #64748b)' }}>
-                        Повний плановий цикл обробки деталі в Цеху №1 (до передачі напівфабрикату на Цех №2)
-                      </div>
-                    </div>
-                  </div>
-                  <span style={{
-                    fontSize: '0.76rem',
-                    fontWeight: 900,
-                    padding: '4px 12px',
-                    borderRadius: '20px',
-                    background: 'rgba(255, 144, 0, 0.16)',
-                    color: '#d97706',
-                    border: '1px solid rgba(255, 144, 0, 0.35)'
-                  }}>
-                    Цех №1 • Повний технологічний цикл
-                  </span>
-                </div>
-
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(115px, 1fr))',
-                  gap: '8px'
-                }}>
-                  {[1, 2, 3, 4, 8, 12, 16].map(sheets => {
-                    const cM = cncTotals[sheets]?.sum || 0
-                    const tM = tumblingTotals[sheets]?.sum || 0
-                    const rM = receptionTotals[sheets]?.sum || 0
-                    const sM = sortingTotals[sheets]?.sum || 0
-                    const totalM = cM + tM + rM + sM
-                    const hasAny = totalM > 0
-
-                    return (
-                      <div
-                        key={sheets}
-                        style={{
-                          background: hasAny ? 'var(--card-bg, #ffffff)' : 'rgba(0, 0, 0, 0.02)',
-                          borderRadius: '10px',
-                          padding: '10px',
-                          border: hasAny ? '1.5px solid #f59e0b' : '1px dashed var(--border-color, #cbd5e1)',
-                          textAlign: 'center',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '2px',
-                          boxShadow: hasAny ? '0 2px 6px rgba(0,0,0,0.03)' : 'none'
-                        }}
-                      >
-                        <div style={{ fontSize: '0.72rem', fontWeight: 800, color: '#b45309' }}>
-                          {sheets} л.
-                        </div>
-                        <div style={{ fontSize: '0.96rem', fontWeight: 900, color: hasAny ? 'var(--text, #0f172a)' : 'var(--text-muted, #94a3b8)' }}>
-                          {hasAny ? `${totalM} хв` : '—'}
-                        </div>
-                        {hasAny && (
-                          <>
-                            <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#0284c7' }}>
-                              ≈ {formatMinutesToHours(totalM)}
-                            </div>
-                            <div style={{
-                              fontSize: '0.64rem',
-                              color: 'var(--text-muted, #64748b)',
-                              marginTop: '3px',
-                              borderTop: '1px solid rgba(0,0,0,0.06)',
-                              paddingTop: '3px',
-                              lineHeight: '1.2'
-                            }}>
-                              ✂️{cM} 🌀{tM}<br />🔍{rM} 📦{sM}
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-              
               {/* Multi-Machine Cutters Summary Matrix */}
               {cncOperations && cncOperations.length > 0 && (
                 <div style={{
@@ -2085,6 +2148,16 @@ export const NomenclatureCardModal = ({
                 </div>
               )}
             </div>
+          )}
+
+          {/* ══════════════════════════════════════════════════════════════════════
+              TAB 3B: SHOP 2 OPERATIONS & TIMINGS (ЦЕХ №2)
+              ══════════════════════════════════════════════════════════════════════ */}
+          {isDetail && activeTab === 'shop2' && (
+            <Shop2OperationTimingsPanel
+              item={item}
+              onSave={handleSaveShop2Timings}
+            />
           )}
 
           {/* ══════════════════════════════════════════════════════════════════════

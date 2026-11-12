@@ -1,7 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { X, Play, Loader2, AlertCircle, PackageCheck, Paintbrush, Wrench } from 'lucide-react'
 import { isPackagingOperation } from '../constants/shop2Stages'
-import { resolveShop2BufferRowRouting } from '../../../utils/shop2RoutingUtils'
+import {
+  resolveShop2BufferRowRouting,
+  getShop2UnitMinutes,
+  calculateShop2PlannedMinutes,
+  formatShop2PlannedMinutes
+} from '../../../utils/shop2RoutingUtils'
 
 export function GenerateShop2CardModal({
   row,
@@ -46,6 +51,9 @@ export function GenerateShop2CardModal({
   const isOverBuffer = totalQtyToCreate > availableQty
   const isValid = totalQtyToCreate > 0 && !isOverBuffer && !isSubmitting
   const isDirectSGP = isPackagingOperation(stage)
+  const unitPlannedMin = !isDirectSGP ? getShop2UnitMinutes(routing.nom, stage) : 0
+  const batchPlannedMin = !isDirectSGP ? calculateShop2PlannedMinutes(routing.nom, stage, batchSize) : 0
+  const totalPlannedMin = !isDirectSGP ? calculateShop2PlannedMinutes(routing.nom, stage, totalQtyToCreate) : 0
 
   const handleSubmit = (e) => {
     e.preventDefault()
@@ -232,13 +240,27 @@ export function GenerateShop2CardModal({
           </div>
 
           {/* Summary Box */}
-          <div style={{ background: isOverBuffer ? 'rgba(239, 68, 68, 0.08)' : 'var(--input-bg, #050505)', border: isOverBuffer ? '1px solid rgba(239,68,68,0.3)' : '1px solid var(--border, var(--border-subtle))', borderRadius: '16px', padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '0.8rem', color: isOverBuffer ? '#ef4444' : 'var(--text-muted, #888)', fontWeight: 800 }}>
-              {isOverBuffer ? '⚠️ Перевищено доступний буфер!' : 'Разом у випуск:'}
-            </span>
-            <span style={{ fontSize: '1.1rem', fontWeight: 950, color: isOverBuffer ? '#ef4444' : (isDirectSGP ? '#10b981' : '#38bdf8') }}>
-              {totalQtyToCreate.toLocaleString()} <small style={{ fontSize: '0.7rem', color: 'var(--text-muted, #666)' }}>шт</small>
-            </span>
+          <div style={{ background: isOverBuffer ? 'rgba(239, 68, 68, 0.08)' : 'var(--input-bg, #050505)', border: isOverBuffer ? '1px solid rgba(239,68,68,0.3)' : '1px solid var(--border, var(--border-subtle))', borderRadius: '16px', padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.8rem', color: isOverBuffer ? '#ef4444' : 'var(--text-muted, #888)', fontWeight: 800 }}>
+                {isOverBuffer ? '⚠️ Перевищено доступний буфер!' : 'Разом у випуск:'}
+              </span>
+              <span style={{ fontSize: '1.1rem', fontWeight: 950, color: isOverBuffer ? '#ef4444' : (isDirectSGP ? '#10b981' : '#38bdf8') }}>
+                {totalQtyToCreate.toLocaleString()} <small style={{ fontSize: '0.7rem', color: 'var(--text-muted, #666)' }}>шт</small>
+              </span>
+            </div>
+            {unitPlannedMin > 0 && !isOverBuffer && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border, rgba(255,255,255,0.08))', paddingTop: '8px', fontSize: '0.76rem', fontWeight: 800 }}>
+                <span style={{ color: 'var(--text-muted, #94a3b8)' }}>
+                  ⏱️ План ({unitPlannedMin} хв/шт):
+                </span>
+                <span style={{ color: '#a78bfa', fontWeight: 900 }}>
+                  {cardCount > 1
+                    ? `${Math.round(batchPlannedMin)} хв/картка · всього ${Math.round(totalPlannedMin)} хв (${formatShop2PlannedMinutes(totalPlannedMin)})`
+                    : `${Math.round(totalPlannedMin)} хв (${formatShop2PlannedMinutes(totalPlannedMin)})`}
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Action Button */}

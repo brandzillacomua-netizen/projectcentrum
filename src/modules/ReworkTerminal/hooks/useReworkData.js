@@ -17,8 +17,10 @@ export function useReworkData(mes) {
         const { data, error: fetchError } = await supabase
           .from('work_cards')
           .select('*')
-          .eq('operation', 'Доопрацювання')
-          .in('status', ['new', 'in-progress'])
+          .ilike('operation', '%доопрац%')
+          .neq('status', 'cancelled')
+          .order('created_at', { ascending: false })
+          .limit(300)
 
         if (fetchError) throw fetchError
 
@@ -38,16 +40,17 @@ export function useReworkData(mes) {
 
     const sub = supabase
       .channel('rework_cards_changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'work_cards', filter: "operation=eq.Доопрацювання" }, (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'work_cards' }, (payload) => {
+        const isReworkOp = (row) => String(row?.operation || '').toLowerCase().includes('доопрац')
         if (payload.eventType === 'INSERT') {
-          if (['new', 'in-progress'].includes(payload.new.status)) {
-            setCards(prev => [...prev, payload.new])
+          if (isReworkOp(payload.new) && payload.new.status !== 'cancelled') {
+            setCards(prev => [payload.new, ...prev])
           }
         } else if (payload.eventType === 'UPDATE') {
-          if (['new', 'in-progress'].includes(payload.new.status)) {
+          if (isReworkOp(payload.new) && payload.new.status !== 'cancelled') {
             setCards(prev => {
               const exists = prev.some(c => c.id === payload.new.id)
-              return exists ? prev.map(c => c.id === payload.new.id ? payload.new : c) : [...prev, payload.new]
+              return exists ? prev.map(c => c.id === payload.new.id ? payload.new : c) : [payload.new, ...prev]
             })
           } else {
             setCards(prev => prev.filter(c => c.id !== payload.new.id))
@@ -71,5 +74,11 @@ export function useReworkData(mes) {
     return { ...c, nom, task, order }
   }).sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
 
-  return { cards: enrichedCards, loading, error }
+  const waitingCards = enrichedCards.filter(c => ['new', 'waiting', 'pending', 'paused'].includes(c.status))
+  const inProgressCards = enrichedCards.filter(c => c.status === 'in-progress')
+  const completedCards = enrichedCards
+    .filter(c => ['at-shop2-buffer', 'completed', 'at-buffer', 'waiting-buffer'].includes(c.status))
+    .sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at))
+
+  return { cards: enrichedCards, waitingCards, inProgressCards, completedCards, loading, error }
 }

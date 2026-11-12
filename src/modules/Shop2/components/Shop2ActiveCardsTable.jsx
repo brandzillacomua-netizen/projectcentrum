@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { RefreshCw, Eye } from 'lucide-react'
 import { formatElapsedTime, formatPlanned, getPlannedTime, formatMachine } from '../utils/shop2Helpers'
+import { getShop2UnitMinutes } from '../../../utils/shop2RoutingUtils.js'
 import { CardCommentsBadge, CardCommentsModal } from '../../../components/common/CardCommentsBadge.jsx'
 import { Shop2PaintingBadge } from '../../../components/common/Shop2PaintingBadge.jsx'
 
@@ -46,6 +47,10 @@ export function Shop2ActiveCardsTable({
             const netYield = Math.max(0, Number(card.quantity || 0) - scrap)
             const displayInfo = typeof getCardDisplayInfo === 'function' ? getCardDisplayInfo(card) : null
             const nom = displayInfo?.nom || (typeof getNomFromCard === 'function' ? getNomFromCard(card) : null)
+            const plannedMinutes = getPlannedTime(card, () => nom)
+            const unitMinutes = getShop2UnitMinutes(nom, card.operation)
+            const elapsedMinutes = card.started_at ? Math.max(0, Math.floor((Date.now() - new Date(card.started_at).getTime()) / 60000)) : 0
+            const isOvertime = plannedMinutes > 0 && elapsedMinutes > plannedMinutes
             return (
               <tr key={card.id} 
                 onClick={() => setSelectedCardId(card.id)}
@@ -90,8 +95,15 @@ export function Shop2ActiveCardsTable({
                     showEmpty={true}
                   />
                 </td>
-                <td style={{ padding: '12px 15px', color: '#3b82f6', fontWeight: 700 }}>{formatPlanned(getPlannedTime(card, getNomFromCard))}</td>
-                <td style={{ padding: '12px 15px', color: '#10b981' }}>{formatElapsedTime(card.started_at)}</td>
+                <td style={{ padding: '12px 15px', color: '#3b82f6', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                  <div>{formatPlanned(plannedMinutes)}</div>
+                  {unitMinutes > 0 && (
+                    <div style={{ fontSize: '0.62rem', color: 'var(--text-dim)', fontWeight: 700 }}>
+                      {unitMinutes} хв/шт
+                    </div>
+                  )}
+                </td>
+                <td style={{ padding: '12px 15px', color: isOvertime ? '#ef4444' : '#10b981', fontWeight: isOvertime ? 800 : 600 }}>{formatElapsedTime(card.started_at)}</td>
                 <td style={{ padding: '12px 15px', textAlign: 'right' }}>
                   <button onClick={(e) => { e.stopPropagation(); setSelectedCardId(card.id) }}
                     style={{ background: '#eab308', border: 'none', color: '#000', padding: '10px', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}

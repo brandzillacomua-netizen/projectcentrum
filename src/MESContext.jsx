@@ -97,8 +97,8 @@ export const MESProvider = ({ children }) => {
   })
 
   const operators = selectOperatorNames(data.systemUsers)
-  const getFilteredOperators = (department, shift, stage = null) => (
-    selectFilteredOperatorNames(data.systemUsers, department, shift, stage)
+  const getFilteredOperators = (department, shift, stage = null, options = {}) => (
+    selectFilteredOperatorNames(data.systemUsers, department, shift, stage, options)
   )
   const getFilteredManagers = department => selectFilteredManagerNames(data.systemUsers, department)
   const managers = selectManagerNames(data.systemUsers)

@@ -1,7 +1,29 @@
 import { useMemo, useState } from 'react'
 import { supabase } from '../../../../supabase.js'
+import { calculateGeneratedSheetTotal } from '../shortage/shortageCalculations.js'
+import { isSafeCardToDelete } from '../admin-card-delete/useAdminCardDelete.js'
 
 const CLOSED_REQUEST_STATUSES = new Set(['completed', 'cancelled', 'rejected'])
+const OPTIONAL_CARD_LINKED_TABLES = ['scrap_classifications', 'material_requests', 'work_card_history']
+
+const isMissingOptionalRelation = (error) => {
+  const message = String(error?.message || error?.details || '')
+  return /does not exist|schema cache|Could not find|column .* does not exist/i.test(message)
+}
+
+export const analyzePartCardsForCorrection = (targetPart) => {
+  const cards = targetPart?.productionCards || []
+  const safeNewCards = cards.filter(isSafeCardToDelete)
+  const activeLockedCards = cards.filter(card => !isSafeCardToDelete(card))
+  const totalPlannedSheets = Math.max(0, Number(targetPart?.plannedSheets) || 0)
+  const usedSheets = calculateGeneratedSheetTotal(
+    activeLockedCards,
+    Number(targetPart?.unitsPerSheet) || 1,
+    totalPlannedSheets
+  )
+  const remainingSheets = Math.max(0, totalPlannedSheets - usedSheets)
+  return { safeNewCards, activeLockedCards, totalPlannedSheets, usedSheets, remainingSheets }
+}
 
 const canCorrectMaterial = user => {
   const position = String(user?.position || '').toLocaleLowerCase('uk')
@@ -11,17 +33,90 @@ const canCorrectMaterial = user => {
     user?.access_rights?.shop1_foreman === true
 }
 
-const normalize = value => String(value || '').toLowerCase().replace(/\s+/g, '')
+const normalize = value => String(value || '').toLowerCase().trim()
+  .replace(/[тt]/g, 't').replace(/[аa]/g, 'a').replace(/[еe]/g, 'e')
+  .replace(/[оo]/g, 'o').replace(/[рp]/g, 'p').replace(/[сc]/g, 'c')
+  .replace(/[хx]/g, 'x').replace(/[іi]/g, 'i').replace(/[кk]/g, 'k')
+  .replace(/[мm]/g, 'm').replace(/\s+/g, '')
 
-const isSheetMaterial = nom => {
-  const text = normalize(`${nom?.name || ''} ${nom?.material_type || ''}`)
-  const isPrepared = text.includes('[підготовлений]') || (
-    text.includes('підготовлений') && !text.includes('непідготовлений')
+export const extractRequestMaterialName = (details) => {
+  const text = String(details || '')
+  if (!text) return ''
+  const afterColon = text.includes(': ') ? text.split(': ').slice(1).join(': ') : text
+  const beforeDash = afterColon.split(' — ')[0]?.trim() || afterColon.trim()
+  if (beforeDash.includes('→')) {
+    return beforeDash.split('→').pop()?.trim() || beforeDash
+  }
+  return beforeDash
+}
+
+export const findMatchingOldRequests = ({ requests = [], oldEntry = null, oldKey = '', oldMaterial = '', nomenclatures = [] }) => {
+  const oldNomIds = new Set()
+  if (oldEntry?.nomenclature_id) oldNomIds.add(String(oldEntry.nomenclature_id))
+  if (oldKey && !String(oldKey).startsWith('virtual-')) {
+    const strippedKey = String(oldKey).replace(/-[тt](?:300|700)$/i, '')
+    if (strippedKey) oldNomIds.add(strippedKey)
+  }
+
+  const oldMatNorm = normalize(oldEntry?.matName || oldMaterial)
+  for (const nom of nomenclatures || []) {
+    const nomId = String(nom?.id || '')
+    const legacyList = (nom?.legacy_ids || []).map(String)
+    const idOverlap = (nomId && oldNomIds.has(nomId)) || legacyList.some(id => oldNomIds.has(id))
+    const nameMatch = Boolean(oldMatNorm && normalize(nom?.name) === oldMatNorm)
+    if (idOverlap || nameMatch) {
+      if (nomId) oldNomIds.add(nomId)
+      legacyList.forEach(id => oldNomIds.add(id))
+    }
+  }
+
+  const oldInvId = oldEntry?.inventory_id ? String(oldEntry.inventory_id) : null
+
+  const statusPriority = (status) => (status === 'pending' ? 0 : status === 'issued' ? 2 : 1)
+
+  return (requests || [])
+    .filter(request => {
+      if (!request || request.card_id || CLOSED_REQUEST_STATUSES.has(request.status)) return false
+      if (request.nomenclature_id && oldNomIds.has(String(request.nomenclature_id))) return true
+      if (oldInvId && request.inventory_id && String(request.inventory_id) === oldInvId) return true
+      if (oldMatNorm) {
+        const reqMatNorm = normalize(extractRequestMaterialName(request.details))
+        if (reqMatNorm && reqMatNorm === oldMatNorm) return true
+      }
+      return false
+    })
+    .sort((a, b) => statusPriority(a.status) - statusPriority(b.status))
+}
+
+export const isSheetMaterial = nom => {
+  const rawText = `${nom?.name || ''} ${nom?.material_type || ''} ${nom?.characteristic || ''}`.toLowerCase()
+  if (rawText.includes('непідготовлений')) return false
+  const excludedTypes = new Set(['part', 'product', 'hardware', 'fg'])
+  if (nom?.type && excludedTypes.has(String(nom.type).toLowerCase())) return false
+  return (rawText.includes('лист') || rawText.includes('sheet')) &&
+    /[тt]\s*(?:300|700)/i.test(rawText)
+}
+
+export const getOperationalStockForNom = (nom, inventory = []) => {
+  const idSet = new Set([String(nom?.id || '')].filter(Boolean))
+  ;(nom?.legacy_ids || []).forEach(id => {
+    if (id != null && id !== '') idSet.add(String(id))
+  })
+  const normName = normalize(nom?.name)
+  const matchingRows = (inventory || []).filter(row => {
+    if (!row || row.warehouse !== 'operational') return false
+    if (row.nomenclature_id && idSet.has(String(row.nomenclature_id))) return true
+    if (normName && normalize(row.name) === normName) return true
+    return false
+  })
+  const available = matchingRows.reduce(
+    (sum, row) => sum + Math.max(0, (Number(row.total_qty) ?? Number(row.quantity) ?? 0) - (Number(row.reserved_qty) || 0)),
+    0
   )
-  return (nom?.type === 'raw' || nom?.type === 'material') &&
-    isPrepared &&
-    (text.includes('лист') || text.includes('sheet')) &&
-    /[тt]\s*(?:300|700)/i.test(text)
+  return {
+    inventory_id: matchingRows[0]?.id || null,
+    available
+  }
 }
 
 const getThickness = value => {
@@ -45,14 +140,15 @@ export function useMaterialCorrection({ currentUser, nomenclatures = [], invento
   const materialOptions = useMemo(() => {
     if (!part) return []
     const currentThickness = getThickness(part.material)
-    return nomenclatures
-      .filter(isSheetMaterial)
-      .filter(nom => !currentThickness || getThickness(`${nom.name} ${nom.material_type}`) === currentThickness)
+    const allSheets = nomenclatures.filter(isSheetMaterial)
+    const sameThickness = currentThickness
+      ? allSheets.filter(nom => getThickness(`${nom.name} ${nom.material_type || ''} ${nom.characteristic || ''}`) === currentThickness)
+      : allSheets
+    const candidates = sameThickness.length > 0 ? sameThickness : allSheets
+    return candidates
       .map(nom => {
-        const inv = inventory.find(row =>
-          String(row.nomenclature_id) === String(nom.id) && row.warehouse === 'operational'
-        ) || inventory.find(row => String(row.nomenclature_id) === String(nom.id))
-        return { ...nom, inventory_id: inv?.id || null, available: Number(inv?.quantity) || 0 }
+        const stock = getOperationalStockForNom(nom, inventory)
+        return { ...nom, inventory_id: stock.inventory_id, available: stock.available }
       })
       .sort((a, b) => String(a.name).localeCompare(String(b.name), 'uk'))
   }, [part, nomenclatures, inventory])
@@ -63,12 +159,13 @@ export function useMaterialCorrection({ currentUser, nomenclatures = [], invento
       window.alert('Виправляти матеріал може адміністратор або начальник цеху №1.')
       return
     }
-    if ((nextPart?.productionCards || []).length > 0) {
-      window.alert('По цій деталі вже згенеровані робочі картки. Спочатку безпечно скасуйте незапущені картки; запущене виробництво змінювати не можна.')
+    const analysis = analyzePartCardsForCorrection(nextPart)
+    if (analysis.remainingSheets <= 0 && analysis.safeNewCards.length === 0) {
+      window.alert('По цій деталі весь плановий обсяг уже запущено в роботу або виконано — змінювати матеріал на залишок неможливо.')
       return
     }
     setTask(nextTask)
-    setPart(nextPart)
+    setPart({ ...nextPart, correctionAnalysis: analysis })
   }
 
   const close = () => {
@@ -87,13 +184,22 @@ export function useMaterialCorrection({ currentUser, nomenclatures = [], invento
     const snapshot = structuredClone(originalSnapshot)
     const partKey = String(part.nomId)
     const partSnapshot = { ...(snapshot[partKey] || {}) }
-    const sheetQty = Math.max(0, Number(partSnapshot.sheets) || Number(part.plannedSheets) || 0)
+    const analysis = part.correctionAnalysis || analyzePartCardsForCorrection(part)
+    const totalSheets = Math.max(0, Number(partSnapshot.sheets) || analysis.totalPlannedSheets || Number(part.plannedSheets) || 0)
+    const usedSheets = Math.min(totalSheets, analysis.usedSheets)
+    const sheetQty = Math.max(0, totalSheets - usedSheets)
+    if (sheetQty <= 0) {
+      setError('Немає залишку листів для заміни матеріалу.')
+      setIsSaving(false)
+      return
+    }
     const oldMaterial = partSnapshot.material || part.material || ''
+    const oldIsT700 = /[тt]\s*700/i.test(oldMaterial)
     const newIsT700 = /[тt]\s*700/i.test(`${material.name} ${material.material_type || ''}`)
 
     partSnapshot.material = material.name
-    partSnapshot.sheets_t300 = newIsT700 ? 0 : sheetQty
-    partSnapshot.sheets_t700 = newIsT700 ? sheetQty : 0
+    partSnapshot.sheets_t300 = (newIsT700 ? 0 : sheetQty) + (usedSheets > 0 && !oldIsT700 ? usedSheets : 0)
+    partSnapshot.sheets_t700 = (newIsT700 ? sheetQty : 0) + (usedSheets > 0 && oldIsT700 ? usedSheets : 0)
     snapshot[partKey] = partSnapshot
 
     const summary = { ...(snapshot.materialSummary || {}) }
@@ -103,22 +209,31 @@ export function useMaterialCorrection({ currentUser, nomenclatures = [], invento
     const oldKey = oldEntryPair?.[0]
     const oldEntry = oldEntryPair?.[1]
     const componentIndex = oldEntry?.components?.findIndex(component => normalize(component).includes(normalize(part.name))) ?? -1
-    const movedComponent = componentIndex >= 0 ? oldEntry.components[componentIndex] : `${part.name}: ${part.plan}шт`
+    const movedComponent = usedSheets > 0
+      ? `${part.name}: залишок ${sheetQty} л.`
+      : (componentIndex >= 0 ? oldEntry.components[componentIndex] : `${part.name}: ${part.plan}шт`)
 
     if (oldEntry && oldKey) {
-      const remainingComponents = oldEntry.components.filter((_, index) => index !== componentIndex)
-      const remainingSheets = Math.max(0, (Number(oldEntry.sheets) || 0) - sheetQty)
-      if (remainingSheets === 0 || remainingComponents.length === 0) delete summary[oldKey]
-      else summary[oldKey] = { ...oldEntry, sheets: remainingSheets, components: remainingComponents }
+      const remainingSheetsInOld = Math.max(0, (Number(oldEntry.sheets) || 0) - sheetQty)
+      const nextComponents = usedSheets > 0
+        ? (oldEntry.components || []).map((comp, index) =>
+            index === componentIndex ? `${part.name}: в роботі ${usedSheets} л.` : comp
+          )
+        : (oldEntry.components || []).filter((_, index) => index !== componentIndex)
+      if (remainingSheetsInOld === 0 || nextComponents.length === 0) delete summary[oldKey]
+      else summary[oldKey] = { ...oldEntry, sheets: remainingSheetsInOld, components: nextComponents }
     }
 
     const newKey = String(material.id)
     const existingNew = summary[newKey]
+    const movedUnits = totalSheets > 0
+      ? Math.round((Number(part.plan) || 0) * (sheetQty / totalSheets))
+      : (Number(part.plan) || 0)
     summary[newKey] = {
       ...(existingNew || {}),
       matName: material.name,
       sheets: (Number(existingNew?.sheets) || 0) + sheetQty,
-      totalUnits: (Number(existingNew?.totalUnits) || 0) + (Number(part.plan) || 0),
+      totalUnits: (Number(existingNew?.totalUnits) || 0) + movedUnits,
       components: [...(existingNew?.components || []), movedComponent],
       inventory_id: material.inventory_id,
       nomenclature_id: material.id,
@@ -131,78 +246,110 @@ export function useMaterialCorrection({ currentUser, nomenclatures = [], invento
     const insertedIds = []
     const inventoryBackups = new Map()
     try {
-      const { data: requests, error: requestReadError } = await supabase
-        .from('material_requests')
-        .select('*')
-        .eq('task_id', task.id)
-      if (requestReadError) throw requestReadError
-
-      const oldRequest = (requests || []).find(request =>
-        !request.card_id &&
-        !CLOSED_REQUEST_STATUSES.has(request.status) &&
-        oldEntry?.nomenclature_id &&
-        String(request.nomenclature_id) === String(oldEntry.nomenclature_id)
-      )
-
-      if (oldRequest?.status === 'issued') {
-        const reservedToRelease = Math.min(sheetQty, Number(oldRequest.quantity) || 0)
-        if (oldRequest.inventory_id) {
-          const { data: oldInventory, error: inventoryError } = await supabase
-            .from('inventory')
-            .select('id,total_qty,reserved_qty')
-            .eq('id', oldRequest.inventory_id)
-            .maybeSingle()
-          if (inventoryError) throw inventoryError
-          if (oldInventory) {
-            inventoryBackups.set(String(oldInventory.id), oldInventory)
-          }
-          if (oldInventory) {
-          const { error: releaseError } = await supabase.from('inventory').update({
-              reserved_qty: Math.max(0, (Number(oldInventory.reserved_qty) || 0) - reservedToRelease)
-          }).eq('id', oldInventory.id)
-          if (releaseError) throw releaseError
-          }
+      // 1. Safely delete any unstarted (`new` / `waiting-*`) cards for this part
+      const safeIds = (analysis.safeNewCards || []).map(c => c.id).filter(Boolean)
+      if (safeIds.length > 0) {
+        for (const table of OPTIONAL_CARD_LINKED_TABLES) {
+          const { error: relErr } = await supabase.from(table).delete().in('card_id', safeIds)
+          if (relErr && !isMissingOptionalRelation(relErr)) throw relErr
         }
+        const { error: delCardsErr } = await supabase.from('work_cards').delete().in('id', safeIds)
+        if (delCardsErr) throw delCardsErr
       }
 
-      if (oldRequest) {
-        requestBackups.push(oldRequest)
-        const oldEntrySheets = Number(oldEntry?.sheets) || Number(oldRequest.quantity) || 0
-        if (oldEntrySheets <= sheetQty) {
-          const { error: updateError } = await supabase.from('material_requests').update({
-            nomenclature_id: material.id,
-            inventory_id: material.inventory_id,
-            quantity: sheetQty,
-            status: 'pending',
-            details: `ВИПРАВЛЕНО В НАРЯДІ: ${oldMaterial} → ${material.name} — ${sheetQty} л. [MATERIAL_CORRECTION:${part.nomId}]`
-          }).eq('id', oldRequest.id)
-          if (updateError) throw updateError
-        } else {
-          const { error: reduceError } = await supabase.from('material_requests')
-            .update({ quantity: Math.max(0, Number(oldRequest.quantity) - sheetQty) })
-            .eq('id', oldRequest.id)
-          if (reduceError) throw reduceError
-          const { data: inserted, error: insertError } = await supabase.from('material_requests').insert({
-            order_id: task.order_id,
-            task_id: task.id,
-            quantity: sheetQty,
-            status: 'pending',
-            inventory_id: material.inventory_id,
-            nomenclature_id: material.id,
-            details: `ВИПРАВЛЕНО В НАРЯДІ: ${oldMaterial} → ${material.name} — ${sheetQty} л. [MATERIAL_CORRECTION:${part.nomId}]`
-          }).select('id').single()
-          if (insertError) throw insertError
-          insertedIds.push(inserted.id)
+      const requestQuery = supabase.from('material_requests').select('*')
+      const { data: requests, error: requestReadError } = task.order_id
+        ? await requestQuery.or(`task_id.eq.${task.id},and(task_id.is.null,order_id.eq.${task.order_id})`)
+        : await requestQuery.eq('task_id', task.id)
+      if (requestReadError) throw requestReadError
+
+      const matchingOldRequests = findMatchingOldRequests({
+        requests,
+        oldEntry,
+        oldKey,
+        oldMaterial,
+        nomenclatures
+      })
+
+      const releaseIssuedInventory = async (invId, qtyToRelease) => {
+        if (!invId || qtyToRelease <= 0) return
+        const key = String(invId)
+        let currentInv = inventoryBackups.get(key)
+        if (!currentInv) {
+          const { data: fetchedInv, error: inventoryError } = await supabase
+            .from('inventory')
+            .select('id,total_qty,reserved_qty')
+            .eq('id', invId)
+            .maybeSingle()
+          if (inventoryError) throw inventoryError
+          if (!fetchedInv) return
+          inventoryBackups.set(key, fetchedInv)
+          currentInv = fetchedInv
         }
+        const nextReserved = Math.max(0, (Number(currentInv.reserved_qty) || 0) - qtyToRelease)
+        const { error: releaseError } = await supabase
+          .from('inventory')
+          .update({ reserved_qty: nextReserved })
+          .eq('id', currentInv.id)
+        if (releaseError) throw releaseError
+        inventoryBackups.set(key, { ...currentInv, reserved_qty: nextReserved })
+      }
+
+      const correctionDetails = `ВИПРАВЛЕНО В НАРЯДІ: ${oldMaterial} → ${material.name} — ${sheetQty} л. [MATERIAL_CORRECTION:${part.nomId}]`
+      const targetTaskId = matchingOldRequests[0] ? matchingOldRequests[0].task_id : task.id
+
+      if (matchingOldRequests.length === 1 && (Number(matchingOldRequests[0].quantity) || 0) <= sheetQty) {
+        const singleOld = matchingOldRequests[0]
+        requestBackups.push(singleOld)
+        if (singleOld.status === 'issued') {
+          await releaseIssuedInventory(singleOld.inventory_id, Math.min(sheetQty, Number(singleOld.quantity) || 0))
+        }
+        const { error: updateError } = await supabase.from('material_requests').update({
+          nomenclature_id: material.id,
+          inventory_id: material.inventory_id,
+          quantity: sheetQty,
+          status: 'pending',
+          category: 'sheet',
+          target_warehouse: 'operational',
+          details: correctionDetails
+        }).eq('id', singleOld.id)
+        if (updateError) throw updateError
       } else {
+        let remainingToTransfer = sheetQty
+        for (const oldReq of matchingOldRequests) {
+          if (remainingToTransfer <= 0) break
+          const oldReqQty = Number(oldReq.quantity) || 0
+          const take = Math.min(oldReqQty, remainingToTransfer)
+          if (take <= 0) continue
+
+          requestBackups.push(oldReq)
+          if (oldReq.status === 'issued') {
+            await releaseIssuedInventory(oldReq.inventory_id, take)
+          }
+
+          const leftQty = Math.max(0, oldReqQty - take)
+          const patch = leftQty === 0
+            ? { quantity: 0, status: 'cancelled' }
+            : { quantity: leftQty }
+          const { error: reduceError } = await supabase
+            .from('material_requests')
+            .update(patch)
+            .eq('id', oldReq.id)
+          if (reduceError) throw reduceError
+
+          remainingToTransfer -= take
+        }
+
         const { data: inserted, error: insertError } = await supabase.from('material_requests').insert({
           order_id: task.order_id,
-          task_id: task.id,
+          task_id: targetTaskId,
           quantity: sheetQty,
           status: 'pending',
           inventory_id: material.inventory_id,
           nomenclature_id: material.id,
-          details: `ВИПРАВЛЕНО В НАРЯДІ: ${oldMaterial} → ${material.name} — ${sheetQty} л. [MATERIAL_CORRECTION:${part.nomId}]`
+          category: 'sheet',
+          target_warehouse: 'operational',
+          details: correctionDetails
         }).select('id').single()
         if (insertError) throw insertError
         insertedIds.push(inserted.id)
@@ -211,7 +358,7 @@ export function useMaterialCorrection({ currentUser, nomenclatures = [], invento
       const { error: taskError } = await supabase.from('tasks').update({ plan_snapshot: snapshot }).eq('id', task.id)
       if (taskError) throw taskError
 
-      await fetchData?.(['tasks', 'material_requests', 'inventory'])
+      await fetchData?.(['tasks', 'work_cards', 'material_requests', 'inventory'])
       await onCorrected?.()
       close()
     } catch (saveError) {
@@ -220,6 +367,7 @@ export function useMaterialCorrection({ currentUser, nomenclatures = [], invento
           nomenclature_id: backup.nomenclature_id,
           inventory_id: backup.inventory_id,
           quantity: backup.quantity,
+          status: backup.status,
           details: backup.details
         }).eq('id', backup.id)
       }

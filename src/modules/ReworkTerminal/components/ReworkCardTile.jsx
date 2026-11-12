@@ -35,7 +35,23 @@ export function ReworkCardTile({ card, onTakeInWork, onComplete, isProcessing })
         </div>
       </div>
       <div>
-        {card.status === 'new' ? (
+        {['at-shop2-buffer', 'completed', 'at-buffer', 'waiting-buffer'].includes(card.status) ? (
+          <div style={{
+            background: 'rgba(16, 185, 129, 0.14)',
+            color: '#10b981',
+            border: '1px solid rgba(16, 185, 129, 0.35)',
+            padding: '10px 16px',
+            borderRadius: 'var(--radius-sm)',
+            fontSize: '14px',
+            fontWeight: 'bold',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px'
+          }}>
+            <CheckCircle size={18} />
+            Виконано
+          </div>
+        ) : ['new', 'waiting', 'pending', 'paused'].includes(card.status) ? (
           <button
             onClick={() => onTakeInWork(card.id)}
             disabled={isProcessing}

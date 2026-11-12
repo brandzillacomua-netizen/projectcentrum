@@ -14,7 +14,7 @@ import { incrementInventoryStock } from '../../../services/inventoryStockService
 import { isPackagingOperation } from '../../Shop2CardGen/constants/shop2Stages'
 import { parseMachineQRId } from '../../../utils/machineQrUtils.js'
 import { getShop2BufferRemaining } from '../../../utils/productionWipParity.js'
-import { resolveShop2CardDisplayInfo } from '../../../utils/shop2RoutingUtils.js'
+import { getShop2CardPlannedMinutes, resolveShop2CardDisplayInfo } from '../../../utils/shop2RoutingUtils.js'
 
 
 export function useShop2TerminalState() {
@@ -426,6 +426,9 @@ export function useShop2TerminalState() {
     const nom = nomenclatures.find(n => String(n.id) === String(card.nomenclature_id))
     if (nom) return nom
 
+    const resolved = resolveShop2CardDisplayInfo(card, nomenclatures, orders)
+    if (resolved?.nom) return resolved.nom
+
     const info = card.card_info || ''
     const orderNumMatch = info.match(/Наряд №(\d+)/)
     const orderNum = orderNumMatch ? orderNumMatch[1] : null
@@ -455,6 +458,8 @@ export function useShop2TerminalState() {
     setIsProcessing(true)
     try {
       const now = new Date().toISOString()
+      const nom = getNomFromCard(currentCard)
+      const plannedMinutes = getShop2CardPlannedMinutes({ ...currentCard, operation: stage }, nom)
       const cardUpdate = {
         status: 'in-progress',
         operation: stage,
@@ -462,7 +467,8 @@ export function useShop2TerminalState() {
         operator_name: selectedOperator,
         shift_name: selectedShift || null,
         manager_name: selectedManager || null,
-        machine: selectedMachine || null
+        machine: selectedMachine || null,
+        ...(plannedMinutes > 0 ? { estimated_time: plannedMinutes } : {})
       }
 
       const idempotencyKey = `start_shop2_${currentCard.id}_${Date.now()}`

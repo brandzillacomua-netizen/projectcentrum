@@ -204,3 +204,86 @@ export function shouldCardGoToPaintingTerminal(card, nomenclatures = [], orders 
   return false
 }
 
+export const SHOP2_TIMING_STAGES = [
+  { key: 'pressing', stage: 'Пресування', icon: '🔩', color: '#ea580c', flagKey: 'requiresPressing' },
+  { key: 'painting', stage: 'Фарбування', icon: '🎨', color: '#7c3aed', flagKey: 'requiresPainting' },
+  { key: 'rework', stage: 'Доопрацювання', icon: '🛠️', color: '#0284c7', flagKey: null }
+]
+
+export function getShop2OperationKey(operationName = '') {
+  const op = String(operationName || '').toLowerCase().trim()
+  if (!op) return null
+  if (op.includes('пресув') || op.includes('прес')) return 'pressing'
+  if (op.includes('фарбуван') || op.includes('маляр') || op.includes('paint')) return 'painting'
+  if (op.includes('доопрац') || op.includes('доработ') || op.includes('rework')) return 'rework'
+  return null
+}
+
+/**
+ * Extracts normalized Shop 2 per-unit planned timings (minutes per 1 detail) from nomenclature.
+ */
+export function getShop2OperationTimings(nom) {
+  const raw = nom?.rule_params?.shop2_operation_timings || nom?.shop2_operation_timings || {}
+  const parseMin = (val) => {
+    if (val === '' || val === null || val === undefined) return 0
+    const n = Number(String(val).replace(',', '.'))
+    return Number.isFinite(n) && n > 0 ? n : 0
+  }
+
+  return {
+    pressing: parseMin(raw.pressing ?? raw['Пресування']),
+    painting: parseMin(raw.painting ?? raw['Фарбування']),
+    rework: parseMin(raw.rework ?? raw['Доопрацювання']),
+    notes: typeof raw.notes === 'string' ? raw.notes : ''
+  }
+}
+
+/**
+ * Returns planned minutes per 1 detail for the requested Shop 2 operation.
+ */
+export function getShop2UnitMinutes(nom, operationName) {
+  const key = getShop2OperationKey(operationName)
+  if (!key) return 0
+  const timings = getShop2OperationTimings(nom)
+  return timings[key] || 0
+}
+
+/**
+ * Calculates total planned minutes for `quantity` details on the given Shop 2 operation.
+ */
+export function calculateShop2PlannedMinutes(nom, operationName, quantity) {
+  const qty = Number(quantity) || 0
+  if (qty <= 0) return 0
+  const unitMinutes = getShop2UnitMinutes(nom, operationName)
+  if (unitMinutes <= 0) return 0
+  return Math.round(unitMinutes * qty * 100) / 100
+}
+
+/**
+ * Resolves effective planned minutes for a Shop 2 work card (card.estimated_time or dynamic fallback).
+ */
+export function getShop2CardPlannedMinutes(card, nom) {
+  if (!card) return 0
+  const stored = Number(card.estimated_time || 0)
+  if (stored > 0) return stored
+  const storedSec = Number(card.estimated_seconds || 0)
+  if (storedSec > 0) return Math.round((storedSec / 60) * 100) / 100
+  const dynamicMins = calculateShop2PlannedMinutes(nom, card.operation, card.quantity)
+  if (dynamicMins > 0) return dynamicMins
+  if (nom?.time_per_unit) return Math.round(Number(nom.time_per_unit) * (Number(card.quantity) || 0) * 100) / 100
+  return 0
+}
+
+export function formatShop2PlannedMinutes(minutes) {
+  const mins = Number(minutes) || 0
+  if (mins <= 0) return '—'
+  const rounded = Math.round(mins)
+  if (rounded < 60) {
+    return mins % 1 !== 0 && mins < 10 ? `${mins} хв` : `${rounded} хв`
+  }
+  const h = Math.floor(rounded / 60)
+  const m = rounded % 60
+  return m === 0 ? `${h} год` : `${h} год ${m} хв`
+}
+
+

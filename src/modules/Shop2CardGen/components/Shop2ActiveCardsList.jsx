@@ -2,7 +2,11 @@ import React, { useState } from 'react'
 import { Clock, Search, Cpu, Printer, X, CheckSquare, Square, CheckCircle2 } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import { isShop2WorkCard } from '../hooks/useShop2BufferData'
-import { resolveShop2CardDisplayInfo } from '../../../utils/shop2RoutingUtils'
+import {
+  resolveShop2CardDisplayInfo,
+  getShop2CardPlannedMinutes,
+  formatShop2PlannedMinutes
+} from '../../../utils/shop2RoutingUtils'
 import { CardCommentsBadge, CardCommentsModal } from '../../../components/common/CardCommentsBadge.jsx'
 
 export function Shop2ActiveCardsList({
@@ -358,6 +362,15 @@ export function Shop2ActiveCardsList({
                     <div style={{ fontSize: '0.95rem', color: 'var(--op-text, #0369a1)', fontWeight: 950, marginTop: '2px' }}>
                       {card.operation || 'Пресування'}
                     </div>
+                    {(() => {
+                      const plannedMins = getShop2CardPlannedMinutes(card, nom)
+                      if (plannedMins <= 0) return null
+                      return (
+                        <div style={{ fontSize: '0.7rem', color: '#7c3aed', fontWeight: 800, marginTop: '3px' }}>
+                          ⏱️ План: {Math.round(plannedMins)} хв ({formatShop2PlannedMinutes(plannedMins)})
+                        </div>
+                      )
+                    })()}
                   </div>
 
                   <div style={{ textAlign: 'right' }}>

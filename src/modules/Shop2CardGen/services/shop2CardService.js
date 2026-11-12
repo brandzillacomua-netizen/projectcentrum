@@ -59,6 +59,7 @@ export const shop2CardService = {
         operation: isPack ? 'Склад СГП' : op,
         machine: item.machine || 'Не вказано',
         quantity: item.quantity,
+        estimated_time: Number(item.estimatedTime || 0),
         card_info: cardInfo,
         status: isPack ? 'completed' : (item.status || 'new'),
         completed_at: isPack ? (item.completed_at || new Date().toISOString()) : (item.completed_at || null),

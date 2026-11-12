@@ -15,6 +15,9 @@ export const ShiftCalendarView = ({
   operatorCheckins,
   formatUserName
 }) => {
+  const now = new Date()
+  const todayDay = (currentYear === now.getFullYear() && currentMonth === now.getMonth()) ? now.getDate() : -1
+
   const renderCalendarRow = (user) => {
     const initials = `${user.first_name?.[0] || ''}${user.last_name?.[0] || ''}`.toUpperCase() || '?'
     const isMaster = ['начальник', 'майстер', 'мастер', 'керівник'].some(kw => String(user.position || '').toLowerCase().includes(kw))
@@ -60,6 +63,7 @@ export const ShiftCalendarView = ({
 
         {Array.from({ length: daysInMonth }).map((_, dayIdx) => {
           const day = dayIdx + 1
+          const isToday = day === todayDay
           const calendarKey = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
 
           const status = user.shift_calendar?.[calendarKey]
@@ -71,14 +75,16 @@ export const ShiftCalendarView = ({
           let bg = 'rgba(255,255,255,0.01)'
           let color = '#333'
           let borderStyle = '1px solid rgba(255,255,255,0.03)'
+          let statusClass = ''
 
-          if (status === 'Р') { bg = '#22c55e'; color = '#000' }
-          else if (status === 'В') { bg = '#3b82f6'; color = '#fff' }
-          else if (status === 'Л') { bg = '#ef4444'; color = '#fff' }
+          if (status === 'Р') { bg = '#22c55e'; color = '#000'; statusClass = 'status-work' }
+          else if (status === 'В') { bg = '#3b82f6'; color = '#fff'; statusClass = 'status-off' }
+          else if (status === 'Л') { bg = '#ef4444'; color = '#fff'; statusClass = 'status-sick' }
           else if (hasCheckins) {
             bg = 'rgba(34, 197, 94, 0.15)'
             color = '#22c55e'
             borderStyle = '1px dashed #22c55e'
+            statusClass = 'status-fact'
           }
 
           let finalBorder = borderStyle
@@ -93,11 +99,13 @@ export const ShiftCalendarView = ({
                 padding: '8px 4px',
                 textAlign: 'center',
                 cursor: 'pointer',
-                borderRight: '1px solid var(--border-subtle)',
+                background: isToday ? 'rgba(139, 92, 246, 0.09)' : undefined,
+                borderLeft: isToday ? '2px solid rgba(139, 92, 246, 0.45)' : undefined,
+                borderRight: isToday ? '2px solid rgba(139, 92, 246, 0.45)' : '1px solid var(--border-subtle)',
                 transition: 'all 0.15s'
               }}
             >
-              <div className="calendar-day-badge" style={{
+              <div className={`calendar-day-badge ${statusClass}`} style={{
                 background: bg,
                 color: color,
                 borderRadius: '6px',
@@ -166,19 +174,28 @@ export const ShiftCalendarView = ({
           <thead>
             <tr className="calendar-table-head-row" style={{ position: 'sticky', top: 0, zIndex: 12 }}>
               <th className="sticky-head-cell" style={{ padding: '16px', fontWeight: 900, width: '220px', position: 'sticky', left: 0, zIndex: 13 }}>Співробітник / Категорія</th>
-              {Array.from({ length: daysInMonth }).map((_, idx) => (
-                <th key={idx} style={{
-                  padding: '12px 6px',
-                  fontWeight: 900,
-                  textAlign: 'center',
-                  minWidth: '32px'
-                }}>
-                  <div>{idx + 1}</div>
-                  <div style={{ fontSize: '0.58rem', fontWeight: 700, marginTop: '2px' }}>
-                    {weekDayNames[new Date(currentYear, currentMonth, idx + 1).getDay()]}
-                  </div>
-                </th>
-              ))}
+              {Array.from({ length: daysInMonth }).map((_, idx) => {
+                const dayNum = idx + 1
+                const isToday = dayNum === todayDay
+                return (
+                  <th key={idx} style={{
+                    padding: '12px 6px',
+                    fontWeight: 900,
+                    textAlign: 'center',
+                    minWidth: '32px',
+                    background: isToday ? 'rgba(139, 92, 246, 0.18)' : undefined,
+                    color: isToday ? '#8b5cf6' : undefined,
+                    borderLeft: isToday ? '2px solid rgba(139, 92, 246, 0.65)' : undefined,
+                    borderRight: isToday ? '2px solid rgba(139, 92, 246, 0.65)' : undefined,
+                    borderTop: isToday ? '2px solid rgba(139, 92, 246, 0.65)' : undefined
+                  }}>
+                    <div>{dayNum}</div>
+                    <div style={{ fontSize: '0.58rem', fontWeight: 700, marginTop: '2px' }}>
+                      {weekDayNames[new Date(currentYear, currentMonth, dayNum).getDay()]}
+                    </div>
+                  </th>
+                )
+              })}
             </tr>
           </thead>
           <tbody>

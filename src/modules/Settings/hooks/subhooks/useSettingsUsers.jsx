@@ -32,6 +32,7 @@ export const moduleList = [
   { id: 'pressing_terminal', label: 'Екран Пресування' },
   { id: 'painting_terminal', label: 'Екран Фарбування' },
   { id: 'shop1_foreman', label: 'Кабінет Нач. Цеху №1' },
+  { id: 'shop2_foreman', label: 'Кабінет Нач. Цеху №2' },
   { id: 'shop2_card_gen', label: 'Цех №2 – Створення РК (Буфер)' },
   { id: 'shop2_terminal', label: 'Цех №2 · Термінал' },
   { id: 'packaging', label: 'Пакування' },

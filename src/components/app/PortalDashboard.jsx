@@ -590,6 +590,11 @@ export const PortalDashboard = ({ chatUnreadCount }) => {
                   Диспетчер Цех №1
                 </Link>
               )}
+              {hasModule('shop2_foreman') && (
+                <Link to="/shop2-foreman" style={{ background: 'rgba(139, 92, 246, 0.15)', color: '#8b5cf6', border: '1px solid rgba(139, 92, 246, 0.3)', textDecoration: 'none', padding: '8px 15px', borderRadius: '12px', fontSize: '0.82rem', fontWeight: 800, transition: '0.2s' }}>
+                  Кабінет Нач. Цеху №2
+                </Link>
+              )}
               {(hasModule('operator') || hasModule('shop1')) && (
                 <Link to="/operator" style={{ background: 'rgba(255, 144, 0, 0.15)', color: '#ff9000', border: '1px solid rgba(255, 144, 0, 0.3)', textDecoration: 'none', padding: '8px 15px', borderRadius: '12px', fontSize: '0.82rem', fontWeight: 800, transition: '0.2s' }}>
                   Робочий Термінал

@@ -47,6 +47,7 @@ const NotificationsPage = lazy(() => import('./modules/NotificationsPage'))
 const LoginPage = lazy(() => import('./modules/LoginPage'))
 const Shop1Terminal = lazy(() => import('./modules/Shop1Terminal'))
 const Shop1ForemanModule = lazy(() => import('./modules/Shop1ForemanModule'))
+const Shop2ForemanModule = lazy(() => import('./modules/Shop2ForemanModule'))
 const Shop2Module = lazy(() => import('./modules/Shop2CardGen/Shop2CardGenModule'))
 const Shop2Terminal = lazy(() => import('./modules/Shop2Terminal'))
 const AnalyticsModule = lazy(() => import('./modules/AnalyticsModule'))
@@ -897,6 +898,7 @@ const AppContent = () => {
           <Route path="/sorting-terminal" element={<PermissionGuard id="sorting_terminal"><SortingTerminal /></PermissionGuard>} />
           <Route path="/shop2" element={<PermissionGuard id="shop2"><Shop2Module /></PermissionGuard>} />
           <Route path="/shop2-card-gen" element={<PermissionGuard id="shop2_card_gen"><Shop2CardGenModule /></PermissionGuard>} />
+          <Route path="/shop2-foreman" element={<PermissionGuard id="shop2_foreman"><Shop2ForemanModule /></PermissionGuard>} />
           <Route path="/shop2-terminal" element={<PermissionGuard id="shop2_terminal"><Shop2Terminal /></PermissionGuard>} />
           <Route path="/pressing-terminal" element={<PermissionGuard id="pressing_terminal"><PressingTerminal /></PermissionGuard>} />
           <Route path="/painting-terminal" element={<PermissionGuard id="painting_terminal"><PaintingTerminal /></PermissionGuard>} />

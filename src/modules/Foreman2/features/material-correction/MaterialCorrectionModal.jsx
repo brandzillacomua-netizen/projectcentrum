@@ -22,15 +22,28 @@ export default function MaterialCorrectionModal({ part, options, isSaving, error
           <button type="button" onClick={onClose} disabled={isSaving} style={{ background: 'none', border: 0, color: '#777', cursor: 'pointer' }}><X /></button>
         </div>
 
-        <div style={{ marginTop: '18px', padding: '12px', background: 'var(--surface-inset)', borderRadius: '10px', fontSize: '.82rem' }}>
-          Зараз: <strong style={{ color: '#ef4444' }}>{part.material || 'не вказано'}</strong>
-          <span style={{ color: 'var(--text-dim)' }}> · {part.plannedSheets} листів</span>
+        <div style={{ marginTop: '18px', padding: '12px', background: 'var(--surface-inset)', borderRadius: '10px', fontSize: '.82rem', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <div>
+            Зараз: <strong style={{ color: '#ef4444' }}>{part.material || 'не вказано'}</strong>
+            <span style={{ color: 'var(--text-dim)' }}> · всього {part.plannedSheets} листів</span>
+          </div>
+          {part.correctionAnalysis && (part.correctionAnalysis.usedSheets > 0 || part.correctionAnalysis.safeNewCards.length > 0) && (
+            <div style={{ fontSize: '.76rem', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', gap: '3px', paddingTop: '6px', borderTop: '1px solid var(--border-subtle)' }}>
+              {part.correctionAnalysis.usedSheets > 0 && (
+                <div>• Залишається на старому матеріалі (в роботі / виконано): <strong style={{ color: 'var(--text-strong)' }}>{part.correctionAnalysis.usedSheets} л.</strong></div>
+              )}
+              {part.correctionAnalysis.safeNewCards.length > 0 && (
+                <div>• Незапущених карток (<code>new</code>) буде безпечно видалено: <strong style={{ color: '#f59e0b' }}>{part.correctionAnalysis.safeNewCards.length} шт</strong></div>
+              )}
+              <div>• Переводиться на новий матеріал + запит на склад: <strong style={{ color: '#10b981' }}>{part.correctionAnalysis.remainingSheets} л.</strong></div>
+            </div>
+          )}
         </div>
 
         <label style={{ display: 'block', marginTop: '16px', color: 'var(--text-muted)', fontSize: '.72rem', fontWeight: 900, textTransform: 'uppercase' }}>Правильний матеріал</label>
         <select value={selectedId} onChange={event => setSelectedId(event.target.value)} disabled={isSaving} style={{ width: '100%', marginTop: '7px', background: 'var(--surface-inset)', color: 'var(--text-strong)', border: '1px solid #444', borderRadius: '9px', padding: '11px' }}>
           <option value="">Оберіть матеріал…</option>
-          {options.map(option => <option key={option.id} value={String(option.id)}>{option.name} · на складі {option.available}</option>)}
+          {options.map(option => <option key={option.id} value={String(option.id)}>{option.name} · СО: {option.available} л.</option>)}
         </select>
 
         <div style={{ display: 'flex', gap: '9px', marginTop: '14px', color: '#f59e0b', fontSize: '.72rem', lineHeight: 1.4 }}>

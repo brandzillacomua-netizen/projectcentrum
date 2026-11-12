@@ -1,3 +1,5 @@
+import { formatShop2PlannedMinutes, getShop2CardPlannedMinutes } from '../../../utils/shop2RoutingUtils.js'
+
 export const cyrillicToLatinMap = {
   'й':'q', 'ц':'w', 'у':'e', 'к':'r', 'е':'t', 'н':'y', 'г':'u', 'ш':'i', 'щ':'o', 'з':'p', 'х':'[', 'ї':']',
   'ф':'a', 'ы':'s', 'і':'s', 'в':'d', 'а':'f', 'п':'g', 'р':'h', 'о':'j', 'л':'k', 'д':'l', 'ж':';', 'є':'\'',
@@ -23,24 +25,12 @@ export const formatElapsedTime = (startIso, currentTime = new Date()) => {
   return `${h}:${m}:${s}`
 }
 
-export const formatPlanned = (mins) => {
-  if (!mins || mins <= 0) return '—'
-  const totalMin = Math.round(Number(mins) || 0)
-  if (totalMin <= 0) return '—'
-  const h = Math.floor(totalMin / 60)
-  const m = totalMin % 60
-  if (h === 0) return `${m}хв`
-  if (m === 0) return `${h}год`
-  return `${h}год ${m}хв`
-}
+export const formatPlanned = (mins) => formatShop2PlannedMinutes(mins)
 
 export const getPlannedTime = (card, getNomFromCard) => {
   if (!card) return 0
-  if (card.estimated_time) return Number(card.estimated_time)
-  if (card.estimated_seconds) return Number(card.estimated_seconds) / 60
   const nom = getNomFromCard ? getNomFromCard(card) : null
-  if (nom?.time_per_unit) return (Number(nom.time_per_unit) * Number(card.quantity))
-  return 0
+  return getShop2CardPlannedMinutes(card, nom)
 }
 
 export const formatMachine = (name) => {

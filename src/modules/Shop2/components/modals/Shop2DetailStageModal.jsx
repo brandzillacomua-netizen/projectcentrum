@@ -1,5 +1,6 @@
 import React from 'react'
 import { X, Play, Package } from 'lucide-react'
+import { formatPlanned, getPlannedTime } from '../../utils/shop2Helpers'
 
 export const Shop2DetailStageModal = ({
   detailStage,
@@ -83,16 +84,25 @@ export const Shop2DetailStageModal = ({
               workCards.filter(c => isShop2Card(c) && matchesStage(c.operation, detailStage) && c.status === 'in-progress').forEach(c => {
                 const nom = typeof getNomFromCard === 'function' ? getNomFromCard(c) : null;
                 const name = nom?.name || 'Деталь';
-                agg[name] = (agg[name] || 0) + (c.quantity || 0);
+                if (!agg[name]) agg[name] = { qty: 0, plannedMin: 0 };
+                agg[name].qty += (c.quantity || 0);
+                agg[name].plannedMin += getPlannedTime(c, () => nom);
               });
               const items = Object.entries(agg);
               if (items.length === 0) return <div style={{ textAlign: 'center', padding: '50px', color: '#444', fontSize: '0.85rem' }}>Дані відсутні</div>;
               return (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {items.map(([name, qty], idx) => (
+                  {items.map(([name, info], idx) => (
                     <div key={idx} style={{ background: 'var(--fill-subtle)', padding: '15px 20px', borderRadius: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid var(--border-subtle)' }}>
-                      <div style={{ fontWeight: 800, fontSize: '0.9rem' }}>{name}</div>
-                      <div style={{ fontWeight: 1000, fontSize: '1.3rem', color: '#8b5cf6' }}>{qty} <small style={{ fontSize: '0.6rem', opacity: 0.3 }}>шт</small></div>
+                      <div>
+                        <div style={{ fontWeight: 800, fontSize: '0.9rem' }}>{name}</div>
+                        {info.plannedMin > 0 && (
+                          <div style={{ fontSize: '0.72rem', color: '#3b82f6', fontWeight: 800, marginTop: '3px' }}>
+                            План. час: {formatPlanned(info.plannedMin)}
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ fontWeight: 1000, fontSize: '1.3rem', color: '#8b5cf6' }}>{info.qty} <small style={{ fontSize: '0.6rem', opacity: 0.3 }}>шт</small></div>
                     </div>
                   ))}
                 </div>

@@ -1,0 +1,40 @@
+import React from 'react'
+import { Link } from 'react-router-dom'
+import { ArrowLeft, Calendar, LayoutDashboard, Users } from 'lucide-react'
+
+export const Shop2ForemanHeader = ({ activeTab, setActiveTab }) => {
+  return (
+    <>
+      <div className="shop1-header-top" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+          <Link to="/" className="shop1-back-btn">
+            <ArrowLeft size={20} />
+          </Link>
+          <div>
+            <h1 className="shop1-header-title" style={{ margin: 0, fontSize: '1.4rem', fontWeight: 950, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              👑 КАБІНЕТ НАЧАЛЬНИКА ЦЕХУ №2
+            </h1>
+            <div className="shop1-header-subtitle" style={{ fontSize: '0.75rem', marginTop: '2px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Табель змін, формування команди на сьогодні та контроль робіт Цеху №2
+            </div>
+          </div>
+        </div>
+
+        <div className="shop1-tab-container" style={{ display: 'flex', gap: '6px', padding: '6px', borderRadius: '16px', flexWrap: 'wrap' }}>
+          <button onClick={() => setActiveTab('calendar')} className={`tab-btn ${activeTab === 'calendar' ? 'active' : ''}`}>
+            <Calendar size={16} /> Календар змін
+          </button>
+          <button onClick={() => setActiveTab('monitoring')} className={`tab-btn ${activeTab === 'monitoring' ? 'active' : ''}`}>
+            <LayoutDashboard size={16} /> Поточні роботи
+          </button>
+          <button onClick={() => setActiveTab('staff')} className={`tab-btn ${activeTab === 'staff' ? 'active' : ''}`}>
+            <Users size={16} /> Персонал
+          </button>
+        </div>
+      </div>
+
+      <hr className="shop1-header-divider" style={{ border: 'none', height: '1px', background: 'var(--fill-subtle)', margin: '0' }} />
+    </>
+  )
+}
+

@@ -6,6 +6,7 @@ const OPERATOR_POSITION_MARKERS = [
   'пресов',
   'пресув',
   'маляр',
+  'фарб',
   'слюсар',
   'чистил',
   'працівник',
@@ -49,9 +50,19 @@ export const selectOperatorNames = systemUsers => (
     .filter(Boolean)
 )
 
-export const selectFilteredOperatorNames = (systemUsers, department, shift, stage = null) => {
+const matchesDepartment = (userDept, targetDept) => {
+  if (!targetDept) return true
+  const u = String(userDept || '').toLowerCase().trim()
+  const t = String(targetDept || '').toLowerCase().trim()
+  if ((t.includes('цех 2') || t.includes('цех №2')) && (u.includes('цех 2') || u.includes('цех №2') || u.includes('цех2'))) {
+    return true
+  }
+  return userDept === targetDept
+}
+
+export const selectFilteredOperatorNames = (systemUsers, department, shift, stage = null, options = {}) => {
   const users = systemUsers || []
-  let list = department ? users.filter(user => user.department === department) : [...users]
+  let list = department ? users.filter(user => matchesDepartment(user.department, department)) : [...users]
 
   if (shift && shift !== 'Без зміни') {
     list = list.filter(user => matchesShift(user, shift))
@@ -82,7 +93,7 @@ export const selectFilteredOperatorNames = (systemUsers, department, shift, stag
         departmentUsers
       )
     } else if (stageLower === 'фарбування') {
-      list = list.filter(user => includesPositionMarker(user, ['маляр']))
+      list = list.filter(user => includesPositionMarker(user, ['маляр', 'фарб']))
     } else if (stageLower === 'пресування') {
       list = list.filter(user => includesPositionMarker(user, ['прес', 'пресув']))
     } else if (stageLower === 'підготовка') {
@@ -95,6 +106,10 @@ export const selectFilteredOperatorNames = (systemUsers, department, shift, stag
     }
   } else {
     list = list.filter(user => includesPositionMarker(user))
+  }
+
+  if (options?.onlyOnShiftDate) {
+    list = list.filter(user => user?.shift_calendar?.[options.onlyOnShiftDate] === 'Р')
   }
 
   return sortUsersByName(list).map(formatUserName).filter(Boolean)

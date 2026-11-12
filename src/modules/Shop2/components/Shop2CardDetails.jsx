@@ -1,10 +1,12 @@
 import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { X, ClipboardList, Layers, Box, Gauge, CheckCircle, Package, MessageSquare } from 'lucide-react'
-import { formatElapsedTime } from '../utils/shop2Helpers'
+import { X, ClipboardList, Layers, Box, Gauge, CheckCircle, Package, MessageSquare, Clock } from 'lucide-react'
+import { formatElapsedTime, formatPlanned, getPlannedTime } from '../utils/shop2Helpers'
 import { parseCardComments } from '../../../services/cardCommentsService.js'
 import { CardCommentsModal } from '../../../components/common/CardCommentsBadge.jsx'
 import { Shop2PaintingBadge } from '../../../components/common/Shop2PaintingBadge.jsx'
+import { getShop2UnitMinutes } from '../../../utils/shop2RoutingUtils.js'
+import { getTodayCalendarKey } from '../../Shop2Foreman/utils/shop2ForemanUtils.js'
 
 export function Shop2CardDetails({
   currentCard,
@@ -33,6 +35,12 @@ export function Shop2CardDetails({
   setIsProcessing
 }) {
   const [isCommentsModalOpen, setIsCommentsModalOpen] = useState(false)
+  const [showAllOperators, setShowAllOperators] = useState(false)
+  const todayKey = getTodayCalendarKey()
+  const activeStage = selectedStage || currentCard?.operation
+  const onShiftOperators = selectedShift ? getFilteredOperators('Цех №2', selectedShift, activeStage, { onlyOnShiftDate: todayKey }) : []
+  const allStageOperators = selectedShift ? getFilteredOperators('Цех №2', selectedShift, activeStage) : []
+  const visibleOperators = showAllOperators ? allStageOperators : onShiftOperators
   const comments = parseCardComments(currentCard?.card_info)
   const commentsCount = comments.length
 
@@ -49,6 +57,12 @@ export function Shop2CardDetails({
   const nom = displayInfo?.nom || (typeof getNomFromCard === 'function' ? getNomFromCard(currentCard) : null)
   const routing = displayInfo?.routing
   const orderNum = displayInfo?.order?.order_num || orders?.find(o => o.id === currentCard.order_id)?.order_num || '—'
+  const plannedMinutes = getPlannedTime(currentCard, () => nom)
+  const unitMinutes = getShop2UnitMinutes(nom, currentCard.operation)
+  const elapsedMinutes = currentCard.started_at
+    ? Math.max(0, Math.floor((Date.now() - new Date(currentCard.started_at).getTime()) / 60000))
+    : 0
+  const isOverPlannedTime = plannedMinutes > 0 && elapsedMinutes > plannedMinutes
 
   return (
     <div style={{ maxWidth: '900px', margin: '0 auto' }}>
@@ -143,6 +157,14 @@ export function Shop2CardDetails({
           color="#3b82f6"
         />
         <SpecCard icon={Gauge} label="Етап" value={currentCard.status === 'at-buffer' ? `Буфер ${currentCard.operation?.toLowerCase()}` : (currentCard.operation || '—')} />
+        <SpecCard
+          icon={Clock}
+          label="План часу"
+          value={plannedMinutes > 0
+            ? `${Math.round(plannedMinutes)} хв (${formatPlanned(plannedMinutes)})${unitMinutes > 0 ? ` · ${unitMinutes}/шт` : ''}`
+            : '—'}
+          color="#0284c7"
+        />
       </div>
 
       {routing && (routing.requiresPressing || routing.requiresPainting || routing.shouldPaint) && (
@@ -235,10 +257,38 @@ export function Shop2CardDetails({
               </select>
             </div>
             <div>
-              <label style={{ color: 'var(--text-dim)', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', display: 'block', marginBottom: '10px' }}>Відповідальний оператор</label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', gap: '8px', flexWrap: 'wrap' }}>
+                <label style={{ color: 'var(--text-dim)', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', margin: 0 }}>
+                  Відповідальний оператор {!showAllOperators && selectedShift ? `(На зміні: ${onShiftOperators.length})` : ''}
+                </label>
+                {selectedShift && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAllOperators(prev => !prev)}
+                    style={{
+                      background: showAllOperators ? 'rgba(139, 92, 246, 0.14)' : 'var(--surface-1)',
+                      border: '1px solid var(--border-subtle)',
+                      color: showAllOperators ? '#8b5cf6' : 'var(--text-muted)',
+                      padding: '4px 10px',
+                      borderRadius: '8px',
+                      fontSize: '0.7rem',
+                      fontWeight: 800,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {showAllOperators ? 'Тільки на зміні сьогодні' : `Показати всіх (${allStageOperators.length})`}
+                  </button>
+                )}
+              </div>
               <select value={selectedOperator} onChange={(e) => setSelectedOperator(e.target.value)} disabled={!selectedShift} style={{ width: '100%', background: 'var(--surface-1)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', padding: '15px', borderRadius: '15px', fontSize: '1.1rem', fontWeight: 700, opacity: selectedShift ? 1 : 0.5, cursor: selectedShift ? 'pointer' : 'not-allowed' }}>
-                <option value="">{selectedShift ? '— Оберіть оператора —' : '— Спочатку оберіть зміну —'}</option>
-                {getFilteredOperators('Цех №2', selectedShift, selectedStage || currentCard.operation).map(o => <option key={o} value={o}>{o}</option>)}
+                <option value="">
+                  {!selectedShift
+                    ? '— Спочатку оберіть зміну —'
+                    : (!showAllOperators && onShiftOperators.length === 0)
+                      ? '— Сьогодні нікого не відмічено в табелі (натисніть «Показати всіх») —'
+                      : '— Оберіть оператора —'}
+                </option>
+                {visibleOperators.map(o => <option key={o} value={o}>{o}</option>)}
               </select>
             </div>
             <button
@@ -291,8 +341,27 @@ export function Shop2CardDetails({
           </div>
         ) : (
           <div style={{ textAlign: 'center' }}>
-            <div style={{ color: '#8b5cf6', fontSize: '0.75rem', fontWeight: 800, marginBottom: '20px' }}>ЧАС В РОБОТІ</div>
-            <div style={{ fontSize: '6.5rem', fontWeight: 1000, color: 'var(--text-strong)', fontFamily: 'monospace', letterSpacing: '-2px' }}>{formatElapsedTime(currentCard.started_at)}</div>
+            <div style={{ color: '#8b5cf6', fontSize: '0.75rem', fontWeight: 800, marginBottom: '20px' }}>ЧАС В РОБОТІ (ФАКТ)</div>
+            <div style={{ fontSize: '6.5rem', fontWeight: 1000, color: isOverPlannedTime ? '#ef4444' : 'var(--text-strong)', fontFamily: 'monospace', letterSpacing: '-2px' }}>{formatElapsedTime(currentCard.started_at)}</div>
+            {plannedMinutes > 0 && (
+              <div style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '6px 14px',
+                borderRadius: '999px',
+                marginBottom: '16px',
+                background: isOverPlannedTime ? 'rgba(239, 68, 68, 0.14)' : 'rgba(16, 185, 129, 0.12)',
+                border: isOverPlannedTime ? '1px solid rgba(239, 68, 68, 0.35)' : '1px solid rgba(16, 185, 129, 0.3)',
+                color: isOverPlannedTime ? '#f87171' : '#10b981',
+                fontSize: '0.82rem',
+                fontWeight: 900
+              }}>
+                <span>⏱️ План: {Math.round(plannedMinutes)} хв ({formatPlanned(plannedMinutes)})</span>
+                <span>·</span>
+                <span>Факт: {elapsedMinutes} хв</span>
+              </div>
+            )}
             <div style={{ color: 'var(--text-dim)', marginBottom: '30px', fontWeight: 800 }}>ОПЕРАТОР: {currentCard.operator_name}</div>
             <button onClick={submitCompletion} style={{ background: '#ec4899', color: '#fff', border: 'none', padding: '22px 70px', borderRadius: '18px', fontSize: '1.4rem', fontWeight: 900, cursor: 'pointer', boxShadow: '0 10px 40px rgba(236, 72, 153, 0.3)' }}>ЗАВЕРШИТИ ЕТАП</button>
           </div>
