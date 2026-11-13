@@ -12,7 +12,18 @@ const OPERATOR_POSITION_MARKERS = [
   'працівник',
   'вкя',
   'якост',
-  'підготов'
+  'підготов',
+  'сортув',
+  'сортувал',
+  'лицювальн',
+  'лицюв',
+  'лицьовальн',
+  'лицьов',
+  'лиц',
+  'полірувальн',
+  'полірув',
+  'полір',
+  'реставр'
 ]
 
 const includesPositionMarker = (user, markers = OPERATOR_POSITION_MARKERS) => {
@@ -51,10 +62,20 @@ export const selectOperatorNames = systemUsers => (
 )
 
 const matchesDepartment = (userDept, targetDept) => {
-  if (!targetDept) return true
+  if (!targetDept || targetDept === 'all') return true
   const u = String(userDept || '').toLowerCase().trim()
   const t = String(targetDept || '').toLowerCase().trim()
-  if ((t.includes('цех 2') || t.includes('цех №2')) && (u.includes('цех 2') || u.includes('цех №2') || u.includes('цех2'))) {
+  if (!t) return true
+  if ((t.includes('цех 2') || t.includes('цех №2') || t.includes('цех2')) && (u.includes('цех 2') || u.includes('цех №2') || u.includes('цех2'))) {
+    return true
+  }
+  if ((t.includes('цех 1') || t.includes('цех №1') || t.includes('цех1')) && (u.includes('цех 1') || u.includes('цех №1') || u.includes('цех1'))) {
+    return true
+  }
+  if (t === 'сортування' && (u === 'сортування' || u.includes('цех 1') || u.includes('цех №1') || u.includes('цех1'))) {
+    return true
+  }
+  if (t === 'доопрацювання' && (u === 'доопрацювання' || u.includes('цех 2') || u.includes('цех №2') || u.includes('цех2'))) {
     return true
   }
   return userDept === targetDept
@@ -69,34 +90,36 @@ export const selectFilteredOperatorNames = (systemUsers, department, shift, stag
   }
 
   if (stage) {
-    const stageLower = stage.toLowerCase()
+    const stageLower = stage.toLowerCase().trim()
 
-    if (stageLower === 'розкрій') {
+    if (stageLower.includes('розкрій')) {
       list = list.filter(user => includesPositionMarker(user, ['оператор']))
-    } else if (stageLower.includes('галтовка')) {
+    } else if (stageLower.includes('галтовка') || stageLower.includes('галтов')) {
       list = list.filter(user => includesPositionMarker(user, ['галтовщик']))
-    } else if (stageLower === 'прийомка') {
+    } else if (stageLower.includes('прийомка')) {
       list = filterReceptionOperators(users, shift, department)
-    } else if (stageLower === 'сортування') {
-      const departmentUsers = users.filter(user => matchesShift(user, shift) && (user.department === 'Сортування' || user.department === 'Цех №1'))
-      list = mergeUniqueUsers(
-        list.filter(user => includesPositionMarker(user, ['сортув', 'сортувал', 'працівник', 'оператор'])),
-        departmentUsers.filter(user => includesPositionMarker(user, ['сортув', 'сортувал', 'працівник', 'оператор']))
+    } else if (stageLower.includes('сортуван')) {
+      const sortingUsers = users.filter(user => 
+        matchesShift(user, shift) && (
+          includesPositionMarker(user, ['сортув', 'сортувал']) ||
+          (user.department === 'Сортування' && includesPositionMarker(user, ['сортув', 'сортувал', 'працівник']))
+        )
       )
-    } else if (stageLower === 'доопрацювання') {
-      const departmentUsers = users.filter(user => (
-        matchesShift(user, shift) &&
-        (user.department === 'Доопрацювання' || user.department === 'Відділ Доопрацювання')
-      ))
-      list = mergeUniqueUsers(
-        list.filter(user => includesPositionMarker(user, ['слюсар', 'майстер', 'доопрац', 'лицювальн', 'полірувальн'])),
-        departmentUsers
+      list = sortingUsers
+    } else if (stageLower.includes('доопрац') || stageLower.includes('rework') || stageLower.includes('лицюв') || stageLower.includes('лицьов') || stageLower.includes('полірув') || stageLower.includes('полір') || stageLower.includes('лиц')) {
+      const reworkUsers = users.filter(user =>
+        matchesShift(user, shift) && (
+          includesPositionMarker(user, ['лицьов', 'лицьовальн', 'лицюв', 'лицювальн', 'лиц', 'полір', 'полірув', 'полірувальн', 'доопрац', 'реставр', 'слюсар']) ||
+          ((user.department === 'Доопрацювання' || user.department === 'Відділ Доопрацювання' || matchesDepartment(user.department, 'Цех №2') || matchesDepartment(user.department, department)) &&
+            includesPositionMarker(user, ['лицьов', 'лицьовальн', 'лицюв', 'лицювальн', 'лиц', 'полір', 'полірув', 'полірувальн', 'доопрац', 'реставр', 'слюсар']))
+        )
       )
-    } else if (stageLower === 'фарбування') {
+      list = reworkUsers
+    } else if (stageLower.includes('фарбуван') || stageLower.includes('маляр')) {
       list = list.filter(user => includesPositionMarker(user, ['маляр', 'фарб']))
-    } else if (stageLower === 'пресування') {
+    } else if (stageLower.includes('пресуван') || stageLower.includes('прес')) {
       list = list.filter(user => includesPositionMarker(user, ['прес', 'пресув']))
-    } else if (stageLower === 'підготовка') {
+    } else if (stageLower.includes('підготов')) {
       list = list.filter(user => Boolean(user?.position) && (
         includesPositionMarker(user, ['працівник вп', 'підготов']) ||
         user.department === 'Відділ Підготовки'

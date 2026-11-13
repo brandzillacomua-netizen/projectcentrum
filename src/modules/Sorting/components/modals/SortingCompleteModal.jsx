@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import { CheckCircle, X, RefreshCw } from 'lucide-react'
 
 const ACCENT = '#34d399'
@@ -20,14 +20,29 @@ export default function SortingCompleteModal({
   scanError,
   selectedOperator,
   setSelectedOperator,
-  operators = []
+  operators = [],
+  onShiftOperators = [],
+  allStageOperators = []
 }) {
+  const [showAllOperators, setShowAllOperators] = useState(false)
+  const [localOperator, setLocalOperator] = useState('')
+
+  useEffect(() => {
+    if (showCompleteModal && activeCompletingCard) {
+      setShowAllOperators(false)
+      const cardOp = activeCompletingCard.operator_name
+      const isCardOpValid = cardOp && cardOp !== 'Команда' && cardOp !== 'Сортування'
+      setLocalOperator(isCardOpValid ? cardOp : (selectedOperator || ''))
+    }
+  }, [showCompleteModal, activeCompletingCard, selectedOperator])
+
   if (!showCompleteModal || !activeCompletingCard) return null
 
   const totalQty = activeCompletingCard.quantity || 0
-  const cardOp = activeCompletingCard.operator_name
-  const isCardOpValid = cardOp && cardOp !== 'Команда' && cardOp !== 'Сортування'
-  const effectiveOperator = selectedOperator || (isCardOpValid ? cardOp : '')
+  const onShiftList = (onShiftOperators && onShiftOperators.length > 0) ? onShiftOperators : []
+  const allList = (allStageOperators && allStageOperators.length > 0) ? allStageOperators : operators
+  const visibleOperators = showAllOperators || onShiftList.length === 0 ? allList : onShiftList
+  const effectiveOperator = localOperator || selectedOperator || ''
 
   return (
     <div className="terminal-modal-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '20px', backdropFilter: 'blur(8px)' }}>
@@ -48,12 +63,35 @@ export default function SortingCompleteModal({
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <label style={{ fontSize: '0.65rem', color: 'var(--text-dim)', fontWeight: 900, textTransform: 'uppercase' }}>
-              Сортувальник <span style={{ color: '#ef4444' }}>*</span>
-            </label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <label style={{ fontSize: '0.65rem', color: 'var(--text-dim)', fontWeight: 900, textTransform: 'uppercase', margin: 0 }}>
+                Сортувальник {!showAllOperators && onShiftList.length > 0 ? `(На роботі сьогодні: ${onShiftList.length})` : ''} <span style={{ color: '#ef4444' }}>*</span>
+              </label>
+              {allList.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowAllOperators(prev => !prev)}
+                  style={{
+                    background: showAllOperators ? `rgba(${ACCENT_RGB},0.16)` : 'var(--surface-2)',
+                    border: '1px solid var(--border-subtle)',
+                    color: showAllOperators ? ACCENT : 'var(--text-muted)',
+                    padding: '3px 8px',
+                    borderRadius: '6px',
+                    fontSize: '0.65rem',
+                    fontWeight: 800,
+                    cursor: 'pointer'
+                  }}
+                >
+                  {showAllOperators ? 'Тільки на зміні сьогодні' : `Показати всіх (${allList.length})`}
+                </button>
+              )}
+            </div>
             <select
               value={effectiveOperator}
-              onChange={e => setSelectedOperator && setSelectedOperator(e.target.value)}
+              onChange={e => {
+                setLocalOperator(e.target.value)
+                if (setSelectedOperator) setSelectedOperator(e.target.value)
+              }}
               style={{
                 background: 'var(--surface-2)',
                 border: effectiveOperator ? `1px solid rgba(${ACCENT_RGB},0.4)` : '1px solid #ef4444',
@@ -66,8 +104,12 @@ export default function SortingCompleteModal({
                 cursor: 'pointer'
               }}
             >
-              <option value="">— Оберіть сортувальника —</option>
-              {operators.map(op => (
+              <option value="">
+                {(!showAllOperators && onShiftList.length === 0)
+                  ? '— Сьогодні нікого не відмічено в табелі (натисніть «Показати всіх») —'
+                  : '— Оберіть сортувальника —'}
+              </option>
+              {visibleOperators.map(op => (
                 <option key={op} value={op}>{op}</option>
               ))}
             </select>

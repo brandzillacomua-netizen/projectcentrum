@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import { Play, X, RefreshCw } from 'lucide-react'
 
 const ACCENT = '#34d399'
@@ -13,8 +13,25 @@ export default function SortingStartConfirmModal({
   selectedOperator,
   setSelectedOperator,
   operators = [],
+  onShiftOperators = [],
+  allStageOperators = [],
   scanError
 }) {
+  const [showAllOperators, setShowAllOperators] = useState(false)
+
+  const onShiftList = (onShiftOperators && onShiftOperators.length > 0) ? onShiftOperators : []
+  const allList = (allStageOperators && allStageOperators.length > 0) ? allStageOperators : operators
+  const visibleOperators = showAllOperators || onShiftList.length === 0 ? allList : onShiftList
+
+  useEffect(() => {
+    if (pendingStartCard) {
+      setShowAllOperators(false)
+      if (setSelectedOperator) {
+        setSelectedOperator('')
+      }
+    }
+  }, [pendingStartCard, setSelectedOperator])
+
   if (!pendingStartCard) return null
 
   return (
@@ -34,9 +51,29 @@ export default function SortingStartConfirmModal({
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <label style={{ fontSize: '0.65rem', color: 'var(--text-dim)', fontWeight: 900, textTransform: 'uppercase' }}>
-              Сортувальник <span style={{ color: '#ef4444' }}>*</span>
-            </label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <label style={{ fontSize: '0.65rem', color: 'var(--text-dim)', fontWeight: 900, textTransform: 'uppercase', margin: 0 }}>
+                Сортувальник {!showAllOperators && onShiftList.length > 0 ? `(На роботі сьогодні: ${onShiftList.length})` : ''} <span style={{ color: '#ef4444' }}>*</span>
+              </label>
+              {allList.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowAllOperators(prev => !prev)}
+                  style={{
+                    background: showAllOperators ? `rgba(${ACCENT_RGB},0.16)` : 'var(--surface-2)',
+                    border: '1px solid var(--border-subtle)',
+                    color: showAllOperators ? ACCENT : 'var(--text-muted)',
+                    padding: '3px 8px',
+                    borderRadius: '6px',
+                    fontSize: '0.65rem',
+                    fontWeight: 800,
+                    cursor: 'pointer'
+                  }}
+                >
+                  {showAllOperators ? 'Тільки на зміні сьогодні' : `Показати всіх (${allList.length})`}
+                </button>
+              )}
+            </div>
             <select
               value={selectedOperator}
               onChange={e => setSelectedOperator && setSelectedOperator(e.target.value)}
@@ -52,8 +89,12 @@ export default function SortingStartConfirmModal({
                 cursor: 'pointer'
               }}
             >
-              <option value="">— Оберіть сортувальника —</option>
-              {operators.map(op => (
+              <option value="">
+                {(!showAllOperators && onShiftList.length === 0)
+                  ? '— Сьогодні нікого не відмічено в табелі (натисніть «Показати всіх») —'
+                  : '— Оберіть сортувальника —'}
+              </option>
+              {visibleOperators.map(op => (
                 <option key={op} value={op}>{op}</option>
               ))}
             </select>

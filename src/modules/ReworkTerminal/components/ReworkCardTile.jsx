@@ -33,6 +33,11 @@ export function ReworkCardTile({ card, onTakeInWork, onComplete, isProcessing })
         <div style={{ color: 'var(--text-muted)', fontSize: '14px' }}>
           Кількість на доопрацювання: <span style={{ color: 'var(--danger)', fontWeight: 'bold' }}>{card.quantity} шт</span>
         </div>
+        {card.operator_name && (
+          <div style={{ color: '#8b5cf6', fontSize: '13px', fontWeight: 800, marginTop: '6px' }}>
+            👤 Виконавець: {card.operator_name}
+          </div>
+        )}
       </div>
       <div>
         {['at-shop2-buffer', 'completed', 'at-buffer', 'waiting-buffer'].includes(card.status) ? (
@@ -53,7 +58,7 @@ export function ReworkCardTile({ card, onTakeInWork, onComplete, isProcessing })
           </div>
         ) : ['new', 'waiting', 'pending', 'paused'].includes(card.status) ? (
           <button
-            onClick={() => onTakeInWork(card.id)}
+            onClick={() => onTakeInWork(card)}
             disabled={isProcessing}
             style={{
               background: 'var(--info)',

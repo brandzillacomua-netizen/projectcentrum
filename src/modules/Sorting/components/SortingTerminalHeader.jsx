@@ -1,5 +1,5 @@
 import React from 'react'
-import { ArrowLeft, Tablet } from 'lucide-react'
+import { ArrowLeft, Tablet, Users } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 const ACCENT = '#34d399'
@@ -8,11 +8,11 @@ const ACCENT_RGB = '52,211,153'
 export default function SortingTerminalHeader({
   selectedShift,
   setSelectedShift,
-  selectedOperator,
-  setSelectedOperator,
-  operators = [],
+  onShiftOperators = [],
   currentTime
 }) {
+  const onShiftCount = (onShiftOperators && onShiftOperators.length) || 0
+
   return (
     <header className="terminal-header" style={{ flexShrink: 0, background: 'rgba(12,12,15,0.85)', backdropFilter: 'blur(12px)', borderBottom: '1px solid var(--border-subtle)', padding: '0 24px', height: '80px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', zIndex: 10 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
@@ -32,6 +32,22 @@ export default function SortingTerminalHeader({
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          background: `rgba(${ACCENT_RGB}, 0.1)`,
+          border: `1px solid rgba(${ACCENT_RGB}, 0.25)`,
+          padding: '8px 14px',
+          borderRadius: '10px',
+          color: ACCENT,
+          fontSize: '0.8rem',
+          fontWeight: 800
+        }}>
+          <Users size={16} />
+          <span>Сортувальників на зміні: {onShiftCount}</span>
+        </div>
+
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
           <span style={{ fontSize: '0.55rem', color: 'var(--text-dim)', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Зміна</span>
           <select
@@ -39,37 +55,12 @@ export default function SortingTerminalHeader({
             onChange={e => setSelectedShift(e.target.value)}
             style={{ background: 'var(--surface-2)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', padding: '8px 12px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 800, cursor: 'pointer', outline: 'none', width: '120px' }}
           >
-            <option value="">— Оберіть —</option>
+            <option value="">— Всі зміни —</option>
             <option value="Зміна 1">Зміна 1</option>
             <option value="Зміна 2">Зміна 2</option>
             <option value="Зміна 3">Зміна 3</option>
             <option value="Зміна 4">Зміна 4</option>
             <option value="Без зміни">Без зміни</option>
-          </select>
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          <span style={{ fontSize: '0.55rem', color: 'var(--text-dim)', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Сортувальник</span>
-          <select
-            value={selectedOperator}
-            onChange={e => setSelectedOperator(e.target.value)}
-            style={{
-              background: 'var(--surface-2)',
-              border: selectedOperator ? `1px solid rgba(${ACCENT_RGB},0.5)` : '1px solid var(--border-subtle)',
-              color: selectedOperator ? ACCENT : 'var(--text-strong)',
-              padding: '8px 12px',
-              borderRadius: '10px',
-              fontSize: '0.75rem',
-              fontWeight: 800,
-              cursor: 'pointer',
-              outline: 'none',
-              minWidth: '160px'
-            }}
-          >
-            <option value="">— Оберіть сортувальника —</option>
-            {operators.map(op => (
-              <option key={op} value={op}>{op}</option>
-            ))}
           </select>
         </div>
 

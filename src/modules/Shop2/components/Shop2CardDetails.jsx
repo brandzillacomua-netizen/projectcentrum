@@ -38,8 +38,8 @@ export function Shop2CardDetails({
   const [isCommentsModalOpen, setIsCommentsModalOpen] = useState(false)
   const todayKey = getTodayCalendarKey()
   const activeStage = selectedStage || currentCard?.operation
-  const onShiftOperators = getFilteredOperators('Цех №2', null, activeStage, { onlyOnShiftDate: todayKey })
-  const allStageOperators = getFilteredOperators('Цех №2', null, activeStage)
+  const onShiftOperators = getFilteredOperators(null, null, activeStage, { onlyOnShiftDate: todayKey })
+  const allStageOperators = getFilteredOperators(null, null, activeStage)
   const comments = parseCardComments(currentCard?.card_info)
   const commentsCount = comments.length
 

@@ -12,6 +12,7 @@ import {
   buildSortingStatusReconciliation,
   canCompleteSortingCard
 } from '../utils/sortingTerminalState.js'
+import { getTodayCalendarKey } from '../../Shop2Foreman/utils/shop2ForemanUtils.js'
 
 
 
@@ -41,9 +42,19 @@ export function useSortingTerminalData() {
   const [selectedShift, setSelectedShift] = useState('')
   const [selectedOperator, setSelectedOperator] = useState('')
 
+  const todayKey = getTodayCalendarKey()
+
+  const onShiftOperators = useMemo(() => {
+    return getFilteredOperators(null, null, 'Сортування', { onlyOnShiftDate: todayKey })
+  }, [getFilteredOperators, todayKey])
+
+  const allStageOperators = useMemo(() => {
+    return getFilteredOperators(null, null, 'Сортування')
+  }, [getFilteredOperators])
+
   const operators = useMemo(() => {
-    return getFilteredOperators('Цех №1', selectedShift, 'Сортування')
-  }, [getFilteredOperators, selectedShift])
+    return onShiftOperators.length > 0 ? onShiftOperators : allStageOperators
+  }, [onShiftOperators, allStageOperators])
 
   const [manualId, setManualId] = useState('')
   const [scanError, setScanError] = useState(null)
@@ -69,20 +80,12 @@ export function useSortingTerminalData() {
     return () => clearInterval(timer)
   }, [])
 
-  // Auto-select user
+  // Auto-select shift from currentUser
   useEffect(() => {
-    if (currentUser) {
-      const shift = currentUser.shift || 'Без зміни'
-      setSelectedShift(shift)
-      const displayName = formatUserName ? formatUserName(currentUser) : [currentUser.last_name, currentUser.first_name].filter(Boolean).join(' ')
-      const allowedOps = getFilteredOperators('Цех №1', shift, 'Сортування')
-      if (allowedOps.includes(displayName)) {
-        setSelectedOperator(displayName)
-      } else if (allowedOps.length === 1) {
-        setSelectedOperator(allowedOps[0])
-      }
+    if (currentUser?.shift) {
+      setSelectedShift(currentUser.shift)
     }
-  }, [currentUser, getFilteredOperators, formatUserName])
+  }, [currentUser])
 
   const getNom = (card) => nomenclatures.find(n => n.id === card?.nomenclature_id)
   const getOrder = (card) => (orders || []).find(o => String(o.id) === String(card?.order_id))
@@ -187,14 +190,18 @@ export function useSortingTerminalData() {
 
   const startSortingCard = async (card, overrideOperator = null) => {
     const operatorToUse = (overrideOperator || selectedOperator || '').trim()
-    if (!selectedShift) {
-      setScanError('⚠️ Будь ласка, спочатку оберіть зміну вгорі екрану!')
-      return
-    }
     if (!operatorToUse) {
       setScanError('⚠️ Оберіть оператора сортування перед початком роботи.')
       return
     }
+    const systemUsers = useStore.getState?.()?.systemUsers || []
+    const firstOp = String(operatorToUse).split(',')[0].trim()
+    const matchedUser = systemUsers.find(u => {
+      const uName = [u.last_name, u.first_name].filter(Boolean).join(' ') || u.login
+      return uName === firstOp
+    })
+    const resolvedShift = matchedUser?.shift || selectedShift || currentUser?.shift || 'Без зміни'
+
     setIsProcessing(true)
     try {
       const now = new Date().toISOString()
@@ -205,7 +212,7 @@ export function useSortingTerminalData() {
         operation: 'Сортування',
         started_at: now,
         operator_name: operatorToUse,
-        shift_name: selectedShift
+        shift_name: resolvedShift
       }
 
       const historyData = {
@@ -217,7 +224,7 @@ export function useSortingTerminalData() {
         scrap_qty: 0,
         started_at: bufferStart,
         completed_at: now,
-        shift_name: selectedShift,
+        shift_name: resolvedShift,
         manager_name: card.manager_name || 'Не вказано',
         machine_name: card.machine || 'Не вказано'
       }
@@ -457,6 +464,8 @@ export function useSortingTerminalData() {
     selectedOperator,
     setSelectedOperator,
     operators,
+    onShiftOperators,
+    allStageOperators,
     manualId,
     setManualId,
     scanError,

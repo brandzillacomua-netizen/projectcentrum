@@ -18,6 +18,8 @@ export const SortingTerminal: React.FC = () => {
     selectedOperator,
     setSelectedOperator,
     operators,
+    onShiftOperators,
+    allStageOperators,
     manualId,
     setManualId,
     scanError,
@@ -59,9 +61,7 @@ export const SortingTerminal: React.FC = () => {
       <SortingTerminalHeader
         selectedShift={selectedShift}
         setSelectedShift={setSelectedShift}
-        selectedOperator={selectedOperator}
-        setSelectedOperator={setSelectedOperator}
-        operators={operators}
+        onShiftOperators={onShiftOperators}
         currentTime={currentTime}
       />
 
@@ -110,6 +110,8 @@ export const SortingTerminal: React.FC = () => {
         selectedOperator={selectedOperator}
         setSelectedOperator={setSelectedOperator}
         operators={operators}
+        onShiftOperators={onShiftOperators}
+        allStageOperators={allStageOperators}
         scanError={scanError}
       />
 
@@ -131,6 +133,8 @@ export const SortingTerminal: React.FC = () => {
         selectedOperator={selectedOperator}
         setSelectedOperator={setSelectedOperator}
         operators={operators}
+        onShiftOperators={onShiftOperators}
+        allStageOperators={allStageOperators}
       />
 
       {/* QR Scanner Modal */}
