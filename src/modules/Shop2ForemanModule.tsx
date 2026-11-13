@@ -4,6 +4,7 @@ import { Shop2ForemanHeader } from './Shop2Foreman/components/Shop2ForemanHeader
 import { Shop2TodayShiftBanner } from './Shop2Foreman/components/Shop2TodayShiftBanner'
 import { Shop2MonitoringView } from './Shop2Foreman/components/Shop2MonitoringView'
 import { Shop2StaffView } from './Shop2Foreman/components/Shop2StaffView'
+import { Shop2RubberOrdersView } from './Shop2Foreman/components/Shop2RubberOrdersView'
 import { useShop2ForemanData } from './Shop2Foreman/hooks/useShop2ForemanData'
 import './Shop1/Shop1ForemanStyles.css'
 
@@ -80,6 +81,10 @@ export const Shop2ForemanModule: React.FC = () => {
             handleResetPassword={handleResetPassword}
             formatUserName={formatUserName}
           />
+        )}
+
+        {activeTab === 'rubber_orders' && (
+          <Shop2RubberOrdersView />
         )}
       </div>
     </div>

@@ -20,7 +20,8 @@ import {
   Sliders,
   Monitor,
   Tablet,
-  AlertTriangle
+  AlertTriangle,
+  Scissors
 } from 'lucide-react'
 import { IconSO, IconSV, IconSGP } from '../components/WarehouseIcons'
 
@@ -78,6 +79,7 @@ export const getAllModules = (badgeCount = 0, chatBadgeCount = 0) => [
   { id: 'shop2_terminal', title: 'Цех №2 · Термінал', icon: <Tablet />, path: '/shop2-terminal', desc: 'Пресування → Фарбування → Доопрацювання', color: '#ff9000', pillar: 'mes' },
   { id: 'pressing_terminal', title: 'Термінал Пресування', icon: <Tablet />, path: '/pressing-terminal', desc: 'Дільниця пресування', color: '#ff9000', pillar: 'mes' },
   { id: 'painting_terminal', title: 'Термінал Фарбування', icon: <Tablet />, path: '/painting-terminal', desc: 'Дільниця фарбування', color: '#ff9000', pillar: 'mes' },
+  { id: 'rubber_cutting_terminal', title: 'Термінал Порізки Гуми (Цех №2)', icon: <Scissors />, path: '/rubber-cutting', desc: 'Розкрій гумових листів 500*500, облік деталей та списання сировини', color: '#ff9000', pillar: 'mes' },
   { id: 'foreman_dashboard', title: 'Дашборд 2.0 (TV)', icon: <LayoutDashboard />, path: '/foreman-dashboard', desc: 'Загальний монітор Цеху №1', color: '#ff9000', pillar: 'mes' },
   { id: 'brak', title: 'ВКЯ & Контроль Якості', icon: <AlertTriangle />, path: '/brak', desc: 'Облік браку та карантин деталей', color: '#ef4444', pillar: 'mes' }
 ]
@@ -166,6 +168,7 @@ export const CATEGORY_MAP = {
   shop2_terminal: 'mes',
   pressing_terminal: 'mes',
   painting_terminal: 'mes',
+  rubber_cutting_terminal: 'mes',
   foreman_dashboard: 'mes',
   brak: 'mes'
 }

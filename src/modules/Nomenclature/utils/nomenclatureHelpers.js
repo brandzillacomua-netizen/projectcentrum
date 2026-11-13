@@ -18,6 +18,7 @@ export const DEFAULT_ERP_GROUPS = [
   { id: 'grp_press_nuts', code: 'HW.PRESS_NUT', name: 'Гайки запресовочні', parent_id: 'grp_hardware_main', sort_order: 25, rule_type: 'press_nut' },
   { id: 'grp_components_main', code: 'HW.COMPONENTS', name: 'Комплектуючі', parent_id: 'cat_hw', sort_order: 26 },
   { id: 'grp_standoffs', code: 'HW.STANDOFF', name: 'Стійки міжплатні', parent_id: 'grp_components_main', sort_order: 27, rule_type: 'standoff' },
+  { id: 'grp_rubber_parts', code: 'HW.RUBBER', name: 'Гумові вироби', parent_id: 'cat_hw', sort_order: 28, rule_type: 'rubber_part' },
 
   { id: 'cat_parts', code: 'PARTS', name: '03. Деталі', parent_id: null, sort_order: 30, rule_type: 'frame_part' },
 
@@ -96,6 +97,16 @@ export const ERP_CATEGORY_SCHEMAS = {
     fields: [
       { key: 'dimensions', label: 'Формат (500*500)', required: true },
       { key: 'thickness', label: 'Товщина (мм)', required: true }
+    ]
+  },
+  rubber_part: {
+    title: '02. Гумові вироби (Порізка)',
+    fields: [
+      { key: 'part_size', label: 'Розмір виробу (мм)', required: true },
+      { key: 'sheet_size', label: 'Розмір листа (мм)', required: true },
+      { key: 'sheet_yield', label: 'Кількість деталей на листі (шт)', required: true },
+      { key: 'sheet_cutting_time_sec', label: 'Тривалість обробки на станку (сек)', required: false },
+      { key: 'item_cutting_time_sec', label: 'Час на 1 деталь (сек)', required: false }
     ]
   },
   frame_part: {
@@ -195,6 +206,15 @@ export const generateStandardName = (ruleType, params) => {
       const dims = (params.dimensions || '500*500').trim();
       const thick = (params.thickness || '2').trim();
       return `Гума еластична листова ${dims}*${thick}мм`.trim();
+    }
+    case 'rubber_part': {
+      if (params.customName && params.customName.trim()) {
+        return params.customName.trim();
+      }
+      const raw = (params.part_size || params.dimensions || params.name || '').trim();
+      if (!raw) return 'Гума листова';
+      if (raw.toLowerCase().startsWith('гума листова')) return raw;
+      return `Гума листова ${raw}`.replace(/\s+/g, ' ').trim();
     }
     case 'paint':
       return (params.customName || '').trim();

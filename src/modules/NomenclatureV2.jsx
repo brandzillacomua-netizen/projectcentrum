@@ -23,6 +23,7 @@ import { NomenclatureExportModal } from './Nomenclature/components/NomenclatureE
 import { NomenclatureCardModal } from './Nomenclature/components/NomenclatureCardModal/index.jsx'
 import { NomenclatureImportModal } from './Nomenclature/components/NomenclatureImportModal'
 import { generateNextV2Code } from '../utils/codeGenerator'
+import { seedRubberPartsIfMissing } from './Nomenclature/utils/rubberCatalogData'
 
 export { DEFAULT_ERP_GROUPS, ERP_CATEGORY_SCHEMAS, generateStandardName, buildFlattenedGroupOptions }
 
@@ -207,6 +208,47 @@ const NomenclatureV2 = () => {
     };
     doMigration2();
   }, []);
+
+  useEffect(() => {
+    const doRubberMigration = async () => {
+      if (localStorage.getItem('centrum_rubber_parts_migrated_v1')) return;
+      try {
+        const res = await seedRubberPartsIfMissing(supabase, items);
+        if (res && res.count > 0) {
+          localStorage.setItem('centrum_rubber_parts_migrated_v1', 'true');
+          showToast(`✨ Успішно додано ${res.count} позицій гумових виробів!`);
+          loadData();
+        } else if (res && !res.error) {
+          localStorage.setItem('centrum_rubber_parts_migrated_v1', 'true');
+        }
+      } catch (e) {
+        console.warn('Rubber migration error:', e);
+      }
+    };
+
+    if (items && items.length > 0) {
+      doRubberMigration();
+    }
+  }, [items.length]);
+
+  const handleSeedRubber = async () => {
+    try {
+      setLoading(true);
+      const res = await seedRubberPartsIfMissing(supabase, items);
+      if (res && res.count > 0) {
+        localStorage.setItem('centrum_rubber_parts_migrated_v1', 'true');
+        showToast(`✨ Успішно імпортовано ${res.count} позицій гуми!`);
+      } else {
+        showToast(`Всі 20 позицій гуми вже збережені в каталозі!`);
+      }
+      await loadData();
+    } catch (e) {
+      console.error(e);
+      showToast('Помилка завантаження гуми');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     document.title = 'Номенклатура ERP v2 | Centrum'
@@ -763,6 +805,7 @@ const NomenclatureV2 = () => {
           handleDeleteItem={handleDeleteItem}
           handleRestoreItem={handleRestoreItem}
           handleOpenCardModal={handleOpenCardModal}
+          handleSeedRubber={handleSeedRubber}
         />
       </div>
 

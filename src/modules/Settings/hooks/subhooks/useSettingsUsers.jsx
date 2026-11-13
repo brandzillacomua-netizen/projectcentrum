@@ -31,6 +31,7 @@ export const moduleList = [
   { id: 'rework_terminal', label: 'Термінал Доопрацювання' },
   { id: 'pressing_terminal', label: 'Екран Пресування' },
   { id: 'painting_terminal', label: 'Екран Фарбування' },
+  { id: 'rubber_cutting_terminal', label: 'Термінал Порізки Гуми (Цех №2)' },
   { id: 'shop1_foreman', label: 'Кабінет Нач. Цеху №1' },
   { id: 'shop2_foreman', label: 'Кабінет Нач. Цеху №2' },
   { id: 'shop2_card_gen', label: 'Цех №2 – Створення РК (Буфер)' },

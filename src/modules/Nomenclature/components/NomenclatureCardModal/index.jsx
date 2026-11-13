@@ -271,14 +271,88 @@ export const NomenclatureCardModal = ({
     }
   }
 
-  const [activeTab, setActiveTab] = useState('identification') // identification | params | cnc | inventory | bom
+  const [activeTab, setActiveTab] = useState('identification') // identification | params | cnc | rubber_timings | inventory | bom
+  const isRubberPart = item?.rule_type === 'rubber_part'
+
+  const [rubberSheetTimeSec, setRubberSheetTimeSec] = useState(0)
+  const [rubberSheetYield, setRubberSheetYield] = useState(1)
+  const [rubberMaterialId, setRubberMaterialId] = useState('')
+  const [savingRubberTimings, setSavingRubberTimings] = useState(false)
+  const [rubberSaveSuccess, setRubberSaveSuccess] = useState(false)
+
+  const rubberSheets = useMemo(() => {
+    const all = Array.from(itemsMap?.values?.() || [])
+    return all.filter(it => {
+      if (it.status === 'archived') return false
+      const nameLower = String(it.name || '').toLowerCase()
+      return it.rule_type === 'rubber' || nameLower.includes('гума еластична листова') || nameLower.includes('лист гуми')
+    })
+  }, [itemsMap])
+
+  useEffect(() => {
+    if (item) {
+      setRubberSheetTimeSec(Number(item.rule_params?.sheet_cutting_time_sec) || 0)
+      setRubberSheetYield(Number(item.rule_params?.sheet_yield || item.rule_params?.units_per_sheet) || 1)
+      setRubberMaterialId(item.default_material_id || item.rule_params?.raw_material_id || '')
+      setRubberSaveSuccess(false)
+    }
+  }, [item])
+
+  const handleSaveRubberTimings = async () => {
+    if (!item?.id) return
+    setSavingRubberTimings(true)
+    setRubberSaveSuccess(false)
+    try {
+      const selectedSheet = rubberSheets.find(s => s.id === rubberMaterialId)
+      const nextYield = Math.max(1, Number(rubberSheetYield) || 1)
+      const nextTimeSec = Math.max(0, Number(rubberSheetTimeSec) || 0)
+
+      const nextRuleParams = {
+        ...(item.rule_params || {}),
+        sheet_yield: nextYield,
+        units_per_sheet: nextYield,
+        unitsPerSheet: nextYield,
+        sheet_cutting_time_sec: nextTimeSec,
+        ...(selectedSheet ? {
+          raw_material_id: selectedSheet.id,
+          raw_material_code: selectedSheet.code || ''
+        } : {})
+      }
+
+      const payload = {
+        rule_params: nextRuleParams,
+        default_material_id: rubberMaterialId || null
+      }
+
+      const { error } = await supabase
+        .from('nomenclatures_v2')
+        .update(payload)
+        .eq('id', item.id)
+
+      if (error) throw error
+
+      const updatedItem = { ...item, ...payload }
+      setCurrentItem(updatedItem)
+      setRubberSaveSuccess(true)
+      if (typeof onItemUpdated === 'function') onItemUpdated(updatedItem)
+      setTimeout(() => setRubberSaveSuccess(false), 3000)
+    } catch (err) {
+      console.error('Error saving rubber timings:', err)
+      alert('Помилка збереження таймінгів: ' + (err.message || err))
+    } finally {
+      setSavingRubberTimings(false)
+    }
+  }
 
   // If item is not a detail, ensure 'cnc' and 'shop2' tabs cannot be active
   useEffect(() => {
     if (!isDetail && (activeTab === 'cnc' || activeTab === 'shop2')) {
       setActiveTab('identification')
     }
-  }, [isDetail, activeTab])
+    if (!isRubberPart && activeTab === 'rubber_timings') {
+      setActiveTab('identification')
+    }
+  }, [isDetail, isRubberPart, activeTab])
   const [copiedKey, setCopiedKey] = useState(null)
   const [labelSize, setLabelSize] = useState('58x40') // '58x40' | '50x30'
   const [labelMode, setLabelMode] = useState('barcode') // 'barcode' | 'qr' | 'combo'
@@ -712,7 +786,7 @@ export const NomenclatureCardModal = ({
 
   const grp = groups.find(g => g.id === item.group_id)
   const linkedSheet = item.default_material_id ? (itemsMap.get(item.default_material_id) || null) : null
-  const normQty = item.rule_params?.unitsPerSheet || item.units_per_sheet || null
+  const normQty = item.rule_params?.unitsPerSheet || item.rule_params?.sheet_yield || item.rule_params?.units_per_sheet || item.units_per_sheet || null
   const cutterRes = item.rule_params?.cutterResource === 'custom' 
     ? item.rule_params?.customCutterResource 
     : (item.rule_params?.cutterResource || item.cutter_resource || null)
@@ -1135,6 +1209,9 @@ export const NomenclatureCardModal = ({
             ...(isDetail ? [
               { id: 'cnc', label: 'Операції Цех №1', icon: Cpu },
               { id: 'shop2', label: 'Операції Цеху №2', icon: Wrench }
+            ] : []),
+            ...(isRubberPart ? [
+              { id: 'rubber_timings', label: 'Таймінги порізки', icon: Clock }
             ] : []),
             { id: 'inventory', label: 'Складські залишки', icon: Boxes },
             { id: 'bom', label: 'Специфікація BOM', icon: Package }
@@ -1584,7 +1661,7 @@ export const NomenclatureCardModal = ({
 
                 <div>
                   <div style={{ fontSize: '0.72rem', color: 'var(--text-muted, #64748b)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px' }}>
-                    Норма виходу з листа
+                    Кількість на листі
                   </div>
                   <div style={{ fontSize: '1.25rem', fontWeight: 900, color: normQty ? '#059669' : 'var(--text-muted, #64748b)' }}>
                     {normQty ? `${normQty} шт / лист` : '—'}
@@ -1619,35 +1696,229 @@ export const NomenclatureCardModal = ({
               }}>
                 <h3 style={{ margin: '0 0 14px 0', fontSize: '0.95rem', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <Tag size={18} color="#ff9000" />
-                  Усі технічні параметри (ERP Registry Rule Params):
+                  Усі технічні параметри:
                 </h3>
 
                 {item.rule_params && Object.keys(item.rule_params).length > 0 ? (
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
                     {Object.entries(item.rule_params)
                       .filter(([key]) => key !== 'loadTimings')
-                      .map(([key, value]) => (
-                        <div 
-                          key={key}
-                          style={{
-                            background: 'var(--bg, #f8fafc)',
-                            border: '1px solid var(--border-color, #e2e8f0)',
-                            borderRadius: '10px',
-                            padding: '10px 14px'
-                          }}
-                        >
-                          <div style={{ fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-muted, #64748b)', textTransform: 'uppercase' }}>
-                            {key}
+                      .map(([key, value]) => {
+                        const paramLabels = {
+                          part_size: 'Розмір виробу (мм)',
+                          program_name: 'Програма / маркування',
+                          sheet_size: 'Розмір листа (мм)',
+                          thickness: 'Товщина (мм)',
+                          sheet_yield: 'Кількість на листі (шт)',
+                          units_per_sheet: 'Кількість на листі (шт)',
+                          unitsPerSheet: 'Кількість на листі (шт)',
+                          sheet_cutting_time_sec: 'Час обробки 1 листа (сек)',
+                          item_cutting_time_sec: 'Час на 1 деталь (сек)',
+                          raw_material_code: 'Код сировини (листа)',
+                          raw_material_id: 'ID сировини',
+                          default_material_id: 'ID основного матеріалу',
+                          customName: 'Власна назва',
+                          unit: 'Одиниця виміру',
+                          requiresPressing: 'Потрібне пресування',
+                          requiresPainting: 'Потрібне фарбування',
+                          dimensions: 'Габарити',
+                          grade: 'Марка',
+                          sheetGrade: 'Марка листа',
+                          sheetThickness: 'Товщина листа (мм)',
+                          rawSheet: 'Робочий лист',
+                          standard: 'Стандарт (DIN / ISO)',
+                          diameter: 'Діаметр / різьба',
+                          length: 'Довжина (мм)',
+                          isBlack: 'Чорний (оксидований)',
+                          isPartialThread: 'Неповна різьба',
+                          type: 'Тип',
+                          thread: 'Різьба',
+                          tailLength: 'Довжина хвостовика',
+                          outerDiameter: 'Зовнішній діаметр',
+                          material: 'Матеріал',
+                          cutDia: 'Діаметр різу',
+                          shankDia: 'Діаметр хвостовика',
+                          cutLength: 'Довжина різу',
+                          totalLength: 'Загальна довжина',
+                          angle: 'Кут',
+                          specialType: 'Спецтип',
+                          din: 'Стандарт DIN',
+                          projType: 'Тип проєкту',
+                          projNum: 'Номер проєкту',
+                          name: 'Назва',
+                          extra: 'Додатково'
+                        };
+                        const label = paramLabels[key] || key;
+                        return (
+                          <div 
+                            key={key}
+                            style={{
+                              background: 'var(--bg, #f8fafc)',
+                              border: '1px solid var(--border-color, #e2e8f0)',
+                              borderRadius: '10px',
+                              padding: '10px 14px'
+                            }}
+                          >
+                            <div style={{ fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-muted, #64748b)', textTransform: 'uppercase' }}>
+                              {label}
+                            </div>
+                            <div style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text, #0f172a)', marginTop: '3px', wordBreak: 'break-word' }}>
+                              {typeof value === 'boolean' ? (value ? 'Так' : 'Ні') : String(value || '—')}
+                            </div>
                           </div>
-                          <div style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text, #0f172a)', marginTop: '3px' }}>
-                            {typeof value === 'boolean' ? (value ? 'Так' : 'Ні') : String(value || '—')}
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                   </div>
                 ) : (
                   <div style={{ color: 'var(--text-muted, #64748b)', fontSize: '0.85rem' }}>Параметри відсутні</div>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* ══════════════════════════════════════════════════════════════════════
+              TAB: RUBBER CUTTING TIMINGS (ТАЙМІНГИ ПОРІЗКИ ГУМИ)
+              ══════════════════════════════════════════════════════════════════════ */}
+          {isRubberPart && activeTab === 'rubber_timings' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <div style={{
+                background: 'var(--card-bg, #ffffff)',
+                borderRadius: '16px',
+                padding: '24px',
+                border: '1px solid var(--border-color, #e2e8f0)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '18px'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Clock size={18} color="#ff9000" />
+                      Таймінги та параметри порізки листа гуми
+                    </h3>
+                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted, #64748b)', marginTop: '4px', fontWeight: 600 }}>
+                      Завжди ріжеться цілий лист гуми, тому плановий час розраховується виключно за часом обробки 1 листа.
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
+                  <div>
+                    <label style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-muted, #64748b)', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>
+                      Матеріал (лист гуми)
+                    </label>
+                    <select
+                      value={rubberMaterialId}
+                      onChange={e => setRubberMaterialId(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        borderRadius: '10px',
+                        border: '1px solid var(--border-color, #cbd5e1)',
+                        background: 'var(--bg, #f8fafc)',
+                        color: 'var(--text, #0f172a)',
+                        fontWeight: 800,
+                        fontSize: '0.88rem'
+                      }}
+                    >
+                      <option value="">-- Оберіть лист гуми --</option>
+                      {rubberSheets.map(s => (
+                        <option key={s.id} value={s.id}>
+                          {s.name} [{s.code}]
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-muted, #64748b)', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>
+                      Кількість на листі (шт)
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={rubberSheetYield}
+                      onChange={e => setRubberSheetYield(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        borderRadius: '10px',
+                        border: '1px solid var(--border-color, #cbd5e1)',
+                        background: 'var(--bg, #f8fafc)',
+                        color: 'var(--text, #0f172a)',
+                        fontWeight: 900,
+                        fontSize: '0.95rem'
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-muted, #64748b)', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>
+                      Час обробки 1 листа (сек)
+                    </label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <input
+                        type="number"
+                        min="0"
+                        value={rubberSheetTimeSec}
+                        onChange={e => setRubberSheetTimeSec(e.target.value)}
+                        style={{
+                          flex: 1,
+                          padding: '10px 12px',
+                          borderRadius: '10px',
+                          border: '1px solid var(--border-color, #cbd5e1)',
+                          background: 'var(--bg, #f8fafc)',
+                          color: 'var(--text, #0f172a)',
+                          fontWeight: 900,
+                          fontSize: '0.95rem'
+                        }}
+                      />
+                      <span style={{
+                        fontSize: '0.85rem',
+                        fontWeight: 900,
+                        color: '#38bdf8',
+                        background: 'rgba(56, 189, 248, 0.12)',
+                        padding: '8px 12px',
+                        borderRadius: '10px',
+                        whiteSpace: 'nowrap',
+                        fontFamily: 'monospace'
+                      }}>
+                        {Math.floor((Number(rubberSheetTimeSec) || 0) / 60).toString().padStart(2, '0')}:
+                        {((Number(rubberSheetTimeSec) || 0) % 60).toString().padStart(2, '0')}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '12px', paddingTop: '8px', borderTop: '1px solid var(--border-color, #e2e8f0)' }}>
+                  {rubberSaveSuccess && (
+                    <span style={{ color: '#10b981', fontWeight: 800, fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <CheckCircle2 size={16} /> Збережено!
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleSaveRubberTimings}
+                    disabled={savingRubberTimings}
+                    style={{
+                      background: '#ff9000',
+                      color: '#000',
+                      border: 'none',
+                      borderRadius: '12px',
+                      padding: '12px 24px',
+                      fontWeight: 950,
+                      fontSize: '0.88rem',
+                      cursor: savingRubberTimings ? 'wait' : 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      boxShadow: '0 4px 14px rgba(255, 144, 0, 0.3)'
+                    }}
+                  >
+                    <Save size={16} />
+                    <span>{savingRubberTimings ? 'Збереження...' : 'Зберегти таймінги'}</span>
+                  </button>
+                </div>
               </div>
             </div>
           )}

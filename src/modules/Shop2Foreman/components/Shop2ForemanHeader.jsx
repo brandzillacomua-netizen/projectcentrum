@@ -1,6 +1,6 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, Calendar, LayoutDashboard, Users } from 'lucide-react'
+import { ArrowLeft, Calendar, LayoutDashboard, Users, Scissors } from 'lucide-react'
 
 export const Shop2ForemanHeader = ({ activeTab, setActiveTab }) => {
   return (
@@ -29,6 +29,9 @@ export const Shop2ForemanHeader = ({ activeTab, setActiveTab }) => {
           </button>
           <button onClick={() => setActiveTab('staff')} className={`tab-btn ${activeTab === 'staff' ? 'active' : ''}`}>
             <Users size={16} /> Персонал
+          </button>
+          <button onClick={() => setActiveTab('rubber_orders')} className={`tab-btn ${activeTab === 'rubber_orders' ? 'active' : ''}`} style={{ borderColor: activeTab === 'rubber_orders' ? '#ff9000' : 'transparent', color: activeTab === 'rubber_orders' ? '#ff9000' : 'inherit' }}>
+            <Scissors size={16} /> Заявки на гуму
           </button>
         </div>
       </div>

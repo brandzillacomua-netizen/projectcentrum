@@ -60,6 +60,14 @@ export const NomenclatureWizardModal = ({
     });
   }, [items]);
 
+  const rubberSheets = React.useMemo(() => {
+    return (items || []).filter(it => {
+      if (it.status === 'archived') return false;
+      const nameLower = String(it.name || '').toLowerCase();
+      return it.rule_type === 'rubber' || nameLower.includes('гума еластична листова') || nameLower.includes('лист гуми');
+    });
+  }, [items]);
+
   if (!isWizardOpen) return null
 
   return (
@@ -925,6 +933,129 @@ export const NomenclatureWizardModal = ({
                           ? 'Маршрут Цеху №2: Без пресування → Фарбування (якщо в замовленні менеджера обрано фарбування).'
                           : 'Якщо нічого не обрано — деталь у Цеху №2 не пресується й не фарбується (передача напряму на СГП).'}
                   </div>
+                </div>
+              </>
+            )}
+
+            {/* RUBBER PART */}
+            {wizardRuleType === 'rubber_part' && (
+              <>
+                <div>
+                  <label style={{ fontSize: '0.72rem', color: 'var(--text-muted, #64748b)', fontWeight: 800, display: 'block', marginBottom: '6px' }}>
+                    ПОВНА НАЗВА ВИРОБУ *
+                  </label>
+                  <input
+                    type="text"
+                    value={wizardParams.customName || ''}
+                    onChange={e => setWizardParams({ ...wizardParams, customName: e.target.value })}
+                    placeholder="напр. Гума листова 128,34×29,95×4"
+                    style={{ ...inputStyle, fontWeight: 800 }}
+                  />
+                </div>
+
+                <div style={{ background: 'rgba(16, 185, 129, 0.06)', border: '1px solid rgba(16, 185, 129, 0.35)', borderRadius: '14px', padding: '16px' }}>
+                  <label style={{ fontSize: '0.72rem', color: '#059669', fontWeight: 900, textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>
+                    🧱 МАТЕРІАЛ (З ЯКОГО ЛИСТА ГУМИ ВИГОТОВЛЯЄТЬСЯ)
+                  </label>
+                  <select
+                    value={wizardParams.default_material_id || wizardParams.raw_material_id || ''}
+                    onChange={e => {
+                      const selId = e.target.value;
+                      const sheet = rubberSheets.find(s => s.id === selId);
+                      if (sheet) {
+                        const thickMatch = String(sheet.name || '').match(/(\d+(?:[.,]\d+)?)\s*мм/i);
+                        const thicknessNum = thickMatch ? parseFloat(thickMatch[1].replace(',', '.')) : (sheet.rule_params?.thickness ? Number(sheet.rule_params.thickness) : 2);
+                        const dimsMatch = String(sheet.name || '').match(/(\d+\*\d+\*\d+)/);
+                        const sheetSize = dimsMatch ? dimsMatch[1] : `500*500*${thicknessNum}`;
+                        setWizardParams({
+                          ...wizardParams,
+                          default_material_id: sheet.id,
+                          raw_material_id: sheet.id,
+                          raw_material_code: sheet.code || '',
+                          sheet_size: sheetSize,
+                          thickness: thicknessNum
+                        });
+                      } else {
+                        setWizardParams({
+                          ...wizardParams,
+                          default_material_id: '',
+                          raw_material_id: null,
+                          raw_material_code: ''
+                        });
+                      }
+                    }}
+                    style={{ ...inputStyle, fontWeight: 800, borderColor: (wizardParams.default_material_id || wizardParams.raw_material_id) ? '#10b981' : '#f59e0b' }}
+                  >
+                    <option value="">-- Оберіть лист гуми зі складу --</option>
+                    {rubberSheets.map(s => (
+                      <option key={s.id} value={s.id}>
+                        {s.name} [{s.code}]
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <label style={{ fontSize: '0.72rem', color: 'var(--text-muted, #64748b)', fontWeight: 800, display: 'block', marginBottom: '6px' }}>
+                      КІЛЬКІСТЬ НА ЛИСТІ (ШТ) *
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={wizardParams.sheet_yield ?? wizardParams.units_per_sheet ?? ''}
+                      onChange={e => {
+                        const qty = Math.max(1, Number(e.target.value) || 0);
+                        const sheetSec = Number(wizardParams.sheet_cutting_time_sec) || 0;
+                        const itemSec = qty > 0 && sheetSec > 0 ? Number((sheetSec / qty).toFixed(2)) : (wizardParams.item_cutting_time_sec || 0);
+                        setWizardParams({
+                          ...wizardParams,
+                          sheet_yield: qty,
+                          units_per_sheet: qty,
+                          unitsPerSheet: qty,
+                          item_cutting_time_sec: itemSec
+                        });
+                      }}
+                      placeholder="напр. 57"
+                      style={{ ...inputStyle, fontWeight: 800 }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: '0.72rem', color: 'var(--text-muted, #64748b)', fontWeight: 800, display: 'block', marginBottom: '6px' }}>
+                      РОЗМІР ВИРОБУ (ПРОГРАМА, ММ)
+                    </label>
+                    <input
+                      type="text"
+                      value={wizardParams.part_size || ''}
+                      onChange={e => setWizardParams({ ...wizardParams, part_size: e.target.value, program_name: e.target.value })}
+                      placeholder="напр. 128,34×29,95×4"
+                      style={inputStyle}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '0.72rem', color: 'var(--text-muted, #64748b)', fontWeight: 800, display: 'block', marginBottom: '6px' }}>
+                    ЧАС ОБРОБКИ 1 ЛИСТА (СЕК)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={wizardParams.sheet_cutting_time_sec ?? ''}
+                    onChange={e => {
+                      const sheetSec = Math.max(0, Number(e.target.value) || 0);
+                      const qty = Number(wizardParams.sheet_yield || wizardParams.units_per_sheet) || 0;
+                      const itemSec = qty > 0 && sheetSec > 0 ? Number((sheetSec / qty).toFixed(2)) : 0;
+                      setWizardParams({
+                        ...wizardParams,
+                        sheet_cutting_time_sec: sheetSec,
+                        item_cutting_time_sec: itemSec
+                      });
+                    }}
+                    placeholder="напр. 590"
+                    style={{ ...inputStyle, fontWeight: 800 }}
+                  />
                 </div>
               </>
             )}

@@ -53,6 +53,7 @@ export const NomenclatureGroupModal = ({
               <option value="standoff">Стійки міжплатні (TFF/TFM, М, Довжина, Матеріал)</option>
               <option value="mill">Фрези (Тип, dхDхlхL)</option>
               <option value="carbon">Карбонові листи (Марка, Товщина, Позначка)</option>
+              <option value="rubber_part">Гумові вироби (Розмір, Лист, Кількість, Час)</option>
               <option value="frame_part">Деталі (Лазерне різання, Назва, Лист, Норма)</option>
               <option value="full_frame">Рами карбонові (RND/ІП, Модель)</option>
             </select>

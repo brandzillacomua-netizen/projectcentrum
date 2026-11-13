@@ -66,6 +66,7 @@ const ReceptionTerminal = lazy(() => import('./modules/ReceptionTerminal'))
 const SortingTerminal = lazy(() => import('./modules/SortingTerminal'))
 const PaintingTerminal = lazy(() => import('./modules/PaintingTerminal'))
 const PressingTerminal = lazy(() => import('./modules/PressingTerminal'))
+const RubberCuttingTerminal = lazy(() => import('./modules/RubberCutting/RubberCuttingTerminal'))
 const WarehouseBoxesModule = lazy(() => import('./modules/WarehouseBoxesModule'))
 const PreparationDashboard = lazy(() => import('./modules/PreparationDashboard'))
 const ChatModule = lazy(() => import('./modules/ChatModule'))
@@ -902,6 +903,7 @@ const AppContent = () => {
           <Route path="/shop2-terminal" element={<PermissionGuard id="shop2_terminal"><Shop2Terminal /></PermissionGuard>} />
           <Route path="/pressing-terminal" element={<PermissionGuard id="pressing_terminal"><PressingTerminal /></PermissionGuard>} />
           <Route path="/painting-terminal" element={<PermissionGuard id="painting_terminal"><PaintingTerminal /></PermissionGuard>} />
+          <Route path="/rubber-cutting" element={<PermissionGuard id="rubber_cutting_terminal"><RubberCuttingTerminal /></PermissionGuard>} />
           <Route path="/packaging" element={<PermissionGuard id="packaging"><PackagingModule /></PermissionGuard>} />
           <Route path="/engineer" element={<PermissionGuard id="engineer"><EngineerModule /></PermissionGuard>} />
           <Route path="/engineer-v2" element={<PermissionGuard id="engineer_v2"><EngineerV2Module /></PermissionGuard>} />

@@ -16,7 +16,7 @@ const NomenclatureTableRow = React.memo(({
     ['grp_production_frames', 'grp_test_samples', 'grp_assemblies', 'cat_fg'].includes(item.group_id)
   const isCuttingPart = item.rule_type === 'frame_part' || item.group_id === 'cat_parts' || (item.group_id && item.group_id.startsWith('cat_parts'))
   const linkedSheet = item.default_material_id && itemsMap ? itemsMap.get(item.default_material_id) : null
-  const normQty = isFinishedGood ? null : (item.rule_params?.unitsPerSheet || item.units_per_sheet || null)
+  const normQty = isFinishedGood ? null : (item.rule_params?.unitsPerSheet || item.rule_params?.sheet_yield || item.units_per_sheet || null)
   const cResVal = isFinishedGood ? null : (item.rule_params?.cutterResource === 'custom' ? item.rule_params?.customCutterResource : (item.rule_params?.cutterResource || item.cutter_resource || null))
   const cRes = cResVal ? `${cResVal} л/фр` : null
 
@@ -74,9 +74,23 @@ const NomenclatureTableRow = React.memo(({
         {(() => {
           const plannedSheetTimings = getPlannedShop1SheetTimings(item)
           const shop2Flags = isCuttingPart ? getPartShop2RoutingFlags(item) : { requiresPressing: false, requiresPainting: false }
-          if (plannedSheetTimings.length === 0 && !shop2Flags.requiresPressing && !shop2Flags.requiresPainting) return null
+          const isRubber = item.rule_type === 'rubber_part' || item.group_id === 'grp_rubber_parts'
+          const rubberTimeSec = item.rule_params?.sheet_cutting_time_sec || 0
+          const rubberItemTime = item.rule_params?.item_cutting_time_sec || 0
+
+          if (plannedSheetTimings.length === 0 && !shop2Flags.requiresPressing && !shop2Flags.requiresPainting && !isRubber) return null
           return (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '6px' }}>
+              {isRubber && rubberTimeSec > 0 && (
+                <span style={{ background: 'rgba(56, 189, 248, 0.12)', border: '1px solid rgba(56, 189, 248, 0.3)', color: '#0284c7', padding: '2px 6px', borderRadius: '5px', fontSize: '0.68rem', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                  <Clock size={10} /> Лист: {rubberTimeSec}с {rubberItemTime > 0 ? `(${rubberItemTime}с/шт)` : ''}
+                </span>
+              )}
+              {isRubber && rubberTimeSec === 0 && (
+                <span style={{ background: 'rgba(148, 163, 184, 0.12)', border: '1px solid rgba(148, 163, 184, 0.25)', color: '#64748b', padding: '2px 6px', borderRadius: '5px', fontSize: '0.68rem', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                  <Clock size={10} /> Час на станку: уточнюється
+                </span>
+              )}
               {shop2Flags.requiresPressing && (
                 <span style={{ background: 'rgba(249, 115, 22, 0.12)', border: '1px solid rgba(249, 115, 22, 0.3)', color: '#ea580c', padding: '2px 6px', borderRadius: '5px', fontSize: '0.68rem', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
                   🔩 Пресування
@@ -160,7 +174,8 @@ export const NomenclatureTable = ({
   handleOpenEditItem,
   handleDeleteItem,
   handleRestoreItem,
-  handleOpenCardModal
+  handleOpenCardModal,
+  handleSeedRubber
 }) => {
   const itemsMap = React.useMemo(() => {
     return new Map((items || []).map(it => [it.id, it]))
@@ -241,7 +256,7 @@ export const NomenclatureTable = ({
               <th className="nom-v2-th" style={{ padding: '16px 20px', fontSize: '0.72rem', color: 'var(--text-muted, #64748b)', textTransform: 'uppercase', fontWeight: 900, width: '120px' }}>Код V2</th>
               <th className="nom-v2-th" style={{ padding: '16px 20px', fontSize: '0.72rem', color: 'var(--text-muted, #64748b)', textTransform: 'uppercase', fontWeight: 900 }}>Стандартизована Назва</th>
               <th className="nom-v2-th" style={{ padding: '16px 20px', fontSize: '0.72rem', color: 'var(--text-muted, #64748b)', textTransform: 'uppercase', fontWeight: 900, width: '160px' }}>Матеріал (Лист)</th>
-              <th className="nom-v2-th" style={{ padding: '16px 20px', fontSize: '0.72rem', color: 'var(--text-muted, #64748b)', textTransform: 'uppercase', fontWeight: 900, width: '130px' }}>Норма на листі</th>
+              <th className="nom-v2-th" style={{ padding: '16px 20px', fontSize: '0.72rem', color: 'var(--text-muted, #64748b)', textTransform: 'uppercase', fontWeight: 900, width: '130px' }}>Кількість на листі</th>
               <th className="nom-v2-th" style={{ padding: '16px 20px', fontSize: '0.72rem', color: 'var(--text-muted, #64748b)', textTransform: 'uppercase', fontWeight: 900, width: '180px' }}>Категорія / Група</th>
               <th style={{ padding: '16px 20px', fontSize: '0.72rem', color: 'var(--text-muted, #64748b)', textTransform: 'uppercase', fontWeight: 900, width: '90px' }}>Од. вим.</th>
               <th style={{ padding: '16px 20px', fontSize: '0.72rem', color: 'var(--text-muted, #64748b)', textTransform: 'uppercase', fontWeight: 900, width: '100px', textAlign: 'right' }}>Дії</th>
@@ -256,6 +271,14 @@ export const NomenclatureTable = ({
                     <span style={{ fontSize: '0.9rem', color: 'var(--text-muted, #64748b)', fontWeight: 700 }}>
                       {searchQuery ? 'За вашим запитом нічого не знайдено' : 'У цьому розділі V2 каталогу ще немає позицій'}
                     </span>
+                    {selectedGroup && (selectedGroup.id === 'grp_rubber_parts' || selectedGroup.code === 'HW.RUBBER') && (
+                      <button 
+                        onClick={() => handleSeedRubber && handleSeedRubber()}
+                        style={{ background: '#0284c7', color: '#ffffff', border: 'none', borderRadius: '10px', padding: '10px 18px', fontWeight: 800, fontSize: '0.8rem', cursor: 'pointer', marginTop: '6px', display: 'inline-flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(2,132,199,0.3)' }}
+                      >
+                        <span>⚡</span> Імпортувати 20 перевірених деталей гуми
+                      </button>
+                    )}
                     <button 
                       onClick={() => handleOpenWizard()}
                       style={{ background: 'rgba(255,144,0,0.1)', color: '#d97706', border: '1px solid rgba(255,144,0,0.3)', borderRadius: '10px', padding: '10px 18px', fontWeight: 800, fontSize: '0.8rem', cursor: 'pointer', marginTop: '5px' }}

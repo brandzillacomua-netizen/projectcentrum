@@ -23,7 +23,11 @@ const OPERATOR_POSITION_MARKERS = [
   'полірувальн',
   'полірув',
   'полір',
-  'реставр'
+  'реставр',
+  'поріз',
+  'порізчик',
+  'різчик',
+  'гум'
 ]
 
 const includesPositionMarker = (user, markers = OPERATOR_POSITION_MARKERS) => {
@@ -123,6 +127,18 @@ export const selectFilteredOperatorNames = (systemUsers, department, shift, stag
       list = list.filter(user => includesPositionMarker(user, ['маляр', 'фарб']))
     } else if (stageLower.includes('пресуван') || stageLower.includes('прес')) {
       list = list.filter(user => includesPositionMarker(user, ['прес', 'пресув']))
+    } else if (stageLower.includes('поріз') || stageLower.includes('гум') || stageLower.includes('гума')) {
+      const rubberCutters = users.filter(user => 
+        matchesShift(user, shift) && (
+          includesPositionMarker(user, [
+            'лицюв', 'лицювальн', 'лицьов', 'лицьовальн', 'лиц', 
+            'полір', 'полірув', 'полірувальн',
+            'поріз', 'порізчик', 'різчик', 'гум', 'оператор', 'працівник'
+          ]) ||
+          matchesDepartment(user.department, 'Цех №2')
+        )
+      )
+      list = rubberCutters
     } else if (stageLower.includes('підготов')) {
       list = list.filter(user => Boolean(user?.position) && (
         includesPositionMarker(user, ['працівник вп', 'підготов']) ||
