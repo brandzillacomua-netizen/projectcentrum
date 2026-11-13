@@ -101,7 +101,11 @@ export const selectFilteredOperatorNames = (systemUsers, department, shift, stag
     } else if (stageLower.includes('сортуван')) {
       const sortingUsers = users.filter(user => 
         matchesShift(user, shift) && (
-          includesPositionMarker(user, ['сортув', 'сортувал']) ||
+          includesPositionMarker(user, [
+            'сортув', 'сортувал',
+            'лицьов', 'лицьовальн', 'лицюв', 'лицювальн', 'лиц',
+            'полір', 'полірув', 'полірувальн'
+          ]) ||
           (user.department === 'Сортування' && includesPositionMarker(user, ['сортув', 'сортувал', 'працівник']))
         )
       )

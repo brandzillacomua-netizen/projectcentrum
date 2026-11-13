@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { CheckCircle, X, RefreshCw } from 'lucide-react'
+import { OperatorMultiSelect } from '../../../../components/common/OperatorMultiSelect.jsx'
 
 const ACCENT = '#34d399'
 const ACCENT_RGB = '52,211,153'
@@ -24,12 +25,10 @@ export default function SortingCompleteModal({
   onShiftOperators = [],
   allStageOperators = []
 }) {
-  const [showAllOperators, setShowAllOperators] = useState(false)
   const [localOperator, setLocalOperator] = useState('')
 
   useEffect(() => {
     if (showCompleteModal && activeCompletingCard) {
-      setShowAllOperators(false)
       const cardOp = activeCompletingCard.operator_name
       const isCardOpValid = cardOp && cardOp !== 'Команда' && cardOp !== 'Сортування'
       setLocalOperator(isCardOpValid ? cardOp : (selectedOperator || ''))
@@ -41,150 +40,316 @@ export default function SortingCompleteModal({
   const totalQty = activeCompletingCard.quantity || 0
   const onShiftList = (onShiftOperators && onShiftOperators.length > 0) ? onShiftOperators : []
   const allList = (allStageOperators && allStageOperators.length > 0) ? allStageOperators : operators
-  const visibleOperators = showAllOperators || onShiftList.length === 0 ? allList : onShiftList
   const effectiveOperator = localOperator || selectedOperator || ''
 
   return (
-    <div className="terminal-modal-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '20px', backdropFilter: 'blur(8px)' }}>
-      <div className="terminal-modal-card" style={{ background: '#0e0e11', width: '100%', maxWidth: '420px', borderRadius: '28px', border: `1px solid rgba(${ACCENT_RGB},0.2)`, overflow: 'hidden', boxShadow: '0 20px 50px rgba(0,0,0,0.5)' }}>
-        <div style={{ padding: '20px 24px', background: 'var(--border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-subtle)' }}>
+    <div
+      className="terminal-modal-overlay"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0,0,0,0.85)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 10050,
+        padding: '12px',
+        backdropFilter: 'blur(10px)'
+      }}
+    >
+      <div
+        className="terminal-modal-card"
+        style={{
+          background: '#0e0e12',
+          width: '100%',
+          maxWidth: '540px',
+          maxHeight: '92vh',
+          display: 'flex',
+          flexDirection: 'column',
+          borderRadius: '24px',
+          border: `1px solid rgba(${ACCENT_RGB}, 0.3)`,
+          overflow: 'hidden',
+          boxShadow: '0 25px 70px rgba(0,0,0,0.7)'
+        }}
+      >
+        {/* Header */}
+        <div
+          style={{
+            flexShrink: 0,
+            padding: '16px 20px',
+            background: `rgba(${ACCENT_RGB}, 0.08)`,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            borderBottom: `1px solid rgba(${ACCENT_RGB}, 0.15)`
+          }}
+        >
           <div>
-            <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 950, color: ACCENT, display: 'flex', alignItems: 'center', gap: '8px', textTransform: 'uppercase' }}>
-              <CheckCircle size={16} /> Завершити Сортування
-            </h3>
-            <div style={{ fontSize: '0.62rem', color: 'var(--text-dim)', marginTop: '2px', fontWeight: 800 }}>Картка #{activeCompletingCard.id.slice(-8).toUpperCase()}</div>
-          </div>
-          <button onClick={() => setShowCompleteModal(false)} disabled={isProcessing} style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer' }}><X size={20} /></button>
-        </div>
-        <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          <div style={{ background: 'var(--border-subtle)', border: '1px solid var(--border-subtle)', padding: '12px 16px', borderRadius: '12px' }}>
-            <div style={{ fontSize: '0.55rem', color: 'var(--text-dim)', fontWeight: 900, textTransform: 'uppercase', marginBottom: '4px' }}>Деталь</div>
-            <div style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-strong)' }}>{getNom(activeCompletingCard)?.name || 'Невказана деталь'}</div>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-              <label style={{ fontSize: '0.65rem', color: 'var(--text-dim)', fontWeight: 900, textTransform: 'uppercase', margin: 0 }}>
-                Сортувальник {!showAllOperators && onShiftList.length > 0 ? `(На роботі сьогодні: ${onShiftList.length})` : ''} <span style={{ color: '#ef4444' }}>*</span>
-              </label>
-              {allList.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setShowAllOperators(prev => !prev)}
-                  style={{
-                    background: showAllOperators ? `rgba(${ACCENT_RGB},0.16)` : 'var(--surface-2)',
-                    border: '1px solid var(--border-subtle)',
-                    color: showAllOperators ? ACCENT : 'var(--text-muted)',
-                    padding: '3px 8px',
-                    borderRadius: '6px',
-                    fontSize: '0.65rem',
-                    fontWeight: 800,
-                    cursor: 'pointer'
-                  }}
-                >
-                  {showAllOperators ? 'Тільки на зміні сьогодні' : `Показати всіх (${allList.length})`}
-                </button>
-              )}
-            </div>
-            <select
-              value={effectiveOperator}
-              onChange={e => {
-                setLocalOperator(e.target.value)
-                if (setSelectedOperator) setSelectedOperator(e.target.value)
-              }}
+            <h3
               style={{
-                background: 'var(--surface-2)',
-                border: effectiveOperator ? `1px solid rgba(${ACCENT_RGB},0.4)` : '1px solid #ef4444',
-                color: 'var(--text-strong)',
-                padding: '10px 14px',
-                borderRadius: '12px',
-                fontSize: '0.85rem',
-                fontWeight: 800,
-                outline: 'none',
-                cursor: 'pointer'
+                margin: 0,
+                fontSize: '1rem',
+                fontWeight: 950,
+                color: ACCENT,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                textTransform: 'uppercase'
               }}
             >
-              <option value="">
-                {(!showAllOperators && onShiftList.length === 0)
-                  ? '— Сьогодні нікого не відмічено в табелі (натисніть «Показати всіх») —'
-                  : '— Оберіть сортувальника —'}
-              </option>
-              {visibleOperators.map(op => (
-                <option key={op} value={op}>{op}</option>
-              ))}
-            </select>
+              <CheckCircle size={17} /> Завершити Сортування
+            </h3>
+            <div style={{ fontSize: '0.68rem', color: 'var(--text-dim)', marginTop: '2px', fontWeight: 800 }}>
+              Картка #{activeCompletingCard.id.slice(-8).toUpperCase()}
+            </div>
           </div>
+          <button
+            type="button"
+            onClick={() => setShowCompleteModal(false)}
+            disabled={isProcessing}
+            style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', padding: '4px' }}
+          >
+            <X size={22} />
+          </button>
+        </div>
+
+        {/* Scrollable Body */}
+        <div
+          style={{
+            flex: 1,
+            overflowY: 'auto',
+            padding: '18px 20px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '16px'
+          }}
+        >
+          <div
+            style={{
+              background: 'rgba(255,255,255,0.03)',
+              border: '1px solid var(--border-subtle, rgba(255,255,255,0.08))',
+              padding: '12px 16px',
+              borderRadius: '14px'
+            }}
+          >
+            <div style={{ fontSize: '0.62rem', color: 'var(--text-dim)', fontWeight: 900, textTransform: 'uppercase', marginBottom: '2px' }}>
+              Деталь
+            </div>
+            <div style={{ fontSize: '0.95rem', fontWeight: 900, color: 'var(--text-strong)' }}>
+              {getNom(activeCompletingCard)?.name || 'Невказана деталь'}
+            </div>
+          </div>
+
+          <OperatorMultiSelect
+            label="Сортувальник / Лицювальник"
+            onShiftOperators={onShiftList}
+            allStageOperators={allList}
+            selectedOperator={effectiveOperator}
+            setSelectedOperator={(val) => {
+              setLocalOperator(val)
+              if (setSelectedOperator) setSelectedOperator(val)
+            }}
+            accentColor={ACCENT}
+            accentRgb={ACCENT_RGB}
+            inline={true}
+            maxHeight="160px"
+            compact={true}
+          />
+
           {/* OK and Scrap inputs */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
             <div>
-              <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px' }}>В Цех №2 (OK)</label>
+              <label style={{ display: 'block', fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px' }}>
+                В Цех №2 (OK)
+              </label>
               <input
-                type="number" min="0" max={totalQty - reworkCount}
+                type="number"
+                min="0"
+                max={totalQty - reworkCount}
                 value={finishedCount}
-                onChange={e => { const val = Math.max(0, parseInt(e.target.value) || 0); setFinishedCount(val); setScrapCount(Math.max(0, totalQty - reworkCount - val)) }}
-                style={{ background: 'var(--surface-2)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', padding: '10px 14px', borderRadius: '12px', fontSize: '0.85rem', fontWeight: 800, outline: 'none', width: '100%', textAlign: 'center' }}
+                onChange={e => {
+                  const val = Math.max(0, parseInt(e.target.value) || 0)
+                  setFinishedCount(val)
+                  setScrapCount(Math.max(0, totalQty - reworkCount - val))
+                }}
+                style={{
+                  background: 'var(--surface-2, #181820)',
+                  border: '1px solid var(--border-subtle, rgba(255,255,255,0.12))',
+                  color: 'var(--text-strong, #fff)',
+                  padding: '10px 14px',
+                  borderRadius: '12px',
+                  fontSize: '0.95rem',
+                  fontWeight: 800,
+                  outline: 'none',
+                  width: '100%',
+                  textAlign: 'center'
+                }}
               />
             </div>
             <div>
-              <label style={{ display: 'block', fontSize: '0.65rem', color: '#ef4444', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px' }}>Брак (шт)</label>
+              <label style={{ display: 'block', fontSize: '0.68rem', color: '#ef4444', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px' }}>
+                Брак (шт)
+              </label>
               <input
-                type="number" min="0" max={totalQty - reworkCount}
+                type="number"
+                min="0"
+                max={totalQty - reworkCount}
                 value={scrapCount}
-                onChange={e => { const val = Math.max(0, parseInt(e.target.value) || 0); setScrapCount(val); setFinishedCount(Math.max(0, totalQty - reworkCount - val)) }}
-                style={{ background: 'var(--surface-2)', border: '1px solid var(--border-subtle)', color: '#ef4444', padding: '10px 14px', borderRadius: '12px', fontSize: '0.85rem', fontWeight: 800, outline: 'none', width: '100%', textAlign: 'center' }}
+                onChange={e => {
+                  const val = Math.max(0, parseInt(e.target.value) || 0)
+                  setScrapCount(val)
+                  setFinishedCount(Math.max(0, totalQty - reworkCount - val))
+                }}
+                style={{
+                  background: 'var(--surface-2, #181820)',
+                  border: '1px solid var(--border-subtle, rgba(255,255,255,0.12))',
+                  color: '#ef4444',
+                  padding: '10px 14px',
+                  borderRadius: '12px',
+                  fontSize: '0.95rem',
+                  fontWeight: 800,
+                  outline: 'none',
+                  width: '100%',
+                  textAlign: 'center'
+                }}
               />
             </div>
           </div>
+
           {/* Rework counter */}
-          <div style={{ background: 'var(--surface-inset)', borderRadius: '12px', padding: '14px', border: '1px solid #f59e0b22' }}>
-            <label style={{ display: 'block', fontSize: '0.65rem', color: '#f59e0b', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px', textAlign: 'center' }}>НА ДООПРАЦЮВАННЯ (Цех №2)</label>
+          <div style={{ background: 'rgba(245, 158, 11, 0.05)', borderRadius: '14px', padding: '14px', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
+            <label style={{ display: 'block', fontSize: '0.68rem', color: '#f59e0b', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px', textAlign: 'center' }}>
+              НА ДООПРАЦЮВАННЯ (Цех №2)
+            </label>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
-              <button onClick={() => { const n = Math.max(0, reworkCount - 1); setReworkCount(n); setFinishedCount(Math.max(0, totalQty - scrapCount - n)) }}
-                style={{ width: '40px', height: '40px', background: 'var(--surface-2)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', borderRadius: '8px', fontSize: '1.2rem', cursor: 'pointer' }}>−</button>
-              <input type="number" min={0} max={totalQty - scrapCount} value={reworkCount === 0 ? '' : reworkCount} placeholder="0"
-                onChange={e => { const val = Math.max(0, parseInt(e.target.value) || 0); setReworkCount(val); setFinishedCount(Math.max(0, totalQty - scrapCount - val)) }}
-                style={{ background: 'transparent', border: 'none', color: '#f59e0b', fontSize: '2.5rem', width: '80px', textAlign: 'center', fontWeight: 900 }} />
-              <button onClick={() => { const n = Math.min(totalQty - scrapCount, reworkCount + 1); setReworkCount(n); setFinishedCount(Math.max(0, totalQty - scrapCount - n)) }}
-                style={{ width: '40px', height: '40px', background: 'var(--surface-2)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', borderRadius: '8px', fontSize: '1.2rem', cursor: 'pointer' }}>+</button>
+              <button
+                type="button"
+                onClick={() => {
+                  const n = Math.max(0, reworkCount - 1)
+                  setReworkCount(n)
+                  setFinishedCount(Math.max(0, totalQty - scrapCount - n))
+                }}
+                style={{
+                  width: '42px',
+                  height: '42px',
+                  background: 'var(--surface-2, #1e1e28)',
+                  border: '1px solid var(--border-subtle, rgba(255,255,255,0.15))',
+                  color: '#fff',
+                  borderRadius: '10px',
+                  fontSize: '1.4rem',
+                  cursor: 'pointer'
+                }}
+              >
+                −
+              </button>
+              <input
+                type="number"
+                min={0}
+                max={totalQty - scrapCount}
+                value={reworkCount === 0 ? '' : reworkCount}
+                placeholder="0"
+                onChange={e => {
+                  const val = Math.max(0, parseInt(e.target.value) || 0)
+                  setReworkCount(val)
+                  setFinishedCount(Math.max(0, totalQty - scrapCount - val))
+                }}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#f59e0b',
+                  fontSize: '2.2rem',
+                  width: '80px',
+                  textAlign: 'center',
+                  fontWeight: 950
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  const n = Math.min(totalQty - scrapCount, reworkCount + 1)
+                  setReworkCount(n)
+                  setFinishedCount(Math.max(0, totalQty - scrapCount - n))
+                }}
+                style={{
+                  width: '42px',
+                  height: '42px',
+                  background: 'var(--surface-2, #1e1e28)',
+                  border: '1px solid var(--border-subtle, rgba(255,255,255,0.15))',
+                  color: '#fff',
+                  borderRadius: '10px',
+                  fontSize: '1.4rem',
+                  cursor: 'pointer'
+                }}
+              >
+                +
+              </button>
             </div>
           </div>
-          <div style={{ background: `rgba(${ACCENT_RGB},0.06)`, border: `1px solid rgba(${ACCENT_RGB},0.15)`, borderRadius: '10px', padding: '10px 14px', fontSize: '0.72rem', color: ACCENT, fontWeight: 800, textAlign: 'center' }}>
-            ✅ В Цех №2: <strong>{finishedCount}</strong> · Доопр: <strong style={{color:'#f59e0b'}}>{reworkCount}</strong> · Брак: <strong style={{color:'#ef4444'}}>{scrapCount}</strong> / {totalQty} шт
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', color: '#6b7280', fontWeight: 800, borderTop: '1px solid var(--border-subtle)', paddingTop: '12px' }}>
-            <span>Разом по картці:</span>
-            <span style={{ color: 'var(--text-strong)' }}>{totalQty} шт</span>
+
+          <div style={{ background: `rgba(${ACCENT_RGB},0.08)`, border: `1px solid rgba(${ACCENT_RGB},0.2)`, borderRadius: '12px', padding: '10px 14px', fontSize: '0.78rem', color: ACCENT, fontWeight: 800, textAlign: 'center' }}>
+            ✅ В Цех №2: <strong>{finishedCount}</strong> · Доопр: <strong style={{ color: '#f59e0b' }}>{reworkCount}</strong> · Брак: <strong style={{ color: '#ef4444' }}>{scrapCount}</strong> / {totalQty} шт
           </div>
 
           {scanError && (
-            <div style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', color: '#ef4444', borderRadius: '10px', padding: '10px 14px', fontSize: '0.72rem', fontWeight: 800, textAlign: 'center' }}>
+            <div style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', color: '#ef4444', borderRadius: '12px', padding: '10px 14px', fontSize: '0.78rem', fontWeight: 800, textAlign: 'center' }}>
               ⚠️ {scanError}
             </div>
           )}
+        </div>
 
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <button
-              onClick={() => submitSortingComplete(effectiveOperator)}
-              disabled={isProcessing || !effectiveOperator}
-              style={{
-                flex: 1,
-                background: effectiveOperator ? ACCENT : '#333',
-                border: 'none',
-                color: effectiveOperator ? '#000' : '#888',
-                padding: '12px',
-                borderRadius: '12px',
-                fontSize: '0.75rem',
-                fontWeight: 900,
-                cursor: effectiveOperator ? 'pointer' : 'not-allowed',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '6px'
-              }}
-            >
-              {isProcessing ? <RefreshCw size={14} className="anim-spin" /> : <><CheckCircle size={14} /> ПЕРЕДАТИ В ЦЕХ №2</>}
-            </button>
-          </div>
+        {/* Sticky Footer */}
+        <div
+          style={{
+            flexShrink: 0,
+            padding: '14px 20px',
+            background: 'rgba(12,12,16,0.95)',
+            borderTop: '1px solid rgba(255,255,255,0.08)',
+            display: 'flex',
+            gap: '12px'
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => setShowCompleteModal(false)}
+            disabled={isProcessing}
+            style={{
+              flex: 1,
+              background: 'rgba(255,255,255,0.06)',
+              border: '1px solid rgba(255,255,255,0.12)',
+              color: '#bbb',
+              padding: '14px',
+              borderRadius: '14px',
+              fontSize: '0.85rem',
+              fontWeight: 900,
+              cursor: 'pointer'
+            }}
+          >
+            СКАСУВАТИ
+          </button>
+          <button
+            type="button"
+            onClick={() => submitSortingComplete(effectiveOperator)}
+            disabled={isProcessing || !effectiveOperator}
+            style={{
+              flex: 2,
+              background: effectiveOperator ? ACCENT : '#26262e',
+              border: 'none',
+              color: effectiveOperator ? '#000' : '#666',
+              padding: '14px',
+              borderRadius: '14px',
+              fontSize: '0.92rem',
+              fontWeight: 950,
+              cursor: effectiveOperator ? 'pointer' : 'not-allowed',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              boxShadow: effectiveOperator ? `0 8px 24px rgba(${ACCENT_RGB}, 0.35)` : 'none',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            {isProcessing ? <RefreshCw size={16} className="anim-spin" /> : <><CheckCircle size={16} /> ПІДТВЕРДИТИ В ЦЕХ №2</>}
+          </button>
         </div>
       </div>
     </div>

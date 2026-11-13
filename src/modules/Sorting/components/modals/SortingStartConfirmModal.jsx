@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react'
+import React, { useEffect } from 'react'
 import { Play, X, RefreshCw } from 'lucide-react'
+import { OperatorMultiSelect } from '../../../../components/common/OperatorMultiSelect.jsx'
 
 const ACCENT = '#34d399'
 const ACCENT_RGB = '52,211,153'
@@ -17,15 +18,11 @@ export default function SortingStartConfirmModal({
   allStageOperators = [],
   scanError
 }) {
-  const [showAllOperators, setShowAllOperators] = useState(false)
-
   const onShiftList = (onShiftOperators && onShiftOperators.length > 0) ? onShiftOperators : []
   const allList = (allStageOperators && allStageOperators.length > 0) ? allStageOperators : operators
-  const visibleOperators = showAllOperators || onShiftList.length === 0 ? allList : onShiftList
 
   useEffect(() => {
     if (pendingStartCard) {
-      setShowAllOperators(false)
       if (setSelectedOperator) {
         setSelectedOperator('')
       }
@@ -34,104 +31,223 @@ export default function SortingStartConfirmModal({
 
   if (!pendingStartCard) return null
 
-  return (
-    <div className="terminal-modal-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10050, padding: '20px', backdropFilter: 'blur(10px)' }}>
-      <div className="terminal-modal-card" style={{ background: 'var(--surface-inset)', width: '100%', maxWidth: '420px', borderRadius: '28px', border: `1px solid rgba(${ACCENT_RGB},0.25)`, overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.6)' }}>
-        <div style={{ padding: '20px 24px', background: `rgba(${ACCENT_RGB},0.06)`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid rgba(${ACCENT_RGB},0.1)` }}>
-          <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 950, color: ACCENT, display: 'flex', alignItems: 'center', gap: '8px', textTransform: 'uppercase' }}>
-            <Play size={16} fill="currentColor" /> Взяти на Сортування
-          </h3>
-          <button onClick={() => setPendingStartCard(null)} style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer' }}><X size={20} /></button>
-        </div>
-        <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
-          <div style={{ background: 'var(--border-subtle)', border: '1px solid var(--border-subtle)', borderRadius: '16px', padding: '16px 18px' }}>
-            <div style={{ fontSize: '0.6rem', color: '#ff9000', fontWeight: 900 }}>#{pendingStartCard.id.slice(-8).toUpperCase()}</div>
-            <div style={{ fontSize: '1rem', fontWeight: 900, color: 'var(--text-strong)', marginTop: '6px' }}>{getNom(pendingStartCard)?.name || 'Деталь'}</div>
-            <div style={{ fontSize: '0.75rem', color: '#6b7280', fontWeight: 700, marginTop: '4px' }}>К-сть: <strong style={{ color: 'var(--text-strong)' }}>{pendingStartCard.quantity} шт</strong></div>
-          </div>
+  const selectedCount = String(selectedOperator || '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean).length
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-              <label style={{ fontSize: '0.65rem', color: 'var(--text-dim)', fontWeight: 900, textTransform: 'uppercase', margin: 0 }}>
-                Сортувальник {!showAllOperators && onShiftList.length > 0 ? `(На роботі сьогодні: ${onShiftList.length})` : ''} <span style={{ color: '#ef4444' }}>*</span>
-              </label>
-              {allList.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setShowAllOperators(prev => !prev)}
-                  style={{
-                    background: showAllOperators ? `rgba(${ACCENT_RGB},0.16)` : 'var(--surface-2)',
-                    border: '1px solid var(--border-subtle)',
-                    color: showAllOperators ? ACCENT : 'var(--text-muted)',
-                    padding: '3px 8px',
-                    borderRadius: '6px',
-                    fontSize: '0.65rem',
-                    fontWeight: 800,
-                    cursor: 'pointer'
-                  }}
-                >
-                  {showAllOperators ? 'Тільки на зміні сьогодні' : `Показати всіх (${allList.length})`}
-                </button>
-              )}
+  return (
+    <div
+      className="terminal-modal-overlay"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0,0,0,0.85)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 10050,
+        padding: '12px',
+        backdropFilter: 'blur(10px)'
+      }}
+    >
+      <div
+        className="terminal-modal-card"
+        style={{
+          background: '#0d0d12',
+          width: '100%',
+          maxWidth: '540px',
+          maxHeight: '92vh',
+          display: 'flex',
+          flexDirection: 'column',
+          borderRadius: '24px',
+          border: `1px solid rgba(${ACCENT_RGB}, 0.35)`,
+          boxShadow: '0 25px 70px rgba(0,0,0,0.7)',
+          overflow: 'hidden'
+        }}
+      >
+        {/* Header */}
+        <div
+          style={{
+            flexShrink: 0,
+            padding: '16px 20px',
+            background: `rgba(${ACCENT_RGB}, 0.08)`,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            borderBottom: `1px solid rgba(${ACCENT_RGB}, 0.15)`
+          }}
+        >
+          <h3
+            style={{
+              margin: 0,
+              fontSize: '1rem',
+              fontWeight: 950,
+              color: ACCENT,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              textTransform: 'uppercase',
+              letterSpacing: '0.02em'
+            }}
+          >
+            <Play size={17} fill="currentColor" /> Взяти на Сортування
+          </h3>
+          <button
+            type="button"
+            onClick={() => setPendingStartCard(null)}
+            disabled={isProcessing}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#888',
+              cursor: 'pointer',
+              padding: '4px',
+              display: 'flex',
+              alignItems: 'center'
+            }}
+          >
+            <X size={22} />
+          </button>
+        </div>
+
+        {/* Scrollable Body */}
+        <div
+          style={{
+            flex: 1,
+            overflowY: 'auto',
+            padding: '18px 20px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '16px'
+          }}
+        >
+          {/* Card Info Box */}
+          <div
+            style={{
+              background: 'rgba(255,255,255,0.03)',
+              border: '1px solid var(--border-subtle, rgba(255,255,255,0.08))',
+              borderRadius: '16px',
+              padding: '14px 16px'
+            }}
+          >
+            <div style={{ fontSize: '0.68rem', color: '#ff9000', fontWeight: 900 }}>
+              #{pendingStartCard.id.slice(-8).toUpperCase()}
             </div>
-            <select
-              value={selectedOperator}
-              onChange={e => setSelectedOperator && setSelectedOperator(e.target.value)}
+            <div
               style={{
-                background: 'var(--surface-2)',
-                border: selectedOperator ? `1px solid rgba(${ACCENT_RGB},0.4)` : '1px solid #ef4444',
-                color: 'var(--text-strong)',
-                padding: '10px 14px',
-                borderRadius: '12px',
-                fontSize: '0.85rem',
-                fontWeight: 800,
-                outline: 'none',
-                cursor: 'pointer'
+                fontSize: '1.05rem',
+                fontWeight: 900,
+                color: 'var(--text-strong, #fff)',
+                marginTop: '4px'
               }}
             >
-              <option value="">
-                {(!showAllOperators && onShiftList.length === 0)
-                  ? '— Сьогодні нікого не відмічено в табелі (натисніть «Показати всіх») —'
-                  : '— Оберіть сортувальника —'}
-              </option>
-              {visibleOperators.map(op => (
-                <option key={op} value={op}>{op}</option>
-              ))}
-            </select>
+              {getNom(pendingStartCard)?.name || 'Деталь'}
+            </div>
+            <div
+              style={{
+                fontSize: '0.8rem',
+                color: 'var(--text-muted, #9ca3af)',
+                fontWeight: 700,
+                marginTop: '4px'
+              }}
+            >
+              К-сть: <strong style={{ color: 'var(--text-strong, #fff)' }}>{pendingStartCard.quantity} шт</strong>
+            </div>
           </div>
 
+          {/* Inline Multi-Select */}
+          <OperatorMultiSelect
+            label="Сортувальник / Лицювальник"
+            onShiftOperators={onShiftList}
+            allStageOperators={allList}
+            selectedOperator={selectedOperator}
+            setSelectedOperator={setSelectedOperator}
+            accentColor={ACCENT}
+            accentRgb={ACCENT_RGB}
+            inline={true}
+            maxHeight="240px"
+            compact={true}
+          />
+
           {scanError && (
-            <div style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', color: '#ef4444', borderRadius: '10px', padding: '10px 14px', fontSize: '0.72rem', fontWeight: 800, textAlign: 'center' }}>
+            <div
+              style={{
+                background: 'rgba(239,68,68,0.12)',
+                border: '1px solid rgba(239,68,68,0.3)',
+                color: '#ef4444',
+                borderRadius: '12px',
+                padding: '10px 14px',
+                fontSize: '0.78rem',
+                fontWeight: 800,
+                textAlign: 'center'
+              }}
+            >
               ⚠️ {scanError}
             </div>
           )}
+        </div>
 
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <button onClick={() => setPendingStartCard(null)} disabled={isProcessing} style={{ flex: 1, background: '#1a1a1f', border: '1px solid var(--border-subtle)', color: '#aaa', padding: '14px', borderRadius: '14px', fontSize: '0.8rem', fontWeight: 900, cursor: 'pointer' }}>
-              СКАСУВАТИ
-            </button>
-            <button
-              onClick={() => startSortingCard(pendingStartCard, selectedOperator)}
-              disabled={isProcessing || !selectedOperator}
-              style={{
-                flex: 2,
-                background: selectedOperator ? ACCENT : '#333',
-                border: 'none',
-                color: selectedOperator ? '#000' : '#888',
-                padding: '14px',
-                borderRadius: '14px',
-                fontSize: '0.9rem',
-                fontWeight: 900,
-                cursor: selectedOperator ? 'pointer' : 'not-allowed',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px'
-              }}
-            >
-              {isProcessing ? <RefreshCw size={15} className="anim-spin" /> : <><Play size={15} fill="currentColor" /> СОРТУВАТИ</>}
-            </button>
-          </div>
+        {/* Sticky Footer */}
+        <div
+          style={{
+            flexShrink: 0,
+            padding: '14px 20px',
+            background: 'rgba(12,12,16,0.95)',
+            borderTop: '1px solid rgba(255,255,255,0.08)',
+            display: 'flex',
+            gap: '12px'
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => setPendingStartCard(null)}
+            disabled={isProcessing}
+            style={{
+              flex: 1,
+              background: 'rgba(255,255,255,0.06)',
+              border: '1px solid rgba(255,255,255,0.12)',
+              color: '#bbb',
+              padding: '14px',
+              borderRadius: '14px',
+              fontSize: '0.85rem',
+              fontWeight: 900,
+              cursor: 'pointer'
+            }}
+          >
+            СКАСУВАТИ
+          </button>
+          <button
+            type="button"
+            onClick={() => startSortingCard(pendingStartCard, selectedOperator)}
+            disabled={isProcessing || !selectedOperator}
+            style={{
+              flex: 2,
+              background: selectedOperator ? ACCENT : '#26262e',
+              border: 'none',
+              color: selectedOperator ? '#000' : '#666',
+              padding: '14px',
+              borderRadius: '14px',
+              fontSize: '0.92rem',
+              fontWeight: 950,
+              cursor: selectedOperator ? 'pointer' : 'not-allowed',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              boxShadow: selectedOperator ? `0 8px 24px rgba(${ACCENT_RGB}, 0.35)` : 'none',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            {isProcessing ? (
+              <RefreshCw size={16} className="anim-spin" />
+            ) : (
+              <>
+                <Play size={16} fill="currentColor" />
+                {selectedCount > 1 ? `СОРТУВАТИ (${selectedCount})` : 'СОРТУВАТИ'}
+              </>
+            )}
+          </button>
         </div>
       </div>
     </div>

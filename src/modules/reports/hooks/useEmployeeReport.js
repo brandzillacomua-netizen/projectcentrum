@@ -13,6 +13,10 @@ export const matchesOperator = (opName, filterVal) => {
   }
   if (!opName) return false
 
+  if (typeof opName === 'string' && opName.includes(',')) {
+    return opName.split(',').some(part => matchesOperator(part.trim(), filterVal))
+  }
+
   const clean = (str) => str.toLowerCase().replace(/\s+/g, ' ').trim()
   const oClean = clean(opName)
   const fClean = clean(filterVal)
@@ -735,20 +739,6 @@ export function useEmployeeReport({
         isAttributedQCScrap = true
       }
 
-      const empStat = getOrCreateStat(targetOperator)
-
-      // Only count produced quantity and operation count if this was an actual manufacturing operation
-      if (!isAttributedQCScrap && !isTechStage && !isNonProd) {
-        empStat.produced += qtyProduced
-        empStat.operations += 1
-        const cid = h.card_id || h.work_card_id
-        if (cid) {
-          empStat.cardIds.add(String(cid))
-        }
-      }
-
-      empStat.scrap += qtyScrap
-
       // Determine scrap categories for this specific history entry
       let hCat1 = 0
       let hCat2 = 0
@@ -792,15 +782,6 @@ export function useEmployeeReport({
       const hQuarantine = hCat3 + hUnclassified
       const hUtil = hCat4
 
-      empStat.cat1 += hCat1
-      empStat.cat2 += hCat2
-      empStat.cat3 += hCat3
-      empStat.cat4 += hCat4
-      empStat.unclassified += hUnclassified
-      empStat.rework += hRework
-      empStat.quarantine += hQuarantine
-      empStat.util += hUtil
-
       // Resolve Order / Naryad and Nomenclature details for drill-down
       const task = h.task_id ? tasksMap.get(String(h.task_id)) : null
       const order = task?.order_id ? ordersMap.get(String(task.order_id)) : null
@@ -838,29 +819,58 @@ export function useEmployeeReport({
       const realCard = cardId ? workCardsById.get(String(cardId)) : null
       const actualCardInfo = realCard?.card_info || h.card_info || ''
       const isCutting = isShop1CuttingOperation(h.stage_name, qtyProduced)
-      const isShop2Op = isShop2HistoryRecord(h, user, empStat.department)
+      const isShop2Op = isShop2HistoryRecord(h, user, user?.department || 'Виробництво')
 
-      // Append detailed operation item
-      empStat.history.push({
-        id: h.id,
-        cardId: cardId ? String(cardId) : null,
-        card_info: actualCardInfo,
-        rawStage: h.stage_name || '',
-        isCutting,
-        isShop2: isShop2Op,
-        date: h.completed_at || h.created_at,
-        stage: isAttributedQCScrap ? `${h.stage_name || 'ВКЯ'} (виявлено)` : (h.stage_name || 'Операція'),
-        shift: h.shift_name || empStat.shift,
-        nomenclatureName: nom?.name || 'Невідома деталь',
-        nomenclatureCode: nom?.code || null,
-        orderNum,
-        machine: h.machine_name || h.machine || '—',
-        produced: isAttributedQCScrap ? 0 : qtyProduced,
-        scrap: qtyScrap,
-        rework: hRework,
-        quarantine: hQuarantine,
-        util: hUtil,
-        reason: scrapReason
+      const rawOperatorsList = (targetOperator && typeof targetOperator === 'string' && targetOperator.includes(','))
+        ? targetOperator.split(',').map(s => s.trim()).filter(Boolean)
+        : [targetOperator]
+
+      rawOperatorsList.forEach(singleOp => {
+        const empStat = getOrCreateStat(singleOp)
+
+        // Only count produced quantity and operation count if this was an actual manufacturing operation
+        if (!isAttributedQCScrap && !isTechStage && !isNonProd) {
+          empStat.produced += qtyProduced
+          empStat.operations += 1
+          const cid = h.card_id || h.work_card_id
+          if (cid) {
+            empStat.cardIds.add(String(cid))
+          }
+        }
+
+        empStat.scrap += qtyScrap
+
+        empStat.cat1 += hCat1
+        empStat.cat2 += hCat2
+        empStat.cat3 += hCat3
+        empStat.cat4 += hCat4
+        empStat.unclassified += hUnclassified
+        empStat.rework += hRework
+        empStat.quarantine += hQuarantine
+        empStat.util += hUtil
+
+        // Append detailed operation item
+        empStat.history.push({
+          id: h.id,
+          cardId: cardId ? String(cardId) : null,
+          card_info: actualCardInfo,
+          rawStage: h.stage_name || '',
+          isCutting,
+          isShop2: isShop2Op,
+          date: h.completed_at || h.created_at,
+          stage: isAttributedQCScrap ? `${h.stage_name || 'ВКЯ'} (виявлено)` : (h.stage_name || 'Операція'),
+          shift: h.shift_name || empStat.shift,
+          nomenclatureName: nom?.name || 'Невідома деталь',
+          nomenclatureCode: nom?.code || null,
+          orderNum,
+          machine: h.machine_name || h.machine || '—',
+          produced: isAttributedQCScrap ? 0 : qtyProduced,
+          scrap: qtyScrap,
+          rework: hRework,
+          quarantine: hQuarantine,
+          util: hUtil,
+          reason: scrapReason
+        })
       })
     })
 
