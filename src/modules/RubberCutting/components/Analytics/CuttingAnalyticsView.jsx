@@ -82,38 +82,38 @@ export function CuttingAnalyticsView({ batches = [] }) {
       
       {/* KPI Cards Row */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px' }}>
-        <div style={{ background: '#0d0d12', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.08)', padding: '18px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#64748b', fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase' }}>
+        <div style={{ background: 'var(--card-bg, #0d0d12)', borderRadius: '16px', border: '1px solid var(--border-color, rgba(255,255,255,0.08))', padding: '18px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-dim, #64748b)', fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase' }}>
             <Layers size={14} color={ACCENT_RUBBER} /> Листів порізано
           </div>
-          <div style={{ fontSize: '1.8rem', fontWeight: 950, color: '#fff', marginTop: '6px' }}>
-            {stats.totalSheets} <span style={{ fontSize: '0.85rem', color: '#64748b' }}>шт</span>
+          <div style={{ fontSize: '1.8rem', fontWeight: 950, color: 'var(--text, #fff)', marginTop: '6px' }}>
+            {stats.totalSheets} <span style={{ fontSize: '0.85rem', color: 'var(--text-dim, #64748b)' }}>шт</span>
           </div>
         </div>
 
-        <div style={{ background: '#0d0d12', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.08)', padding: '18px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#64748b', fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase' }}>
+        <div style={{ background: 'var(--card-bg, #0d0d12)', borderRadius: '16px', border: '1px solid var(--border-color, rgba(255,255,255,0.08))', padding: '18px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-dim, #64748b)', fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase' }}>
             <TrendingUp size={14} color="#10b981" /> Виготовлено деталей
           </div>
           <div style={{ fontSize: '1.8rem', fontWeight: 950, color: '#10b981', marginTop: '6px' }}>
-            {stats.totalParts} <span style={{ fontSize: '0.85rem', color: '#64748b' }}>шт</span>
+            {stats.totalParts} <span style={{ fontSize: '0.85rem', color: 'var(--text-dim, #64748b)' }}>шт</span>
           </div>
         </div>
 
-        <div style={{ background: '#0d0d12', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.08)', padding: '18px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#64748b', fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase' }}>
+        <div style={{ background: 'var(--card-bg, #0d0d12)', borderRadius: '16px', border: '1px solid var(--border-color, rgba(255,255,255,0.08))', padding: '18px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-dim, #64748b)', fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase' }}>
             <AlertTriangle size={14} color="#ef4444" /> Брак деталей
           </div>
-          <div style={{ fontSize: '1.8rem', fontWeight: 950, color: stats.totalScrap > 0 ? '#ef4444' : '#fff', marginTop: '6px' }}>
-            {stats.totalScrap} <span style={{ fontSize: '0.85rem', color: '#64748b' }}>шт ({stats.scrapRate}%)</span>
+          <div style={{ fontSize: '1.8rem', fontWeight: 950, color: stats.totalScrap > 0 ? '#ef4444' : 'var(--text, #fff)', marginTop: '6px' }}>
+            {stats.totalScrap} <span style={{ fontSize: '0.85rem', color: 'var(--text-dim, #64748b)' }}>шт ({stats.scrapRate}%)</span>
           </div>
         </div>
 
-        <div style={{ background: '#0d0d12', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.08)', padding: '18px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#64748b', fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase' }}>
-            <Clock size={14} color="#38bdf8" /> Загальний час станка
+        <div style={{ background: 'var(--card-bg, #0d0d12)', borderRadius: '16px', border: '1px solid var(--border-color, rgba(255,255,255,0.08))', padding: '18px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-dim, #64748b)', fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase' }}>
+            <Clock size={14} color="#0284c7" /> Загальний час станка
           </div>
-          <div style={{ fontSize: '1.8rem', fontWeight: 950, color: '#38bdf8', marginTop: '6px' }}>
+          <div style={{ fontSize: '1.8rem', fontWeight: 950, color: '#0284c7', marginTop: '6px' }}>
             {formatDurationSec(stats.totalSecs)}
           </div>
         </div>
@@ -121,15 +121,15 @@ export function CuttingAnalyticsView({ batches = [] }) {
 
       {/* Operator Efficiency Table */}
       <div style={{
-        background: '#0d0d12',
+        background: 'var(--card-bg, #0d0d12)',
         borderRadius: '20px',
-        border: '1px solid var(--border-subtle, rgba(255,255,255,0.08))',
+        border: '1px solid var(--border-color, rgba(255,255,255,0.08))',
         padding: '24px'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <Users size={20} color={ACCENT_RUBBER} />
-            <h2 style={{ fontSize: '1.05rem', fontWeight: 950, color: '#fff', margin: 0 }}>
+            <h2 style={{ fontSize: '1.05rem', fontWeight: 950, color: 'var(--text, #fff)', margin: 0 }}>
               ЕФЕКТИВНІСТЬ ОПЕРАТОРІВ ПОРІЗКИ ({stats.operators.length})
             </h2>
           </div>
@@ -137,9 +137,9 @@ export function CuttingAnalyticsView({ batches = [] }) {
           <button
             onClick={handleExportCSV}
             style={{
-              background: '#13131c',
-              border: '1px solid rgba(255,255,255,0.1)',
-              color: '#fff',
+              background: 'var(--button-bg, #13131c)',
+              border: '1px solid var(--border-color, rgba(255,255,255,0.1))',
+              color: 'var(--text, #fff)',
               padding: '8px 14px',
               borderRadius: '10px',
               fontSize: '0.78rem',
@@ -154,10 +154,10 @@ export function CuttingAnalyticsView({ batches = [] }) {
           </button>
         </div>
 
-        <div style={{ overflowX: 'auto', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.06)' }}>
+        <div style={{ overflowX: 'auto', borderRadius: '14px', border: '1px solid var(--border-color, rgba(255,255,255,0.06))' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.8rem' }}>
             <thead>
-              <tr style={{ background: '#13131c', borderBottom: '1px solid rgba(255,255,255,0.08)', color: '#64748b', fontSize: '0.68rem', fontWeight: 900, textTransform: 'uppercase' }}>
+              <tr style={{ background: 'var(--card-header-bg, #13131c)', borderBottom: '1px solid var(--border-color, rgba(255,255,255,0.08))', color: 'var(--text-dim, #64748b)', fontSize: '0.68rem', fontWeight: 900, textTransform: 'uppercase' }}>
                 <th style={{ padding: '12px 16px' }}>Працівник</th>
                 <th style={{ padding: '12px 16px', textAlign: 'center' }}>Партій виконано</th>
                 <th style={{ padding: '12px 16px', textAlign: 'center' }}>Листів порізано</th>
@@ -178,26 +178,26 @@ export function CuttingAnalyticsView({ batches = [] }) {
                   <tr
                     key={op.name}
                     style={{
-                      borderBottom: '1px solid rgba(255,255,255,0.04)',
-                      background: 'rgba(255,255,255,0.01)'
+                      borderBottom: '1px solid var(--border-color, rgba(255,255,255,0.04))',
+                      background: 'transparent'
                     }}
                   >
-                    <td style={{ padding: '14px 16px', fontWeight: 800, color: '#fff' }}>
+                    <td style={{ padding: '14px 16px', fontWeight: 800, color: 'var(--text, #fff)' }}>
                       {op.name}
                     </td>
-                    <td style={{ padding: '14px 16px', textAlign: 'center', color: '#94a3b8', fontWeight: 700 }}>
+                    <td style={{ padding: '14px 16px', textAlign: 'center', color: 'var(--text-muted, #94a3b8)', fontWeight: 700 }}>
                       {op.runs}
                     </td>
-                    <td style={{ padding: '14px 16px', textAlign: 'center', color: '#fff', fontWeight: 800 }}>
+                    <td style={{ padding: '14px 16px', textAlign: 'center', color: 'var(--text, #fff)', fontWeight: 800 }}>
                       {op.sheets}
                     </td>
                     <td style={{ padding: '14px 16px', textAlign: 'center', color: '#10b981', fontWeight: 950, fontSize: '0.9rem' }}>
                       {op.parts}
                     </td>
-                    <td style={{ padding: '14px 16px', textAlign: 'center', color: op.scrap > 0 ? '#ef4444' : '#64748b', fontWeight: 800 }}>
+                    <td style={{ padding: '14px 16px', textAlign: 'center', color: op.scrap > 0 ? '#ef4444' : 'var(--text-dim, #64748b)', fontWeight: 800 }}>
                       {op.scrap > 0 ? `${op.scrap} шт` : '0'}
                     </td>
-                    <td style={{ padding: '14px 16px', color: '#38bdf8', fontWeight: 800 }}>
+                    <td style={{ padding: '14px 16px', color: '#0284c7', fontWeight: 800 }}>
                       {formatDurationSec(op.timeSec)}
                     </td>
                   </tr>

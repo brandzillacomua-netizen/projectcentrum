@@ -22,9 +22,9 @@ export const RubberCuttingTerminal = () => {
     <div
       className="rubber-cutting-terminal terminal-module-root"
       style={{
-        background: '#070709',
+        background: 'var(--bg, #070709)',
         minHeight: '100vh',
-        color: '#fff',
+        color: 'var(--text, #fff)',
         fontFamily: "'Outfit', 'Inter', -apple-system, sans-serif",
         display: 'flex',
         flexDirection: 'column'
@@ -62,9 +62,9 @@ export const RubberCuttingTerminal = () => {
                         terminal.resetTimer();
                       }}
                       style={{
-                        background: 'rgba(255,255,255,0.05)',
-                        border: '1px solid rgba(255,255,255,0.1)',
-                        color: '#94a3b8',
+                        background: 'var(--button-bg, rgba(255,255,255,0.05))',
+                        border: '1px solid var(--border-color, rgba(255,255,255,0.1))',
+                        color: 'var(--text-muted, #94a3b8)',
                         borderRadius: '10px',
                         padding: '8px 14px',
                         fontSize: '0.78rem',
@@ -108,9 +108,9 @@ export const RubberCuttingTerminal = () => {
 
                   {/* Secondary: Collapsible manual/unplanned cut */}
                   <div style={{
-                    background: '#0d0d12',
+                    background: 'var(--card-bg, #0d0d12)',
                     borderRadius: '18px',
-                    border: '1px solid rgba(255,255,255,0.06)',
+                    border: '1px solid var(--border-color, rgba(255,255,255,0.06))',
                     overflow: 'hidden'
                   }}>
                     <button
@@ -123,14 +123,14 @@ export const RubberCuttingTerminal = () => {
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'space-between',
-                        color: '#94a3b8',
+                        color: 'var(--text-muted, #94a3b8)',
                         cursor: 'pointer',
                         fontWeight: 800,
                         fontSize: '0.85rem'
                       }}
                     >
                       <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <Wrench size={16} color="#64748b" />
+                        <Wrench size={16} color="var(--text-dim, #64748b)" />
                         Позаплановий розкрій (ручний вибір деталі без заявки)
                       </span>
                       {showManualCut ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
@@ -226,9 +226,9 @@ export const RubberCuttingTerminal = () => {
           position: 'fixed',
           bottom: '24px',
           right: '24px',
-          background: '#13131c',
+          background: 'var(--card-bg, #13131c)',
           border: `1px solid rgba(${ACCENT_RUBBER_RGB}, 0.5)`,
-          color: '#fff',
+          color: 'var(--text, #fff)',
           padding: '14px 20px',
           borderRadius: '14px',
           boxShadow: '0 10px 30px rgba(0,0,0,0.5)',

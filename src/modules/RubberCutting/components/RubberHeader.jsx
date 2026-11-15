@@ -16,9 +16,9 @@ export function RubberHeader({
       className="terminal-header" 
       style={{
         flexShrink: 0,
-        background: 'rgba(12,12,16,0.92)',
+        background: 'var(--card-bg, rgba(12,12,16,0.92))',
         backdropFilter: 'blur(14px)',
-        borderBottom: '1px solid var(--border-subtle, rgba(255,255,255,0.08))',
+        borderBottom: '1px solid var(--border-color, rgba(255,255,255,0.08))',
         padding: '0 24px',
         minHeight: '75px',
         display: 'flex',
@@ -57,7 +57,7 @@ export function RubberHeader({
           </div>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <h1 style={{ fontSize: '1.1rem', fontWeight: 950, letterSpacing: '0.5px', textTransform: 'uppercase', margin: 0, color: '#fff' }}>
+              <h1 style={{ fontSize: '1.1rem', fontWeight: 950, letterSpacing: '0.5px', textTransform: 'uppercase', margin: 0, color: 'var(--text, #fff)' }}>
                 ПОРІЗКА ГУМИ
               </h1>
               <span style={{ 

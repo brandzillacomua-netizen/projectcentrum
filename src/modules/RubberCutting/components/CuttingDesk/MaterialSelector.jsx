@@ -5,9 +5,9 @@ import { ACCENT_RUBBER, ACCENT_RUBBER_RGB, RAW_SHEETS } from '../../utils/rubber
 export function MaterialSelector({ selectedThickness, setSelectedThickness, rawStock = {} }) {
   return (
     <div style={{
-      background: '#0d0d12',
+      background: 'var(--card-bg, #0d0d12)',
       borderRadius: '18px',
-      border: '1px solid var(--border-subtle, rgba(255,255,255,0.08))',
+      border: '1px solid var(--border-color, rgba(255,255,255,0.08))',
       padding: '18px 20px',
       display: 'flex',
       flexDirection: 'column',
@@ -16,7 +16,7 @@ export function MaterialSelector({ selectedThickness, setSelectedThickness, rawS
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <Layers size={18} color={ACCENT_RUBBER} />
-          <span style={{ fontSize: '0.8rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#fff' }}>
+          <span style={{ fontSize: '0.8rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text, #fff)' }}>
             1. Вибір вхідного листа гуми (Склад СВ)
           </span>
         </div>
@@ -39,8 +39,8 @@ export function MaterialSelector({ selectedThickness, setSelectedThickness, rawS
                 cursor: 'pointer',
                 borderRadius: '14px',
                 padding: '16px',
-                border: isSelected ? `2px solid ${ACCENT_RUBBER}` : '1px solid rgba(255,255,255,0.08)',
-                background: isSelected ? `rgba(${ACCENT_RUBBER_RGB}, 0.08)` : '#13131a',
+                border: isSelected ? `2px solid ${ACCENT_RUBBER}` : '1px solid var(--border-color, rgba(255,255,255,0.08))',
+                background: isSelected ? `rgba(${ACCENT_RUBBER_RGB}, 0.08)` : 'var(--surface-1, #13131a)',
                 transition: 'all 0.15s ease',
                 position: 'relative'
               }}
@@ -49,8 +49,8 @@ export function MaterialSelector({ selectedThickness, setSelectedThickness, rawS
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <span style={{
-                      background: isSelected ? ACCENT_RUBBER : 'rgba(255,255,255,0.1)',
-                      color: isSelected ? '#000' : '#fff',
+                      background: isSelected ? ACCENT_RUBBER : 'var(--fill-subtle, rgba(255,255,255,0.1))',
+                      color: isSelected ? '#000' : 'var(--text, #fff)',
                       fontWeight: 950,
                       fontSize: '0.82rem',
                       padding: '2px 8px',
@@ -62,7 +62,7 @@ export function MaterialSelector({ selectedThickness, setSelectedThickness, rawS
                       {sheet.code}
                     </span>
                   </div>
-                  <div style={{ fontSize: '0.88rem', fontWeight: 800, marginTop: '8px', color: '#fff' }}>
+                  <div style={{ fontSize: '0.88rem', fontWeight: 800, marginTop: '8px', color: 'var(--text, #fff)' }}>
                     {sheet.name}
                   </div>
                 </div>
@@ -70,7 +70,7 @@ export function MaterialSelector({ selectedThickness, setSelectedThickness, rawS
                 {isSelected ? (
                   <CheckCircle2 size={20} color={ACCENT_RUBBER} />
                 ) : (
-                  <div style={{ width: 18, height: 18, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.2)' }} />
+                  <div style={{ width: 18, height: 18, borderRadius: '50%', border: '2px solid var(--border-color, rgba(255,255,255,0.2))' }} />
                 )}
               </div>
 
@@ -78,7 +78,7 @@ export function MaterialSelector({ selectedThickness, setSelectedThickness, rawS
               <div style={{
                 marginTop: '12px',
                 paddingTop: '10px',
-                borderTop: '1px solid rgba(255,255,255,0.06)',
+                borderTop: '1px solid var(--border-color, rgba(255,255,255,0.06))',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',

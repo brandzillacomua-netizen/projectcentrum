@@ -12,9 +12,9 @@ export function PartSelector({
 }) {
   return (
     <div style={{
-      background: '#0d0d12',
+      background: 'var(--card-bg, #0d0d12)',
       borderRadius: '18px',
-      border: '1px solid var(--border-subtle, rgba(255,255,255,0.08))',
+      border: '1px solid var(--border-color, rgba(255,255,255,0.08))',
       padding: '18px 20px',
       display: 'flex',
       flexDirection: 'column',
@@ -24,14 +24,14 @@ export function PartSelector({
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <Sparkles size={18} color={ACCENT_RUBBER} />
-          <span style={{ fontSize: '0.8rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#fff' }}>
+          <span style={{ fontSize: '0.8rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text, #fff)' }}>
             2. Вибір деталі для розкрою ({parts.length} позицій {selectedThickness}мм)
           </span>
         </div>
 
         {/* Search */}
         <div style={{ position: 'relative', width: '240px' }}>
-          <Search size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
+          <Search size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-dim, #64748b)' }} />
           <input
             type="text"
             placeholder="Пошук деталі чи розміру..."
@@ -39,11 +39,11 @@ export function PartSelector({
             onChange={e => setPartSearch(e.target.value)}
             style={{
               width: '100%',
-              background: '#13131a',
-              border: '1px solid rgba(255,255,255,0.12)',
+              background: 'var(--input-bg, #13131a)',
+              border: '1px solid var(--border-color, rgba(255,255,255,0.12))',
               borderRadius: '10px',
               padding: '7px 12px 7px 34px',
-              color: '#fff',
+              color: 'var(--text, #fff)',
               fontSize: '0.78rem',
               outline: 'none'
             }}
@@ -73,8 +73,8 @@ export function PartSelector({
                 cursor: 'pointer',
                 borderRadius: '12px',
                 padding: '14px',
-                border: isSelected ? `2px solid ${ACCENT_RUBBER}` : '1px solid rgba(255,255,255,0.06)',
-                background: isSelected ? `rgba(${ACCENT_RUBBER_RGB}, 0.12)` : '#13131a',
+                border: isSelected ? `2px solid ${ACCENT_RUBBER}` : '1px solid var(--border-color, rgba(255,255,255,0.06))',
+                background: isSelected ? `rgba(${ACCENT_RUBBER_RGB}, 0.12)` : 'var(--surface-1, #13131a)',
                 transition: 'all 0.15s ease',
                 display: 'flex',
                 flexDirection: 'column',
@@ -103,7 +103,7 @@ export function PartSelector({
                   )}
                 </div>
 
-                <div style={{ fontSize: '0.85rem', fontWeight: 900, color: '#fff', lineHeight: 1.3 }}>
+                <div style={{ fontSize: '0.85rem', fontWeight: 900, color: 'var(--text, #fff)', lineHeight: 1.3 }}>
                   {part.name}
                 </div>
               </div>

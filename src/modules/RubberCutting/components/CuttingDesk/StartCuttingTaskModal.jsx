@@ -54,7 +54,7 @@ export function StartCuttingTaskModal({
       zIndex: 10000
     }}>
       <div style={{
-        background: '#0d0d12',
+        background: 'var(--card-bg, #0d0d12)',
         border: `1px solid rgba(${ACCENT_RUBBER_RGB}, 0.35)`,
         borderRadius: '24px',
         width: '100%',
@@ -65,8 +65,9 @@ export function StartCuttingTaskModal({
         display: 'flex',
         flexDirection: 'column',
         gap: '20px',
-        boxShadow: '0 25px 60px rgba(0,0,0,0.7)',
-        position: 'relative'
+        boxShadow: 'var(--shadow, 0 25px 60px rgba(0,0,0,0.7))',
+        position: 'relative',
+        color: 'var(--text, #fff)'
       }}>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -80,7 +81,7 @@ export function StartCuttingTaskModal({
               <Scissors size={22} color={ACCENT_RUBBER} />
             </div>
             <div>
-              <h2 style={{ fontSize: '1.2rem', fontWeight: 950, color: '#fff', margin: 0 }}>
+              <h2 style={{ fontSize: '1.2rem', fontWeight: 950, color: 'var(--text, #fff)', margin: 0 }}>
                 Початок порізки замовлення
               </h2>
               <span style={{ fontFamily: 'monospace', fontSize: '0.8rem', color: '#d97706', fontWeight: 800 }}>
@@ -92,9 +93,9 @@ export function StartCuttingTaskModal({
           <button
             onClick={onClose}
             style={{
-              background: 'rgba(255,255,255,0.06)',
+              background: 'var(--button-bg, rgba(255,255,255,0.06))',
               border: 'none',
-              color: '#94a3b8',
+              color: 'var(--text-muted, #94a3b8)',
               width: 36,
               height: 36,
               borderRadius: '10px',
@@ -110,22 +111,22 @@ export function StartCuttingTaskModal({
 
         {/* Order Details Summary Box */}
         <div style={{
-          background: '#13131c',
+          background: 'var(--surface-1, #13131c)',
           borderRadius: '16px',
-          border: '1px solid rgba(255,255,255,0.08)',
+          border: '1px solid var(--border-color, rgba(255,255,255,0.08))',
           padding: '18px',
           display: 'flex',
           flexDirection: 'column',
           gap: '12px'
         }}>
           <div>
-            <div style={{ fontSize: '0.68rem', color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>
+            <div style={{ fontSize: '0.68rem', color: 'var(--text-dim, #64748b)', fontWeight: 800, textTransform: 'uppercase' }}>
               Деталь для розкрою
             </div>
-            <div style={{ fontSize: '1.15rem', fontWeight: 950, color: '#fff', marginTop: '2px' }}>
+            <div style={{ fontSize: '1.15rem', fontWeight: 950, color: 'var(--text, #fff)', marginTop: '2px' }}>
               {order.part_name}
             </div>
-            <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '2px', fontFamily: 'monospace' }}>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted, #94a3b8)', marginTop: '2px', fontFamily: 'monospace' }}>
               {order.part_code} • {order.raw_material_code || 'Гума листова'}
             </div>
           </div>
@@ -134,26 +135,26 @@ export function StartCuttingTaskModal({
             display: 'grid',
             gridTemplateColumns: 'repeat(3, 1fr)',
             gap: '10px',
-            background: 'rgba(255,255,255,0.02)',
+            background: 'var(--fill-subtle, rgba(255,255,255,0.02))',
             padding: '12px',
             borderRadius: '12px',
             textAlign: 'center'
           }}>
             <div>
-              <div style={{ fontSize: '0.62rem', color: '#64748b', fontWeight: 800 }}>ПЛАН ДЕТАЛЕЙ</div>
+              <div style={{ fontSize: '0.62rem', color: 'var(--text-dim, #64748b)', fontWeight: 800 }}>ПЛАН ДЕТАЛЕЙ</div>
               <div style={{ fontSize: '1.1rem', fontWeight: 950, color: '#10b981', marginTop: '2px' }}>
                 {order.planned_quantity} шт
               </div>
             </div>
-            <div style={{ borderLeft: '1px solid rgba(255,255,255,0.06)', borderRight: '1px solid rgba(255,255,255,0.06)' }}>
-              <div style={{ fontSize: '0.62rem', color: '#64748b', fontWeight: 800 }}>ЛИСТІВ ГУМИ</div>
-              <div style={{ fontSize: '1.1rem', fontWeight: 950, color: '#fff', marginTop: '2px' }}>
+            <div style={{ borderLeft: '1px solid var(--border-color, rgba(255,255,255,0.06))', borderRight: '1px solid var(--border-color, rgba(255,255,255,0.06))' }}>
+              <div style={{ fontSize: '0.62rem', color: 'var(--text-dim, #64748b)', fontWeight: 800 }}>ЛИСТІВ ГУМИ</div>
+              <div style={{ fontSize: '1.1rem', fontWeight: 950, color: 'var(--text, #fff)', marginTop: '2px' }}>
                 {order.sheets_count} л
               </div>
             </div>
             <div>
-              <div style={{ fontSize: '0.62rem', color: '#64748b', fontWeight: 800 }}>ПЛАНОВИЙ ЧАС</div>
-              <div style={{ fontSize: '0.95rem', fontWeight: 900, color: '#38bdf8', marginTop: '4px' }}>
+              <div style={{ fontSize: '0.62rem', color: 'var(--text-dim, #64748b)', fontWeight: 800 }}>ПЛАНОВИЙ ЧАС</div>
+              <div style={{ fontSize: '0.95rem', fontWeight: 900, color: '#0284c7', marginTop: '4px' }}>
                 {formatDurationSec(order.planned_duration_sec)}
               </div>
             </div>
@@ -162,8 +163,8 @@ export function StartCuttingTaskModal({
           {order.notes && (
             <div style={{
               fontSize: '0.72rem',
-              color: '#cbd5e1',
-              background: 'rgba(0,0,0,0.3)',
+              color: 'var(--text-muted, #cbd5e1)',
+              background: 'var(--fill-inset, rgba(0,0,0,0.3))',
               padding: '8px 12px',
               borderRadius: '8px',
               borderLeft: `2px solid ${ACCENT_RUBBER}`
@@ -175,9 +176,9 @@ export function StartCuttingTaskModal({
 
         {/* Operator Selection */}
         <div style={{
-          background: '#13131c',
+          background: 'var(--surface-1, #13131c)',
           borderRadius: '16px',
-          border: '1px solid rgba(255,255,255,0.08)',
+          border: '1px solid var(--border-color, rgba(255,255,255,0.08))',
           padding: '18px',
           display: 'flex',
           flexDirection: 'column',
@@ -186,7 +187,7 @@ export function StartCuttingTaskModal({
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <UserCheck size={18} color={ACCENT_RUBBER} />
-              <span style={{ fontSize: '0.8rem', fontWeight: 950, color: '#fff', textTransform: 'uppercase' }}>
+              <span style={{ fontSize: '0.8rem', fontWeight: 950, color: 'var(--text, #fff)', textTransform: 'uppercase' }}>
                 ЛИЦЮВАЛЬНИК-ПОЛІРУВАЛЬНИК (ХТО НА ЗМІНІ)
               </span>
             </div>
@@ -195,7 +196,7 @@ export function StartCuttingTaskModal({
             </span>
           </div>
 
-          <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
+          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted, #94a3b8)' }}>
             Оберіть одного або декількох лицювальників-полірувальників, які виконують цю порізку:
           </div>
 
@@ -236,11 +237,11 @@ export function StartCuttingTaskModal({
             disabled={isSubmitting}
             style={{
               flex: 1,
-              background: 'rgba(255,255,255,0.06)',
-              border: '1px solid rgba(255,255,255,0.1)',
+              background: 'var(--button-bg, rgba(255,255,255,0.06))',
+              border: '1px solid var(--border-color, rgba(255,255,255,0.1))',
               borderRadius: '12px',
               padding: '14px',
-              color: '#94a3b8',
+              color: 'var(--text-muted, #94a3b8)',
               fontSize: '0.85rem',
               fontWeight: 800,
               cursor: 'pointer'

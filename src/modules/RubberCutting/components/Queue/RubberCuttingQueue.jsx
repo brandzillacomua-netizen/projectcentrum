@@ -21,9 +21,9 @@ export function RubberCuttingQueue({
 
   return (
     <div style={{
-      background: '#0d0d12',
+      background: 'var(--card-bg, #0d0d12)',
       borderRadius: '20px',
-      border: '1px solid var(--border-subtle, rgba(255,255,255,0.08))',
+      border: '1px solid var(--border-color, rgba(255,255,255,0.08))',
       padding: '24px',
       display: 'flex',
       flexDirection: 'column',
@@ -33,14 +33,14 @@ export function RubberCuttingQueue({
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <ListOrdered size={20} color={ACCENT_RUBBER} />
-          <h2 style={{ fontSize: '1.05rem', fontWeight: 950, color: '#fff', margin: 0 }}>
+          <h2 style={{ fontSize: '1.05rem', fontWeight: 950, color: 'var(--text, #fff)', margin: 0 }}>
             ЧЕРГА ТА ІСТОРІЯ ПАРТІЙ ПОРІЗКИ ({filteredBatches.length})
           </h2>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
           {/* Status Tabs */}
-          <div style={{ display: 'flex', background: '#13131c', borderRadius: '10px', padding: '3px', border: '1px solid rgba(255,255,255,0.08)' }}>
+          <div style={{ display: 'flex', background: 'var(--surface-1, #13131c)', borderRadius: '10px', padding: '3px', border: '1px solid var(--border-color, rgba(255,255,255,0.08))' }}>
             {[
               { id: 'all', label: 'Всі' },
               { id: 'completed', label: 'Завершені' },
@@ -51,7 +51,7 @@ export function RubberCuttingQueue({
                 onClick={() => setStatusFilter(tab.id)}
                 style={{
                   background: statusFilter === tab.id ? ACCENT_RUBBER : 'transparent',
-                  color: statusFilter === tab.id ? '#000' : '#94a3b8',
+                  color: statusFilter === tab.id ? '#000' : 'var(--text-muted, #94a3b8)',
                   border: 'none',
                   borderRadius: '8px',
                   padding: '6px 14px',
@@ -67,7 +67,7 @@ export function RubberCuttingQueue({
 
           {/* Search */}
           <div style={{ position: 'relative', width: '220px' }}>
-            <Search size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
+            <Search size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-dim, #64748b)' }} />
             <input
               type="text"
               placeholder="Пошук партії..."
@@ -75,11 +75,11 @@ export function RubberCuttingQueue({
               onChange={e => setSearchTerm(e.target.value)}
               style={{
                 width: '100%',
-                background: '#13131c',
-                border: '1px solid rgba(255,255,255,0.1)',
+                background: 'var(--input-bg, #13131c)',
+                border: '1px solid var(--border-color, rgba(255,255,255,0.1))',
                 borderRadius: '10px',
                 padding: '6px 12px 6px 32px',
-                color: '#fff',
+                color: 'var(--text, #fff)',
                 fontSize: '0.75rem',
                 outline: 'none'
               }}
@@ -92,11 +92,11 @@ export function RubberCuttingQueue({
       <div style={{
         overflowX: 'auto',
         borderRadius: '14px',
-        border: '1px solid rgba(255,255,255,0.06)'
+        border: '1px solid var(--border-color, rgba(255,255,255,0.06))'
       }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.8rem' }}>
           <thead>
-            <tr style={{ background: '#13131c', borderBottom: '1px solid rgba(255,255,255,0.08)', color: '#64748b', fontSize: '0.68rem', fontWeight: 900, textTransform: 'uppercase' }}>
+            <tr style={{ background: 'var(--card-header-bg, #13131c)', borderBottom: '1px solid var(--border-color, rgba(255,255,255,0.08))', color: 'var(--text-dim, #64748b)', fontSize: '0.68rem', fontWeight: 900, textTransform: 'uppercase' }}>
               <th style={{ padding: '12px 16px' }}>Партія / Код</th>
               <th style={{ padding: '12px 16px' }}>Деталь</th>
               <th style={{ padding: '12px 16px' }}>Вхідний лист</th>
@@ -122,22 +122,22 @@ export function RubberCuttingQueue({
                   <tr
                     key={batch.id}
                     style={{
-                      borderBottom: '1px solid rgba(255,255,255,0.04)',
-                      background: 'rgba(255,255,255,0.01)',
+                      borderBottom: '1px solid var(--border-color, rgba(255,255,255,0.04))',
+                      background: 'transparent',
                       transition: 'background 0.15s'
                     }}
                   >
                     <td style={{ padding: '14px 16px', fontFamily: 'monospace', color: '#d97706', fontWeight: 800 }}>
                       {batch.batch_number}
                     </td>
-                    <td style={{ padding: '14px 16px', fontWeight: 800, color: '#fff' }}>
+                    <td style={{ padding: '14px 16px', fontWeight: 800, color: 'var(--text, #fff)' }}>
                       <div>{batch.part_name}</div>
-                      <div style={{ fontSize: '0.7rem', color: '#64748b', fontFamily: 'monospace' }}>{batch.part_code}</div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-dim, #64748b)', fontFamily: 'monospace' }}>{batch.part_code}</div>
                     </td>
-                    <td style={{ padding: '14px 16px', color: '#94a3b8' }}>
+                    <td style={{ padding: '14px 16px', color: 'var(--text-muted, #94a3b8)' }}>
                       {batch.raw_material_code || 'Гума листова'}
                     </td>
-                    <td style={{ padding: '14px 16px', textAlign: 'center', fontWeight: 900, color: '#fff' }}>
+                    <td style={{ padding: '14px 16px', textAlign: 'center', fontWeight: 900, color: 'var(--text, #fff)' }}>
                       {batch.sheets_count}
                     </td>
                     <td style={{ padding: '14px 16px', textAlign: 'center', fontWeight: 950, color: '#10b981', fontSize: '0.9rem' }}>

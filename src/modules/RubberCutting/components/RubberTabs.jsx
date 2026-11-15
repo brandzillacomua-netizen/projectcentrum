@@ -16,8 +16,8 @@ export function RubberTabs({ activeTab, setActiveTab, queueCount = 0, partsCount
       alignItems: 'center',
       gap: '8px',
       padding: '16px 24px 0 24px',
-      borderBottom: '1px solid var(--border-subtle, rgba(255,255,255,0.06))',
-      background: 'rgba(10,10,14,0.6)',
+      borderBottom: '1px solid var(--border-color, rgba(255,255,255,0.06))',
+      background: 'var(--card-header-bg, rgba(10,10,14,0.6))',
       overflowX: 'auto'
     }}>
       {tabs.map(tab => {
@@ -38,7 +38,7 @@ export function RubberTabs({ activeTab, setActiveTab, queueCount = 0, partsCount
               border: 'none',
               borderBottom: isActive ? `3px solid ${ACCENT_RUBBER}` : '3px solid transparent',
               background: isActive ? 'rgba(255,144,0,0.12)' : 'transparent',
-              color: isActive ? '#fff' : 'var(--text-muted, #94a3b8)',
+              color: isActive ? 'var(--text, #fff)' : 'var(--text-muted, #94a3b8)',
               fontWeight: isActive ? 900 : 700,
               fontSize: '0.85rem',
               cursor: 'pointer',
@@ -50,7 +50,7 @@ export function RubberTabs({ activeTab, setActiveTab, queueCount = 0, partsCount
             <span>{tab.label}</span>
             {tab.badge !== undefined && tab.badge !== null && tab.badge !== 0 && (
               <span style={{
-                background: isActive ? `rgba(${ACCENT_RUBBER_RGB}, 0.25)` : 'rgba(255,255,255,0.08)',
+                background: isActive ? `rgba(${ACCENT_RUBBER_RGB}, 0.25)` : 'var(--fill-subtle, rgba(255,255,255,0.08))',
                 color: isActive ? ACCENT_RUBBER : 'var(--text-dim, #64748b)',
                 padding: '1px 7px',
                 borderRadius: '8px',

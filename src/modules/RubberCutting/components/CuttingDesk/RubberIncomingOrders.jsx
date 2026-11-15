@@ -10,9 +10,9 @@ export function RubberIncomingOrders({
 }) {
   return (
     <div style={{
-      background: '#0d0d12',
+      background: 'var(--card-bg, #0d0d12)',
       borderRadius: '18px',
-      border: '1px solid var(--border-subtle, rgba(255,255,255,0.08))',
+      border: '1px solid var(--border-color, rgba(255,255,255,0.08))',
       padding: '20px',
       display: 'flex',
       flexDirection: 'column',
@@ -31,12 +31,12 @@ export function RubberIncomingOrders({
           </div>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <h2 style={{ fontSize: '1rem', fontWeight: 950, color: '#fff', margin: 0, textTransform: 'uppercase' }}>
+              <h2 style={{ fontSize: '1rem', fontWeight: 950, color: 'var(--text, #fff)', margin: 0, textTransform: 'uppercase' }}>
                 Завдання від начальника цеху
               </h2>
               <span style={{
-                background: pendingOrders.length > 0 ? ACCENT_RUBBER : 'rgba(255,255,255,0.08)',
-                color: pendingOrders.length > 0 ? '#000' : '#94a3b8',
+                background: pendingOrders.length > 0 ? ACCENT_RUBBER : 'var(--fill-subtle, rgba(255,255,255,0.08))',
+                color: pendingOrders.length > 0 ? '#000' : 'var(--text-muted, #94a3b8)',
                 fontWeight: 950,
                 fontSize: '0.72rem',
                 padding: '2px 8px',
@@ -52,9 +52,9 @@ export function RubberIncomingOrders({
           onClick={onRefresh}
           disabled={loading}
           style={{
-            background: 'rgba(255,255,255,0.05)',
-            border: '1px solid rgba(255,255,255,0.1)',
-            color: '#94a3b8',
+            background: 'var(--button-bg, rgba(255,255,255,0.05))',
+            border: '1px solid var(--border-color, rgba(255,255,255,0.1))',
+            color: 'var(--text-muted, #94a3b8)',
             borderRadius: '9px',
             padding: '6px 12px',
             fontSize: '0.72rem',
@@ -73,9 +73,9 @@ export function RubberIncomingOrders({
       {/* Compact List or Empty State */}
       {pendingOrders.length === 0 ? (
         <div style={{
-          background: 'rgba(255,255,255,0.02)',
+          background: 'var(--fill-subtle, rgba(255,255,255,0.02))',
           borderRadius: '12px',
-          border: '1px dashed rgba(255,255,255,0.1)',
+          border: '1px dashed var(--border-color, rgba(255,255,255,0.1))',
           padding: '24px 16px',
           textAlign: 'center',
           display: 'flex',
@@ -83,11 +83,11 @@ export function RubberIncomingOrders({
           alignItems: 'center',
           gap: '6px'
         }}>
-          <Box size={28} style={{ color: '#64748b', opacity: 0.5 }} />
-          <div style={{ fontSize: '0.88rem', fontWeight: 800, color: '#fff' }}>
+          <Box size={28} style={{ color: 'var(--text-dim, #64748b)', opacity: 0.5 }} />
+          <div style={{ fontSize: '0.88rem', fontWeight: 800, color: 'var(--text, #fff)' }}>
             Активних завдань на порізку немає
           </div>
-          <div style={{ fontSize: '0.72rem', color: '#64748b' }}>
+          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted, #64748b)' }}>
             Коли начальник цеху створить заявку на вироби з гуми, вона з'явиться тут списком.
           </div>
         </div>
@@ -99,9 +99,9 @@ export function RubberIncomingOrders({
               <div
                 key={order.id}
                 style={{
-                  background: '#13131a',
+                  background: 'var(--surface-1, #13131a)',
                   borderRadius: '12px',
-                  border: isUrgent ? '1px solid rgba(239, 68, 68, 0.45)' : '1px solid rgba(255,255,255,0.07)',
+                  border: isUrgent ? '1px solid rgba(239, 68, 68, 0.45)' : '1px solid var(--border-color, rgba(255,255,255,0.07))',
                   padding: '10px 16px',
                   display: 'flex',
                   alignItems: 'center',
@@ -141,17 +141,17 @@ export function RubberIncomingOrders({
                   )}
 
                   <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: '0.92rem', fontWeight: 900, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    <div style={{ fontSize: '0.92rem', fontWeight: 900, color: 'var(--text, #fff)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {order.part_name}
                     </div>
-                    <div style={{ fontSize: '0.7rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                      <span style={{ fontFamily: 'monospace', color: '#94a3b8' }}>{order.part_code}</span>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-dim, #64748b)', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                      <span style={{ fontFamily: 'monospace', color: 'var(--text-muted, #94a3b8)' }}>{order.part_code}</span>
                       <span>•</span>
                       <span>{order.raw_material_code || 'Гума листова'}</span>
                       {order.notes && (
                         <>
                           <span>•</span>
-                          <span style={{ color: '#cbd5e1', fontStyle: 'italic' }}>{order.notes}</span>
+                          <span style={{ color: 'var(--text-muted, #cbd5e1)', fontStyle: 'italic' }}>{order.notes}</span>
                         </>
                       )}
                     </div>
@@ -161,16 +161,16 @@ export function RubberIncomingOrders({
                 {/* Middle: Compact metrics */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexShrink: 0 }}>
                   <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: '0.6rem', color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Ціль</div>
+                    <div style={{ fontSize: '0.6rem', color: 'var(--text-dim, #64748b)', fontWeight: 800, textTransform: 'uppercase' }}>Ціль</div>
                     <div style={{ fontSize: '0.95rem', fontWeight: 950, color: '#10b981' }}>{order.planned_quantity} шт</div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: '0.6rem', color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Листів</div>
-                    <div style={{ fontSize: '0.95rem', fontWeight: 950, color: '#fff' }}>{order.sheets_count} л</div>
+                    <div style={{ fontSize: '0.6rem', color: 'var(--text-dim, #64748b)', fontWeight: 800, textTransform: 'uppercase' }}>Листів</div>
+                    <div style={{ fontSize: '0.95rem', fontWeight: 950, color: 'var(--text, #fff)' }}>{order.sheets_count} л</div>
                   </div>
                   <div style={{ textAlign: 'right', minWidth: '54px' }}>
-                    <div style={{ fontSize: '0.6rem', color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>План</div>
-                    <div style={{ fontSize: '0.85rem', fontWeight: 900, color: '#38bdf8' }}>{formatDurationSec(order.planned_duration_sec)}</div>
+                    <div style={{ fontSize: '0.6rem', color: 'var(--text-dim, #64748b)', fontWeight: 800, textTransform: 'uppercase' }}>План</div>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 900, color: '#0284c7' }}>{formatDurationSec(order.planned_duration_sec)}</div>
                   </div>
 
                   {/* Right: Action Button */}

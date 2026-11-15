@@ -65,15 +65,16 @@ export function CuttingActiveCard({
 
   return (
     <div style={{
-      background: '#0d0d12',
+      background: 'var(--card-bg, #0d0d12)',
       borderRadius: '20px',
       border: `2px solid rgba(${ACCENT_RUBBER_RGB}, 0.4)`,
       padding: '24px',
       display: 'flex',
       flexDirection: 'column',
       gap: '20px',
-      boxShadow: '0 8px 30px rgba(0,0,0,0.4)',
-      position: 'relative'
+      boxShadow: 'var(--shadow, 0 8px 30px rgba(0,0,0,0.4))',
+      position: 'relative',
+      color: 'var(--text, #fff)'
     }}>
       {/* Top: Active Part Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px' }}>
@@ -119,30 +120,25 @@ export function CuttingActiveCard({
             </span>
           </div>
 
-          <h2 style={{ fontSize: '1.25rem', fontWeight: 950, color: '#fff', margin: '8px 0 4px 0' }}>
+          <h2 style={{ fontSize: '1.25rem', fontWeight: 950, color: 'var(--text, #fff)', margin: '8px 0 4px 0' }}>
             {selectedPart.name}
           </h2>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', marginTop: '6px' }}>
             <span style={{ fontSize: '0.8rem', color: '#10b981', fontWeight: 800 }}>
-              Норма: {selectedPart.sheet_yield} шт/лист
+              Кількість на листі: {selectedPart.sheet_yield} шт/лист
             </span>
-            <span style={{ fontSize: '0.8rem', color: '#38bdf8', fontWeight: 800 }}>
+            <span style={{ fontSize: '0.8rem', color: '#0284c7', fontWeight: 800 }}>
               План на 1 лист: {formatDurationSec(selectedPart.sheet_cutting_time_sec)}
             </span>
-            {selectedPart.item_cutting_time_sec > 0 && (
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-dim, #64748b)', fontWeight: 700 }}>
-                ({selectedPart.item_cutting_time_sec} сек/шт)
-              </span>
-            )}
           </div>
         </div>
 
         {/* Sheets Quantity Stepper */}
         <div style={{
-          background: '#13131a',
+          background: 'var(--surface-1, #13131a)',
           borderRadius: '14px',
-          border: '1px solid rgba(255,255,255,0.1)',
+          border: '1px solid var(--border-color, rgba(255,255,255,0.1))',
           padding: '12px 16px',
           display: 'flex',
           flexDirection: 'column',
@@ -156,9 +152,9 @@ export function CuttingActiveCard({
             <button
               onClick={() => setSheetsCount(prev => Math.max(1, prev - 1))}
               style={{
-                background: 'rgba(255,255,255,0.08)',
-                border: 'none',
-                color: '#fff',
+                background: 'var(--button-bg, rgba(255,255,255,0.08))',
+                border: '1px solid var(--border-color, rgba(255,255,255,0.08))',
+                color: 'var(--text, #fff)',
                 width: 34,
                 height: 34,
                 borderRadius: '8px',
@@ -171,16 +167,16 @@ export function CuttingActiveCard({
               <Minus size={16} />
             </button>
 
-            <span style={{ fontSize: '1.4rem', fontWeight: 950, color: '#fff', minWidth: '40px', textAlign: 'center' }}>
+            <span style={{ fontSize: '1.4rem', fontWeight: 950, color: 'var(--text, #fff)', minWidth: '40px', textAlign: 'center' }}>
               {sheetsCount}
             </span>
 
             <button
               onClick={() => setSheetsCount(prev => prev + 1)}
               style={{
-                background: 'rgba(255,255,255,0.08)',
-                border: 'none',
-                color: '#fff',
+                background: 'var(--button-bg, rgba(255,255,255,0.08))',
+                border: '1px solid var(--border-color, rgba(255,255,255,0.08))',
+                color: 'var(--text, #fff)',
                 width: 34,
                 height: 34,
                 borderRadius: '8px',
@@ -205,9 +201,9 @@ export function CuttingActiveCard({
         
         {/* Operators Column */}
         <div style={{
-          background: '#13131a',
+          background: 'var(--surface-1, #13131a)',
           borderRadius: '16px',
-          border: '1px solid rgba(255,255,255,0.08)',
+          border: '1px solid var(--border-color, rgba(255,255,255,0.08))',
           padding: '16px',
           display: 'flex',
           flexDirection: 'column',
@@ -215,7 +211,7 @@ export function CuttingActiveCard({
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <UserCheck size={16} color={ACCENT_RUBBER} />
-            <span style={{ fontSize: '0.75rem', fontWeight: 900, color: '#fff', textTransform: 'uppercase' }}>
+            <span style={{ fontSize: '0.75rem', fontWeight: 900, color: 'var(--text, #fff)', textTransform: 'uppercase' }}>
               Лицювальник-полірувальник ({selectedOperators.length} обрано)
             </span>
           </div>
@@ -232,9 +228,9 @@ export function CuttingActiveCard({
 
         {/* Live Timer Column */}
         <div style={{
-          background: '#13131a',
+          background: 'var(--surface-1, #13131a)',
           borderRadius: '16px',
-          border: '1px solid rgba(255,255,255,0.08)',
+          border: '1px solid var(--border-color, rgba(255,255,255,0.08))',
           padding: '20px',
           display: 'flex',
           flexDirection: 'column',
