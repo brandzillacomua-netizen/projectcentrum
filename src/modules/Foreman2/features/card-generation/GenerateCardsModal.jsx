@@ -4,6 +4,7 @@ import { calculateCuttersForBatch, isMachineMatch } from '../../../../utils/cutt
 import { CutterSelectorRow } from './components/CutterSelectorRow.jsx'
 import { useMES } from '../../../../MESContext.jsx'
 import { getCardSheets } from '../shortage/shortageCalculations.js'
+import { getKittingSheetsForPart } from './kittingAvailability.js'
 import { findMachineByName } from '../../utils/foremanHelpers.js'
 
 export default function GenerateCardsModal({
@@ -22,99 +23,17 @@ export default function GenerateCardsModal({
   const mes = useMES?.() || {}
   const isLight = mes.theme === 'light' || (typeof document !== 'undefined' && (document.body.classList.contains('light-theme') || document.documentElement.classList.contains('light-theme')))
 
-  const getRequestQty = (req) => {
-    return Number(req.qty) || Number(req.quantity) || 0
-  }
-
-  const getKittingSheets = (taskObj, partNom) => {
-    if (!taskObj || !partNom) return { issuedSheets: 0, pendingSheets: 0, hasKittingReqs: false }
-    const snapPart = (taskObj?.plan_snapshot || {})[String(partNom?.id)] || {}
-    const snapMat = snapPart?.material
-    const baseMat = snapMat || partNom?.material_type || ''
-    const partName = partNom?.name || snapPart?.name || ''
-    const partCode = partNom?.code || snapPart?.code || ''
-
-    // Match material requests for this task OR the parent order (tasks under same order share raw sheet requests)
-    const taskReqs = (materialRequests || []).filter(r => 
-      String(r.task_id) === String(taskObj?.id) ||
-      (r.order_id && taskObj?.order_id && String(r.order_id) === String(taskObj?.order_id))
-    )
-
-    const extractThickness = (str) => {
-      const match = String(str || '').match(/(\d+(?:[.,]\d+)?)\s*мм/)
-      return match ? parseFloat(match[1].replace(',', '.')) : null
-    }
-    const extractGrade = (str) => {
-      const match = String(str || '').toLowerCase().match(/[tт]\s*(300|700)/)
-      return match ? match[1] : null
-    }
-    const baseThickness = extractThickness(baseMat)
-    let baseGrade = extractGrade(baseMat)
-    // If the task specifically allocated T700 or T300 sheets for this part, use that grade
-    if (Number(snapPart?.sheets_t700) > 0 && !Number(snapPart?.sheets_t300)) {
-      baseGrade = '700'
-    } else if (Number(snapPart?.sheets_t300) > 0 && !Number(snapPart?.sheets_t700)) {
-      baseGrade = '300'
-    }
-
-    const matchesBaseMaterial = (candidate, reqObj) => {
-      // 1. Direct explicit mention in request details: e.g. "(Для: Київ К-ІП9...: 100шт)"
-      if (reqObj?.details) {
-        if (partName && reqObj.details.includes(partName)) return true
-        if (partCode && reqObj.details.includes(partCode)) return true
-      }
-
-      const candidateLower = String(candidate || '').toLowerCase()
-      const candidateThickness = extractThickness(candidateLower)
-      const candidateGrade = extractGrade(candidateLower)
-      if (baseThickness !== null && candidateThickness !== null && baseThickness !== candidateThickness) return false
-      if (baseGrade !== null && candidateGrade !== null && baseGrade !== candidateGrade) return false
-      if (baseThickness !== null && candidateThickness !== null) return true
-      const activeMaterials = baseMat.split('+').map(m => m.trim().toLowerCase()).filter(Boolean)
-      return activeMaterials.some(act => candidateLower.includes(act) || act.includes(candidateLower))
-    }
-
-    const sheetReqs = taskReqs.filter(r => {
-      const rNom = (nomenclatures || []).find(n => n.id === r.nomenclature_id)
-      const rName = `${rNom?.name || ''} ${rNom?.material_type || ''} ${r.details || ''}`
-      const lowerName = rName.toLowerCase()
-      const isSheet = lowerName.includes('лист') || lowerName.includes('sheet')
-      if (!isSheet) return false
-      return matchesBaseMaterial(lowerName, r)
-    })
-    const issued = sheetReqs.filter(r => r.status === 'issued' || r.status === 'completed')
-      .reduce((sum, r) => sum + getRequestQty(r), 0)
-    const pending = sheetReqs.filter(r => r.status === 'pending')
-      .reduce((sum, r) => sum + getRequestQty(r), 0)
-
-    // Sheets already used by OTHER parts in this same task that share this sheet material
-    const usedByOtherPartsAcrossTask = (workCards || []).filter(card => {
-      if (String(card.task_id) !== String(taskObj?.id) || card.is_rework) return false
-      if (String(card.nomenclature_id) === String(partNom?.id)) return false
-      const operation = String(card.operation || '').toLowerCase()
-      if (operation === 'склад бз' || operation.includes('склад bz')) return false
-      const cardNom = (nomenclatures || []).find(n => String(n.id) === String(card.nomenclature_id))
-      const cardEntry = (taskObj?.plan_snapshot || {})[String(card.nomenclature_id)]
-      return matchesBaseMaterial(cardEntry?.material || cardNom?.material_type || cardNom?.name || '')
-    }).reduce((sum, card) => {
-      const cardNom = (nomenclatures || []).find(n => String(n.id) === String(card.nomenclature_id))
-      const cardEntry = (taskObj?.plan_snapshot || {})[String(card.nomenclature_id)]
-      const unitsPerSheet = Math.max(1, Number(cardNom?.units_per_sheet) || Number(cardEntry?.units_per_sheet) || 1)
-      return sum + getCardSheets(card, unitsPerSheet)
-    }, 0)
-
-    const materialRequiresSheets = /(?:т|t)\s*(?:300|700)|лист|sheet/i.test(baseMat)
-    return {
-      issuedSheets: issued,
-      pendingSheets: pending,
-      usedByOtherPartsAcrossTask,
-      hasKittingReqs: materialRequiresSheets || sheetReqs.length > 0
-    }
-  }
-
   const singleKitting = useMemo(() => {
-    if (!task || !part?.nom || isRepair) return { issuedSheets: 0, pendingSheets: 0, usedByOtherPartsAcrossTask: 0, hasKittingReqs: false }
-    return getKittingSheets(task, part.nom)
+    if (!task || !part || isRepair) {
+      return { issuedSheets: 0, pendingSheets: 0, usedByOtherPartsAcrossTask: 0, alreadyGeneratedSheets: 0, poolIssuedRemaining: 0, hasKittingReqs: false }
+    }
+    return getKittingSheetsForPart({
+      task,
+      part,
+      materialRequests,
+      nomenclatures,
+      workCards
+    })
   }, [task, part, materialRequests, nomenclatures, workCards, isRepair])
 
   const alreadyGeneratedSheets = useMemo(() => {
@@ -442,17 +361,18 @@ export default function GenerateCardsModal({
                   currentGlobalSheets += cardSheets
                 })
 
-                const { issuedSheets, pendingSheets, usedByOtherPartsAcrossTask, hasKittingReqs } = getKittingSheets(task, part.nom)
+                const { issuedSheets, pendingSheets, usedByOtherPartsAcrossTask, alreadyGeneratedSheets: totalPartGenSheets, hasKittingReqs } = singleKitting
                 const generatedCount = cardsBelongingToThisSplitCount
                 const isGenerated = sheetsUsedInThisSplit >= splitSheets
                 const remainingCount = Math.max(0, splitLoadings - generatedCount)
                 const splitRemainingSheets = Math.max(0, splitSheets - sheetsUsedInThisSplit)
-                const poolRemainingForTask = Math.max(0, issuedSheets - (usedByOtherPartsAcrossTask || 0) - sheetsUsedInThisSplit)
+                const poolRemainingForTask = Math.max(0, issuedSheets - (usedByOtherPartsAcrossTask || 0) - (totalPartGenSheets || 0))
 
-                const maxAllowedToGen = hasKittingReqs 
-                  ? Math.min(remainingCount, Math.floor(Math.min(splitRemainingSheets, poolRemainingForTask) / currentCapacity))
+                const allowedSheetsForSplit = Math.min(splitRemainingSheets, poolRemainingForTask)
+                const maxAllowedToGen = hasKittingReqs
+                  ? Math.min(remainingCount, Math.ceil(allowedSheetsForSplit / currentCapacity))
                   : remainingCount
-                const isKittingBlocked = hasKittingReqs && maxAllowedToGen <= 0
+                const isKittingBlocked = hasKittingReqs && allowedSheetsForSplit <= 0
 
                 const splitGlobalOffsetForThisMachine = currentGlobalOffset
                 currentGlobalOffset += splitLoadings

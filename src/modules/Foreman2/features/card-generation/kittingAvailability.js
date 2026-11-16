@@ -33,7 +33,7 @@ export const getKittingSheetsForPart = ({
   const partName = part?.name || partNom?.name || snapPart?.name || ''
   const partCode = part?.code || partNom?.code || snapPart?.code || ''
 
-  const taskReqs = (materialRequests || []).filter(r =>
+  const allOrderReqs = (materialRequests || []).filter(r =>
     !r.card_id &&
     r.status !== 'cancelled' &&
     r.status !== 'rejected' &&
@@ -42,6 +42,8 @@ export const getKittingSheetsForPart = ({
       (r.order_id && task?.order_id && String(r.order_id) === String(task?.order_id))
     )
   )
+  const ownTaskReqs = allOrderReqs.filter(r => String(r.task_id) === String(task?.id))
+  const taskReqs = ownTaskReqs.length > 0 ? ownTaskReqs : allOrderReqs
 
   const baseThickness = extractThickness(baseMat)
   let baseGrade = extractGrade(baseMat)
@@ -89,18 +91,31 @@ export const getKittingSheetsForPart = ({
     .filter(r => r.status === 'pending')
     .reduce((sum, r) => sum + getRequestQty(r), 0)
 
+  const findNomById = (id) => {
+    if (!id) return null
+    const idStr = String(id)
+    return (nomenclatures || []).find(n =>
+      String(n.id) === idStr ||
+      (Array.isArray(n.legacy_ids) && n.legacy_ids.map(String).includes(idStr))
+    ) || null
+  }
+
   const usedByOtherPartsAcrossTask = (workCards || []).filter(card => {
     if (String(card.task_id) !== String(task?.id) || card.is_rework) return false
+    if (String(card.card_info || '').includes('[REDO]')) return false
     if (String(card.nomenclature_id) === String(partNom?.id)) return false
     const operation = String(card.operation || '').toLowerCase()
     if (operation === 'склад бз' || operation.includes('склад bz')) return false
-    const cardNom = (nomenclatures || []).find(n => String(n.id) === String(card.nomenclature_id))
-    const cardEntry = (task?.plan_snapshot || {})[String(card.nomenclature_id)]
+    const cardNom = findNomById(card.nomenclature_id)
+    const cardEntry = (task?.plan_snapshot || {})[String(card.nomenclature_id)] || (cardNom?.id ? (task?.plan_snapshot || {})[String(cardNom.id)] : null)
     return matchesBaseMaterial(cardEntry?.material || cardNom?.material_type || cardNom?.name || '')
   }).reduce((sum, card) => {
-    const cardNom = (nomenclatures || []).find(n => String(n.id) === String(card.nomenclature_id))
-    const cardEntry = (task?.plan_snapshot || {})[String(card.nomenclature_id)]
-    const unitsPerSheet = Math.max(1, Number(cardNom?.units_per_sheet) || Number(cardEntry?.units_per_sheet) || 1)
+    const cardNom = findNomById(card.nomenclature_id)
+    const cardEntry = (task?.plan_snapshot || {})[String(card.nomenclature_id)] || (cardNom?.id ? (task?.plan_snapshot || {})[String(cardNom.id)] : null)
+    const snapUnits = Number(cardEntry?.sheets) > 0 && Number(cardEntry?.plan) > 0
+      ? Math.ceil(Number(cardEntry.plan) / Number(cardEntry.sheets))
+      : 0
+    const unitsPerSheet = Math.max(1, Number(cardNom?.units_per_sheet) || Number(cardEntry?.units_per_sheet) || snapUnits || 1)
     return sum + getCardSheets(card, unitsPerSheet)
   }, 0)
 
