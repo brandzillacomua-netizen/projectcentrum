@@ -469,6 +469,7 @@ export function useShop2TerminalState() {
       const now = new Date().toISOString()
       const nom = getNomFromCard(currentCard)
       const plannedMinutes = getShop2CardPlannedMinutes({ ...currentCard, operation: stage }, nom)
+      const roundedEstimatedTime = Math.round(Number(plannedMinutes) || 0)
       const cardUpdate = {
         status: 'in-progress',
         operation: stage,
@@ -477,7 +478,7 @@ export function useShop2TerminalState() {
         shift_name: resolvedShift,
         manager_name: selectedManager || null,
         machine: selectedMachine || null,
-        ...(plannedMinutes > 0 ? { estimated_time: plannedMinutes } : {})
+        ...(roundedEstimatedTime > 0 ? { estimated_time: roundedEstimatedTime } : {})
       }
 
       const idempotencyKey = `start_shop2_${currentCard.id}_${Date.now()}`
