@@ -362,6 +362,7 @@ export function useReportsModuleData() {
     tasks,
     orders,
     workCards,
+    machines,
     filterByDate,
     selectedShiftFilter,
     selectedEmployeeFilter,

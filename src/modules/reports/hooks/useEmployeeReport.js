@@ -1,5 +1,10 @@
 import { useMemo } from 'react'
 import { isNonHumanResponsibility } from '../../Brak/utils/operatorAttribution.js'
+import {
+  getCardSheetsCount,
+  getCuttingEstimatedSeconds,
+  resolveMachineTypeFromCard
+} from '../../../utils/cuttingTimeUtils.js'
 
 /**
  * Token-based operator matching allowing for variations in name ordering
@@ -526,6 +531,7 @@ export function useEmployeeReport({
   tasks = [],
   orders = [],
   workCards = [],
+  machines = [],
   filterByDate,
   selectedShiftFilter = 'all',
   selectedEmployeeFilter = 'all',
@@ -855,6 +861,28 @@ export function useEmployeeReport({
           ? (endMs - startMs)
           : 0
 
+        let plannedDurationMs = 0
+        if (isCutting && !isAttributedQCScrap && !isTechStage && nom) {
+          const mergedCard = {
+            ...(realCard || {}),
+            ...h,
+            card_info: actualCardInfo || h.card_info || '',
+            machine: h.machine_name || h.machine || realCard?.machine || realCard?.machine_name || ''
+          }
+          const sheetsCount = getCardSheetsCount(mergedCard, nom)
+          const machineType = resolveMachineTypeFromCard(mergedCard, machines)
+          let plannedSeconds = getCuttingEstimatedSeconds(
+            nom,
+            sheetsCount,
+            Number(h.qty_at_start || h.qty_completed || realCard?.quantity) || 0,
+            machineType
+          )
+          if (plannedSeconds <= 0 && String(realCard?.operation || '').trim().toLowerCase() === 'розкрій' && Number(realCard?.estimated_time) > 0) {
+            plannedSeconds = Number(realCard.estimated_time)
+          }
+          if (plannedSeconds > 0) plannedDurationMs = plannedSeconds * 1000
+        }
+
         // Append detailed operation item
         empStat.history.push({
           id: h.id,
@@ -865,6 +893,7 @@ export function useEmployeeReport({
           isShop2: isShop2Op,
           date: h.completed_at || h.created_at,
           durationMs,
+          plannedDurationMs,
           stage: isAttributedQCScrap ? `${h.stage_name || 'ВКЯ'} (виявлено)` : (h.stage_name || 'Операція'),
           shift: h.shift_name || empStat.shift,
           nomenclatureName: nom?.name || 'Невідома деталь',
@@ -1086,6 +1115,7 @@ export function useEmployeeReport({
     tasks,
     orders,
     workCards,
+    machines,
     filterByDate,
     selectedShiftFilter,
     selectedEmployeeFilter,

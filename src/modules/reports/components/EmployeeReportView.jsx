@@ -862,7 +862,8 @@ function EmployeeDetailModal({ employee, onClose, startDate, endDate }) {
                 <th style={{ width: '130px' }}>Наряд</th>
                 <th>Деталь / Номенклатура</th>
                 <th>Етап / Верстат</th>
-                <th style={{ textAlign: 'center', width: '95px' }}>Час роботи</th>
+                <th style={{ textAlign: 'center', width: '95px' }}>Плановий час</th>
+                <th style={{ textAlign: 'center', width: '95px' }}>Факт. час</th>
                 <th style={{ textAlign: 'center', width: '85px', color: '#22c55e' }}>Вироблено</th>
                 <th style={{ textAlign: 'center', width: '85px', color: '#ef4444' }}>Брак</th>
                 <th>Розподіл браку</th>
@@ -872,22 +873,24 @@ function EmployeeDetailModal({ employee, onClose, startDate, endDate }) {
             <tbody>
               {filteredHistory.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="emp-modal-empty-td">
+                  <td colSpan={10} className="emp-modal-empty-td">
                     Немає операцій за обраними критеріями фільтра
                   </td>
                 </tr>
               ) : (
                 filteredHistory.slice(0, visibleCount).map((item, idx) => {
                   const displayOrder = cleanOrderLabel(item.orderNum)
-                  const durationLabel = (() => {
-                    const ms = Number(item.durationMs) || 0
+                  const formatOpDuration = rawMs => {
+                    const ms = Number(rawMs) || 0
                     if (ms <= 0) return '—'
                     const totalMin = Math.floor(ms / 60000)
                     if (totalMin < 1) return '< 1 хв'
                     const hours = Math.floor(totalMin / 60)
                     const mins = totalMin % 60
                     return hours > 0 ? `${hours}г ${mins}хв` : `${mins} хв`
-                  })()
+                  }
+                  const plannedLabel = formatOpDuration(item.plannedDurationMs)
+                  const durationLabel = formatOpDuration(item.durationMs)
 
                   return (
                     <tr key={item.id || idx} className="emp-modal-tbody-tr">
@@ -938,6 +941,11 @@ function EmployeeDetailModal({ employee, onClose, startDate, endDate }) {
                         {item.machine && item.machine !== '—' && (
                           <div className="machine-text">{item.machine}</div>
                         )}
+                      </td>
+
+                      {/* Planned Cutting Duration */}
+                      <td className="emp-modal-num-td" style={{ textAlign: 'center', fontWeight: 700, whiteSpace: 'nowrap', color: '#f59e0b' }}>
+                        {plannedLabel}
                       </td>
 
                       {/* Operation Duration */}

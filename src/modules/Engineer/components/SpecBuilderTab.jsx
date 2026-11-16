@@ -15,7 +15,8 @@ import {
   AlertCircle,
   Cpu,
   SlidersHorizontal,
-  ExternalLink
+  ExternalLink,
+  Copy
 } from 'lucide-react'
 import { useMES } from '../../../MESContext'
 import { 
@@ -136,6 +137,8 @@ export function SpecBuilderTab() {
   const [nomCreateConfig, setNomCreateConfig] = useState(null)
   const [showParentCreate, setShowParentCreate] = useState(false)
   const [dossierParentId, setDossierParentId] = useState(null)
+  const [showCopyBomPicker, setShowCopyBomPicker] = useState(false)
+  const [copyBomSearch, setCopyBomSearch] = useState('')
 
   // Nomenclature Card Modal State
   const [selectedCardNom, setSelectedCardNom] = useState(null)
@@ -443,6 +446,51 @@ export function SpecBuilderTab() {
   }
 
   const removeRow = (idx) => setRows(prev => prev.filter((_, i) => i !== idx))
+
+  const copyableSpecParents = useMemo(() => {
+    const countsByParent = new Map()
+    ;(bomItems || []).forEach(b => {
+      if (!b?.parent_id) return
+      const pid = String(b.parent_id)
+      countsByParent.set(pid, (countsByParent.get(pid) || 0) + 1)
+    })
+    return (nomenclatures || [])
+      .filter(n => n?.id && String(n.id) !== String(parentId) && countsByParent.has(String(n.id)))
+      .map(n => ({
+        id: n.id,
+        name: n.name || 'Без назви',
+        code: n.code || n.qr_code || '',
+        count: countsByParent.get(String(n.id)) || 0
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'uk-UA', { numeric: true, sensitivity: 'base' }))
+  }, [bomItems, nomenclatures, parentId])
+
+  const filteredCopyableParents = useMemo(() => {
+    const q = copyBomSearch.trim().toLowerCase()
+    if (!q) return copyableSpecParents.slice(0, 40)
+    return copyableSpecParents
+      .filter(item => `${item.name} ${item.code}`.toLowerCase().includes(q))
+      .slice(0, 40)
+  }, [copyableSpecParents, copyBomSearch])
+
+  const handleCopySpecFromParent = (sourceParentId) => {
+    const sourceBom = (bomItems || []).filter(b => String(b.parent_id) === String(sourceParentId))
+    if (sourceBom.length === 0) return
+    const copiedRows = sourceBom.map(b => {
+      const nom = nomenclatures.find(n => String(n.id) === String(b.child_id)) || (rawNoms || []).find(n => String(n.id) === String(b.child_id))
+      return {
+        nomId: b.child_id,
+        nomName: nom?.name || '(невідомо)',
+        nomType: nom?.type || 'part',
+        nomUnit: nom?.unit || 'шт',
+        group: b.group_label || autoClassify(nom),
+        qty: b.quantity_per_parent ?? 1
+      }
+    })
+    setRows(copiedRows)
+    setShowCopyBomPicker(false)
+    setCopyBomSearch('')
+  }
 
   const handleExpandAssembly = (assemblyNomId, multiplier = 1) => {
     const subItems = bomItems.filter(b => String(b.parent_id) === String(assemblyNomId))
@@ -1125,9 +1173,61 @@ export function SpecBuilderTab() {
                 <span></span>
               </div>
               {rows.length === 0 ? (
-                <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted, #64748b)' }}>
-                  <p style={{ margin: '0 0 10px 0', fontSize: '0.85rem' }}>Специфікація порожня</p>
-                  <button onClick={addRow} style={{ padding: '8px 16px', background: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.3)', color: '#10b981', borderRadius: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem' }}>+ Додати першу позицію</button>
+                <div style={{ padding: '40px 24px', textAlign: 'center', color: 'var(--text-muted, #64748b)' }}>
+                  <p style={{ margin: '0 0 12px 0', fontSize: '0.85rem' }}>Специфікація порожня</p>
+                  <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                    <button onClick={addRow} style={{ padding: '8px 16px', background: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.3)', color: '#10b981', borderRadius: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem' }}>+ Додати першу позицію</button>
+                    {copyableSpecParents.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setShowCopyBomPicker(prev => !prev)}
+                        style={{ padding: '8px 16px', background: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.3)', color: '#2563eb', borderRadius: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                      >
+                        <Copy size={14} /> Підтягнути з існуючої
+                      </button>
+                    )}
+                  </div>
+                  {showCopyBomPicker && (
+                    <div style={{ maxWidth: '520px', margin: '16px auto 0', textAlign: 'left', background: 'var(--card-header-bg, #f8fafc)', border: '1px solid var(--border-color, #cbd5e1)', borderRadius: '12px', padding: '12px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                        <div style={{ position: 'relative', flex: 1 }}>
+                          <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted, #64748b)' }} />
+                          <input
+                            autoFocus
+                            value={copyBomSearch}
+                            onChange={e => setCopyBomSearch(e.target.value)}
+                            placeholder="Пошук виробу або вузла-зразка..."
+                            style={{ width: '100%', padding: '8px 10px 8px 30px', borderRadius: '8px', border: '1px solid var(--border-color, #cbd5e1)', background: 'var(--card-bg, #ffffff)', color: 'var(--text-main, #0f172a)', fontSize: '0.82rem', outline: 'none', boxSizing: 'border-box' }}
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => { setShowCopyBomPicker(false); setCopyBomSearch('') }}
+                          style={{ padding: '7px 10px', borderRadius: '8px', border: '1px solid var(--border-color, #cbd5e1)', background: 'var(--card-bg, #ffffff)', color: 'var(--text-muted, #64748b)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}
+                          title="Закрити"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                      <div style={{ maxHeight: '220px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        {filteredCopyableParents.length === 0 ? (
+                          <div style={{ padding: '12px', textAlign: 'center', fontSize: '0.8rem', color: 'var(--text-muted, #64748b)' }}>Нічого не знайдено</div>
+                        ) : (
+                          filteredCopyableParents.map(item => (
+                            <button
+                              key={item.id}
+                              type="button"
+                              onClick={() => handleCopySpecFromParent(item.id)}
+                              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid transparent', background: 'var(--card-bg, #ffffff)', color: 'var(--text-main, #0f172a)', cursor: 'pointer', textAlign: 'left', fontSize: '0.82rem', fontWeight: 700 }}
+                            >
+                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</span>
+                              <span style={{ flexShrink: 0, fontSize: '0.72rem', fontWeight: 800, color: '#2563eb', background: 'rgba(59, 130, 246, 0.1)', padding: '2px 8px', borderRadius: '999px' }}>{item.count} поз.</span>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <>
