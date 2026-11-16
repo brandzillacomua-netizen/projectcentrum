@@ -39,10 +39,38 @@ const matchesShift = (user, shift) => (
   !shift || shift === 'all' || shift === 'Без зміни' || user.shift === shift || user.shift === 'Без зміни'
 )
 
-const sortUsersByName = users => [...users].sort((left, right) => (
-  String(left?.last_name || '').localeCompare(String(right?.last_name || ''), 'uk') ||
-  String(left?.first_name || '').localeCompare(String(right?.first_name || ''), 'uk')
-))
+const PAIR_PRIORITY_SURNAMES = [
+  'капустинська',
+  'рибчук',
+  'варварина',
+  'тимінька',
+  'романчук',
+  'куцах',
+  'цирка',
+  'курка',
+  'ненчук',
+  'дрізд',
+  'папроцький',
+  'бадзь',
+  'гаврилюк',
+  'дністрянська'
+]
+
+const getPairPriorityIndex = user => {
+  const lastName = String(user?.last_name || '').toLowerCase().trim()
+  if (!lastName) return Number.MAX_SAFE_INTEGER
+  const idx = PAIR_PRIORITY_SURNAMES.indexOf(lastName)
+  return idx === -1 ? Number.MAX_SAFE_INTEGER : idx
+}
+
+const sortUsersByName = users => [...users].sort((left, right) => {
+  const prioDiff = getPairPriorityIndex(left) - getPairPriorityIndex(right)
+  if (prioDiff !== 0) return prioDiff
+  return (
+    String(left?.last_name || '').localeCompare(String(right?.last_name || ''), 'uk') ||
+    String(left?.first_name || '').localeCompare(String(right?.first_name || ''), 'uk')
+  )
+})
 
 const mergeUniqueUsers = (primary, additional) => {
   const merged = [...primary]
