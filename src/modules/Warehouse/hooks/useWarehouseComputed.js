@@ -467,9 +467,10 @@ export const useWarehouseComputed = ({
 
   const groupedRequests = useMemo(() => {
     return pendingRequests.reduce((acc, req) => {
+      const rubberBatchId = req.details?.match(/\[RUBBER_BATCH:([a-f0-9-]+)\]/i)?.[1]
       const key = req.card_id
         ? `card-${req.card_id}`
-        : (req.task_id || `order-${req.order_id}`)
+        : (rubberBatchId ? `rubber-${rubberBatchId}` : (req.task_id || `order-${req.order_id}`))
       if (!acc[key]) acc[key] = []
       acc[key].push(req)
       return acc

@@ -31,7 +31,8 @@ export function buildSgpReceiptRegistry({
   workCards = [],
   tasks = [],
   orders = [],
-  nomenclatures = []
+  nomenclatures = [],
+  receptionDocs = []
 } = {}) {
   const cardsById = new Map(workCards.map(card => [String(card.id), card]))
   const tasksById = new Map(tasks.map(task => [String(task.id), task]))
@@ -130,7 +131,36 @@ export function buildSgpReceiptRegistry({
       }
     })
 
-  return [...rowsFromHistory, ...rowsFromCompletedCards]
+  const rowsFromReceptions = (receptionDocs || [])
+    .filter(doc => doc && doc.status === 'completed' && doc.target_warehouse === 'sgp')
+    .flatMap(doc => {
+      const items = Array.isArray(doc.items) ? doc.items : []
+      return items
+        .filter(item => Number(item.accepted_qty ?? item.actual_qty ?? item.qty ?? 0) > 0)
+        .map((item, idx) => {
+          const nom = item.nomenclature_id ? (nomsById.get(String(item.nomenclature_id)) || {}) : {}
+          const qty = Number(item.accepted_qty ?? item.actual_qty ?? item.qty ?? 0)
+          const sourceLabel = item.source_label
+            || (doc.source_warehouse === 'shop2_rubber' ? 'Цех №2 • порізка гуми' : 'Прийомка на СГП')
+          const opText = item.accepted_by
+            ? `${item.operators ? `${item.operators} → ` : ''}Прийняв: ${item.accepted_by}`
+            : (item.operators || 'СГП')
+          return {
+            id: `reception-${doc.id}-${idx}`,
+            timestamp: item.accepted_at || doc.created_at || null,
+            cardId: item.batch_number || doc.id,
+            detailName: item.name || nom.name || 'Позиція прийомки',
+            detailCode: item.code || nom.code || '',
+            quantity: qty,
+            source: sourceLabel,
+            orderNumber: item.batch_number || '',
+            batchIndex: '',
+            operatorName: opText
+          }
+        })
+    })
+
+  return [...rowsFromHistory, ...rowsFromCompletedCards, ...rowsFromReceptions]
     .sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime())
 }
 

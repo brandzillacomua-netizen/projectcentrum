@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import {
   Archive,
   Package,
@@ -25,21 +25,25 @@ import { useSgpReceiptRegistry } from './WarehouseFGP/hooks/useSgpReceiptRegistr
 import { exportSgpStockToExcel } from './WarehouseFGP/utils/exportSgpExcel.js'
 import { PackagingQueueTab as PackagingQueueTabRaw } from './WarehouseFGP/components/PackagingQueueTab.jsx'
 import { InventoryView as InventoryViewRaw } from './WarehouseFGP/components/InventoryView.jsx'
+import { SgpReceptionPanel as SgpReceptionPanelRaw } from './WarehouseFGP/components/SgpReceptionPanel.jsx'
 
 const ReserveAnalysisModal = ReserveAnalysisModalRaw as React.FC<any>
 const PackagingQueueTab = PackagingQueueTabRaw as React.FC<any>
 const InventoryView = InventoryViewRaw as React.FC<any>
+const SgpReceptionPanel = SgpReceptionPanelRaw as React.FC<any>
 
 export const WarehouseFGPModule: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams()
   const {
     refreshTable,
     fetchData,
+    confirmReception,
     theme
   }: any = useMES()
 
   const inventory = useStore((state: any) => state.inventory)
   const requests = useStore((state: any) => state.requests)
+  const receptionDocs = useStore((state: any) => state.receptionDocs)
   const nomenclatures = useStore((state: any) => state.nomenclatures)
   const orders = useStore((state: any) => state.orders)
   const tasks = useStore((state: any) => state.tasks)
@@ -100,8 +104,21 @@ export const WarehouseFGPModule: React.FC = () => {
     isLoadingMore: isReceiptRegistryLoadingMore,
     hasMore: receiptRegistryHasMore,
     loadMore: loadMoreReceipts,
-    totalCount: receiptTotalCount
+    totalCount: receiptTotalCount,
+    refreshReceipts
   }: any = useSgpReceiptRegistry({ workCards, tasks, orders, nomenclatures })
+
+  const pendingSgpReceptions = useMemo(() => {
+    return (receptionDocs || []).filter(
+      (d: any) => d.target_warehouse === 'sgp' && (d.status === 'shipped' || d.status === 'pending')
+    )
+  }, [receptionDocs])
+
+  useEffect(() => {
+    if (typeof fetchData === 'function') {
+      fetchData(['reception_docs'])
+    }
+  }, [fetchData])
 
   const {
     groupedItems,
@@ -377,6 +394,19 @@ export const WarehouseFGPModule: React.FC = () => {
           )}
         </div>
       </nav>
+
+      {/* ── ПРИЙОМКА НА СГП (ВХІДНІ ПАРТІЇ З ЦЕХУ, НАПР. ПОРІЗКА ГУМИ) ── */}
+      <SgpReceptionPanel
+        docs={pendingSgpReceptions}
+        confirmReception={confirmReception}
+        currentUser={currentUser}
+        isDark={isDark}
+        t={t}
+        onAccepted={() => {
+          fetchData(['inventory', 'reception_docs'], { force: true })
+          refreshReceipts?.()
+        }}
+      />
 
       {/* ── ОСНОВНИЙ КОНТЕНТ: РЕЖИМ ЗАПИТІВ (ГОЛОВНИЙ РЕЖИМ СГП) ── */}
       {viewMode === 'requests' && (

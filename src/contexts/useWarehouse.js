@@ -283,7 +283,7 @@ export function createWarehouseActions({
           name: nomDetails?.name || itemName || 'Прийнята позиція',
           total_qty: actualQty,
           reserved_qty: 0,
-          type: nomDetails?.type || 'raw',
+          type: item.type || nomDetails?.type || 'raw',
           warehouse: targetWh,
           unit: nomDetails?.unit || 'шт',
           pocket_owner: doc.pocket_owner || null
@@ -644,6 +644,24 @@ export function createWarehouseActions({
           await syncStuckWorkCards(uniqueTaskIds)
         } catch (err) {
           console.error('Error updating work cards for tasks in batch:', err)
+        }
+      }
+
+      // Release rubber cutting orders waiting for Warehouse SV issuance -> 'pending'
+      const issuedRubberBatchIds = relevantRequests
+        .filter(r => requestUpdateList.some(u => u.id === r.id && u.status === 'issued'))
+        .map(r => r.details?.match(/\[RUBBER_BATCH:([a-f0-9-]+)\]/i)?.[1])
+        .filter(Boolean)
+      if (issuedRubberBatchIds.length > 0) {
+        try {
+          await supabase
+            .from('rubber_cutting_batches')
+            .update({ status: 'pending', updated_at: new Date().toISOString() })
+            .in('id', issuedRubberBatchIds)
+            .eq('status', 'awaiting_material')
+          refreshTable('rubber_cutting_batches')
+        } catch (err) {
+          console.error('Error releasing rubber cutting batches after warehouse issue:', err)
         }
       }
 

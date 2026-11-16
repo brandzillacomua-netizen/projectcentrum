@@ -56,6 +56,13 @@ export function Shop2RubberOrdersView() {
 
   useEffect(() => {
     loadData();
+    const handleRefresh = (e) => {
+      if (e?.detail?.table === 'rubber_cutting_batches' || e?.detail?.table === 'inventory') {
+        loadData();
+      }
+    };
+    window.addEventListener('mes:refresh-table', handleRefresh);
+    return () => window.removeEventListener('mes:refresh-table', handleRefresh);
   }, [loadData]);
 
   useEffect(() => {
@@ -145,11 +152,12 @@ export function Shop2RubberOrdersView() {
   const filteredBatches = useMemo(() => {
     return batches.filter(b => {
       if (statusFilter === 'all') return true;
+      if (statusFilter === 'pending') return b.status === 'pending' || b.status === 'awaiting_material';
       return b.status === statusFilter;
     });
   }, [batches, statusFilter]);
 
-  const pendingCount = batches.filter(b => b.status === 'pending').length;
+  const pendingCount = batches.filter(b => b.status === 'pending' || b.status === 'awaiting_material').length;
   const inProgressCount = batches.filter(b => b.status === 'in_progress').length;
   const completedCount = batches.filter(b => b.status === 'completed').length;
 
@@ -355,18 +363,37 @@ export function Shop2RubberOrdersView() {
                     </td>
                     <td style={{ padding: '14px 16px' }}>
                       <span style={{
-                        background: batch.status === 'completed' ? 'rgba(16,185,129,0.15)' : (batch.status === 'in_progress' ? 'rgba(2,132,199,0.15)' : 'rgba(245,158,11,0.15)'),
-                        color: batch.status === 'completed' ? '#10b981' : (batch.status === 'in_progress' ? '#0284c7' : '#d97706'),
+                        background: batch.status === 'completed'
+                          ? 'rgba(16,185,129,0.15)'
+                          : batch.status === 'in_progress'
+                            ? 'rgba(2,132,199,0.15)'
+                            : batch.status === 'awaiting_material'
+                              ? 'rgba(245,158,11,0.15)'
+                              : 'rgba(255,144,0,0.18)',
+                        color: batch.status === 'completed'
+                          ? '#10b981'
+                          : batch.status === 'in_progress'
+                            ? '#0284c7'
+                            : batch.status === 'awaiting_material'
+                              ? '#d97706'
+                              : '#ea580c',
                         padding: '3px 8px',
                         borderRadius: '6px',
                         fontSize: '0.68rem',
-                        fontWeight: 900
+                        fontWeight: 900,
+                        whiteSpace: 'nowrap'
                       }}>
-                        {batch.status === 'completed' ? 'ВИКОНАНО' : (batch.status === 'in_progress' ? 'В РОБОТІ' : 'ОЧІКУЄ')}
+                        {batch.status === 'completed'
+                          ? 'ВИКОНАНО'
+                          : batch.status === 'in_progress'
+                            ? 'В РОБОТІ'
+                            : batch.status === 'awaiting_material'
+                              ? 'ОЧІКУЄ СВ'
+                              : 'У ТЕРМІНАЛІ'}
                       </span>
                     </td>
                     <td style={{ padding: '14px 16px', textAlign: 'right' }}>
-                      {batch.status === 'pending' && (
+                      {(batch.status === 'pending' || batch.status === 'awaiting_material') && (
                         <button
                           onClick={() => handleCancelOrder(batch.id)}
                           style={{

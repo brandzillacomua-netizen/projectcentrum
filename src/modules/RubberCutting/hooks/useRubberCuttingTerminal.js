@@ -99,6 +99,17 @@ export function useRubberCuttingTerminal() {
 
   useEffect(() => {
     loadData();
+    const handleRefresh = (e) => {
+      if (e?.detail?.table === 'rubber_cutting_batches' || e?.detail?.table === 'inventory') {
+        loadData();
+      }
+    };
+    window.addEventListener('mes:refresh-table', handleRefresh);
+    window.addEventListener('mes:rubber-order-created', loadData);
+    return () => {
+      window.removeEventListener('mes:refresh-table', handleRefresh);
+      window.removeEventListener('mes:rubber-order-created', loadData);
+    };
   }, [loadData]);
 
   // Restore persisted job from localStorage

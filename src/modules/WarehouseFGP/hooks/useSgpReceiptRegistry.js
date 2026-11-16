@@ -19,6 +19,7 @@ export function useSgpReceiptRegistry({ workCards, tasks, orders, nomenclatures 
   const [receiptCards, setReceiptCards] = useState([])
   const [receiptTasks, setReceiptTasks] = useState([])
   const [receiptOrders, setReceiptOrders] = useState([])
+  const [receiptDocs, setReceiptDocs] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [hasMore, setHasMore] = useState(true)
@@ -33,11 +34,12 @@ export function useSgpReceiptRegistry({ workCards, tasks, orders, nomenclatures 
   const fetchTotalCount = useCallback(async () => {
     // Use direct count queries until count_sgp_receipts is deployed everywhere.
     // Calling a missing RPC produces a noisy 404 on every refresh.
-    const [h, c] = await Promise.all([
+    const [h, c, r] = await Promise.all([
       supabase.from('work_card_history').select('id', { count: 'exact', head: true }).or(HISTORY_FILTER).gt('qty_completed', 0),
-      supabase.from('work_cards').select('id', { count: 'exact', head: true }).eq('status', 'completed').not('operation', 'ilike', '%склад бз%').not('operation', 'ilike', '%сгп%').not('operation', 'ilike', '%пакування/сгп%')
+      supabase.from('work_cards').select('id', { count: 'exact', head: true }).eq('status', 'completed').not('operation', 'ilike', '%склад бз%').not('operation', 'ilike', '%сгп%').not('operation', 'ilike', '%пакування/сгп%'),
+      supabase.from('reception_docs').select('id', { count: 'exact', head: true }).eq('target_warehouse', 'sgp').eq('status', 'completed')
     ])
-    if (!h.error && !c.error) setTotalCount((h.count || 0) + (c.count || 0))
+    if (!h.error && !c.error) setTotalCount((h.count || 0) + (c.count || 0) + (r?.count || 0))
   }, [])
 
   // Курсори: найстаріший завантажений момент для кожного джерела
@@ -101,12 +103,16 @@ export function useSgpReceiptRegistry({ workCards, tasks, orders, nomenclatures 
         .order('updated_at', { ascending: false }).limit(CHUNK)
       if (cur.cards) cQuery = cQuery.lt('updated_at', cur.cards)
 
-      const [hRes, cRes] = await Promise.all([
+      const [hRes, cRes, rRes] = await Promise.all([
         cur.historyDone ? Promise.resolve({ data: [] }) : hQuery,
-        cur.cardsDone ? Promise.resolve({ data: [] }) : cQuery
+        cur.cardsDone ? Promise.resolve({ data: [] }) : cQuery,
+        reset
+          ? supabase.from('reception_docs').select('*').eq('target_warehouse', 'sgp').eq('status', 'completed').order('created_at', { ascending: false }).limit(200)
+          : Promise.resolve({ data: null })
       ])
       if (hRes.error) throw hRes.error
       if (cRes.error) throw cRes.error
+      if (rRes?.data) setReceiptDocs(rRes.data)
 
       const hRows = hRes.data || []
       const cRows = cRes.data || []
@@ -245,8 +251,9 @@ export function useSgpReceiptRegistry({ workCards, tasks, orders, nomenclatures 
     workCards: combinedCards,
     tasks: combinedTasks,
     orders: combinedOrders,
-    nomenclatures
-  }), [receiptHistory, combinedCards, combinedTasks, combinedOrders, nomenclatures])
+    nomenclatures,
+    receptionDocs: receiptDocs
+  }), [receiptHistory, combinedCards, combinedTasks, combinedOrders, nomenclatures, receiptDocs])
 
 
   return {

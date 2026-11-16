@@ -136,23 +136,43 @@ export async function createPendingRubberOrder(supabase, {
   notes = '',
   createdBy = ''
 }) {
+  const batchId = crypto.randomUUID();
   const batchNumber = `RC-${Date.now().toString().slice(-6)}`;
   const plannedDuration = (Number(sheetsCount) || 1) * (Number(part?.sheet_cutting_time_sec) || 0);
+  const sheetsQty = Number(sheetsCount) || 1;
+  const plannedQty = Number(plannedQuantity) || (sheetsQty * (Number(part?.sheet_yield) || 1));
+
+  let rawNomId = part?.raw_material_id || null;
+  let rawNomName = part?.sheet_size ? `Гума листова ${part.sheet_size}` : (part?.raw_material_code || 'Гума листова');
+
+  if (supabase && part?.raw_material_code) {
+    try {
+      const { data: rawNom } = await supabase
+        .from('nomenclatures_v2')
+        .select('id, name')
+        .eq('code', part.raw_material_code)
+        .maybeSingle();
+      if (rawNom?.id) rawNomId = rawNom.id;
+      if (rawNom?.name) rawNomName = rawNom.name;
+    } catch (e) {
+      console.warn('[rubberCuttingService] Resolve raw material error:', e);
+    }
+  }
 
   const batchRecord = {
-    id: crypto.randomUUID(),
+    id: batchId,
     batch_number: batchNumber,
-    status: 'pending',
+    status: supabase ? 'awaiting_material' : 'pending',
     part_id: part?.id && !part.id.startsWith('local-') ? part.id : null,
     part_code: part?.code || '',
     part_name: part?.name || '',
     part_size: part?.part_size || '',
-    raw_material_id: part?.raw_material_id || null,
+    raw_material_id: rawNomId,
     raw_material_code: part?.raw_material_code || '',
-    raw_material_name: part?.sheet_size ? `Гума листова ${part.sheet_size}` : '',
-    sheets_count: Number(sheetsCount) || 1,
+    raw_material_name: rawNomName,
+    sheets_count: sheetsQty,
     sheet_yield: Number(part?.sheet_yield) || 1,
-    planned_quantity: Number(plannedQuantity) || ((Number(sheetsCount) || 1) * (Number(part?.sheet_yield) || 1)),
+    planned_quantity: plannedQty,
     actual_quantity: 0,
     scrap_quantity: 0,
     scrap_reason: null,
@@ -169,6 +189,28 @@ export async function createPendingRubberOrder(supabase, {
   };
 
   await saveCuttingBatch(supabase, batchRecord);
+
+  // Create material request for Warehouse V2 (Склад виробництва)
+  if (supabase) {
+    try {
+      const { error: reqErr } = await supabase.from('material_requests').insert([{
+        nomenclature_id: rawNomId,
+        quantity: sheetsQty,
+        status: 'pending',
+        target_warehouse: 'operational',
+        category: 'raw',
+        details: `ПОРІЗКА ГУМИ #${batchNumber}: ${rawNomName} — ${sheetsQty} шт. (для: ${part?.name || ''}, ${plannedQty} шт) [RUBBER_BATCH:${batchId}]`
+      }]);
+      if (reqErr) {
+        console.warn('[rubberCuttingService] Create material_request error:', reqErr.message);
+      } else {
+        window.dispatchEvent(new CustomEvent('mes:refresh-table', { detail: { table: 'material_requests' } }));
+      }
+    } catch (reqCatchErr) {
+      console.warn('[rubberCuttingService] Create material_request exception:', reqCatchErr);
+    }
+  }
+
   window.dispatchEvent(new CustomEvent('mes:rubber-order-created', { detail: batchRecord }));
   return { success: true, batch: batchRecord };
 }
@@ -233,6 +275,12 @@ export async function cancelRubberOrder(supabase, batchId) {
         .from('rubber_cutting_batches')
         .delete()
         .eq('id', batchId);
+      await supabase
+        .from('material_requests')
+        .delete()
+        .ilike('details', `%[RUBBER_BATCH:${batchId}]%`)
+        .eq('status', 'pending');
+      window.dispatchEvent(new CustomEvent('mes:refresh-table', { detail: { table: 'material_requests' } }));
     } catch (e) {
       console.warn('[rubberCuttingService] Cancel order DB delete:', e);
     }
@@ -327,61 +375,104 @@ export async function completeCuttingTransaction(supabase, {
   // 2. Perform Inventory Movements if Supabase connected
   if (supabase) {
     try {
-      // 2a. Deduct raw sheets from Warehouse SV
-      const rawCode = part?.raw_material_code;
-      if (rawCode) {
-        const { data: rawNoms } = await supabase
-          .from('nomenclatures_v2')
-          .select('id')
-          .eq('code', rawCode)
-          .maybeSingle();
-
-        const rawNomId = rawNoms?.id || part?.raw_material_id;
-        if (rawNomId) {
-          const { data: invRows } = await supabase
-            .from('inventory')
-            .select('*')
-            .eq('nomenclature_id', rawNomId)
-            .limit(1);
-
-          if (invRows && invRows.length > 0) {
-            const currentTotal = Number(invRows[0].total_qty) || 0;
-            const newTotal = Math.max(0, currentTotal - Number(sheetsCount));
-            await supabase
-              .from('inventory')
-              .update({ total_qty: newTotal, updated_at: new Date().toISOString() })
-              .eq('id', invRows[0].id);
-          }
+      // 2a. Deduct raw sheets from Warehouse SV (and release reservation if issued via Warehouse)
+      let issuedWarehouseReq = null;
+      if (batchId) {
+        const { data: whReqs } = await supabase
+          .from('material_requests')
+          .select('id, status, inventory_id, quantity')
+          .ilike('details', `%[RUBBER_BATCH:${batchId}]%`)
+          .eq('status', 'issued')
+          .limit(1);
+        if (whReqs && whReqs.length > 0) {
+          issuedWarehouseReq = whReqs[0];
         }
       }
 
-      // 2b. Credit finished parts to Shop 2 Inventory (type: 'wip_shop2' or warehouse: 'shop2')
-      if (part?.id && !part.id.startsWith('local-')) {
-        const { data: existingShop2Inv } = await supabase
-          .from('inventory')
-          .select('*')
-          .eq('nomenclature_id', part.id)
-          .eq('type', 'wip_shop2')
-          .limit(1);
+      const rawCode = part?.raw_material_code;
+      if (rawCode || issuedWarehouseReq?.inventory_id) {
+        let targetInvRow = null;
+        if (issuedWarehouseReq?.inventory_id) {
+          const { data: invById } = await supabase
+            .from('inventory')
+            .select('*')
+            .eq('id', issuedWarehouseReq.inventory_id)
+            .maybeSingle();
+          targetInvRow = invById || null;
+        }
+        if (!targetInvRow && rawCode) {
+          const { data: rawNoms } = await supabase
+            .from('nomenclatures_v2')
+            .select('id')
+            .eq('code', rawCode)
+            .maybeSingle();
 
-        if (existingShop2Inv && existingShop2Inv.length > 0) {
-          const currentParts = Number(existingShop2Inv[0].total_qty) || 0;
+          const rawNomId = rawNoms?.id || part?.raw_material_id;
+          if (rawNomId) {
+            const { data: invRows } = await supabase
+              .from('inventory')
+              .select('*')
+              .eq('nomenclature_id', rawNomId)
+              .limit(1);
+            if (invRows && invRows.length > 0) {
+              targetInvRow = invRows[0];
+            }
+          }
+        }
+
+        if (targetInvRow) {
+          const currentTotal = Number(targetInvRow.total_qty) || 0;
+          const currentReserved = Number(targetInvRow.reserved_qty) || 0;
+          const newTotal = Math.max(0, currentTotal - Number(sheetsCount));
+          const releaseQty = issuedWarehouseReq ? (Number(issuedWarehouseReq.quantity) || Number(sheetsCount)) : 0;
+          const newReserved = Math.max(0, currentReserved - releaseQty);
           await supabase
             .from('inventory')
             .update({
-              total_qty: currentParts + Number(actualParts),
+              total_qty: newTotal,
+              reserved_qty: issuedWarehouseReq ? newReserved : currentReserved,
               updated_at: new Date().toISOString()
             })
-            .eq('id', existingShop2Inv[0].id);
+            .eq('id', targetInvRow.id);
+        }
+      }
+
+      if (issuedWarehouseReq) {
+        await supabase
+          .from('material_requests')
+          .update({ status: 'completed' })
+          .eq('id', issuedWarehouseReq.id);
+        window.dispatchEvent(new CustomEvent('mes:refresh-table', { detail: { table: 'material_requests' } }));
+      }
+
+      // 2b. Create SGP Reception Document (Прийомка на СГП → Метизи & Комплектуючі)
+      if (Number(actualParts) > 0) {
+        const { error: recErr } = await supabase.from('reception_docs').insert([{
+          status: 'shipped',
+          source_warehouse: 'shop2_rubber',
+          target_warehouse: 'sgp',
+          items: [{
+            nomenclature_id: part?.id && !part.id.startsWith('local-') ? part.id : null,
+            code: part?.code || '',
+            name: part?.name || '',
+            qty: Number(actualParts) || 0,
+            expected_qty: Number(actualParts) || 0,
+            unit: part?.unit || 'шт',
+            type: 'hardware',
+            batch_id: batchRecord.id,
+            batch_number: batchNumber,
+            source_label: 'Порізка гуми (Цех №2)',
+            operators: operatorStr || 'Термінал порізки',
+            scrap_qty: Number(scrapParts) || 0,
+            created_at: new Date().toISOString()
+          }],
+          created_at: new Date().toISOString()
+        }]);
+
+        if (recErr) {
+          console.warn('[rubberCuttingService] Create SGP reception_doc warning:', recErr.message);
         } else {
-          await supabase.from('inventory').insert([{
-            nomenclature_id: part.id,
-            name: part.name,
-            total_qty: Number(actualParts),
-            reserved_qty: 0,
-            type: 'wip_shop2',
-            warehouse: 'shop2'
-          }]);
+          window.dispatchEvent(new CustomEvent('mes:refresh-table', { detail: { table: 'reception_docs' } }));
         }
       }
 

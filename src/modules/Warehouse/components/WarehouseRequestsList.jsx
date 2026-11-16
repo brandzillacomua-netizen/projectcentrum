@@ -46,7 +46,8 @@ export function WarehouseRequestsList({
         const orderNum = rawOrderNum || '???'
         const displayNum = task?.batch_index ? `${orderNum}/${task.batch_index}` : orderNum
 
-        // card-specific reissue group?
+        // card-specific reissue group or rubber cutting order?
+        const isRubberGroup = key.startsWith('rubber-')
         const isCardGroup = key.startsWith('card-')
         const reissueCard = isCardGroup
           ? (workCards || []).find(c => String(c.id) === String(firstReq.card_id))
@@ -57,9 +58,11 @@ export function WarehouseRequestsList({
         const cardSeq = reissueCard
           ? ((reissueCard.card_info || '').match(/(\d+\/\d+)/)?.[1] || '')
           : ''
-        const cardLabel = isCardGroup
-          ? `НАРЯД #${displayNum} (Довипуск${reissueNom ? ': ' + reissueNom.name : ''}${cardSeq ? ' [' + cardSeq + ']' : ''})`
-          : `НАРЯД #${displayNum}`
+        const cardLabel = isRubberGroup
+          ? `ПОРІЗКА ГУМИ #${displayNum}`
+          : isCardGroup
+            ? `НАРЯД #${displayNum} (Довипуск${reissueNom ? ': ' + reissueNom.name : ''}${cardSeq ? ' [' + cardSeq + ']' : ''})`
+            : `НАРЯД #${displayNum}`
 
         return (
           <div key={key} style={{ minWidth: '320px', background: 'var(--surface-1)', padding: '18px', borderRadius: '16px', border: isCardGroup ? '1px solid #78350f' : '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column' }}>

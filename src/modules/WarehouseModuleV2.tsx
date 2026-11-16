@@ -280,7 +280,8 @@ export const WarehouseModuleV2: React.FC = () => {
 
       const itemType = getMaterialType(r, nomenclatures, inventory)
       if (!groupedByType.has(itemType)) groupedByType.set(itemType, new Set())
-      groupedByType.get(itemType).add(r.task_id || `order-${r.order_id}`)
+      const rubberBatchId = r.details?.match(/\[RUBBER_BATCH:([a-f0-9-]+)\]/i)?.[1]
+      groupedByType.get(itemType).add(rubberBatchId ? `rubber-${rubberBatchId}` : (r.task_id || `order-${r.order_id}`))
     })
 
     const receptionCounts = (receptionDocs || []).reduce((counts: any, doc: any) => {
