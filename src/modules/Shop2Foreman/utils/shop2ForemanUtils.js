@@ -26,6 +26,7 @@ export const getShop2RoleCategory = (user) => {
   const pos = String(user?.position || '').toLowerCase()
   if (pos.includes('прес')) return 'pressing'
   if (pos.includes('фарб') || pos.includes('маляр')) return 'painting'
+  if (pos.includes('сорт') || pos.includes('сортувальн')) return 'sorting'
   if (pos.includes('доопрац') || pos.includes('реставр') || pos.includes('слюсар') || pos.includes('лицювальн') || pos.includes('лицьов') || pos.includes('лиц') || pos.includes('полірувальн') || pos.includes('полір')) return 'rework'
   if (['начальник', 'майстер', 'мастер', 'керівник'].some(kw => pos.includes(kw))) return 'masters'
   return 'other'
@@ -35,6 +36,7 @@ export const SHOP2_ROLE_GROUPS = [
   { key: 'painting', label: 'Фарбувальники', color: '#8b5cf6' },
   { key: 'pressing', label: 'Пресувальники', color: '#3b82f6' },
   { key: 'rework', label: 'Доопрацювання', color: '#10b981' },
+  { key: 'sorting', label: 'Сортувальники', color: '#f97316' },
   { key: 'masters', label: 'Майстри / Начальник', color: '#eab308' },
   { key: 'other', label: 'Інші', color: '#64748b' }
 ]
@@ -50,6 +52,7 @@ export const buildShop2TodayShiftSummary = (shop2Users = [], dateKey = getTodayC
     painting: [],
     pressing: [],
     rework: [],
+    sorting: [],
     masters: [],
     other: []
   }
