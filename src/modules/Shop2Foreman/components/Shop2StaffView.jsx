@@ -6,6 +6,8 @@ const SHOP2_ACCESS_OPTIONS = [
   { key: 'pressing_terminal', label: 'Термінал Пресування' },
   { key: 'painting_terminal', label: 'Термінал Фарбування' },
   { key: 'rework_terminal', label: 'Термінал Доопрацювання' },
+  { key: 'sorting_terminal', label: 'Термінал Сортування' },
+  { key: 'rubber_cutting_terminal', label: 'Термінал Порізка гуми' },
   { key: 'shop2_foreman', label: 'Кабінет Нач. Цеху №2' }
 ]
 

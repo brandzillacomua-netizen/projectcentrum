@@ -13,10 +13,13 @@ import {
 const DEFAULT_SHOP2_POSITIONS = [
   'Фарбувальник',
   'Маляр',
+  'Помічник маляра',
   'Пресувальник',
+  'Лицювальник-полірувальник',
   'Сортувальник',
   'Доопрацювання',
   'Слюсар з доопрацювання',
+  'Пакувальник',
   'Майстер Цеху №2',
   'Начальник Цеху №2'
 ]
@@ -26,6 +29,8 @@ const DEFAULT_SHOP2_ACCESS_RIGHTS = {
   pressing_terminal: true,
   painting_terminal: true,
   rework_terminal: false,
+  sorting_terminal: false,
+  rubber_cutting_terminal: false,
   shop2_foreman: false
 }
 
@@ -71,12 +76,13 @@ export const useShop2ForemanData = () => {
     const s2Depts = (companyStructure || []).filter(d => isShop2Department(d.name))
     const s2DeptIds = s2Depts.map(d => d.id)
     const dbPositions = (companyPositions || [])
-      .filter(p => !p.department_id || s2DeptIds.includes(p.department_id))
+      .filter(p => s2DeptIds.includes(p.department_id))
       .map(p => p.name)
       .filter(Boolean)
 
-    return Array.from(new Set([...dbPositions, ...DEFAULT_SHOP2_POSITIONS]))
-  }, [companyPositions, companyStructure])
+    const currentPos = userForm?.position ? [userForm.position] : []
+    return Array.from(new Set([...DEFAULT_SHOP2_POSITIONS, ...dbPositions, ...currentPos]))
+  }, [companyPositions, companyStructure, userForm?.position])
 
   const shop2Users = useMemo(() => {
     return (systemUsers || []).filter(isShop2User)
