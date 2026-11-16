@@ -16,6 +16,7 @@ const DEFAULT_SHOP2_POSITIONS = [
   'Помічник маляра',
   'Пресувальник',
   'Лицювальник-полірувальник',
+  'Порізка гуми',
   'Сортувальник',
   'Доопрацювання',
   'Слюсар з доопрацювання',
@@ -52,7 +53,10 @@ export const useShop2ForemanData = () => {
 
   useEffect(() => {
     if (typeof fetchData === 'function') {
-      fetchData(['system_users', 'work_cards', 'tasks', 'nomenclatures', 'orders']).catch(() => {})
+      fetchData(
+        ['system_users', 'work_cards', 'tasks', 'nomenclatures', 'orders', 'company_positions', 'company_structure'],
+        activeTab === 'staff' ? { force: true } : undefined
+      ).catch(() => {})
     }
   }, [activeTab])
 
@@ -74,9 +78,9 @@ export const useShop2ForemanData = () => {
 
   const resolvedShop2Positions = useMemo(() => {
     const s2Depts = (companyStructure || []).filter(d => isShop2Department(d.name))
-    const s2DeptIds = s2Depts.map(d => d.id)
+    const s2DeptIds = new Set(s2Depts.map(d => String(d.id)))
     const dbPositions = (companyPositions || [])
-      .filter(p => s2DeptIds.includes(p.department_id))
+      .filter(p => p?.department_id && s2DeptIds.has(String(p.department_id)))
       .map(p => p.name)
       .filter(Boolean)
 

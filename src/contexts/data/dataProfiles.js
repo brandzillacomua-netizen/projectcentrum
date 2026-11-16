@@ -111,6 +111,7 @@ export const ROUTE_DATA_PROFILES = Object.freeze({
   '/preparation-dashboard': ['tasks', 'nomenclatures', 'material_requests', 'inventory', 'reception_docs', 'machine_operations', 'work_cards', 'orders'],
   '/shop1': ['work_cards', 'tasks', 'nomenclatures', 'inventory', 'orders', 'machines', 'system_users', 'machine_operations', 'material_requests', 'work_card_history'],
   '/shop1-foreman': ['system_users', 'company_positions', 'company_structure', 'work_cards', 'work_card_history', 'machines', 'nomenclatures', 'tasks', 'orders', 'bom_items', 'inventory', 'machine_operations'],
+  '/shop2-foreman': ['system_users', 'company_positions', 'company_structure', 'work_cards', 'nomenclatures', 'tasks', 'orders'],
   '/tumbling-terminal': ['work_cards', 'nomenclatures', 'bom_items', 'orders', 'tasks', 'work_card_history', 'system_users'],
   '/tumbling-dashboard': ['work_cards', 'nomenclatures', 'bom_items', 'orders', 'tasks', 'work_card_history'],
   '/reception-terminal': ['work_cards', 'nomenclatures', 'system_users'],

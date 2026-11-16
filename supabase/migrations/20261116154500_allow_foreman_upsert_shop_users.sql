@@ -9,6 +9,7 @@ CREATE OR REPLACE FUNCTION public.rpc_admin_upsert_user(
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public, auth, extensions
 AS $$
 DECLARE
   v_admin_record RECORD;

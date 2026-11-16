@@ -72,7 +72,7 @@ export function SettingsStructureTab(props) {
         <div className="admin-structure-layout" style={{ display: 'grid', gridTemplateColumns: '400px 1fr', gap: '30px', alignItems: 'start', animation: 'fadeIn 0.2s ease' }}>
           
           {/* Left: Add Structure Node Form */}
-          <section className="glass-panel" style={{ background: '#0e0e11', padding: '28px', borderRadius: '24px', border: '1px solid var(--border-subtle)' }}>
+          <section className="glass-panel" style={{ background: 'var(--card-bg, #0e0e11)', padding: '28px', borderRadius: '24px', border: '1px solid var(--border-color, var(--border-subtle))', boxShadow: 'var(--shadow)' }}>
             <h3 style={{ fontSize: '1.05rem', fontWeight: 900, marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px', color: '#ff9000' }}>
               {structureForm.id ? <Edit3 size={18} /> : <Plus size={18} />} {structureForm.id ? 'РЕДАГУВАТИ ПІДРОЗДІЛ' : 'ДОДАТИ ПІДРОЗДІЛ СТРУКТУРИ'}
             </h3>
@@ -144,17 +144,18 @@ export function SettingsStructureTab(props) {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '15px' }}>
               {(companyStructure || []).map(node => (
                 <div key={node.id} style={{ 
-                  background: '#0e0e11', 
-                  border: '1px solid var(--border-subtle)', 
+                  background: 'var(--card-bg, #0e0e11)', 
+                  border: '1px solid var(--border-color, var(--border-subtle))', 
                   borderRadius: '16px', 
                   padding: '16px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
+                  boxShadow: 'var(--shadow)',
                   transition: 'all 0.2s ease'
                 }} className="structure-node-card">
                   <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                    <div style={{ background: 'var(--fill-subtle)', width: '38px', height: '38px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border-subtle)' }}>
+                    <div style={{ background: 'var(--fill-subtle)', width: '38px', height: '38px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border-color, var(--border-subtle))' }}>
                       {getStructureTypeIcon(node.type)}
                     </div>
                     <div>
@@ -166,7 +167,7 @@ export function SettingsStructureTab(props) {
                   <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
                     <button 
                       onClick={() => editStructure(node)}
-                      style={{ background: 'transparent', border: 'none', color: '#888', cursor: 'pointer', transition: '0.2s', padding: '6px' }}
+                      style={{ background: 'transparent', border: 'none', color: 'var(--text-muted, #888)', cursor: 'pointer', transition: '0.2s', padding: '6px' }}
                       title="Редагувати підрозділ"
                       className="edit-node-btn"
                     >
@@ -174,7 +175,7 @@ export function SettingsStructureTab(props) {
                     </button>
                     <button 
                       onClick={() => handleDeleteStructure(node.id, node.name)}
-                      style={{ background: 'transparent', border: 'none', color: '#444', cursor: 'pointer', transition: '0.2s', padding: '6px' }}
+                      style={{ background: 'transparent', border: 'none', color: 'var(--text-dim, #64748b)', cursor: 'pointer', transition: '0.2s', padding: '6px' }}
                       title="Видалити підрозділ"
                       className="delete-node-btn"
                     >
@@ -190,7 +191,7 @@ export function SettingsStructureTab(props) {
         <div className="admin-structure-layout" style={{ display: 'grid', gridTemplateColumns: '400px 1fr', gap: '30px', alignItems: 'start', animation: 'fadeIn 0.2s ease' }}>
           
           {/* Left: Add Position Form */}
-          <section className="glass-panel" style={{ background: '#0e0e11', padding: '28px', borderRadius: '24px', border: '1px solid var(--border-subtle)' }}>
+          <section className="glass-panel" style={{ background: 'var(--card-bg, #0e0e11)', padding: '28px', borderRadius: '24px', border: '1px solid var(--border-color, var(--border-subtle))', boxShadow: 'var(--shadow)' }}>
             <h3 style={{ fontSize: '1.05rem', fontWeight: 900, marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px', color: '#ff9000' }}>
               {positionForm.id ? <Edit3 size={18} /> : <Plus size={18} />} {positionForm.id ? 'РЕДАГУВАТИ ПОСАДУ' : 'СТВОРЕННЯ ШТАТНОЇ ПОСАДИ'}
             </h3>
@@ -262,23 +263,24 @@ export function SettingsStructureTab(props) {
                 const linkedDept = pos.department_id ? (companyStructure || []).find(d => d.id === pos.department_id) : null
                 return (
                   <div key={pos.id} style={{ 
-                    background: '#0e0e11', 
-                    border: '1px solid var(--border-subtle)', 
+                    background: 'var(--card-bg, #0e0e11)', 
+                    border: '1px solid var(--border-color, var(--border-subtle))', 
                     borderRadius: '16px', 
                     padding: '16px',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
+                    boxShadow: 'var(--shadow)',
                     transition: 'all 0.2s ease'
                   }} className="structure-node-card">
                     <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                      <div style={{ background: 'var(--fill-subtle)', width: '38px', height: '38px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border-subtle)' }}>
+                      <div style={{ background: 'var(--fill-subtle)', width: '38px', height: '38px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border-color, var(--border-subtle))' }}>
                         <Briefcase size={16} color="#ff9000" />
                       </div>
                       <div>
                         <div style={{ fontWeight: 800, fontSize: '0.88rem', color: 'var(--text-strong)' }}>{pos.name}</div>
                         {linkedDept && (
-                          <div style={{ fontSize: '0.68rem', color: '#ff9000', fontWeight: 600, marginTop: '2px', textTransform: 'uppercase' }}>
+                          <div style={{ fontSize: '0.68rem', color: '#d97706', fontWeight: 700, marginTop: '2px', textTransform: 'uppercase' }}>
                             {linkedDept.name}
                           </div>
                         )}
@@ -288,7 +290,7 @@ export function SettingsStructureTab(props) {
                     <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
                       <button 
                         onClick={() => editPosition(pos)}
-                        style={{ background: 'transparent', border: 'none', color: '#888', cursor: 'pointer', transition: '0.2s', padding: '6px' }}
+                        style={{ background: 'transparent', border: 'none', color: 'var(--text-muted, #888)', cursor: 'pointer', transition: '0.2s', padding: '6px' }}
                         title="Редагувати посаду"
                         className="edit-node-btn"
                       >
@@ -296,7 +298,7 @@ export function SettingsStructureTab(props) {
                       </button>
                       <button 
                         onClick={() => handleDeletePosition(pos.id, pos.name)}
-                        style={{ background: 'transparent', border: 'none', color: '#444', cursor: 'pointer', transition: '0.2s', padding: '6px' }}
+                        style={{ background: 'transparent', border: 'none', color: 'var(--text-dim, #64748b)', cursor: 'pointer', transition: '0.2s', padding: '6px' }}
                         title="Видалити посаду"
                         className="delete-node-btn"
                       >
