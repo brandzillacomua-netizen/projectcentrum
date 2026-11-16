@@ -24,20 +24,48 @@ export const BomRow = ({ row, idx, nomenclatures, bomItems, onUpdate, onRemove, 
     return set
   }, [usedNomIds, row.nomId])
 
+  const normalizeSearch = (str) => String(str || '')
+    .toLowerCase()
+    .trim()
+    .replace(/[×хx]/g, '*')
+    .replace(/[м]/g, 'm')
+    .replace(/[а]/g, 'a')
+    .replace(/[е]/g, 'e')
+    .replace(/[о]/g, 'o')
+    .replace(/[р]/g, 'p')
+    .replace(/[с]/g, 'c')
+    .replace(/[т]/g, 't')
+    .replace(/[і]/g, 'i')
+    .replace(/[к]/g, 'k')
+
   const filtered = useMemo(() => {
     if (!query || query.length < 1) return []
-    const q = query.toLowerCase().trim()
-    return (nomenclatures || []).filter(n => {
-      if (n.type === 'raw' || n.type === 'cutter') return false
-      return (
-        (n.name || '').toLowerCase().includes(q) ||
-        (n.code || '').toLowerCase().includes(q) ||
-        (n.category || '').toLowerCase().includes(q) ||
-        (n.description || '').toLowerCase().includes(q) ||
-        (n.material_type || '').toLowerCase().includes(q) ||
-        (n.nomenclature_code || '').toLowerCase().includes(q)
-      )
-    }).slice(0, 20)
+    const qRaw = query.toLowerCase().trim()
+    const qNorm = normalizeSearch(query)
+
+    const scored = []
+    for (const n of (nomenclatures || [])) {
+      if (n.type === 'raw' || n.type === 'cutter') continue
+      const nameRaw = (n.name || '').toLowerCase()
+      const nameNorm = normalizeSearch(n.name)
+      const codeRaw = (n.code || '').toLowerCase()
+      const nomCodeRaw = (n.nomenclature_code || '').toLowerCase()
+      const extraRaw = `${n.category || ''} ${n.description || ''} ${n.material_type || ''}`.toLowerCase()
+
+      let score = 0
+      if (nameRaw.includes(qRaw) || nameNorm.includes(qNorm)) {
+        score = nameRaw.startsWith(qRaw) || nameNorm.startsWith(qNorm) ? 3 : 2
+      } else if (codeRaw.includes(qRaw) || nomCodeRaw.includes(qRaw) || extraRaw.includes(qRaw)) {
+        score = 1
+      }
+
+      if (score > 0) {
+        scored.push({ n, score })
+      }
+    }
+
+    scored.sort((a, b) => b.score - a.score)
+    return scored.slice(0, 40).map(s => s.n)
   }, [query, nomenclatures])
 
   const subItems = useMemo(() => {
