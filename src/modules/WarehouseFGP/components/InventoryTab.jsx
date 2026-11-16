@@ -36,11 +36,16 @@ export function InventoryTab({
   const [registryPage, setRegistryPage] = useState(1)
   const [registryPageSize, setRegistryPageSize] = useState(50)
 
-  const { nomByIdMap, canonicalIdMap, invByCanonicalNom, invByNormName, stockReserveByInvId, orderReserveByInvId } = useMemo(() => {
+  const { nomByIdMap, nomByNameMap, canonicalIdMap, invByCanonicalNom, invByNormName, stockReserveByInvId, orderReserveByInvId } = useMemo(() => {
     const nomById = new Map()
+    const nomByName = new Map()
     const canMap = new Map()
     ;(nomenclatures || []).forEach(n => {
       if (!n) return
+      const nameKey = normalizeKey(n.name)
+      if (nameKey && (!nomByName.has(nameKey) || (!nomByName.get(nameKey)?.code && n.code))) {
+        nomByName.set(nameKey, n)
+      }
       const cid = String(n.id || n.v2_id || '')
       if (!cid) return
       nomById.set(cid, n)
@@ -115,6 +120,7 @@ export function InventoryTab({
 
     return {
       nomByIdMap: nomById,
+      nomByNameMap: nomByName,
       canonicalIdMap: canMap,
       invByCanonicalNom: byNom,
       invByNormName: byName,
@@ -418,11 +424,11 @@ export function InventoryTab({
       <tbody>
         {filteredItems.map(item => {
           const rawNomId = item.nomenclature_id ? String(item.nomenclature_id) : null
-          const linkedNom = rawNomId ? nomByIdMap.get(rawNomId) : null
+          const normName = normalizeKey(item.name)
+          const linkedNom = (rawNomId ? nomByIdMap.get(rawNomId) : null) || (normName ? nomByNameMap.get(normName) : null) || null
           const itemCode = linkedNom?.code || '—'
 
-          const canNomId = rawNomId ? (canonicalIdMap.get(rawNomId) || rawNomId) : null
-          const normName = normalizeKey(item.name)
+          const canNomId = rawNomId ? (canonicalIdMap.get(rawNomId) || rawNomId) : (linkedNom?.id ? String(linkedNom.id) : null)
           const allMatchingRows = canNomId
             ? (invByCanonicalNom.get(canNomId) || invByNormName.get(normName) || [])
             : (invByNormName.get(normName) || [])

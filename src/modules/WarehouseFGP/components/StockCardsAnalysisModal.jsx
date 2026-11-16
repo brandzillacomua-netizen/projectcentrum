@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { X, Search, Layers, Copy, Check, CheckCircle2, Calendar, User, FileText } from 'lucide-react'
 import { useMES } from '../../../MESContext'
+import { normalizeKey } from '../warehouseFgpInventory.js'
 
 export function StockCardsAnalysisModal({
   item,
@@ -26,12 +27,20 @@ export function StockCardsAnalysisModal({
   }, [onClose])
 
   const linkedNom = useMemo(() => {
-    if (!item?.nomenclature_id) return null
-    return (nomenclatures || []).find(n =>
-      String(n.id) === String(item.nomenclature_id) ||
-      (n.legacy_ids || []).some(id => String(id) === String(item.nomenclature_id))
-    )
-  }, [item?.nomenclature_id, nomenclatures])
+    if (!item || !nomenclatures?.length) return null
+    if (item.nomenclature_id) {
+      const byId = nomenclatures.find(n =>
+        String(n.id) === String(item.nomenclature_id) ||
+        (n.legacy_ids || []).some(id => String(id) === String(item.nomenclature_id))
+      )
+      if (byId) return byId
+    }
+    const targetKey = normalizeKey(item.name)
+    if (!targetKey) return null
+    return nomenclatures.find(n => normalizeKey(n.name) === targetKey && n.code) ||
+      nomenclatures.find(n => normalizeKey(n.name) === targetKey) ||
+      null
+  }, [item, nomenclatures])
 
   const itemCode = linkedNom?.code || ''
   const itemNameNormalized = (item?.name || '').trim().toLowerCase()

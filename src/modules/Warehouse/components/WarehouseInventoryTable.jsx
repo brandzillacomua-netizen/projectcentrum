@@ -2,6 +2,24 @@ import React from 'react'
 import { Pencil, Trash2, Check, X, PackageMinus } from 'lucide-react'
 import { WarehouseNomenclatureLink } from './WarehouseNomenclatureLink'
 import { useStore } from '../../../store/index.js'
+import { normalizeKey } from '../../WarehouseFGP/warehouseFgpInventory.js'
+
+const findLinkedNomenclature = (item, nomenclatures) => {
+  if (!item || !nomenclatures?.length) return null
+  if (item.nomenclature_id) {
+    const byId = nomenclatures.find(n =>
+      String(n.id) === String(item.nomenclature_id) ||
+      (n.legacy_ids || []).some(id => String(id) === String(item.nomenclature_id))
+    )
+    if (byId) return byId
+  }
+  const targetKey = normalizeKey(item.name)
+  if (!targetKey) return null
+  return nomenclatures.find(n => normalizeKey(n.name) === targetKey && n.code) ||
+    nomenclatures.find(n => normalizeKey(n.name) === targetKey) ||
+    null
+}
+
 const WarehouseInventoryTableRow = React.memo(({
   item,
   activeTab,
@@ -26,10 +44,7 @@ const WarehouseInventoryTableRow = React.memo(({
     : Math.max(0, displayTotalQty - reservedQty)
 
   const nomenclatures = useStore(state => state.nomenclatures) || []
-  const linkedNom = item.nomenclature_id && nomenclatures.find(n =>
-    String(n.id) === String(item.nomenclature_id) ||
-    (n.legacy_ids || []).some(id => String(id) === String(item.nomenclature_id))
-  )
+  const linkedNom = findLinkedNomenclature(item, nomenclatures)
   const itemCode = linkedNom?.code || '—'
 
   return (
@@ -157,10 +172,7 @@ const WarehouseInventoryMobileCard = React.memo(({
   const isEditing = editingInvId === item.id
 
   const nomenclatures = useStore(state => state.nomenclatures) || []
-  const linkedNom = item.nomenclature_id && nomenclatures.find(n =>
-    String(n.id) === String(item.nomenclature_id) ||
-    (n.legacy_ids || []).some(id => String(id) === String(item.nomenclature_id))
-  )
+  const linkedNom = findLinkedNomenclature(item, nomenclatures)
   const itemCode = linkedNom?.code || '—'
 
   return (
