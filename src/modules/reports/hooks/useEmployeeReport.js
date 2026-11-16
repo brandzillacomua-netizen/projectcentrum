@@ -849,6 +849,12 @@ export function useEmployeeReport({
         empStat.quarantine += hQuarantine
         empStat.util += hUtil
 
+        const startMs = h.started_at ? new Date(h.started_at).getTime() : 0
+        const endMs = h.completed_at ? new Date(h.completed_at).getTime() : 0
+        const durationMs = (Number.isFinite(startMs) && Number.isFinite(endMs) && endMs > startMs)
+          ? (endMs - startMs)
+          : 0
+
         // Append detailed operation item
         empStat.history.push({
           id: h.id,
@@ -858,6 +864,7 @@ export function useEmployeeReport({
           isCutting,
           isShop2: isShop2Op,
           date: h.completed_at || h.created_at,
+          durationMs,
           stage: isAttributedQCScrap ? `${h.stage_name || 'ВКЯ'} (виявлено)` : (h.stage_name || 'Операція'),
           shift: h.shift_name || empStat.shift,
           nomenclatureName: nom?.name || 'Невідома деталь',

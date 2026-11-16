@@ -2,14 +2,26 @@ import React from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, Activity } from 'lucide-react'
 
-export function MachinesNavbar({ stats }) {
+export function MachinesNavbar({ stats, selectedType, onBackToTypes }) {
   return (
     <nav className="module-nav machines-top-nav">
       <div className="machines-nav-left">
-        <Link to="/" className="machines-nav-back">
-          <ArrowLeft size={18} />
-          <span>На головну</span>
-        </Link>
+        {selectedType && onBackToTypes ? (
+          <button
+            type="button"
+            className="machines-nav-back"
+            onClick={onBackToTypes}
+            style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer' }}
+          >
+            <ArrowLeft size={18} />
+            <span>До верстатів</span>
+          </button>
+        ) : (
+          <Link to="/" className="machines-nav-back">
+            <ArrowLeft size={18} />
+            <span>На головну</span>
+          </Link>
+        )}
         <div className="machines-nav-divider" />
         <div className="machines-nav-brand">
           <Activity className="text-orange" size={22} color="#ff9000" />

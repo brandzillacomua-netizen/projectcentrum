@@ -1167,10 +1167,31 @@ export function useShop1CardWorkflow({
         if (res && res.error) throw res.error;
       }
 
+      if (isCuttingOperation && currentCard.machine_id) {
+        try {
+          const { data: machRow } = await supabase
+            .from('machines')
+            .select('id, completed_cards_count_since_maintenance, status')
+            .eq('id', currentCard.machine_id)
+            .maybeSingle();
+          if (machRow) {
+            const nextCount = (Number(machRow.completed_cards_count_since_maintenance) || 0) + 1;
+            const machUpdates = { completed_cards_count_since_maintenance: nextCount };
+            if (maintenanceCheckEnabled && nextCount >= 5 && machRow.status !== 'under_maintenance' && machRow.status !== 'repair') {
+              machUpdates.status = 'maintenance_required';
+              machUpdates.maintenance_pending_since = completedAt;
+            }
+            await supabase.from('machines').update(machUpdates).eq('id', machRow.id);
+          }
+        } catch (machErr) {
+          console.warn('[Shop1] Failed to increment completed_cards_count_since_maintenance:', machErr);
+        }
+      }
+
       setShowCompleteModal(false);
       setScrapCount(0);
       setSelectedCardId(null);
-      fetchData(['work_cards', 'work_card_history', 'inventory', 'material_requests', 'tasks']).catch(() => {});
+      fetchData(['work_cards', 'work_card_history', 'inventory', 'material_requests', 'tasks', 'machines']).catch(() => {});
     } catch (e) {
       console.error('Buffer error:', e);
       alert('Помилка буфера: ' + e.message);

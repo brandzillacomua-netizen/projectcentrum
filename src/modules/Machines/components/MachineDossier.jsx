@@ -31,6 +31,10 @@ import {
   createMachineCall,
   fetchPublicMachineCallContext
 } from '../../../services/machineCallService.js'
+import {
+  getCardSheetsCount,
+  getCuttingEstimatedSeconds
+} from '../../../utils/cuttingTimeUtils.js'
 
 const formatDateTime = value => value
   ? new Date(value).toLocaleString('uk-UA', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
@@ -190,6 +194,21 @@ export function MachineDossier({
   const activeRows = history.filter(row => row.is_active)
   const currentRows = history.filter(row => row.is_active || row.is_conflict)
   const completedHistory = history.filter(row => !row.is_active && !row.is_conflict)
+  const lastCompletedService = (maintenanceLogs || []).find(
+    log => log.status === 'completed' && (log.completed_at || log.started_at || log.triggered_at)
+  )
+  const lastServiceAtMs = lastCompletedService
+    ? new Date(lastCompletedService.completed_at || lastCompletedService.started_at || lastCompletedService.triggered_at).getTime()
+    : 0
+  const computedCardsSinceService = completedHistory.filter(row => {
+    if (!lastServiceAtMs) return true
+    const rowAtMs = new Date(row.completed_at || row.created_at || row.started_at || 0).getTime()
+    return rowAtMs > lastServiceAtMs
+  }).length
+  const cardsSinceService = Math.max(
+    Number(selectedMachine.completed_cards_count_since_maintenance) || 0,
+    computedCardsSinceService
+  )
   const status = getMachineStatusView(selectedMachine, activeRows.length > 0)
   const fairyMachine = isFairyMachine(selectedMachine)
   const requiresHead = maintenanceType === 'Заміна цанги' && fairyMachine
@@ -308,6 +327,23 @@ export function MachineDossier({
     return formatDurationMs(ms)
   }
 
+  const formatPlannedCuttingDuration = (row, rootCard, nom) => {
+    const mergedCard = {
+      ...(row || {}),
+      ...(rootCard || {}),
+      card_info: row?.card_info || rootCard?.card_info || ''
+    }
+    const sheetsCount = getCardSheetsCount(mergedCard, nom)
+    const qty = Number(row?.qty_completed || row?.quantity || rootCard?.quantity) || 0
+    let plannedSeconds = nom
+      ? getCuttingEstimatedSeconds(nom, sheetsCount, qty, selectedMachine?.type || null)
+      : 0
+    if (plannedSeconds <= 0 && String(rootCard?.operation || '').trim().toLowerCase() === 'розкрій' && Number(rootCard?.estimated_time) > 0) {
+      plannedSeconds = Number(rootCard.estimated_time)
+    }
+    return formatDurationMs(plannedSeconds * 1000)
+  }
+
   const renderCardRows = rows => (
     <div className="machine-dossier-table-wrap">
       <table className="machine-dossier-table">
@@ -318,6 +354,7 @@ export function MachineDossier({
             <th>Картка</th>
             <th>Деталь</th>
             <th>Оператор</th>
+            <th className="num">Плановий час розкрою</th>
             <th className="num">Час роботи</th>
             <th className="num">В буфері розкрою</th>
             <th className="num">К-сть</th>
@@ -349,6 +386,7 @@ export function MachineDossier({
                     ? operators.map((operator, index) => <div key={operator}><span>{index + 1}</span>{operator}</div>)
                     : <em>Не призначено</em>}
                 </td>
+                <td className="num">{formatPlannedCuttingDuration(row, rootCard, nom)}</td>
                 <td className="num">{formatWorkDuration(row)}</td>
                 <td className="num">{formatBufferDuration(row, rootCard)}</td>
                 <td className="num strong">{Number(row.qty_completed || row.quantity) || 0}</td>
@@ -357,7 +395,7 @@ export function MachineDossier({
             )
           })}
           {rows.length === 0 && (
-            <tr><td colSpan="9" className="machine-empty">Даних поки немає</td></tr>
+            <tr><td colSpan="10" className="machine-empty">Даних поки немає</td></tr>
           )}
         </tbody>
       </table>
@@ -608,7 +646,7 @@ export function MachineDossier({
           <div><Activity size={18} /><span>Поточний стан<strong style={{ color: status.color }}>{status.label}</strong></span></div>
           <div><PackageOpen size={18} /><span>Карток у роботі<strong>{activeRows.length}</strong></span></div>
           <div><Clock3 size={18} /><span>Загальний час<strong>{calculateTotalTime(selectedMachine)}</strong></span></div>
-          <div><Settings2 size={18} /><span>Після сервісу<strong>{selectedMachine.completed_cards_count_since_maintenance || 0} карт.</strong></span></div>
+          <div><Settings2 size={18} /><span>Після сервісу<strong>{cardsSinceService} карт.</strong></span></div>
           <div><AlertTriangle size={18} /><span>Активні виклики<strong>{activeCallsForMachine.length}</strong></span></div>
         </div>
 
@@ -655,7 +693,7 @@ export function MachineDossier({
                   <div className="machine-maintenance-idle-box">
                     <div className="machine-maintenance-meta-row">
                       <div className="machine-maintenance-meta-item">
-                        Після останнього сервісу: <strong>{selectedMachine.completed_cards_count_since_maintenance || 0} карток</strong>
+                        Після останнього сервісу: <strong>{cardsSinceService} карток</strong>
                       </div>
                       <button
                         type="button"

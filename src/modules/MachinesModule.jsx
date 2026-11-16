@@ -66,7 +66,11 @@ const MachinesModule = () => {
 
   return (
     <div className="machines-module-v3" style={{ background: 'var(--surface-inset)', minHeight: '100vh', color: 'var(--text-strong)', display: 'flex', flexDirection: 'column' }}>
-      <MachinesNavbar stats={stats} />
+      <MachinesNavbar
+        stats={stats}
+        selectedType={selectedType}
+        onBackToTypes={() => setSelectedType(null)}
+      />
 
       <div className="module-content machines-module-content">
         <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
