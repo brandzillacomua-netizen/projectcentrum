@@ -106,10 +106,18 @@ export function SpecBuilderTab() {
   }, [v2Noms])
 
   // Номенклатури для додавання в специфікацію BOM (деталі, метизи, вузли/комплектуючі).
-  // Сировина (карбонові пластини, труби, листи) та фрези
+  // Сировина (карбонові пластини, труби, листи, вхідна листова гума) та фрези
   // категорично НЕ підтягуються до специфікації комплектуючих виробу!
   const bomComponentNomenclatures = useMemo(() => {
-    return (v2Noms || []).filter(n => n.type !== 'raw' && n.type !== 'cutter')
+    return (v2Noms || []).filter(n => {
+      if (n.type === 'raw' || n.type === 'cutter') return false
+      const nameLower = String(n.name || '').toLowerCase()
+      const ruleLower = String(n.rule_type || '').toLowerCase()
+      if ((nameLower.includes('гума') || nameLower.includes('гумов')) && ruleLower !== 'rubber_part') {
+        return false
+      }
+      return true
+    })
   }, [v2Noms])
 
   // Editor state
