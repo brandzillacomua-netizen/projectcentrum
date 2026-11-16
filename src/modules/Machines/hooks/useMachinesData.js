@@ -3,15 +3,24 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useMES } from '../../../MESContext.jsx'
 import { apiService } from '../../../services/apiDispatcher.js'
 import { supabase } from '../../../supabase.js'
-import { isCardAssignedToMachine, parseMaintenanceLog } from '../utils/machineDashboardUtils.js'
+import { isCardAssignedToMachine, isCuttingBufferStage, parseMaintenanceLog } from '../utils/machineDashboardUtils.js'
 
 export const MACHINE_TYPES = [
   'CNC 1200x800 - 4 листи (Малий)',
   'CNC 3050(16)х16 - 3-12 листів (швидкісний)',
   'CNC 3060х1600 - 3-36 листів (Три Головий)',
   'CNC 6000x2000 - 4 - 96 листів (Дракон)',
-  'CNC KE XIN - 4 - 16 листів (ФЕЯ)'
+  'CNC KE XIN - 1 - 16 листів (ФЕЯ)'
 ]
+
+export const normalizeMachineType = (rawType) => {
+  const s = String(rawType || '').trim()
+  const lower = s.toLowerCase()
+  if (lower.includes('ke xin') || lower.includes('kexin') || lower.includes('фея')) {
+    return 'CNC KE XIN - 1 - 16 листів (ФЕЯ)'
+  }
+  return s
+}
 
 export function useMachinesData() {
   const { id: urlMachineId } = useParams()
@@ -50,6 +59,7 @@ export function useMachinesData() {
   }, [navigate, location.pathname])
   
   const [maintenanceLogs, setMaintenanceLogs] = useState([])
+  const [selectedMachineCuttingHistory, setSelectedMachineCuttingHistory] = useState([])
   const [isScanning, setIsScanning] = useState(false)
   const [scanError, setScanError] = useState(null)
   const [showGlobalMaintenance, setShowGlobalMaintenance] = useState(false)
@@ -101,6 +111,47 @@ export function useMachinesData() {
     })
     return () => { cancelled = true }
   }, [selectedMachineId, machines, fetchMaintenanceLogs])
+
+  useEffect(() => {
+    const machine = (machines || []).find(m => String(m.id) === String(selectedMachineId))
+    if (!machine) {
+      setSelectedMachineCuttingHistory([])
+      return undefined
+    }
+    const cardIds = [...new Set(
+      (workCards || [])
+        .filter(c => isCardAssignedToMachine(c, machine))
+        .map(c => c.id)
+        .filter(Boolean)
+    )]
+    if (cardIds.length === 0) {
+      setSelectedMachineCuttingHistory([])
+      return undefined
+    }
+
+    let cancelled = false
+    Promise.resolve().then(async () => {
+      try {
+        const rows = []
+        const chunkSize = 100
+        for (let i = 0; i < cardIds.length; i += chunkSize) {
+          const chunk = cardIds.slice(i, i + chunkSize)
+          const { data, error } = await supabase
+            .from('work_card_history')
+            .select('*')
+            .in('card_id', chunk)
+            .ilike('stage_name', '%розкр%')
+            .order('created_at', { ascending: false })
+          if (error) throw error
+          if (data) rows.push(...data)
+        }
+        if (!cancelled) setSelectedMachineCuttingHistory(rows)
+      } catch (error) {
+        console.warn('[Machines] Failed to load machine cutting history:', error)
+      }
+    })
+    return () => { cancelled = true }
+  }, [selectedMachineId, machines, workCards])
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000)
@@ -276,7 +327,7 @@ export function useMachinesData() {
     setForm({ 
       id: m.id, 
       name: m.name, 
-      type: m.type || MACHINE_TYPES[0],
+      type: normalizeMachineType(m.type) || MACHINE_TYPES[0],
       capacity: m.sheet_capacity || '1', 
       sequence_number: m.sequence_number || '',
       inventory_no: m.inventory_no || '', 
@@ -423,22 +474,36 @@ export function useMachinesData() {
   const getHistoryForMachine = (m) => {
     if (!m) return [];
     const mid = String(m.id || '');
+    const workCardsById = new Map((workCards || []).map(c => [String(c.id), c]));
+    const mergedHistoryMap = new Map();
+    [...(workCardHistory || []), ...(selectedMachineCuttingHistory || [])].forEach(row => {
+      if (!row) return;
+      const key = row.id != null ? String(row.id) : `${row.card_id || ''}:${row.stage_name || ''}:${row.created_at || ''}`;
+      if (!mergedHistoryMap.has(key)) mergedHistoryMap.set(key, row);
+    });
 
-    const fromHistory = workCardHistory.filter(h => {
+    const fromHistory = [...mergedHistoryMap.values()].filter(h => {
       const stage = String(h.stage_name || '').trim().toLowerCase()
-      if (stage && !stage.includes('розкрій')) return false
+      const isBuffer = isCuttingBufferStage(stage)
+      const isCutting = stage.includes('розкрій') && !stage.includes('коментар') && !stage.includes('вкя') && !stage.includes('склад')
+      if (!isCutting && !isBuffer) return false
       const info = String(h.card_info || '');
       const taggedId = info.match(/\[MACHINE_ID:([^\]]*)\]/i)?.[1]?.trim()
       if (taggedId) return taggedId === mid
       const taggedName = info.match(/\[MACHINE_NAME:([^\]]*)\]/i)?.[1]?.trim()
       if (taggedName) return isCardOnMachine({ ...h, machine_id: null, machine_name: taggedName }, m)
 
-      return isCardOnMachine(h, m);
+      if (isCardOnMachine(h, m)) return true;
+      const linkedCard = h.card_id ? workCardsById.get(String(h.card_id)) : null;
+      return Boolean(linkedCard && isCardOnMachine(linkedCard, m));
     });
 
-    const cuttingCards = workCards.filter(c =>
-      String(c.operation || '').trim().toLowerCase() === 'розкрій' && isCardOnMachine(c, m)
-    )
+    const historyCardIds = new Set(fromHistory.map(h => String(h.card_id || '')).filter(Boolean));
+
+    const machineCards = (workCards || []).filter(c => isCardOnMachine(c, m));
+    const cuttingCards = machineCards.filter(c =>
+      String(c.operation || '').trim().toLowerCase() === 'розкрій'
+    );
     const hasRealOperator = card => {
       const operator = String(card.operator_name || '').trim().toLowerCase()
       return Boolean(operator && !['—', '-', 'не вказано', 'невідомо'].includes(operator))
@@ -457,7 +522,33 @@ export function useMachinesData() {
       is_conflict: c.id !== currentActiveId
     }));
 
-    return [...fromHistory, ...fromActive].sort((a, b) =>
+    const fromCompletedCards = machineCards
+      .filter(c => {
+        if (historyCardIds.has(String(c.id))) return false;
+        if (c.id === currentActiveId || activeCandidates.some(ac => ac.id === c.id)) return false;
+        const op = String(c.operation || '').trim().toLowerCase();
+        if (c.status === 'completed') return true;
+        // Card already finished cutting and moved to a downstream stage
+        return op !== 'розкрій' && op !== 'нова' && c.status !== 'new' && c.status !== 'waiting-materials' && c.status !== 'waiting-cutters';
+      })
+      .map(c => {
+        const op = String(c.operation || '').trim().toLowerCase();
+        const isCuttingStage = op === 'розкрій';
+        return {
+          ...c,
+          card_id: c.id,
+          // Downstream stages overwrite operator_name/timestamps on work_cards (e.g. Сортування)
+          operator_name: isCuttingStage ? c.operator_name : null,
+          started_at: isCuttingStage ? c.started_at : null,
+          completed_at: isCuttingStage ? c.completed_at : c.created_at,
+          qty_completed: Number(c.quantity) || 0,
+          scrap_qty: Number(c.scrap_qty) || 0,
+          is_active: false,
+          is_conflict: false
+        };
+      });
+
+    return [...fromHistory, ...fromActive, ...fromCompletedCards].sort((a, b) =>
       new Date(b.completed_at || b.started_at || b.created_at) - new Date(a.completed_at || a.started_at || a.created_at)
     );
   }
@@ -466,8 +557,10 @@ export function useMachinesData() {
     const history = getHistoryForMachine(m);
     let totalMs = 0;
     history.forEach(h => {
+      if (isCuttingBufferStage(h.stage_name)) return;
       if (h.started_at && h.completed_at) {
-        totalMs += (new Date(h.completed_at) - new Date(h.started_at));
+        const diff = new Date(h.completed_at) - new Date(h.started_at);
+        if (diff > 0) totalMs += diff;
       }
     });
     

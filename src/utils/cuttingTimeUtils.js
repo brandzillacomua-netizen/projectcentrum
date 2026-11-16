@@ -28,7 +28,7 @@ export const resolveMachineTypeFromCard = (card, machines = []) => {
   }
 
   if (rawMachine.includes('фея') || rawMachine.includes('ke xin') || rawMachine.includes('kexin') || rawMachine.includes('№ф')) {
-    return 'CNC KE XIN - 4 - 16 листів (ФЕЯ)'
+    return 'CNC KE XIN - 1 - 16 листів (ФЕЯ)'
   }
 
   if (rawMachine.includes('12*8') || rawMachine.includes('1200') || rawMachine.includes('малий') || rawMachine.includes('№1.')) {
@@ -48,8 +48,10 @@ export const getCuttingEstimatedSeconds = (nomenclature, sheetsCount, quantity =
 
     if (machineType) {
       const normType = String(machineType).toLowerCase().trim()
+      const isFeyaType = normType.includes('ke xin') || normType.includes('фея')
       const key = Object.keys(operationTimings).find(k => {
         const normKey = String(k).toLowerCase().trim()
+        if (isFeyaType && (normKey.includes('ke xin') || normKey.includes('фея'))) return true
         return normKey === normType || normKey.includes(normType) || normType.includes(normKey)
       })
       if (key) {

@@ -156,7 +156,7 @@ export const resolveMachineType = (machineName) => {
   } else if (normMac.includes('три головий') || normMac.includes('триголовий') || normMac.includes('3-головий') || normMac.includes('3-голов') || normMac.includes('3 голов') || normMac.includes('3060') || normMac.includes('30x16') || normMac.includes('30х16')) {
     return 'CNC 3060х1600 - 3-36 листів (Три Головий)'
   } else if (normMac.includes('фея') || normMac.includes('фею') || normMac.includes('феі') || normMac.includes('ke xin') || normMac.includes('kexin') || normMac.includes('кексін') || normMac.includes('кексин') || normMac.includes('fea') || normMac.includes('feia') || normMac.includes('feu')) {
-    return 'CNC KE XIN - 4 - 16 листів (ФЕЯ)'
+    return 'CNC KE XIN - 1 - 16 листів (ФЕЯ)'
   }
   return machineName
 }

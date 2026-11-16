@@ -21,6 +21,7 @@ import {
 import {
   buildUniqueMachineCardHistory,
   getMachineStatusView,
+  isCuttingOperatorName,
   isFairyMachine,
   MACHINE_HEADS,
   MACHINE_SPARE_PARTS,
@@ -274,6 +275,39 @@ export function MachineDossier({
     }
   }
 
+  const formatDurationMs = ms => {
+    if (!ms || ms <= 0) return '—'
+    const totalMinutes = Math.floor(ms / 60000)
+    if (totalMinutes < 1) return '< 1 хв'
+    const hours = Math.floor(totalMinutes / 60)
+    const minutes = totalMinutes % 60
+    if (hours === 0) return `${minutes} хв`
+    return `${hours}г ${minutes}хв`
+  }
+
+  const formatWorkDuration = row => {
+    let ms = Number(row?.duration_ms) || 0
+    if (row?.is_active && row?.started_at) {
+      const activeMs = Date.now() - new Date(row.started_at).getTime()
+      if (Number.isFinite(activeMs) && activeMs > 0) ms += activeMs
+    }
+    return formatDurationMs(ms)
+  }
+
+  const formatBufferDuration = (row, rootCard) => {
+    let ms = Number(row?.buffer_duration_ms) || 0
+    const isCurrentlyInCuttingBuffer = rootCard?.status === 'at-buffer'
+      && String(rootCard?.operation || '').trim().toLowerCase() === 'розкрій'
+    if (ms <= 0 && isCurrentlyInCuttingBuffer) {
+      const enteredAt = row?.completed_at || rootCard?.completed_at || rootCard?.updated_at
+      if (enteredAt) {
+        const liveMs = Date.now() - new Date(enteredAt).getTime()
+        if (Number.isFinite(liveMs) && liveMs > 0) ms = liveMs
+      }
+    }
+    return formatDurationMs(ms)
+  }
+
   const renderCardRows = rows => (
     <div className="machine-dossier-table-wrap">
       <table className="machine-dossier-table">
@@ -284,6 +318,8 @@ export function MachineDossier({
             <th>Картка</th>
             <th>Деталь</th>
             <th>Оператор</th>
+            <th className="num">Час роботи</th>
+            <th className="num">В буфері розкрою</th>
             <th className="num">К-сть</th>
             <th className="num">Брак</th>
           </tr>
@@ -295,9 +331,10 @@ export function MachineDossier({
             const order = ordersById.get(String(row.order_id || rootCard?.order_id || task?.order_id))
             const nom = nomsById.get(String(row.nomenclature_id || rootCard?.nomenclature_id))
             const state = cardState(row)
-            const operators = [...(row.operators || []), rootCard?.operator_name]
+            const rootOpIsCutting = String(rootCard?.operation || '').trim().toLowerCase() === 'розкрій'
+            const operators = [...(row.operators || []), ...(rootOpIsCutting ? [rootCard?.operator_name] : [])]
               .map(name => String(name || '').trim())
-              .filter((name, index, values) => name && !['—', '-', 'не вказано', 'невідомо'].includes(name.toLowerCase()) && values.findIndex(item => item.toLowerCase() === name.toLowerCase()) === index)
+              .filter((name, index, values) => isCuttingOperatorName(name) && values.findIndex(item => item.toLowerCase() === name.toLowerCase()) === index)
             return (
               <tr key={String(row.card_id || row.id)}>
                 <td>
@@ -312,13 +349,15 @@ export function MachineDossier({
                     ? operators.map((operator, index) => <div key={operator}><span>{index + 1}</span>{operator}</div>)
                     : <em>Не призначено</em>}
                 </td>
+                <td className="num">{formatWorkDuration(row)}</td>
+                <td className="num">{formatBufferDuration(row, rootCard)}</td>
                 <td className="num strong">{Number(row.qty_completed || row.quantity) || 0}</td>
                 <td className="num danger">{Number(row.scrap_qty) || 0}</td>
               </tr>
             )
           })}
           {rows.length === 0 && (
-            <tr><td colSpan="7" className="machine-empty">Даних поки немає</td></tr>
+            <tr><td colSpan="9" className="machine-empty">Даних поки немає</td></tr>
           )}
         </tbody>
       </table>

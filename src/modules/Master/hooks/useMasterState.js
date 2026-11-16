@@ -709,7 +709,7 @@ export function useMasterState() {
         } else if (normName.includes('малий') || normName.includes('12x8') || normName.includes('1200x800') || normName.includes('12х8') || normName.includes('1200х800')) {
           resolvedType = 'CNC 1200x800 - 4 листи (Малий)'
         } else if (normName.includes('фея') || normName.includes('ke xin') || normName.includes('kexin')) {
-          resolvedType = 'CNC KE XIN - 4 - 16 листів (ФЕЯ)'
+          resolvedType = 'CNC KE XIN - 1 - 16 листів (ФЕЯ)'
         } else if (normName.includes('3060') || normName.includes('три головий') || normName.includes('3060х1600')) {
           resolvedType = 'CNC 3060х1600 - 3-36 листів (Три Головий)'
         }

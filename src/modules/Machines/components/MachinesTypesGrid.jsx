@@ -1,12 +1,15 @@
 import React from 'react'
 import { Layers } from 'lucide-react'
-import { MACHINE_TYPES } from '../hooks/useMachinesData.js'
+import { MACHINE_TYPES, normalizeMachineType } from '../hooks/useMachinesData.js'
 
 export function MachinesTypesGrid({ machines, setSelectedType, activeWorkForMachine }) {
   return (
     <div className="machines-types-grid">
       {MACHINE_TYPES.concat(['Інші']).map(type => {
-        const typeMachines = machines.filter(m => type === 'Інші' ? !MACHINE_TYPES.includes(m.type) : m.type === type)
+        const typeMachines = machines.filter(m => {
+          const normType = normalizeMachineType(m.type)
+          return type === 'Інші' ? !MACHINE_TYPES.includes(normType) : normType === type
+        })
         if (typeMachines.length === 0 && type === 'Інші') return null
 
         const total = typeMachines.length

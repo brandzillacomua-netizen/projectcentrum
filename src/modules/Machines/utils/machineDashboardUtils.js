@@ -127,11 +127,37 @@ const eventTime = row => new Date(
 
 const cardKey = row => String(row?.card_id || row?.id || '')
 
+export const isCuttingBufferStage = stageName => {
+  const s = String(stageName || '').trim().toLowerCase()
+  return s.includes('буфер') && s.includes('розкр')
+}
+
+export const isCuttingOperatorName = value => {
+  const name = String(value || '').trim()
+  if (!name) return false
+  const clean = name.toLowerCase()
+  if (
+    ['—', '-', 'null', 'undefined', 'не вказано', 'невідомо', 'команда', 'буфер', 'система', 'робот'].includes(clean)
+    || clean.startsWith('команда')
+    || clean.startsWith('буфер')
+    || clean.startsWith('цех')
+  ) {
+    return false
+  }
+  return true
+}
+
 const validOperator = value => {
   const name = String(value || '').trim()
-  if (!name) return null
-  if (['—', '-', 'не вказано', 'невідомо'].includes(name.toLowerCase())) return null
-  return name
+  return isCuttingOperatorName(name) ? name : null
+}
+
+const rowDurationMs = row => {
+  if (!row?.started_at || !row?.completed_at) return 0
+  const start = new Date(row.started_at).getTime()
+  const end = new Date(row.completed_at).getTime()
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return 0
+  return end - start
 }
 
 export const buildUniqueMachineCardHistory = rows => {
@@ -141,26 +167,40 @@ export const buildUniqueMachineCardHistory = rows => {
     const key = cardKey(row)
     if (!key) return
     const previous = grouped.get(key)
+    const segMs = rowDurationMs(row)
+    const isBuffer = isCuttingBufferStage(row.stage_name)
+    const opName = isBuffer ? null : validOperator(row.operator_name)
+
     if (!previous) {
       grouped.set(key, {
         ...row,
-        _operatorEvents: validOperator(row.operator_name)
-          ? [{ name: validOperator(row.operator_name), time: eventTime(row) }]
+        duration_ms: isBuffer ? 0 : segMs,
+        buffer_duration_ms: isBuffer ? segMs : 0,
+        _hasCuttingRow: !isBuffer,
+        _operatorEvents: opName
+          ? [{ name: opName, time: eventTime(row) }]
           : []
       })
       return
     }
 
-    const newest = eventTime(row) >= eventTime(previous) ? row : previous
-    const oldestStartedAt = [previous.started_at, row.started_at]
-      .filter(Boolean)
-      .sort((a, b) => new Date(a) - new Date(b))[0] || newest.started_at
+    const rowWinsMetadata = (!isBuffer && !previous._hasCuttingRow)
+      || (isBuffer === !previous._hasCuttingRow && eventTime(row) >= eventTime(previous))
+    const newest = rowWinsMetadata ? row : previous
+    const cuttingStartCandidates = [
+      previous._hasCuttingRow ? previous.started_at : null,
+      !isBuffer ? row.started_at : null
+    ].filter(Boolean).sort((a, b) => new Date(a) - new Date(b))
+    const oldestStartedAt = cuttingStartCandidates[0] || newest.started_at
 
     grouped.set(key, {
       ...previous,
       ...newest,
       card_id: previous.card_id || row.card_id || previous.id || row.id,
       started_at: oldestStartedAt,
+      duration_ms: (previous.duration_ms || 0) + (isBuffer ? 0 : segMs),
+      buffer_duration_ms: (previous.buffer_duration_ms || 0) + (isBuffer ? segMs : 0),
+      _hasCuttingRow: Boolean(previous._hasCuttingRow || !isBuffer),
       qty_completed: Math.max(Number(previous.qty_completed || previous.quantity) || 0, Number(row.qty_completed || row.quantity) || 0),
       scrap_qty: Math.max(Number(previous.scrap_qty) || 0, Number(row.scrap_qty) || 0),
       is_active: Boolean(previous.is_active || row.is_active),
@@ -169,7 +209,7 @@ export const buildUniqueMachineCardHistory = rows => {
       is_conflict: Boolean(previous.is_conflict || row.is_conflict),
       _operatorEvents: [
         ...(previous._operatorEvents || []),
-        ...(validOperator(row.operator_name) ? [{ name: validOperator(row.operator_name), time: eventTime(row) }] : [])
+        ...(opName ? [{ name: opName, time: eventTime(row) }] : [])
       ]
     })
   })
@@ -185,7 +225,7 @@ export const buildUniqueMachineCardHistory = rows => {
         seen.add(key)
         return true
       })
-    const { _operatorEvents, ...cleanRow } = row
+    const { _operatorEvents, _hasCuttingRow, ...cleanRow } = row
     return { ...cleanRow, operators }
   }).sort((a, b) => eventTime(b) - eventTime(a))
 }

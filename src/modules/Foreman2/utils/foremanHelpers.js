@@ -5,7 +5,7 @@ export const MACHINE_TYPES = [
   'CNC 3050(16)х16 - 3-12 листів (швидкісний)',
   'CNC 3060х1600 - 3-36 листів (Три Головий)',
   'CNC 6000x2000 - 4 - 96 листів (Дракон)',
-  'CNC KE XIN - 4 - 16 листів (ФЕЯ)'
+  'CNC KE XIN - 1 - 16 листів (ФЕЯ)'
 ]
 
 export const SHORTAGE_CACHE_KEY = 'foreman_shortage_map_v2'
@@ -71,7 +71,7 @@ export const getStandardMachineType = (name) => {
   if (normName.includes('16x16') || normName.includes('3050(16)') || normName.includes('швидкісний') || normName.includes('3050x1600') || normName.includes('3050х1600') || normName.includes('3050')) return 'CNC 3050(16)х16 - 3-12 листів (швидкісний)'
   if (normName.includes('30x16') || normName.includes('3060x1600') || normName.includes('3060х1600') || normName.includes('три головий') || normName.includes('триголовий')) return 'CNC 3060х1600 - 3-36 листів (Три Головий)'
   if (normName.includes('60x20') || normName.includes('6000x2000') || normName.includes('дракон')) return 'CNC 6000x2000 - 4 - 96 листів (Дракон)'
-  if (normName.includes('ke xin') || normName.includes('фея')) return 'CNC KE XIN - 4 - 16 листів (ФЕЯ)'
+  if (normName.includes('ke xin') || normName.includes('фея')) return 'CNC KE XIN - 1 - 16 листів (ФЕЯ)'
   const partial = MACHINE_TYPES.find(t => t.toLowerCase().includes(normName) || normName.includes(t.toLowerCase()))
   if (partial) return partial
   return ''
@@ -95,7 +95,7 @@ export const findMachineByName = (name, machines) => {
     } else if (baseNameLower.includes('60x20') || baseNameLower.includes('6000x2000') || baseNameLower.includes('дракон')) {
       found = { sheet_capacity: 96, name: 'CNC 6000x2000 - 4 - 96 листів (Дракон)' }
     } else if (baseNameLower.includes('ke xin') || baseNameLower.includes('фея')) {
-      found = { sheet_capacity: 16, name: 'CNC KE XIN - 4 - 16 листів (ФЕЯ)' }
+      found = { sheet_capacity: 16, name: 'CNC KE XIN - 1 - 16 листів (ФЕЯ)' }
     }
   }
   if (found) {
@@ -103,11 +103,16 @@ export const findMachineByName = (name, machines) => {
     const rawMachineName = ((result.name || '') + ' ' + (name || '')).toLowerCase()
     const searchName = ((result.name || '') + ' ' + (name || '')).replace(/\d+\s*[xх\*×]\s*\d+/gi, '')
     const isSmallMachine = rawMachineName.includes('1200x800') || rawMachineName.includes('12x8') || rawMachineName.includes('малий')
+    const isFeyaMachine = rawMachineName.includes('ke xin') || rawMachineName.includes('фея')
     const match = searchName.match(/(\d+)\s*-\s*(\d+)\s*лист/i)
     if (isSmallMachine) {
       result.sheet_capacity = 6
       result.min_capacity = 1
       result.max_capacity = 6
+    } else if (isFeyaMachine) {
+      result.sheet_capacity = 16
+      result.min_capacity = 1
+      result.max_capacity = 16
     } else if (match) {
       result.min_capacity = parseInt(match[1])
       result.max_capacity = parseInt(match[2])
@@ -127,7 +132,7 @@ export const findMachineByName = (name, machines) => {
         } else if (bnl.includes('60x20') || bnl.includes('6000x2000') || bnl.includes('дракон')) {
           result.min_capacity = 4; result.max_capacity = 96
         } else if (bnl.includes('ke xin') || bnl.includes('фея')) {
-          result.min_capacity = 4; result.max_capacity = 16
+          result.min_capacity = 1; result.max_capacity = 16
         } else {
           result.min_capacity = result.sheet_capacity || 1
           result.max_capacity = result.sheet_capacity || 1
