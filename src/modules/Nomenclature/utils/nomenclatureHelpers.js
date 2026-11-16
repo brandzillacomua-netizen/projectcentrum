@@ -399,14 +399,16 @@ export const classifyV2Type = (v) => {
     return 'raw';
   }
 
-  // 1f. Hardware / Fasteners (Метизи)
+  // 1f. Hardware / Fasteners / Rubber Parts (Метизи та комплектуючі)
   if (
+    rule === 'rubber_part' ||
     rule === 'screw' ||
     rule === 'screw_black' ||
     rule === 'screw_silver' ||
     rule === 'nut' ||
     rule === 'press_nut' ||
     rule === 'standoff' ||
+    gid === 'grp_rubber_parts' ||
     gid === 'grp_nuts' ||
     gid === 'grp_press_nuts' ||
     gid === 'grp_screws_black' ||
