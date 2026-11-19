@@ -833,26 +833,46 @@ export const useShop1ForemanData = () => {
       const allCardIds = [...new Set((dbCards || []).map(c => c.id))]
       let historyRows = []
 
-      // Fast path: direct lookup by task_id using index idx_work_card_history_task_id
-      const { data: directHistory } = await supabase
-        .from('work_card_history')
-        .select('*')
-        .eq('task_id', task.id)
-        .limit(10000)
+      // Fast path: paginated lookup by task_id using index idx_work_card_history_task_id
+      // (only 1 request for <1000 rows; avoids silent 1000-row PostgREST truncation on large tasks)
+      const histPageSize = 1000
+      for (let from = 0; ; from += histPageSize) {
+        const { data: page, error: histErr } = await supabase
+          .from('work_card_history')
+          .select('*')
+          .eq('task_id', task.id)
+          .order('id', { ascending: true })
+          .range(from, from + histPageSize - 1)
+        if (histErr) throw histErr
+        if (!page || page.length === 0) break
+        historyRows.push(...page)
+        if (page.length < histPageSize) break
+      }
 
-      if (directHistory && directHistory.length > 0) {
-        historyRows = directHistory
-      } else if (allCardIds.length > 0) {
-        // Fallback for legacy records: parallel chunk queries via card_id
+      if (historyRows.length === 0 && allCardIds.length > 0) {
+        // Fallback for legacy records: parallel chunk queries via card_id with pagination
         const chunkSize = 60
         const chunks = []
         for (let i = 0; i < allCardIds.length; i += chunkSize) {
           chunks.push(allCardIds.slice(i, i + chunkSize))
         }
         const histResults = await Promise.all(
-          chunks.map(chunk =>
-            supabase.from('work_card_history').select('*').in('card_id', chunk).limit(10000).then(r => r.data || [])
-          )
+          chunks.map(async (chunk) => {
+            const rows = []
+            for (let from = 0; ; from += histPageSize) {
+              const { data: page, error: chunkErr } = await supabase
+                .from('work_card_history')
+                .select('*')
+                .in('card_id', chunk)
+                .order('id', { ascending: true })
+                .range(from, from + histPageSize - 1)
+              if (chunkErr) throw chunkErr
+              if (!page || page.length === 0) break
+              rows.push(...page)
+              if (page.length < histPageSize) break
+            }
+            return rows
+          })
         )
         historyRows = histResults.flat()
       }
