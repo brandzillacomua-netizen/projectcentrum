@@ -6495,6 +6495,45 @@ body.light-theme .prep-tv__alerts-list span {
 }
 
 /* ─────────────────────────────────────────────────────────────
+/* ─────────────────────────────────────────────────────────────
+   PREPARATION TV LIGHT THEME TITLE & CONTROLS OVERRIDES
+   ───────────────────────────────────────────────────────────── */
+.light-theme .prep-tv__head-title h2,
+body.light-theme .prep-tv__head-title h2 {
+  color: #0f172a !important;
+}
+
+.light-theme .prep-tv__head-sub,
+body.light-theme .prep-tv__head-sub,
+.light-theme .prep-tv__timer-note,
+body.light-theme .prep-tv__timer-note {
+  color: #64748b !important;
+}
+
+.light-theme .prep-tv__page-badge,
+body.light-theme .prep-tv__page-badge {
+  color: #0f172a !important;
+  background: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
+}
+
+.light-theme .prep-tv__ctrl-btn,
+body.light-theme .prep-tv__ctrl-btn,
+.light-theme .prep-tv__icon-btn,
+body.light-theme .prep-tv__icon-btn,
+.light-theme .prep-tv__back,
+body.light-theme .prep-tv__back {
+  background: #f1f5f9 !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+
+.light-theme .prep-tv__empty h3,
+body.light-theme .prep-tv__empty h3 {
+  color: #0f172a !important;
+}
+
+/* ─────────────────────────────────────────────────────────────
    REPORTS MODULE LIGHT THEME OVERRIDES
    ───────────────────────────────────────────────────────────── */
 

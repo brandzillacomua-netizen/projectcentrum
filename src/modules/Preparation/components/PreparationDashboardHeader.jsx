@@ -12,7 +12,7 @@ export default function PreparationDashboardHeader({
   return (
     <header className="prep-tv__header">
       <div className="prep-tv__brand">
-        <Link to="/" className="prep-tv__back" title="Повернутися до головного меню">
+        <Link to="/" onClick={() => localStorage.removeItem('centrum_tv_route')} className="prep-tv__back" title="Повернутися до головного меню">
           <ArrowLeft size={20} />
         </Link>
         <div className="prep-tv__logo">

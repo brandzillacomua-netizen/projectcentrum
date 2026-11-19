@@ -852,15 +852,18 @@ const AppContent = () => {
   const isPublicCall = /^\/machines\/[^/]+\/call$/.test(location.pathname)
   if (!currentUser && location.pathname !== '/login' && !isPublicCall) {
     if (location.pathname && location.pathname !== '/' && location.pathname !== '/login') {
-      sessionStorage.setItem('redirect_to', location.pathname + location.search);
+      const target = location.pathname + location.search;
+      sessionStorage.setItem('redirect_to', target);
+      try { localStorage.setItem('centrum_redirect_to', target); } catch { /* ignore */ }
     }
     return <Navigate to="/login" replace />
   }
 
   // РЕДИРЕКТ З /login НА ГОЛОВНУ ЯКЩО ВЖЕ АВТОРИЗОВАНИЙ (збереження початкового шляху переходу)
   if (currentUser && location.pathname === '/login') {
-    const redirectTo = sessionStorage.getItem('redirect_to') || '/';
+    const redirectTo = sessionStorage.getItem('redirect_to') || localStorage.getItem('centrum_redirect_to') || '/';
     sessionStorage.removeItem('redirect_to');
+    try { localStorage.removeItem('centrum_redirect_to'); } catch { /* ignore */ }
     return <Navigate to={redirectTo} replace />
   }
 

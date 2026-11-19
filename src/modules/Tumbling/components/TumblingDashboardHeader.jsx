@@ -24,10 +24,10 @@ export function TumblingDashboardHeader({
       flexShrink: 0
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-        <Link to="/" style={{ color: 'var(--text-muted)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: 700 }}>
+        <Link to="/" onClick={() => localStorage.removeItem('centrum_tv_route')} style={{ color: 'var(--text-muted)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: 700 }}>
           <ArrowLeft size={16} /> На головну
         </Link>
-        <div style={{ width: '1px', height: '20px', background: 'rgba(255, 255, 255, 0.1)' }} />
+        <div style={{ width: '1px', height: '20px', background: 'var(--border-subtle)' }} />
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <h1 style={{ fontSize: '1.2rem', fontWeight: 900, margin: 0, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#ff9000' }}>
@@ -93,9 +93,9 @@ export function TumblingDashboardHeader({
           <button 
             onClick={() => setAutoScrollActive(!autoScrollActive)}
             style={{
-              background: autoScrollActive ? 'rgba(6,182,212,0.1)' : '#1a1a24',
-              color: autoScrollActive ? '#06b6d4' : '#888',
-              border: `1px solid ${autoScrollActive ? 'rgba(6,182,212,0.3)' : 'var(--border-subtle)'}`,
+              background: autoScrollActive ? 'rgba(6,182,212,0.12)' : 'var(--surface-2)',
+              color: autoScrollActive ? '#0891b2' : 'var(--text-muted)',
+              border: `1px solid ${autoScrollActive ? 'rgba(6,182,212,0.35)' : 'var(--border-subtle)'}`,
               padding: '6px 12px',
               borderRadius: '8px',
               fontSize: '0.7rem',
@@ -108,8 +108,8 @@ export function TumblingDashboardHeader({
           <button 
             onClick={() => setIsFullScreen(!isFullScreen)}
             style={{
-              background: '#1a1a24',
-              color: '#fff',
+              background: 'var(--surface-2)',
+              color: 'var(--text-strong)',
               border: '1px solid var(--border-subtle)',
               padding: '6px 12px',
               borderRadius: '8px',

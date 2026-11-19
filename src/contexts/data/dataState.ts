@@ -121,8 +121,13 @@ export function useDataState() {
         if (active) setCurrentUser(user)
       } catch (error) {
         console.warn('[Auth] Не вдалося підтвердити PROD-сесію:', (error as any)?.message || error)
-        clearProductionSessionCache()
-        if (active) setCurrentUser(null)
+        const isTvRoute = typeof window !== 'undefined' && ['/preparation-dashboard', '/tumbling-dashboard'].includes(window.location.pathname)
+        if (isTvRoute && localStorage.getItem('MES_SESSION_USER')) {
+          console.warn('[Auth] Тимчасова помилка мережі на ТВ-дашборді — зберігаємо локальну сесію')
+        } else {
+          clearProductionSessionCache()
+          if (active) setCurrentUser(null)
+        }
       } finally {
         if (active) setSessionLoading(false)
       }
