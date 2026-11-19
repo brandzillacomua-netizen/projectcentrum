@@ -830,6 +830,17 @@ const AppLayout = ({ children, chatUnreadCount }) => {
   )
 }
 
+const LogoutRoute = () => {
+  const { logout } = useMES()
+  const navigate = useNavigate()
+  useEffect(() => {
+    Promise.resolve(logout?.()).finally(() => {
+      navigate('/login', { replace: true })
+    })
+  }, [logout, navigate])
+  return null
+}
+
 const AppContent = () => {
   const { currentUser, sessionLoading, supabase } = useMES()
   const location = useLocation()
@@ -861,8 +872,8 @@ const AppContent = () => {
 
   const lockedTvRoute = getLockedTvDashboardRoute(currentUser)
 
-  // Якщо акаунт прив'язаний тільки до одного ТВ-модуля — одразу відкриваємо його без головної
-  if (currentUser && lockedTvRoute && location.pathname !== lockedTvRoute.path) {
+  // Якщо акаунт прив'язаний тільки до одного ТВ-модуля — одразу відкриваємо його без головної (крім /logout)
+  if (currentUser && lockedTvRoute && location.pathname !== lockedTvRoute.path && location.pathname !== '/logout') {
     sessionStorage.removeItem('redirect_to')
     try { localStorage.removeItem('centrum_redirect_to') } catch { /* ignore */ }
     return <Navigate to={lockedTvRoute.path} replace />
@@ -886,6 +897,7 @@ const AppContent = () => {
         )}
         <Routes>
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/logout" element={<LogoutRoute />} />
           <Route path="/" element={<PermissionGuard id="corporate"><CorporateModule /></PermissionGuard>} />
           <Route path="/dashboard" element={<PermissionGuard id="dashboard"><PortalDashboard chatUnreadCount={chatUnreadCount} /></PermissionGuard>} />
           <Route path="/crm" element={<PermissionGuard id="crm"><CrmModule /></PermissionGuard>} />
