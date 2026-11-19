@@ -13,7 +13,7 @@ import {
   Tablet,
   Package
 } from 'lucide-react'
-import { getAvailableModules } from './config/moduleRegistry'
+import { getAvailableModules, getLockedTvDashboardRoute } from './config/moduleRegistry'
 import { useChatUnreadCount } from './hooks/useChatUnreadCount'
 import { PortalDashboard } from './components/app/PortalDashboard'
 import { GlobalUserNav } from './components/app/GlobalUserNav'
@@ -859,6 +859,15 @@ const AppContent = () => {
     return <Navigate to="/login" replace />
   }
 
+  const lockedTvRoute = getLockedTvDashboardRoute(currentUser)
+
+  // Якщо акаунт прив'язаний тільки до одного ТВ-модуля — одразу відкриваємо його без головної
+  if (currentUser && lockedTvRoute && location.pathname !== lockedTvRoute.path) {
+    sessionStorage.removeItem('redirect_to')
+    try { localStorage.removeItem('centrum_redirect_to') } catch { /* ignore */ }
+    return <Navigate to={lockedTvRoute.path} replace />
+  }
+
   // РЕДИРЕКТ З /login НА ГОЛОВНУ ЯКЩО ВЖЕ АВТОРИЗОВАНИЙ (збереження початкового шляху переходу)
   if (currentUser && location.pathname === '/login') {
     const redirectTo = sessionStorage.getItem('redirect_to') || localStorage.getItem('centrum_redirect_to') || '/';
@@ -872,7 +881,7 @@ const AppContent = () => {
       <ScrollToTop />
       <SystemAlertHost />
       <Suspense fallback={<ModuleLoader />}>
-        {currentUser && location.pathname !== '/login' && (
+        {currentUser && !lockedTvRoute && location.pathname !== '/login' && (
           <GlobalUserNav key={currentUser.id} chatUnreadCount={chatUnreadCount} />
         )}
         <Routes>

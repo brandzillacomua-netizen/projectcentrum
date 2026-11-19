@@ -95,7 +95,7 @@ export function RubberHeader({
           fontWeight: 800
         }}>
           <Users size={16} />
-          <span>Лицювальників: {onShiftCount}</span>
+          <span>Порізка гуми: {onShiftCount}</span>
         </div>
 
         {/* Shift selector */}

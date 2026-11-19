@@ -212,16 +212,20 @@ export function CuttingActiveCard({
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <UserCheck size={16} color={ACCENT_RUBBER} />
             <span style={{ fontSize: '0.75rem', fontWeight: 900, color: 'var(--text, #fff)', textTransform: 'uppercase' }}>
-              Лицювальник-полірувальник ({selectedOperators.length} обрано)
+              Оператор порізки гуми ({selectedOperators.length} обрано)
             </span>
           </div>
 
           <OperatorMultiSelect
-            value={selectedOperators}
-            onChange={setSelectedOperators}
+            selectedOperator={Array.isArray(selectedOperators) ? selectedOperators.join(', ') : (selectedOperators || '')}
+            setSelectedOperator={(val) => {
+              const list = String(val || '').split(',').map(s => s.trim()).filter(Boolean);
+              setSelectedOperators(list);
+            }}
             onShiftOperators={onShiftOperators}
             allStageOperators={allStageOperators}
-            stage="порізка гуми"
+            accentColor={ACCENT_RUBBER}
+            accentRgb={ACCENT_RUBBER_RGB}
             inline={true}
           />
         </div>

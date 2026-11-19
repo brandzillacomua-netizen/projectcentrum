@@ -181,3 +181,33 @@ export const CATEGORIES = [
   { id: 'erp', title: 'ERP (Склад, Ресурси та Керування)', color: '#10b981' },
   { id: 'mes', title: 'MES (Цехи, Наряди та Термінали)', color: '#ff9000' }
 ]
+
+export const TV_ONLY_MODULE_PATHS = {
+  tumbling_dashboard: '/tumbling-dashboard',
+  preparation_dashboard: '/preparation-dashboard'
+}
+
+/**
+ * Returns the locked TV dashboard route if the user has only a single TV dashboard
+ * explicitly enabled in access_rights (ignoring default `corporate`).
+ */
+export const getLockedTvDashboardRoute = (currentUser) => {
+  if (!currentUser) return null
+  const posLower = (currentUser?.position || '').toLowerCase()
+  const roleLower = (currentUser?.role || '').toLowerCase()
+  const isAdmin = posLower.includes('адмін') || roleLower === 'admin' || currentUser?.login === 'admin@workshop.local'
+  if (isAdmin) return null
+
+  const rights = currentUser?.access_rights || {}
+  const enabledExplicitRights = Object.entries(rights)
+    .filter(([key, val]) => key !== 'corporate' && (val === true || val === 'true' || val === 1))
+    .map(([key]) => key)
+
+  if (enabledExplicitRights.length === 1 && TV_ONLY_MODULE_PATHS[enabledExplicitRights[0]]) {
+    return {
+      moduleId: enabledExplicitRights[0],
+      path: TV_ONLY_MODULE_PATHS[enabledExplicitRights[0]]
+    }
+  }
+  return null
+}

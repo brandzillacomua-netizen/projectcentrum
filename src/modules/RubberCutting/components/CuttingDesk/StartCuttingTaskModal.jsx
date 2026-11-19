@@ -32,7 +32,7 @@ export function StartCuttingTaskModal({
   const handleStart = (e) => {
     e.preventDefault();
     if (!selectedOperators || selectedOperators.length === 0) {
-      setErrorMessage('Будь ласка, оберіть хоча б одного лицювальника-полірувальника!');
+      setErrorMessage('Будь ласка, оберіть хоча б одного оператора порізки гуми!');
       return;
     }
     onConfirmStart({
@@ -188,7 +188,7 @@ export function StartCuttingTaskModal({
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <UserCheck size={18} color={ACCENT_RUBBER} />
               <span style={{ fontSize: '0.8rem', fontWeight: 950, color: 'var(--text, #fff)', textTransform: 'uppercase' }}>
-                ЛИЦЮВАЛЬНИК-ПОЛІРУВАЛЬНИК (ХТО НА ЗМІНІ)
+                ОПЕРАТОР ПОРІЗКИ ГУМИ (ХТО НА ЗМІНІ)
               </span>
             </div>
             <span style={{ fontSize: '0.72rem', color: ACCENT_RUBBER, fontWeight: 900 }}>
@@ -197,15 +197,20 @@ export function StartCuttingTaskModal({
           </div>
 
           <div style={{ fontSize: '0.72rem', color: 'var(--text-muted, #94a3b8)' }}>
-            Оберіть одного або декількох лицювальників-полірувальників, які виконують цю порізку:
+            Оберіть одного або декількох працівників (посада «Порізка гуми»), які виконують цю порізку:
           </div>
 
           <OperatorMultiSelect
-            value={selectedOperators}
-            onChange={setSelectedOperators}
+            selectedOperator={Array.isArray(selectedOperators) ? selectedOperators.join(', ') : (selectedOperators || '')}
+            setSelectedOperator={(val) => {
+              const list = String(val || '').split(',').map(s => s.trim()).filter(Boolean);
+              setSelectedOperators(list);
+              if (list.length > 0) setErrorMessage('');
+            }}
             onShiftOperators={onShiftOperators}
             allStageOperators={allStageOperators}
-            stage="порізка гуми"
+            accentColor={ACCENT_RUBBER}
+            accentRgb={ACCENT_RUBBER_RGB}
             inline={true}
           />
         </div>

@@ -1,6 +1,8 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, Clock } from 'lucide-react'
+import { useMES } from '../../../MESContext'
+import { getLockedTvDashboardRoute } from '../../../config/moduleRegistry'
 
 export function TumblingDashboardHeader({
   currentTime,
@@ -13,6 +15,9 @@ export function TumblingDashboardHeader({
   effectiveScale = 1,
   onCycleScale
 }) {
+  const { currentUser } = useMES()
+  const isTvLocked = Boolean(getLockedTvDashboardRoute(currentUser))
+
   const scaleLabel = scaleMode === 'auto'
     ? `Авто (${Math.round(effectiveScale * 100)}%)`
     : `${Math.round(parseFloat(scaleMode) * 100)}%`
@@ -33,10 +38,14 @@ export function TumblingDashboardHeader({
       minWidth: 0
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: 0 }}>
-        <Link to="/" onClick={() => localStorage.removeItem('centrum_tv_route')} style={{ color: 'var(--text-muted)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0 }}>
-          <ArrowLeft size={16} /> На головну
-        </Link>
-        <div style={{ width: '1px', height: '20px', background: 'var(--col-border, var(--border-subtle))', flexShrink: 0 }} />
+        {!isTvLocked && (
+          <>
+            <Link to="/" onClick={() => localStorage.removeItem('centrum_tv_route')} style={{ color: 'var(--text-muted)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0 }}>
+              <ArrowLeft size={16} /> На головну
+            </Link>
+            <div style={{ width: '1px', height: '20px', background: 'var(--col-border, var(--border-subtle))', flexShrink: 0 }} />
+          </>
+        )}
         <div style={{ minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'nowrap' }}>
             <h1 style={{ fontSize: '1.15rem', fontWeight: 900, margin: 0, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#ff9000', whiteSpace: 'nowrap' }}>

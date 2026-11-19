@@ -1,6 +1,8 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, Monitor, RefreshCw, Maximize2, Layers, Cpu } from 'lucide-react'
+import { useMES } from '../../../MESContext'
+import { getLockedTvDashboardRoute } from '../../../config/moduleRegistry'
 
 export default function PreparationDashboardHeader({
   staleSeconds,
@@ -9,12 +11,17 @@ export default function PreparationDashboardHeader({
   viewMode,
   setViewMode
 }) {
+  const { currentUser } = useMES()
+  const isTvLocked = Boolean(getLockedTvDashboardRoute(currentUser))
+
   return (
     <header className="prep-tv__header">
       <div className="prep-tv__brand">
-        <Link to="/" onClick={() => localStorage.removeItem('centrum_tv_route')} className="prep-tv__back" title="Повернутися до головного меню">
-          <ArrowLeft size={20} />
-        </Link>
+        {!isTvLocked && (
+          <Link to="/" onClick={() => localStorage.removeItem('centrum_tv_route')} className="prep-tv__back" title="Повернутися до головного меню">
+            <ArrowLeft size={20} />
+          </Link>
+        )}
         <div className="prep-tv__logo">
           <Layers size={22} />
         </div>
