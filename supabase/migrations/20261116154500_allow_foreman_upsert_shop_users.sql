@@ -44,26 +44,26 @@ BEGIN
     WHERE id = p_admin_id;
 
     IF FOUND THEN
-      v_is_admin := (
-        v_admin_record.access_rights->>'settings' = 'true' OR 
-        v_admin_record.access_rights->>'admin' = 'true' OR 
-        v_admin_record.access_rights->>'director' = 'true' OR
-        v_admin_record.position ILIKE '%адмін%' OR
-        v_admin_record.position ILIKE '%admin%' OR
-        v_admin_record.login = 'admin@workshop.local'
-      );
+      v_is_admin := COALESCE((
+        COALESCE(v_admin_record.access_rights->>'settings', '') = 'true' OR 
+        COALESCE(v_admin_record.access_rights->>'admin', '') = 'true' OR 
+        COALESCE(v_admin_record.access_rights->>'director', '') = 'true' OR
+        COALESCE(v_admin_record.position, '') ILIKE '%адмін%' OR
+        COALESCE(v_admin_record.position, '') ILIKE '%admin%' OR
+        COALESCE(v_admin_record.login, '') = 'admin@workshop.local'
+      ), false);
 
-      v_is_shop2_foreman := (v_admin_record.access_rights->>'shop2_foreman' = 'true');
-      v_is_shop1_foreman := (
-        v_admin_record.access_rights->>'shop1_foreman' = 'true' OR
-        v_admin_record.access_rights->>'foreman' = 'true'
-      );
+      v_is_shop2_foreman := COALESCE(v_admin_record.access_rights->>'shop2_foreman' = 'true', false);
+      v_is_shop1_foreman := COALESCE((
+        COALESCE(v_admin_record.access_rights->>'shop1_foreman', '') = 'true' OR
+        COALESCE(v_admin_record.access_rights->>'foreman', '') = 'true'
+      ), false);
     END IF;
   ELSE
-    v_is_admin := verify_mes_session_or_app();
+    v_is_admin := COALESCE(verify_mes_session_or_app(), false);
   END IF;
 
-  v_can_manage_target := v_is_admin;
+  v_can_manage_target := COALESCE(v_is_admin, false);
 
   -- Якщо не повний адмін, перевіряємо чи начальник цеху редагує/створює працівника свого цеху
   IF NOT v_is_admin THEN
