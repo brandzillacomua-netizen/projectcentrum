@@ -241,8 +241,29 @@ const MachinesModule = () => {
         }
         .machine-card-v3:hover { transform: translateY(-8px); border-color: #333; box-shadow: 0 30px 60px rgba(0,0,0,0.6); }
         
-        .card-top { display: flex; justify-content: space-between; align-items: center; }
-        .machine-icon-box { background: #111; width: 48px; height: 48px; border-radius: 14px; display: flex; align-items: center; justify-content: center; color: #ff9000; border: 1px solid var(--border-subtle); }
+        .card-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+        .card-top-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
+        .machine-icon-box { background: #111; width: 48px; height: 48px; border-radius: 14px; display: flex; align-items: center; justify-content: center; color: #ff9000; border: 1px solid var(--border-subtle); flex-shrink: 0; }
+        .machine-seq-badge {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          padding: 6px 12px;
+          border-radius: 10px;
+          background: rgba(255, 144, 0, 0.14);
+          border: 1px solid rgba(255, 144, 0, 0.4);
+          color: #ff9f1c;
+          font-size: 0.95rem;
+          font-weight: 950;
+          letter-spacing: 0.03em;
+          line-height: 1;
+          white-space: nowrap;
+        }
+        .machine-seq-badge.is-empty {
+          background: rgba(100, 116, 139, 0.12);
+          border-color: rgba(100, 116, 139, 0.28);
+          color: #64748b;
+        }
         
         .status-badge { display: flex; align-items: center; gap: 8px; font-size: 0.65rem; font-weight: 950; letter-spacing: 1px; color: #444; }
         .is-busy .status-badge { color: #ef4444; }
@@ -271,7 +292,8 @@ const MachinesModule = () => {
         .card-actions button:hover { color: #fff; }
         .card-actions .btn-del:hover { color: #ef4444; }
 
-        .inv-no { font-size: 0.6rem; font-weight: 1000; color: #333; letter-spacing: 1.5px; }
+        .inv-no { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 0.65rem; font-weight: 1000; color: #64748b; letter-spacing: 1px; }
+        .inv-cards-count { white-space: nowrap; }
         .machine-name { margin: 0; font-size: 1.8rem; font-weight: 1000; letter-spacing: -0.5px; }
         .location-info { display: flex; align-items: center; gap: 6px; font-size: 0.8rem; color: #555; font-weight: 700; }
         
@@ -1464,6 +1486,18 @@ const MachinesModule = () => {
         body.light-theme .machines-form-card {
           background: #ffffff !important;
           border: 1px solid #e2e8f0 !important;
+        }
+        .light-theme .machine-seq-badge,
+        body.light-theme .machine-seq-badge {
+          background: #fff7ed;
+          border-color: #fdba74;
+          color: #c2410c;
+        }
+        .light-theme .machine-seq-badge.is-empty,
+        body.light-theme .machine-seq-badge.is-empty {
+          background: #f1f5f9;
+          border-color: #cbd5e1;
+          color: #64748b;
         }
       `}} />
     </div>

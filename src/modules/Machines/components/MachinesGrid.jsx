@@ -2,6 +2,20 @@ import React from 'react'
 import { ArrowLeft, Cpu, Edit3, Trash2, MapPin, AlertTriangle, Activity, BarChart3, Clock, User, Zap } from 'lucide-react'
 import { MACHINE_TYPES, normalizeMachineType } from '../hooks/useMachinesData.js'
 
+const seqCollator = new Intl.Collator('uk', { numeric: true, sensitivity: 'base' })
+
+function compareMachineSequence(a, b) {
+  const seqA = String(a?.sequence_number || '').trim()
+  const seqB = String(b?.sequence_number || '').trim()
+  if (seqA && !seqB) return -1
+  if (!seqA && seqB) return 1
+  if (seqA && seqB) {
+    const cmp = seqCollator.compare(seqA, seqB)
+    if (cmp !== 0) return cmp
+  }
+  return seqCollator.compare(String(a?.name || ''), String(b?.name || ''))
+}
+
 export function MachinesGrid({
   machines,
   selectedType,
@@ -16,6 +30,16 @@ export function MachinesGrid({
   formatElapsed,
   formatPlanned
 }) {
+  const sortedMachines = React.useMemo(() => {
+    return (machines || [])
+      .filter(m => {
+        const normType = normalizeMachineType(m.type)
+        return selectedType === 'Інші' ? !MACHINE_TYPES.includes(normType) : normType === selectedType
+      })
+      .slice()
+      .sort(compareMachineSequence)
+  }, [machines, selectedType])
+
   return (
     <>
       <button 
@@ -28,10 +52,7 @@ export function MachinesGrid({
       </button>
 
       <div className="machines-cards-grid">
-        {machines.filter(m => {
-          const normType = normalizeMachineType(m.type)
-          return selectedType === 'Інші' ? !MACHINE_TYPES.includes(normType) : normType === selectedType
-        }).map(m => {
+        {sortedMachines.map(m => {
           const activeTask = activeWorkForMachine(m)
           const parentTask = activeTask ? tasks.find(t => String(t.id).trim() === String(activeTask.task_id).trim()) : null
           const nomName = nomenclatures.find(n => String(n.id) === String(activeTask?.nomenclature_id))?.name
@@ -62,8 +83,13 @@ export function MachinesGrid({
               onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setSelectedMachineId(m.id) }}
             >
               <div className="card-top">
-                <div className="machine-icon-box">
-                  <Cpu size={22} />
+                <div className="card-top-left">
+                  <div className="machine-icon-box">
+                    <Cpu size={22} />
+                  </div>
+                  <span className={`machine-seq-badge ${m.sequence_number ? '' : 'is-empty'}`}>
+                    {m.sequence_number ? `№${m.sequence_number}` : '№ —'}
+                  </span>
                 </div>
                 <div className="status-badge">
                   <div className="status-dot" />
@@ -91,11 +117,9 @@ export function MachinesGrid({
               <div className="card-main">
                 <div className="inv-no">
                   <span className="inv-no-text">
-                    {m.sequence_number ? `ПОРЯДКОВИЙ №${m.sequence_number}` : 'ПОРЯДКОВИЙ ВІДСУТНІЙ'} 
-                    {' | '}
                     {m.inventory_no || 'БЕЗ ІНВЕНТАРНОГО'}
                   </span>
-                  <span style={{ color: (m.completed_cards_count_since_maintenance || 0) >= 5 ? '#ef4444' : 'var(--text-dim)', fontWeight: 900 }}>
+                  <span className="inv-cards-count" style={{ color: (m.completed_cards_count_since_maintenance || 0) >= 5 ? '#ef4444' : 'var(--text-dim)', fontWeight: 900 }}>
                     Картки: {m.completed_cards_count_since_maintenance || 0}/5
                   </span>
                 </div>
