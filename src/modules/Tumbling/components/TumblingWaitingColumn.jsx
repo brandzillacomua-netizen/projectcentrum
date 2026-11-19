@@ -76,7 +76,7 @@ export function TumblingWaitingColumn({
                 borderRadius: '16px',
                 padding: '14px',
                 display: 'grid',
-                gridTemplateColumns: 'minmax(140px, auto) 1fr',
+                gridTemplateColumns: 'minmax(128px, auto) minmax(0, 1fr)',
                 gap: '14px',
                 alignItems: 'center',
                 position: 'relative',

@@ -181,11 +181,11 @@ export function TumblingKitsColumn({
         )}
       </div>
       {totalPages > 1 && (
-        <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', padding: '10px 0', background: 'var(--col-head-bg, #1e293b)', borderTop: '2px solid var(--col-border, #334155)' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap', gap: totalPages > 16 ? '5px' : '8px', padding: '10px 14px', background: 'var(--col-head-bg, #1e293b)', borderTop: '2px solid var(--col-border, #334155)' }}>
           {Array.from({ length: totalPages }).map((_, i) => (
             <div key={i} style={{
-              width: '10px',
-              height: '10px',
+              width: totalPages > 16 ? '8px' : '10px',
+              height: totalPages > 16 ? '8px' : '10px',
               borderRadius: '50%',
               background: orderPage === i ? '#ff9000' : '#64748b',
               transition: 'background 0.3s'

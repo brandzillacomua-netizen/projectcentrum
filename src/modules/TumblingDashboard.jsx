@@ -1,9 +1,12 @@
-import React from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useTumblingDashboardData } from './Tumbling/hooks/useTumblingDashboardData.js'
 import { TumblingDashboardHeader } from './Tumbling/components/TumblingDashboardHeader.jsx'
 import { TumblingKitsColumn } from './Tumbling/components/TumblingKitsColumn.jsx'
 import { TumblingWaitingColumn } from './Tumbling/components/TumblingWaitingColumn.jsx'
 import { TumblingInWorkColumn } from './Tumbling/components/TumblingInWorkColumn.jsx'
+
+const SCALE_MODES = ['auto', '0.6', '0.7', '0.8', '0.9', '1']
+const SCALE_STORAGE_KEY = 'centrum_tumbling_tv_scale'
 
 export default function TumblingDashboard() {
   const {
@@ -29,19 +32,73 @@ export default function TumblingDashboard() {
     orders
   } = useTumblingDashboardData()
 
+  const [viewport, setViewport] = useState(() => ({
+    width: typeof window !== 'undefined' ? window.innerWidth : 1920,
+    height: typeof window !== 'undefined' ? window.innerHeight : 1080
+  }))
+
+  const [scaleMode, setScaleMode] = useState(() => {
+    try {
+      const saved = localStorage.getItem(SCALE_STORAGE_KEY)
+      return SCALE_MODES.includes(saved) ? saved : 'auto'
+    } catch {
+      return 'auto'
+    }
+  })
+
+  useEffect(() => {
+    const handleResize = () => {
+      setViewport({ width: window.innerWidth, height: window.innerHeight })
+    }
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
+  const effectiveScale = useMemo(() => {
+    if (scaleMode !== 'auto') {
+      const parsed = parseFloat(scaleMode)
+      return Number.isFinite(parsed) ? parsed : 1
+    }
+    // Target reference layout: 1680x940 for crisp 3-column TV view without clipping
+    const scaleX = viewport.width / 1680
+    const scaleY = viewport.height / 940
+    const raw = Math.min(scaleX, scaleY)
+    if (raw >= 0.98) return 1
+    return Math.max(0.48, Math.round(raw * 100) / 100)
+  }, [scaleMode, viewport])
+
+  const cycleScaleMode = () => {
+    const idx = SCALE_MODES.indexOf(scaleMode)
+    const next = SCALE_MODES[(idx + 1) % SCALE_MODES.length]
+    setScaleMode(next)
+    try {
+      localStorage.setItem(SCALE_STORAGE_KEY, next)
+    } catch {
+      // ignore storage errors
+    }
+  }
+
   return (
-    <div className="tumbling-dashboard-container" style={{
-      background: 'var(--bg, #07070a)',
+    <div style={{
+      width: '100vw',
       height: '100vh',
-      maxHeight: '100vh',
-      color: 'var(--text, #fff)',
-      fontFamily: "'Outfit', 'Inter', sans-serif",
-      display: 'flex',
-      flexDirection: 'column',
-      padding: isFullScreen ? '10px' : '20px',
-      boxSizing: 'border-box',
-      overflow: 'hidden'
+      overflow: 'hidden',
+      background: 'var(--bg, #07070a)'
     }}>
+      <div className="tumbling-dashboard-container" style={{
+        background: 'var(--bg, #07070a)',
+        width: effectiveScale === 1 ? '100vw' : `${100 / effectiveScale}vw`,
+        height: effectiveScale === 1 ? '100vh' : `${100 / effectiveScale}vh`,
+        transform: effectiveScale === 1 ? 'none' : `scale(${effectiveScale})`,
+        transformOrigin: 'top left',
+        color: 'var(--text, #fff)',
+        fontFamily: "'Outfit', 'Inter', sans-serif",
+        display: 'flex',
+        flexDirection: 'column',
+        padding: isFullScreen ? '10px 14px' : '16px 20px',
+        boxSizing: 'border-box',
+        overflow: 'hidden'
+      }}>
       
       {/* TOP NAVBAR */}
       <TumblingDashboardHeader
@@ -51,13 +108,17 @@ export default function TumblingDashboard() {
         autoScrollActive={autoScrollActive}
         setAutoScrollActive={setAutoScrollActive}
         shiftDeficits={shiftDeficits}
+        scaleMode={scaleMode}
+        effectiveScale={effectiveScale}
+        onCycleScale={cycleScaleMode}
       />
 
       {/* MAIN GRID SECTION */}
       <div style={{
         flex: 1,
+        minHeight: 0,
         display: 'grid',
-        gridTemplateColumns: '1.2fr 1fr 1fr',
+        gridTemplateColumns: 'minmax(0, 1.15fr) minmax(0, 1fr) minmax(0, 1fr)',
         gap: '16px',
         overflow: 'hidden'
       }}>
@@ -258,7 +319,20 @@ export default function TumblingDashboard() {
         .tumbling-waiting-timer-box, .tumbling-waiting-timer-box * {
           color: #0284c7 !important;
         }
+        .tumbling-badge-blue,
+        .tumbling-badge-gold,
+        .tumbling-badge-green,
+        .tumbling-badge-qty,
+        .tumbling-timer-box,
+        .tumbling-waiting-timer-box {
+          white-space: nowrap !important;
+        }
+        .tumbling-col-panel {
+          min-width: 0;
+          min-height: 0;
+        }
       `}</style>
+      </div>
     </div>
   )
 }
