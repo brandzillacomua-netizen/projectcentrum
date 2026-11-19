@@ -68,17 +68,17 @@ BEGIN
   -- Якщо не повний адмін, перевіряємо чи начальник цеху редагує/створює працівника свого цеху
   IF NOT v_is_admin THEN
     IF v_target_id IS NULL THEN
-      IF v_is_shop2_foreman AND v_payload_dept ~* 'цех\s*№?\s*2' THEN
+      IF v_is_shop2_foreman AND v_payload_dept ILIKE '%цех%2%' THEN
         v_can_manage_target := true;
-      ELSIF v_is_shop1_foreman AND v_payload_dept ~* 'цех\s*№?\s*1' THEN
+      ELSIF v_is_shop1_foreman AND v_payload_dept ILIKE '%цех%1%' THEN
         v_can_manage_target := true;
       END IF;
     ELSE
       SELECT department INTO v_target_record FROM public.system_users WHERE id = v_target_id;
       v_target_dept := COALESCE(v_target_record.department, '');
-      IF v_is_shop2_foreman AND v_target_dept ~* 'цех\s*№?\s*2' AND (v_payload_dept = '' OR v_payload_dept ~* 'цех\s*№?\s*2') THEN
+      IF v_is_shop2_foreman AND v_target_dept ILIKE '%цех%2%' AND (v_payload_dept = '' OR v_payload_dept ILIKE '%цех%2%') THEN
         v_can_manage_target := true;
-      ELSIF v_is_shop1_foreman AND v_target_dept ~* 'цех\s*№?\s*1' AND (v_payload_dept = '' OR v_payload_dept ~* 'цех\s*№?\s*1') THEN
+      ELSIF v_is_shop1_foreman AND v_target_dept ILIKE '%цех%1%' AND (v_payload_dept = '' OR v_payload_dept ILIKE '%цех%1%') THEN
         v_can_manage_target := true;
       END IF;
     END IF;
