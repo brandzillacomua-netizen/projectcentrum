@@ -1,5 +1,6 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { Search, X, RefreshCw, CheckCircle2, Clock, Archive, ChevronLeft, ChevronRight } from 'lucide-react'
+import { ArchiveTaskDetailModal } from './ArchiveTaskDetailModal'
 
 export const ArchiveReportView = ({
   filteredArchiveTasks = [],
@@ -15,6 +16,7 @@ export const ArchiveReportView = ({
   archiveTotalCount = 0,
   archiveTotalPages = 0
 }) => {
+  const [selectedArchiveTask, setSelectedArchiveTask] = useState(null)
   const statusLabel = { 'in-progress': 'В роботі', 'completed': 'Завершено', 'pending': 'Очікує', 'paused': 'Призупинено' }
   const statusColor = { 'in-progress': '#eab308', 'completed': '#10b981', 'pending': '#3b82f6', 'paused': '#6b7280' }
   const statusBg = { 'in-progress': 'rgba(234,179,8,0.12)', 'completed': 'rgba(16,185,129,0.12)', 'pending': 'rgba(59,130,246,0.12)', 'paused': 'rgba(107,114,128,0.12)' }
@@ -77,15 +79,15 @@ export const ArchiveReportView = ({
 
       {/* Table */}
       {archiveLoading ? (
-        <div style={{ textAlign: 'center', padding: '60px', color: '#71717a' }}>
+        <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-dim)' }}>
           <RefreshCw size={32} style={{ animation: 'spin 1s linear infinite', marginBottom: '16px', display: 'block', margin: '0 auto 16px', color: '#ff9000' }} />
           Завантаження архіву з сервера...
         </div>
       ) : (
-        <div style={{ overflowX: 'auto', borderRadius: '16px', border: '1px solid #1e1e1e', background: 'var(--surface-inset)' }}>
+        <div style={{ overflowX: 'auto', borderRadius: '16px', border: '1px solid var(--border-subtle)', background: 'var(--surface-1)' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
             <thead>
-              <tr style={{ background: 'var(--surface-1)', color: '#71717a', textAlign: 'left', borderBottom: '2px solid #1e1e1e' }}>
+              <tr style={{ background: 'var(--surface-2)', color: 'var(--text-dim)', textAlign: 'left', borderBottom: '2px solid var(--border-subtle)' }}>
                 <th style={{ padding: '16px 20px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', fontSize: '0.7rem' }}>#</th>
                 <th style={{ padding: '16px 20px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', fontSize: '0.7rem' }}>Замовлення</th>
                 <th style={{ padding: '16px 20px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', fontSize: '0.7rem' }}>Клієнт</th>
@@ -111,22 +113,24 @@ export const ArchiveReportView = ({
                 return (
                   <tr
                     key={task.id}
-                    style={{ borderBottom: '1px solid #111', transition: 'background 0.15s', background: 'transparent', cursor: 'default' }}
-                    onMouseEnter={e => e.currentTarget.style.background = '#111'}
+                    onClick={() => setSelectedArchiveTask(task)}
+                    style={{ borderBottom: '1px solid var(--border-subtle)', transition: 'background 0.15s', background: 'transparent', cursor: 'pointer' }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-2)'}
                     onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                    title="Натисніть, щоб переглянути деталі наряду та архів робочих карток"
                   >
-                    <td style={{ padding: '14px 20px', color: '#3f3f46', fontWeight: 700, fontSize: '0.75rem' }}>{rowNumber}</td>
+                    <td style={{ padding: '14px 20px', color: 'var(--text-dim)', fontWeight: 700, fontSize: '0.75rem' }}>{rowNumber}</td>
                     <td style={{ padding: '14px 20px' }}>
-                      <span style={{ fontWeight: 900, color: '#f4f4f5', fontSize: '0.95rem' }}>№ {order?.order_num || '—'}</span>
+                      <span style={{ fontWeight: 900, color: 'var(--text-strong)', fontSize: '0.95rem' }}>№ {order?.order_num || '—'}</span>
                     </td>
-                    <td style={{ padding: '14px 20px', color: '#a1a1aa', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {order?.customer || <span style={{ color: '#3f3f46' }}>—</span>}
+                    <td style={{ padding: '14px 20px', color: 'var(--text-muted)', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {order?.customer || <span style={{ color: 'var(--text-dim)' }}>—</span>}
                     </td>
-                    <td style={{ padding: '14px 20px', color: '#a1a1aa' }}>
-                      {task.step || <span style={{ color: '#3f3f46' }}>—</span>}
+                    <td style={{ padding: '14px 20px', color: 'var(--text-muted)' }}>
+                      {task.step || <span style={{ color: 'var(--text-dim)' }}>—</span>}
                     </td>
                     <td style={{ padding: '14px 20px', textAlign: 'center' }}>
-                      <span style={{ background: 'var(--surface-2)', color: '#a1a1aa', padding: '3px 10px', borderRadius: '6px', fontWeight: 700, fontSize: '0.8rem' }}>#{task.batch_index || '1'}</span>
+                      <span style={{ background: 'var(--surface-2)', color: 'var(--text-muted)', padding: '3px 10px', borderRadius: '6px', fontWeight: 700, fontSize: '0.8rem' }}>#{task.batch_index || '1'}</span>
                     </td>
                     <td style={{ padding: '14px 20px', textAlign: 'center' }}>
                       <span style={{ fontWeight: 900, color: '#ff9000' }}>{task.planned_sets || '—'}</span>
@@ -137,14 +141,14 @@ export const ArchiveReportView = ({
                         {label}
                       </span>
                     </td>
-                    <td style={{ padding: '14px 20px', color: '#71717a', fontSize: '0.8rem' }}>{createdDate}</td>
-                    <td style={{ padding: '14px 20px', color: status === 'completed' ? '#10b981' : '#3f3f46', fontSize: '0.8rem', fontWeight: status === 'completed' ? 700 : 400 }}>{completedDate}</td>
+                    <td style={{ padding: '14px 20px', color: 'var(--text-dim)', fontSize: '0.8rem' }}>{createdDate}</td>
+                    <td style={{ padding: '14px 20px', color: status === 'completed' ? '#10b981' : 'var(--text-dim)', fontSize: '0.8rem', fontWeight: status === 'completed' ? 700 : 400 }}>{completedDate}</td>
                   </tr>
                 )
               })}
               {filteredArchiveTasks.length === 0 && !archiveLoading && (
                 <tr>
-                  <td colSpan={9} style={{ padding: '60px', textAlign: 'center', color: '#3f3f46' }}>
+                  <td colSpan={9} style={{ padding: '60px', textAlign: 'center', color: 'var(--text-dim)' }}>
                     <Archive size={40} style={{ display: 'block', margin: '0 auto 16px', opacity: 0.3 }} />
                     Нарядів не знайдено за заданими критеріями
                   </td>
@@ -157,8 +161,8 @@ export const ArchiveReportView = ({
 
       {/* Modern Server Pagination Bar */}
       {archiveTotalPages > 1 && !archiveLoading && (
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 20px', background: 'var(--surface-inset)', borderRadius: '12px', border: '1px solid #1e1e1e', flexWrap: 'wrap', gap: '12px' }}>
-          <div style={{ fontSize: '0.8rem', color: '#71717a' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 20px', background: 'var(--surface-1)', borderRadius: '12px', border: '1px solid var(--border-subtle)', flexWrap: 'wrap', gap: '12px' }}>
+          <div style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>
             Показано <strong style={{ color: 'var(--text-strong)' }}>{startRecord}–{endRecord}</strong> із <strong style={{ color: 'var(--text-strong)' }}>{archiveTotalCount}</strong> нарядів
           </div>
 
@@ -168,9 +172,9 @@ export const ArchiveReportView = ({
               disabled={archivePage === 0 || archiveLoading}
               style={{
                 padding: '7px 14px',
-                background: archivePage === 0 ? '#121214' : '#1f1f23',
-                color: archivePage === 0 ? '#3f3f46' : '#fff',
-                border: '1px solid #27272a',
+                background: archivePage === 0 ? 'var(--surface-inset)' : 'var(--surface-2)',
+                color: archivePage === 0 ? 'var(--text-dim)' : 'var(--text-strong)',
+                border: '1px solid var(--border-subtle)',
                 borderRadius: '8px',
                 cursor: archivePage === 0 ? 'not-allowed' : 'pointer',
                 fontSize: '0.8rem',
@@ -183,7 +187,7 @@ export const ArchiveReportView = ({
               <ChevronLeft size={14} /> Попередня
             </button>
 
-            <span style={{ fontSize: '0.85rem', color: '#a1a1aa', fontWeight: 800, padding: '0 10px' }}>
+            <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 800, padding: '0 10px' }}>
               {archivePage + 1} / {archiveTotalPages}
             </span>
 
@@ -192,9 +196,9 @@ export const ArchiveReportView = ({
               disabled={archivePage >= archiveTotalPages - 1 || archiveLoading}
               style={{
                 padding: '7px 14px',
-                background: archivePage >= archiveTotalPages - 1 ? '#121214' : '#1f1f23',
-                color: archivePage >= archiveTotalPages - 1 ? '#3f3f46' : '#fff',
-                border: '1px solid #27272a',
+                background: archivePage >= archiveTotalPages - 1 ? 'var(--surface-inset)' : 'var(--surface-2)',
+                color: archivePage >= archiveTotalPages - 1 ? 'var(--text-dim)' : 'var(--text-strong)',
+                border: '1px solid var(--border-subtle)',
                 borderRadius: '8px',
                 cursor: archivePage >= archiveTotalPages - 1 ? 'not-allowed' : 'pointer',
                 fontSize: '0.8rem',
@@ -208,6 +212,13 @@ export const ArchiveReportView = ({
             </button>
           </div>
         </div>
+      )}
+
+      {selectedArchiveTask && (
+        <ArchiveTaskDetailModal
+          task={selectedArchiveTask}
+          onClose={() => setSelectedArchiveTask(null)}
+        />
       )}
     </div>
   )
