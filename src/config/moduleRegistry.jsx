@@ -21,7 +21,8 @@ import {
   Monitor,
   Tablet,
   AlertTriangle,
-  Scissors
+  Scissors,
+  Calendar
 } from 'lucide-react'
 import { IconSO, IconSV, IconSGP } from '../components/WarehouseIcons'
 
@@ -47,6 +48,7 @@ export const getAllModules = (badgeCount = 0, chatBadgeCount = 0) => [
   { id: 'economy', title: 'Економіка & Ціноутворення', icon: <DollarSign />, path: '/economy', desc: 'Прайс-листи, калькуляція собівартості, націнки та маржа', color: '#10b981', pillar: 'erp' },
   { id: 'packaging', title: 'Пакування & Комплектація', icon: <Package />, path: '/packaging', desc: 'Збирання готової продукції', color: '#10b981', pillar: 'erp' },
   { id: 'shipping', title: 'Логістика & Відвантаження', icon: <Truck />, path: '/shipping', desc: 'Відвантаження замовнику', color: '#10b981', pillar: 'erp' },
+  { id: 'shipping_calendar', title: 'Календар відвантажень', icon: <Calendar />, path: '/shipping-calendar', desc: 'Графік та дедлайни відвантажень замовлень', color: '#10b981', pillar: 'erp' },
   { id: 'director', title: 'Кабінет Директора', icon: <ShieldCheck size={24} />, path: '/director', desc: 'Фінальні погодження та моніторинг', color: '#10b981', pillar: 'erp' },
   { id: 'director_team', title: 'Аналітика команди (AI Директор)', icon: <Users size={24} />, path: '/director?tab=team', desc: 'AI-аудит, рейтинг та порівняння працівників', color: '#10b981', pillar: 'erp' },
   { id: 'analytics', title: 'Аналітика & KPI', icon: <TrendingUp />, path: '/analytics', desc: 'Статистика продуктивності та випуску', color: '#10b981', pillar: 'erp' },
@@ -136,6 +138,7 @@ export const CATEGORY_MAP = {
   economy: 'erp',
   packaging: 'erp',
   shipping: 'erp',
+  shipping_calendar: 'erp',
   director: 'erp',
   dashboard: 'erp',
   analytics: 'erp',

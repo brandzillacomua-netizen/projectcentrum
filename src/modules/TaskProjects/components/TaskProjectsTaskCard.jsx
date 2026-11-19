@@ -14,12 +14,24 @@ export const TaskProjectsTaskCard = ({
   const assignee = systemUsers.find(u => u.login === task.assigned_to)
   const checklist = asArray(task.checklist)
   const checklistDone = checklist.filter(i => i.done).length
-  const canDelete = isOwnerOrManager || task.created_by === currentUser?.login
+  const userLogin = currentUser?.login ? String(currentUser.login) : ''
+  const userId = currentUser?.id ? String(currentUser.id) : ''
+  const assigneesList = asArray(task.assignees).map(String)
+  const isAssignee = Boolean(
+    (userLogin && (String(task.assigned_to || '') === userLogin || assigneesList.includes(userLogin))) ||
+    (userId && (String(task.assigned_to || '') === userId || assigneesList.includes(userId)))
+  )
+  const isCreator = Boolean(
+    (userLogin && String(task.created_by || '') === userLogin) ||
+    (userId && String(task.created_by || '') === userId)
+  )
+  const canDrag = isOwnerOrManager || isCreator || isAssignee
+  const canDelete = isOwnerOrManager || isCreator
 
   return (
     <article
       className="tp-task"
-      draggable={isOwnerOrManager || task.created_by === currentUser?.login}
+      draggable={canDrag}
       onDragStart={e => e.dataTransfer.setData('taskId', task.id)}
       onClick={() => openTaskForm(task)}
       style={{ borderLeftColor: task.color || column.color, cursor: 'pointer' }}

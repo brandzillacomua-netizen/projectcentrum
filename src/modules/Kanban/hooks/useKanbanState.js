@@ -310,9 +310,22 @@ export function useKanbanState() {
   const handleDragOver = (e) => e.preventDefault()
   const handleDrop = async (e, newStatus) => {
     e.preventDefault()
-    if (!isManager) return
     const taskId = e.dataTransfer.getData('taskId')
-    if (taskId) await updateManagementTask(taskId, { status: newStatus })
+    if (!taskId) return
+    const targetTask = (managementTasks || []).find(t => String(t.id) === String(taskId))
+      || (completedTasks || []).find(t => String(t.id) === String(taskId))
+    if (targetTask && !canManageTask(targetTask)) return
+    if (!targetTask && !isManager) return
+
+    await updateManagementTask(taskId, { status: newStatus })
+    if (targetTask) {
+      const updatedTask = { ...targetTask, status: newStatus }
+      if (newStatus === 'done') {
+        setCompletedTasks(prev => [updatedTask, ...prev.filter(t => String(t.id) !== String(taskId))])
+      } else {
+        setCompletedTasks(prev => prev.filter(t => String(t.id) !== String(taskId)))
+      }
+    }
   }
 
   // ─── Open task detail ───────────────────────────────────────────────────

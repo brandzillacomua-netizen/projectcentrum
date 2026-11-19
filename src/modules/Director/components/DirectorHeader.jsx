@@ -10,7 +10,8 @@ export const DirectorHeader = ({
   setViewMode,
   setIsApprovalsOpen,
   pendingTasksCount,
-  totalPlannedSets
+  totalPlannedSets,
+  calendarOnly = false
 }) => {
   return (
     <div className="sticky-dashboard-header">
@@ -20,18 +21,29 @@ export const DirectorHeader = ({
             <ArrowLeft size={18} /> <span>НАЗАД</span>
           </Link>
           <div className="brand-group">
-            <LayoutDashboard className="text-orange" size={24} />
-            <h1>DIRECTOR <span className="text-dim">DASHBOARD</span></h1>
+            {calendarOnly ? (
+              <>
+                <Calendar className="text-orange" size={24} />
+                <h1>КАЛЕНДАР <span className="text-dim">ВІДВАНТАЖЕНЬ</span></h1>
+              </>
+            ) : (
+              <>
+                <LayoutDashboard className="text-orange" size={24} />
+                <h1>DIRECTOR <span className="text-dim">DASHBOARD</span></h1>
+              </>
+            )}
           </div>
         </div>
 
-        <div className="nav-right">
-          <button className="btn-notifications" style={{ position: 'relative' }} onClick={() => setIsApprovalsOpen(true)}>
-            <Bell size={20} />
-            {pendingTasksCount > 0 && <span className="badge-count anim-pulse">{pendingTasksCount}</span>}
-            <span className="btn-label">ПІДТВЕРДЖЕННЯ</span>
-          </button>
-        </div>
+        {!calendarOnly && (
+          <div className="nav-right">
+            <button className="btn-notifications" style={{ position: 'relative' }} onClick={() => setIsApprovalsOpen(true)}>
+              <Bell size={20} />
+              {pendingTasksCount > 0 && <span className="badge-count anim-pulse">{pendingTasksCount}</span>}
+              <span className="btn-label">ПІДТВЕРДЖЕННЯ</span>
+            </button>
+          </div>
+        )}
       </nav>
 
       <div className="strategic-header">
@@ -46,34 +58,36 @@ export const DirectorHeader = ({
         </div>
 
         <div className="header-meta-actions">
-          <div className="gcal-view-toggle-group">
-            <button
-              className={`gcal-toggle-btn ${viewMode === 'calendar' ? 'active' : ''}`}
-              onClick={() => setViewMode('calendar')}
-            >
-              <Calendar size={15} /> <span>КАЛЕНДАР</span>
-            </button>
-            <button
-              className={`gcal-toggle-btn ${viewMode === 'matrix' ? 'active' : ''}`}
-              onClick={() => setViewMode('matrix')}
-            >
-              <Layers size={15} /> <span>МАТРИЦЯ</span>
-            </button>
-            <button
-              className={`gcal-toggle-btn ${viewMode === 'calculator' ? 'active' : ''}`}
-              onClick={() => setViewMode('calculator')}
-              title="Калькулятор готових виробів та розрахунок матеріалів"
-            >
-              <Calculator size={15} /> <span>КАЛЬКУЛЯТОР</span>
-            </button>
-            <button
-              className={`gcal-toggle-btn ${viewMode === 'team' ? 'active' : ''}`}
-              onClick={() => setViewMode('team')}
-              title="CENTRUM AI — інтелектуальний аналіз команди, виробництва та показників"
-            >
-              <Sparkles size={15} className="text-amber-400" /> <span>CENTRUM AI</span>
-            </button>
-          </div>
+          {!calendarOnly && (
+            <div className="gcal-view-toggle-group">
+              <button
+                className={`gcal-toggle-btn ${viewMode === 'calendar' ? 'active' : ''}`}
+                onClick={() => setViewMode('calendar')}
+              >
+                <Calendar size={15} /> <span>КАЛЕНДАР</span>
+              </button>
+              <button
+                className={`gcal-toggle-btn ${viewMode === 'matrix' ? 'active' : ''}`}
+                onClick={() => setViewMode('matrix')}
+              >
+                <Layers size={15} /> <span>МАТРИЦЯ</span>
+              </button>
+              <button
+                className={`gcal-toggle-btn ${viewMode === 'calculator' ? 'active' : ''}`}
+                onClick={() => setViewMode('calculator')}
+                title="Калькулятор готових виробів та розрахунок матеріалів"
+              >
+                <Calculator size={15} /> <span>КАЛЬКУЛЯТОР</span>
+              </button>
+              <button
+                className={`gcal-toggle-btn ${viewMode === 'team' ? 'active' : ''}`}
+                onClick={() => setViewMode('team')}
+                title="CENTRUM AI — інтелектуальний аналіз команди, виробництва та показників"
+              >
+                <Sparkles size={15} className="text-amber-400" /> <span>CENTRUM AI</span>
+              </button>
+            </div>
+          )}
 
           <div className="header-meta-subrow">
             <button onClick={() => setViewDate(new Date())} className="btn-jump-today">

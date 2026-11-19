@@ -33,7 +33,11 @@ export const TaskProjectsBoard = ({
             className="tp-column"
             key={column.id}
             onDragOver={e => e.preventDefault()}
-            onDrop={e => updateManagementTask(e.dataTransfer.getData('taskId'), { status: column.id })}
+            onDrop={e => {
+              e.preventDefault()
+              const draggedId = e.dataTransfer.getData('taskId')
+              if (draggedId) updateManagementTask(draggedId, { status: column.id })
+            }}
           >
             <div className="tp-column-head">
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>

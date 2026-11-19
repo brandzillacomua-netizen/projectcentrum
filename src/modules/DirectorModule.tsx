@@ -52,7 +52,7 @@ const toLocalISO = (dateVal: string | number | Date | null | undefined): string 
   } catch { return null }
 }
 
-export const DirectorModule: React.FC = () => {
+export const DirectorModule: React.FC<{ calendarOnly?: boolean }> = ({ calendarOnly = false }) => {
   const { approveDirector, supabase } = useMES()
   const tasks = useStore((state: any) => state.tasks)
   const orders = useStore((state: any) => state.orders)
@@ -499,6 +499,8 @@ export const DirectorModule: React.FC = () => {
     )
   }, [matrixData])
 
+  const effectiveViewMode = calendarOnly ? 'calendar' : viewMode
+
   return (
     <div className="director-console">
       {/* HEADER SECTION */}
@@ -506,22 +508,23 @@ export const DirectorModule: React.FC = () => {
         viewDate={viewDate}
         changeMonth={changeMonth}
         setViewDate={setViewDate}
-        viewMode={viewMode}
+        viewMode={effectiveViewMode}
         setViewMode={setViewMode}
         setIsApprovalsOpen={setIsApprovalsOpen}
         pendingTasksCount={pendingTasks.length}
         totalPlannedSets={totalPlannedSets}
+        calendarOnly={calendarOnly}
       />
 
       <main className="dashboard-body">
-        {viewMode === 'calendar' ? (
+        {effectiveViewMode === 'calendar' ? (
           <GoogleCalendarView
             calendarGridDays={calendarGridDays}
             calendarEventsByDate={calendarEventsByDate}
             setSelectedCell={setSelectedCell}
             setSelectedOrderId={setSelectedOrderId}
           />
-        ) : viewMode === 'matrix' ? (
+        ) : effectiveViewMode === 'matrix' ? (
           <ProductionMatrixView
             activeProducts={activeProducts}
             daysInMonth={daysInMonth}
@@ -531,7 +534,7 @@ export const DirectorModule: React.FC = () => {
             setSelectedCell={setSelectedCell}
             setSelectedOrderId={setSelectedOrderId}
           />
-        ) : viewMode === 'calculator' ? (
+        ) : effectiveViewMode === 'calculator' ? (
           <DirectorProductCalculator onBack={() => setViewMode('calendar')} />
         ) : (
           <DirectorTeamAnalytics onBack={() => setViewMode('calendar')} />
@@ -539,15 +542,17 @@ export const DirectorModule: React.FC = () => {
       </main>
 
       {/* APPROVALS DRAWER */}
-      <ApprovalsDrawer
-        isOpen={isApprovalsOpen}
-        onClose={() => setIsApprovalsOpen(false)}
-        pendingTasks={pendingTasks}
-        orders={orders}
-        allOrdersMap={allOrdersMap}
-        nomenclatures={nomenclatures}
-        approveDirector={approveDirector}
-      />
+      {!calendarOnly && (
+        <ApprovalsDrawer
+          isOpen={isApprovalsOpen}
+          onClose={() => setIsApprovalsOpen(false)}
+          pendingTasks={pendingTasks}
+          orders={orders}
+          allOrdersMap={allOrdersMap}
+          nomenclatures={nomenclatures}
+          approveDirector={approveDirector}
+        />
+      )}
 
       {/* CELL DETAILS & DOSSIER MODAL */}
       <OrderDossierModal

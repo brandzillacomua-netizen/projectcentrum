@@ -911,6 +911,7 @@ const AppContent = () => {
           <Route path="/engineer" element={<PermissionGuard id="engineer"><EngineerModule /></PermissionGuard>} />
           <Route path="/engineer-v2" element={<PermissionGuard id="engineer_v2"><EngineerV2Module /></PermissionGuard>} />
           <Route path="/director" element={<PermissionGuard id="director"><DirectorModule /></PermissionGuard>} />
+          <Route path="/shipping-calendar" element={<PermissionGuard id="shipping_calendar"><DirectorModule calendarOnly={true} /></PermissionGuard>} />
           <Route path="/shipping" element={<PermissionGuard id="shipping"><ShippingModule /></PermissionGuard>} />
           <Route path="/supply" element={<PermissionGuard id="supply"><SupplyModule /></PermissionGuard>} />
           <Route path="/nomenclature" element={<PermissionGuard id="nomenclature"><NomenclatureModule /></PermissionGuard>} />
