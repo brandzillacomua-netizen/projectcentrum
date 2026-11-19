@@ -1,5 +1,5 @@
 import React from 'react'
-import { Layers, Sparkles, Calendar } from 'lucide-react'
+import { Layers, Calendar } from 'lucide-react'
 
 export function TumblingKitsColumn({
   col1Ref,
@@ -29,7 +29,6 @@ export function TumblingKitsColumn({
         <h2 style={{ fontSize: '1rem', fontWeight: 950, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#ff9000', margin: 0 }}>
           Комплектність нарядів {totalPages > 1 ? `(${orderPage + 1}/${totalPages})` : ''}
         </h2>
-        <Sparkles size={18} color="#ff9000" />
       </div>
 
       <div ref={col1Ref} style={{

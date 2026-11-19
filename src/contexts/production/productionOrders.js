@@ -764,8 +764,11 @@ export function createProductionOrdersActions({
           console.error('[DOVYPUSK_INSERT_ERR]', insertErr)
           throw insertErr
         }
-        if (typeof refreshTable === 'function') refreshTable('material_requests')
-        if (typeof fetchData === 'function') fetchData(['material_requests'])
+        if (typeof fetchData === 'function') {
+          fetchData(['material_requests']).catch(() => {})
+        } else if (typeof refreshTable === 'function') {
+          refreshTable('material_requests')
+        }
       }
     } catch (err) {
       console.error('Error creating dovypusk material requests:', err)

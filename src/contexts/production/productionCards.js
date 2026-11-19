@@ -122,11 +122,11 @@ export function createProductionCardsActions({
           .eq('id', taskId)
         if (taskStatusError) console.warn('Failed to update task status:', taskStatusError.message)
         setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: 'in-progress' } : t))
-        await Promise.all([
+        Promise.all([
           refreshTable('work_cards'),
           refreshTable('material_requests'),
           refreshTable('tasks')
-        ])
+        ]).catch(() => {})
         return data
       }
       
@@ -291,11 +291,11 @@ export function createProductionCardsActions({
     if (taskStatusError) console.warn('Failed to update task status:', taskStatusError.message)
     setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: 'in-progress' } : t))
 
-    await Promise.all([
+    Promise.all([
       refreshTable('work_cards'),
       refreshTable('material_requests'),
       refreshTable('tasks')
-    ])
+    ]).catch(() => {})
 
     return data
   }

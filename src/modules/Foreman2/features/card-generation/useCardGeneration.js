@@ -65,6 +65,7 @@ export function useCardGeneration({ mes, onDataChanged }) {
       }
     }
 
+    let persistCuttersPromise = null
     // Persist selectedCutters to task plan_snapshot if provided
     if (selectedCutters && Object.keys(selectedCutters).length > 0) {
       try {
@@ -80,7 +81,7 @@ export function useCardGeneration({ mes, onDataChanged }) {
           }
         }
         task.plan_snapshot = updatedSnap
-        await supabase.from('tasks').update({ plan_snapshot: updatedSnap }).eq('id', task.id)
+        persistCuttersPromise = supabase.from('tasks').update({ plan_snapshot: updatedSnap }).eq('id', task.id)
       } catch (snapErr) {
         console.warn('[CARD_GEN] Could not persist selectedCutters to task plan_snapshot:', snapErr)
       }
@@ -112,7 +113,7 @@ export function useCardGeneration({ mes, onDataChanged }) {
       try {
         const { data, error } = await supabase
           .from('work_cards')
-          .select('*')
+          .select('id,task_id,nomenclature_id,card_info,quantity,status,is_rework,machine')
           .eq('task_id', task.id)
           .eq('nomenclature_id', nomId)
         if (!error && data) {
@@ -124,6 +125,14 @@ export function useCardGeneration({ mes, onDataChanged }) {
         }
       } catch (err) {
         console.error("Error fetching existing work cards:", err)
+      }
+    }
+
+    if (persistCuttersPromise) {
+      try {
+        await persistCuttersPromise
+      } catch (snapErr) {
+        console.warn('[CARD_GEN] Could not persist selectedCutters to task plan_snapshot:', snapErr)
       }
     }
 
@@ -346,7 +355,7 @@ export function useCardGeneration({ mes, onDataChanged }) {
         setIsGenerating(false)
         setGenModalConfig(null)
         generatingLockRef.current = false
-      }, 500)
+      }, 0)
     }
   }
 
