@@ -75,7 +75,9 @@ export function useRubberCuttingTerminal() {
   }, [systemUsers, selectedShift]);
 
   const allStageOperators = useMemo(() => {
-    return selectFilteredOperatorNames(systemUsers, 'Цех №2', 'all', 'порізка гуми');
+    return selectFilteredOperatorNames(systemUsers, 'Цех №2', 'all', null, {
+      onlyOnShiftDate: getTodayCalendarKey()
+    });
   }, [systemUsers]);
 
   // Load catalog and stock
