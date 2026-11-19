@@ -149,45 +149,49 @@ export function CuttingActiveCard({
             Кількість листів у розкрій
           </span>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <button
-              onClick={() => setSheetsCount(prev => Math.max(1, prev - 1))}
-              style={{
-                background: 'var(--button-bg, rgba(255,255,255,0.08))',
-                border: '1px solid var(--border-color, rgba(255,255,255,0.08))',
-                color: 'var(--text, #fff)',
-                width: 34,
-                height: 34,
-                borderRadius: '8px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
-            >
-              <Minus size={16} />
-            </button>
+            {!activeBatch && (
+              <button
+                onClick={() => setSheetsCount(prev => Math.max(1, prev - 1))}
+                style={{
+                  background: 'var(--button-bg, rgba(255,255,255,0.08))',
+                  border: '1px solid var(--border-color, rgba(255,255,255,0.08))',
+                  color: 'var(--text, #fff)',
+                  width: 34,
+                  height: 34,
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                <Minus size={16} />
+              </button>
+            )}
 
             <span style={{ fontSize: '1.4rem', fontWeight: 950, color: 'var(--text, #fff)', minWidth: '40px', textAlign: 'center' }}>
-              {sheetsCount}
+              {sheetsCount} {activeBatch ? 'лист.' : ''}
             </span>
 
-            <button
-              onClick={() => setSheetsCount(prev => prev + 1)}
-              style={{
-                background: 'var(--button-bg, rgba(255,255,255,0.08))',
-                border: '1px solid var(--border-color, rgba(255,255,255,0.08))',
-                color: 'var(--text, #fff)',
-                width: 34,
-                height: 34,
-                borderRadius: '8px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
-            >
-              <Plus size={16} />
-            </button>
+            {!activeBatch && (
+              <button
+                onClick={() => setSheetsCount(prev => prev + 1)}
+                style={{
+                  background: 'var(--button-bg, rgba(255,255,255,0.08))',
+                  border: '1px solid var(--border-color, rgba(255,255,255,0.08))',
+                  color: 'var(--text, #fff)',
+                  width: 34,
+                  height: 34,
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                <Plus size={16} />
+              </button>
+            )}
           </div>
 
           <span style={{ fontSize: '0.75rem', color: '#10b981', fontWeight: 900 }}>
