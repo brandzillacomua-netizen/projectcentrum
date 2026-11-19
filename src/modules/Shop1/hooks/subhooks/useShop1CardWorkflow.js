@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import {
   stripCuttersBreakdown,
   CHAIN,
@@ -82,6 +82,7 @@ export function useShop1CardWorkflow({
     setShowQCModal,
     showAlert
   } = modals;
+  const [maintenanceDecisionModal, setMaintenanceDecisionModal] = useState(null);
 
   const updateInventoryStock = async (nomId, qty, type = 'semi') => {
     if (!nomId || qty <= 0) return { error: null };
@@ -633,7 +634,7 @@ export function useShop1CardWorkflow({
     }
   };
 
-  const handleStart = async () => {
+  const handleStart = async (options = {}) => {
     if (!currentCard || !selectedOperator || !selectedShift) return;
     if (inFlightRef.current) return;
     inFlightRef.current = true;
@@ -705,12 +706,21 @@ export function useShop1CardWorkflow({
         });
         resolvedMachineId = matchedMachineObj?.id || null;
 
-        if (maintenanceCheckEnabled && matchedMachineObj && (matchedMachineObj.status === 'maintenance_required' || matchedMachineObj.status === 'under_maintenance')) {
+        if (maintenanceCheckEnabled && matchedMachineObj && (matchedMachineObj.status === 'under_maintenance' || matchedMachineObj.status === 'repair')) {
           setIsProcessing(false);
           showAlert(
-            `Верстат "${targetMachine}" заблоковано! Очікується проведення технологічного ремонту (очистка стола).\n\nБудь ласка, проведіть чистку стола в розділі Станки або оберіть інший верстат.`,
-            `⚠️ Помилка: Верстат заблоковано!`
+            `Верстат "${targetMachine}" зараз знаходиться на ремонті / обслуговуванні.\n\nБудь ласка, завершіть ТО в розділі Станки або оберіть інший верстат.`,
+            `⚠️ Помилка: Верстат на ремонті!`
           );
+          return;
+        }
+
+        if (maintenanceCheckEnabled && matchedMachineObj && matchedMachineObj.status === 'maintenance_required' && !options?.bypassMaintenancePrompt) {
+          setIsProcessing(false);
+          setMaintenanceDecisionModal({
+            machine: matchedMachineObj,
+            targetMachine
+          });
           return;
         }
 
@@ -1826,7 +1836,120 @@ export function useShop1CardWorkflow({
     }
   };
 
+  const handleContinueMachineFiveMore = async () => {
+    const target = maintenanceDecisionModal;
+    if (!target?.machine?.id) return;
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
+    setIsProcessing(true);
+    try {
+      const nowISO = new Date().toISOString();
+      const { error: machError } = await supabase
+        .from('machines')
+        .update({
+          status: 'working',
+          completed_cards_count_since_maintenance: 0,
+          maintenance_pending_since: null
+        })
+        .eq('id', target.machine.id);
+      if (machError) throw machError;
+
+      await supabase
+        .from('machine_maintenance_logs')
+        .update({
+          status: 'skipped',
+          completed_at: nowISO,
+          performed_by: '[TYPE:Продовжено ще на 5 завантажень]'
+        })
+        .eq('machine_id', target.machine.id)
+        .eq('status', 'pending');
+
+      setMaintenanceDecisionModal(null);
+      inFlightRef.current = false;
+      setIsProcessing(false);
+      await fetchData(['machines']).catch(() => {});
+      await handleStart({ bypassMaintenancePrompt: true });
+    } catch (err) {
+      console.error('Continue machine 5 more error:', err);
+      showAlert(`Не вдалося продовжити роботу верстата: ${err.message}`, '❌ Помилка');
+      inFlightRef.current = false;
+      setIsProcessing(false);
+    }
+  };
+
+  const handleStartMachineRepairFromTerminal = async () => {
+    const target = maintenanceDecisionModal;
+    if (!target?.machine?.id) return;
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
+    setIsProcessing(true);
+    try {
+      const nowISO = new Date().toISOString();
+      const { error: machError } = await supabase
+        .from('machines')
+        .update({
+          status: 'under_maintenance',
+          maintenance_started_at: nowISO
+        })
+        .eq('id', target.machine.id);
+      if (machError) throw machError;
+
+      const { data: pendingLogs } = await supabase
+        .from('machine_maintenance_logs')
+        .select('id, triggered_at')
+        .eq('machine_id', target.machine.id)
+        .eq('status', 'pending')
+        .order('triggered_at', { ascending: false })
+        .limit(1);
+
+      const pendingLog = pendingLogs?.[0];
+      const responseSeconds = pendingLog?.triggered_at
+        ? Math.max(0, Math.floor((new Date(nowISO) - new Date(pendingLog.triggered_at)) / 1000))
+        : 0;
+      const logPayload = {
+        status: 'in_progress',
+        started_at: nowISO,
+        response_duration_seconds: responseSeconds,
+        performed_by: '[TYPE:Очищення робочої поверхні (після 5 завантажень)]'
+      };
+
+      if (pendingLog?.id) {
+        const { error: logErr } = await supabase
+          .from('machine_maintenance_logs')
+          .update(logPayload)
+          .eq('id', pendingLog.id);
+        if (logErr) throw logErr;
+      } else {
+        const { error: logErr } = await supabase
+          .from('machine_maintenance_logs')
+          .insert([{
+            machine_id: target.machine.id,
+            triggered_at: nowISO,
+            ...logPayload
+          }]);
+        if (logErr) throw logErr;
+      }
+
+      setMaintenanceDecisionModal(null);
+      await fetchData(['machines']).catch(() => {});
+      showAlert(
+        `Верстат "${target.targetMachine}" поставлено на ремонт (ТО розпочато).\n\nДля запуску цієї картки оберіть інший вільний верстат або дочекайтесь завершення ремонту.`,
+        '🔧 Ремонт верстата розпочато'
+      );
+    } catch (err) {
+      console.error('Start machine repair error:', err);
+      showAlert(`Не вдалося поставити верстат на ремонт: ${err.message}`, '❌ Помилка');
+    } finally {
+      inFlightRef.current = false;
+      setIsProcessing(false);
+    }
+  };
+
   return {
+    maintenanceDecisionModal,
+    setMaintenanceDecisionModal,
+    handleContinueMachineFiveMore,
+    handleStartMachineRepairFromTerminal,
     handleStart,
     handleShiftChange,
     handlePauseCard,

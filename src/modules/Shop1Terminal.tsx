@@ -427,6 +427,74 @@ export const Shop1Terminal: React.FC = () => {
         callQCs={callQCs}
       />
 
+      {/* Machine 5-loadings Maintenance Decision Modal */}
+      {s.maintenanceDecisionModal && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 99998, padding: '20px', animation: 'fadeIn 0.2s ease-out'
+        }}>
+          <div style={{
+            background: 'var(--surface-2)', border: '1px solid var(--border-subtle)',
+            borderRadius: '24px', padding: '28px 24px', width: '100%', maxWidth: '460px',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.5)', textAlign: 'center'
+          }}>
+            <div style={{ fontSize: '2.4rem', marginBottom: '12px' }}>⚠️</div>
+            <h3 style={{ margin: '0 0 10px', fontSize: '1.15rem', fontWeight: 900, color: 'var(--text-strong)' }}>
+              Верстат потребує ТО (5 завантажень)
+            </h3>
+            <p style={{
+              margin: '0 0 22px', fontSize: '0.9rem', color: 'var(--text-muted, #a1a1aa)',
+              lineHeight: 1.5
+            }}>
+              Верстат <strong>{s.maintenanceDecisionModal.targetMachine}</strong> відпрацював 5 завантажень після останнього обслуговування. Оберіть подальшу дію:
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <button
+                type="button"
+                disabled={isProcessing}
+                onClick={s.handleContinueMachineFiveMore}
+                style={{
+                  width: '100%', padding: '13px 16px', borderRadius: '12px', border: 'none',
+                  background: 'linear-gradient(135deg, #10b981, #059669)', color: '#fff',
+                  fontWeight: 800, fontSize: '0.92rem', cursor: isProcessing ? 'not-allowed' : 'pointer',
+                  opacity: isProcessing ? 0.65 : 1
+                }}
+              >
+                🔄 Продовжити роботу ще на 5 завантажень
+              </button>
+              <button
+                type="button"
+                disabled={isProcessing}
+                onClick={s.handleStartMachineRepairFromTerminal}
+                style={{
+                  width: '100%', padding: '13px 16px', borderRadius: '12px', border: 'none',
+                  background: 'linear-gradient(135deg, #f59e0b, #d97706)', color: '#fff',
+                  fontWeight: 800, fontSize: '0.92rem', cursor: isProcessing ? 'not-allowed' : 'pointer',
+                  opacity: isProcessing ? 0.65 : 1
+                }}
+              >
+                🔧 Поставити на ремонт і почати ремонт
+              </button>
+              <button
+                type="button"
+                disabled={isProcessing}
+                onClick={() => s.setMaintenanceDecisionModal(null)}
+                style={{
+                  width: '100%', padding: '11px 16px', borderRadius: '12px',
+                  border: '1px solid var(--border-subtle)', background: 'transparent',
+                  color: 'var(--text-muted, #a1a1aa)', fontWeight: 700, fontSize: '0.88rem',
+                  cursor: isProcessing ? 'not-allowed' : 'pointer'
+                }}
+              >
+                Скасувати
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Alert modal */}
       {customAlert && (
         <div style={{
