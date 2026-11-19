@@ -75,11 +75,17 @@ export function useTumblingDashboardData() {
 
   // Process active orders and compute component kit completion & bottleneck priority
   const orderKits = useMemo(() => {
+    const CLOSED_ORDER_STATUSES = new Set(['shipped', 'completed', 'cancelled', 'deleted', 'archived'])
     const activeOrderIds = new Set((workCards || []).map(c => c.order_id).filter(Boolean))
     
-    return Array.from(activeOrderIds).map(orderId => {
+    const kits = Array.from(activeOrderIds).map(orderId => {
       const order = (orders || []).find(o => String(o.id) === String(orderId))
-      if (!order) return null
+      if (!order || CLOSED_ORDER_STATUSES.has(order.status)) return null
+
+      const orderTasks = (tasks || []).filter(t => String(t.order_id) === String(orderId))
+      if (orderTasks.length > 0 && orderTasks.every(t => t.plan_snapshot?._metadata?.is_shipped === true || t.plan_snapshot?._metadata?.is_shipped === 'true')) {
+        return null
+      }
 
       const targetQty = Number(order.quantity) || 1000
       const parentNom = getNom(order.nomenclature_id)
@@ -210,17 +216,24 @@ export function useTumblingDashboardData() {
       }
     }).filter(kit => {
       if (!kit) return false
-      // Exclude orders where ALL components have reached 100% completion (kitRatio >= 1.0)
-      const allComponentsComplete = kit.components.length > 0 && kit.components.every(c => c.kitRatio >= 1.0)
-      if (allComponentsComplete) return false
-
-      const hasIncompleteComp = kit.components.some(c => c.kitRatio < 1.0)
       const hasCardsInTumbling = (workCards || []).some(c =>
         String(c.order_id) === String(kit.orderId) &&
         c.status !== 'completed' && c.status !== 'scrap' && c.status !== 'archived' &&
         (c.operation === 'Розкрій' || c.operation?.startsWith('Галтовка'))
       )
-      return hasIncompleteComp || hasCardsInTumbling
+      if (hasCardsInTumbling) return true
+
+      // Exclude orders where ALL components have reached 100% completion (kitRatio >= 1.0)
+      const allComponentsComplete = kit.components.length > 0 && kit.components.every(c => c.kitRatio >= 1.0)
+      if (allComponentsComplete) return false
+
+      return kit.components.some(c => c.kitRatio < 1.0)
+    })
+
+    return kits.sort((a, b) => {
+      const timeA = a.deadlineDate ? a.deadlineDate.getTime() : Number.MAX_SAFE_INTEGER
+      const timeB = b.deadlineDate ? b.deadlineDate.getTime() : Number.MAX_SAFE_INTEGER
+      return timeA - timeB
     })
   }, [workCards, orders, bomItems, tasks, nomenclatures, workCardHistory])
 
