@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { PackageCheck, CheckCircle2, Clock, Scissors, ArrowRight } from 'lucide-react'
+import { PackageCheck, CheckCircle2, Clock, Scissors, ArrowRight, Pencil, Check } from 'lucide-react'
 import { supabase } from '../../../supabase'
 
 export function SgpReceptionPanel({
@@ -11,7 +11,12 @@ export function SgpReceptionPanel({
   t
 }) {
   const [actualQuantities, setActualQuantities] = useState({})
+  const [editingKeys, setEditingKeys] = useState({})
   const [processingId, setProcessingId] = useState(null)
+
+  const posLower = String(currentUser?.position || '').toLowerCase()
+  const roleLower = String(currentUser?.role || '').toLowerCase()
+  const isAdmin = posLower.includes('адмін') || roleLower === 'admin' || currentUser?.login === 'admin@workshop.local'
 
   if (!docs || docs.length === 0) return null
 
@@ -21,6 +26,7 @@ export function SgpReceptionPanel({
   }
 
   const handleQtyChange = (docId, idx, val) => {
+    if (!isAdmin) return
     setActualQuantities(prev => ({ ...prev, [`${docId}-${idx}`]: val }))
   }
 
@@ -31,7 +37,7 @@ export function SgpReceptionPanel({
       const docItems = Array.isArray(doc.items) ? doc.items : []
       const actualItems = docItems.map((item, idx) => {
         const expected = Number(item.expected_qty ?? item.qty ?? 0)
-        const rawInput = actualQuantities[`${doc.id}-${idx}`]
+        const rawInput = isAdmin ? actualQuantities[`${doc.id}-${idx}`] : undefined
         const parsed = rawInput !== undefined ? Math.max(0, parseInt(rawInput, 10) || 0) : expected
         return {
           index: idx,
@@ -199,27 +205,87 @@ export function SgpReceptionPanel({
                           Очікується: {expected} {item.unit || 'шт'}
                         </span>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <input
-                            type="number"
-                            min="0"
-                            value={getQtyValue(doc.id, idx, expected)}
-                            onChange={e => handleQtyChange(doc.id, idx, e.target.value)}
-                            style={{
-                              width: '78px',
-                              padding: '6px 8px',
-                              borderRadius: '8px',
-                              border: `1.5px solid ${t.inputBorder}`,
-                              background: t.inputBg,
-                              color: t.textPrimary,
-                              fontWeight: 900,
-                              fontSize: '0.88rem',
-                              textAlign: 'center',
-                              outline: 'none'
-                            }}
-                          />
-                          <span style={{ fontSize: '0.75rem', fontWeight: 800, color: t.textSecondary }}>
-                            {item.unit || 'шт'}
-                          </span>
+                          {isAdmin && editingKeys[`${doc.id}-${idx}`] ? (
+                            <>
+                              <input
+                                type="number"
+                                min="0"
+                                autoFocus
+                                value={getQtyValue(doc.id, idx, expected)}
+                                onChange={e => handleQtyChange(doc.id, idx, e.target.value)}
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter' || e.key === 'Escape') {
+                                    setEditingKeys(prev => ({ ...prev, [`${doc.id}-${idx}`]: false }))
+                                  }
+                                }}
+                                style={{
+                                  width: '78px',
+                                  padding: '5px 8px',
+                                  borderRadius: '8px',
+                                  border: '1.5px solid #10b981',
+                                  background: t.inputBg,
+                                  color: t.textPrimary,
+                                  fontWeight: 900,
+                                  fontSize: '0.88rem',
+                                  textAlign: 'center',
+                                  outline: 'none'
+                                }}
+                              />
+                              <span style={{ fontSize: '0.75rem', fontWeight: 800, color: t.textSecondary }}>
+                                {item.unit || 'шт'}
+                              </span>
+                              <button
+                                type="button"
+                                title="Готово"
+                                onClick={() => setEditingKeys(prev => ({ ...prev, [`${doc.id}-${idx}`]: false }))}
+                                style={{
+                                  background: 'rgba(16, 185, 129, 0.16)',
+                                  border: '1px solid rgba(16, 185, 129, 0.4)',
+                                  color: '#10b981',
+                                  borderRadius: '6px',
+                                  width: '26px',
+                                  height: '26px',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                <Check size={13} />
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <span style={{
+                                fontWeight: 950,
+                                fontSize: '1.05rem',
+                                color: t.textPrimary
+                              }}>
+                                {isAdmin ? getQtyValue(doc.id, idx, expected) : expected} {item.unit || 'шт'}
+                              </span>
+                              {isAdmin && (
+                                <button
+                                  type="button"
+                                  title="Редагувати кількість (тільки адмін)"
+                                  onClick={() => setEditingKeys(prev => ({ ...prev, [`${doc.id}-${idx}`]: true }))}
+                                  style={{
+                                    background: isDark ? 'rgba(255,255,255,0.06)' : '#e2e8f0',
+                                    border: `1px solid ${t.tableBorder}`,
+                                    color: t.textMuted,
+                                    borderRadius: '6px',
+                                    width: '26px',
+                                    height: '26px',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  <Pencil size={12} />
+                                </button>
+                              )}
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>
