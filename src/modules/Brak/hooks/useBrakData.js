@@ -649,12 +649,12 @@ export function useBrakData() {
       })
 
       if (!foundCard) {
-        const { data, error } = await supabase
-          .from('work_cards')
-          .select('*')
-          .ilike('id', `%${cardNumber}%`)
-          .limit(1)
-          .maybeSingle()
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cardNumber)
+        let query = supabase.from('work_cards').select('*')
+        query = isUuid
+          ? query.eq('id', cardNumber)
+          : query.ilike('card_info', `%${cardNumber}%`)
+        const { data, error } = await query.limit(1).maybeSingle()
         if (error && error.code !== 'PGRST116') throw error
         foundCard = data
       }

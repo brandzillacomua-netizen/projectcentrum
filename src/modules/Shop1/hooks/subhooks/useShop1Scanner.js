@@ -97,22 +97,23 @@ export function useShop1Scanner({
     if (!card) {
       setIsSyncing(true);
       try {
-        const { data: freshCards } = await supabase
-          .from('work_cards')
-          .select('*')
-          .ilike('id', `%${hexSuffix}`)
-          .limit(10);
-
-        if (freshCards && freshCards.length > 0) {
-          card = freshCards[0];
-        } else {
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(clean);
+        if (isUuid) {
           const { data: directCard } = await supabase
             .from('work_cards')
             .select('*')
             .eq('id', clean)
             .maybeSingle();
-
           if (directCard) card = directCard;
+        } else if (hexSuffix && !/^https?:\/\//i.test(clean)) {
+          const { data: freshCards } = await supabase
+            .from('work_cards')
+            .select('*')
+            .ilike('card_info', `%${hexSuffix}%`)
+            .limit(10);
+          if (freshCards && freshCards.length > 0) {
+            card = freshCards[0];
+          }
         }
       } catch (err) {
         console.error('Error fetching scanned card from Supabase:', err);
