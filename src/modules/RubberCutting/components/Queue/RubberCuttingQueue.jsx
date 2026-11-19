@@ -4,7 +4,8 @@ import { ACCENT_RUBBER, ACCENT_RUBBER_RGB, formatDurationSec } from '../../utils
 
 export function RubberCuttingQueue({
   batches = [],
-  onSelectBatchForWork,
+  onResumeBatch,
+  onTakeOrderToWork,
   parts = []
 }) {
   const [statusFilter, setStatusFilter] = useState('all');
@@ -43,8 +44,10 @@ export function RubberCuttingQueue({
           <div style={{ display: 'flex', background: 'var(--surface-1, #13131c)', borderRadius: '10px', padding: '3px', border: '1px solid var(--border-color, rgba(255,255,255,0.08))' }}>
             {[
               { id: 'all', label: 'Всі' },
-              { id: 'completed', label: 'Завершені' },
-              { id: 'in_progress', label: 'В роботі' }
+              { id: 'awaiting_material', label: 'Чекають сировину (СВ)' },
+              { id: 'pending', label: 'Готові до порізки' },
+              { id: 'in_progress', label: 'В роботі' },
+              { id: 'completed', label: 'Завершені' }
             ].map(tab => (
               <button
                 key={tab.id}
@@ -106,26 +109,47 @@ export function RubberCuttingQueue({
               <th style={{ padding: '12px 16px' }}>Час факту / план</th>
               <th style={{ padding: '12px 16px' }}>Оператори</th>
               <th style={{ padding: '12px 16px' }}>Статус</th>
+              <th style={{ padding: '12px 16px', textAlign: 'right' }}>Дії</th>
             </tr>
           </thead>
           <tbody>
             {filteredBatches.length === 0 ? (
               <tr>
-                <td colSpan="9" style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>
+                <td colSpan="10" style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>
                   Не знайдено жодної партії в цьому розділі
                 </td>
               </tr>
             ) : (
               filteredBatches.map(batch => {
                 const isOvertime = batch.planned_duration_sec > 0 && batch.actual_duration_sec > batch.planned_duration_sec;
+                const isCompleted = batch.status === 'completed';
+                const isAwaitingMaterial = batch.status === 'awaiting_material';
+                const isPending = batch.status === 'pending';
+                const isInProgress = batch.status === 'in_progress';
+                const statusBadge = isCompleted
+                  ? { label: 'ЗАВЕРШЕНО', color: '#10b981', bg: 'rgba(16,185,129,0.15)' }
+                  : isInProgress
+                  ? { label: 'В РОБОТІ', color: '#f59e0b', bg: 'rgba(245,158,11,0.15)' }
+                  : isAwaitingMaterial
+                  ? { label: 'ОЧІКУЄ СИРОВИНУ (СВ)', color: '#8b5cf6', bg: 'rgba(139,92,246,0.15)' }
+                  : { label: 'ГОТОВЕ ДО ПОРІЗКИ', color: '#3b82f6', bg: 'rgba(59,130,246,0.15)' };
                 return (
                   <tr
                     key={batch.id}
+                    onClick={() => {
+                      if (isPending && typeof onTakeOrderToWork === 'function') {
+                        onTakeOrderToWork(batch);
+                      } else if (isInProgress && typeof onResumeBatch === 'function') {
+                        onResumeBatch(batch, false);
+                      }
+                    }}
                     style={{
                       borderBottom: '1px solid var(--border-color, rgba(255,255,255,0.04))',
                       background: 'transparent',
-                      transition: 'background 0.15s'
+                      transition: 'background 0.15s',
+                      cursor: (isPending && onTakeOrderToWork) || (isInProgress && onResumeBatch) ? 'pointer' : 'default'
                     }}
+                    title={isPending ? 'Натисніть, щоб взяти завдання в роботу' : isInProgress ? 'Натисніть, щоб відкрити в робочому місці порізки' : ''}
                   >
                     <td style={{ padding: '14px 16px', fontFamily: 'monospace', color: '#d97706', fontWeight: 800 }}>
                       {batch.batch_number}
@@ -154,15 +178,94 @@ export function RubberCuttingQueue({
                     </td>
                     <td style={{ padding: '14px 16px' }}>
                       <span style={{
-                        background: batch.status === 'completed' ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)',
-                        color: batch.status === 'completed' ? '#10b981' : '#f59e0b',
+                        background: statusBadge.bg,
+                        color: statusBadge.color,
                         padding: '3px 8px',
                         borderRadius: '6px',
                         fontSize: '0.68rem',
                         fontWeight: 900
                       }}>
-                        {batch.status === 'completed' ? 'ЗАВЕРШЕНО' : 'В РОБОТІ'}
+                        {statusBadge.label}
                       </span>
+                    </td>
+                    <td style={{ padding: '14px 16px', textAlign: 'right' }}>
+                      {isAwaitingMaterial ? (
+                        <span style={{ color: '#8b5cf6', fontSize: '0.72rem', fontWeight: 700 }}>
+                          Очікує видачі листів зі складу СВ
+                        </span>
+                      ) : isPending && typeof onTakeOrderToWork === 'function' ? (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onTakeOrderToWork(batch);
+                          }}
+                          style={{
+                            background: 'rgba(245,158,11,0.14)',
+                            color: '#d97706',
+                            border: '1px solid rgba(245,158,11,0.35)',
+                            borderRadius: '8px',
+                            padding: '5px 10px',
+                            fontSize: '0.72rem',
+                            fontWeight: 800,
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}
+                        >
+                          <Play size={12} /> Взяти в роботу
+                        </button>
+                      ) : isInProgress && typeof onResumeBatch === 'function' ? (
+                        <div style={{ display: 'inline-flex', gap: '6px' }}>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onResumeBatch(batch, false);
+                            }}
+                            style={{
+                              background: 'rgba(59,130,246,0.12)',
+                              color: '#3b82f6',
+                              border: '1px solid rgba(59,130,246,0.3)',
+                              borderRadius: '8px',
+                              padding: '5px 10px',
+                              fontSize: '0.72rem',
+                              fontWeight: 800,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}
+                          >
+                            <Play size={12} /> Відкрити
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onResumeBatch(batch, true);
+                            }}
+                            style={{
+                              background: 'rgba(16,185,129,0.14)',
+                              color: '#10b981',
+                              border: '1px solid rgba(16,185,129,0.35)',
+                              borderRadius: '8px',
+                              padding: '5px 10px',
+                              fontSize: '0.72rem',
+                              fontWeight: 800,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}
+                          >
+                            <CheckCircle2 size={12} /> Завершити
+                          </button>
+                        </div>
+                      ) : (
+                        <span style={{ color: 'var(--text-dim, #64748b)', fontSize: '0.75rem' }}>—</span>
+                      )}
                     </td>
                   </tr>
                 );

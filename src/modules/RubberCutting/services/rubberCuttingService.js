@@ -197,7 +197,7 @@ export async function createPendingRubberOrder(supabase, {
         nomenclature_id: rawNomId,
         quantity: sheetsQty,
         status: 'pending',
-        target_warehouse: 'operational',
+        target_warehouse: 'production',
         category: 'raw',
         details: `ПОРІЗКА ГУМИ #${batchNumber}: ${rawNomName} — ${sheetsQty} шт. (для: ${part?.name || ''}, ${plannedQty} шт) [RUBBER_BATCH:${batchId}]`
       }]);

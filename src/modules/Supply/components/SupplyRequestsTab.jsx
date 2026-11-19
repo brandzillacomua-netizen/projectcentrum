@@ -133,8 +133,10 @@ export const SupplyRequestsTab = ({
             </h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
               {groupedPrepRequests.map(group => {
-                const task = group.task || (tasks || []).find(t => t.id === group.taskId)
-                const prepNum = task?.plan_snapshot?._prep_num || `НП-${String(group.taskId).slice(0, 8)}`
+                const task = group.task || (group.taskId ? (tasks || []).find(t => t.id === group.taskId) : null)
+                const isRubberCuttingReq = Boolean(group.rubberBatchId || group.requests.some(r => String(r.details || '').includes('[RUBBER_BATCH:')))
+                const rubberNumMatch = group.requests.map(r => r.details).find(d => d && /ПОРІЗКА ГУМИ #([^\s:]+)/i.test(d))?.match(/ПОРІЗКА ГУМИ #([^\s:]+)/i)?.[1]
+                const prepNum = task?.plan_snapshot?._prep_num || (isRubberCuttingReq ? `РГ-${rubberNumMatch || String(group.rubberBatchId || '').slice(0, 8)}` : `НП-${String(group.taskId).slice(0, 8)}`)
                 
                 // Linked order resolution
                 const linkedOrderId = task?.order_id || group.requests.find(r => r.order_id)?.order_id
@@ -149,12 +151,12 @@ export const SupplyRequestsTab = ({
                 const snapshotSource = task?.plan_snapshot?._source
                 const snapshotPurpose = task?.plan_snapshot?._purpose
                 const isProductionOrder = Boolean(orderNumDisplay)
-                const isOperationalReplenishment = !isProductionOrder && (!linkedOrderId || snapshotSource?.includes('Оперативний') || group.requests.some(r => r.target_warehouse === 'operational'))
+                const isOperationalReplenishment = !isRubberCuttingReq && !isProductionOrder && (!linkedOrderId || snapshotSource?.includes('Оперативний') || group.requests.some(r => r.target_warehouse === 'operational'))
 
                 // Initiator
                 const initiator = task?.plan_snapshot?._author 
                   || task?.operator_name 
-                  || (isOperationalReplenishment ? 'Склад Оперативний (СО)' : (isProductionOrder ? 'Автоматично під наряд' : 'Виробництво'))
+                  || (isRubberCuttingReq ? 'Порізка гуми (Цех №2)' : isOperationalReplenishment ? 'Склад Оперативний (СО)' : (isProductionOrder ? 'Автоматично під наряд' : 'Виробництво'))
 
                 // Timestamps
                 const createdAtDate = task?.created_at || group.created_at
@@ -169,9 +171,11 @@ export const SupplyRequestsTab = ({
                 }) : null
 
                 // Destination
-                const targetWarehouseLabel = (group.requests[0]?.target_warehouse === 'operational' || isOperationalReplenishment)
-                  ? 'Склад Оперативний (СО)'
-                  : 'Цех / Ділянка підготовки'
+                const targetWarehouseLabel = isRubberCuttingReq
+                  ? 'Цех №2 · Порізка гуми'
+                  : (group.requests[0]?.target_warehouse === 'operational' || isOperationalReplenishment)
+                    ? 'Склад Оперативний (СО)'
+                    : 'Цех / Ділянка підготовки'
 
                 const isEnough = group.requests.every(req => {
                   const reqNom = nomenclatures?.find(n => n.id === req.nomenclature_id)

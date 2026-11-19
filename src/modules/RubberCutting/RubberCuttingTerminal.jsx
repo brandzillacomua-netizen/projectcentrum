@@ -164,10 +164,8 @@ export const RubberCuttingTerminal = () => {
             <RubberCuttingQueue
               batches={terminal.batches}
               parts={terminal.parts}
-              onSelectBatchForWork={(part) => {
-                terminal.setSelectedPart(part);
-                terminal.setActiveTab('cutting');
-              }}
+              onResumeBatch={terminal.handleResumeBatch}
+              onTakeOrderToWork={terminal.handleTakeOrderToWork}
             />
           )}
 

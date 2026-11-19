@@ -95,6 +95,7 @@ export function RubberIncomingOrders({
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {pendingOrders.map(order => {
             const isUrgent = (order.notes && order.notes.includes('ТЕРМІНОВО')) || order.priority === 'urgent';
+            const isAwaitingMaterial = order.status === 'awaiting_material';
             return (
               <div
                 key={order.id}
@@ -124,6 +125,21 @@ export function RubberIncomingOrders({
                   }}>
                     #{order.batch_number}
                   </span>
+
+                  {isAwaitingMaterial && (
+                    <span style={{
+                      fontSize: '0.65rem',
+                      fontWeight: 900,
+                      padding: '3px 8px',
+                      borderRadius: '6px',
+                      background: 'rgba(139, 92, 246, 0.14)',
+                      color: '#8b5cf6',
+                      border: '1px solid rgba(139, 92, 246, 0.35)',
+                      flexShrink: 0
+                    }}>
+                      ⏳ Очікує СВ
+                    </span>
+                  )}
 
                   {isUrgent && (
                     <span style={{
@@ -175,24 +191,30 @@ export function RubberIncomingOrders({
 
                   {/* Right: Action Button */}
                   <button
-                    onClick={() => onTakeToWork(order)}
+                    type="button"
+                    disabled={isAwaitingMaterial}
+                    onClick={() => { if (!isAwaitingMaterial) onTakeToWork(order); }}
+                    title={isAwaitingMaterial ? 'Очікує видачі листів зі складу СВ' : 'Взяти завдання в роботу'}
                     style={{
-                      background: `linear-gradient(135deg, ${ACCENT_RUBBER} 0%, #e67e00 100%)`,
-                      border: 'none',
-                      color: '#000',
+                      background: isAwaitingMaterial
+                        ? 'var(--surface-2, #e2e8f0)'
+                        : `linear-gradient(135deg, ${ACCENT_RUBBER} 0%, #e67e00 100%)`,
+                      border: isAwaitingMaterial ? '1px solid var(--border-subtle, #cbd5e1)' : 'none',
+                      color: isAwaitingMaterial ? 'var(--text-dim, #94a3b8)' : '#000',
                       borderRadius: '10px',
                       padding: '9px 16px',
                       fontWeight: 950,
                       fontSize: '0.78rem',
-                      cursor: 'pointer',
+                      cursor: isAwaitingMaterial ? 'not-allowed' : 'pointer',
                       display: 'flex',
                       alignItems: 'center',
                       gap: '6px',
-                      boxShadow: `0 3px 12px rgba(${ACCENT_RUBBER_RGB}, 0.25)`,
+                      boxShadow: isAwaitingMaterial ? 'none' : `0 3px 12px rgba(${ACCENT_RUBBER_RGB}, 0.25)`,
+                      opacity: isAwaitingMaterial ? 0.75 : 1,
                       whiteSpace: 'nowrap'
                     }}
                   >
-                    <Play size={14} fill="#000" />
+                    <Play size={14} fill={isAwaitingMaterial ? 'currentColor' : '#000'} />
                     <span>ВЗЯТИ В РОБОТУ</span>
                   </button>
                 </div>

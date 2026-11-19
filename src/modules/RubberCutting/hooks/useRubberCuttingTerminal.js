@@ -208,7 +208,7 @@ export function useRubberCuttingTerminal() {
   };
 
   const pendingBatches = useMemo(() => {
-    return batches.filter(b => b.status === 'pending');
+    return batches.filter(b => b.status === 'pending' || b.status === 'awaiting_material');
   }, [batches]);
 
   const activeBatch = useMemo(() => {
@@ -218,6 +218,24 @@ export function useRubberCuttingTerminal() {
 
   const handleTakeOrderToWork = (order) => {
     setOrderToStart(order);
+  };
+
+  const resolvePartForBatch = (order) => {
+    return parts.find(
+      p => p.id === order.part_id || p.code === order.part_code || p.name === order.part_name
+    ) || {
+      id: order.part_id || `local-${order.part_code}`,
+      code: order.part_code,
+      name: order.part_name,
+      part_size: order.part_size,
+      thickness: order.raw_material_code === 'V2-90030' ? 2 : 4,
+      sheet_size: order.raw_material_code === 'V2-90030' ? '500*500*2' : '500*500*4',
+      sheet_yield: order.sheet_yield || 1,
+      sheet_cutting_time_sec: order.sheets_count > 0 ? Math.round((order.planned_duration_sec || 0) / order.sheets_count) : 0,
+      item_cutting_time_sec: 0,
+      raw_material_code: order.raw_material_code,
+      raw_material_id: order.raw_material_id
+    };
   };
 
   const handleConfirmStartTask = async ({ order, operators }) => {
@@ -230,21 +248,7 @@ export function useRubberCuttingTerminal() {
         shift: selectedShift
       });
 
-      const matchedPart = parts.find(
-        p => p.id === order.part_id || p.code === order.part_code || p.name === order.part_name
-      ) || {
-        id: order.part_id || `local-${order.part_code}`,
-        code: order.part_code,
-        name: order.part_name,
-        part_size: order.part_size,
-        thickness: order.raw_material_code === 'V2-90030' ? 2 : 4,
-        sheet_size: order.raw_material_code === 'V2-90030' ? '500*500*2' : '500*500*4',
-        sheet_yield: order.sheet_yield || 1,
-        sheet_cutting_time_sec: order.sheets_count > 0 ? Math.round((order.planned_duration_sec || 0) / order.sheets_count) : 0,
-        item_cutting_time_sec: 0,
-        raw_material_code: order.raw_material_code,
-        raw_material_id: order.raw_material_id
-      };
+      const matchedPart = resolvePartForBatch(order);
 
       setSelectedThickness(matchedPart.thickness || 2);
       setSelectedPart(matchedPart);
@@ -262,6 +266,33 @@ export function useRubberCuttingTerminal() {
       showToast('❌ Помилка запуску замовлення');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleResumeBatch = (batch, openComplete = false) => {
+    if (!batch) return;
+    const matchedPart = resolvePartForBatch(batch);
+    const ops = Array.isArray(batch.operators) && batch.operators.length > 0
+      ? batch.operators
+      : (batch.operator_name ? String(batch.operator_name).split(',').map(s => s.trim()).filter(Boolean) : []);
+    const liveElapsed = batch.started_at
+      ? Math.max(Number(batch.actual_duration_sec) || 0, Math.floor((Date.now() - new Date(batch.started_at).getTime()) / 1000))
+      : (Number(batch.actual_duration_sec) || 0);
+
+    setSelectedThickness(matchedPart.thickness || 2);
+    setSelectedPart(matchedPart);
+    setSheetsCount(batch.sheets_count || 1);
+    setSelectedOperators(ops);
+    setActiveBatchId(batch.id);
+    setElapsedSeconds(liveElapsed);
+    setIsTimerRunning(!openComplete);
+    setActiveTab('cutting');
+    if (openComplete) {
+      setActualProduced((batch.sheets_count || 1) * (matchedPart.sheet_yield || 1));
+      setScrapCount(0);
+      setScrapReason('');
+      setCompletionNotes('');
+      setShowCompleteModal(true);
     }
   };
 
@@ -331,6 +362,7 @@ export function useRubberCuttingTerminal() {
     setOrderToStart,
     handleTakeOrderToWork,
     handleConfirmStartTask,
+    handleResumeBatch,
 
     // Active Desk Selection
     selectedThickness,

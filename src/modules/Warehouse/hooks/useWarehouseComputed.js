@@ -460,6 +460,7 @@ export const useWarehouseComputed = ({
         if (!task || task.warehouse_conf === 'true' || task.warehouse_conf === 'partial') return false
       }
       if (isPrepRequest(r, tasks)) return false
+      if (String(r.details || '').includes('[RUBBER_BATCH:')) return false
 
       return getMaterialType(r, nomenclatures, inventory) === activeTab
     })

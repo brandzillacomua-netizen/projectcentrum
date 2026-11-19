@@ -170,7 +170,9 @@ export function useSupplyData({ isProcurementOnly = false } = {}) {
         r.details.includes('ЗАПИТ НА ПІДГОТОВКУ') || 
         r.details.includes('ПІДГОТОВ') || 
         r.details.includes('браку') || 
-        r.details.includes('Дозабезпечення')
+        r.details.includes('Дозабезпечення') ||
+        r.details.includes('ПОРІЗКА ГУМИ') ||
+        r.details.includes('[RUBBER_BATCH:')
       )) {
         return true
       }
@@ -185,16 +187,18 @@ export function useSupplyData({ isProcurementOnly = false } = {}) {
   const groupedPrepRequests = useMemo(() => {
     const groups = {}
     prepRequests.forEach(req => {
-      const taskId = req.task_id || 'no-task'
-      if (!groups[taskId]) {
-        groups[taskId] = {
-          taskId,
-          task: (tasks || []).find(t => t.id === taskId),
+      const rubberBatchId = req.details?.match(/\[RUBBER_BATCH:([a-f0-9-]+)\]/i)?.[1]
+      const groupKey = req.task_id || (rubberBatchId ? `rubber-${rubberBatchId}` : 'no-task')
+      if (!groups[groupKey]) {
+        groups[groupKey] = {
+          taskId: req.task_id || null,
+          rubberBatchId: rubberBatchId || null,
+          task: req.task_id ? (tasks || []).find(t => t.id === req.task_id) : null,
           requests: [],
           created_at: req.created_at || new Date().toISOString()
         }
       }
-      groups[taskId].requests.push(req)
+      groups[groupKey].requests.push(req)
     })
     return Object.values(groups).sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
   }, [prepRequests, tasks])
