@@ -122,22 +122,43 @@ export default function PreparationSheetOrdersPanel({
                 />
               </div>
 
-              {/* Breakdown of materials (Листи за типами) */}
+              {/* Breakdown of materials (Листи по окремості) */}
               <div className="sheet-order-card__materials">
-                <span className="materials-title">НОМЕНКЛАТУРА ЛИСТІВ:</span>
-                <div className="materials-grid">
+                <span className="materials-title">ЛИСТИ ПО ОКРЕМОСТІ (ВИДАНО / ПОТРІБНО):</span>
+                <div className="materials-list">
                   {order.materials.map((mat, idx) => {
                     const matComplete = mat.pending === 0
+                    const matPercent = mat.needed > 0
+                      ? Math.min(100, Math.round((mat.issued / mat.needed) * 100))
+                      : 100
                     return (
-                      <div key={idx} className={`material-pill ${matComplete ? 'is-complete' : ''}`}>
-                        <span className="material-pill__name" title={mat.name}>
-                          {mat.name}
-                        </span>
-                        <div className="material-pill__qty">
-                          <strong>{mat.issued}</strong> / {mat.needed} л.
-                          {mat.pending > 0 && (
-                            <span className="material-pill__deficit">(-{mat.pending})</span>
-                          )}
+                      <div key={idx} className={`material-row ${matComplete ? 'is-complete' : ''}`}>
+                        <div className="material-row__top">
+                          <span className="material-row__name" title={mat.name}>
+                            {mat.name}
+                          </span>
+                          <div className="material-row__metrics">
+                            <span className="material-row__qty">
+                              <strong>{mat.issued}</strong>
+                              <span className="material-row__sep">/</span>
+                              <span>{mat.needed} л.</span>
+                            </span>
+                            {mat.pending > 0 ? (
+                              <span className="material-row__deficit">залишилось {mat.pending} л.</span>
+                            ) : (
+                              <span className="material-row__done">✓ видано</span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="material-row__bar">
+                          <span
+                            style={{
+                              width: `${matPercent}%`,
+                              background: matComplete
+                                ? '#10b981'
+                                : (mat.issued > 0 ? '#38bdf8' : '#334155')
+                            }}
+                          />
                         </div>
                       </div>
                     )

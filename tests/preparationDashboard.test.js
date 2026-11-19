@@ -144,7 +144,7 @@ describe('Preparation TV Dashboard Calculations', () => {
     expect(alerts.some(a => a.text.includes('241026-1') && a.text.includes('дефіцит'))).toBe(true)
   })
 
-  it('filters out cutters from sheet requests and does not treat box issuance as sheet issuance', () => {
+  it('filters out cutters from sheet requests and counts sheets issued together with cutter boxes', () => {
     const orderRequests = [
       // Real sheet request for order 241026-2
       {
@@ -168,19 +168,27 @@ describe('Preparation TV Dashboard Calculations', () => {
       }
     ]
 
-    const cardOnlyBoxIssued = [
+    const cardsWithBoxIssued = [
       {
-        card: { id: 'wc-10', order_id: 'ord-102', card_info: '1/1 [BOX_ISSUED:true]', is_box_issued: true },
+        card: { id: 'wc-10', order_id: 'ord-102', card_info: '1/2 [BOX_ISSUED:true]', is_box_issued: true },
         nom: nomenclatures[3],
         activeMaterialName: 'Карбон Т300 1.5мм',
         cardSheets: 4,
         isIssued: true, // From warehouse box tab
         isPrepared: true
+      },
+      {
+        card: { id: 'wc-11', order_id: 'ord-102', card_info: '2/2', is_box_issued: false, is_box_prepared: false },
+        nom: nomenclatures[3],
+        activeMaterialName: 'Карбон Т300 1.5мм',
+        cardSheets: 4,
+        isIssued: false,
+        isPrepared: false
       }
     ]
 
     const sheetOrders = computeSheetOrders({
-      cardsWithBoxes: cardOnlyBoxIssued,
+      cardsWithBoxes: cardsWithBoxIssued,
       requests: orderRequests,
       nomenclatures,
       orderById,
@@ -191,8 +199,8 @@ describe('Preparation TV Dashboard Calculations', () => {
     expect(order).toBeDefined()
     // Cutter request must NOT be included in sheets!
     expect(order.materials.some(m => m.name.includes('Фреза'))).toBe(false)
-    // Box issuance does NOT make sheets issued!
-    expect(order.issuedSheets).toBe(0)
+    // Box issuance counts sheets placed inside that box (4 issued, 4 pending)
+    expect(order.issuedSheets).toBe(4)
     expect(order.pendingSheets).toBe(4)
   })
 })

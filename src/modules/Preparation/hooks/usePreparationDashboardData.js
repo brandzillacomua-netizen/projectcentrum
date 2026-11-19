@@ -51,20 +51,30 @@ export const isRealSheetRequest = (r, nomenclatures = []) => {
 export function computeSheetOrders({ cardsWithBoxes, requests = [], nomenclatures = [], orderById, tasks = [] }) {
   const ordersMap = new Map()
 
+  const CLOSED_ORDER_STATUSES = new Set(['shipped', 'completed', 'cancelled', 'deleted', 'archived'])
+
+  const extractOrderNumFromText = (text) => {
+    if (!text) return ''
+    const match = String(text).match(/(?:НАРЯД|ЗАМОВЛЕННЯ)\s*[№#]?\s*([0-9]{4,}-[0-9]+|[A-Za-zА-Яа-я0-9_-]{3,})/i)
+    return match ? match[1].trim() : ''
+  }
+
   const getOrCreateOrder = (orderId, fallbackNum) => {
     const idStr = String(orderId || '')
+    const order = orderById.get(idStr)
+    const resolvedNum = order?.order_num || fallbackNum || 'Без наряду'
     if (!ordersMap.has(idStr)) {
-      const order = orderById.get(idStr)
-      const orderNum = order?.order_num || fallbackNum || 'Без наряду'
       ordersMap.set(idStr, {
         id: idStr,
-        orderNum,
+        orderNum: resolvedNum,
         totalSheets: 0,
         issuedSheets: 0,
         materials: new Map(),
         cardsCount: 0,
         issuedCardsCount: 0
       })
+    } else if (fallbackNum && ordersMap.get(idStr).orderNum === 'Без наряду') {
+      ordersMap.get(idStr).orderNum = fallbackNum
     }
     return ordersMap.get(idStr)
   }
@@ -74,16 +84,21 @@ export function computeSheetOrders({ cardsWithBoxes, requests = [], nomenclature
     const orderId = String(item.card?.order_id || item.task?.order_id || '')
     if (!orderId) return
 
-    const fallbackNum = item.task?.plan_snapshot?._prep_num || (item.card?.card_info || '').match(/НАРЯД\s*#?([^\s\]]+)/i)?.[1]
+    const order = orderById.get(orderId)
+    if (order && CLOSED_ORDER_STATUSES.has(order.status)) return
+
+    const task = (tasks || []).find(t => String(t.id) === String(item.card?.task_id || item.task?.id))
+    const fallbackNum =
+      item.task?.orders?.order_num ||
+      task?.orders?.order_num ||
+      item.task?.plan_snapshot?._prep_num ||
+      task?.plan_snapshot?._prep_num ||
+      extractOrderNumFromText(item.card?.card_info)
     const orderGroup = getOrCreateOrder(orderId, fallbackNum)
 
     const sheets = Math.max(0, Number(item.cardSheets) || 1)
 
-    // Check if task is confirmed by warehouse
-    const task = (tasks || []).find(t => String(t.id) === String(item.card?.task_id || item.task?.id))
-    const isTaskConfirmed = task?.warehouse_conf === 'true'
-
-    // Check if there is an explicit sheet issued marker (NOT box issued!)
+    // Check if there is an explicit per-card sheet issued marker
     const hasExplicitSheetIssued = Boolean(
       item.sheetIssued ||
       item.isSheetIssued ||
@@ -91,25 +106,25 @@ export function computeSheetOrders({ cardsWithBoxes, requests = [], nomenclature
       (item.card?.card_info || '').includes('[SHEET_ISSUED:true]')
     )
 
-    // Check if there is a completed sheet material request matching this card or task
+    // Check if there is a completed sheet material request matching this specific card
     const hasCompletedSheetRequest = (requests || []).some(r =>
       isRealSheetRequest(r, nomenclatures) &&
       (r.status === 'completed' || r.status === 'issued') &&
-      (
-        (r.card_id && String(r.card_id) === String(item.card?.id)) ||
-        (r.task_id && String(r.task_id) === String(task?.id))
-      )
+      r.card_id && String(r.card_id) === String(item.card?.id)
     )
 
-    // Fallback: in unit test mock objects where sheetIssued isn't explicitly set but isIssued was passed
-    // AND it's NOT a box issue from useWarehouseComputed
-    const isIssuedFallback = Boolean(
-      item.isIssued &&
-      !item.card?.is_box_issued &&
-      !(item.card?.card_info || '').includes('[BOX_ISSUED:true]')
+    // Sheets placed inside a cutter box are issued together with the box
+    // (in the warehouse UI, confirming/assembling a box sets is_box_prepared / isPrepared)
+    const hasBoxIssued = Boolean(
+      item.isIssued ||
+      item.isPrepared ||
+      item.card?.is_box_issued ||
+      item.card?.is_box_prepared ||
+      (item.card?.card_info || '').includes('[BOX_ISSUED:true]') ||
+      (item.card?.card_info || '').includes('[BOX_PREPARED:true]')
     )
 
-    const isIssued = isTaskConfirmed || hasExplicitSheetIssued || hasCompletedSheetRequest || isIssuedFallback
+    const isIssued = hasExplicitSheetIssued || hasCompletedSheetRequest || hasBoxIssued
 
     orderGroup.totalSheets += sheets
     if (isIssued) {
@@ -132,18 +147,29 @@ export function computeSheetOrders({ cardsWithBoxes, requests = [], nomenclature
   // 2. Reconcile with direct material requests for sheets
   ;(requests || []).filter(r => isRealSheetRequest(r, nomenclatures)).forEach(r => {
     const orderId = String(r.order_id || '')
-    if (!orderId) return
+    if (!orderId || r.status === 'cancelled') return
 
     if (r.card_id && (cardsWithBoxes || []).some(c => String(c.card?.id) === String(r.card_id))) {
       return
     }
 
     const order = orderById.get(orderId)
-    const orderGroup = getOrCreateOrder(orderId, order?.order_num)
+    if (order && CLOSED_ORDER_STATUSES.has(order.status)) return
+
+    const task = (tasks || []).find(t => String(t.id) === String(r.task_id))
+    const hasActiveTask = Boolean(task && !['completed', 'cancelled'].includes(task.status) && !task.is_shipped)
+    if (!order && !hasActiveTask && !ordersMap.has(orderId)) return
+
+    const fallbackNum =
+      order?.order_num ||
+      r.orders?.order_num ||
+      task?.orders?.order_num ||
+      task?.plan_snapshot?._prep_num ||
+      extractOrderNumFromText(r.details)
+    const orderGroup = getOrCreateOrder(orderId, fallbackNum)
 
     if (orderGroup.cardsCount === 0) {
       const qty = Number(r.quantity) || 1
-      const task = (tasks || []).find(t => String(t.id) === String(r.task_id))
       const isIssued = r.status === 'completed' || r.status === 'issued' || task?.warehouse_conf === 'true'
       orderGroup.totalSheets += qty
       if (isIssued) orderGroup.issuedSheets += qty

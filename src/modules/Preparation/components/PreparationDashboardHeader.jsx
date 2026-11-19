@@ -9,7 +9,10 @@ export default function PreparationDashboardHeader({
   toggleFullscreen,
   now,
   viewMode,
-  setViewMode
+  setViewMode,
+  scaleMode,
+  effectiveScale,
+  cycleScaleMode
 }) {
   const { currentUser } = useMES()
   const isTvLocked = Boolean(getLockedTvDashboardRoute(currentUser))
@@ -43,6 +46,16 @@ export default function PreparationDashboardHeader({
           <RefreshCw size={14} className="pulse-icon" />
           <span>{staleSeconds > 120 ? 'Дані застаріли' : 'Онлайн'}</span>
         </span>
+        {cycleScaleMode && (
+          <button
+            type="button"
+            onClick={cycleScaleMode}
+            title={`Масштаб TV (${scaleMode === 'auto' ? `Авто ${Math.round((effectiveScale || 1) * 100)}%` : `${Math.round(parseFloat(scaleMode) * 100)}%`})`}
+            className="prep-tv__scale-btn"
+          >
+            {scaleMode === 'auto' ? `АВТО ${Math.round((effectiveScale || 1) * 100)}%` : `${Math.round(parseFloat(scaleMode) * 100)}%`}
+          </button>
+        )}
         <button
           type="button"
           onClick={toggleFullscreen}

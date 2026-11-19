@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { usePreparationDashboardData } from './Preparation/hooks/usePreparationDashboardData'
 import PreparationDashboardHeader from './Preparation/components/PreparationDashboardHeader'
 import PreparationDashboardKPIs from './Preparation/components/PreparationDashboardKPIs'
@@ -6,6 +6,9 @@ import PreparationSheetOrdersPanel from './Preparation/components/PreparationShe
 import PreparationBoxOrderPanel from './Preparation/components/PreparationBoxOrderPanel'
 import PreparationQueuePanel from './Preparation/components/PreparationQueuePanel'
 import PreparationDashboardAlerts from './Preparation/components/PreparationDashboardAlerts'
+
+const SCALE_MODES = ['auto', '0.6', '0.7', '0.8', '0.9', '1']
+const SCALE_STORAGE_KEY = 'centrum_prep_tv_scale'
 
 const PreparationDashboard = () => {
   const {
@@ -37,15 +40,72 @@ const PreparationDashboard = () => {
     toggleFullscreen
   } = usePreparationDashboardData()
 
+  const [viewport, setViewport] = useState(() => ({
+    width: typeof window !== 'undefined' ? window.innerWidth : 1920,
+    height: typeof window !== 'undefined' ? window.innerHeight : 1080
+  }))
+
+  const [scaleMode, setScaleMode] = useState(() => {
+    try {
+      const saved = localStorage.getItem(SCALE_STORAGE_KEY)
+      return SCALE_MODES.includes(saved) ? saved : 'auto'
+    } catch {
+      return 'auto'
+    }
+  })
+
+  useEffect(() => {
+    const handleResize = () => {
+      setViewport({ width: window.innerWidth, height: window.innerHeight })
+    }
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
+  const effectiveScale = useMemo(() => {
+    if (scaleMode !== 'auto') {
+      const parsed = parseFloat(scaleMode)
+      return Number.isFinite(parsed) ? parsed : 1
+    }
+    const scaleX = viewport.width / 1680
+    const scaleY = viewport.height / 940
+    const raw = Math.min(scaleX, scaleY)
+    if (raw >= 0.98) return 1
+    return Math.max(0.48, Math.round(raw * 100) / 100)
+  }, [scaleMode, viewport])
+
+  const cycleScaleMode = () => {
+    const idx = SCALE_MODES.indexOf(scaleMode)
+    const next = SCALE_MODES[(idx + 1) % SCALE_MODES.length]
+    setScaleMode(next)
+    try {
+      localStorage.setItem(SCALE_STORAGE_KEY, next)
+    } catch {
+      // ignore storage errors
+    }
+  }
+
   return (
-    <div className="prep-tv">
-      <PreparationDashboardHeader
-        staleSeconds={staleSeconds}
-        toggleFullscreen={toggleFullscreen}
-        now={now}
-        viewMode={viewMode}
-        setViewMode={setViewMode}
-      />
+    <div className="prep-tv-viewport">
+      <div
+        className="prep-tv"
+        style={{
+          width: effectiveScale === 1 ? '100%' : `${100 / effectiveScale}%`,
+          height: effectiveScale === 1 ? '100%' : `${100 / effectiveScale}%`,
+          transform: effectiveScale === 1 ? 'none' : `scale(${effectiveScale})`,
+          transformOrigin: 'top left'
+        }}
+      >
+        <PreparationDashboardHeader
+          staleSeconds={staleSeconds}
+          toggleFullscreen={toggleFullscreen}
+          now={now}
+          viewMode={viewMode}
+          setViewMode={setViewMode}
+          scaleMode={scaleMode}
+          effectiveScale={effectiveScale}
+          cycleScaleMode={cycleScaleMode}
+        />
 
       <PreparationDashboardKPIs totals={totals} />
 
@@ -93,16 +153,22 @@ const PreparationDashboard = () => {
         * { box-sizing: border-box; margin: 0; padding: 0; }
 
         /* Base Shell */
-        .prep-tv {
-          min-height: 100vh;
+        .prep-tv-viewport {
+          width: 100vw;
           height: 100vh;
+          overflow: hidden;
+          background: #060907;
+        }
+        .prep-tv {
+          width: 100%;
+          height: 100%;
           overflow: hidden;
           background: #060907;
           background: radial-gradient(circle at top right, #0d1a12 0%, #060907 60%);
           color: #f1f5f9;
           font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Helvetica, Arial, sans-serif;
           display: grid;
-          grid-template-rows: 62px 90px 1fr 44px;
+          grid-template-rows: 62px 88px 1fr 44px;
         }
 
         /* Header */
@@ -213,6 +279,25 @@ const PreparationDashboard = () => {
           color: #f59e0b;
           background: rgba(245, 158, 11, 0.12);
           border: 1px solid rgba(245, 158, 11, 0.25);
+        }
+        .prep-tv__scale-btn {
+          height: 36px;
+          padding: 0 11px;
+          border-radius: 9px;
+          border: 1px solid #232c25;
+          background: #101612;
+          color: #cbd5e1;
+          font-size: 11px;
+          font-weight: 800;
+          letter-spacing: 0.04em;
+          cursor: pointer;
+          transition: 0.15s;
+          white-space: nowrap;
+        }
+        .prep-tv__scale-btn:hover {
+          color: #f8fafc;
+          border-color: #334155;
+          background: #18221c;
         }
         .prep-tv__icon-btn {
           width: 36px;
@@ -667,11 +752,12 @@ const PreparationDashboard = () => {
           background: linear-gradient(90deg, #d97706, #f59e0b);
         }
 
-        /* Material Breakdown (Листи за типами) */
+        /* Material Breakdown (Листи по окремості) */
         .sheet-order-card__materials {
           display: flex;
           flex-direction: column;
-          gap: 5px;
+          gap: 6px;
+          min-height: 0;
         }
         .materials-title,
         .cutters-header {
@@ -684,42 +770,91 @@ const PreparationDashboard = () => {
           align-items: center;
           gap: 5px;
         }
-        .materials-grid {
-          display: flex;
-          flex-wrap: wrap;
+        .materials-list {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
           gap: 6px;
         }
-        .material-pill {
+        .material-row {
           display: flex;
-          align-items: center;
-          gap: 8px;
-          background: #141c16;
+          flex-direction: column;
+          gap: 5px;
+          background: #131b15;
           border: 1px solid #233026;
-          padding: 4px 10px;
-          border-radius: 8px;
-          font-size: 11px;
+          padding: 7px 11px;
+          border-radius: 9px;
         }
-        .material-pill.is-complete {
+        .material-row.is-complete {
           background: #0d1e14;
           border-color: #1a422b;
         }
-        .material-pill__name {
-          color: #d1d5db;
+        .material-row__top {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+          min-width: 0;
+        }
+        .material-row__name {
+          color: #e2e8f0;
+          font-size: 12px;
           font-weight: 700;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
         }
-        .material-pill__qty {
-          color: #94a39a;
+        .material-row__metrics {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          flex-shrink: 0;
+        }
+        .material-row__qty {
+          font-size: 13px;
           font-weight: 800;
+          color: #94a3b8;
+          display: flex;
+          align-items: baseline;
+          gap: 2px;
         }
-        .material-pill__qty strong {
+        .material-row__qty strong {
+          font-size: 15px;
+          font-weight: 900;
           color: #38bdf8;
         }
-        .material-pill.is-complete .material-pill__qty strong {
+        .material-row.is-complete .material-row__qty strong {
           color: #34d399;
         }
-        .material-pill__deficit {
+        .material-row__sep {
+          color: #64748b;
+          margin: 0 1px;
+        }
+        .material-row__deficit {
+          font-size: 10px;
+          font-weight: 700;
           color: #fb7185;
-          margin-left: 4px;
+          background: rgba(244, 63, 94, 0.12);
+          border: 1px solid rgba(244, 63, 94, 0.25);
+          padding: 1px 6px;
+          border-radius: 99px;
+        }
+        .material-row__done {
+          font-size: 10px;
+          font-weight: 800;
+          color: #34d399;
+        }
+        .material-row__bar {
+          height: 4px;
+          width: 100%;
+          border-radius: 99px;
+          background: #1d2820;
+          overflow: hidden;
+        }
+        .material-row__bar span {
+          display: block;
+          height: 100%;
+          border-radius: 99px;
+          transition: width 0.35s ease;
         }
 
         /* Cutters & Tooling (Бокси фрез) */
@@ -930,6 +1065,9 @@ const PreparationDashboard = () => {
         }
 
         /* Light Theme Overrides */
+        .light-theme .prep-tv-viewport, [data-theme="light"] .prep-tv-viewport {
+          background: #f1f5f9;
+        }
         .light-theme .prep-tv, [data-theme="light"] .prep-tv {
           background: #f1f5f9;
           color: #0f172a;
@@ -940,6 +1078,22 @@ const PreparationDashboard = () => {
         }
         .light-theme .prep-tv__brand strong, [data-theme="light"] .prep-tv__brand strong { color: #0f172a; }
         .light-theme .prep-tv__clock strong, [data-theme="light"] .prep-tv__clock strong { color: #0f172a; }
+        .light-theme .prep-tv__scale-btn, [data-theme="light"] .prep-tv__scale-btn {
+          background: #f8fafc;
+          border-color: #cbd5e1;
+          color: #334155;
+        }
+        .light-theme .prep-tv__head-title strong, [data-theme="light"] .prep-tv__head-title strong {
+          color: #0f172a;
+        }
+        .light-theme .prep-tv__head-sub, [data-theme="light"] .prep-tv__head-sub {
+          color: #475569;
+        }
+        .light-theme .prep-tv__ctrl-btn, [data-theme="light"] .prep-tv__ctrl-btn {
+          background: #ffffff;
+          border-color: #cbd5e1;
+          color: #334155;
+        }
         .light-theme .prep-tv__tabs, [data-theme="light"] .prep-tv__tabs {
           background: #f8fafc;
           border-color: #e2e8f0;
@@ -982,14 +1136,23 @@ const PreparationDashboard = () => {
         .light-theme .box-order-card__progress, [data-theme="light"] .box-order-card__progress {
           background: #e2e8f0;
         }
+        .light-theme .material-row, [data-theme="light"] .material-row,
         .light-theme .material-pill, [data-theme="light"] .material-pill,
         .light-theme .cutter-pill, [data-theme="light"] .cutter-pill {
           background: #f8fafc;
           border-color: #e2e8f0;
         }
+        .light-theme .material-row.is-complete, [data-theme="light"] .material-row.is-complete {
+          background: #ecfdf5;
+          border-color: #a7f3d0;
+        }
+        .light-theme .material-row__name, [data-theme="light"] .material-row__name,
         .light-theme .material-pill__name, [data-theme="light"] .material-pill__name,
         .light-theme .cutter-pill__name, [data-theme="light"] .cutter-pill__name {
           color: #1e293b;
+        }
+        .light-theme .material-row__bar, [data-theme="light"] .material-row__bar {
+          background: #e2e8f0;
         }
         .light-theme .prep-tv__panel-footer, [data-theme="light"] .prep-tv__panel-footer {
           background: #f8fafc;
@@ -1011,6 +1174,11 @@ const PreparationDashboard = () => {
 
         /* Responsive Layout for smaller screens / tablets */
         @media (max-width: 900px) {
+          .prep-tv-viewport {
+            height: auto;
+            min-height: 100vh;
+            overflow-y: auto;
+          }
           .prep-tv {
             height: auto;
             min-height: 100vh;
@@ -1025,6 +1193,7 @@ const PreparationDashboard = () => {
           }
         }
       `}</style>
+      </div>
     </div>
   )
 }
