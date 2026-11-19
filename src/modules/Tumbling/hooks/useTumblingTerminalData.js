@@ -587,12 +587,41 @@ export function useTumblingTerminalData() {
     return kit?.deadlineDate || null
   }
 
+  const closedOrderIds = useMemo(() => {
+    const set = new Set()
+    ;(orders || []).forEach(o => {
+      if (o && ['shipped', 'completed', 'cancelled', 'deleted', 'archived'].includes(o.status)) {
+        set.add(String(o.id))
+      }
+    })
+    return set
+  }, [orders])
+
+  const closedTaskIds = useMemo(() => {
+    const set = new Set()
+    ;(tasks || []).forEach(t => {
+      if (!t) return
+      const isShipped = t.plan_snapshot?._metadata?.is_shipped
+      if (t.status === 'cancelled' || t.status === 'completed' || isShipped === true || isShipped === 'true') {
+        set.add(String(t.id))
+      }
+    })
+    return set
+  }, [tasks])
+
+  const isCardOrderOrTaskClosed = (c) => {
+    if (c.order_id && closedOrderIds.has(String(c.order_id))) return true
+    if (c.task_id && closedTaskIds.has(String(c.task_id))) return true
+    return false
+  }
+
   // 1. Waiting cards
   const waitingCards = useMemo(() => {
     return workCards
       .filter(c => 
-        (c.status === 'at-buffer' && (c.operation === 'Розкрій' || c.operation === 'Галтовка (Вібростіл)' || c.operation === 'Галтовка (Мийка)' || c.operation === 'Галтовка (Галтовка)')) ||
-        (c.status === 'new' && (c.operation === 'Галтовка (Вібростіл)' || c.operation === 'Галтовка (Мийка)' || c.operation === 'Галтовка (Галтовка)' || c.operation === 'Галтовка (Сушка)'))
+        !isCardOrderOrTaskClosed(c) &&
+        ((c.status === 'at-buffer' && (c.operation === 'Розкрій' || c.operation === 'Галтовка (Вібростіл)' || c.operation === 'Галтовка (Мийка)' || c.operation === 'Галтовка (Галтовка)')) ||
+        (c.status === 'new' && (c.operation === 'Галтовка (Вібростіл)' || c.operation === 'Галтовка (Мийка)' || c.operation === 'Галтовка (Галтовка)' || c.operation === 'Галтовка (Сушка)')))
       )
       .map(card => {
         const isBottleneck = bottleneckNomenclaturesMap[card.nomenclature_id] || false
@@ -623,14 +652,14 @@ export function useTumblingTerminalData() {
         const dateB = new Date(b.completed_at || b.started_at || 0)
         return dateA - dateB
       })
-  }, [workCards, bottleneckNomenclaturesMap, orderKits])
+  }, [workCards, bottleneckNomenclaturesMap, orderKits, closedOrderIds, closedTaskIds])
 
   // 2. In-work cards
   const inWorkCards = useMemo(() => {
     return workCards
-      .filter(c => c.status === 'in-progress' && c.operation?.startsWith('Галтовка'))
+      .filter(c => !isCardOrderOrTaskClosed(c) && c.status === 'in-progress' && c.operation?.startsWith('Галтовка'))
       .sort((a, b) => new Date(a.started_at || 0) - new Date(b.started_at || 0))
-  }, [workCards])
+  }, [workCards, closedOrderIds, closedTaskIds])
 
   // Filtered cards based on current tab selection and sub-stage selection
   const displayedCards = useMemo(() => {

@@ -80,6 +80,26 @@ export function Shop1ActiveCardsTable({
                 const info = String(c.card_info || '')
                 if (info.includes('[ЦЕХ №2] Автоматично') || info.includes('[ЦЕХ 2] Автоматично')) return false
 
+                if (c.order_id && Array.isArray(orders) && orders.length > 0) {
+                  const parentOrder = orders.find(o => String(o.id) === String(c.order_id))
+                  if (parentOrder && ['shipped', 'completed', 'cancelled', 'deleted', 'archived'].includes(parentOrder.status)) {
+                    return false
+                  }
+                  if (!parentOrder && c.task_id && Array.isArray(tasks) && tasks.length > 0) {
+                    const hasTask = tasks.some(t => String(t.id) === String(c.task_id))
+                    if (!hasTask) return false
+                  }
+                }
+                if (c.task_id && Array.isArray(tasks) && tasks.length > 0) {
+                  const parentTask = tasks.find(t => String(t.id) === String(c.task_id))
+                  if (parentTask) {
+                    const isShipped = parentTask.plan_snapshot?._metadata?.is_shipped
+                    if (parentTask.status === 'cancelled' || parentTask.status === 'completed' || isShipped === true || isShipped === 'true') {
+                      return false
+                    }
+                  }
+                }
+
                 const isInChain = CHAIN.includes(c.operation) || (c.operation && c.operation.startsWith('Галтовка'))
                 if (!isInChain) return false
                 if (c.status !== 'in-progress' && c.status !== 'paused' && c.status !== 'hold' && c.status !== 'at-buffer') return false
