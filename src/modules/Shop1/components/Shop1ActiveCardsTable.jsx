@@ -148,7 +148,10 @@ export function Shop1ActiveCardsTable({
 
               const grouped = { 'Розкрій': [], 'Галтовка': [], 'Прийомка': [], 'Сортування': [] }
               activeCards.forEach(card => {
-                const groupKey = card.operation?.startsWith('Галтовка') ? 'Галтовка' : card.operation
+                const isWaitingReceptionAfterTumbling = card.operation === 'Галтовка' && card.status === 'at-buffer'
+                const groupKey = isWaitingReceptionAfterTumbling
+                  ? 'Прийомка'
+                  : (card.operation?.startsWith('Галтовка') ? 'Галтовка' : card.operation)
                 if (grouped[groupKey]) grouped[groupKey].push(card)
               })
 

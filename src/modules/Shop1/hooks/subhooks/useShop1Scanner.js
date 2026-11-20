@@ -84,42 +84,46 @@ export function useShop1Scanner({
 
     const queryLower = clean.toLowerCase();
     const hexSuffix = queryLower.slice(-8);
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(clean);
 
-    let card = (workCards || []).find(c => {
-      if (!c || !c.id) return false;
-      const idLower = String(c.id).trim().toLowerCase();
-      if (idLower === queryLower) return true;
-      if (idLower.endsWith(hexSuffix)) return true;
-      if (c.card_info && String(c.card_info).toLowerCase().includes(hexSuffix)) return true;
-      return false;
-    });
+    // Prioritize exact UUID match, then UUID suffix match, and only last card_info match
+    let localCard = (workCards || []).find(c => c?.id && String(c.id).trim().toLowerCase() === queryLower);
+    if (!localCard && hexSuffix.length >= 6) {
+      localCard = (workCards || []).find(c => c?.id && String(c.id).trim().toLowerCase().endsWith(hexSuffix));
+    }
+    if (!localCard && hexSuffix.length >= 6) {
+      localCard = (workCards || []).find(c => c?.card_info && String(c.card_info).toLowerCase().includes(hexSuffix));
+    }
 
-    if (!card) {
-      setIsSyncing(true);
-      try {
-        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(clean);
-        if (isUuid) {
-          const { data: directCard } = await supabase
-            .from('work_cards')
-            .select('*')
-            .eq('id', clean)
-            .maybeSingle();
-          if (directCard) card = directCard;
-        } else if (hexSuffix && !/^https?:\/\//i.test(clean)) {
-          const { data: freshCards } = await supabase
-            .from('work_cards')
-            .select('*')
-            .ilike('card_info', `%${hexSuffix}%`)
-            .limit(10);
-          if (freshCards && freshCards.length > 0) {
-            card = freshCards[0];
-          }
+    // ALWAYS fetch fresh card state from Supabase by PK id so stale local cache
+    // never re-opens an already-started card as status='new' ("знову в розкрій")
+    let card = localCard;
+    setIsSyncing(true);
+    try {
+      const targetId = isUuid ? clean : localCard?.id;
+      if (targetId) {
+        const { data: freshCard, error: freshErr } = await supabase
+          .from('work_cards')
+          .select('*')
+          .eq('id', targetId)
+          .maybeSingle();
+        if (!freshErr && freshCard) {
+          card = freshCard;
         }
-      } catch (err) {
-        console.error('Error fetching scanned card from Supabase:', err);
-      } finally {
-        setIsSyncing(false);
+      } else if (hexSuffix && !/^https?:\/\//i.test(clean)) {
+        const { data: freshCards } = await supabase
+          .from('work_cards')
+          .select('*')
+          .ilike('card_info', `%${hexSuffix}%`)
+          .limit(10);
+        if (freshCards && freshCards.length > 0) {
+          card = freshCards[0];
+        }
       }
+    } catch (err) {
+      console.error('Error fetching scanned card from Supabase:', err);
+    } finally {
+      setIsSyncing(false);
     }
 
     if (!card) {

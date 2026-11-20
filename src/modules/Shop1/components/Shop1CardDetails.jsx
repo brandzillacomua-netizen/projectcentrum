@@ -341,8 +341,18 @@ export function Shop1CardDetails({
       <div style={{ background: 'var(--fill-subtle)', borderRadius: '24px', border: '1px solid var(--border-subtle)', padding: '25px 20px' }}>
 
         {/* ── СТАН: NEW / WAITING-CUTTERS / WAITING-MATERIALS → Форма старту ──────────────────────────────────── */}
-        {(status === 'new' || status === 'waiting-cutters' || status === 'waiting-materials' || status === 'waiting_material' || (status === 'in-progress' && !CHAIN.includes(currentCard.operation))) && (() => {
-          const displayOp = CHAIN.includes(currentCard.operation) ? currentCard.operation : CHAIN[0]
+        {(() => {
+          const normalizedOp = String(currentCard.operation || '').trim()
+          const isInChainOp = CHAIN.includes(normalizedOp) || normalizedOp.startsWith('Галтовка')
+          const showStartForm = (
+            status === 'new' ||
+            status === 'waiting-cutters' ||
+            status === 'waiting-materials' ||
+            status === 'waiting_material' ||
+            (status === 'in-progress' && !isInChainOp)
+          )
+          if (!showStartForm) return null
+          const displayOp = isInChainOp ? normalizedOp : CHAIN[0]
           const machineSequenceConfig = getMachineSequenceConfig(selectedMachine)
           return (
             <div style={{ maxWidth: '440px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -459,7 +469,7 @@ export function Shop1CardDetails({
         })()}
 
         {/* ── СТАН: IN-PROGRESS або PAUSED ────────────────────────────────── */}
-        {((status === 'in-progress' || status === 'paused') && CHAIN.includes(currentCard.operation)) && (() => {
+        {((status === 'in-progress' || status === 'paused') && (CHAIN.includes(String(currentCard.operation || '').trim()) || String(currentCard.operation || '').trim().startsWith('Галтовка'))) && (() => {
           const opName = currentCard.operation?.toUpperCase()
           const isPaused = status === 'paused'
           const pausedAtStr = currentCard.card_info?.match(/\[PAUSED_AT:([^\]]+)\]/)?.[1]

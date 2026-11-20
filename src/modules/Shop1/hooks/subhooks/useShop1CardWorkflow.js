@@ -786,7 +786,10 @@ export function useShop1CardWorkflow({
         return;
       }
 
-      fetchData(['work_cards', 'tasks']).catch(() => {});
+      if (typeof setWorkCards === 'function') {
+        setWorkCards(prev => prev.map(c => String(c.id) === String(currentCard.id) ? { ...c, ...cardUpdate } : c));
+      }
+      fetchData(['work_cards', 'tasks'], { force: true }).catch(() => {});
       if (!scannedIds.includes(currentCard.id)) setScannedIds(prev => [...prev, currentCard.id]);
     } catch (e) {
       alert('Помилка: ' + e.message);
