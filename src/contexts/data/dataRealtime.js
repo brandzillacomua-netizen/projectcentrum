@@ -57,7 +57,9 @@ export function useDataRealtime(state, fetchers) {
 
     if (!currentUser?.id || realtimeProfile === 'public' || !needsPrimaryChannel) return undefined
 
-    const needsProductionHistory = routeHasTable('work_card_history') || needsProductionSummary
+    // Stream live work_card_history WAL events only on summary/analytics routes
+    // (terminals fetch card history on demand and rely on sys_sync_pings for active cards)
+    const needsProductionHistory = Boolean(needsProductionSummary)
     const needsScrapTotals = routeHasTable('work_card_scrap_totals')
     const needsFlowTotals = routeHasTable('work_card_flow_totals')
     let productionSummaryRefreshTimer = null
@@ -243,51 +245,107 @@ export function useDataRealtime(state, fetchers) {
     let hasSubscribed = false
     let reconnectRefreshTimer = null
     let onlineCatchUpTimer = null
+    let pingDebounceTimer = null
+    let pingRetryTimer = null
+    let isPingFlushInFlight = false
+    let consecutivePingFailures = 0
+    const pendingPingTables = new Set()
 
-    const catchUpWithFullRefreshFallback = async (targets) => {
+    const catchUpWithFullRefreshFallback = async (targets, { allowFullFallback = true } = {}) => {
       let failedTables = targets
       try {
         const result = await performIncrementalCatchUp(targets)
         failedTables = result?.failedTables || []
       } catch (error) {
-        console.warn('[CatchUpSync] Incremental catch-up crashed; using full refresh:', error)
+        console.warn('[CatchUpSync] Incremental catch-up crashed:', error)
       }
 
-      if (failedTables.length === 0) return
+      if (failedTables.length === 0) {
+        consecutivePingFailures = 0
+        return true
+      }
+
+      if (!allowFullFallback) {
+        consecutivePingFailures = Math.min(consecutivePingFailures + 1, 4)
+        failedTables.forEach(t => pendingPingTables.add(t))
+        const backoffMs = Math.min(30000, 4000 * Math.pow(2, consecutivePingFailures - 1)) + Math.floor(Math.random() * 2500)
+        console.warn(`[CatchUpSync] Ping catch-up failed for [${failedTables.join(', ')}]; retrying in ${backoffMs}ms without full-table storm`)
+        if (pingRetryTimer) clearTimeout(pingRetryTimer)
+        pingRetryTimer = setTimeout(() => {
+          pingRetryTimer = null
+          flushPendingPings()
+        }, backoffMs)
+        return false
+      }
+
       console.warn(`[CatchUpSync] Falling back to full refresh for [${failedTables.join(', ')}]`)
       failedTables.forEach(tableName => {
         targetRefreshLastRef.current.delete(getTargetRefreshKey(tableName))
       })
       await fetchData(failedTables, { force: true })
+      return true
+    }
+
+    const flushPendingPings = async () => {
+      if (isPingFlushInFlight || pendingPingTables.size === 0) return
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
+
+      const batch = Array.from(pendingPingTables)
+      pendingPingTables.clear()
+      isPingFlushInFlight = true
+      try {
+        await catchUpWithFullRefreshFallback(batch, { allowFullFallback: false })
+      } catch (error) {
+        console.warn('[CatchUpSync] Ping flush failed:', error)
+      } finally {
+        isPingFlushInFlight = false
+        if (pendingPingTables.size > 0 && !pingRetryTimer && !pingDebounceTimer) {
+          schedulePingFlush()
+        }
+      }
+    }
+
+    const schedulePingFlush = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
+      if (pingDebounceTimer) return
+      // Coalesce burst writes into 1 incremental call + spread clients across 1.2–2.4s
+      const delayMs = 1200 + Math.floor(Math.random() * 1200)
+      pingDebounceTimer = setTimeout(() => {
+        pingDebounceTimer = null
+        flushPendingPings()
+      }, delayMs)
+    }
+
+    const handleVisibilityResume = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible' && pendingPingTables.size > 0) {
+        schedulePingFlush()
+      }
     }
 
     const handleOnlineNetworkCatchUp = () => {
       if (onlineCatchUpTimer) clearTimeout(onlineCatchUpTimer)
-      const jitterMs = 300 + Math.floor(Math.random() * 1500)
+      const jitterMs = 800 + Math.floor(Math.random() * 2500)
       onlineCatchUpTimer = setTimeout(() => {
         onlineCatchUpTimer = null
         const targets = ['tasks', 'work_cards', 'inventory', 'material_requests', 'orders']
           .filter(tableName => routeHasTable(tableName))
         if (targets.length > 0) {
-          catchUpWithFullRefreshFallback(targets)
+          catchUpWithFullRefreshFallback(targets, { allowFullFallback: true })
             .catch(error => console.warn('[CatchUpSync] Full refresh fallback failed:', error))
         }
       }, jitterMs)
     }
 
     window.addEventListener('online', handleOnlineNetworkCatchUp)
+    document.addEventListener('visibilitychange', handleVisibilityResume)
 
     // ── EGRESS OPTIMIZATION: Instant Lightweight Ping Subscriptions ──
-    // Instead of polling or heavy WebSocket payloads, we listen to a tiny ping table
+    // Coalesced + debounced per device; paused while tab is hidden in background
     activeChannel = activeChannel.on('postgres_changes', { event: '*', schema: 'public', table: 'sys_sync_pings' }, (payload) => {
       const changedTable = payload.new?.table_name
       if (changedTable && routeHasTable(changedTable)) {
-        // Add random jitter to prevent thundering herd if many clients are connected
-        const jitterMs = Math.floor(Math.random() * 800)
-        setTimeout(() => {
-          catchUpWithFullRefreshFallback([changedTable])
-            .catch(error => console.warn(`[CatchUpSync] Ping refresh failed for ${changedTable}:`, error))
-        }, jitterMs)
+        pendingPingTables.add(changedTable)
+        schedulePingFlush()
       }
     })
 
@@ -298,22 +356,26 @@ export function useDataRealtime(state, fetchers) {
       if (!shouldCatchUp) return
 
       if (reconnectRefreshTimer) clearTimeout(reconnectRefreshTimer)
-      const reconnectJitterMs = 400 + Math.floor(Math.random() * 1200)
+      const reconnectJitterMs = 1000 + Math.floor(Math.random() * 3000)
       reconnectRefreshTimer = setTimeout(() => {
         reconnectRefreshTimer = null
+        if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
         const targets = ['tasks', 'work_cards', 'inventory', 'material_requests', 'orders']
           .filter(tableName => routeHasTable(tableName))
         if (targets.length > 0) {
-          catchUpWithFullRefreshFallback(targets)
-            .catch(error => console.warn('[CatchUpSync] Full refresh fallback failed:', error))
+          catchUpWithFullRefreshFallback(targets, { allowFullFallback: false })
+            .catch(error => console.warn('[CatchUpSync] Reconnect catch-up failed:', error))
         }
       }, reconnectJitterMs)
     })
 
     return () => {
       window.removeEventListener('online', handleOnlineNetworkCatchUp)
+      document.removeEventListener('visibilitychange', handleVisibilityResume)
       if (onlineCatchUpTimer) clearTimeout(onlineCatchUpTimer)
       if (reconnectRefreshTimer) clearTimeout(reconnectRefreshTimer)
+      if (pingDebounceTimer) clearTimeout(pingDebounceTimer)
+      if (pingRetryTimer) clearTimeout(pingRetryTimer)
       if (productionSummaryRefreshTimer) clearTimeout(productionSummaryRefreshTimer)
       supabase.removeChannel(activeChannel)
     }

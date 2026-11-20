@@ -32,25 +32,25 @@ export const USER_CACHE_KEY = 'MES_SESSION_USER'  // Full user object for instan
 export const TARGET_REFRESH_TTL_MS = 900
 export const TARGET_REFRESH_TTL_BY_TABLE = Object.freeze({
   // Static / rarely-changing tables — long TTL
-  nomenclatures:       10 * 60 * 1000,  // 10 min
-  bom_items:           10 * 60 * 1000,  // 10 min
-  company_structure:   30 * 60 * 1000,  // 30 min
-  company_positions:   30 * 60 * 1000,  // 30 min
-  system_users:         5 * 60 * 1000,  // 5 min
-  machine_operations:  15 * 60 * 1000,  // 15 min (heavy table, no realtime)
+  nomenclatures:       30 * 60 * 1000,  // 30 min
+  bom_items:           30 * 60 * 1000,  // 30 min
+  company_structure:   60 * 60 * 1000,  // 60 min
+  company_positions:   60 * 60 * 1000,  // 60 min
+  system_users:        15 * 60 * 1000,  // 15 min
+  machine_operations:  30 * 60 * 1000,  // 30 min (heavy table, no realtime)
   work_card_flow_totals: 5 * 60 * 1000,
-  work_card_scrap_totals: 60 * 1000,
+  work_card_scrap_totals: 2 * 60 * 1000,
   // Operational tables — kept live by realtime subscriptions.
   // TTL prevents redundant full refetches when navigating between modules
   // (e.g. SGP → SO). 30s is plenty; realtime delivers changes instantly.
-  material_requests: 2 * 60 * 1000,  // 2 min; realtime pings deliver normal changes
-  inventory:         2 * 60 * 1000,
-  tasks:             2 * 60 * 1000,
-  work_cards:        2 * 60 * 1000,
-  orders:            2 * 60 * 1000,
-  reception_docs:     60 * 1000,  // 60 s
-  purchase_requests:  60 * 1000,  // 60 s
-  work_card_history:  60 * 1000,  // 60 s
+  material_requests: 3 * 60 * 1000,  // 3 min; realtime pings deliver normal changes
+  inventory:         3 * 60 * 1000,
+  tasks:             3 * 60 * 1000,
+  work_cards:        3 * 60 * 1000,
+  orders:            3 * 60 * 1000,
+  reception_docs:     2 * 60 * 1000,  // 2 min
+  purchase_requests:  2 * 60 * 1000,  // 2 min
+  work_card_history:  2 * 60 * 1000,  // 2 min
 })
 export const INITIAL_FETCH_JITTER_MS = 100
 export const INITIAL_FETCH_RETRY_BASE_MS = 30 * 1000

@@ -171,10 +171,17 @@ export function useTumblingTerminalData() {
     setIsProcessing(true)
     setScanError(null)
     try {
+      // Always resolve FRESH card state from DB by PK — stale local cache caused
+      // already-sorted cards to be re-started on Tumbling (rollback bug)
       let card = workCards.find(c => String(c.id).trim() === id || String(c.id).toUpperCase().endsWith(id.toUpperCase()))
+      const isUuidId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+      const freshTargetId = isUuidId ? id : card?.id
+      if (freshTargetId) {
+        const { data: freshCard } = await supabase.from('work_cards').select('*').eq('id', freshTargetId).maybeSingle()
+        if (freshCard) card = freshCard
+      }
       if (!card) {
         await fetchData('work_cards').catch(() => { })
-        card = workCards.find(c => String(c.id).trim() === id || String(c.id).toUpperCase().endsWith(id.toUpperCase()))
       }
 
       if (!card) {

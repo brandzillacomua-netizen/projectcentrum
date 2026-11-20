@@ -165,7 +165,9 @@ export function useDataState() {
     const onVisibility = () => { if (document.visibilityState === 'visible') refreshProfile() }
     window.addEventListener('focus', onFocus)
     document.addEventListener('visibilitychange', onVisibility)
-    const profileInterval = setInterval(() => refreshProfile(true), 60000)
+    const profileInterval = setInterval(() => {
+      if (document.visibilityState === 'visible') refreshProfile(true)
+    }, 5 * 60 * 1000)
 
     const { data: authListener } = prodClient.auth.onAuthStateChange((event) => {
       if (event !== 'SIGNED_OUT' || !active) return
