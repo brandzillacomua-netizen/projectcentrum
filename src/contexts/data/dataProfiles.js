@@ -160,11 +160,20 @@ export const getRouteDataTables = (pathname = '') => {
   return [...new Set(ROUTE_DATA_PROFILES[normalized] || [])]
 }
 
+export const LIGHT_TASK_ROUTES = new Set([
+  '/',
+  '/shop2-terminal',
+  '/shop2-foreman',
+  '/machines',
+  '/analytics',
+  '/manager',
+  '/shipping'
+])
+
 export const getTaskDataProfileKey = (pathname = '') => {
   const normalized = normalizeRoutePath(pathname)
-  return isFulfillmentRoute(normalized)
-    ? `tasks:${normalized}`
-    : 'tasks:operational'
+  if (isFulfillmentRoute(normalized)) return `tasks:${normalized}`
+  return LIGHT_TASK_ROUTES.has(normalized) ? 'tasks:operational-light' : 'tasks:operational'
 }
 
 export const FINAL_PRODUCTION_STAGES = new Set([
@@ -387,13 +396,15 @@ export const fetchWorkCardFlowTotals = async (taskIds = []) => {
 }
 
 export const OPERATIONAL_TASK_FIELDS = 'id,order_id,step,status,planned_sets,estimated_time,engineer_conf,warehouse_conf,director_conf,batch_index,planned_deadline,machine_name,created_at,completed_at,plan_snapshot'
+export const OPERATIONAL_TASK_FIELDS_LIGHT = 'id,order_id,step,status,planned_sets,estimated_time,engineer_conf,warehouse_conf,director_conf,batch_index,planned_deadline,machine_name,created_at,completed_at'
 
-export const fetchOperationalTasks = async ({ daysCompleted = 7 } = {}) => {
+export const fetchOperationalTasks = async ({ daysCompleted = 7, includeSnapshot = true } = {}) => {
   const recentCompletedCutoff = new Date(Date.now() - daysCompleted * 24 * 60 * 60 * 1000).toISOString()
+  const taskFields = includeSnapshot ? OPERATIONAL_TASK_FIELDS : OPERATIONAL_TASK_FIELDS_LIGHT
   
   // 1. Fetch active tasks using the idx_tasks_open partial index
   // We use the existing fetchActiveTasksOnly logic to ensure we hit the index perfectly
-  const { data: activeData, error: activeError } = await fetchActiveTasksOnly()
+  const { data: activeData, error: activeError } = await fetchActiveTasksOnly({ includeSnapshot })
   if (activeError) return { data: null, error: activeError }
 
   // 2. Fetch recently completed tasks separately
@@ -404,7 +415,7 @@ export const fetchOperationalTasks = async ({ daysCompleted = 7 } = {}) => {
   for (let from = 0; ; from += pageSize) {
     const { data, error } = await supabase
       .from('tasks')
-      .select(OPERATIONAL_TASK_FIELDS)
+      .select(taskFields)
       .eq('status', 'completed')
       .gte('completed_at', recentCompletedCutoff)
       .order('completed_at', { ascending: false })
@@ -424,14 +435,15 @@ export const fetchOperationalTasks = async ({ daysCompleted = 7 } = {}) => {
   }
 }
 
-export const fetchActiveTasksOnly = async () => {
+export const fetchActiveTasksOnly = async ({ includeSnapshot = true } = {}) => {
   const pageSize = 500
   const rows = []
+  const taskFields = includeSnapshot ? OPERATIONAL_TASK_FIELDS : OPERATIONAL_TASK_FIELDS_LIGHT
 
   for (let from = 0; ; from += pageSize) {
     const { data, error } = await supabase
       .from('tasks')
-      .select(OPERATIONAL_TASK_FIELDS)
+      .select(taskFields)
       .neq('status', 'completed')
       .order('created_at', { ascending: false })
       .order('id', { ascending: false })

@@ -126,15 +126,17 @@ export function useSupplyData({ isProcurementOnly = false } = {}) {
       if (isVirtual) {
         const vItem = stockRows.find(r => r.id === itemId)
         if (vItem) {
-          const { error } = await supabase.from('inventory').insert({
+          const itemType = vItem.type === 'archived' ? 'raw' : (vItem.type || 'raw')
+          const { error } = await supabase.from('inventory').upsert({
             name: vItem.name,
             nomenclature_id: vItem.nomenclature_id,
             warehouse: 'production',
             total_qty: totalVal,
             reserved_qty: reservedVal,
-            type: vItem.type === 'archived' ? 'raw' : (vItem.type || 'raw'),
-            unit: 'шт'
-          })
+            type: itemType,
+            unit: 'шт',
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'name,type,warehouse,pocket_owner' })
           if (error) throw error
         }
       } else {

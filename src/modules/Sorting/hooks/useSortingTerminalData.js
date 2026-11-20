@@ -341,7 +341,9 @@ export function useSortingTerminalData() {
           })
         }
         if (toCreate.length > 0) {
-          await supabase.from('inventory').insert(toCreate)
+          await supabase
+            .from('inventory')
+            .upsert(toCreate, { onConflict: 'name,type,warehouse,pocket_owner', ignoreDuplicates: true })
         }
       }
       const result = await confirmedRpc(supabase, 'rpc_submit_sorting_complete_atomic', {

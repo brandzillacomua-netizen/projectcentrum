@@ -3,6 +3,7 @@ import { apiService } from '../../../services/apiDispatcher'
 import { normalize, parseMaterialName } from './useWarehouseComputed'
 import { availableInventoryForRequest, inventoryMatchesRequest } from '../utils/materialInventoryMatching.js'
 import { deductInventoryAtomic } from '../../../services/atomicInventoryService.js'
+import { incrementInventoryStock } from '../../../services/inventoryStockService.js'
 import { isMachineMatch, resolveMachineType } from '../../../utils/cutterCalculator.js'
 
 export const useWarehouseHandlers = ({
@@ -770,32 +771,48 @@ export const useWarehouseHandlers = ({
         const targetName = matchedNom ? `${matchedNom.name}${matchedNom.material_type ? ` (${matchedNom.material_type})` : ''}` : data.name
 
         const targetWh = 'operational'
-        const existing = (inventory || []).find(i => 
-          i.warehouse === targetWh &&
-          i.type === itemType &&
-          (
-            (targetNomId && i.nomenclature_id === targetNomId) ||
-            (!targetNomId && normalize(i.name) === normInput)
-          )
-        )
-
-        if (existing) {
-          await supabaseClient.from('inventory')
-            .update({
-              total_qty: (Number(existing.total_qty) || 0) + (Number(data.total_qty) || 0),
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', existing.id)
-        } else {
-          await supabaseClient.from('inventory').insert([{
-            nomenclature_id: targetNomId,
-            name: targetName,
-            unit: data.unit || matchedNom?.unit || 'шт',
-            total_qty: Number(data.total_qty) || 0,
-            reserved_qty: 0,
+        const qtyToAdd = Number(data.total_qty) || 0
+        if (targetNomId && qtyToAdd > 0) {
+          await incrementInventoryStock({
+            nomenclatureId: targetNomId,
+            qty: qtyToAdd,
             type: itemType,
-            warehouse: targetWh
-          }])
+            warehouse: targetWh,
+            itemName: targetName,
+            unit: data.unit || matchedNom?.unit || 'шт',
+            nomenclatures
+          })
+        } else {
+          const { data: dbExisting } = await supabaseClient
+            .from('inventory')
+            .select('id, total_qty')
+            .eq('warehouse', targetWh)
+            .eq('type', itemType)
+            .is('pocket_owner', null)
+            .ilike('name', targetName.trim())
+            .limit(1)
+            .maybeSingle()
+
+          if (dbExisting) {
+            const { error: updErr } = await supabaseClient.from('inventory')
+              .update({
+                total_qty: (Number(dbExisting.total_qty) || 0) + qtyToAdd,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', dbExisting.id)
+            if (updErr) throw updErr
+          } else {
+            const { error: insErr } = await supabaseClient.from('inventory').insert([{
+              nomenclature_id: targetNomId,
+              name: targetName,
+              unit: data.unit || matchedNom?.unit || 'шт',
+              total_qty: qtyToAdd,
+              reserved_qty: 0,
+              type: itemType,
+              warehouse: targetWh
+            }])
+            if (insErr) throw insErr
+          }
         }
       })
       setShowAdd(false)

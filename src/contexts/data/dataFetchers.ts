@@ -104,7 +104,8 @@ export function useDataFetchers(state: any) {
     const profileKey = getTaskDataProfileKey(normalizedPath)
     if (!isFulfillmentRoute(normalizedPath)) {
       const daysCompleted = OPERATOR_REALTIME_ROUTES.has(normalizedPath) ? 3 : 7
-      const result = await fetchOperationalTasks({ daysCompleted })
+      const includeSnapshot = profileKey !== 'tasks:operational-light'
+      const result = await fetchOperationalTasks({ daysCompleted, includeSnapshot })
       return { ...result, profileKey }
     }
 
