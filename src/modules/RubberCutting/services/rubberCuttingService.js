@@ -192,23 +192,20 @@ export async function createPendingRubberOrder(supabase, {
 
   // Create material request for Warehouse V2 (Склад виробництва)
   if (supabase) {
-    try {
-      const { error: reqErr } = await supabase.from('material_requests').insert([{
-        nomenclature_id: rawNomId,
-        quantity: sheetsQty,
-        status: 'pending',
-        target_warehouse: 'production',
-        category: 'raw',
-        details: `ПОРІЗКА ГУМИ #${batchNumber}: ${rawNomName} — ${sheetsQty} шт. (для: ${part?.name || ''}, ${plannedQty} шт) [RUBBER_BATCH:${batchId}]`
-      }]);
-      if (reqErr) {
-        console.warn('[rubberCuttingService] Create material_request error:', reqErr.message);
-      } else {
-        window.dispatchEvent(new CustomEvent('mes:refresh-table', { detail: { table: 'material_requests' } }));
-      }
-    } catch (reqCatchErr) {
-      console.warn('[rubberCuttingService] Create material_request exception:', reqCatchErr);
+    const { error: reqErr } = await supabase.from('material_requests').insert([{
+      nomenclature_id: rawNomId,
+      quantity: sheetsQty,
+      status: 'pending',
+      target_warehouse: 'production',
+      category: 'raw',
+      details: `ПОРІЗКА ГУМИ #${batchNumber}: ${rawNomName} — ${sheetsQty} шт. (для: ${part?.name || ''}, ${plannedQty} шт) [RUBBER_BATCH:${batchId}]`
+    }]);
+    if (reqErr) {
+      await supabase.from('rubber_cutting_batches').delete().eq('id', batchId).catch(() => {});
+      removeBatchFromLocalCache(batchId);
+      throw new Error(`Не вдалося створити запит на СВ: ${reqErr.message}`);
     }
+    window.dispatchEvent(new CustomEvent('mes:refresh-table', { detail: { table: 'material_requests' } }));
   }
 
   window.dispatchEvent(new CustomEvent('mes:rubber-order-created', { detail: batchRecord }));
@@ -289,34 +286,47 @@ export async function cancelRubberOrder(supabase, batchId) {
   return { success: true };
 }
 
+function removeBatchFromLocalCache(batchId) {
+  try {
+    const raw = localStorage.getItem(LOCAL_BATCHES_KEY);
+    if (!raw) return;
+    const list = JSON.parse(raw);
+    localStorage.setItem(LOCAL_BATCHES_KEY, JSON.stringify(list.filter(b => b.id !== batchId)));
+  } catch (e) {}
+}
+
 export async function saveCuttingBatch(supabase, batch) {
-  // Always update local cache first for resilience
+  if (!supabase) {
+    try {
+      const raw = localStorage.getItem(LOCAL_BATCHES_KEY);
+      const list = raw ? JSON.parse(raw) : [];
+      const filtered = list.filter(b => b.id !== batch.id);
+      filtered.unshift(batch);
+      localStorage.setItem(LOCAL_BATCHES_KEY, JSON.stringify(filtered.slice(0, 200)));
+    } catch (e) {}
+    return { success: true, batch };
+  }
+
+  const { data, error } = await supabase
+    .from('rubber_cutting_batches')
+    .upsert([batch])
+    .select()
+    .single();
+
+  if (error) {
+    removeBatchFromLocalCache(batch.id);
+    throw new Error(`Помилка збереження партії порізки гуми: ${error.message}`);
+  }
+
   try {
     const raw = localStorage.getItem(LOCAL_BATCHES_KEY);
     const list = raw ? JSON.parse(raw) : [];
     const filtered = list.filter(b => b.id !== batch.id);
-    filtered.unshift(batch);
+    filtered.unshift(data || batch);
     localStorage.setItem(LOCAL_BATCHES_KEY, JSON.stringify(filtered.slice(0, 200)));
   } catch (e) {}
 
-  if (!supabase) return { success: true, batch };
-
-  try {
-    const { data, error } = await supabase
-      .from('rubber_cutting_batches')
-      .upsert([batch])
-      .select()
-      .single();
-
-    if (error) {
-      console.warn('[rubberCuttingService] Upsert batch DB warning:', error.message);
-      return { success: true, batch, isLocal: true };
-    }
-    return { success: true, batch: data || batch };
-  } catch (err) {
-    console.warn('[rubberCuttingService] DB error:', err);
-    return { success: true, batch, isLocal: true };
-  }
+  return { success: true, batch: data || batch };
 }
 
 /**

@@ -56,10 +56,27 @@ const tsFileResolverPlugin = () => ({
   }
 })
 
+const APP_BUILD_ID = String(Date.now())
+
+const buildVersionManifestPlugin = (buildId) => ({
+  name: 'vite-plugin-build-version-manifest',
+  generateBundle() {
+    this.emitFile({
+      type: 'asset',
+      fileName: 'version.json',
+      source: JSON.stringify({ buildId })
+    })
+  }
+})
+
 // https://vitejs.dev/config/
 export default defineConfig({
+  define: {
+    __APP_BUILD_ID__: JSON.stringify(APP_BUILD_ID)
+  },
   plugins: [
     tsFileResolverPlugin(),
+    buildVersionManifestPlugin(APP_BUILD_ID),
     react(),
     basicSsl()
   ],

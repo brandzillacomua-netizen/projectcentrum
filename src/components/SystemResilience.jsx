@@ -307,85 +307,34 @@ export function ConnectionStatus() {
   )
 }
 
+const APP_BUILD_ID = typeof __APP_BUILD_ID__ !== 'undefined' ? String(__APP_BUILD_ID__) : ''
+const VERSION_CHECK_INTERVAL_MS = 10 * 60 * 1000 // 10 min on active tab
+const VERSION_CHECK_MIN_GAP_MS = 60 * 1000 // throttle visibility/focus checks
+const TV_AUTO_RELOAD_ROUTES = new Set([
+  '/preparation-dashboard',
+  '/tumbling-dashboard',
+  '/dashboard'
+])
+
+const isUserEditingField = () => {
+  if (typeof document === 'undefined') return false
+  const el = document.activeElement
+  if (!el) return false
+  const tag = String(el.tagName || '').toUpperCase()
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable
+}
+
 export function ServiceWorkerUpdateManager() {
   const [registration, setRegistration] = React.useState(null)
   const [updateReady, setUpdateReady] = React.useState(false)
   const [isUpdating, setIsUpdating] = React.useState(false)
-  const [isDismissed, setIsDismissed] = React.useState(() => {
-    try {
-      return sessionStorage.getItem('dismissed_sw_update') === 'true'
-    } catch {
-      return false
-    }
-  })
+  const [countdownSec, setCountdownSec] = React.useState(null)
+  const [isDismissed, setIsDismissed] = React.useState(false)
   const activationRequestedRef = React.useRef(false)
+  const lastVersionCheckRef = React.useRef(0)
+  const postponedUntilRef = React.useRef(0)
 
-  React.useEffect(() => {
-    if (!('serviceWorker' in navigator)) return undefined
-
-    const isLocalhost = Boolean(
-      window.location.hostname === 'localhost' ||
-      window.location.hostname === '[::1]' ||
-      window.location.hostname === '127.0.0.1' ||
-      window.location.hostname.endsWith('.localhost')
-    )
-
-    // Unregister and disable SW on localhost/DEV environment to prevent SSL SecurityError blocking requests
-    if (import.meta.env.DEV || isLocalhost) {
-      navigator.serviceWorker.getRegistrations().then(registrations => {
-        registrations.forEach(reg => reg.unregister())
-      }).catch(() => {})
-      return undefined
-    }
-
-    let disposed = false
-    let refreshing = false
-    const workerListeners = []
-
-    const inspectWorker = (worker) => {
-      if (!worker) return
-      const handleStateChange = () => {
-        if (!disposed && worker.state === 'installed' && navigator.serviceWorker.controller) {
-          setUpdateReady(true)
-        }
-      }
-      worker.addEventListener('statechange', handleStateChange)
-      workerListeners.push(() => worker.removeEventListener('statechange', handleStateChange))
-    }
-
-    const handleControllerChange = () => {
-      if (!activationRequestedRef.current || refreshing) return
-      refreshing = true
-      window.location.reload()
-    }
-
-    navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange)
-    navigator.serviceWorker.register('/sw.js')
-      .then(reg => {
-        if (disposed) return
-        setRegistration(reg)
-        if (reg.waiting) setUpdateReady(true)
-        const handleUpdateFound = () => inspectWorker(reg.installing)
-        reg.addEventListener('updatefound', handleUpdateFound)
-        workerListeners.push(() => reg.removeEventListener('updatefound', handleUpdateFound))
-        reg.update().catch(() => {})
-      })
-      .catch(error => {
-        // Suppress noisy console errors for self-signed HTTPS / local dev environment
-        if (error?.name === 'SecurityError' || String(error?.message || '').includes('SSL') || String(error || '').includes('SecurityError')) {
-          return
-        }
-        console.warn('[SW] Registration skipped:', error?.message || error)
-      })
-
-    return () => {
-      disposed = true
-      workerListeners.forEach(removeListener => removeListener())
-      navigator.serviceWorker.removeEventListener('controllerchange', handleControllerChange)
-    }
-  }, [])
-
-  const activateUpdate = async (e) => {
+  const activateUpdate = React.useCallback(async (e) => {
     if (e) {
       e.preventDefault?.()
       e.stopPropagation?.()
@@ -402,24 +351,20 @@ export function ServiceWorkerUpdateManager() {
     }
 
     try {
-      // 1. Send SKIP_WAITING to all active/waiting/installing workers
-      const regs = await navigator.serviceWorker.getRegistrations().catch(() => [])
+      const regs = 'serviceWorker' in navigator
+        ? await navigator.serviceWorker.getRegistrations().catch(() => [])
+        : []
       regs.forEach(reg => {
         reg.waiting?.postMessage('SKIP_WAITING')
         reg.installing?.postMessage('SKIP_WAITING')
       })
 
-      if (registration?.waiting) {
-        registration.waiting.postMessage('SKIP_WAITING')
-      }
-      if (registration?.installing) {
-        registration.installing.postMessage('SKIP_WAITING')
-      }
-      if (navigator.serviceWorker.controller) {
+      if (registration?.waiting) registration.waiting.postMessage('SKIP_WAITING')
+      if (registration?.installing) registration.installing.postMessage('SKIP_WAITING')
+      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
         navigator.serviceWorker.controller.postMessage('SKIP_WAITING')
       }
 
-      // 2. Clear old browser caches if available to fetch fresh assets
       if (typeof window !== 'undefined' && 'caches' in window) {
         const cacheKeys = await window.caches.keys().catch(() => [])
         await Promise.all(cacheKeys.map(k => window.caches.delete(k))).catch(() => {})
@@ -428,19 +373,151 @@ export function ServiceWorkerUpdateManager() {
       console.warn('[SW] Error during activateUpdate:', err)
     }
 
-    // 3. Fallback: Force reload within 350ms on all devices (especially tablets where controllerchange might not fire)
     setTimeout(triggerReload, 350)
-  }
+  }, [isUpdating, registration])
+
+  React.useEffect(() => {
+    const isLocalhost = Boolean(
+      window.location.hostname === 'localhost' ||
+      window.location.hostname === '[::1]' ||
+      window.location.hostname === '127.0.0.1' ||
+      window.location.hostname.endsWith('.localhost')
+    )
+
+    if (import.meta.env.DEV || isLocalhost) {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(registrations => {
+          registrations.forEach(reg => reg.unregister())
+        }).catch(() => {})
+      }
+      return undefined
+    }
+
+    let disposed = false
+    let refreshing = false
+    const workerListeners = []
+
+    const markUpdateAvailable = () => {
+      if (disposed) return
+      if (Date.now() < postponedUntilRef.current) return
+      setIsDismissed(false)
+      setUpdateReady(true)
+
+      const isTvRoute = TV_AUTO_RELOAD_ROUTES.has(window.location.pathname)
+      if (isTvRoute) {
+        activateUpdate()
+      } else if (!isUserEditingField()) {
+        setCountdownSec(prev => (prev === null ? 5 : prev))
+      }
+    }
+
+    const checkServerVersion = async (force = false) => {
+      if (disposed || !APP_BUILD_ID) return
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
+      const now = Date.now()
+      if (!force && now - lastVersionCheckRef.current < VERSION_CHECK_MIN_GAP_MS) return
+      lastVersionCheckRef.current = now
+
+      try {
+        const res = await fetch(`/version.json?t=${now}`, { cache: 'no-store' })
+        if (!res.ok) return
+        const ct = res.headers.get('content-type') || ''
+        if (!ct.includes('application/json')) return
+        const data = await res.json()
+        if (data?.buildId && String(data.buildId) !== APP_BUILD_ID) {
+          markUpdateAvailable()
+        }
+      } catch {
+        // Ignore transient offline errors
+      }
+    }
+
+    const inspectWorker = (worker) => {
+      if (!worker) return
+      const handleStateChange = () => {
+        if (!disposed && worker.state === 'installed' && navigator.serviceWorker?.controller) {
+          markUpdateAvailable()
+        }
+      }
+      worker.addEventListener('statechange', handleStateChange)
+      workerListeners.push(() => worker.removeEventListener('statechange', handleStateChange))
+    }
+
+    const handleControllerChange = () => {
+      if (!activationRequestedRef.current || refreshing) return
+      refreshing = true
+      window.location.reload()
+    }
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange)
+      navigator.serviceWorker.register('/sw.js')
+        .then(reg => {
+          if (disposed) return
+          setRegistration(reg)
+          if (reg.waiting) markUpdateAvailable()
+          const handleUpdateFound = () => inspectWorker(reg.installing)
+          reg.addEventListener('updatefound', handleUpdateFound)
+          workerListeners.push(() => reg.removeEventListener('updatefound', handleUpdateFound))
+          reg.update().catch(() => {})
+        })
+        .catch(error => {
+          if (error?.name === 'SecurityError' || String(error?.message || '').includes('SSL') || String(error || '').includes('SecurityError')) {
+            return
+          }
+          console.warn('[SW] Registration skipped:', error?.message || error)
+        })
+    }
+
+    const initialTimer = setTimeout(() => { checkServerVersion(true) }, 5000)
+    const intervalId = setInterval(() => {
+      checkServerVersion(false)
+    }, VERSION_CHECK_INTERVAL_MS)
+
+    const onVisibilityOrFocus = () => {
+      if (document.visibilityState === 'visible') {
+        checkServerVersion(false)
+      }
+    }
+    document.addEventListener('visibilitychange', onVisibilityOrFocus)
+    window.addEventListener('focus', onVisibilityOrFocus)
+
+    return () => {
+      disposed = true
+      clearTimeout(initialTimer)
+      clearInterval(intervalId)
+      document.removeEventListener('visibilitychange', onVisibilityOrFocus)
+      window.removeEventListener('focus', onVisibilityOrFocus)
+      workerListeners.forEach(removeListener => removeListener())
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.removeEventListener('controllerchange', handleControllerChange)
+      }
+    }
+  }, [activateUpdate])
+
+  React.useEffect(() => {
+    if (!updateReady || isDismissed || isUpdating || countdownSec === null) return undefined
+    if (countdownSec <= 0) {
+      if (isUserEditingField()) {
+        // Pause auto-reload while user is typing; retry in 5s
+        const deferTimer = setTimeout(() => setCountdownSec(5), 5000)
+        return () => clearTimeout(deferTimer)
+      }
+      activateUpdate()
+      return undefined
+    }
+    const tick = setTimeout(() => setCountdownSec(c => (c !== null ? c - 1 : null)), 1000)
+    return () => clearTimeout(tick)
+  }, [updateReady, isDismissed, isUpdating, countdownSec, activateUpdate])
 
   const handleDismiss = (e) => {
     if (e) {
       e.preventDefault?.()
       e.stopPropagation?.()
     }
+    postponedUntilRef.current = Date.now() + 5 * 60 * 1000
+    setCountdownSec(null)
     setIsDismissed(true)
-    try {
-      sessionStorage.setItem('dismissed_sw_update', 'true')
-    } catch {}
   }
 
   if (!updateReady || isDismissed) return null
@@ -473,7 +550,9 @@ export function ServiceWorkerUpdateManager() {
           Доступна нова версія системи
         </strong>
         <span style={{ color: '#aaa', fontSize: 11 }}>
-          Натисніть «Оновити» для застосування останніх змін.
+          {countdownSec !== null && !isUpdating
+            ? `Автоматичне оновлення через ${countdownSec} с...`
+            : 'Натисніть «Оновити» для застосування останніх змін.'}
         </span>
       </div>
       <button
@@ -502,7 +581,7 @@ export function ServiceWorkerUpdateManager() {
         type="button"
         onClick={handleDismiss}
         onTouchEnd={handleDismiss}
-        title="Сховати сповіщення"
+        title="Відкласти на 5 хв"
         style={{
           border: 0,
           background: 'rgba(255, 255, 255, 0.08)',

@@ -33,6 +33,8 @@ export function Shop1QCOpsModal({
   nomenclature,
   tasks = [],
   currentUser,
+  theme: _theme,
+  supabase: _supabase,
   systemUsers = [],
   workCards = [],
   setWorkCards,
@@ -41,7 +43,7 @@ export function Shop1QCOpsModal({
   showAlert,
   isProcessing: externalProcessing,
   setIsProcessing: externalSetProcessing,
-  onSaved
+  onSaved = undefined
 }) {
   const machineOperations = useStore(state => state.machineOperations) || []
   const machines = useStore(state => state.machines) || []

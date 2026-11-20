@@ -49,6 +49,7 @@ export function Shop1CardDetails({
   formatTime,
   selectedCardHistory,
   workCardHistory,
+  theme: _theme,
   isProcessing,
   reworkCount,
   scrapCount,

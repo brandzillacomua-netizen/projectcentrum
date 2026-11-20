@@ -63,6 +63,7 @@ self.addEventListener('fetch', function(event) {
 
   const requestUrl = new URL(event.request.url);
   if (requestUrl.origin !== self.location.origin) return;
+  if (requestUrl.pathname === '/version.json') return;
 
   // Навігація залишається network-first, щоб новий інтерфейс швидко підхоплювався.
   if (event.request.mode === 'navigate') {
