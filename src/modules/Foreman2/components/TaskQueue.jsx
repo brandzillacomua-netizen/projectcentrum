@@ -5,7 +5,9 @@ import { formatQty } from '../utils/normalize.js'
 const getQueueState = (model) => {
   const completed = model.task.status === 'completed'
   const needsReissue = !completed && (model.summary.hasShortage || model.summary.totalShortage > 0 || model.parts?.some(part => part.shortage > 0))
-  const hasRedoInProgress = !completed && model.parts?.some(part => part.activeRedo || part.cards?.some(card => card?.is_rework || String(card?.card_info || '').includes('[REDO]')))
+  const hasRedoInProgress = !completed && model.parts?.some(
+    part => part.activeRedo || part.cards?.some(card => card?.status !== 'completed' && (card?.is_rework || String(card?.card_info || '').includes('[REDO]')))
+  )
   const isNew = !completed && model.summary.totalCards === 0
   const isReady = !completed && model.summary.isReady
   const inProgress = !completed && model.summary.totalCards > 0 && !isReady && !needsReissue && !hasRedoInProgress
@@ -13,7 +15,7 @@ const getQueueState = (model) => {
   if (completed) return { key: 'completed', color: '#64748b', bg: 'transparent', icon: <CheckCircle2 size={14} />, label: 'Виконано', hint: 'Наряд завершено' }
   if (isReady) return { key: 'ready', color: '#10b981', bg: 'rgba(16,185,129,.12)', icon: <ArrowRight size={14} />, label: 'Готово', hint: 'Всі картки готові' }
   if (needsReissue) return { key: 'shortage', color: '#ef4444', bg: 'rgba(239,68,68,.12)', icon: <AlertTriangle size={14} />, label: 'Довипуск', hint: 'Потрібен довипуск' }
-  if (hasRedoInProgress) return { key: 'reissue', color: '#ef4444', bg: 'rgba(239,68,68,.12)', icon: <AlertTriangle size={14} />, label: 'Довипуск', hint: 'Довипуск у процесі' }
+  if (hasRedoInProgress) return { key: 'reissue', color: '#eab308', bg: 'rgba(234,179,8,.12)', icon: <Layers size={14} />, label: 'В роботі', hint: 'Довипуск у процесі' }
   if (isNew) return { key: 'new', color: '#3b82f6', bg: 'rgba(59,130,246,.12)', icon: <Clock size={14} />, label: 'Новий', hint: 'Картки ще не згенеровано' }
   if (inProgress) return { key: 'progress', color: '#eab308', bg: 'rgba(234,179,8,.12)', icon: <Layers size={14} />, label: 'В роботі', hint: 'У процесі виробництва' }
   return { key: 'idle', color: '#64748b', bg: 'transparent', icon: <Layers size={14} />, label: 'Наряд', hint: 'Очікує дії' }
@@ -21,8 +23,8 @@ const getQueueState = (model) => {
 
 const stateRank = {
   shortage: 0,
-  reissue: 1,
-  ready: 2,
+  ready: 1,
+  reissue: 2,
   progress: 3,
   new: 4,
   idle: 5,

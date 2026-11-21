@@ -1,6 +1,7 @@
 import React from 'react'
 import { Pencil, Check, Trash2 } from 'lucide-react'
 import { getItemReservedQty, getNomLabel } from '../utils/supplyHelpers'
+import { InventoryAdjustmentButton } from '../../Warehouse/components/InventoryAdjustmentModal.jsx'
 
 export const SupplyStockTab = ({
   searchQuery,
@@ -20,19 +21,26 @@ export const SupplyStockTab = ({
   savingInv,
   handleSaveInventoryQty,
   handleDeleteInventoryItem,
-  setReserveAnalysisItem
+  setReserveAnalysisItem,
+  onOpenAdjustment,
+  onOpenAdjustmentsJournal
 }) => {
   return (
     <section className="stock-col glass-panel" style={{ background: 'var(--card-bg, #111)', padding: '25px', borderRadius: '24px', border: '1px solid var(--border-color, var(--border-subtle))', width: '100%' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '15px' }}>
         <h3 style={{ fontSize: '1rem', fontWeight: 900, margin: 0, color: 'var(--text-color, #fff)' }}>СКЛАДСЬКІ ЗАЛИШКИ</h3>
-        <div style={{ position: 'relative' }}>
-          <input
-            style={{ background: 'var(--card-inner-bg, #000)', border: '1px solid var(--border-color, var(--border-subtle))', padding: '8px 15px', borderRadius: '10px', color: 'var(--text-color, #fff)', width: '200px', outline: 'none' }}
-            placeholder="Пошук..."
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-          />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          {typeof onOpenAdjustmentsJournal === 'function' && (
+            <InventoryAdjustmentButton onClick={onOpenAdjustmentsJournal} />
+          )}
+          <div style={{ position: 'relative' }}>
+            <input
+              style={{ background: 'var(--card-inner-bg, #000)', border: '1px solid var(--border-color, var(--border-subtle))', padding: '8px 15px', borderRadius: '10px', color: 'var(--text-color, #fff)', width: '200px', outline: 'none' }}
+              placeholder="Пошук..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+            />
+          </div>
         </div>
       </div>
 
@@ -110,12 +118,16 @@ export const SupplyStockTab = ({
                               <button
                                 type="button"
                                 onClick={() => {
-                                  setEditingInvId(item.id)
-                                  setEditingInvTotal(String(item.total_qty || 0))
-                                  setEditingInvReserved(String(item.reserved_qty || 0))
+                                  if (!item.is_virtual_zero_stock && item.id && typeof onOpenAdjustment === 'function') {
+                                    onOpenAdjustment(item)
+                                  } else {
+                                    setEditingInvId(item.id)
+                                    setEditingInvTotal(String(item.total_qty || 0))
+                                    setEditingInvReserved(String(item.reserved_qty || 0))
+                                  }
                                 }}
                                 style={{ background: 'transparent', border: 'none', color: '#ff9000', cursor: 'pointer', padding: '2px' }}
-                                title={item.is_virtual_zero_stock ? "Ввести залишок на склад (Адмін)" : "Редагувати кількість (Адмін)"}
+                                title={item.is_virtual_zero_stock ? "Ввести залишок на склад (Адмін)" : "Ручна корекція залишків (+/-)"}
                               >
                                 <Pencil size={13} />
                               </button>

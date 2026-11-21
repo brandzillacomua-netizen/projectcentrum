@@ -2,6 +2,7 @@ import React from 'react'
 import { ScannerPanel as ScannerPanelRaw } from './Warehouse/components/ScannerPanel.jsx'
 import { ReceptionAcceptanceModal as ReceptionAcceptanceModalRaw } from './Warehouse/components/ReceptionAcceptanceModal.jsx'
 import { ReserveAnalysisModal as ReserveAnalysisModalRaw } from './Warehouse/components/ReserveAnalysisModal.jsx'
+import { InventoryAdjustmentModals as InventoryAdjustmentModalsRaw, useInventoryAdjustment } from './Warehouse/components/InventoryAdjustmentModal.jsx'
 
 import { getQR, setQR } from './Supply/utils/supplyHelpers.js'
 import { SupplyNav as SupplyNavRaw } from './Supply/components/SupplyNav.jsx'
@@ -16,6 +17,7 @@ import { SupplyDeleteItemModal as SupplyDeleteItemModalRaw } from './Supply/comp
 const ScannerPanel = ScannerPanelRaw as React.FC<any>
 const ReceptionAcceptanceModal = ReceptionAcceptanceModalRaw as React.FC<any>
 const ReserveAnalysisModal = ReserveAnalysisModalRaw as React.FC<any>
+const InventoryAdjustmentModals = InventoryAdjustmentModalsRaw as React.FC<any>
 const SupplyNav = SupplyNavRaw as React.FC<any>
 const SupplyCreateShipmentModal = SupplyCreateShipmentModalRaw as React.FC<any>
 const SupplyRequestsTab = SupplyRequestsTabRaw as React.FC<any>
@@ -125,6 +127,12 @@ export const SupplyModuleV2: React.FC<{ isProcurementOnly?: boolean }> = ({ isPr
     handleAcceptReceptionDoc
   }: any = useSupplyData({ isProcurementOnly })
 
+  const inventoryAdjustment = useInventoryAdjustment({
+    currentUser,
+    fetchData: () => refreshTable?.('inventory'),
+    sourceModule: 'supply'
+  })
+
   return (
     <div className="supply-module-v2" style={{ background: 'var(--card-inner-bg, #0a0a0a)', minHeight: '100vh', color: 'var(--text-color, #fff)', display: 'flex', flexDirection: 'column' }}>
       <SupplyNav
@@ -232,6 +240,8 @@ export const SupplyModuleV2: React.FC<{ isProcurementOnly?: boolean }> = ({ isPr
             handleSaveInventoryQty={handleSaveInventoryQty}
             handleDeleteInventoryItem={handleDeleteInventoryItem}
             setReserveAnalysisItem={setReserveAnalysisItem}
+            onOpenAdjustment={inventoryAdjustment.openAdjustment}
+            onOpenAdjustmentsJournal={inventoryAdjustment.openJournal}
           />
         )}
 
@@ -308,6 +318,7 @@ export const SupplyModuleV2: React.FC<{ isProcurementOnly?: boolean }> = ({ isPr
         @media (max-width: 768px) { .hide-mobile { display: none !important; } .mobile-stack { grid-template-columns: 1fr !important; } }
         @media (min-width: 769px) { .mobile-only { display: none !important; } }
       `}} />
+      <InventoryAdjustmentModals controller={inventoryAdjustment} />
     </div>
   )
 }

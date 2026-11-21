@@ -216,9 +216,16 @@ export function useMaterialCorrection({ currentUser, nomenclatures = [], invento
     snapshot[partKey] = partSnapshot
 
     const summary = { ...(snapshot.materialSummary || {}) }
-    const oldEntryPair = Object.entries(summary).find(([, entry]) =>
-      mentionsPart(entry, part) && /[тt]\s*(?:300|700)|лист|sheet/i.test(entry?.matName || '')
-    )
+    const oldMatNorm = normalize(oldMaterial)
+    const oldEntryPair =
+      (oldMatNorm
+        ? Object.entries(summary).find(([, entry]) =>
+            mentionsPart(entry, part) && normalize(entry?.matName) === oldMatNorm
+          )
+        : null) ||
+      Object.entries(summary).find(([, entry]) =>
+        mentionsPart(entry, part) && /[тt]\s*(?:300|700)|лист|sheet/i.test(entry?.matName || '')
+      )
     const oldKey = oldEntryPair?.[0]
     const oldEntry = oldEntryPair?.[1]
     const componentIndex = oldEntry?.components?.findIndex(component => normalize(component).includes(normalize(part.name))) ?? -1
@@ -257,19 +264,8 @@ export function useMaterialCorrection({ currentUser, nomenclatures = [], invento
 
     const requestBackups = []
     const insertedIds = []
-    const inventoryBackups = new Map()
+    let taskSnapshotUpdated = false
     try {
-      // 1. Safely delete any unstarted (`new` / `waiting-*`) cards for this part
-      const safeIds = (analysis.safeNewCards || []).map(c => c.id).filter(Boolean)
-      if (safeIds.length > 0) {
-        for (const table of OPTIONAL_CARD_LINKED_TABLES) {
-          const { error: relErr } = await supabase.from(table).delete().in('card_id', safeIds)
-          if (relErr && !isMissingOptionalRelation(relErr)) throw relErr
-        }
-        const { error: delCardsErr } = await supabase.from('work_cards').delete().in('id', safeIds)
-        if (delCardsErr) throw delCardsErr
-      }
-
       const requestQuery = supabase.from('material_requests').select('*')
       const { data: requests, error: requestReadError } = task.order_id
         ? await requestQuery.or(`task_id.eq.${task.id},and(task_id.is.null,order_id.eq.${task.order_id})`)
@@ -284,39 +280,12 @@ export function useMaterialCorrection({ currentUser, nomenclatures = [], invento
         nomenclatures
       })
 
-      const releaseIssuedInventory = async (invId, qtyToRelease) => {
-        if (!invId || qtyToRelease <= 0) return
-        const key = String(invId)
-        let currentInv = inventoryBackups.get(key)
-        if (!currentInv) {
-          const { data: fetchedInv, error: inventoryError } = await supabase
-            .from('inventory')
-            .select('id,total_qty,reserved_qty')
-            .eq('id', invId)
-            .maybeSingle()
-          if (inventoryError) throw inventoryError
-          if (!fetchedInv) return
-          inventoryBackups.set(key, fetchedInv)
-          currentInv = fetchedInv
-        }
-        const nextReserved = Math.max(0, (Number(currentInv.reserved_qty) || 0) - qtyToRelease)
-        const { error: releaseError } = await supabase
-          .from('inventory')
-          .update({ reserved_qty: nextReserved })
-          .eq('id', currentInv.id)
-        if (releaseError) throw releaseError
-        inventoryBackups.set(key, { ...currentInv, reserved_qty: nextReserved })
-      }
-
       const correctionDetails = `ВИПРАВЛЕНО В НАРЯДІ: ${oldMaterial} → ${material.name} — ${sheetQty} л. [MATERIAL_CORRECTION:${part.nomId}]`
       const targetTaskId = matchingOldRequests[0] ? matchingOldRequests[0].task_id : task.id
 
       if (matchingOldRequests.length === 1 && (Number(matchingOldRequests[0].quantity) || 0) <= sheetQty) {
         const singleOld = matchingOldRequests[0]
         requestBackups.push(singleOld)
-        if (singleOld.status === 'issued') {
-          await releaseIssuedInventory(singleOld.inventory_id, Math.min(sheetQty, Number(singleOld.quantity) || 0))
-        }
         const { error: updateError } = await supabase.from('material_requests').update({
           nomenclature_id: material.id,
           inventory_id: material.inventory_id,
@@ -336,10 +305,6 @@ export function useMaterialCorrection({ currentUser, nomenclatures = [], invento
           if (take <= 0) continue
 
           requestBackups.push(oldReq)
-          if (oldReq.status === 'issued') {
-            await releaseIssuedInventory(oldReq.inventory_id, take)
-          }
-
           const leftQty = Math.max(0, oldReqQty - take)
           const patch = leftQty === 0
             ? { quantity: 0, status: 'cancelled' }
@@ -394,11 +359,26 @@ export function useMaterialCorrection({ currentUser, nomenclatures = [], invento
 
       const { error: taskError } = await supabase.from('tasks').update({ plan_snapshot: snapshot }).eq('id', task.id)
       if (taskError) throw taskError
+      taskSnapshotUpdated = true
+
+      // Delete unstarted (`new` / `waiting-*`) cards only after requests & task snapshot succeed
+      const safeIds = (analysis.safeNewCards || []).map(c => c.id).filter(Boolean)
+      if (safeIds.length > 0) {
+        for (const table of OPTIONAL_CARD_LINKED_TABLES) {
+          const { error: relErr } = await supabase.from(table).delete().in('card_id', safeIds)
+          if (relErr && !isMissingOptionalRelation(relErr)) throw relErr
+        }
+        const { error: delCardsErr } = await supabase.from('work_cards').delete().in('id', safeIds)
+        if (delCardsErr) throw delCardsErr
+      }
 
       await fetchData?.(['tasks', 'work_cards', 'material_requests', 'inventory'])
       await onCorrected?.()
       close()
     } catch (saveError) {
+      if (taskSnapshotUpdated) {
+        await supabase.from('tasks').update({ plan_snapshot: originalSnapshot }).eq('id', task.id)
+      }
       for (const backup of requestBackups) {
         await supabase.from('material_requests').update({
           nomenclature_id: backup.nomenclature_id,
@@ -409,9 +389,6 @@ export function useMaterialCorrection({ currentUser, nomenclatures = [], invento
         }).eq('id', backup.id)
       }
       if (insertedIds.length > 0) await supabase.from('material_requests').delete().in('id', insertedIds)
-      for (const backup of inventoryBackups.values()) {
-        await supabase.from('inventory').update({ reserved_qty: backup.reserved_qty }).eq('id', backup.id)
-      }
       setError(saveError.message || 'Не вдалося виправити матеріал.')
     } finally {
       setIsSaving(false)

@@ -412,6 +412,11 @@ export const useOperatorTerminalData = ({
     const matchQty = card.card_info?.match(/QTY:(\d+)/)
     return matchQty ? parseInt(matchQty[1], 10) : 0
   }
+  const getSheetsFromCard = (card) => {
+    if (!card?.card_info) return null
+    const match = card.card_info.match(/(\d+\/\d+)/)
+    return match ? match[1] : null
+  }
   const getOrderFromCard = (card) => {
     if (!card) return null
     if (card.order_id) return orders.find(o => o.id === card.order_id)
@@ -460,6 +465,7 @@ export const useOperatorTerminalData = ({
     getCardDept,
     getNomFromCard,
     getQtyFromCard,
+    getSheetsFromCard,
     getOrderFromCard
   }
 }

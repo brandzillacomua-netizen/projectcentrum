@@ -1,15 +1,19 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
 import { RefreshCw, AlertTriangle } from 'lucide-react'
 import MonthlyReport from './reports/MonthlyReport'
-import SheetsReport from './reports/SheetsReport'
+import EnterpriseSheetsReport from './reports/components/EnterpriseSheetsReport'
+import EnterpriseCuttersReport from './reports/components/EnterpriseCuttersReport'
 
 import { useReportsModuleData, HISTORY_REPORT_TABS } from './reports/hooks/useReportsModuleData'
 import { ReportsHeader } from './reports/components/ReportsHeader'
+import { ReportsSidebar } from './reports/components/ReportsSidebar'
+import { ReportsCatalogView } from './reports/components/ReportsCatalogView'
+import { REPORT_IDS } from './reports/reportsRegistry'
 import { WarehouseReportView } from './reports/components/WarehouseReportView'
 import { EmployeeReportView } from './reports/components/EmployeeReportView'
 import { ScrapReportView } from './reports/components/ScrapReportView'
 import { SuppliesReportView } from './reports/components/SuppliesReportView'
-import { CuttersReportView } from './reports/components/CuttersReportView'
 import { MachinesReportView } from './reports/components/MachinesReportView'
 import { EfficiencyReportView } from './reports/components/EfficiencyReportView'
 import { ArchiveReportView } from './reports/components/ArchiveReportView'
@@ -17,6 +21,10 @@ import { AnalyticsReportView } from './reports/components/AnalyticsReportView'
 import './reports/ReportsStyles.css'
 
 const ReportsModule = () => {
+  const { reportId } = useParams()
+  const navigate = useNavigate()
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
+
   const {
     inventory,
     tasks,
@@ -198,31 +206,21 @@ const ReportsModule = () => {
 
       case 'sheets':
         return (
-          <SheetsReport
-            nomenclatures={nomenclatures}
-            tasks={tasks}
-            orders={orders}
-            receptionDocs={receptionDocs}
-            workCardHistory={workCardHistory}
-            requests={requests}
-            inventory={inventory}
-            workCards={workCards}
-            machines={machines}
+          <EnterpriseSheetsReport
             startDate={startDate}
             endDate={endDate}
-            searchQuery={searchQuery}
-            filterByDate={filterByDate}
+            setStartDate={setStartDate}
+            setEndDate={setEndDate}
           />
         )
 
       case 'cutters':
         return (
-          <CuttersReportView
-            isSyncing={isSyncing}
-            cuttersStats={cuttersStats}
-            cutterEventsList={cutterEventsList}
-            totalCuttersUsed={totalCuttersUsed}
-            totalCuttersSupplied={totalCuttersSupplied}
+          <EnterpriseCuttersReport
+            startDate={startDate}
+            endDate={endDate}
+            setStartDate={setStartDate}
+            setEndDate={setEndDate}
           />
         )
 
@@ -274,11 +272,25 @@ const ReportsModule = () => {
     }
   }
 
+  const isCatalog = !reportId || !REPORT_IDS.has(reportId)
+
+  useEffect(() => {
+    if (reportId && REPORT_IDS.has(reportId) && reportId !== activeTab) {
+      setActiveTab(reportId)
+    }
+  }, [reportId, activeTab, setActiveTab])
+
+  const handleSelectReport = (id) => {
+    setActiveTab(id)
+    navigate(`/reports/${id}`)
+  }
+
   return (
-    <div className="reports-module">
+    <div className="reports-module" style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
       <ReportsHeader
+        isCatalog={isCatalog}
         activeTab={activeTab}
-        setActiveTab={setActiveTab}
+        setActiveTab={handleSelectReport}
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
         selectedShiftFilter={selectedShiftFilter}
@@ -296,9 +308,24 @@ const ReportsModule = () => {
         handleExport={handleExport}
       />
 
-      <div style={{ padding: '0 25px 25px 25px', display: 'flex', flexDirection: 'column', flex: 1, overflowY: 'auto' }}>
-        <div style={{ flex: 1 }}>
-          {renderTabContent()}
+      <div style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+        {!isCatalog && (
+          <ReportsSidebar
+            activeTab={activeTab}
+            onSelectReport={handleSelectReport}
+            isCollapsed={isSidebarCollapsed}
+            setIsCollapsed={setIsSidebarCollapsed}
+          />
+        )}
+
+        <div style={{ flex: 1, padding: '20px 25px 25px 25px', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ flex: 1 }}>
+            {isCatalog ? (
+              <ReportsCatalogView onSelectReport={handleSelectReport} />
+            ) : (
+              renderTabContent()
+            )}
+          </div>
         </div>
       </div>
     </div>

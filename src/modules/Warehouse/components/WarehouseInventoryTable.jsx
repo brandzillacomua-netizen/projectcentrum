@@ -34,7 +34,9 @@ const WarehouseInventoryTableRow = React.memo(({
   handleSaveInventoryQty,
   handleDeleteInventoryItem,
   setReserveAnalysisItem,
-  manualIssue
+  manualIssue,
+  onOpenAdjustment,
+  onOpenStockAnalysis
 }) => {
   const isEditing = editingInvId === item.id
   const reservedQty = getItemReservedQty(item)
@@ -81,12 +83,16 @@ const WarehouseInventoryTableRow = React.memo(({
               <button
                 type="button"
                 onClick={() => {
-                  setEditingInvId(item.id)
-                  setEditingInvTotal(String(item.total_qty || 0))
-                  setEditingInvReserved(String(item.reserved_qty || 0))
+                  if (typeof onOpenAdjustment === 'function') {
+                    onOpenAdjustment(item)
+                  } else {
+                    setEditingInvId(item.id)
+                    setEditingInvTotal(String(item.total_qty || 0))
+                    setEditingInvReserved(String(item.reserved_qty || 0))
+                  }
                 }}
                 style={{ background: 'transparent', border: 'none', color: '#555', cursor: 'pointer', display: 'inline-flex', padding: '4px' }}
-                title="Редагувати запаси"
+                title="Ручна корекція залишків (+/-)"
               >
                 <Pencil size={12} />
               </button>
@@ -115,7 +121,13 @@ const WarehouseInventoryTableRow = React.memo(({
             style={{ width: '80px', background: 'var(--surface-black)', border: '1px solid #ff9000', color: 'var(--text-strong)', textAlign: 'center', borderRadius: '6px', padding: '4px' }}
           />
         ) : (
-          <>{displayTotalQty} <small style={{ color: '#444', fontWeight: 400 }}>{item.unit}</small></>
+          <span
+            onClick={() => onOpenStockAnalysis?.(item)}
+            style={{ cursor: onOpenStockAnalysis ? 'pointer' : 'default', textDecoration: onOpenStockAnalysis ? 'underline' : 'none', textDecorationStyle: 'dotted' }}
+            title="Натисніть, щоб переглянути формування залишку та рух"
+          >
+            {displayTotalQty} <small style={{ color: '#444', fontWeight: 400 }}>{item.unit}</small>
+          </span>
         )}
       </td>
       <td style={{ padding: '15px', textAlign: 'center', color: '#10b981', fontWeight: 900 }}>
@@ -167,7 +179,9 @@ const WarehouseInventoryMobileCard = React.memo(({
   savingInv,
   handleSaveInventoryQty,
   setReserveAnalysisItem,
-  manualIssue
+  manualIssue,
+  onOpenAdjustment,
+  onOpenStockAnalysis
 }) => {
   const isEditing = editingInvId === item.id
 
@@ -197,12 +211,16 @@ const WarehouseInventoryMobileCard = React.memo(({
               <button
                 type="button"
                 onClick={() => {
-                  setEditingInvId(item.id)
-                  setEditingInvTotal(String(item.total_qty || 0))
-                  setEditingInvReserved(String(item.reserved_qty || 0))
+                  if (typeof onOpenAdjustment === 'function') {
+                    onOpenAdjustment(item)
+                  } else {
+                    setEditingInvId(item.id)
+                    setEditingInvTotal(String(item.total_qty || 0))
+                    setEditingInvReserved(String(item.reserved_qty || 0))
+                  }
                 }}
                 style={{ background: 'transparent', border: 'none', color: '#555', cursor: 'pointer', padding: '4px' }}
-                title="Редагувати"
+                title="Ручна корекція залишків (+/-)"
               >
                 <Pencil size={12} />
               </button>
@@ -292,7 +310,9 @@ export const WarehouseInventoryTable = ({
   handleDeleteInventoryItem,
   setReserveAnalysisItem,
   currentUser,
-  manualIssue
+  manualIssue,
+  onOpenAdjustment,
+  onOpenStockAnalysis
 }) => {
   if (activeTab === 'registry' || activeTab === 'boxes') return null
 
@@ -336,6 +356,8 @@ export const WarehouseInventoryTable = ({
                   handleDeleteInventoryItem={handleDeleteInventoryItem}
                   setReserveAnalysisItem={setReserveAnalysisItem}
                   manualIssue={manualIssue}
+                  onOpenAdjustment={onOpenAdjustment}
+                  onOpenStockAnalysis={onOpenStockAnalysis}
                 />
               ))
             )}
@@ -360,6 +382,7 @@ export const WarehouseInventoryTable = ({
             setReserveAnalysisItem={setReserveAnalysisItem}
             currentUser={currentUser}
             manualIssue={manualIssue}
+            onOpenAdjustment={onOpenAdjustment}
           />
         ))}
       </div>

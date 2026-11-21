@@ -6,6 +6,7 @@ import { filterSgpReceiptRegistry } from '../utils/sgpReceiptRegistry.js'
 import { StockCardsAnalysisModal } from './StockCardsAnalysisModal'
 import { normalizeKey } from '../warehouseFgpInventory.js'
 import { requestBelongsToOpenWork } from '../../../services/reservationLedger.js'
+import { InventoryAdjustmentButton, InventoryAdjustmentModals, useInventoryAdjustment } from '../../Warehouse/components/InventoryAdjustmentModal.jsx'
 
 export function InventoryTab({
   t,
@@ -27,6 +28,12 @@ export function InventoryTab({
   const storeRequests = useStore(state => state.requests) || []
   const orders = useStore(state => state.orders) || []
   const tasks = useStore(state => state.tasks) || []
+  const currentUser = useStore(state => state.currentUser)
+  const inventoryAdjustment = useInventoryAdjustment({
+    currentUser,
+    fetchData: fetchData || (() => refreshTable?.('inventory')),
+    sourceModule: 'warehouse_fgp'
+  })
   const [editingInvKey, setEditingInvKey] = useState(null)
   const [editingInvTotal, setEditingInvTotal] = useState('')
   const [editingInvReserved, setEditingInvReserved] = useState('')
@@ -418,7 +425,13 @@ export function InventoryTab({
               </span>
             </th>
           )}
-          <th style={{ padding: '14px 16px', textAlign: 'right', width: '80px' }}>ДІЇ</th>
+          <th style={{ padding: '14px 16px', textAlign: 'right', width: '130px' }}>
+            {isAdmin ? (
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                <InventoryAdjustmentButton onClick={inventoryAdjustment.openJournal} />
+              </div>
+            ) : 'ДІЇ'}
+          </th>
         </tr>
       </thead>
       <tbody>
@@ -489,12 +502,23 @@ export function InventoryTab({
                   <button
                     type="button"
                     onClick={() => {
-                      setEditingInvKey(item.key)
-                      setEditingInvTotal(String(item.total_qty || 0))
-                      setEditingInvReserved(String(item.reserved_qty || 0))
+                      const primaryRaw = item.rawItems?.[0]
+                      if (primaryRaw?.id) {
+                        inventoryAdjustment.openAdjustment({
+                          ...primaryRaw,
+                          name: item.name || primaryRaw.name,
+                          total_qty: primaryRaw.total_qty ?? item.total_qty,
+                          reserved_qty: primaryRaw.reserved_qty ?? item.reserved_qty,
+                          unit: item.unit || primaryRaw.unit
+                        })
+                      } else {
+                        setEditingInvKey(item.key)
+                        setEditingInvTotal(String(item.total_qty || 0))
+                        setEditingInvReserved(String(item.reserved_qty || 0))
+                      }
                     }}
                     style={{ background: 'none', border: 'none', color: t.textMuted, cursor: 'pointer', padding: '4px' }}
-                    title="Редагувати залишок"
+                    title="Ручна корекція залишків (+/-)"
                   >
                     <Pencil size={12} />
                   </button>
@@ -784,6 +808,7 @@ export function InventoryTab({
       nomenclatures={nomenclatures}
       onClose={() => setStockAnalysisItem(null)}
     />
+    <InventoryAdjustmentModals controller={inventoryAdjustment} />
     </>
   )
 }

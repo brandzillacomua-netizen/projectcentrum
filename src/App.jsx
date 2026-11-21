@@ -953,6 +953,7 @@ const AppContent = () => {
           <Route path="/access" element={<PermissionGuard id="access"><AccessModule /></PermissionGuard>} />
           <Route path="/procurement" element={<PermissionGuard id="procurement"><SupplyModule isProcurementOnly={true} /></PermissionGuard>} />
           <Route path="/reports" element={<PermissionGuard id="reports"><ReportsModule /></PermissionGuard>} />
+          <Route path="/reports/:reportId" element={<PermissionGuard id="reports"><ReportsModule /></PermissionGuard>} />
           <Route path="/settings" element={<PermissionGuard id="settings"><SettingsModule /></PermissionGuard>} />
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/user-settings" element={<UserSettingsPage />} />

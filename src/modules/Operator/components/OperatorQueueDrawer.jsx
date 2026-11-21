@@ -46,7 +46,7 @@ export const OperatorQueueDrawer = ({
                   const need = Number(card.card_info?.match(/\[REQ:(\d+)\]/)?.[1]) || Number(card.card_info?.match(/\[NEED:(\d+)\]/)?.[1]) || (Number(card.quantity) - bz)
                   if (bz > 0) return `${card.quantity} шт (${need}+${bz} БЗ)`
                   return `${card.quantity} шт`
-                })()} | {card.operation} {getSheetsFromCard(card) ? `| Лист ${getSheetsFromCard(card)}` : ''}
+                })()} | {card.operation} {typeof getSheetsFromCard === 'function' && getSheetsFromCard(card) ? `| Лист ${getSheetsFromCard(card)}` : ''}
               </div>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>

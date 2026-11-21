@@ -157,6 +157,9 @@ export const getRouteDataTables = (pathname = '') => {
   if (/^\/machines\/[^/]+$/.test(normalized)) {
     return [...new Set(ROUTE_DATA_PROFILES['/machines'] || [])]
   }
+  if (/^\/reports\/[^/]+$/.test(normalized)) {
+    return [...new Set(ROUTE_DATA_PROFILES['/reports'] || [])]
+  }
   return [...new Set(ROUTE_DATA_PROFILES[normalized] || [])]
 }
 

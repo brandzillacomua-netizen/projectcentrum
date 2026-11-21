@@ -5,22 +5,14 @@ import {
   BarChart2,
   Download,
   Calendar,
-  Warehouse,
-  Users,
-  AlertTriangle,
-  Truck,
-  PackageCheck,
-  Scissors,
-  Cpu,
-  Zap,
-  TrendingUp,
-  Archive,
   Filter,
   X
 } from 'lucide-react'
 import { EmployeeMultiSelect } from './EmployeeMultiSelect'
+import { REPORTS_REGISTRY } from '../reportsRegistry'
 
 export const ReportsHeader = ({
+  isCatalog = false,
   activeTab,
   setActiveTab,
   searchQuery,
@@ -62,65 +54,39 @@ export const ReportsHeader = ({
     } catch (e) {}
   }
 
+  const currentReport = REPORTS_REGISTRY.find(r => r.id === activeTab)
+  const showGlobalFilters = !isCatalog && activeTab !== 'monthly' && activeTab !== 'sheets' && activeTab !== 'cutters'
+
   return (
     <>
       <nav className="module-nav reports-nav">
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-          <Link to="/" className="reports-nav-back">
-            <ArrowLeft size={18} /> Назад
+          <Link to={isCatalog ? '/' : '/reports'} className="reports-nav-back">
+            <ArrowLeft size={18} /> {isCatalog ? 'Назад' : 'Категорії звітів'}
           </Link>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <BarChart2 className="text-secondary" size={24} color="#ff9000" />
             <h1 className="reports-nav-title">Центр Звітів</h1>
+            {!isCatalog && currentReport && (
+              <span style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-muted)', paddingLeft: '10px', borderLeft: '1px solid var(--border-subtle)' }}>
+                {currentReport.title}
+              </span>
+            )}
           </div>
         </div>
         <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
-          <button onClick={handleExport} className="reports-nav-export-btn">
-            <Download size={14} /> ЕКСПОРТ
-          </button>
+          {!isCatalog && (
+            <button onClick={handleExport} className="reports-nav-export-btn">
+              <Download size={14} /> ЕКСПОРТ
+            </button>
+          )}
         </div>
       </nav>
 
-      <div style={{ padding: '25px 25px 0 25px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', flexWrap: 'wrap', gap: '15px' }}>
-          <div className="tabs-container reports-tabs-bar">
-            <button onClick={() => setActiveTab('monthly')} className={`report-tab ${activeTab === 'monthly' ? 'active' : ''}`}>
-              <Calendar size={16} /> МІСЯЧНИЙ ЗВІТ
-            </button>
-            <button onClick={() => setActiveTab('warehouse')} className={`report-tab ${activeTab === 'warehouse' ? 'active' : ''}`}>
-              <Warehouse size={16} /> СКЛАД
-            </button>
-            <button onClick={() => setActiveTab('employees')} className={`report-tab ${activeTab === 'employees' ? 'active' : ''}`}>
-              <Users size={16} /> ПРАЦІВНИКИ
-            </button>
-            <button onClick={() => setActiveTab('scrap')} className={`report-tab ${activeTab === 'scrap' ? 'active' : ''}`}>
-              <AlertTriangle size={16} /> БРАК
-            </button>
-            <button onClick={() => setActiveTab('supplies')} className={`report-tab ${activeTab === 'supplies' ? 'active' : ''}`}>
-              <Truck size={16} /> ПОСТАВКИ
-            </button>
-            <button onClick={() => setActiveTab('sheets')} className={`report-tab ${activeTab === 'sheets' ? 'active' : ''}`}>
-              <PackageCheck size={16} /> ЛИСТИ
-            </button>
-            <button onClick={() => setActiveTab('cutters')} className={`report-tab ${activeTab === 'cutters' ? 'active' : ''}`}>
-              <Scissors size={16} /> ФРЕЗИ
-            </button>
-            <button onClick={() => setActiveTab('machines')} className={`report-tab ${activeTab === 'machines' ? 'active' : ''}`}>
-              <Cpu size={16} /> ВЕРСТАТИ
-            </button>
-            <button onClick={() => setActiveTab('efficiency')} className={`report-tab ${activeTab === 'efficiency' ? 'active' : ''}`}>
-              <Zap size={16} /> ЕФЕКТИВНІСТЬ
-            </button>
-            <button onClick={() => setActiveTab('analytics')} className={`report-tab ${activeTab === 'analytics' ? 'active' : ''}`}>
-              <TrendingUp size={16} /> АНАЛІТИКА
-            </button>
-            <button onClick={() => setActiveTab('archive')} className={`report-tab ${activeTab === 'archive' ? 'active' : ''}`}>
-              <Archive size={16} /> АРХІВ
-            </button>
-          </div>
-
-          <div style={{ display: 'flex', gap: '15px', alignItems: 'center', flexWrap: 'wrap' }}>
-            {activeTab !== 'monthly' && (
+      {showGlobalFilters && (
+        <div style={{ padding: '14px 25px 0 25px' }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '15px' }}>
+            <div style={{ display: 'flex', gap: '15px', alignItems: 'center', flexWrap: 'wrap' }}>
               <div style={{ position: 'relative' }}>
                 <Filter size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-dim)' }} />
                 <input
@@ -130,9 +96,8 @@ export const ReportsHeader = ({
                   placeholder="Фільтр по назві..."
                 />
               </div>
-            )}
 
-            {activeTab !== 'warehouse' && activeTab !== 'monthly' && (
+              {activeTab !== 'warehouse' && (
               <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
                 <select
                   className="reports-filter-select"
@@ -214,12 +179,13 @@ export const ReportsHeader = ({
                     <option value="halfyear">Останні пів року</option>
                     <option value="year">Останній рік</option>
                   </select>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </>
   )
 }

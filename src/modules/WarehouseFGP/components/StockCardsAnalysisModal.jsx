@@ -1,11 +1,30 @@
-import React, { useState, useEffect, useMemo } from 'react'
-import { X, Search, Layers, Copy, Check, CheckCircle2, Calendar, User, FileText } from 'lucide-react'
+import React, { useEffect, useMemo, useState } from 'react'
+import { X, Search, Layers, Copy, Check, CheckCircle2, Calendar, User, ChevronLeft, ChevronRight, ArrowUpRight, History } from 'lucide-react'
 import { useMES } from '../../../MESContext'
+import { supabase } from '../../../supabase'
 import { normalizeKey } from '../warehouseFgpInventory.js'
+
+const PAGE_SIZE = 25
+
+const formatQty = (val) => Number(val || 0).toLocaleString('uk-UA')
+
+const formatDateTime = (ts) => {
+  if (!ts) return '—'
+  try {
+    return new Date(ts).toLocaleString('uk-UA', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+  } catch {
+    return '—'
+  }
+}
 
 export function StockCardsAnalysisModal({
   item,
-  receiptRows = [],
   nomenclatures = [],
   onClose
 }) {
@@ -13,18 +32,37 @@ export function StockCardsAnalysisModal({
   const isLight = theme === 'light' || (typeof document !== 'undefined' && document.body.classList.contains('light-theme'))
   const isDark = !isLight
 
+  const [activeTab, setActiveTab] = useState('receipts') // 'receipts' | 'expenses' | 'adjustments'
   const [modalSearch, setModalSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [page, setPage] = useState(0)
   const [copiedId, setCopiedId] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [analysis, setAnalysis] = useState(null)
 
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (e.key === 'Escape') {
-        onClose()
-      }
+      if (e.key === 'Escape') onClose()
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [onClose])
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setDebouncedSearch(modalSearch)
+      setPage(0)
+    }, 250)
+    return () => clearTimeout(t)
+  }, [modalSearch])
+
+  useEffect(() => {
+    setActiveTab('receipts')
+    setModalSearch('')
+    setDebouncedSearch('')
+    setPage(0)
+  }, [item?.id, item?.key])
 
   const linkedNom = useMemo(() => {
     if (!item || !nomenclatures?.length) return null
@@ -42,404 +80,341 @@ export function StockCardsAnalysisModal({
       null
   }, [item, nomenclatures])
 
-  const itemCode = linkedNom?.code || ''
-  const itemNameNormalized = (item?.name || '').trim().toLowerCase()
-
-  // Find all receipt rows that contributed to this stock item
-  const matchingReceipts = useMemo(() => {
+  const inventoryIds = useMemo(() => {
     if (!item) return []
+    const rawIds = (item.rawItems || []).map(r => r.id).filter(Boolean)
+    if (rawIds.length > 0) return rawIds
+    return item.id ? [item.id] : []
+  }, [item])
 
-    return receiptRows.filter(r => {
-      // Match by detail code if available
-      if (itemCode && r.detailCode && r.detailCode.trim().toLowerCase() === itemCode.toLowerCase()) {
-        return true
+  useEffect(() => {
+    if (!item) return
+    let cancelled = false
+    const load = async () => {
+      setLoading(true)
+      setError('')
+      try {
+        const { data, error: rpcError } = await supabase.rpc('get_sgp_stock_analysis', {
+          p_inventory_ids: inventoryIds,
+          p_nomenclature_id: item.nomenclature_id || linkedNom?.id || null,
+          p_item_name: item.name || null,
+          p_tab: activeTab,
+          p_search: debouncedSearch,
+          p_limit: PAGE_SIZE,
+          p_offset: page * PAGE_SIZE
+        })
+        if (rpcError) throw rpcError
+        if (!cancelled) setAnalysis(data || null)
+      } catch (err) {
+        if (!cancelled) setError(err?.message || 'Не вдалося завантажити аналіз залишку СГП.')
+      } finally {
+        if (!cancelled) setLoading(false)
       }
-      // Match by detail name
-      if (r.detailName && r.detailName.trim().toLowerCase() === itemNameNormalized) {
-        return true
-      }
-      // Match by nomenclature ID if present
-      if (r.nomenclature_id && item.nomenclature_id && String(r.nomenclature_id) === String(item.nomenclature_id)) {
-        return true
-      }
-      return false
-    })
-  }, [receiptRows, item, itemCode, itemNameNormalized])
+    }
+    load()
+    return () => { cancelled = true }
+  }, [item, inventoryIds, linkedNom?.id, activeTab, debouncedSearch, page])
 
-  // Filter matching receipts by internal modal search query
-  const filteredReceipts = useMemo(() => {
-    if (!modalSearch.trim()) return matchingReceipts
-    const q = modalSearch.trim().toLowerCase()
-    return matchingReceipts.filter(r =>
-      (r.detailName || '').toLowerCase().includes(q) ||
-      (r.detailCode || '').toLowerCase().includes(q) ||
-      (r.cardId || '').toLowerCase().includes(q) ||
-      (r.orderNumber || '').toLowerCase().includes(q) ||
-      (r.operatorName || '').toLowerCase().includes(q) ||
-      (r.source || '').toLowerCase().includes(q)
-    )
-  }, [matchingReceipts, modalSearch])
+  if (!item) return null
 
-  const totalFromReceipts = useMemo(() => {
-    return matchingReceipts.reduce((sum, r) => sum + (Number(r.quantity) || 0), 0)
-  }, [matchingReceipts])
+  const t = {
+    overlayBg: isDark ? 'rgba(0,0,0,0.82)' : 'rgba(15,23,42,0.55)',
+    modalBg: isDark ? '#0f1115' : '#ffffff',
+    modalBorder: isDark ? 'rgba(255,255,255,0.1)' : '#e2e8f0',
+    headerBg: isDark ? '#161920' : '#f8fafc',
+    textPrimary: isDark ? '#ffffff' : '#0f172a',
+    textSecondary: isDark ? '#94a3b8' : '#64748b',
+    textMuted: isDark ? '#64748b' : '#94a3b8',
+    cardBg: isDark ? '#161920' : '#ffffff',
+    cardBorder: isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0',
+    inputBg: isDark ? '#090a0d' : '#f8fafc',
+    inputBorder: isDark ? 'rgba(255,255,255,0.1)' : '#cbd5e1',
+    tableHeaderBg: isDark ? '#1b1f28' : '#f1f5f9',
+    tableRowBorder: isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9',
+    tableRowHover: isDark ? 'rgba(255,255,255,0.02)' : '#f8fafc'
+  }
+
+  const summary = analysis?.summary || {}
+  const currentStock = analysis ? Number(summary.current_stock || 0) : Number(item.total_qty || 0)
+  const totalInCards = Number(summary.total_in_cards || 0)
+  const totalOut = Number(summary.total_out || 0)
+  const adjNet = Number(summary.adjustments_net || 0)
+  const totalRows = Number(analysis?.total_rows || 0)
+  const totalPages = Math.max(1, Math.ceil(totalRows / PAGE_SIZE))
+  const rows = analysis?.rows || []
+  const itemCode = linkedNom?.code || ''
 
   const handleCopyId = (idText) => {
     if (!idText) return
     navigator.clipboard.writeText(idText)
     setCopiedId(idText)
-    setTimeout(() => setCopiedId(null), 2000)
-  }
-
-  if (!item) return null
-
-  const t = {
-    modalBg: isDark ? '#12141c' : '#ffffff',
-    border: isDark ? '#232938' : '#cbd5e1',
-    textPrimary: isDark ? '#f8fafc' : '#0f172a',
-    textSecondary: isDark ? '#94a3b8' : '#64748b',
-    textMuted: isDark ? '#64748b' : '#94a3b8',
-    cardBg: isDark ? '#1a1e2b' : '#f8fafc',
-    headBg: isDark ? '#161924' : '#f1f5f9',
-    rowBorder: isDark ? '#1f2430' : '#e2e8f0',
-    accentGreen: isDark ? '#34d399' : '#059669',
-    accentGreenBg: isDark ? 'rgba(16, 185, 129, 0.12)' : '#ecfdf5',
-    accentGreenBorder: isDark ? 'rgba(16, 185, 129, 0.3)' : '#a7f3d0',
-    inputBg: isDark ? '#1a1e2b' : '#ffffff',
-    inputBorder: isDark ? '#2d3748' : '#cbd5e1'
+    setTimeout(() => setCopiedId(null), 1600)
   }
 
   return (
-    <div style={{
-      position: 'fixed',
-      inset: 0,
-      background: isDark ? 'rgba(0, 0, 0, 0.85)' : 'rgba(15, 23, 42, 0.6)',
-      zIndex: 9999,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '20px',
-      backdropFilter: 'blur(5px)'
-    }}>
-      <div style={{
-        background: t.modalBg,
-        border: `1.5px solid ${t.border}`,
-        borderRadius: '24px',
-        padding: '30px',
-        width: '100%',
-        maxWidth: '850px',
-        display: 'flex',
-        flexDirection: 'column',
-        maxHeight: '90vh',
-        boxShadow: isDark ? '0 20px 60px rgba(0, 0, 0, 0.7)' : '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
-      }}>
-        
+    <div
+      style={{
+        position: 'fixed', inset: 0, background: t.overlayBg, backdropFilter: 'blur(6px)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, padding: '20px'
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          background: t.modalBg, border: `1px solid ${t.modalBorder}`, borderRadius: '20px',
+          width: '100%', maxWidth: '960px', maxHeight: '88vh', display: 'flex', flexDirection: 'column',
+          boxShadow: '0 25px 50px -12px rgba(0,0,0,0.45)', overflow: 'hidden'
+        }}
+        onClick={e => e.stopPropagation()}
+      >
         {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
-          <div>
-            <h3 style={{ color: t.accentGreen, margin: 0, display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.25rem', fontWeight: 950 }}>
-              <Layers size={22} /> КАРТКИ НАПОВНЕННЯ СГП
-            </h3>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '6px', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '0.98rem', color: t.textPrimary, fontWeight: 900 }}>
-                {item.name}
-              </span>
-              {itemCode && (
-                <span style={{
-                  fontSize: '0.75rem',
-                  padding: '2px 8px',
-                  borderRadius: '6px',
-                  background: isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0',
-                  color: t.textSecondary,
-                  fontWeight: 800
-                }}>
-                  Артикул: {itemCode}
-                </span>
-              )}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 24px', background: t.headerBg, borderBottom: `1px solid ${t.modalBorder}` }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <Layers size={22} color="#10b981" />
+            <div>
+              <h2 style={{ margin: 0, fontSize: '1.08rem', fontWeight: 900, color: t.textPrimary }}>АНАЛІЗ ЗАЛИШКУ ТА РУХУ СГП</h2>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '3px', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '0.86rem', fontWeight: 700, color: t.textPrimary }}>{item.name}</span>
+                {itemCode && (
+                  <span style={{ fontSize: '0.7rem', padding: '2px 7px', borderRadius: '6px', background: isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0', color: t.textSecondary, fontWeight: 700 }}>
+                    Артикул: {itemCode}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
-
-          <button 
-            onClick={onClose}
-            style={{
-              background: isDark ? '#1a1e2b' : '#f1f5f9',
-              border: `1px solid ${isDark ? '#2d3748' : '#cbd5e1'}`,
-              color: t.textSecondary,
-              borderRadius: '50%',
-              width: '34px',
-              height: '34px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              transition: '0.2s'
-            }}
-            onMouseEnter={e => { e.currentTarget.style.background = isDark ? '#2d3748' : '#e2e8f0'; e.currentTarget.style.color = t.textPrimary }}
-            onMouseLeave={e => { e.currentTarget.style.background = isDark ? '#1a1e2b' : '#f1f5f9'; e.currentTarget.style.color = t.textSecondary }}
-          >
+          <button type="button" onClick={onClose} style={{ width: '34px', height: '34px', borderRadius: '50%', border: `1px solid ${t.cardBorder}`, background: t.cardBg, color: t.textSecondary, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
             <X size={18} />
           </button>
         </div>
 
-        {/* Top Summary Banner */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-          gap: '14px',
-          marginBottom: '20px'
-        }}>
-          <div style={{
-            background: t.cardBg,
-            border: `1px solid ${t.rowBorder}`,
-            borderRadius: '16px',
-            padding: '14px 18px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '12px'
-          }}>
-            <div style={{
-              width: '42px',
-              height: '42px',
-              borderRadius: '12px',
-              background: t.accentGreenBg,
-              border: `1px solid ${t.accentGreenBorder}`,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: t.accentGreen
-            }}>
-              <CheckCircle2 size={22} />
-            </div>
+        {/* Summary KPI */}
+        <div style={{ padding: '16px 24px 0 24px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(175px, 1fr))', gap: '10px' }}>
+          <div style={{ background: t.cardBg, border: `1px solid ${t.cardBorder}`, borderRadius: '12px', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <CheckCircle2 size={20} color="#10b981" />
             <div>
-              <div style={{ fontSize: '0.72rem', color: t.textSecondary, fontWeight: 800, textTransform: 'uppercase' }}>
-                Поточний залишок SGP
-              </div>
-              <div style={{ fontSize: '1.2rem', color: t.textPrimary, fontWeight: 1000, marginTop: '2px' }}>
-                {Number(item.total_qty || 0).toLocaleString('uk-UA')} <small style={{ fontSize: '0.78rem', color: t.textSecondary }}>{item.unit || 'шт'}</small>
-              </div>
+              <div style={{ fontSize: '0.68rem', fontWeight: 800, color: t.textSecondary, textTransform: 'uppercase' }}>Поточний залишок СГП</div>
+              <div style={{ fontSize: '1.15rem', fontWeight: 900, color: t.textPrimary }}>{formatQty(currentStock)} <small style={{ fontSize: '0.72rem', color: t.textSecondary }}>{item.unit || 'шт'}</small></div>
             </div>
           </div>
-
-          <div style={{
-            background: t.cardBg,
-            border: `1px solid ${t.rowBorder}`,
-            borderRadius: '16px',
-            padding: '14px 18px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '12px'
-          }}>
-            <div style={{
-              width: '42px',
-              height: '42px',
-              borderRadius: '12px',
-              background: isDark ? 'rgba(56, 189, 248, 0.12)' : '#f0f9ff',
-              border: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.3)' : '#bae6fd'}`,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: isDark ? '#38bdf8' : '#0284c7'
-            }}>
-              <FileText size={22} />
-            </div>
+          <div style={{ background: t.cardBg, border: `1px solid ${t.cardBorder}`, borderRadius: '12px', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <Layers size={20} color="#3b82f6" />
             <div>
-              <div style={{ fontSize: '0.72rem', color: t.textSecondary, fontWeight: 800, textTransform: 'uppercase' }}>
-                Обліковано з карточок
-              </div>
-              <div style={{ fontSize: '1.2rem', color: isDark ? '#38bdf8' : '#0284c7', fontWeight: 1000, marginTop: '2px' }}>
-                {totalFromReceipts.toLocaleString('uk-UA')} <small style={{ fontSize: '0.78rem', color: t.textSecondary }}>{item.unit || 'шт'}</small>
-              </div>
+              <div style={{ fontSize: '0.68rem', fontWeight: 800, color: t.textSecondary, textTransform: 'uppercase' }}>Надійшло з карток</div>
+              <div style={{ fontSize: '1.15rem', fontWeight: 900, color: '#3b82f6' }}>+{formatQty(totalInCards)} <small style={{ fontSize: '0.72rem', color: t.textSecondary }}>({formatQty(summary.receipts_count)})</small></div>
             </div>
           </div>
-
-          <div style={{
-            background: t.cardBg,
-            border: `1px solid ${t.rowBorder}`,
-            borderRadius: '16px',
-            padding: '14px 18px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '12px'
-          }}>
-            <div style={{
-              width: '42px',
-              height: '42px',
-              borderRadius: '12px',
-              background: isDark ? 'rgba(245, 158, 11, 0.12)' : '#fffbeb',
-              border: `1px solid ${isDark ? 'rgba(245, 158, 11, 0.3)' : '#fde68a'}`,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: isDark ? '#fbbf24' : '#b45309'
-            }}>
-              <Calendar size={22} />
-            </div>
+          <div style={{ background: t.cardBg, border: `1px solid ${t.cardBorder}`, borderRadius: '12px', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <ArrowUpRight size={20} color="#ef4444" />
             <div>
-              <div style={{ fontSize: '0.72rem', color: t.textSecondary, fontWeight: 800, textTransform: 'uppercase' }}>
-                Кількість надходжень
-              </div>
-              <div style={{ fontSize: '1.2rem', color: isDark ? '#fbbf24' : '#b45309', fontWeight: 1000, marginTop: '2px' }}>
-                {matchingReceipts.length} <small style={{ fontSize: '0.78rem', color: t.textSecondary }}>записів</small>
+              <div style={{ fontSize: '0.68rem', fontWeight: 800, color: t.textSecondary, textTransform: 'uppercase' }}>Витрата / Відвантажено</div>
+              <div style={{ fontSize: '1.15rem', fontWeight: 900, color: '#ef4444' }}>−{formatQty(totalOut)} <small style={{ fontSize: '0.72rem', color: t.textSecondary }}>({formatQty(summary.expenses_count)})</small></div>
+            </div>
+          </div>
+          <div style={{ background: t.cardBg, border: `1px solid ${t.cardBorder}`, borderRadius: '12px', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <History size={20} color="#f59e0b" />
+            <div>
+              <div style={{ fontSize: '0.68rem', fontWeight: 800, color: t.textSecondary, textTransform: 'uppercase' }}>Ручні корекції</div>
+              <div style={{ fontSize: '1.15rem', fontWeight: 900, color: adjNet >= 0 ? '#10b981' : '#ef4444' }}>
+                {adjNet >= 0 ? '+' : ''}{formatQty(adjNet)} <small style={{ fontSize: '0.72rem', color: t.textSecondary }}>({formatQty(summary.adjustments_count)})</small>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Modal Search Bar */}
-        {matchingReceipts.length > 5 && (
-          <div style={{ position: 'relative', marginBottom: '16px' }}>
-            <Search size={15} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: t.textMuted }} />
+        {/* Sub-tabs & Search */}
+        <div style={{ padding: '12px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            {[
+              { id: 'receipts', label: `Надходження (${formatQty(summary.receipts_count)})`, color: '#10b981' },
+              { id: 'expenses', label: `Витрати / Відвантаження (${formatQty(summary.expenses_count)})`, color: '#ef4444' },
+              { id: 'adjustments', label: `Корекції (${formatQty(summary.adjustments_count)})`, color: '#f59e0b' }
+            ].map(tabItem => (
+              <button
+                key={tabItem.id}
+                type="button"
+                onClick={() => { setActiveTab(tabItem.id); setPage(0) }}
+                style={{
+                  padding: '7px 12px',
+                  borderRadius: '9px',
+                  border: '1px solid',
+                  borderColor: activeTab === tabItem.id ? tabItem.color : t.cardBorder,
+                  background: activeTab === tabItem.id ? `${tabItem.color}20` : t.cardBg,
+                  color: activeTab === tabItem.id ? tabItem.color : t.textSecondary,
+                  fontWeight: 800,
+                  fontSize: '0.78rem',
+                  cursor: 'pointer'
+                }}
+              >
+                {tabItem.label}
+              </button>
+            ))}
+          </div>
+
+          <div style={{ position: 'relative', minWidth: '240px', flex: '0 1 280px' }}>
+            <Search size={14} color={t.textMuted} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
             <input
               type="text"
-              placeholder="Пошук по № картки, наряду, оператору чи цеху..."
+              placeholder="Пошук по № наряду, картці, оператору..."
               value={modalSearch}
               onChange={e => setModalSearch(e.target.value)}
               style={{
-                width: '100%',
-                background: t.inputBg,
-                border: `1.5px solid ${t.inputBorder}`,
-                borderRadius: '12px',
-                padding: '8px 12px 8px 36px',
-                color: t.textPrimary,
-                fontSize: '0.82rem',
-                outline: 'none',
-                boxSizing: 'border-box'
+                width: '100%', padding: '8px 12px 8px 34px', borderRadius: '9px',
+                border: `1px solid ${t.inputBorder}`, background: t.inputBg,
+                color: t.textPrimary, fontSize: '0.8rem', outline: 'none'
               }}
             />
           </div>
-        )}
+        </div>
 
-        {/* Table Content */}
-        <div style={{ flex: 1, overflowY: 'auto', marginBottom: '20px', borderRadius: '14px', border: `1px solid ${t.border}` }}>
-          {filteredReceipts.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '40px 20px', color: t.textSecondary, background: t.cardBg }}>
-              {matchingReceipts.length === 0 ? (
-                <>
-                  <div style={{ fontSize: '0.92rem', fontWeight: 800, marginBottom: '6px' }}>
-                    Надходжень по робочих картках не знайдено
-                  </div>
-                  <div style={{ fontSize: '0.78rem', color: t.textMuted }}>
-                    Залишок міг бути зафіксований вручну під час інвентаризації або до впровадження автоматичного обліку випуску.
-                  </div>
-                </>
-              ) : (
-                <div style={{ fontSize: '0.85rem' }}>За вказаним пошуковим запитом карток не знайдено</div>
-              )}
+        {/* Table */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '0 24px 16px 24px' }}>
+          {error && <div style={{ color: '#ef4444', marginBottom: '10px', fontSize: '0.82rem', fontWeight: 700 }}>{error}</div>}
+          {loading && rows.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '40px', color: t.textSecondary }}>Завантаження з бази...</div>
+          ) : rows.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '40px 20px', background: t.cardBg, border: `1px dashed ${t.cardBorder}`, borderRadius: '14px', color: t.textSecondary, fontSize: '0.86rem' }}>
+              Записів за обраним фільтром не знайдено.
             </div>
           ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem', textAlign: 'left' }}>
-              <thead>
-                <tr style={{ background: t.headBg, borderBottom: `1.5px solid ${t.border}`, color: t.textSecondary, fontWeight: 800, fontSize: '0.74rem' }}>
-                  <th style={{ padding: '12px' }}>ДАТА / ЧАС</th>
-                  <th style={{ padding: '12px' }}>КАРТКА ID</th>
-                  <th style={{ padding: '12px' }}>НАРЯД</th>
-                  <th style={{ padding: '12px', textAlign: 'center' }}>КІЛЬКІСТЬ</th>
-                  <th style={{ padding: '12px' }}>ЗВІДКИ НАДІЙШЛО</th>
-                  <th style={{ padding: '12px' }}>ОПЕРАТОР</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredReceipts.map((receipt, idx) => {
-                  const fullCardId = String(receipt.cardId || receipt.id)
-                  const shortCardId = `#${fullCardId.slice(-8).toUpperCase()}`
-                  const isCopied = copiedId === fullCardId
-
-                  return (
-                    <tr key={receipt.id || idx} style={{ borderBottom: `1px solid ${t.rowBorder}`, background: idx % 2 === 0 ? 'transparent' : (isDark ? 'rgba(255,255,255,0.015)' : '#f8fafc') }}>
-                      <td style={{ padding: '12px', color: t.textSecondary, whiteSpace: 'nowrap', fontWeight: 700 }}>
-                        {receipt.timestamp ? new Date(receipt.timestamp).toLocaleString('uk-UA', {
-                          day: '2-digit',
-                          month: '2-digit',
-                          year: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        }) : '—'}
-                      </td>
-                      <td style={{ padding: '12px', whiteSpace: 'nowrap' }}>
-                        <button
-                          type="button"
-                          onClick={() => handleCopyId(fullCardId)}
-                          style={{
-                            background: isDark ? 'rgba(52, 211, 153, 0.1)' : '#ecfdf5',
-                            border: `1px solid ${isDark ? 'rgba(52, 211, 153, 0.3)' : '#a7f3d0'}`,
-                            color: isDark ? '#34d399' : '#059669',
-                            borderRadius: '8px',
-                            padding: '3px 8px',
-                            fontSize: '0.78rem',
-                            fontWeight: 900,
-                            fontFamily: 'monospace',
-                            cursor: 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '4px'
-                          }}
-                          title={`Натисніть для копіювання повного ID: ${fullCardId}`}
-                        >
-                          <span>{shortCardId}</span>
-                          {isCopied ? <Check size={12} color="#10b981" /> : <Copy size={11} style={{ opacity: 0.6 }} />}
-                        </button>
-                      </td>
-                      <td style={{ padding: '12px', color: t.textPrimary, fontWeight: 900, whiteSpace: 'nowrap' }}>
-                        {receipt.orderNumber ? (receipt.orderNumber.startsWith('№') ? receipt.orderNumber : `№${receipt.orderNumber}`) + (receipt.batchIndex && !receipt.orderNumber.includes('/') ? `/${receipt.batchIndex}` : '') : '—'}
-                      </td>
-
-                      <td style={{ padding: '12px', textAlign: 'center' }}>
-                        <span style={{
-                          display: 'inline-flex',
-                          padding: '4px 10px',
-                          borderRadius: '8px',
-                          background: t.accentGreenBg,
-                          border: `1px solid ${t.accentGreenBorder}`,
-                          color: t.accentGreen,
-                          fontWeight: 950,
-                          fontSize: '0.86rem'
-                        }}>
-                          +{Number(receipt.quantity || 0).toLocaleString('uk-UA')} {item.unit || 'шт'}
-                        </span>
-                      </td>
-                      <td style={{ padding: '12px', color: t.textPrimary, fontWeight: 750 }}>
-                        {receipt.source}
-                      </td>
-                      <td style={{ padding: '12px', color: t.textSecondary, fontWeight: 700 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <User size={13} style={{ opacity: 0.7 }} />
-                          <span>{receipt.operatorName || 'Система'}</span>
-                        </div>
-                      </td>
+            <div style={{ border: `1px solid ${t.cardBorder}`, borderRadius: '12px', overflow: 'hidden', background: t.cardBg }}>
+              {activeTab === 'receipts' && (
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.8rem' }}>
+                  <thead>
+                    <tr style={{ background: t.tableHeaderBg, borderBottom: `1px solid ${t.cardBorder}`, fontSize: '0.7rem', fontWeight: 800, color: t.textSecondary, textTransform: 'uppercase' }}>
+                      <th style={{ padding: '10px 14px' }}>Дата / Час</th>
+                      <th style={{ padding: '10px 14px' }}>Картка ID</th>
+                      <th style={{ padding: '10px 14px' }}>Наряд</th>
+                      <th style={{ padding: '10px 14px' }}>Кількість</th>
+                      <th style={{ padding: '10px 14px' }}>Стадія</th>
+                      <th style={{ padding: '10px 14px' }}>Оператор</th>
                     </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+                  </thead>
+                  <tbody>
+                    {rows.map(r => {
+                      const shortId = r.card_id ? `#${String(r.card_id).slice(-8).toUpperCase()}` : '—'
+                      return (
+                        <tr key={r.id} style={{ borderBottom: `1px solid ${t.tableRowBorder}` }}>
+                          <td style={{ padding: '10px 14px', color: t.textSecondary, whiteSpace: 'nowrap' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                              <Calendar size={12} color={t.textMuted} /> {formatDateTime(r.timestamp)}
+                            </div>
+                          </td>
+                          <td style={{ padding: '10px 14px' }}>
+                            {r.card_id ? (
+                              <span
+                                onClick={() => handleCopyId(r.card_id)}
+                                title={r.card_id}
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '2px 7px', borderRadius: '6px', background: isDark ? 'rgba(16,185,129,0.12)' : '#ecfdf5', color: '#10b981', fontWeight: 800, fontFamily: 'monospace', cursor: 'pointer', fontSize: '0.76rem' }}
+                              >
+                                {shortId} {copiedId === r.card_id ? <Check size={11} /> : <Copy size={11} />}
+                              </span>
+                            ) : '—'}
+                          </td>
+                          <td style={{ padding: '10px 14px', fontWeight: 800, color: t.textPrimary }}>№{r.order_num}</td>
+                          <td style={{ padding: '10px 14px', fontWeight: 900, color: '#10b981' }}>+{formatQty(r.quantity)}</td>
+                          <td style={{ padding: '10px 14px', color: t.textSecondary }}>{r.source}</td>
+                          <td style={{ padding: '10px 14px', color: t.textPrimary }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                              <User size={12} color={t.textMuted} /> {r.operator_name}
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              )}
+
+              {activeTab === 'expenses' && (
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.8rem' }}>
+                  <thead>
+                    <tr style={{ background: t.tableHeaderBg, borderBottom: `1px solid ${t.cardBorder}`, fontSize: '0.7rem', fontWeight: 800, color: t.textSecondary, textTransform: 'uppercase' }}>
+                      <th style={{ padding: '10px 14px' }}>Дата / Час</th>
+                      <th style={{ padding: '10px 14px' }}>Наряд / Клієнт</th>
+                      <th style={{ padding: '10px 14px' }}>Опис</th>
+                      <th style={{ padding: '10px 14px', textAlign: 'right' }}>Списано</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map(r => (
+                      <tr key={r.id} style={{ borderBottom: `1px solid ${t.tableRowBorder}` }}>
+                        <td style={{ padding: '10px 14px', color: t.textSecondary, whiteSpace: 'nowrap' }}>{formatDateTime(r.created_at)}</td>
+                        <td style={{ padding: '10px 14px', fontWeight: 800, color: t.textPrimary }}>№{r.order_num} {r.customer && r.customer !== '—' ? `(${r.customer})` : ''}</td>
+                        <td style={{ padding: '10px 14px', color: t.textSecondary }}>{r.details}</td>
+                        <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 900, color: '#ef4444' }}>−{formatQty(r.quantity)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+
+              {activeTab === 'adjustments' && (
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.8rem' }}>
+                  <thead>
+                    <tr style={{ background: t.tableHeaderBg, borderBottom: `1px solid ${t.cardBorder}`, fontSize: '0.7rem', fontWeight: 800, color: t.textSecondary, textTransform: 'uppercase' }}>
+                      <th style={{ padding: '10px 14px' }}>Дата / Час</th>
+                      <th style={{ padding: '10px 14px' }}>Хто змінив</th>
+                      <th style={{ padding: '10px 14px' }}>Причина</th>
+                      <th style={{ padding: '10px 14px', textAlign: 'right' }}>Зміна</th>
+                      <th style={{ padding: '10px 14px', textAlign: 'right' }}>Було → Стало</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map(a => {
+                      const isAdd = a.action === 'add'
+                      return (
+                        <tr key={a.id} style={{ borderBottom: `1px solid ${t.tableRowBorder}` }}>
+                          <td style={{ padding: '10px 14px', color: t.textSecondary, whiteSpace: 'nowrap' }}>{formatDateTime(a.created_at)}</td>
+                          <td style={{ padding: '10px 14px', fontWeight: 700, color: t.textPrimary }}>{a.actor_name}</td>
+                          <td style={{ padding: '10px 14px', color: t.textSecondary }}>{a.reason || '—'}</td>
+                          <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 900, color: isAdd ? '#10b981' : '#ef4444' }}>
+                            {isAdd ? '+' : '−'}{formatQty(a.delta_qty)}
+                          </td>
+                          <td style={{ padding: '10px 14px', textAlign: 'right', color: t.textSecondary }}>
+                            {formatQty(a.qty_before)} → <strong style={{ color: t.textPrimary }}>{formatQty(a.qty_after)}</strong>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
           )}
         </div>
 
-        {/* Footer */}
-        <div style={{ borderTop: `1.5px solid ${t.rowBorder}`, paddingTop: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ fontSize: '0.78rem', color: t.textSecondary, fontWeight: 700 }}>
-            Всього відображено: <strong style={{ color: t.textPrimary }}>{filteredReceipts.length}</strong> карток з сумою <strong style={{ color: t.accentGreen }}>{filteredReceipts.reduce((s, r) => s + (Number(r.quantity) || 0), 0).toLocaleString('uk-UA')} {item.unit || 'шт'}</strong>
+        {/* Footer with Pagination */}
+        <div style={{ padding: '12px 24px', background: t.headerBg, borderTop: `1px solid ${t.modalBorder}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+          <div style={{ fontSize: '0.78rem', color: t.textSecondary }}>
+            Записів у вкладці: <strong style={{ color: t.textPrimary }}>{formatQty(totalRows)}</strong> · Сторінка <strong style={{ color: t.textPrimary }}>{page + 1}</strong> з <strong style={{ color: t.textPrimary }}>{totalPages}</strong>
           </div>
-          <button
-            onClick={onClose}
-            style={{
-              background: '#10b981',
-              color: '#ffffff',
-              border: 'none',
-              padding: '10px 24px',
-              borderRadius: '12px',
-              fontWeight: 900,
-              fontSize: '0.85rem',
-              cursor: 'pointer',
-              boxShadow: '0 2px 8px rgba(16, 185, 129, 0.25)',
-              transition: '0.15s'
-            }}
-            onMouseEnter={e => e.currentTarget.style.background = '#059669'}
-            onMouseLeave={e => e.currentTarget.style.background = '#10b981'}
-          >
-            ЗАКРИТИ
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button
+              type="button"
+              onClick={() => setPage(p => Math.max(0, p - 1))}
+              disabled={page <= 0 || loading}
+              style={{ padding: '6px 10px', borderRadius: '8px', border: `1px solid ${t.cardBorder}`, background: t.cardBg, color: t.textPrimary, cursor: page <= 0 ? 'not-allowed' : 'pointer', opacity: page <= 0 ? 0.5 : 1, display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.78rem', fontWeight: 700 }}
+            >
+              <ChevronLeft size={14} /> Попередня
+            </button>
+            <button
+              type="button"
+              onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
+              disabled={page >= totalPages - 1 || loading}
+              style={{ padding: '6px 10px', borderRadius: '8px', border: `1px solid ${t.cardBorder}`, background: t.cardBg, color: t.textPrimary, cursor: page >= totalPages - 1 ? 'not-allowed' : 'pointer', opacity: page >= totalPages - 1 ? 0.5 : 1, display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.78rem', fontWeight: 700 }}
+            >
+              Наступна <ChevronRight size={14} />
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              style={{ padding: '7px 16px', borderRadius: '9px', border: 'none', background: '#10b981', color: '#fff', fontSize: '0.8rem', fontWeight: 800, cursor: 'pointer', marginLeft: '6px' }}
+            >
+              ЗАКРИТИ
+            </button>
+          </div>
         </div>
-
       </div>
     </div>
   )

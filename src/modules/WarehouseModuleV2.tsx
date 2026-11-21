@@ -21,6 +21,8 @@ import { BoxesView } from './Warehouse/components/BoxesView'
 import { RegistryView } from './Warehouse/components/RegistryView'
 import { ReserveAnalysisModal } from './Warehouse/components/ReserveAnalysisModal'
 import { ManualInventoryIssueUI } from './Warehouse/ManualIssue/ManualInventoryIssueUI'
+import { InventoryAdjustmentModals, useInventoryAdjustment } from './Warehouse/components/InventoryAdjustmentModal.jsx'
+import { OperationalStockAnalysisModal } from './Warehouse/components/OperationalStockAnalysisModal.jsx'
 
 // Extracted Sub-components
 import { WarehouseHeaderNav } from './Warehouse/components/WarehouseHeaderNav.jsx'
@@ -158,6 +160,13 @@ export const WarehouseModuleV2: React.FC = () => {
     prepDeadline, setPrepDeadline,
     handleCreatePrepOrder, isSubmitting: isPrepSubmitting
   } = usePrepOrder(nomenclatures, fetchData, currentUser)
+
+  const inventoryAdjustment = useInventoryAdjustment({
+    currentUser,
+    fetchData,
+    sourceModule: 'warehouse'
+  })
+  const [stockAnalysisItem, setStockAnalysisItem] = useState<any>(null)
 
   // Handlers Hook
   const handlers: any = useWarehouseHandlers({
@@ -316,6 +325,8 @@ export const WarehouseModuleV2: React.FC = () => {
         setShowReception={setShowReception}
         pendingDocsCount={pendingDocs.length}
         manualIssue={manualIssue}
+        onOpenAdjustmentsJournal={inventoryAdjustment.openJournal}
+
         setShowPrepModal={setShowPrepModal}
         setShowTransferModal={setShowTransferModal}
       />
@@ -336,6 +347,8 @@ export const WarehouseModuleV2: React.FC = () => {
         />
 
         <ManualInventoryIssueUI controller={manualIssue} />
+        <InventoryAdjustmentModals controller={inventoryAdjustment} />
+        <OperationalStockAnalysisModal item={stockAnalysisItem} onClose={() => setStockAnalysisItem(null)} />
 
         <WarehouseReceptionPanel
           showReception={showReception}
@@ -454,6 +467,8 @@ export const WarehouseModuleV2: React.FC = () => {
             savingInv={savingInv}
             getItemReservedQty={getItemReservedQty}
             handleSaveInventoryQty={handlers.handleSaveInventoryQty}
+            onOpenAdjustment={inventoryAdjustment.openAdjustment}
+            onOpenStockAnalysis={setStockAnalysisItem}
             handleDeleteInventoryItem={handleDeleteInventoryItem}
             setReserveAnalysisItem={setReserveAnalysisItem}
             currentUser={currentUser}
@@ -512,6 +527,7 @@ export const WarehouseModuleV2: React.FC = () => {
 
       <MasterPrepModal 
         showPrepModal={showPrepModal}
+
         setShowPrepModal={setShowPrepModal}
         nomenclatures={nomenclatures}
         inventory={inventory}

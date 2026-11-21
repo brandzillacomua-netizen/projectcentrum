@@ -3,6 +3,7 @@ import { ArrowLeft, Truck, ArrowLeftRight } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { IconSO } from '../../../components/WarehouseIcons.jsx'
 import { ManualIssueJournalButton } from '../ManualIssue/ManualInventoryIssueUI.jsx'
+import { InventoryAdjustmentButton } from './InventoryAdjustmentModal.jsx'
 
 export const WarehouseHeaderNav = ({
   currentUser,
@@ -11,6 +12,7 @@ export const WarehouseHeaderNav = ({
   setShowReception,
   pendingDocsCount,
   manualIssue,
+  onOpenAdjustmentsJournal,
   setShowPrepModal,
   setShowTransferModal
 }) => {
@@ -221,6 +223,9 @@ export const WarehouseHeaderNav = ({
 
           {/* РУЧНА ВИДАЧА */}
           <ManualIssueJournalButton onClick={manualIssue.openJournal} />
+          {typeof onOpenAdjustmentsJournal === 'function' && (
+            <InventoryAdjustmentButton onClick={onOpenAdjustmentsJournal} />
+          )}
 
           {/* User badge */}
           {currentUser && (

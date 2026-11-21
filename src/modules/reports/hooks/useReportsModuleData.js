@@ -11,7 +11,7 @@ import { useMachinesReport } from './useMachinesReport'
 import { useEfficiencyReport } from './useEfficiencyReport'
 import { exportReportToExcel } from '../utils/reportsExportService'
 
-export const HISTORY_REPORT_TABS = new Set(['employees', 'scrap', 'supplies', 'sheets', 'cutters', 'analytics', 'machines', 'efficiency'])
+export const HISTORY_REPORT_TABS = new Set(['employees', 'scrap', 'supplies', 'analytics', 'machines', 'efficiency'])
 export const REPORT_CACHE_TTL_MS = 30 * 1000
 
 export const dateInputBoundaryIso = (value, nextDay = false) => {
