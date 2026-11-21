@@ -9,7 +9,7 @@ import {
   isRawMaterialNom,
   findExplicitRawMaterialNom as findExplicitRawNom
 } from './productionShared.js'
-import { findWorkingSheetNom, extractThickness } from '../../modules/Nomenclature/utils/nomenclatureHelpers.js'
+import { findWorkingSheetNom, extractThickness, getPendingSgpPackagingDemand } from '../../modules/Nomenclature/utils/nomenclatureHelpers.js'
 import { buildRequestAllocations, consumeCuttingInventoryOnce } from '../../services/atomicInventoryService.js'
 import { resolveCutterOrVirtualType, resolveCutterTypeName, isMachineMatch, isMatchingCutterRequest } from '../../utils/cutterCalculator.js'
 import { isRequestForCard } from '../../utils/materialCardMatching.js'
@@ -1081,14 +1081,25 @@ export function createProductionCardsActions({
       const bzAllocationRemaining = {}
       const requestedNomIds = Object.keys(bzRequestedByNom)
       if (requestedNomIds.length > 0) {
-        const { data: sgpStockRows, error: sgpStockError } = await supabase
-          .from('inventory')
-          .select('id, nomenclature_id, name, total_qty, reserved_qty, type, warehouse, pocket_owner')
-          .eq('warehouse', 'sgp')
-          .in('type', ['finished', 'part', 'product'])
+        const [
+          { data: sgpStockRows, error: sgpStockError },
+          { data: pendingPackReqs, error: pendingPackError }
+        ] = await Promise.all([
+          supabase
+            .from('inventory')
+            .select('id, nomenclature_id, name, total_qty, reserved_qty, type, warehouse, pocket_owner')
+            .eq('warehouse', 'sgp')
+            .in('type', ['finished', 'part', 'product']),
+          supabase
+            .from('material_requests')
+            .select('id, order_id, nomenclature_id, quantity, status, category, target_warehouse, details')
+            .in('status', ['pending', 'processing'])
+        ])
         if (sgpStockError) throw sgpStockError
+        if (pendingPackError) throw pendingPackError
 
         const rows = sgpStockRows || []
+        const pendingReqs = pendingPackReqs || []
         for (const [nomId, reqQty] of Object.entries(bzRequestedByNom)) {
           const partNom = (nomenclatures || []).find(n => String(n.id) === String(nomId))
           const legacySet = new Set((partNom?.legacy_ids || []).map(String))
@@ -1103,10 +1114,18 @@ export function createProductionCardsActions({
             return idMatch || nameMatch
           })
 
-          const freeQty = matching.reduce(
+          const rawFreeQty = matching.reduce(
             (sum, r) => sum + Math.max(0, (Number(r.total_qty) || 0) - (Number(r.reserved_qty) || 0)),
             0
           )
+
+          const pendingDemand = getPendingSgpPackagingDemand(
+            partNom || { id: nomId, name: '', legacy_ids: [] },
+            pendingReqs,
+            validOrderId
+          )
+
+          const freeQty = Math.max(0, rawFreeQty - pendingDemand)
           bzAllocationRemaining[String(nomId)] = Math.min(Number(reqQty) || 0, freeQty)
         }
       }

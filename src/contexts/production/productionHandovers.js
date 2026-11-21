@@ -514,16 +514,7 @@ export function createProductionHandoversActions({
       if (inventoryUpdates.length > 0) await supabase.from('inventory').upsert(inventoryUpdates)
       await supabase.from('work_card_history').insert([{ card_id: card.id, nomenclature_id: canonicalNomId, stage_name: 'Пакування/СГП', operator_name: 'Система (ПРЯМА ПЕРЕДАЧА)', qty_at_start: totalQty, qty_completed: totalQty, scrap_qty: 0, completed_at: new Date().toISOString() }])
 
-      if (finishedQty > 0 && task.order_id) {
-        await reserveShop2OutputForOrder({
-          orderId: task.order_id,
-          taskId: task.id,
-          nomenclatureId: canonicalNomId,
-          arrivedQty: finishedQty,
-          sgpInvId: sgpFinishedRowId
-        })
-      }
-
+      // Shop 2 output lands on SGP as free physical stock (total_qty); packaging reserves only when actually issued.
       refreshTable('inventory'); refreshTable('tasks')
       return { success: true }
     } catch (e) { console.error("Direct handover error:", e); throw e }
@@ -638,14 +629,7 @@ export function createProductionHandoversActions({
         }
       }
 
-      if (cardMeta?.order_id && cardMeta?.nomenclature_id && Number(cardMeta?.quantity) > 0) {
-        await reserveShop2OutputForOrder({
-          orderId: cardMeta.order_id,
-          taskId: cardMeta.task_id,
-          nomenclatureId: cardMeta.nomenclature_id,
-          arrivedQty: Number(cardMeta.quantity)
-        })
-      }
+      // Shop 2 output lands on SGP as free physical stock (total_qty); packaging reserves only when actually issued.
       setWorkCards(prev => prev.filter(c => String(c.id) !== String(cardId)))
       refreshTable('work_cards')
       refreshTable('inventory')

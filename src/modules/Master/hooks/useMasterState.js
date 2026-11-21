@@ -854,7 +854,7 @@ export function useMasterState() {
 
         const snapshot = reprintTask?.plan_snapshot?.[String(part.nom.id)]
         const totalNeeded = snapshot ? snapshot.need : (currentQty * (Number(part.quantity_per_parent) || 1))
-        const availableBZ = getAvailableSGPStock(part.nom, inventory)
+        const availableBZ = getAvailableSGPStock(part.nom, inventory, requests, activeNaryadOrder?.id)
         const inStock = snapshot ? (snapshot.stock || 0) : (() => {
           const key = String(part.nom?.id)
           if (partBZOverrides[key] !== undefined) {
@@ -961,7 +961,7 @@ export function useMasterState() {
       for (const part of displayParts) {
         if (!part.nom) continue
         const snapshot = reprintTask?.plan_snapshot?.[String(part.nom?.id)]
-        const availableBZ = getAvailableSGPStock(part.nom, inventory)
+        const availableBZ = getAvailableSGPStock(part.nom, inventory, requests, activeNaryadOrder?.id)
         const totalNeeded = snapshot ? snapshot.need : (thisNaryadQty * (Number(part.quantity_per_parent) || 1))
         const inStock = snapshot ? (snapshot.stock || 0) : (() => {
           const key = String(part.nom?.id)

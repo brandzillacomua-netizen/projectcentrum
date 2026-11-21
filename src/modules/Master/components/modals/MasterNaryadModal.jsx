@@ -331,7 +331,7 @@ export function MasterNaryadModal({
                     const snapshot = reprintTask?.plan_snapshot?.[String(part.nom?.id)]
 
                     const totalNeeded = snapshot ? snapshot.need : (thisNaryadQty * (Number(part.quantity_per_parent) || 1))
-                    const availableBZ = getAvailableSGPStock(part.nom, inventory)
+                    const availableBZ = getAvailableSGPStock(part.nom, inventory, requests, activeNaryadOrder?.id)
                     const inStock = snapshot ? (snapshot.stock || 0) : (() => {
                       const key = String(part.nom?.id)
                       if (partBZOverrides[key] !== undefined) {
@@ -766,7 +766,7 @@ export function MasterNaryadModal({
                       displayParts.forEach(part => {
                         const snapshot = reprintTask?.plan_snapshot?.[String(part.nom?.id)];
                         const need = snapshot ? snapshot.need : (thisNaryadQty * (Number(part.quantity_per_parent) || 1));
-                        const availableBZ = getAvailableSGPStock(part.nom, inventory);
+                        const availableBZ = getAvailableSGPStock(part.nom, inventory, requests, activeNaryadOrder?.id);
                         const inStock = snapshot ? (snapshot.stock || 0) : (() => {
                           const key = String(part.nom?.id)
                           if (partBZOverrides[key] !== undefined) {
@@ -883,7 +883,7 @@ export function MasterNaryadModal({
 
                     const totalNeeded = snapshot ? snapshot.need : (thisNaryadQty * (Number(part.quantity_per_parent) || 1))
                     const isPartActiveBZ = isPartBZActive(part.nom?.id)
-                    const availableBZ = getAvailableSGPStock(part.nom, inventory)
+                    const availableBZ = getAvailableSGPStock(part.nom, inventory, requests, activeNaryadOrder?.id)
                     const inStock = snapshot ? (snapshot.stock || 0) : (isPartActiveBZ ? Math.min(totalNeeded, availableBZ) : 0)
                     const totalToProduce = snapshot ? snapshot.plan : Math.max(0, totalNeeded - inStock)
 
@@ -960,7 +960,7 @@ export function MasterNaryadModal({
                       displayParts.forEach(part => {
                         const snapshot = reprintTask?.plan_snapshot?.[String(part.nom?.id)];
                         const need = snapshot ? snapshot.need : (thisNaryadQty * (Number(part.quantity_per_parent) || 1));
-                        const availableBZ = getAvailableSGPStock(part.nom, inventory);
+                        const availableBZ = getAvailableSGPStock(part.nom, inventory, requests, activeNaryadOrder?.id);
                         const inStock = snapshot ? (snapshot.stock || 0) : (isPartBZActive(part.nom?.id) ? Math.min(need, availableBZ) : 0);
                         const plan = snapshot ? snapshot.plan : Math.max(0, need - inStock);
                         const unitsPerSheet = Number(part.nom?.units_per_sheet) || 1;

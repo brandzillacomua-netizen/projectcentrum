@@ -576,9 +576,52 @@ export const getLegacyIdsForNomId = (input, nomenclatures = []) => {
 /**
  * Computes available stock specifically on SGP warehouse and BZ ready buffers
  * for nomenclature-aware naryad generation and planning.
+/**
+ * Calculates pending (not yet issued/packed) SGP packaging demand from material_requests
+ * so new naryads do not accidentally consume parts awaiting shipment to clients.
+ */
+export const getPendingSgpPackagingDemand = (partNom, requests, excludeOrderId = null) => {
+  if (!partNom || !Array.isArray(requests) || requests.length === 0) return 0;
+  const partNomId = String(partNom.id || '');
+  const partLegacyIds = new Set((partNom.legacy_ids || []).map(String));
+  const normPartName = String(partNom.name || '').trim().toLowerCase();
+
+  return requests.reduce((sum, req) => {
+    if (!req) return sum;
+    const status = String(req.status || '').toLowerCase();
+    if (status !== 'pending' && status !== 'processing') return sum;
+    if (excludeOrderId && String(req.order_id || '') === String(excludeOrderId)) return sum;
+
+    const details = String(req.details || '');
+    const detailsUpper = details.toUpperCase();
+    const isPackaging =
+      detailsUpper.includes('ЗАПИТ НА КОМПЛЕКТУВАННЯ') ||
+      detailsUpper.includes('PACKAGING_SOURCE:SGP') ||
+      String(req.category || '').toLowerCase() === 'packaging';
+    if (!isPackaging) return sum;
+
+    const targetWh = String(req.target_warehouse || '').toLowerCase();
+    const isSgpTarget =
+      targetWh === 'sgp' ||
+      detailsUpper.includes('PACKAGING_SOURCE:SGP') ||
+      (!targetWh && !detailsUpper.includes('PACKAGING_SOURCE:'));
+    if (!isSgpTarget) return sum;
+
+    const reqNomId = String(req.nomenclature_id || '');
+    const idMatch = reqNomId && (reqNomId === partNomId || partLegacyIds.has(reqNomId));
+    const nameMatch = Boolean(normPartName && details.toLowerCase().includes(normPartName));
+    if (!idMatch && !nameMatch) return sum;
+
+    return sum + Math.max(0, Number(req.quantity) || 0);
+  }, 0);
+};
+
+/**
+ * Calculates total available stock on SGP (finished goods warehouse) for a given nomenclature.
+ * When requests are provided, subtracts pending SGP packaging demand to protect parts awaiting shipment.
  * Supports V2 canonical ID, legacy V1 IDs, and normalized name fallback matching.
  */
-export const getAvailableSGPStock = (partNom, inventory) => {
+export const getAvailableSGPStock = (partNom, inventory, requests = null, excludeOrderId = null) => {
   if (!partNom || !Array.isArray(inventory)) return 0;
   const partNomId = String(partNom.id || '');
   const partLegacyIds = new Set((partNom.legacy_ids || []).map(String));
@@ -601,7 +644,10 @@ export const getAvailableSGPStock = (partNom, inventory) => {
     return (idMatch || nameMatch) && isFinishedType && isSgpWarehouse && isNotPocket;
   });
 
-  return matchingItems.reduce((acc, i) => acc + Math.max(0, (Number(i.total_qty) || 0) - (Number(i.reserved_qty) || 0)), 0);
+  const rawAvailable = matchingItems.reduce((acc, i) => acc + Math.max(0, (Number(i.total_qty) || 0) - (Number(i.reserved_qty) || 0)), 0);
+  if (!Array.isArray(requests)) return rawAvailable;
+  const pendingDemand = getPendingSgpPackagingDemand(partNom, requests, excludeOrderId);
+  return Math.max(0, rawAvailable - pendingDemand);
 };
 
 /**
