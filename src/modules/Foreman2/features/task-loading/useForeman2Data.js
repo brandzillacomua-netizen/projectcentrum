@@ -3,6 +3,7 @@ import { supabase } from '../../../../supabase.js'
 import { asId, uniqueById } from '../../utils/normalize.js'
 import { buildScrapModel, summarizeScrap } from '../scrap/scrapCalculations.js'
 import { calculateTaskParts, isShop2AutoCard, summarizeTaskState } from '../shortage/shortageCalculations.js'
+import { isShop2OwnedCard } from '../../../Shop2CardGen/constants/shop2Stages.js'
 import { getOrderForTask, getTaskDisplayName, isRelevantForemanTask } from './taskSelectors.js'
 import { useQualityLossTotals } from '../../../VKYA/quality-hold/useQualityLossTotals.js'
 
@@ -221,8 +222,8 @@ export function useForeman2Data({ mes }) {
     // archive as the base and let the live store win for matching IDs; the old
     // order did the opposite and could leave Foreman showing stale sheet tags.
     return uniqueById([...dbCards, ...workCards]).filter(c => {
-      // Exclude rework cards that belong to Shop 2 (e.g. from sorting) from Shop 1 calculations
-      if (isShop2AutoCard(c)) {
+      // Exclude Shop 2 cards ([SHOP:2], [ЦЕХ №2], Shop 2 operations) from Shop 1 Foreman calculations
+      if (isShop2AutoCard(c) || isShop2OwnedCard(c)) {
         return false;
       }
       return true;

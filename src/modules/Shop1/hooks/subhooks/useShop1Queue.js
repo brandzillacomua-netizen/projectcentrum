@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { CHAIN, translateCyrillic } from '../../utils/shop1Helpers';
 import { getPendingRequestsForCard } from '../../../../utils/materialCardMatching.js';
+import { isShop2OwnedCard } from '../../../Shop2CardGen/constants/shop2Stages.js';
 
 export function useShop1Queue({
   workCards,
@@ -64,7 +65,7 @@ export function useShop1Queue({
     (workCards || []).forEach(c => {
       if (c.status === 'completed' || c.status === 'in-progress' || c.status === 'paused' || c.status === 'at-shop2-buffer') return;
       const info = String(c.card_info || '');
-      if (info.includes('[ЦЕХ №2] Автоматично') || info.includes('[ЦЕХ 2] Автоматично')) return;
+      if (info.includes('[ЦЕХ №2] Автоматично') || info.includes('[ЦЕХ 2] Автоматично') || isShop2OwnedCard(c)) return;
       
       const nom = nomenclatures?.find(n => n.id === c.nomenclature_id);
       if (nom && nom.type && nom.type !== 'part') return;
@@ -97,7 +98,7 @@ export function useShop1Queue({
     (workCards || []).forEach(c => {
       if (c.status === 'completed' || c.status === 'in-progress' || c.status === 'paused' || c.status === 'at-shop2-buffer') return;
       const info = String(c.card_info || '');
-      if (info.includes('[ЦЕХ №2] Автоматично') || info.includes('[ЦЕХ 2] Автоматично')) return;
+      if (info.includes('[ЦЕХ №2] Автоматично') || info.includes('[ЦЕХ 2] Автоматично') || isShop2OwnedCard(c)) return;
       
       const nom = nomenclatures?.find(n => n.id === c.nomenclature_id);
       if (nom && nom.type && ['raw', 'material', 'hardware', 'fastener', 'consumable'].includes(nom.type)) return;
@@ -131,7 +132,7 @@ export function useShop1Queue({
     if (c.status === 'completed' || c.status === 'in-progress' || c.status === 'paused' || c.status === 'at-shop2-buffer') return false;
     
     const info = String(c.card_info || '');
-    if (info.includes('[ЦЕХ №2] Автоматично') || info.includes('[ЦЕХ 2] Автоматично')) return false;
+    if (info.includes('[ЦЕХ №2] Автоматично') || info.includes('[ЦЕХ 2] Автоматично') || isShop2OwnedCard(c)) return false;
 
     const nom = getNom(c);
     if (nom && nom.type && ['raw', 'material', 'hardware', 'fastener', 'consumable'].includes(nom.type)) return false;

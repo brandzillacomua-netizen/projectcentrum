@@ -58,6 +58,18 @@ export function isPackagingOperation(operationStr = '') {
 }
 
 /**
+ * Check if a work card was created for / belongs to Shop 2 (and must be hidden from Shop 1 views)
+ */
+export function isShop2OwnedCard(card, shop2TaskIdsSet = new Set()) {
+  if (!card) return false
+  if (shop2TaskIdsSet.has(String(card.task_id || ''))) return true
+  const info = String(card.card_info || '')
+  if (info.includes('[SHOP:2]') || info.includes('[ЦЕХ №2]') || info.includes('[ЦЕХ 2]')) return true
+  if (card.status !== 'at-shop2-buffer' && isShop2Operation(card.operation)) return true
+  return false
+}
+
+/**
  * Resolve canonical stage key for an operation
  */
 export function getCanonicalShop2Stage(operationStr = '') {

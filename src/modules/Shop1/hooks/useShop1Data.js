@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { useMES } from '../../../MESContext'
 import { supabase, getCurrentTime } from '../../../supabase'
 import { isMachineMatch } from '../../../utils/cutterCalculator'
+import { isShop2OwnedCard } from '../../Shop2CardGen/constants/shop2Stages.js'
 
 const cyrillicToLatinMap = {
   'й':'q', 'ц':'w', 'у':'e', 'к':'r', 'е':'t', 'н':'y', 'г':'u', 'ш':'i', 'щ':'o', 'з':'p', 'х':'[', 'ї':']',
@@ -341,7 +342,7 @@ export function useShop1Data({
     workCards.forEach(c => {
       if (c.status === 'completed' || c.status === 'in-progress' || c.status === 'paused' || c.status === 'at-shop2-buffer') return
       const info = String(c.card_info || '')
-      if (info.includes('[ЦЕХ №2] Автоматично') || info.includes('[ЦЕХ 2] Автоматично')) return
+      if (info.includes('[ЦЕХ №2] Автоматично') || info.includes('[ЦЕХ 2] Автоматично') || isShop2OwnedCard(c)) return
       
       const nom = nomenclatures?.find(n => n.id === c.nomenclature_id)
       if (nom && nom.type && nom.type !== 'part') return
@@ -373,7 +374,7 @@ export function useShop1Data({
     workCards.forEach(c => {
       if (c.status === 'completed' || c.status === 'in-progress' || c.status === 'paused' || c.status === 'at-shop2-buffer') return
       const info = String(c.card_info || '')
-      if (info.includes('[ЦЕХ №2] Автоматично') || info.includes('[ЦЕХ 2] Автоматично')) return
+      if (info.includes('[ЦЕХ №2] Автоматично') || info.includes('[ЦЕХ 2] Автоматично') || isShop2OwnedCard(c)) return
       
       const nom = nomenclatures?.find(n => n.id === c.nomenclature_id)
       if (nom && nom.type && nom.type !== 'part') return
@@ -407,7 +408,7 @@ export function useShop1Data({
       if (c.status === 'completed' || c.status === 'in-progress' || c.status === 'paused' || c.status === 'at-shop2-buffer') return false
       
       const info = String(c.card_info || '')
-      if (info.includes('[ЦЕХ №2] Автоматично') || info.includes('[ЦЕХ 2] Автоматично')) return false
+      if (info.includes('[ЦЕХ №2] Автоматично') || info.includes('[ЦЕХ 2] Автоматично') || isShop2OwnedCard(c)) return false
   
       const nom = nomenclatures.find(n => n.id === c.nomenclature_id)
       if (nom && nom.type && nom.type !== 'part') return false

@@ -8,6 +8,7 @@ import {
   formatMachine
 } from '../utils/shop1Helpers'
 import { getCardCuttingPlanSeconds, formatCuttingTime } from '../../../utils/cuttingTimeUtils.js'
+import { isShop2OwnedCard } from '../../Shop2CardGen/constants/shop2Stages.js'
 import { parseCardComments } from '../../../services/cardCommentsService.js'
 import { CardCommentsBadge, CardCommentsModal } from '../../../components/common/CardCommentsBadge.jsx'
 
@@ -78,7 +79,7 @@ export function Shop1ActiveCardsTable({
                 if (nom && nom.type && nom.type !== 'part') return false
 
                 const info = String(c.card_info || '')
-                if (info.includes('[ЦЕХ №2] Автоматично') || info.includes('[ЦЕХ 2] Автоматично')) return false
+                if (info.includes('[ЦЕХ №2] Автоматично') || info.includes('[ЦЕХ 2] Автоматично') || isShop2OwnedCard(c)) return false
 
                 if (c.order_id && Array.isArray(orders) && orders.length > 0) {
                   const parentOrder = orders.find(o => String(o.id) === String(c.order_id))
