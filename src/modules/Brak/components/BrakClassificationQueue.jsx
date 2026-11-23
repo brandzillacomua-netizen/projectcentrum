@@ -59,12 +59,16 @@ export const BrakClassificationQueue = React.memo(({
       if (!orderMap.has(orderNum)) {
         orderMap.set(orderNum, {
           orderNum,
+          productName: item.order_product_name || '',
           totalQty: 0,
           totalPackages: 0,
           partsMap: new Map()
         })
       }
       const orderGroup = orderMap.get(orderNum)
+      if (!orderGroup.productName && item.order_product_name) {
+        orderGroup.productName = item.order_product_name
+      }
       const qty = Number(item.total_qty) || 0
       orderGroup.totalQty += qty
       orderGroup.totalPackages += 1
@@ -88,6 +92,7 @@ export const BrakClassificationQueue = React.memo(({
     return Array.from(orderMap.values())
       .map(og => ({
         orderNum: og.orderNum,
+        productName: og.productName,
         totalQty: og.totalQty,
         totalPackages: og.totalPackages,
         parts: Array.from(og.partsMap.values()).sort((a, b) => a.partName.localeCompare(b.partName, 'uk'))
@@ -237,34 +242,53 @@ export const BrakClassificationQueue = React.memo(({
                       width: '100%',
                       background: isOrderOpen ? 'rgba(245, 158, 11, 0.06)' : 'transparent',
                       border: 'none',
-                      padding: '16px 20px',
+                      padding: '14px 16px',
                       display: 'flex',
+                      flexWrap: 'wrap',
                       justifyContent: 'space-between',
                       alignItems: 'center',
-                      gap: '12px',
+                      gap: '10px 14px',
                       cursor: 'pointer',
-                      textAlign: 'left'
+                      textAlign: 'left',
+                      boxSizing: 'border-box'
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-                      <span style={{ color: '#f59e0b', display: 'inline-flex', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', flex: '1 1 200px', minWidth: 0 }}>
+                      <span style={{ color: '#f59e0b', display: 'inline-flex', alignItems: 'center', flexShrink: 0 }}>
                         {isOrderOpen ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
                       </span>
-                      <span style={{ fontWeight: 950, fontSize: '1.1rem', color: 'var(--text-color, #fff)' }}>
+                      <span style={{ fontWeight: 950, fontSize: '1.05rem', color: 'var(--text-color, #fff)', whiteSpace: 'nowrap' }}>
                         Наряд №{orderGroup.orderNum}
                       </span>
-                      <span style={{ fontSize: '0.72rem', fontWeight: 850, color: 'var(--text-muted, #777)', background: 'var(--btn-ghost-bg, var(--border-subtle))', padding: '4px 10px', borderRadius: '999px' }}>
+                      {orderGroup.productName && (
+                        <span style={{
+                          fontSize: '0.78rem',
+                          fontWeight: 800,
+                          lineHeight: 1.3,
+                          color: '#a78bfa',
+                          background: 'rgba(139, 92, 246, 0.1)',
+                          padding: '4px 10px',
+                          borderRadius: '8px',
+                          maxWidth: '100%',
+                          wordBreak: 'break-word'
+                        }}>
+                          {orderGroup.productName}
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginLeft: 'auto', flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                      <span style={{ fontSize: '0.7rem', fontWeight: 850, color: 'var(--text-muted, #777)', background: 'var(--btn-ghost-bg, var(--border-subtle))', padding: '4px 9px', borderRadius: '999px', whiteSpace: 'nowrap' }}>
                         {orderGroup.parts.length} деталей · {orderGroup.totalPackages} пакетів
                       </span>
-                    </div>
-                    <div style={{ fontSize: '1.25rem', fontWeight: 1000, color: '#f97316', whiteSpace: 'nowrap' }}>
-                      {orderGroup.totalQty} <small style={{ fontSize: '0.72rem', opacity: 0.75 }}>шт</small>
+                      <div style={{ fontSize: '1.2rem', fontWeight: 1000, color: '#f97316', whiteSpace: 'nowrap' }}>
+                        {orderGroup.totalQty} <small style={{ fontSize: '0.72rem', opacity: 0.75 }}>шт</small>
+                      </div>
                     </div>
                   </button>
 
                   {/* Level 2: Parts within Order */}
                   {isOrderOpen && (
-                    <div style={{ padding: '0 16px 16px 16px', display: 'flex', flexDirection: 'column', gap: '10px', borderTop: '1px solid var(--border-color, var(--border-subtle))', paddingTop: '12px' }}>
+                    <div style={{ padding: '10px 12px 14px 12px', display: 'flex', flexDirection: 'column', gap: '10px', borderTop: '1px solid var(--border-color, var(--border-subtle))' }}>
                       {orderGroup.parts.map(partGroup => {
                         const compositePartKey = `${orderGroup.orderNum}::${partGroup.partKey}`
                         const isPartOpen = isSearchActive || expandedParts.has(compositePartKey)
@@ -285,34 +309,38 @@ export const BrakClassificationQueue = React.memo(({
                                 width: '100%',
                                 background: isPartOpen ? 'rgba(56, 189, 248, 0.06)' : 'transparent',
                                 border: 'none',
-                                padding: '12px 16px',
+                                padding: '12px 14px',
                                 display: 'flex',
+                                flexWrap: 'wrap',
                                 justifyContent: 'space-between',
                                 alignItems: 'center',
-                                gap: '12px',
+                                gap: '8px 12px',
                                 cursor: 'pointer',
-                                textAlign: 'left'
+                                textAlign: 'left',
+                                boxSizing: 'border-box'
                               }}
                             >
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                                <span style={{ color: '#38bdf8', display: 'inline-flex', alignItems: 'center' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: '1 1 180px', minWidth: 0 }}>
+                                <span style={{ color: '#38bdf8', display: 'inline-flex', alignItems: 'center', flexShrink: 0 }}>
                                   {isPartOpen ? <ChevronDown size={17} /> : <ChevronRight size={17} />}
                                 </span>
-                                <span style={{ fontWeight: 900, fontSize: '0.96rem', color: 'var(--text-color, #fff)' }}>
+                                <span style={{ fontWeight: 900, fontSize: '0.94rem', color: 'var(--text-color, #fff)', wordBreak: 'break-word' }}>
                                   {partGroup.partName}
                                 </span>
-                                <span style={{ fontSize: '0.7rem', fontWeight: 850, color: '#38bdf8', background: 'rgba(56, 189, 248, 0.1)', padding: '3px 9px', borderRadius: '999px' }}>
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginLeft: 'auto', flexShrink: 0 }}>
+                                <span style={{ fontSize: '0.7rem', fontWeight: 850, color: '#38bdf8', background: 'rgba(56, 189, 248, 0.1)', padding: '3px 9px', borderRadius: '999px', whiteSpace: 'nowrap' }}>
                                   {partGroup.items.length} пакетів
                                 </span>
-                              </div>
-                              <div style={{ fontSize: '1.05rem', fontWeight: 1000, color: 'var(--text-color, #fff)', whiteSpace: 'nowrap' }}>
-                                {partGroup.totalQty} <small style={{ fontSize: '0.68rem', color: '#f97316' }}>шт</small>
+                                <div style={{ fontSize: '1.05rem', fontWeight: 1000, color: 'var(--text-color, #fff)', whiteSpace: 'nowrap' }}>
+                                  {partGroup.totalQty} <small style={{ fontSize: '0.68rem', color: '#f97316' }}>шт</small>
+                                </div>
                               </div>
                             </button>
 
                             {/* Level 3: Individual Packages / Cards */}
                             {isPartOpen && (
-                              <div style={{ padding: '10px 14px 14px 14px', display: 'flex', flexDirection: 'column', gap: '8px', borderTop: '1px solid var(--border-color, var(--border-subtle))' }}>
+                              <div style={{ padding: '10px 10px 12px 10px', display: 'flex', flexDirection: 'column', gap: '8px', borderTop: '1px solid var(--border-color, var(--border-subtle))' }}>
                                 {partGroup.items.map(item => {
                                   const nom = nomenclatures.find(n => n.id === item.nomenclature_id)
                                   const isActive = selectedItem?.id === item.id
@@ -325,29 +353,29 @@ export const BrakClassificationQueue = React.memo(({
                                       tabIndex={0}
                                       style={{
                                         background: isActive ? 'rgba(239, 68, 68, 0.05)' : 'var(--card-bg, #111)',
-                                        borderRadius: '14px', padding: '14px 16px', cursor: 'pointer',
+                                        borderRadius: '14px', padding: '12px 14px', cursor: 'pointer',
                                         border: `1px solid ${isActive ? '#ef444450' : 'var(--border-color, var(--border-subtle))'}`,
                                         transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                        display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '10px',
                                         transform: isActive ? 'scale(1.01)' : 'scale(1)',
                                         boxShadow: isActive ? '0 8px 24px rgba(239, 68, 68, 0.1)' : 'none'
                                       }}>
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: '1 1 200px', minWidth: 0 }}>
                                         <div style={{
-                                          background: 'var(--card-inner-bg, #000)', width: '42px', height: '42px', borderRadius: '12px',
-                                          display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted, #555)'
+                                          background: 'var(--card-inner-bg, #000)', width: '40px', height: '40px', borderRadius: '12px',
+                                          display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted, #555)', flexShrink: 0
                                         }}>
-                                          <Package size={20} />
+                                          <Package size={19} />
                                         </div>
-                                        <div>
-                                          <div style={{ fontWeight: 900, fontSize: '0.95rem', marginBottom: '2px', color: 'var(--text-color, #fff)' }}>{nom?.name || item.name}</div>
-                                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px 12px', marginTop: '4px', fontSize: '0.67rem', fontWeight: 850 }}>
+                                        <div style={{ minWidth: 0 }}>
+                                          <div style={{ fontWeight: 900, fontSize: '0.92rem', marginBottom: '2px', color: 'var(--text-color, #fff)', wordBreak: 'break-word' }}>{nom?.name || item.name}</div>
+                                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 10px', marginTop: '4px', fontSize: '0.67rem', fontWeight: 850 }}>
                                             <span style={{ color: '#f59e0b' }}>Наряд №{item.naryad_number}</span>
                                             <span style={{ color: '#38bdf8' }}>Картка №{item.card_sequence || '—'}</span>
                                             <span style={{ color: '#64748b' }} title={item.card_id ? String(item.card_id) : ''}>Системна #{item.card_number}</span>
                                             <span style={{ color: 'var(--text-muted, #666)' }}>Отримано: {new Date(item.updated_at).toLocaleDateString('uk-UA')}</span>
                                           </div>
-                                          {item.operator && <div style={{ fontSize: '0.65rem', color: '#8b5cf6', fontWeight: 800, marginTop: '3px' }}>Оператор: {item.operator} · Етап: {item.stage || '—'}</div>}
+                                          {item.operator && <div style={{ fontSize: '0.65rem', color: '#8b5cf6', fontWeight: 800, marginTop: '3px', wordBreak: 'break-word' }}>Оператор: {item.operator} · Етап: {item.stage || '—'}</div>}
                                         </div>
                                       </div>
                                       <div
@@ -357,10 +385,10 @@ export const BrakClassificationQueue = React.memo(({
                                             setScrapHistoryCard({ id: item.card_id, card_info: `№${item.card_sequence || ''}` })
                                           }
                                         }}
-                                        style={{ textAlign: 'right', cursor: item.card_id ? 'pointer' : 'default' }}
+                                        style={{ textAlign: 'right', cursor: item.card_id ? 'pointer' : 'default', marginLeft: 'auto', flexShrink: 0 }}
                                         title="Натисніть для перегляду всіх порцій браку цієї картки"
                                       >
-                                        <div style={{ fontSize: '1.4rem', fontWeight: 1000, color: 'var(--text-color, #fff)' }}>
+                                        <div style={{ fontSize: '1.3rem', fontWeight: 1000, color: 'var(--text-color, #fff)', whiteSpace: 'nowrap' }}>
                                           {item.total_qty} <small style={{ fontSize: '0.72rem', color: '#f97316' }}>шт 🔍</small>
                                         </div>
                                         {!isActive && <div style={{ fontSize: '0.55rem', color: '#ef4444', fontWeight: 1000, textTransform: 'uppercase', marginTop: '4px' }}>Натисніть для класифікації</div>}

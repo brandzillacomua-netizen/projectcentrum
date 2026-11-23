@@ -1030,9 +1030,12 @@ export function useBrakData() {
           ...sourceCards.map(card => card.order_id),
           ...sourceTasks.map(task => task.order_id)
         ].filter(Boolean))]
-        const missingOrderIds = orderIds.filter(id => !existingMeta.orders[String(id)])
+        const missingOrderIds = orderIds.filter(id => {
+          const cached = existingMeta.orders[String(id)]
+          return !cached || !Array.isArray(cached.order_items)
+        })
         const { data: sourceOrdersData } = missingOrderIds.length
-          ? await supabase.from('orders').select('id,order_num').in('id', missingOrderIds)
+          ? await supabase.from('orders').select('id,order_num,product_name,customer,order_items(nomenclature_id)').in('id', missingOrderIds)
           : { data: [] }
         const sourceOrders = [
           ...orderIds.map(id => existingMeta.orders[String(id)]).filter(Boolean),
@@ -1254,13 +1257,22 @@ export function useBrakData() {
           : null
         const sourceOrderId = sourceTask?.order_id || sourceCard?.order_id
         const sourceOrder = sourceOrderId
-          ? scrapSourceMeta.orders[String(sourceOrderId)] || orders?.find(order => String(order.id) === String(sourceOrderId))
+          ? (orders?.find(order => String(order.id) === String(sourceOrderId)) || scrapSourceMeta.orders[String(sourceOrderId)])
           : null
         const taskNumber = sourceTask?.step === 'Підготовка' && sourceTask?.plan_snapshot?._prep_num
           ? sourceTask.plan_snapshot._prep_num
           : sourceOrder?.order_num
             ? `${sourceOrder.order_num}${sourceTask?.batch_index ? `/${sourceTask.batch_index}` : ''}`
             : sourceTask?.plan_snapshot?._prep_num || '—'
+        const orderItemNames = Array.isArray(sourceOrder?.order_items)
+          ? [...new Set(sourceOrder.order_items.map(oi => {
+              const prodNom = nomenclatures?.find(n => String(n.id) === String(oi.nomenclature_id))
+              return prodNom?.name || oi.name || ''
+            }).filter(Boolean))]
+          : []
+        const orderProductName = orderItemNames.length > 0
+          ? orderItemNames.join(', ')
+          : (sourceOrder?.product_name || (sourceOrder?.nomenclature_id ? (nomenclatures?.find(n => String(n.id) === String(sourceOrder.nomenclature_id))?.name || '') : '') || '')
         return {
           id: h.id,
           is_history_row: !h.is_vkya_return,
@@ -1284,7 +1296,8 @@ export function useBrakData() {
           card_id: h.card_id,
           task_id: h.task_id || h.restoration_return_row?.source_task_id || sourceCard?.task_id || null,
           order_id: h.order_id || h.restoration_return_row?.source_order_id || sourceOrderId || null,
-          naryad_number: taskNumber
+          naryad_number: taskNumber,
+          order_product_name: orderProductName
         }
       })
       .filter(Boolean)
