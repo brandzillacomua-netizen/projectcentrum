@@ -1035,7 +1035,7 @@ export function useBrakData() {
           return !cached || !Array.isArray(cached.order_items)
         })
         const { data: sourceOrdersData } = missingOrderIds.length
-          ? await supabase.from('orders').select('id,order_num,product_name,customer,order_items(nomenclature_id)').in('id', missingOrderIds)
+          ? await supabase.from('orders').select('id,order_num,customer,order_items(nomenclature_id)').in('id', missingOrderIds)
           : { data: [] }
         const sourceOrders = [
           ...orderIds.map(id => existingMeta.orders[String(id)]).filter(Boolean),
