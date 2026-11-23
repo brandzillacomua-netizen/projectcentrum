@@ -16,14 +16,16 @@ import {
   RotateCcw
 } from 'lucide-react'
 import { parseQcOpsStamps } from '../../Shop1/utils/shop1Helpers.js'
-import { VKYA_STAMP_ASSIGNMENTS } from '../../Shop1/utils/vkyaStampHelpers.js'
+import { VKYA_STAMP_ASSIGNMENTS, getInspectorNameForStamp } from '../../Shop1/utils/vkyaStampHelpers.js'
 import { extractCardSequence } from '../hooks/useBrakData.js'
 
 const STAMP_FILTER_OPTIONS = [
   { id: 'Всі печатки', label: 'Всі печатки' },
   ...VKYA_STAMP_ASSIGNMENTS.map(a => ({
     id: a.stamp,
-    label: a.name ? `${a.stamp} (${a.name})` : a.stamp
+    label: a.stamp === 'ВКЯ 3'
+      ? 'ВКЯ 3 (Лоза Р. · до 23.11 Балабас М.)'
+      : (a.name ? `${a.stamp} (${a.name})` : a.stamp)
   }))
 ]
 
@@ -285,6 +287,8 @@ export const BrakStampsJournalModal = React.memo(({
       const seqNum = extractCardSequence(card.card_info)
       const shortHex = String(card.id || '').slice(-8).toUpperCase()
       const updatedAt = qcData.updatedAt || card.updated_at || card.created_at
+      const lastStamp = qcData.lastStamp || Array.from(stampsSet)[0] || 'ВКЯ'
+      const fallbackInspector = getInspectorNameForStamp(lastStamp, updatedAt)
 
       result.push({
         card,
@@ -294,8 +298,8 @@ export const BrakStampsJournalModal = React.memo(({
         sheetsInfo: qcData?.sheets || null,
         stamps: Array.from(stampsSet).filter(Boolean),
         inspectors: Array.from(inspectorsSet).filter(Boolean),
-        lastStamp: qcData.lastStamp || Array.from(stampsSet)[0] || 'ВКЯ',
-        lastInspector: qcData.lastInspector || Array.from(inspectorsSet)[0] || '—',
+        lastStamp,
+        lastInspector: qcData.lastInspector || Array.from(inspectorsSet)[0] || fallbackInspector || '—',
         orderNum: order?.order_num || '—',
         nomName: nom?.name || card.nomenclature_id || 'Деталь',
         machineName: machine?.name || card.machine || card.machine_name || '—',
@@ -334,7 +338,7 @@ export const BrakStampsJournalModal = React.memo(({
       const rawOp = String(row.operator_name || '')
       const parts = rawOp.split('·').map(s => s.trim())
       const stampLabel = parts[0] || qcData?.lastStamp || 'ВКЯ'
-      const inspectorLabel = parts[1] || qcData?.lastInspector || rawOp || '—'
+      const inspectorLabel = parts[1] || qcData?.lastInspector || getInspectorNameForStamp(stampLabel, row.created_at) || rawOp || '—'
 
       return {
         id: row.id,

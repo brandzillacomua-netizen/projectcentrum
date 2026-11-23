@@ -23,10 +23,22 @@ export const VKYA_STAMP_ASSIGNMENTS = [
   {
     stamp: 'ВКЯ 3',
     num: 3,
-    name: 'Балабас М.',
-    shortName: 'Балабас М.',
-    logins: ['balabas.m'],
-    surnames: ['балабас', 'balabas']
+    name: 'Лоза Р.',
+    shortName: 'Лоза Р.',
+    logins: ['loza.r', 'r.loza'],
+    surnames: ['лоза', 'loza'],
+    history: [
+      {
+        name: 'Балабас М.',
+        shortName: 'Балабас М.',
+        until: '2026-11-23T00:00:00+02:00'
+      },
+      {
+        name: 'Лоза Р.',
+        shortName: 'Лоза Р.',
+        from: '2026-11-23T00:00:00+02:00'
+      }
+    ]
   },
   {
     stamp: 'ВКЯ 4',
@@ -123,12 +135,27 @@ export function resolveUserQcStamp(user, systemUsers = [], explicitName = '') {
 }
 
 /**
- * Resolves default inspector name for an assigned stamp.
+ * Resolves default inspector name for an assigned stamp, optionally at a specific date/timestamp.
+ * Supports historical handovers (e.g. ВКЯ 3: Балабас М. before 2026-11-23, Лоза Р. from 2026-11-23).
  */
-export function getInspectorNameForStamp(stamp) {
+export function getInspectorNameForStamp(stamp, atTimestamp = null) {
   if (!stamp) return ''
   const clean = String(stamp).trim()
   const assignment = VKYA_STAMP_ASSIGNMENTS.find(a => a.stamp === clean)
-  return assignment?.name || ''
+  if (!assignment) return ''
+
+  if (atTimestamp && Array.isArray(assignment.history) && assignment.history.length > 0) {
+    const ts = new Date(atTimestamp).getTime()
+    if (Number.isFinite(ts)) {
+      const matched = assignment.history.find(h => {
+        const fromTs = h.from ? new Date(h.from).getTime() : -Infinity
+        const untilTs = h.until ? new Date(h.until).getTime() : Infinity
+        return ts >= fromTs && ts < untilTs
+      })
+      if (matched) return matched.name
+    }
+  }
+
+  return assignment.name || ''
 }
 
