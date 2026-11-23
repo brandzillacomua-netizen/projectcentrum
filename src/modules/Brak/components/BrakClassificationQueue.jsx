@@ -1,5 +1,5 @@
 import React from 'react'
-import { CheckCircle2, Package, Layers, X, ArrowLeft } from 'lucide-react'
+import { CheckCircle2, Package, Layers, X, ArrowLeft, ChevronDown, ChevronRight } from 'lucide-react'
 import { QUALITY_CLASSIFICATION_OPTIONS } from '../../VKYA/quality-hold/qualityHoldModel'
 import { CardScrapHistoryModal } from './modals/CardScrapHistoryModal'
 import { NON_HUMAN_RESPONSIBILITY_OPTIONS, isNonHumanResponsibility } from '../utils/operatorAttribution'
@@ -47,6 +47,72 @@ export const BrakClassificationQueue = React.memo(({
   setRouteReturnDraft
 }) => {
   const [scrapHistoryCard, setScrapHistoryCard] = React.useState(null)
+  const [expandedOrders, setExpandedOrders] = React.useState(() => new Set())
+  const [expandedParts, setExpandedParts] = React.useState(() => new Set())
+
+  const isSearchActive = Boolean(manualCardNumber && manualCardNumber.trim())
+
+  const orderGroups = React.useMemo(() => {
+    const orderMap = new Map()
+    ;(filteredReadyItems || []).forEach(item => {
+      const orderNum = String(item.naryad_number || '').trim() || 'Без наряду'
+      if (!orderMap.has(orderNum)) {
+        orderMap.set(orderNum, {
+          orderNum,
+          totalQty: 0,
+          totalPackages: 0,
+          partsMap: new Map()
+        })
+      }
+      const orderGroup = orderMap.get(orderNum)
+      const qty = Number(item.total_qty) || 0
+      orderGroup.totalQty += qty
+      orderGroup.totalPackages += 1
+
+      const nom = nomenclatures.find(n => n.id === item.nomenclature_id)
+      const partName = nom?.name || item.name || 'Деталь'
+      const partKey = `${item.nomenclature_id || ''}::${partName}`
+      if (!orderGroup.partsMap.has(partKey)) {
+        orderGroup.partsMap.set(partKey, {
+          partKey,
+          partName,
+          totalQty: 0,
+          items: []
+        })
+      }
+      const partGroup = orderGroup.partsMap.get(partKey)
+      partGroup.totalQty += qty
+      partGroup.items.push(item)
+    })
+
+    return Array.from(orderMap.values())
+      .map(og => ({
+        orderNum: og.orderNum,
+        totalQty: og.totalQty,
+        totalPackages: og.totalPackages,
+        parts: Array.from(og.partsMap.values()).sort((a, b) => a.partName.localeCompare(b.partName, 'uk'))
+      }))
+      .sort((a, b) => b.orderNum.localeCompare(a.orderNum, 'uk', { numeric: true }))
+  }, [filteredReadyItems, nomenclatures])
+
+  const toggleOrder = (orderNum) => {
+    setExpandedOrders(prev => {
+      const next = new Set(prev)
+      if (next.has(orderNum)) next.delete(orderNum)
+      else next.add(orderNum)
+      return next
+    })
+  }
+
+  const togglePart = (compositeKey) => {
+    setExpandedParts(prev => {
+      const next = new Set(prev)
+      if (next.has(compositeKey)) next.delete(compositeKey)
+      else next.add(compositeKey)
+      return next
+    })
+  }
+
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '40px' }}>
       
@@ -151,64 +217,170 @@ export const BrakClassificationQueue = React.memo(({
               </div>
             ))
           ) : (
-            paginatedReadyItems.map(item => {
-              const nom = nomenclatures.find(n => n.id === item.nomenclature_id)
-              const isActive = selectedItem?.id === item.id
+            orderGroups.map(orderGroup => {
+              const isOrderOpen = isSearchActive || expandedOrders.has(orderGroup.orderNum)
               return (
-                <div key={item.id} 
-                  className="queue-item-card"
-                  onClick={() => setSelectedItem(item)}
-                  onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') setSelectedItem(item) }}
-                  role="button"
-                  tabIndex={0}
-                  style={{ 
-                    background: isActive ? 'rgba(239, 68, 68, 0.05)' : 'var(--card-bg, #111)', 
-                    borderRadius: '20px', padding: '20px', cursor: 'pointer',
-                    border: `1px solid ${isActive ? '#ef444450' : 'var(--border-color, var(--border-subtle))'}`,
-                    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                    transform: isActive ? 'scale(1.02)' : 'scale(1)',
-                    boxShadow: isActive ? '0 10px 30px rgba(239, 68, 68, 0.1)' : 'none'
-                  }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                    <div style={{ 
-                      background: 'var(--card-inner-bg, #000)', width: '50px', height: '50px', borderRadius: '14px', 
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted, #555)' 
-                     }}>
-                      <Package size={22} />
-                    </div>
-                    <div>
-                      <div style={{ fontWeight: 900, fontSize: '1.05rem', marginBottom: '2px', color: 'var(--text-color, #fff)' }}>{nom?.name || item.name}</div>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px 12px', marginTop: '5px', fontSize: '0.67rem', fontWeight: 850 }}>
-                        <span style={{ color: '#f59e0b' }}>Наряд №{item.naryad_number}</span>
-                        <span style={{ color: '#38bdf8' }}>Картка №{item.card_sequence || '—'}</span>
-                        <span style={{ color: '#64748b' }} title={item.card_id ? String(item.card_id) : ''}>Системна #{item.card_number}</span>
-                        <span style={{ color: 'var(--text-muted, #666)' }}>Отримано: {new Date(item.updated_at).toLocaleDateString('uk-UA')}</span>
-                      </div>
-                      {item.operator && <div style={{ fontSize: '0.65rem', color: '#8b5cf6', fontWeight: 800, marginTop: '3px' }}>Оператор: {item.operator} · Етап: {item.stage || '—'}</div>}
-                    </div>
-                  </div>
-                  <div 
-                    onClick={(e) => {
-                      if (item.card_id) {
-                        e.stopPropagation()
-                        setScrapHistoryCard({ id: item.card_id, card_info: `№${item.card_sequence || ''}` })
-                      }
+                <div
+                  key={orderGroup.orderNum}
+                  style={{
+                    background: 'var(--card-bg, #111)',
+                    borderRadius: '20px',
+                    border: '1px solid var(--border-color, var(--border-subtle))',
+                    overflow: 'hidden'
+                  }}
+                >
+                  {/* Level 1: Order Header */}
+                  <button
+                    type="button"
+                    onClick={() => toggleOrder(orderGroup.orderNum)}
+                    style={{
+                      width: '100%',
+                      background: isOrderOpen ? 'rgba(245, 158, 11, 0.06)' : 'transparent',
+                      border: 'none',
+                      padding: '16px 20px',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      gap: '12px',
+                      cursor: 'pointer',
+                      textAlign: 'left'
                     }}
-                    style={{ textAlign: 'right', cursor: item.card_id ? 'pointer' : 'default' }}
-                    title="Натисніть для перегляду всіх порцій браку цієї картки"
                   >
-                    <div style={{ fontSize: '1.6rem', fontWeight: 1000, color: 'var(--text-color, #fff)' }}>
-                      {item.total_qty} <small style={{ fontSize: '0.75rem', color: '#f97316' }}>шт 🔍</small>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                      <span style={{ color: '#f59e0b', display: 'inline-flex', alignItems: 'center' }}>
+                        {isOrderOpen ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
+                      </span>
+                      <span style={{ fontWeight: 950, fontSize: '1.1rem', color: 'var(--text-color, #fff)' }}>
+                        Наряд №{orderGroup.orderNum}
+                      </span>
+                      <span style={{ fontSize: '0.72rem', fontWeight: 850, color: 'var(--text-muted, #777)', background: 'var(--btn-ghost-bg, var(--border-subtle))', padding: '4px 10px', borderRadius: '999px' }}>
+                        {orderGroup.parts.length} деталей · {orderGroup.totalPackages} пакетів
+                      </span>
                     </div>
-                    {!isActive && <div style={{ fontSize: '0.55rem', color: '#ef4444', fontWeight: 1000, textTransform: 'uppercase', marginTop: '5px' }}>Натисніть для класифікації</div>}
-                  </div>
+                    <div style={{ fontSize: '1.25rem', fontWeight: 1000, color: '#f97316', whiteSpace: 'nowrap' }}>
+                      {orderGroup.totalQty} <small style={{ fontSize: '0.72rem', opacity: 0.75 }}>шт</small>
+                    </div>
+                  </button>
+
+                  {/* Level 2: Parts within Order */}
+                  {isOrderOpen && (
+                    <div style={{ padding: '0 16px 16px 16px', display: 'flex', flexDirection: 'column', gap: '10px', borderTop: '1px solid var(--border-color, var(--border-subtle))', paddingTop: '12px' }}>
+                      {orderGroup.parts.map(partGroup => {
+                        const compositePartKey = `${orderGroup.orderNum}::${partGroup.partKey}`
+                        const isPartOpen = isSearchActive || expandedParts.has(compositePartKey)
+                        return (
+                          <div
+                            key={compositePartKey}
+                            style={{
+                              background: 'var(--card-inner-bg, rgba(255,255,255,0.02))',
+                              borderRadius: '14px',
+                              border: '1px solid var(--border-color, var(--border-subtle))',
+                              overflow: 'hidden'
+                            }}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => togglePart(compositePartKey)}
+                              style={{
+                                width: '100%',
+                                background: isPartOpen ? 'rgba(56, 189, 248, 0.06)' : 'transparent',
+                                border: 'none',
+                                padding: '12px 16px',
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                gap: '12px',
+                                cursor: 'pointer',
+                                textAlign: 'left'
+                              }}
+                            >
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                                <span style={{ color: '#38bdf8', display: 'inline-flex', alignItems: 'center' }}>
+                                  {isPartOpen ? <ChevronDown size={17} /> : <ChevronRight size={17} />}
+                                </span>
+                                <span style={{ fontWeight: 900, fontSize: '0.96rem', color: 'var(--text-color, #fff)' }}>
+                                  {partGroup.partName}
+                                </span>
+                                <span style={{ fontSize: '0.7rem', fontWeight: 850, color: '#38bdf8', background: 'rgba(56, 189, 248, 0.1)', padding: '3px 9px', borderRadius: '999px' }}>
+                                  {partGroup.items.length} пакетів
+                                </span>
+                              </div>
+                              <div style={{ fontSize: '1.05rem', fontWeight: 1000, color: 'var(--text-color, #fff)', whiteSpace: 'nowrap' }}>
+                                {partGroup.totalQty} <small style={{ fontSize: '0.68rem', color: '#f97316' }}>шт</small>
+                              </div>
+                            </button>
+
+                            {/* Level 3: Individual Packages / Cards */}
+                            {isPartOpen && (
+                              <div style={{ padding: '10px 14px 14px 14px', display: 'flex', flexDirection: 'column', gap: '8px', borderTop: '1px solid var(--border-color, var(--border-subtle))' }}>
+                                {partGroup.items.map(item => {
+                                  const nom = nomenclatures.find(n => n.id === item.nomenclature_id)
+                                  const isActive = selectedItem?.id === item.id
+                                  return (
+                                    <div key={item.id}
+                                      className="queue-item-card"
+                                      onClick={() => setSelectedItem(item)}
+                                      onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') setSelectedItem(item) }}
+                                      role="button"
+                                      tabIndex={0}
+                                      style={{
+                                        background: isActive ? 'rgba(239, 68, 68, 0.05)' : 'var(--card-bg, #111)',
+                                        borderRadius: '14px', padding: '14px 16px', cursor: 'pointer',
+                                        border: `1px solid ${isActive ? '#ef444450' : 'var(--border-color, var(--border-subtle))'}`,
+                                        transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                        transform: isActive ? 'scale(1.01)' : 'scale(1)',
+                                        boxShadow: isActive ? '0 8px 24px rgba(239, 68, 68, 0.1)' : 'none'
+                                      }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                        <div style={{
+                                          background: 'var(--card-inner-bg, #000)', width: '42px', height: '42px', borderRadius: '12px',
+                                          display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted, #555)'
+                                        }}>
+                                          <Package size={20} />
+                                        </div>
+                                        <div>
+                                          <div style={{ fontWeight: 900, fontSize: '0.95rem', marginBottom: '2px', color: 'var(--text-color, #fff)' }}>{nom?.name || item.name}</div>
+                                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px 12px', marginTop: '4px', fontSize: '0.67rem', fontWeight: 850 }}>
+                                            <span style={{ color: '#f59e0b' }}>Наряд №{item.naryad_number}</span>
+                                            <span style={{ color: '#38bdf8' }}>Картка №{item.card_sequence || '—'}</span>
+                                            <span style={{ color: '#64748b' }} title={item.card_id ? String(item.card_id) : ''}>Системна #{item.card_number}</span>
+                                            <span style={{ color: 'var(--text-muted, #666)' }}>Отримано: {new Date(item.updated_at).toLocaleDateString('uk-UA')}</span>
+                                          </div>
+                                          {item.operator && <div style={{ fontSize: '0.65rem', color: '#8b5cf6', fontWeight: 800, marginTop: '3px' }}>Оператор: {item.operator} · Етап: {item.stage || '—'}</div>}
+                                        </div>
+                                      </div>
+                                      <div
+                                        onClick={(e) => {
+                                          if (item.card_id) {
+                                            e.stopPropagation()
+                                            setScrapHistoryCard({ id: item.card_id, card_info: `№${item.card_sequence || ''}` })
+                                          }
+                                        }}
+                                        style={{ textAlign: 'right', cursor: item.card_id ? 'pointer' : 'default' }}
+                                        title="Натисніть для перегляду всіх порцій браку цієї картки"
+                                      >
+                                        <div style={{ fontSize: '1.4rem', fontWeight: 1000, color: 'var(--text-color, #fff)' }}>
+                                          {item.total_qty} <small style={{ fontSize: '0.72rem', color: '#f97316' }}>шт 🔍</small>
+                                        </div>
+                                        {!isActive && <div style={{ fontSize: '0.55rem', color: '#ef4444', fontWeight: 1000, textTransform: 'uppercase', marginTop: '4px' }}>Натисніть для класифікації</div>}
+                                      </div>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
                 </div>
               )
             })
           )}
 
-          {!viewingCategory && totalPages > 1 && (
+          {false && totalPages > 1 && (
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', marginTop: '25px', flexWrap: 'wrap' }}>
               <button
                 disabled={queuePage === 1}

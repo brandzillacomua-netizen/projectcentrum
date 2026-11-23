@@ -298,8 +298,21 @@ export const calculateTaskParts = ({
 
 export const summarizeTaskState = ({ task, cards, parts }) => {
   const taskCards = cards.filter(card => asId(card.task_id) === asId(task.id))
-  const hasShortage = parts.some(part => part.shortage > 0)
+  const totalShortage = parts.reduce((sum, part) => sum + asNumber(part.shortage), 0)
+  const hasShortage = totalShortage > 0 || parts.some(part => part.shortage > 0)
+  const totalQualityHold = parts.reduce((sum, part) => sum + asNumber(part.qualityHold), 0)
+  const hasActiveShop1Cards = taskCards.some(card => (
+    !countAsProduced(card) && card?.status !== 'quality-hold' && card?.status !== 'hold'
+  ))
+  const isAwaitingVkya = task.status !== 'completed'
+    && parts.length > 0
+    && !hasShortage
+    && totalQualityHold > 0
+    && !hasActiveShop1Cards
+
   const isReady = task.status !== 'completed'
+    && !hasShortage
+    && totalQualityHold <= 0
     && parts.length > 0
     && parts.every(part => part.need <= 0 || part.produced >= part.need)
     && !taskCards.some(card => !countAsProduced(card))
@@ -308,8 +321,10 @@ export const summarizeTaskState = ({ task, cards, parts }) => {
     totalCards: taskCards.filter(card => !isBufferCard(card)).length,
     totalProduced: parts.reduce((sum, part) => sum + part.produced, 0),
     totalScrap: parts.reduce((sum, part) => sum + part.scrap, 0),
-    totalShortage: parts.reduce((sum, part) => sum + part.shortage, 0),
+    totalQualityHold,
+    totalShortage,
     hasShortage,
+    isAwaitingVkya,
     isReady,
     taskCards
   }

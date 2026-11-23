@@ -19,6 +19,7 @@ const panelStyle = {
 const getTaskBadge = (summary, task) => {
   if (task.status === 'completed') return { label: 'Виконано', color: '#64748b', text: 'var(--text-strong)', icon: <CheckCircle2 size={13} /> }
   if (summary.hasShortage || summary.totalShortage > 0) return { label: 'Потрібен довипуск', color: '#ef4444', text: 'var(--text-strong)', icon: <AlertTriangle size={13} /> }
+  if (summary.isAwaitingVkya) return { label: 'Очікує класифікацію ВКЯ', color: '#8b5cf6', text: '#fff', icon: <Clock size={13} /> }
   if (summary.isReady) return { label: 'Готово до закриття', color: '#10b981', text: 'var(--text-strong)', icon: <PackageCheck size={13} /> }
   if (summary.totalCards === 0) return { label: 'Новий', color: '#3b82f6', text: 'var(--text-strong)', icon: <Clipboard size={13} /> }
   return { label: 'В роботі', color: '#eab308', text: '#000', icon: <Layers size={13} /> }
@@ -678,8 +679,9 @@ export default function TaskDetails({ model, nomenclatures = [], allCards, mater
   
   const isReady = summary.isReady
   const isShortage = summary.hasShortage
+  const isAwaitingVkya = Boolean(summary.isAwaitingVkya) && task.status !== 'completed'
   const isNew = summary.totalCards === 0 && task.status !== 'completed'
-  const isInProgress = summary.totalCards > 0 && task.status !== 'completed' && !isReady && !isShortage
+  const isInProgress = summary.totalCards > 0 && task.status !== 'completed' && !isReady && !isShortage && !isAwaitingVkya
   const isReworkOrder = task.is_rework || task.order_type === 'переробка'
   
   const copyTaskLink = async () => {
@@ -711,6 +713,11 @@ export default function TaskDetails({ model, nomenclatures = [], allCards, mater
                   <CheckCircle2 size={14} /> ГОТОВО ДО ЗАКРИТТЯ
                 </div>
               )}
+              {isAwaitingVkya && (
+                <div style={{ background: 'rgba(139, 92, 246, 0.14)', border: '1px solid #8b5cf6', color: '#a78bfa', padding: '5px 15px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: 950, letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Clock size={14} /> РОБОТА ПО ЦЕХУ ВИКОНАНА · ОЧІКУЄМО НА КЛАСИФІКАЦІЮ ВКЯ ({formatQty(summary.totalQualityHold)} шт)
+                </div>
+              )}
               {isShortage && task.status !== 'completed' && !isReady && (
                 <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid #ef4444', color: '#ef4444', padding: '5px 15px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: 950, letterSpacing: '1px', display: 'flex', alignItems: 'center', gap: '5px' }}>
                   <AlertTriangle size={14} /> ПОТРІБЕН ДОВИПУСК
@@ -721,7 +728,7 @@ export default function TaskDetails({ model, nomenclatures = [], allCards, mater
                   <Clock size={14} /> НОВИЙ
                 </div>
               )}
-              {isInProgress && task.status !== 'completed' && !isReady && !isShortage && (
+              {isInProgress && task.status !== 'completed' && !isReady && !isShortage && !isAwaitingVkya && (
                 <div style={{ background: 'rgba(234, 179, 8, 0.1)', border: '1px solid #eab308', color: '#eab308', padding: '5px 15px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: 950, letterSpacing: '1px', display: 'flex', alignItems: 'center', gap: '5px' }}>
                   <Layers size={14} /> В РОБОТІ
                 </div>

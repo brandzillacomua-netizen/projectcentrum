@@ -10,10 +10,12 @@ const getQueueState = (model) => {
   )
   const isNew = !completed && model.summary.totalCards === 0
   const isReady = !completed && model.summary.isReady
-  const inProgress = !completed && model.summary.totalCards > 0 && !isReady && !needsReissue && !hasRedoInProgress
+  const isAwaitingVkya = !completed && !needsReissue && !hasRedoInProgress && Boolean(model.summary.isAwaitingVkya)
+  const inProgress = !completed && model.summary.totalCards > 0 && !isReady && !isAwaitingVkya && !needsReissue && !hasRedoInProgress
 
   if (completed) return { key: 'completed', color: '#64748b', bg: 'transparent', icon: <CheckCircle2 size={14} />, label: 'Виконано', hint: 'Наряд завершено' }
   if (isReady) return { key: 'ready', color: '#10b981', bg: 'rgba(16,185,129,.12)', icon: <ArrowRight size={14} />, label: 'Готово', hint: 'Всі картки готові' }
+  if (isAwaitingVkya) return { key: 'vkya', color: '#8b5cf6', bg: 'rgba(139,92,246,.14)', icon: <Clock size={14} />, label: 'Очікує ВКЯ', hint: 'Робота по цеху виконана, очікуємо на класифікацію ВКЯ' }
   if (needsReissue) return { key: 'shortage', color: '#ef4444', bg: 'rgba(239,68,68,.12)', icon: <AlertTriangle size={14} />, label: 'Довипуск', hint: 'Потрібен довипуск' }
   if (hasRedoInProgress) return { key: 'reissue', color: '#eab308', bg: 'rgba(234,179,8,.12)', icon: <Layers size={14} />, label: 'В роботі', hint: 'Довипуск у процесі' }
   if (isNew) return { key: 'new', color: '#3b82f6', bg: 'rgba(59,130,246,.12)', icon: <Clock size={14} />, label: 'Новий', hint: 'Картки ще не згенеровано' }
@@ -24,11 +26,12 @@ const getQueueState = (model) => {
 const stateRank = {
   shortage: 0,
   ready: 1,
-  reissue: 2,
-  progress: 3,
-  new: 4,
-  idle: 5,
-  completed: 6
+  vkya: 2,
+  reissue: 3,
+  progress: 4,
+  new: 5,
+  idle: 6,
+  completed: 7
 }
 
 export default function TaskQueue({ taskModels, nomenclatures = [], activeId, onSelect, isDrawerOpen, setIsDrawerOpen, onOpenCreateNaryad }) {
