@@ -924,6 +924,36 @@ export const NomenclatureWizardModal = ({
                       <span>🎨 Фарбування</span>
                     </label>
                   </div>
+                  {wizardParams.requiresPainting && (
+                    <div style={{
+                      background: 'rgba(236, 72, 153, 0.06)',
+                      border: '1px solid rgba(236, 72, 153, 0.28)',
+                      borderRadius: '10px',
+                      padding: '10px 12px'
+                    }}>
+                      <label style={{ fontSize: '0.72rem', color: '#be185d', fontWeight: 900, display: 'block', marginBottom: '6px', textTransform: 'uppercase' }}>
+                        Кількість на одній полиці (касеті), шт
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        step="1"
+                        placeholder="Напр. 24"
+                        value={wizardParams.paintingUnitsPerShelf ?? ''}
+                        onChange={e => setWizardParams({ ...wizardParams, paintingUnitsPerShelf: e.target.value })}
+                        style={{
+                          width: '100%',
+                          padding: '9px 12px',
+                          borderRadius: '8px',
+                          border: '1px solid rgba(236, 72, 153, 0.35)',
+                          background: 'var(--input-bg, #ffffff)',
+                          color: 'var(--text, #0f172a)',
+                          fontSize: '0.88rem',
+                          fontWeight: 800
+                        }}
+                      />
+                    </div>
+                  )}
                   <div style={{ fontSize: '0.73rem', color: 'var(--text-muted, #64748b)', fontWeight: 600, lineHeight: 1.4 }}>
                     {wizardParams.requiresPressing && wizardParams.requiresPainting
                       ? 'Маршрут Цеху №2: Пресування → Фарбування (якщо в замовленні менеджера обрано фарбування, картка покаже колір і торці).'

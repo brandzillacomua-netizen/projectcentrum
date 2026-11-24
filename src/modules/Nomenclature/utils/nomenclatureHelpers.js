@@ -516,6 +516,8 @@ export const mapV2ToStandardNom = (v) => {
     requires_painting: routingFlags.requiresPainting,
     requiresPressing: routingFlags.requiresPressing,
     requiresPainting: routingFlags.requiresPainting,
+    painting_units_per_shelf: routingFlags.paintingUnitsPerShelf,
+    paintingUnitsPerShelf: routingFlags.paintingUnitsPerShelf,
     characteristic: v.characteristic || v.rule_params?.characteristic || v.rule_params?.cutter_type_id || null,
     additional_info: addInfo,
     barcode: v.barcode || '',
@@ -788,6 +790,17 @@ const toExplicitBooleanOrUndefined = (val) => {
  * Resolves Shop 2 post-processing flags (pressing & painting) from either
  * explicit DB columns or rule_params JSONB.
  */
+export const getPaintingUnitsPerShelf = (nom) => {
+  const rp = nom?.rule_params && typeof nom.rule_params === 'object' ? nom.rule_params : {};
+  const raw =
+    nom?.painting_units_per_shelf ??
+    nom?.paintingUnitsPerShelf ??
+    rp.painting_units_per_shelf ??
+    rp.paintingUnitsPerShelf;
+  const num = Number(raw);
+  return Number.isFinite(num) && num > 0 ? Math.floor(num) : null;
+};
+
 export const getPartShop2RoutingFlags = (nom) => {
   const rp = nom?.rule_params && typeof nom.rule_params === 'object' ? nom.rule_params : {};
   const pressRaw =
@@ -805,6 +818,7 @@ export const getPartShop2RoutingFlags = (nom) => {
   return {
     requiresPressing: pressRaw ?? false,
     requiresPainting: paintRaw ?? false,
+    paintingUnitsPerShelf: getPaintingUnitsPerShelf(nom),
     isConfigured: pressRaw !== undefined || paintRaw !== undefined
   };
 };
@@ -821,6 +835,13 @@ export const isMissingColumnDbError = (err) => {
 };
 
 export const stripOptionalNomColumns = (payload) => {
-  const { barcode: _b, qr_code: _q, requires_pressing: _rp, requires_painting: _rpa, ...rest } = payload || {};
+  const {
+    barcode: _b,
+    qr_code: _q,
+    requires_pressing: _rp,
+    requires_painting: _rpa,
+    painting_units_per_shelf: _pus,
+    ...rest
+  } = payload || {};
   return rest;
 };

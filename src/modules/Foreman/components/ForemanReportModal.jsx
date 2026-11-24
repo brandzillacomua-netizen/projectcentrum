@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { X, Loader2, Clock, Printer, RefreshCw, CheckCircle2, AlertTriangle } from 'lucide-react'
 import { getScrapBreakdown } from '../utils/foremanHelpers'
 import {
@@ -22,7 +22,19 @@ import { buildCuttingTimeSummary, calculateCuttingPlanSeconds, consolidateCuttin
 import { getCardCuttingPlanSeconds } from '../../../utils/cuttingTimeUtils.js'
 import { buildScrapDetailGroups, buildUtilDetailGroups } from '../utils/scrapDetailReport.js'
 
+const ukDateTimeFormatter = new Intl.DateTimeFormat('uk-UA', {
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  day: '2-digit',
+  month: '2-digit'
+})
+
 const isCuttingHistoryRow = row => String(row.stage_name || '').trim().startsWith('Розкрій')
+const isVkyaHistoryRow = row => {
+  const s = String(row?.stage_name || '').toLowerCase()
+  return s.includes('вкя') || s.includes('vkya')
+}
 
 const matchesHistoryStage = (row, stageFilter) => {
   if (stageFilter === 'All') return true
@@ -171,8 +183,30 @@ export function ForemanReportModal({
 }) {
   const [internalCardFilter, setInternalCardFilter] = useState('All')
   const [groupHandovers, setGroupHandovers] = useState(true)
+  const [hideVkyaOps, setHideVkyaOps] = useState(true)
+  const [visibleHistoryLimit, setVisibleHistoryLimit] = useState(100)
   const reportCardFilter = propCardFilter !== undefined ? propCardFilter : internalCardFilter
   const setReportCardFilter = propSetCardFilter || setInternalCardFilter
+
+  useEffect(() => {
+    setVisibleHistoryLimit(100)
+  }, [reportTaskId, reportStageFilter, reportNomFilter, reportCardFilter, reportSortBy, reportOperatorFilter, groupHandovers, hideVkyaOps])
+
+  const taskCardsById = useMemo(() => {
+    const map = new Map()
+    ;(reportData?.taskCards || []).forEach(c => {
+      if (c?.id != null) map.set(String(c.id), c)
+    })
+    return map
+  }, [reportData?.taskCards])
+
+  const nomenclaturesById = useMemo(() => {
+    const map = new Map()
+    ;(nomenclatures || []).forEach(n => {
+      if (n?.id != null) map.set(String(n.id), n)
+    })
+    return map
+  }, [nomenclatures])
 
   if (!showReportModal) return null
 
@@ -974,14 +1008,21 @@ export function ForemanReportModal({
                     </select>
                   </div>
                 )}
-                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.72rem', color: groupHandovers ? '#3b82f6' : 'var(--text-muted)', fontWeight: 800, cursor: 'pointer', marginLeft: 'auto', userSelect: 'none' }}>
-                  <input type="checkbox" checked={groupHandovers} onChange={e => setGroupHandovers(e.target.checked)} style={{ cursor: 'pointer' }} />
-                  Об'єднувати перезмінки
-                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginLeft: 'auto', flexWrap: 'wrap' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.72rem', color: hideVkyaOps ? '#3b82f6' : 'var(--text-muted)', fontWeight: 800, cursor: 'pointer', userSelect: 'none' }}>
+                    <input type="checkbox" checked={hideVkyaOps} onChange={e => setHideVkyaOps(e.target.checked)} style={{ cursor: 'pointer' }} />
+                    Приховати операції ВКЯ
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.72rem', color: groupHandovers ? '#3b82f6' : 'var(--text-muted)', fontWeight: 800, cursor: 'pointer', userSelect: 'none' }}>
+                    <input type="checkbox" checked={groupHandovers} onChange={e => setGroupHandovers(e.target.checked)} style={{ cursor: 'pointer' }} />
+                    Об'єднувати перезмінки
+                  </label>
+                </div>
               </div>
 
               {(() => {
                 let processedRows = (reportData.historyRows || []).filter(row => {
+                  if (hideVkyaOps && isVkyaHistoryRow(row)) return false
                   if (!matchesHistoryStage(row, reportStageFilter)) return false
                   if (reportNomFilter !== 'All' && String(row.nomenclature_id) !== String(reportNomFilter)) return false
                   if (reportCardFilter !== 'All') {
@@ -1059,16 +1100,16 @@ export function ForemanReportModal({
                         </tr>
                       </thead>
                       <tbody>
-                        {processedRows.map((row, idx) => {
+                        {processedRows.slice(0, visibleHistoryLimit).map((row, idx) => {
                           const startTime = row.started_at
-                            ? new Date(row.started_at).toLocaleString('uk-UA', { hour: '2-digit', minute: '2-digit', second: '2-digit', day: '2-digit', month: '2-digit' })
+                            ? ukDateTimeFormatter.format(new Date(row.started_at))
                             : '—'
                           const completedTime = row.completed_at
-                            ? new Date(row.completed_at).toLocaleString('uk-UA', { hour: '2-digit', minute: '2-digit', second: '2-digit', day: '2-digit', month: '2-digit' })
+                            ? ukDateTimeFormatter.format(new Date(row.completed_at))
                             : '—'
 
-                          const card = (reportData.taskCards || []).find(c => String(c.id) === String(row.card_id))
-                          const nom = nomenclatures.find(n => String(n.id) === String(row.nomenclature_id || card?.nomenclature_id))
+                          const card = taskCardsById.get(String(row.card_id))
+                          const nom = nomenclaturesById.get(String(row.nomenclature_id || card?.nomenclature_id))
                           const effCard = card || { card_info: row.card_info, quantity: row.qty_at_start || row.qty_completed }
                           const planSec = isCuttingStageRow(row) ? getCardCuttingPlanSeconds(effCard, nom, true) : (card?.estimated_time || 0)
                           const planStr = planSec > 0 ? formatDurationHMS(planSec) : '—'
@@ -1077,7 +1118,7 @@ export function ForemanReportModal({
                           const cuttingCardTime = cuttingTimeSummary.byCard[String(row.card_id || 'unknown')]
                           const isLastCuttingWorkRow = isCuttingWorkRow(row) && cuttingCardTime?.lastRow === row
                           const isCuttingStop = isCuttingStopRow(row)
-                          const cardSeq = getCardSequenceInfo(row, reportData.taskCards)
+                          const cardSeq = getCardSequenceInfo(row, taskCardsById)
                           const seqStr = cardSeq.label
                           const stageName = String(row.stage_name || '').trim() || 'Не вказано'
                           const isBufferStage = stageName.startsWith('Буфер')
@@ -1172,6 +1213,29 @@ export function ForemanReportModal({
                         })}
                       </tbody>
                     </table>
+                    {processedRows.length > visibleHistoryLimit && (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', padding: '12px 16px', borderTop: '1px solid var(--border-subtle)', background: 'var(--surface-2)', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700 }}>
+                          Показано {Math.min(visibleHistoryLimit, processedRows.length)} з {processedRows.length.toLocaleString('uk-UA')} записів
+                        </span>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button
+                            type="button"
+                            onClick={() => setVisibleHistoryLimit(prev => prev + 100)}
+                            style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '8px', padding: '6px 14px', fontSize: '0.75rem', fontWeight: 800, cursor: 'pointer' }}
+                          >
+                            Показати ще +100
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setVisibleHistoryLimit(processedRows.length)}
+                            style={{ background: 'var(--surface-1)', color: 'var(--text-strong)', border: '1px solid var(--border-subtle)', borderRadius: '8px', padding: '6px 14px', fontSize: '0.75rem', fontWeight: 800, cursor: 'pointer' }}
+                          >
+                            Показати всі ({processedRows.length.toLocaleString('uk-UA')})
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )
               })()}

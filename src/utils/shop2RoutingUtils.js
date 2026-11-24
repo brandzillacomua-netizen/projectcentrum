@@ -1,5 +1,5 @@
 import { getOrderPaintingInfo, FULL_PAINTING_BASE_COLOR } from '../modules/Manager/constants/paintingConstants.js'
-import { getPartShop2RoutingFlags, resolveCanonicalNomId } from '../modules/Nomenclature/utils/nomenclatureHelpers.js'
+import { getPartShop2RoutingFlags, getPaintingUnitsPerShelf, resolveCanonicalNomId } from '../modules/Nomenclature/utils/nomenclatureHelpers.js'
 
 const PAINT_COLOR_SWATCHES = {
   'чорний': '#0f172a',
@@ -50,7 +50,7 @@ function buildPaintingDisplay(orderPainting) {
  * AND the manager's order specifies painting ('full' or 'edges').
  */
 export function resolveShop2PartOrderRouting(nom, order) {
-  const { requiresPressing, requiresPainting, isConfigured } = getPartShop2RoutingFlags(nom)
+  const { requiresPressing, requiresPainting, paintingUnitsPerShelf, isConfigured } = getPartShop2RoutingFlags(nom)
   const orderPainting = getOrderPaintingInfo(order)
   const orderRequestsPainting = orderPainting.type === 'full' || orderPainting.type === 'edges'
   const shouldPaint = Boolean(requiresPainting && orderRequestsPainting)
@@ -68,6 +68,7 @@ export function resolveShop2PartOrderRouting(nom, order) {
   return {
     requiresPressing,
     requiresPainting,
+    paintingUnitsPerShelf,
     isRoutingConfigured: isConfigured,
     orderPainting,
     orderRequestsPainting,
@@ -118,7 +119,7 @@ export function resolveShop2CardDisplayInfo(card, nomenclatures = [], orders = [
 export function resolveShop2BufferRowRouting(row, nomenclatures = [], orders = []) {
   const canonicalId = resolveCanonicalNomId(row?.nomId, nomenclatures) || String(row?.nomId || '')
   const nom = (nomenclatures || []).find(n => String(n.id) === canonicalId) || null
-  const { requiresPressing, requiresPainting, isConfigured } = getPartShop2RoutingFlags(nom)
+  const { requiresPressing, requiresPainting, paintingUnitsPerShelf, isConfigured } = getPartShop2RoutingFlags(nom)
 
   const activePools = (row?.ordersList || []).filter(o => Number(o.availableQty) > 0)
   const poolsToInspect = activePools.length > 0 ? activePools : (row?.ordersList || [])
@@ -166,6 +167,7 @@ export function resolveShop2BufferRowRouting(row, nomenclatures = [], orders = [
     nom,
     requiresPressing,
     requiresPainting,
+    paintingUnitsPerShelf,
     isRoutingConfigured: isConfigured,
     hasOrderRequestingPainting,
     hasOrderWithoutPainting,
@@ -220,7 +222,43 @@ export function getShop2OperationKey(operationName = '') {
 }
 
 /**
- * Extracts normalized Shop 2 per-unit planned timings (minutes per 1 detail) from nomenclature.
+ * Computes default (batchSize, cardCount) when generating Shop 2 cards.
+ * For Painting with a configured cassette/shelf capacity (`paintingUnitsPerShelf`),
+ * splits available quantity into full cassette-sized cards (e.g. 1000 / 200 -> 5 x 200).
+ */
+export function getDefaultShop2CardSplit(availableQty, stage, paintingUnitsPerShelf) {
+  const avail = Math.max(0, Math.floor(Number(availableQty) || 0))
+  if (avail <= 0) {
+    return { batchSize: 0, cardCount: 0, isCassetteSplit: false, remainderQty: 0 }
+  }
+
+  const shelfCap = Math.floor(Number(paintingUnitsPerShelf) || 0)
+  const isPainting = getShop2OperationKey(stage) === 'painting'
+  if (isPainting && shelfCap > 0) {
+    const cardCount = avail >= shelfCap ? Math.floor(avail / shelfCap) : 1
+    const batchSize = avail >= shelfCap ? shelfCap : avail
+    return {
+      batchSize,
+      cardCount,
+      isCassetteSplit: true,
+      remainderQty: Math.max(0, avail - batchSize * cardCount)
+    }
+  }
+
+  const cardCount = avail > 500 ? Math.max(1, Math.floor(avail / 500)) : 1
+  const batchSize = Math.floor(avail / cardCount) || avail
+  return {
+    batchSize,
+    cardCount,
+    isCassetteSplit: false,
+    remainderQty: Math.max(0, avail - batchSize * cardCount)
+  }
+}
+
+/**
+ * Extracts normalized Shop 2 planned timings from nomenclature.
+ * Pressing and Rework are stored per 1 detail; Painting supports per-cassette timing (`painting_per_cassette`)
+ * converted to per-unit via `painting_units_per_shelf` (or legacy per-unit `painting`).
  */
 export function getShop2OperationTimings(nom) {
   const raw = nom?.rule_params?.shop2_operation_timings || nom?.shop2_operation_timings || {}
@@ -230,9 +268,24 @@ export function getShop2OperationTimings(nom) {
     return Number.isFinite(n) && n > 0 ? n : 0
   }
 
+  const shelfCap = getPaintingUnitsPerShelf(nom) || 0
+  const rawPaintingPerUnit = parseMin(raw.painting ?? raw['Фарбування'])
+  const rawPaintingPerCassette = parseMin(raw.painting_per_cassette ?? raw.paintingPerCassette)
+
+  const paintingPerCassette =
+    rawPaintingPerCassette > 0
+      ? rawPaintingPerCassette
+      : (rawPaintingPerUnit > 0 && shelfCap > 0 ? Math.round(rawPaintingPerUnit * shelfCap * 100) / 100 : 0)
+
+  const paintingPerUnit =
+    rawPaintingPerCassette > 0 && shelfCap > 0
+      ? Math.round((rawPaintingPerCassette / shelfCap) * 10000) / 10000
+      : rawPaintingPerUnit
+
   return {
     pressing: parseMin(raw.pressing ?? raw['Пресування']),
-    painting: parseMin(raw.painting ?? raw['Фарбування']),
+    painting: paintingPerUnit,
+    paintingPerCassette,
     rework: parseMin(raw.rework ?? raw['Доопрацювання']),
     notes: typeof raw.notes === 'string' ? raw.notes : ''
   }

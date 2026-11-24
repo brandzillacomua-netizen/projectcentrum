@@ -95,7 +95,7 @@ const NomenclatureV2 = () => {
     grade: 'Т300', dimensions: '500*600', extra: '',
     projType: 'RND', projNum: '', name: '',
     sheetGrade: 'Т300', sheetThickness: '3', unitsPerSheet: 1,
-    requiresPressing: false, requiresPainting: false,
+    requiresPressing: false, requiresPainting: false, paintingUnitsPerShelf: '',
     loadTimings: { ...DEFAULT_LOAD_TIMINGS },
     customName: '', unit: 'шт'
   })
@@ -389,7 +389,8 @@ const NomenclatureV2 = () => {
         customName: itemToEdit.name || '', unit: itemToEdit.unit || 'шт',
         ...(itemToEdit.rule_params || {}),
         requiresPressing: shop2Flags.requiresPressing,
-        requiresPainting: shop2Flags.requiresPainting
+        requiresPainting: shop2Flags.requiresPainting,
+        paintingUnitsPerShelf: shop2Flags.paintingUnitsPerShelf ? String(shop2Flags.paintingUnitsPerShelf) : ''
       })
     } else {
       setEditingItem(null)
@@ -402,6 +403,7 @@ const NomenclatureV2 = () => {
         default_material_id: '',
         requiresPressing: false,
         requiresPainting: false,
+        paintingUnitsPerShelf: '',
         loadTimings: { ...DEFAULT_LOAD_TIMINGS },
         isBlack: rType === 'screw_black' ? true : rType === 'screw_silver' ? false : prev.isBlack
       }))
@@ -552,10 +554,13 @@ const NomenclatureV2 = () => {
 
       const requiresPressing = wizardRuleType === 'frame_part' ? Boolean(wizardParams.requiresPressing) : false
       const requiresPainting = wizardRuleType === 'frame_part' ? Boolean(wizardParams.requiresPainting) : false
+      const rawShelfQty = requiresPainting ? parseInt(wizardParams.paintingUnitsPerShelf, 10) : 0
+      const paintingUnitsPerShelf = Number.isFinite(rawShelfQty) && rawShelfQty > 0 ? rawShelfQty : null
       const nextRuleParams = {
         ...wizardParams,
         requiresPressing,
-        requiresPainting
+        requiresPainting,
+        paintingUnitsPerShelf
       }
 
       if (editingItem) {
@@ -567,7 +572,8 @@ const NomenclatureV2 = () => {
           rule_params: nextRuleParams,
           default_material_id: wizardParams.default_material_id || null,
           requires_pressing: requiresPressing,
-          requires_painting: requiresPainting
+          requires_painting: requiresPainting,
+          painting_units_per_shelf: paintingUnitsPerShelf
         }
 
         let { error: updateErr } = await supabase
@@ -616,6 +622,7 @@ const NomenclatureV2 = () => {
         default_material_id: wizardParams.default_material_id || null,
         requires_pressing: requiresPressing,
         requires_painting: requiresPainting,
+        painting_units_per_shelf: paintingUnitsPerShelf,
         status: 'active'
       }
 

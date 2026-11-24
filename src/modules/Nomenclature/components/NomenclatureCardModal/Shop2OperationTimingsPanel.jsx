@@ -8,7 +8,8 @@ import {
 import { getPartShop2RoutingFlags } from '../../utils/nomenclatureHelpers'
 
 export function Shop2OperationTimingsPanel({ item, onSave }) {
-  const [timings, setTimings] = useState({ pressing: '', painting: '', rework: '', notes: '' })
+  const [timings, setTimings] = useState({ pressing: '', paintingPerCassette: '', rework: '', notes: '' })
+  const [paintingUnitsPerShelf, setPaintingUnitsPerShelf] = useState('')
   const [flags, setFlags] = useState({ requiresPressing: false, requiresPainting: false })
   const [saving, setSaving] = useState(false)
   const [savedOk, setSavedOk] = useState(false)
@@ -16,12 +17,19 @@ export function Shop2OperationTimingsPanel({ item, onSave }) {
   useEffect(() => {
     const parsed = getShop2OperationTimings(item)
     const partFlags = getPartShop2RoutingFlags(item)
+    const shelfCap = partFlags.paintingUnitsPerShelf || 0
+    const initialPaintingCassette =
+      parsed.paintingPerCassette > 0
+        ? parsed.paintingPerCassette
+        : (parsed.painting > 0 && shelfCap > 0 ? Math.round(parsed.painting * shelfCap * 100) / 100 : 0)
+
     setTimings({
       pressing: parsed.pressing > 0 ? String(parsed.pressing) : '',
-      painting: parsed.painting > 0 ? String(parsed.painting) : '',
+      paintingPerCassette: initialPaintingCassette > 0 ? String(initialPaintingCassette) : '',
       rework: parsed.rework > 0 ? String(parsed.rework) : '',
       notes: parsed.notes || ''
     })
+    setPaintingUnitsPerShelf(shelfCap > 0 ? String(shelfCap) : '')
     setFlags({
       requiresPressing: partFlags.requiresPressing,
       requiresPainting: partFlags.requiresPainting
@@ -35,10 +43,15 @@ export function Shop2OperationTimingsPanel({ item, onSave }) {
     return Number.isFinite(n) && n > 0 ? n : 0
   }
 
+  const shelfCapNum = Math.floor(parseNum(paintingUnitsPerShelf))
   const pressingPerUnit = parseNum(timings.pressing)
-  const paintingPerUnit = parseNum(timings.painting)
+  const paintingPerCassette = parseNum(timings.paintingPerCassette)
+  const paintingPerUnit =
+    paintingPerCassette > 0 && shelfCapNum > 0
+      ? Math.round((paintingPerCassette / shelfCapNum) * 10000) / 10000
+      : 0
   const reworkPerUnit = parseNum(timings.rework)
-  const totalPerUnit = Math.round((pressingPerUnit + paintingPerUnit + reworkPerUnit) * 100) / 100
+  const totalPerUnit = Math.round((pressingPerUnit + paintingPerUnit + reworkPerUnit) * 10000) / 10000
 
   const handleTimingChange = (key, rawVal, flagKey) => {
     setTimings(prev => ({ ...prev, [key]: rawVal }))
@@ -46,6 +59,15 @@ export function Shop2OperationTimingsPanel({ item, onSave }) {
     const numeric = parseNum(rawVal)
     if (numeric > 0 && flagKey) {
       setFlags(prev => ({ ...prev, [flagKey]: true }))
+    }
+  }
+
+  const handleShelfChange = (rawVal) => {
+    const cleaned = rawVal.replace(/[^0-9]/g, '')
+    setPaintingUnitsPerShelf(cleaned)
+    setSavedOk(false)
+    if (Number(cleaned) > 0) {
+      setFlags(prev => ({ ...prev, requiresPainting: true }))
     }
   }
 
@@ -58,11 +80,13 @@ export function Shop2OperationTimingsPanel({ item, onSave }) {
         shop2_operation_timings: {
           pressing: pressingPerUnit,
           painting: paintingPerUnit,
+          painting_per_cassette: paintingPerCassette,
           rework: reworkPerUnit,
           notes: timings.notes || ''
         },
         requiresPressing: Boolean(flags.requiresPressing),
-        requiresPainting: Boolean(flags.requiresPainting)
+        requiresPainting: Boolean(flags.requiresPainting),
+        paintingUnitsPerShelf: flags.requiresPainting && shelfCapNum > 0 ? shelfCapNum : null
       })
       setSavedOk(true)
       setTimeout(() => setSavedOk(false), 3000)
@@ -167,10 +191,10 @@ export function Shop2OperationTimingsPanel({ item, onSave }) {
           <div>
             <div style={{ fontSize: '0.95rem', fontWeight: 900, color: 'var(--text, #0f172a)', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Clock size={17} color="#7c3aed" />
-              <span>Операції та планові таймінги Цеху №2 (хв / 1 деталь)</span>
+              <span>Операції та планові таймінги Цеху №2</span>
             </div>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted, #64748b)', marginTop: '3px' }}>
-              Вкажіть час на 1 деталь у хвилинах (можна дробове, наприклад 0.5 або 2). При створенні РК на 100 шт система помножить норму на 100.
+              Для пресування й доопрацювання вказується час на 1 деталь (хв), а для фарбування — кількість на касету (шт) та час на 1 касету (хв).
             </div>
           </div>
 
@@ -204,15 +228,18 @@ export function Shop2OperationTimingsPanel({ item, onSave }) {
             <thead>
               <tr style={{ borderBottom: '1.5px solid var(--border-color, #e2e8f0)', fontSize: '0.72rem', color: 'var(--text-muted, #64748b)', textTransform: 'uppercase' }}>
                 <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 900 }}>Операція Цеху №2</th>
-                <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 900 }}>У маршруті деталі</th>
-                <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 900 }}>План на 1 деталь (хв)</th>
-                <th style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 900 }}>Приклад на 100 шт</th>
+                <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 900 }}>У маршруті / Касета</th>
+                <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 900 }}>План (хв)</th>
+                <th style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 900 }}>Розрахунок / Приклад</th>
               </tr>
             </thead>
             <tbody>
               {SHOP2_TIMING_STAGES.map(st => {
-                const perUnit = parseNum(timings[st.key])
-                const for100 = Math.round(perUnit * 100 * 100) / 100
+                const isPainting = st.key === 'painting'
+                const inputKey = isPainting ? 'paintingPerCassette' : st.key
+                const inputVal = timings[inputKey]
+                const numericVal = parseNum(inputVal)
+                const for100 = Math.round(parseNum(st.key === 'painting' ? paintingPerUnit : timings[st.key]) * 100 * 100) / 100
                 const hasFlag = st.flagKey ? Boolean(flags[st.flagKey]) : null
 
                 return (
@@ -225,29 +252,57 @@ export function Shop2OperationTimingsPanel({ item, onSave }) {
                     </td>
                     <td style={{ padding: '14px 12px', textAlign: 'center' }}>
                       {st.flagKey ? (
-                        <label style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          padding: '5px 10px',
-                          borderRadius: '8px',
-                          cursor: 'pointer',
-                          fontSize: '0.78rem',
-                          fontWeight: 800,
-                          background: hasFlag ? 'rgba(139, 92, 246, 0.12)' : 'rgba(100, 116, 139, 0.08)',
-                          border: hasFlag ? `1px solid ${st.color}` : '1px solid var(--border-color, #cbd5e1)',
-                          color: hasFlag ? st.color : 'var(--text-muted, #64748b)'
-                        }}>
-                          <input
-                            type="checkbox"
-                            checked={Boolean(hasFlag)}
-                            onChange={e => {
-                              setFlags(prev => ({ ...prev, [st.flagKey]: e.target.checked }))
-                              setSavedOk(false)
-                            }}
-                          />
-                          <span>{hasFlag ? 'Активна' : 'Не потрібно'}</span>
-                        </label>
+                        <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+                          <label style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '5px 10px',
+                            borderRadius: '8px',
+                            cursor: 'pointer',
+                            fontSize: '0.78rem',
+                            fontWeight: 800,
+                            background: hasFlag ? 'rgba(139, 92, 246, 0.12)' : 'rgba(100, 116, 139, 0.08)',
+                            border: hasFlag ? `1px solid ${st.color}` : '1px solid var(--border-color, #cbd5e1)',
+                            color: hasFlag ? st.color : 'var(--text-muted, #64748b)'
+                          }}>
+                            <input
+                              type="checkbox"
+                              checked={Boolean(hasFlag)}
+                              onChange={e => {
+                                setFlags(prev => ({ ...prev, [st.flagKey]: e.target.checked }))
+                                setSavedOk(false)
+                              }}
+                            />
+                            <span>{hasFlag ? 'Активна' : 'Не потрібно'}</span>
+                          </label>
+                          {isPainting && hasFlag && (
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                              <input
+                                type="number"
+                                min="1"
+                                step="1"
+                                placeholder="шт/касета"
+                                value={paintingUnitsPerShelf}
+                                onChange={e => handleShelfChange(e.target.value)}
+                                style={{
+                                  width: '92px',
+                                  padding: '5px 8px',
+                                  borderRadius: '7px',
+                                  border: '1.5px solid rgba(124, 58, 237, 0.45)',
+                                  background: 'var(--input-bg, #ffffff)',
+                                  color: 'var(--text, #0f172a)',
+                                  textAlign: 'center',
+                                  fontWeight: 900,
+                                  fontSize: '0.82rem'
+                                }}
+                              />
+                              <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#7c3aed' }}>
+                                шт/касета
+                              </span>
+                            </div>
+                          )}
+                        </div>
                       ) : (
                         <span style={{ fontSize: '0.74rem', color: 'var(--text-muted, #64748b)', fontWeight: 700 }}>
                           За потребою
@@ -255,28 +310,53 @@ export function Shop2OperationTimingsPanel({ item, onSave }) {
                       )}
                     </td>
                     <td style={{ padding: '14px 12px', textAlign: 'center' }}>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.1"
-                        placeholder="0"
-                        value={timings[st.key]}
-                        onChange={e => handleTimingChange(st.key, e.target.value, st.flagKey)}
-                        style={{
-                          width: '110px',
-                          padding: '8px 10px',
-                          borderRadius: '8px',
-                          border: '1.5px solid var(--border-color, #cbd5e1)',
-                          background: 'var(--input-bg, #ffffff)',
-                          color: 'var(--text, #0f172a)',
-                          textAlign: 'center',
-                          fontWeight: 900,
-                          fontSize: '0.92rem'
-                        }}
-                      />
+                      <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.1"
+                          placeholder="0"
+                          value={inputVal}
+                          onChange={e => handleTimingChange(inputKey, e.target.value, st.flagKey)}
+                          style={{
+                            width: '110px',
+                            padding: '8px 10px',
+                            borderRadius: '8px',
+                            border: '1.5px solid var(--border-color, #cbd5e1)',
+                            background: 'var(--input-bg, #ffffff)',
+                            color: 'var(--text, #0f172a)',
+                            textAlign: 'center',
+                            fontWeight: 900,
+                            fontSize: '0.92rem'
+                          }}
+                        />
+                        <span style={{ fontSize: '0.68rem', fontWeight: 800, color: isPainting ? '#7c3aed' : 'var(--text-muted, #64748b)' }}>
+                          {isPainting ? 'хв / 1 касету' : 'хв / 1 деталь'}
+                        </span>
+                      </div>
                     </td>
-                    <td style={{ padding: '14px 12px', textAlign: 'right', fontWeight: 900, fontSize: '0.86rem', color: for100 > 0 ? st.color : 'var(--text-muted, #94a3b8)' }}>
-                      {for100 > 0 ? `${for100} хв (${formatShop2PlannedMinutes(for100)})` : '—'}
+                    <td style={{ padding: '14px 12px', textAlign: 'right', fontWeight: 900, fontSize: '0.86rem', color: (isPainting ? numericVal > 0 : for100 > 0) ? st.color : 'var(--text-muted, #94a3b8)' }}>
+                      {isPainting ? (
+                        numericVal > 0 ? (
+                          shelfCapNum > 0 ? (
+                            <div>
+                              <div>1 касета ({shelfCapNum} шт): {numericVal} хв ({formatShop2PlannedMinutes(numericVal)})</div>
+                              <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted, #64748b)' }}>
+                                ≈ {paintingPerUnit} хв/шт · 100 шт: {for100} хв
+                              </div>
+                            </div>
+                          ) : (
+                            <div>
+                              <div>1 касета: {numericVal} хв</div>
+                              <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#d97706' }}>
+                                Вкажіть шт/касета для розрахунку на деталь
+                              </div>
+                            </div>
+                          )
+                        ) : '—'
+                      ) : (
+                        for100 > 0 ? `100 шт: ${for100} хв (${formatShop2PlannedMinutes(for100)})` : '—'
+                      )}
                     </td>
                   </tr>
                 )

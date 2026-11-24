@@ -3,9 +3,12 @@ import { X, Play, Loader2, AlertCircle, PackageCheck, Paintbrush, Wrench } from 
 import { isPackagingOperation } from '../constants/shop2Stages'
 import {
   resolveShop2BufferRowRouting,
+  getShop2OperationTimings,
   getShop2UnitMinutes,
   calculateShop2PlannedMinutes,
-  formatShop2PlannedMinutes
+  formatShop2PlannedMinutes,
+  getShop2OperationKey,
+  getDefaultShop2CardSplit
 } from '../../../utils/shop2RoutingUtils'
 
 export function GenerateShop2CardModal({
@@ -29,21 +32,29 @@ export function GenerateShop2CardModal({
 
   useEffect(() => {
     if (row) {
-      const avail = row.availableQty || 0
-      if (avail > 0) {
-        const defaultCount = avail > 500 ? Math.max(1, Math.floor(avail / 500)) : 1
-        const defaultBatch = Math.floor(avail / defaultCount) || avail
-        setBatchSize(defaultBatch)
-        setCardCount(defaultCount)
-      } else {
-        setBatchSize(0)
-        setCardCount(0)
-      }
-      if (routing.recommendedStage) {
-        setStage(routing.recommendedStage)
-      }
+      const initialStage = routing.recommendedStage || 'Пресування'
+      setStage(initialStage)
+      const split = getDefaultShop2CardSplit(
+        row.availableQty || 0,
+        initialStage,
+        routing.paintingUnitsPerShelf
+      )
+      setBatchSize(split.batchSize)
+      setCardCount(split.cardCount)
     }
-  }, [row, routing.recommendedStage])
+  }, [row, routing.recommendedStage, routing.paintingUnitsPerShelf])
+
+  const handleStageChange = (nextStage) => {
+    setStage(nextStage)
+    if (!row) return
+    const split = getDefaultShop2CardSplit(
+      row.availableQty || 0,
+      nextStage,
+      routing.paintingUnitsPerShelf
+    )
+    setBatchSize(split.batchSize)
+    setCardCount(split.cardCount)
+  }
 
   if (!row) return null
 
@@ -52,6 +63,10 @@ export function GenerateShop2CardModal({
   const isOverBuffer = totalQtyToCreate > availableQty
   const isValid = totalQtyToCreate > 0 && !isOverBuffer && !isSubmitting
   const isDirectSGP = isPackagingOperation(stage)
+  const isPaintingStage = getShop2OperationKey(stage) === 'painting'
+  const shelfCap = routing.paintingUnitsPerShelf || 0
+  const cassetteSplit = getDefaultShop2CardSplit(availableQty, 'Фарбування', shelfCap)
+  const paintingPerCassetteMin = isPaintingStage ? (getShop2OperationTimings(routing.nom).paintingPerCassette || 0) : 0
   const unitPlannedMin = !isDirectSGP ? getShop2UnitMinutes(routing.nom, stage) : 0
   const batchPlannedMin = !isDirectSGP ? calculateShop2PlannedMinutes(routing.nom, stage, batchSize) : 0
   const totalPlannedMin = !isDirectSGP ? calculateShop2PlannedMinutes(routing.nom, stage, totalQtyToCreate) : 0
@@ -93,6 +108,18 @@ export function GenerateShop2CardModal({
               Все в 1 картку ({availableQty.toLocaleString()} шт)
             </button>
           )}
+          {availableQty > 0 && isPaintingStage && shelfCap > 0 && cassetteSplit.cardCount > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                setBatchSize(cassetteSplit.batchSize)
+                setCardCount(cassetteSplit.cardCount)
+              }}
+              style={{ fontSize: '0.72rem', fontWeight: 850, color: '#a78bfa', background: 'rgba(139, 92, 246, 0.12)', border: '1px solid rgba(139, 92, 246, 0.35)', padding: '4px 10px', borderRadius: '8px', cursor: 'pointer' }}
+            >
+              🎨 По касетах ({cassetteSplit.cardCount} × {cassetteSplit.batchSize} шт)
+            </button>
+          )}
         </div>
 
         <h2 style={{ fontSize: '1.35rem', fontWeight: 950, margin: '0 0 4px', color: 'var(--text, #fff)' }}>
@@ -125,7 +152,7 @@ export function GenerateShop2CardModal({
               )}
               {routing.requiresPainting && (
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.74rem', fontWeight: 900, color: '#7c3aed', background: 'rgba(139, 92, 246, 0.14)', border: '1px solid rgba(139, 92, 246, 0.35)', padding: '2px 8px', borderRadius: '6px' }}>
-                  <Paintbrush size={12} /> Фарбується по номенклатурі
+                  <Paintbrush size={12} /> Фарбується по номенклатурі{shelfCap > 0 ? ` · ${shelfCap} шт/касета` : ''}
                 </span>
               )}
               {routing.isRoutingConfigured && !routing.requiresPainting && (
@@ -213,7 +240,7 @@ export function GenerateShop2CardModal({
             </label>
             <select
               value={stage}
-              onChange={(e) => setStage(e.target.value)}
+              onChange={(e) => handleStageChange(e.target.value)}
               style={{ width: '100%', background: 'var(--input-bg, #000)', border: '1px solid var(--border, var(--border-subtle))', color: 'var(--text, #fff)', padding: '14px', borderRadius: '14px', fontSize: '0.9rem', outline: 'none', fontWeight: 800 }}
             >
               {stages.map(st => (
@@ -262,10 +289,23 @@ export function GenerateShop2CardModal({
                 {totalQtyToCreate.toLocaleString()} <small style={{ fontSize: '0.7rem', color: 'var(--text-muted, #666)' }}>шт</small>
               </span>
             </div>
+            {isPaintingStage && shelfCap > 0 && !isOverBuffer && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border, rgba(255,255,255,0.08))', paddingTop: '8px', fontSize: '0.76rem', fontWeight: 800 }}>
+                <span style={{ color: 'var(--text-muted, #94a3b8)' }}>
+                  🎨 Місткість касети ({shelfCap} шт/полиця):
+                </span>
+                <span style={{ color: '#c4b5fd', fontWeight: 900 }}>
+                  {cardCount} {cardCount === 1 ? 'картка' : (cardCount >= 2 && cardCount <= 4 ? 'картки' : 'карток')} × {batchSize} шт
+                  {availableQty > totalQtyToCreate ? ` · залишок ${availableQty - totalQtyToCreate} шт` : ''}
+                </span>
+              </div>
+            )}
             {unitPlannedMin > 0 && !isOverBuffer && (
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border, rgba(255,255,255,0.08))', paddingTop: '8px', fontSize: '0.76rem', fontWeight: 800 }}>
                 <span style={{ color: 'var(--text-muted, #94a3b8)' }}>
-                  ⏱️ План ({unitPlannedMin} хв/шт):
+                  {isPaintingStage && paintingPerCassetteMin > 0
+                    ? `⏱️ План (${paintingPerCassetteMin} хв/касета):`
+                    : `⏱️ План (${unitPlannedMin} хв/шт):`}
                 </span>
                 <span style={{ color: '#a78bfa', fontWeight: 900 }}>
                   {cardCount > 1

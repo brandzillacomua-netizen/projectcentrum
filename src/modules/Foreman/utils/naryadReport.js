@@ -191,8 +191,27 @@ export const summarizeReportProduction = (parts = []) => {
   }, { need: 0, plannedBz: 0, plannedShop1: 0, fromBz: 0, fromShop1: 0, acceptedTotal: 0, rows })
 }
 
+const taskCardsIndexCache = new WeakMap()
+
+const getTaskCardsById = (taskCards) => {
+  if (!taskCards) return null
+  if (taskCards instanceof Map) return taskCards
+  if (!Array.isArray(taskCards)) return null
+  let map = taskCardsIndexCache.get(taskCards)
+  if (!map) {
+    map = new Map()
+    for (let i = 0; i < taskCards.length; i++) {
+      const c = taskCards[i]
+      if (c?.id != null) map.set(String(c.id), c)
+    }
+    taskCardsIndexCache.set(taskCards, map)
+  }
+  return map
+}
+
 export const getCardSequenceInfo = (row, taskCards = []) => {
-  const card = (taskCards || []).find(c => String(c.id) === String(row?.card_id))
+  const cardsMap = getTaskCardsById(taskCards)
+  const card = cardsMap ? cardsMap.get(String(row?.card_id)) : null
   const rowInfo = String(row?.card_info || '')
   const cardInfo = String(card?.card_info || '')
   const info = `${rowInfo} ${cardInfo}`.trim()

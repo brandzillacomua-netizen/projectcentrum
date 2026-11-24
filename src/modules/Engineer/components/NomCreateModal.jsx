@@ -44,6 +44,7 @@ export const NomCreateModal = ({
     default_material_id: '',
     requiresPressing: false,
     requiresPainting: false,
+    paintingUnitsPerShelf: '',
     loadTimings: { ...DEFAULT_LOAD_TIMINGS }
   })
   const [saving, setSaving] = useState(false)
@@ -202,10 +203,13 @@ export const NomCreateModal = ({
               : 'consumable'
       const requiresPressing = wizardRuleType === 'frame_part' ? Boolean(wizardParams.requiresPressing) : false
       const requiresPainting = wizardRuleType === 'frame_part' ? Boolean(wizardParams.requiresPainting) : false
+      const rawShelfQty = requiresPainting ? parseInt(wizardParams.paintingUnitsPerShelf, 10) : 0
+      const paintingUnitsPerShelf = Number.isFinite(rawShelfQty) && rawShelfQty > 0 ? rawShelfQty : null
       const nextRuleParams = {
         ...wizardParams,
         requiresPressing,
         requiresPainting,
+        paintingUnitsPerShelf,
         category: wizardGroup?.name || 'V2 Номенклатура',
         type: inferredType
       }
@@ -221,6 +225,7 @@ export const NomCreateModal = ({
         default_material_id: wizardParams.default_material_id || null,
         requires_pressing: requiresPressing,
         requires_painting: requiresPainting,
+        painting_units_per_shelf: paintingUnitsPerShelf,
         status: 'active'
       }
 

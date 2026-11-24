@@ -130,6 +130,7 @@ export const NomenclatureCardModal = ({
     unitsPerSheet: '',
     requiresPressing: false,
     requiresPainting: false,
+    paintingUnitsPerShelf: '',
     description: ''
   })
   const [savingEdit, setSavingEdit] = useState(false)
@@ -159,6 +160,7 @@ export const NomenclatureCardModal = ({
       unitsPerSheet: item.units_per_sheet || item.rule_params?.unitsPerSheet || '',
       requiresPressing: flags.requiresPressing,
       requiresPainting: flags.requiresPainting,
+      paintingUnitsPerShelf: flags.paintingUnitsPerShelf ? String(flags.paintingUnitsPerShelf) : '',
       description: item.description || item.rule_params?.description || item.additional_info || ''
     })
     setIsEditOpen(true)
@@ -173,6 +175,8 @@ export const NomenclatureCardModal = ({
       const editIsDetail = isDetailItem({ ...item, group_id: editForm.group_id }, groups) || targetGroup?.rule_type === 'frame_part'
       const requiresPressing = editIsDetail ? Boolean(editForm.requiresPressing) : false
       const requiresPainting = editIsDetail ? Boolean(editForm.requiresPainting) : false
+      const rawShelfQty = requiresPainting ? parseInt(editForm.paintingUnitsPerShelf, 10) : 0
+      const paintingUnitsPerShelf = Number.isFinite(rawShelfQty) && rawShelfQty > 0 ? rawShelfQty : null
 
       const updatedRuleParams = {
         ...(item.rule_params || {}),
@@ -180,7 +184,8 @@ export const NomenclatureCardModal = ({
         default_material_id: editForm.default_material_id || undefined,
         description: editForm.description || undefined,
         requiresPressing,
-        requiresPainting
+        requiresPainting,
+        paintingUnitsPerShelf
       }
 
       const payload = {
@@ -190,6 +195,7 @@ export const NomenclatureCardModal = ({
         default_material_id: editForm.default_material_id || null,
         requires_pressing: requiresPressing,
         requires_painting: requiresPainting,
+        painting_units_per_shelf: paintingUnitsPerShelf,
         rule_params: updatedRuleParams,
         updated_at: new Date().toISOString()
       }
@@ -217,7 +223,8 @@ export const NomenclatureCardModal = ({
           unit: payload.unit,
           units_per_sheet: editForm.unitsPerSheet ? Number(editForm.unitsPerSheet) : null,
           requires_pressing: requiresPressing,
-          requires_painting: requiresPainting
+          requires_painting: requiresPainting,
+          painting_units_per_shelf: paintingUnitsPerShelf
         }
         const { error: v1Err } = await supabase
           .from('nomenclatures')
@@ -626,20 +633,32 @@ export const NomenclatureCardModal = ({
     setSortingTotals(totalsPerSheet)
   }
 
-  // Save Shop 2 operations & per-unit planned timings
-  const handleSaveShop2Timings = async ({ shop2_operation_timings, requiresPressing, requiresPainting }) => {
+  // Save Shop 2 operations, cassette capacity & planned timings
+  const handleSaveShop2Timings = async ({
+    shop2_operation_timings,
+    requiresPressing,
+    requiresPainting,
+    paintingUnitsPerShelf
+  }) => {
     if (!item?.id) return
+    const normalizedShelfQty =
+      requiresPainting && Number(paintingUnitsPerShelf) > 0
+        ? Math.floor(Number(paintingUnitsPerShelf))
+        : null
+
     const nextRuleParams = {
       ...(item.rule_params || {}),
       shop2_operation_timings,
       requiresPressing,
-      requiresPainting
+      requiresPainting,
+      paintingUnitsPerShelf: normalizedShelfQty
     }
 
     const v2Payload = {
       rule_params: nextRuleParams,
       requires_pressing: requiresPressing,
       requires_painting: requiresPainting,
+      painting_units_per_shelf: normalizedShelfQty,
       updated_at: new Date().toISOString()
     }
 
@@ -659,10 +678,14 @@ export const NomenclatureCardModal = ({
     if (v2Err) console.warn('[NomenclatureCard] Shop 2 timings update warning:', v2Err)
 
     try {
-      const v1Payload = { requires_pressing: requiresPressing, requires_painting: requiresPainting }
+      const v1Payload = {
+        requires_pressing: requiresPressing,
+        requires_painting: requiresPainting,
+        painting_units_per_shelf: normalizedShelfQty
+      }
       const { error: v1Err } = await supabase.from('nomenclatures').update(v1Payload).eq('id', item.id)
       if (v1Err && isMissingColumnDbError(v1Err)) {
-        // Legacy table does not have rule_params; skip if boolean columns not yet migrated
+        // Legacy table does not have rule_params; skip if columns not yet migrated
       }
     } catch (_) {}
 
@@ -671,8 +694,10 @@ export const NomenclatureCardModal = ({
       rule_params: nextRuleParams,
       requires_pressing: requiresPressing,
       requires_painting: requiresPainting,
+      painting_units_per_shelf: normalizedShelfQty,
       requiresPressing,
-      requiresPainting
+      requiresPainting,
+      paintingUnitsPerShelf: normalizedShelfQty
     }
     setCurrentItem(updated)
     if (typeof onItemUpdated === 'function') {
@@ -1107,7 +1132,7 @@ export const NomenclatureCardModal = ({
                     padding: '2px 8px',
                     borderRadius: '6px'
                   }}>
-                    🎨 Фарбування
+                    🎨 Фарбування{shop2Flags.paintingUnitsPerShelf ? ` (${shop2Flags.paintingUnitsPerShelf} шт/полиця)` : ''}
                   </span>
                 )}
               </div>
@@ -3047,6 +3072,31 @@ export const NomenclatureCardModal = ({
                     <span>🎨 Фарбування</span>
                   </label>
                 </div>
+                {editForm.requiresPainting && (
+                  <div style={{ marginTop: '4px' }}>
+                    <label style={{ fontSize: '0.72rem', color: '#6d28d9', fontWeight: 900, display: 'block', marginBottom: '4px' }}>
+                      КІЛЬКІСТЬ НА ОДНІЙ ПОЛИЦІ (КАСЕТІ), ШТ
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      step="1"
+                      placeholder="Напр. 24"
+                      value={editForm.paintingUnitsPerShelf ?? ''}
+                      onChange={e => setEditForm(prev => ({ ...prev, paintingUnitsPerShelf: e.target.value }))}
+                      style={{
+                        width: '100%',
+                        padding: '9px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid rgba(139, 92, 246, 0.35)',
+                        background: 'var(--input-bg, #ffffff)',
+                        color: 'var(--text-main, #0f172a)',
+                        fontSize: '0.88rem',
+                        fontWeight: 800
+                      }}
+                    />
+                  </div>
+                )}
                 <div style={{ fontSize: '0.73rem', color: 'var(--text-muted, #64748b)' }}>
                   Система враховуватиме ці ознаки в буфері Цеху №2 та малярці залежно від вибору фарбування в замовленні.
                 </div>
