@@ -31,9 +31,10 @@ export function GenerateShop2CardModal({
     if (row) {
       const avail = row.availableQty || 0
       if (avail > 0) {
-        const defaultBatch = Math.min(avail, 500)
+        const defaultCount = avail > 500 ? Math.max(1, Math.floor(avail / 500)) : 1
+        const defaultBatch = Math.floor(avail / defaultCount) || avail
         setBatchSize(defaultBatch)
-        setCardCount(Math.ceil(avail / defaultBatch) || 1)
+        setCardCount(defaultCount)
       } else {
         setBatchSize(0)
         setCardCount(0)
@@ -76,10 +77,22 @@ export function GenerateShop2CardModal({
           <X size={18} />
         </button>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px', flexWrap: 'wrap' }}>
           <span style={{ fontSize: '0.78rem', color: '#10b981', fontWeight: 900, background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.25)', padding: '4px 12px', borderRadius: '8px' }}>
             ВІЛЬНО В КУПІ: {availableQty.toLocaleString()} шт
           </span>
+          {availableQty > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                setBatchSize(availableQty)
+                setCardCount(1)
+              }}
+              style={{ fontSize: '0.72rem', fontWeight: 850, color: '#38bdf8', background: 'rgba(56, 189, 248, 0.1)', border: '1px solid rgba(56, 189, 248, 0.28)', padding: '4px 10px', borderRadius: '8px', cursor: 'pointer' }}
+            >
+              Все в 1 картку ({availableQty.toLocaleString()} шт)
+            </button>
+          )}
         </div>
 
         <h2 style={{ fontSize: '1.35rem', fontWeight: 950, margin: '0 0 4px', color: 'var(--text, #fff)' }}>

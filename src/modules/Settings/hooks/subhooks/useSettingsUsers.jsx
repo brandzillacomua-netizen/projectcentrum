@@ -57,6 +57,8 @@ export function useSettingsUsers({
   currentUser,
   upsertUser,
   deleteUser: _deleteUser,
+  supabase,
+  refreshTable,
   companyStructure,
   companyPositions,
   setActiveTab,
@@ -86,7 +88,46 @@ export function useSettingsUsers({
   const [filterPosition, setFilterPosition] = useState('all')
   const [filterShift, setFilterShift] = useState('all')
   const [filterOnlyOnline, setFilterOnlyOnline] = useState(false)
+  const [filterEmploymentStatus, setFilterEmploymentStatus] = useState('active')
   const [showMobileUserForm, setShowMobileUserForm] = useState(false)
+
+  const setUserDismissedStatus = async (user, dismissed, reason = null) => {
+    if (!user?.id || !supabase) return
+    try {
+      const { data: rpcRes, error: rpcErr } = await supabase.rpc('rpc_admin_set_user_dismissed', {
+        p_user_id: user.id,
+        p_dismissed: dismissed,
+        p_reason: reason
+      })
+      if (rpcErr) throw rpcErr
+      if (rpcRes && !rpcRes.success) {
+        throw new Error(rpcRes.error || 'Не вдалося змінити статус працівника')
+      }
+      if (typeof refreshTable === 'function') {
+        await refreshTable('system_users')
+      }
+    } catch (err) {
+      alert('Помилка: ' + (err?.message || err))
+    }
+  }
+
+  const dismissUser = async (user) => {
+    if (!user?.id) return
+    const fullName = `${user.last_name || ''} ${user.first_name || ''}`.trim() || user.login
+    const reason = window.prompt(
+      `Звільнити працівника ${fullName} (@${user.login})?\nДоступ до системи буде заблоковано, але всі дані у звітах збережуться.\n\nПричина звільнення (необов'язково):`,
+      ''
+    )
+    if (reason === null) return
+    await setUserDismissedStatus(user, true, reason)
+  }
+
+  const restoreUser = async (user) => {
+    if (!user?.id) return
+    const fullName = `${user.last_name || ''} ${user.first_name || ''}`.trim() || user.login
+    if (!window.confirm(`Поновити працівника ${fullName} (@${user.login}) та повернути доступ до системи?`)) return
+    await setUserDismissedStatus(user, false, null)
+  }
 
   const handleSaveUser = async (e) => {
     e.preventDefault()
@@ -238,10 +279,13 @@ export function useSettingsUsers({
       const matchPos = filterPosition === 'all' || u.position === filterPosition
       const matchShift = filterShift === 'all' || u.shift === filterShift
 
-      const isOnline = u.last_seen && (nowTick - new Date(u.last_seen).getTime() < 120000)
+      const isOnline = !u.is_dismissed && u.last_seen && (nowTick - new Date(u.last_seen).getTime() < 120000)
       const matchOnline = !filterOnlyOnline || isOnline
+      const matchStatus =
+        filterEmploymentStatus === 'all' ||
+        (filterEmploymentStatus === 'dismissed' ? Boolean(u.is_dismissed) : !u.is_dismissed)
 
-      return matchSearch && matchDept && matchPos && matchShift && matchOnline
+      return matchSearch && matchDept && matchPos && matchShift && matchOnline && matchStatus
     })
 
     return [...list].sort((a, b) => {
@@ -255,7 +299,7 @@ export function useSettingsUsers({
       const bName = `${b.last_name || ''} ${b.first_name || ''} ${b.login || ''}`.trim()
       return aName.localeCompare(bName, 'uk')
     })
-  }, [systemUsers, userSearch, filterDepartment, filterPosition, filterShift, filterOnlyOnline, nowTick])
+  }, [systemUsers, userSearch, filterDepartment, filterPosition, filterShift, filterOnlyOnline, filterEmploymentStatus, nowTick])
 
   const distinctPositions = useMemo(() => {
     const roles = (systemUsers || []).map(u => u.position).filter(Boolean)
@@ -376,6 +420,10 @@ export function useSettingsUsers({
     setFilterShift,
     filterOnlyOnline,
     setFilterOnlyOnline,
+    filterEmploymentStatus,
+    setFilterEmploymentStatus,
+    dismissUser,
+    restoreUser,
     showMobileUserForm,
     setShowMobileUserForm,
     handleSaveUser,
@@ -391,6 +439,7 @@ export function useSettingsUsers({
     isAdmin,
     grantCorporateToAll,
     isGrantingCorporate,
+    supabase,
     nowTick
   }
 }

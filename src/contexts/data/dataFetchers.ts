@@ -362,7 +362,7 @@ export function useDataFetchers(state: any) {
       } else if (tableName === 'system_users') {
         const data = requireData(await supabase
           .from('system_users')
-          .select('id, login, first_name, last_name, position, access_rights, department, shift, notification_settings, avatar, last_seen, shift_calendar')
+          .select('id, login, first_name, last_name, position, access_rights, department, shift, notification_settings, avatar, last_seen, shift_calendar, is_dismissed, dismissed_at, dismissed_reason')
           .order('login'))
         if (data) setSystemUsers(data)
       } else if (tableName === 'company_structure') {

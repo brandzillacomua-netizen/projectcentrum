@@ -124,6 +124,8 @@ export function useSettingsState() {
     currentUser: mesContext.currentUser,
     upsertUser: mesContext.upsertUser,
     deleteUser: mesContext.deleteUser,
+    supabase: mesContext.supabase,
+    refreshTable: mesContext.refreshTable,
     companyStructure: mesContext.companyStructure,
     companyPositions: mesContext.companyPositions,
     setActiveTab: systemAdmin.setActiveTab,

@@ -1,12 +1,14 @@
 import React from 'react'
 import { 
   UserPlus, X, ShieldCheck, CheckCircle2, Save, Users, Plus, Upload, Search, Filter, 
-  Briefcase, Activity, Edit3, Trash2, RefreshCw 
+  Briefcase, Activity, Edit3, Trash2, RefreshCw, UserX, RotateCcw 
 } from 'lucide-react'
+import { EmployeeDossierModal } from './EmployeeDossierModal'
 
 export function SettingsUsersTab(props) {
   const {
     systemUsers,
+    currentUser,
     userForm,
     setUserForm,
     userSearch,
@@ -19,6 +21,10 @@ export function SettingsUsersTab(props) {
     setFilterShift,
     filterOnlyOnline,
     setFilterOnlyOnline,
+    filterEmploymentStatus = 'active',
+    setFilterEmploymentStatus,
+    dismissUser,
+    restoreUser,
     showMobileUserForm,
     setShowMobileUserForm,
     handleSaveUser,
@@ -55,8 +61,11 @@ export function SettingsUsersTab(props) {
     renderUserAvatar,
     grantCorporateToAll,
     isGrantingCorporate,
+    supabase,
     nowTick
   } = props
+
+  const [dossierUser, setDossierUser] = React.useState(null)
 
   const inputStyle = { width: '100%', background: 'var(--surface-black)', border: '1px solid var(--border-subtle)', color: 'var(--text-strong)', padding: '12px', borderRadius: '12px', fontSize: '0.85rem', fontWeight: 600, outline: 'none' }
   const filterSelectStyle = { background: 'var(--border-subtle)', border: '1px solid var(--border-subtle)', borderRadius: '10px', padding: '6px 12px', color: '#ccc', fontSize: '0.72rem', fontWeight: 700, outline: 'none', cursor: 'pointer' }
@@ -396,6 +405,19 @@ export function SettingsUsersTab(props) {
               <option value="Без зміни">Без зміни</option>
             </select>
 
+            {/* Employment Status Filter */}
+            {typeof setFilterEmploymentStatus === 'function' && (
+              <select
+                style={filterSelectStyle}
+                value={filterEmploymentStatus}
+                onChange={e => setFilterEmploymentStatus(e.target.value)}
+              >
+                <option value="active">Активні ({(systemUsers || []).filter(u => !u.is_dismissed).length})</option>
+                <option value="dismissed">Звільнені ({(systemUsers || []).filter(u => u.is_dismissed).length})</option>
+                <option value="all">Всі ({(systemUsers || []).length})</option>
+              </select>
+            )}
+
             {/* Only Online Toggle */}
             <label style={{ 
               display: 'flex', 
@@ -421,9 +443,9 @@ export function SettingsUsersTab(props) {
             </label>
 
             {/* Reset Filters */}
-            {(filterDepartment !== 'all' || filterPosition !== 'all' || filterShift !== 'all' || userSearch !== '' || filterOnlyOnline) && (
+            {(filterDepartment !== 'all' || filterPosition !== 'all' || filterShift !== 'all' || userSearch !== '' || filterOnlyOnline || filterEmploymentStatus !== 'active') && (
               <button 
-                onClick={() => { setFilterDepartment('all'); setFilterPosition('all'); setFilterShift('all'); setUserSearch(''); setFilterOnlyOnline(false) }}
+                onClick={() => { setFilterDepartment('all'); setFilterPosition('all'); setFilterShift('all'); setUserSearch(''); setFilterOnlyOnline(false); if (typeof setFilterEmploymentStatus === 'function') setFilterEmploymentStatus('active') }}
                 style={{ background: 'var(--fill-subtle)', border: 'none', color: '#aaa', padding: '6px 12px', borderRadius: '8px', fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
               >
                 <X size={12} /> скинути
@@ -445,12 +467,13 @@ export function SettingsUsersTab(props) {
               const roleStyle = getRoleStyle(user.position)
               const deptNode = (companyStructure || []).find(s => s.name === user.department)
               const allowedModulesCount = Object.values(user.access_rights || {}).filter(Boolean).length
-              const isOnline = user.last_seen && ((nowTick || Date.now()) - new Date(user.last_seen).getTime() < 120000)
+              const isDismissed = Boolean(user.is_dismissed)
+              const isOnline = !isDismissed && user.last_seen && ((nowTick || Date.now()) - new Date(user.last_seen).getTime() < 120000)
 
               return (
                 <div key={user.id} className="dossier-card" style={{ 
                   background: '#0e0e11', 
-                  border: userForm.id === user.id ? '1px solid #ff9000' : '1px solid var(--border-subtle)',
+                  border: userForm.id === user.id ? '1px solid #ff9000' : (isDismissed ? '1px solid rgba(239,68,68,0.3)' : '1px solid var(--border-subtle)'),
                   borderRadius: '20px',
                   padding: '20px',
                   display: 'flex',
@@ -459,9 +482,10 @@ export function SettingsUsersTab(props) {
                   gap: '15px',
                   transition: 'all 0.25s ease',
                   position: 'relative',
+                  opacity: isDismissed ? 0.78 : 1,
                   boxShadow: userForm.id === user.id ? '0 0 20px rgba(255,144,0,0.1)' : 'none',
                   cursor: 'pointer'
-                }} onClick={() => editUser(user)}>
+                }} onClick={() => setDossierUser(user)}>
                   
                   {/* Dossier Card Header */}
                   <div style={{ display: 'flex', gap: '15px', alignItems: 'flex-start' }}>
@@ -492,16 +516,22 @@ export function SettingsUsersTab(props) {
 
                   {/* Badges Info */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                       <div style={{ 
                         width: '6px', 
                         height: '6px', 
                         borderRadius: '50%', 
-                        background: isOnline ? '#10b981' : '#6b7280' 
+                        background: isDismissed ? '#ef4444' : (isOnline ? '#10b981' : '#6b7280') 
                       }} />
-                      <span style={{ fontSize: '0.72rem', color: isOnline ? '#34d399' : 'var(--text-muted)', fontWeight: 600 }}>
-                        {isOnline ? 'В мережі' : `Візит: ${formatLastSeen(user.last_seen)}`}
-                      </span>
+                      {isDismissed ? (
+                        <span style={{ fontSize: '0.7rem', color: '#f87171', fontWeight: 800, background: 'rgba(239,68,68,0.12)', padding: '2px 8px', borderRadius: '6px' }} title={user.dismissed_reason || ''}>
+                          ЗВІЛЬНЕНИЙ{user.dismissed_at ? ` · ${new Date(user.dismissed_at).toLocaleDateString('uk-UA')}` : ''}
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: '0.72rem', color: isOnline ? '#34d399' : 'var(--text-muted)', fontWeight: 600 }}>
+                          {isOnline ? 'В мережі' : `Візит: ${formatLastSeen(user.last_seen)}`}
+                        </span>
+                      )}
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -552,6 +582,29 @@ export function SettingsUsersTab(props) {
                     </div>
 
                     <div style={{ display: 'flex', gap: '6px' }}>
+                      {isDismissed ? (
+                        typeof restoreUser === 'function' && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); restoreUser(user) }}
+                            style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.25)', color: '#34d399', padding: '7px 10px', borderRadius: '10px', cursor: 'pointer', transition: '0.2s', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.7rem', fontWeight: 800 }}
+                            title="Поновити працівника та повернути доступ"
+                            className="card-action-btn"
+                          >
+                            <RotateCcw size={13} /> Поновити
+                          </button>
+                        )
+                      ) : (
+                        typeof dismissUser === 'function' && user.id !== currentUser?.id && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); dismissUser(user) }}
+                            style={{ background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.25)', color: '#fbbf24', padding: '7px 10px', borderRadius: '10px', cursor: 'pointer', transition: '0.2s', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.7rem', fontWeight: 800 }}
+                            title="Звільнити працівника (блокує вхід, зберігає звіти)"
+                            className="card-action-btn"
+                          >
+                            <UserX size={13} /> Звільнити
+                          </button>
+                        )
+                      )}
                       <button 
                         onClick={(e) => { e.stopPropagation(); editUser(user) }} 
                         style={{ background: 'var(--fill-subtle)', border: '1px solid var(--border-subtle)', color: '#aaa', padding: '8px', borderRadius: '10px', cursor: 'pointer', transition: '0.2s', display: 'flex', alignItems: 'center' }}
@@ -578,6 +631,25 @@ export function SettingsUsersTab(props) {
         </div>
 
       </section>
+
+      {/* Employee Dossier Modal */}
+      {dossierUser && (
+        <EmployeeDossierModal
+          user={(systemUsers || []).find(u => u.id === dossierUser.id) || dossierUser}
+          onClose={() => setDossierUser(null)}
+          supabase={supabase}
+          currentUser={currentUser}
+          moduleList={moduleList}
+          renderUserAvatar={renderUserAvatar}
+          getRoleStyle={getRoleStyle}
+          formatLastSeen={formatLastSeen}
+          editUser={editUser}
+          dismissUser={dismissUser}
+          restoreUser={restoreUser}
+          deleteUser={deleteUser}
+          nowTick={nowTick}
+        />
+      )}
 
       {/* CSV Import Modal */}
       {isImportModalOpen && (

@@ -86,9 +86,11 @@ export const formatUserName = user => {
   return ([lastName, firstName].filter(Boolean).join(' ') || String(user?.login || '')).trim()
 }
 
+const isActiveUser = user => Boolean(user) && !user.is_dismissed
+
 export const selectOperatorNames = systemUsers => (
   (systemUsers || [])
-    .filter(user => includesPositionMarker(user))
+    .filter(user => isActiveUser(user) && includesPositionMarker(user))
     .map(formatUserName)
     .filter(Boolean)
 )
@@ -114,7 +116,7 @@ const matchesDepartment = (userDept, targetDept) => {
 }
 
 export const selectFilteredOperatorNames = (systemUsers, department, shift, stage = null, options = {}) => {
-  const users = systemUsers || []
+  const users = (systemUsers || []).filter(isActiveUser)
   let list = department ? users.filter(user => matchesDepartment(user.department, department)) : [...users]
 
   if (shift && shift !== 'all' && shift !== 'Без зміни') {
@@ -183,15 +185,16 @@ export const selectFilteredOperatorNames = (systemUsers, department, shift, stag
 const isManager = user => includesPositionMarker(user, ['майстер', 'нач', 'директор', 'адмін'])
 
 export const selectManagerNames = systemUsers => (
-  (systemUsers || []).filter(isManager).map(formatUserName).filter(Boolean)
+  (systemUsers || []).filter(user => isActiveUser(user) && isManager(user)).map(formatUserName).filter(Boolean)
 )
 
 export const selectFilteredManagerNames = (systemUsers, department) => {
+  const activeUsers = (systemUsers || []).filter(isActiveUser)
   const users = department
-    ? (systemUsers || []).filter(user => (
+    ? activeUsers.filter(user => (
         !user.department || user.department === department || user.department === 'Керівництво'
       ))
-    : (systemUsers || [])
+    : activeUsers
 
   return users.filter(isManager).map(formatUserName).filter(Boolean)
 }
