@@ -14,7 +14,7 @@ export const usePreparationData = () => {
   const orders = useStore(state => state.orders)
 
   const [selectedSubTaskId, setSelectedSubTaskId] = useState(null)
-  const [selectedShift, setSelectedShift] = useState('')
+  const [selectedShift, setSelectedShift] = useState('Без зміни')
   const [selectedOperator, setSelectedOperator] = useState('')
   const [currentTime, setCurrentTime] = useState(new Date())
   const [isProcessing, setIsProcessing] = useState(false)
@@ -118,7 +118,7 @@ export const usePreparationData = () => {
   }
 
   const handleStart = async () => {
-    if (!currentSubTask || !selectedOperator || !selectedShift) return alert('Оберіть зміну та працівника!')
+    if (!currentSubTask || !selectedOperator) return alert('Оберіть працівника!')
     setIsProcessing(true)
     const parentTask = currentSubTask.task
     const now = new Date().toISOString()
@@ -347,7 +347,7 @@ export const usePreparationData = () => {
     }
   }
 
-  const prepOperators = getFilteredOperators('Відділ Підготовки', selectedShift, 'підготовка')
+  const prepOperators = getFilteredOperators('Відділ Підготовки', 'all', 'підготовка')
 
   return {
     prepSubTasks,

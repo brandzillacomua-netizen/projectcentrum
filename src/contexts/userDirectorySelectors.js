@@ -27,7 +27,8 @@ const OPERATOR_POSITION_MARKERS = [
   'поріз',
   'порізчик',
   'різчик',
-  'гум'
+  'гум',
+  'верстальн'
 ]
 
 const includesPositionMarker = (user, markers = OPERATOR_POSITION_MARKERS) => {
@@ -164,10 +165,10 @@ export const selectFilteredOperatorNames = (systemUsers, department, shift, stag
         return pos.includes('порізка гуми') || (pos.includes('поріз') && pos.includes('гум')) || (pos.includes('різ') && pos.includes('гум'))
       })
     } else if (stageLower.includes('підготов')) {
-      list = list.filter(user => Boolean(user?.position) && (
-        includesPositionMarker(user, ['працівник вп', 'підготов']) ||
-        user.department === 'Відділ Підготовки'
-      ))
+      list = list.filter(user =>
+        matchesDepartment(user.department, 'Відділ Підготовки') &&
+        includesPositionMarker(user, ['верстальн', 'працівник вп', 'підготов'])
+      )
     } else {
       list = list.filter(user => includesPositionMarker(user))
     }

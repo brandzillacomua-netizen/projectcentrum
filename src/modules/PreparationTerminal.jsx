@@ -13,8 +13,6 @@ const PreparationTerminal = () => {
     currentMapping,
     selectedSubTaskId,
     setSelectedSubTaskId,
-    selectedShift,
-    setSelectedShift,
     selectedOperator,
     setSelectedOperator,
     currentTime,
@@ -277,36 +275,19 @@ const PreparationTerminal = () => {
                 {currentSubTask.status === 'new' ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
                     <div>
-                      <label style={{ color: 'var(--text-dim)', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', display: 'block', marginBottom: '10px' }}>Зміна</label>
-                      <select
-                        value={selectedShift}
-                        onChange={e => { setSelectedShift(e.target.value); setSelectedOperator('') }}
-                        style={{ width: '100%', background: 'var(--surface-inset)', border: '1px solid var(--border-subtle)', color: '#10b981', padding: '15px', borderRadius: '15px', fontSize: '1.1rem', fontWeight: 800 }}
-                      >
-                        <option value="">— Оберіть зміну —</option>
-                        <option value="Зміна 1">Зміна 1</option>
-                        <option value="Зміна 2">Зміна 2</option>
-                        <option value="Зміна 3">Зміна 3</option>
-                        <option value="Зміна 4">Зміна 4</option>
-                        <option value="Без зміни">Без зміни</option>
-                      </select>
-                    </div>
-
-                    <div>
                       <label style={{ color: 'var(--text-dim)', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', display: 'block', marginBottom: '10px' }}>ПРАЦІВНИК ВП (АВТОРИЗАЦІЯ)</label>
                       <select
                         value={selectedOperator}
                         onChange={e => setSelectedOperator(e.target.value)}
-                        disabled={!selectedShift}
-                        style={{ width: '100%', background: 'var(--surface-inset)', border: '1px solid var(--border-subtle)', color: '#10b981', padding: '15px', borderRadius: '15px', fontSize: '1.1rem', fontWeight: 800, opacity: selectedShift ? 1 : 0.5, cursor: selectedShift ? 'pointer' : 'not-allowed' }}
+                        style={{ width: '100%', background: 'var(--surface-inset)', border: '1px solid var(--border-subtle)', color: '#10b981', padding: '15px', borderRadius: '15px', fontSize: '1.1rem', fontWeight: 800, cursor: 'pointer' }}
                       >
-                        <option value="">{selectedShift ? '— Оберіть працівника —' : '— Спочатку оберіть зміну —'}</option>
+                        <option value="">— Оберіть верстальника —</option>
                         {prepOperators.map(o => <option key={o} value={o}>{o}</option>)}
                       </select>
                     </div>
 
                     <button
-                      disabled={isProcessing || !selectedOperator || !selectedShift}
+                      disabled={isProcessing || !selectedOperator}
                       onClick={handleStart}
                       style={{
                         width: '100%',
@@ -321,8 +302,8 @@ const PreparationTerminal = () => {
                         alignItems: 'center',
                         justifyContent: 'center',
                         gap: '15px',
-                        cursor: (isProcessing || !selectedOperator || !selectedShift) ? 'not-allowed' : 'pointer',
-                        opacity: (isProcessing || !selectedOperator || !selectedShift) ? 0.7 : 1
+                        cursor: (isProcessing || !selectedOperator) ? 'not-allowed' : 'pointer',
+                        opacity: (isProcessing || !selectedOperator) ? 0.7 : 1
                       }}
                     >
                       <Play size={24} fill="currentColor" /> {isProcessing ? 'ЧЕКАЙТЕ...' : 'РОЗПОЧАТИ ПІДГОТОВКУ'}
