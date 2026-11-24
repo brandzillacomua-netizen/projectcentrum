@@ -30,6 +30,18 @@ export function Shop1ActiveCardsTable({
   getCardTimeMetrics
 }) {
   const [selectedCardForComments, setSelectedCardForComments] = useState(null)
+  const [cuttingMachineFilter, setCuttingMachineFilter] = useState('all')
+
+  const getCuttingMachineCategory = (machineName = '') => {
+    const m = String(machineName || '').toLowerCase()
+    if (!m || m === '—') return 'Інші'
+    if (m.includes('фея') || m.includes('ke xin') || m.includes('kexin') || /№\s*ф\d+/i.test(m)) return 'Фея'
+    if (m.includes('мал') || m.includes('1200') || m.includes('12x8') || m.includes('12х8')) return 'Малий'
+    if (m.includes('3060') || m.includes('тригол') || m.includes('три голов') || m.includes('30x16') || m.includes('30х16')) return 'Триголовий'
+    if (m.includes('дракон') || m.includes('6000') || m.includes('60x20') || m.includes('60х20')) return 'Дракон'
+    if (m.includes('3050') || m.includes('швидкісн') || m.includes('16x16') || m.includes('16х16')) return 'Швидкісний'
+    return formatMachine(machineName)
+  }
 
   return (
     <div style={{ background: 'var(--surface-1)', borderRadius: '24px', border: '1px solid var(--border-subtle)', overflow: 'hidden' }}>
@@ -351,20 +363,105 @@ export function Shop1ActiveCardsTable({
               DISPLAY_GROUPS.forEach(op => {
                 if (grouped[op] && grouped[op].length > 0) {
                   const isCollapsed = collapsedGroups[op]
+                  const groupCards = grouped[op]
+
+                  let cuttingFilterButtons = null
+                  let visibleCards = groupCards
+                  if (op === 'Розкрій') {
+                    const catCounts = new Map()
+                    groupCards.forEach(c => {
+                      const cat = getCuttingMachineCategory(c.machine)
+                      catCounts.set(cat, (catCounts.get(cat) || 0) + 1)
+                    })
+                    const orderPriority = ['Фея', 'Малий', 'Швидкісний', 'Триголовий', 'Дракон']
+                    const categories = Array.from(catCounts.keys()).sort((a, b) => {
+                      const ia = orderPriority.indexOf(a)
+                      const ib = orderPriority.indexOf(b)
+                      if (ia !== -1 && ib !== -1) return ia - ib
+                      if (ia !== -1) return -1
+                      if (ib !== -1) return 1
+                      return a.localeCompare(b, 'uk')
+                    })
+                    const effectiveFilter = (cuttingMachineFilter !== 'all' && catCounts.has(cuttingMachineFilter))
+                      ? cuttingMachineFilter
+                      : 'all'
+                    if (effectiveFilter !== 'all') {
+                      visibleCards = groupCards.filter(c => getCuttingMachineCategory(c.machine) === effectiveFilter)
+                    }
+                    if (categories.length > 0) {
+                      cuttingFilterButtons = (
+                        <div
+                          onClick={e => e.stopPropagation()}
+                          style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginLeft: '12px' }}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCuttingMachineFilter('all')
+                              if (isCollapsed && setCollapsedGroups) setCollapsedGroups(prev => ({ ...prev, [op]: false }))
+                            }}
+                            style={{
+                              padding: '3px 10px',
+                              borderRadius: '8px',
+                              fontSize: '0.68rem',
+                              fontWeight: 900,
+                              letterSpacing: '0.02em',
+                              textTransform: 'none',
+                              cursor: 'pointer',
+                              border: `1px solid ${effectiveFilter === 'all' ? '#eab308' : 'var(--border-subtle)'}`,
+                              background: effectiveFilter === 'all' ? '#eab308' : 'var(--surface-1)',
+                              color: effectiveFilter === 'all' ? '#000' : 'var(--text-muted)'
+                            }}
+                          >
+                            Всі ({groupCards.length})
+                          </button>
+                          {categories.map(cat => {
+                            const isSelected = effectiveFilter === cat
+                            return (
+                              <button
+                                key={cat}
+                                type="button"
+                                onClick={() => {
+                                  setCuttingMachineFilter(isSelected ? 'all' : cat)
+                                  if (isCollapsed && setCollapsedGroups) setCollapsedGroups(prev => ({ ...prev, [op]: false }))
+                                }}
+                                style={{
+                                  padding: '3px 10px',
+                                  borderRadius: '8px',
+                                  fontSize: '0.68rem',
+                                  fontWeight: 900,
+                                  letterSpacing: '0.02em',
+                                  textTransform: 'none',
+                                  cursor: 'pointer',
+                                  border: `1px solid ${isSelected ? '#3b82f6' : 'var(--border-subtle)'}`,
+                                  background: isSelected ? '#3b82f6' : 'var(--surface-1)',
+                                  color: isSelected ? '#fff' : 'var(--text-soft, var(--text-muted))'
+                                }}
+                              >
+                                {cat} ({catCounts.get(cat)})
+                              </button>
+                            )
+                          })}
+                        </div>
+                      )
+                    }
+                  }
+
                   rows.push(
                     <tr key={`header-${op}`} 
                         onClick={() => setCollapsedGroups && setCollapsedGroups(prev => ({ ...prev, [op]: !prev[op] }))}
                         style={{ background: 'var(--surface-inset)', cursor: 'pointer', userSelect: 'none' }}>
                       <td colSpan={12} style={{ padding: '12px 14px', fontSize: '0.7rem', fontWeight: 950, color: '#eab308', textTransform: 'uppercase', letterSpacing: '0.15em', borderBottom: '1px solid var(--border-subtle)', borderTop: '1px solid var(--border-subtle)' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                           <div style={{ width: '0', height: '0', borderLeft: '5px solid transparent', borderRight: '5px solid transparent', borderTop: isCollapsed ? 'none' : '5px solid #eab308', borderBottom: isCollapsed ? '5px solid #eab308' : 'none', transform: isCollapsed ? 'rotate(-90deg)' : 'none', transition: 'transform 0.2s' }} />
-                          {op} <span style={{ color: 'var(--text-dim)' }}>({grouped[op].length})</span>
+                          <span>{op} <span style={{ color: 'var(--text-dim)' }}>({visibleCards.length}{visibleCards.length !== groupCards.length ? ` / ${groupCards.length}` : ''})</span></span>
+                          {cuttingFilterButtons}
                         </div>
                       </td>
                     </tr>
                   )
                   if (!isCollapsed) {
-                    grouped[op].forEach(card => rows.push(renderCardRow(card)))
+                    visibleCards.forEach(card => rows.push(renderCardRow(card)))
                   }
                 }
               })

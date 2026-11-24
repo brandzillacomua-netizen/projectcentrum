@@ -5,6 +5,7 @@ import {
   getCuttingEstimatedSeconds,
   resolveMachineTypeFromCard
 } from '../../../utils/cuttingTimeUtils.js'
+import { isShop2OwnedCard, isPackagingOperation } from '../../Shop2CardGen/constants/shop2Stages.js'
 
 /**
  * Token-based operator matching allowing for variations in name ordering
@@ -179,7 +180,7 @@ export function isTechnicalHistoryStage(stageName) {
     'термінал відновлення деталей'
   ]
   if (
-    technicalStages.some(t => clean === t || clean.startsWith('склад') || clean.startsWith('контроль вкя') || clean.startsWith('буфер'))
+    technicalStages.some(t => clean === t || clean.startsWith('склад') || clean.startsWith('контроль вкя') || clean.startsWith('печатка вкя') || clean.startsWith('буфер'))
   ) {
     return true
   }
@@ -212,17 +213,20 @@ export function isShop1CuttingOperation(stageName, qtyCompleted = 0) {
 export function isShop2HistoryRecord(h, user = null, department = '') {
   if (!h) return false
   const stage = String(h.stage_name || h.stage || h.rawStage || '').toLowerCase().trim()
+  if (stage.includes('печатка вкя') || stage.startsWith('контроль вкя') || stage === 'вкя') return false
   const info = String(h.card_info || '').toLowerCase()
   const dept = String(department || user?.department || '').toLowerCase()
 
-  if (info.includes('[цех №2]') || info.includes('[цех 2]')) return true
+  if (info.includes('[цех №2]') || info.includes('[цех 2]') || info.includes('[shop:2]')) return true
   if (dept.includes('цех №2') || dept.includes('цех 2')) return true
 
   const shop2Keywords = [
     'пресуван', 'прес', 'pressing',
     'фарбуван', 'маляр', 'painting',
     'доопрацюван', 'доработка', 'rework',
-    'пакуван', 'пакван', 'паковк', 'packaging'
+    'лицюв', 'лицьов', 'полір',
+    'пакуван', 'пакван', 'паковк', 'packaging',
+    'склад сгп', 'сгп', 'sgp'
   ]
   if (shop2Keywords.some(kw => stage.includes(kw))) return true
   if (stage.includes('сгп') && !stage.includes('склад бз')) return true
@@ -1276,15 +1280,134 @@ export function useEmployeeReport({
     const shop2Produced = Array.from(shop2CardsMap.values()).reduce((sum, q) => sum + q, 0)
     const shop2Cards = shop2CardsMap.size
 
+    // Card lifecycle counts for Shop 1 (taken in work / closed) and Shop 2 (painting/pressing/SGP created vs completed to SGP)
+    const shop1TakenIds = new Set()
+    const shop1ClosedIds = new Set()
+    const shop2CreatedIds = new Set()
+    const shop2CompletedIds = new Set()
+    const activeWorkCardIds = new Set((Array.isArray(workCards) ? workCards : []).map(c => String(c?.id || '')).filter(Boolean))
+
+    const isReworkStage = (stageOrOp = '') => {
+      const s = String(stageOrOp || '').toLowerCase().trim()
+      return Boolean(s) && (
+        s.includes('печатка вкя') || s.includes('контроль вкя') ||
+        s.includes('доопрац') || s.includes('доработка') || s.includes('rework') ||
+        s.includes('лицюв') || s.includes('лицьов') || s.includes('полір') || s.includes('реставр')
+      )
+    }
+
+    const isShop2MainStage = (stageOrOp = '') => {
+      const s = String(stageOrOp || '').toLowerCase().trim()
+      if (!s || isReworkStage(s)) return false
+      return (
+        s.includes('фарбуван') || s.includes('маляр') || s.includes('painting') ||
+        s.includes('пресуван') || s.includes('прес') || s.includes('pressing') ||
+        s.includes('сгп') || s.includes('sgp') ||
+        s.includes('пакуван') || s.includes('пакван') || s.includes('паковк') || s.includes('packaging')
+      )
+    }
+
+    // Seed Shop 1 & Shop 2 main stages (Фарбування, Пресування, СГП) from already-resolved employeeStats
+    employeeStats.forEach(e => {
+      if (!Array.isArray(e.history)) return
+      e.history.forEach(h => {
+        const qty = Number(h.produced) || 0
+        if (qty <= 0) return
+        const cardKey = h.cardId ? String(h.cardId) : (h.id ? `hist-${h.id}` : null)
+        if (!cardKey) return
+        if (h.isCutting || isShop1CuttingOperation(h.rawStage || h.stage, qty)) {
+          shop1TakenIds.add(cardKey)
+          shop1ClosedIds.add(cardKey)
+        } else {
+          const rawStage = String(h.rawStage || h.stage || '')
+          if (!isTechnicalHistoryStage(rawStage) && isShop2MainStage(rawStage)) {
+            shop2CreatedIds.add(cardKey)
+            if (isPackagingOperation(rawStage) || !activeWorkCardIds.has(cardKey)) {
+              shop2CompletedIds.add(cardKey)
+            }
+          }
+        }
+      })
+    })
+
+    const matchesShiftAndEmp = (shiftName, opName) => {
+      if (selectedShiftFilter !== 'all') {
+        if (selectedShiftFilter === 'Без зміни') {
+          if (shiftName && shiftName !== 'Без зміни') return false
+        } else if (shiftName !== selectedShiftFilter) {
+          return false
+        }
+      }
+      if (selectedEmployeeFilter && selectedEmployeeFilter !== 'all') {
+        if (Array.isArray(selectedEmployeeFilter)) {
+          if (selectedEmployeeFilter.length > 0 && !selectedEmployeeFilter.includes('all') && !matchesOperator(opName, selectedEmployeeFilter)) return false
+        } else if (!matchesOperator(opName, selectedEmployeeFilter)) {
+          return false
+        }
+      }
+      return true
+    }
+
+    ;(Array.isArray(workCardHistory) ? workCardHistory : []).forEach(h => {
+      if (!h) return
+      const cardKey = h.card_id ? String(h.card_id) : (h.work_card_id ? String(h.work_card_id) : (h.id ? `hist-${h.id}` : null))
+      if (!cardKey) return
+      const qty = Number(h.qty_completed) || 0
+      const inCompletedPeriod = typeof filterByDate === 'function' ? filterByDate(h.completed_at, h.created_at) : true
+      const inStartedPeriod = typeof filterByDate === 'function'
+        ? (filterByDate(h.started_at, h.created_at) || filterByDate(h.completed_at, h.created_at))
+        : true
+
+      if (!matchesShiftAndEmp(h.shift_name, h.operator_name)) return
+
+      const stageNameOnly = String(h.stage_name || '')
+      if (isTechnicalHistoryStage(stageNameOnly)) return
+      if (isShop1CuttingOperation(stageNameOnly, qty)) {
+        if (inStartedPeriod) shop1TakenIds.add(cardKey)
+        if (inCompletedPeriod) shop1ClosedIds.add(cardKey)
+      } else if (isShop2MainStage(stageNameOnly)) {
+        if (inStartedPeriod) shop2CreatedIds.add(cardKey)
+        // Completed to SGP: either explicit SGP/Packaging stage or card is no longer active in workCards (status = 'completed')
+        if (inCompletedPeriod && (isPackagingOperation(stageNameOnly) || !activeWorkCardIds.has(cardKey))) {
+          shop2CompletedIds.add(cardKey)
+        }
+      }
+    })
+
+    ;(Array.isArray(workCards) ? workCards : []).forEach(c => {
+      if (!c || c.status === 'cancelled' || c.status === 'deleted') return
+      const cardKey = String(c.id)
+      const shiftVal = c.shift_name || c.shift
+      if (!matchesShiftAndEmp(shiftVal, c.operator_name)) return
+
+      const inActivePeriod = typeof filterByDate !== 'function'
+        || filterByDate(c.created_at)
+        || (c.started_at ? filterByDate(c.started_at) : false)
+
+      if (c.operation === 'Розкрій') {
+        if (c.status !== 'new' && inActivePeriod) {
+          shop1TakenIds.add(cardKey)
+        }
+      } else if (c.status !== 'at-shop2-buffer' && c.status !== 'at-buffer' && isShop2MainStage(c.operation) && isShop2OwnedCard(c)) {
+        if (inActivePeriod) {
+          shop2CreatedIds.add(cardKey)
+        }
+      }
+    })
+
     return {
       shop1Produced,
       shop1Cards: shop1Cards.size,
       shop2Produced,
       shop2Cards,
       operationalProduced,
-      totalOperations
+      totalOperations,
+      shop1CardsTaken: shop1TakenIds.size,
+      shop1CardsClosed: shop1ClosedIds.size,
+      shop2CardsCreated: shop2CreatedIds.size,
+      shop2CardsCompleted: shop2CompletedIds.size
     }
-  }, [employeeStats])
+  }, [employeeStats, workCardHistory, workCards, filterByDate, selectedShiftFilter, selectedEmployeeFilter])
 
   return { employeeStats, productionSummary }
 }

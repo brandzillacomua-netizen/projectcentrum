@@ -15,11 +15,27 @@ export function Shop2ActiveCardsTable({
 }) {
   const [selectedCardForComments, setSelectedCardForComments] = useState(null)
   const activeCards = workCards.filter(c => isShop2Card(c) && (c.status === 'in-progress' || c.status === 'at-buffer'))
+  const inProgressCount = activeCards.filter(c => c.status === 'in-progress').length
+  const totalQty = activeCards.reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
 
   return (
     <div style={{ background: 'var(--surface-1)', borderRadius: '24px', border: '1px solid var(--border-subtle)', overflow: 'hidden' }}>
-      <div style={{ padding: '25px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 900 }}>ДЕТАЛІ В ПРОЦЕСІ (ЦЕХ №2)</h3>
+      <div style={{ padding: '25px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 900 }}>ДЕТАЛІ В ПРОЦЕСІ (ЦЕХ №2)</h3>
+          <span style={{
+            fontSize: '0.75rem',
+            fontWeight: 900,
+            background: 'rgba(139, 92, 246, 0.14)',
+            color: '#8b5cf6',
+            border: '1px solid rgba(139, 92, 246, 0.3)',
+            padding: '4px 10px',
+            borderRadius: '8px'
+          }}>
+            В роботі: {inProgressCount} {inProgressCount === 1 ? 'карта' : (inProgressCount >= 2 && inProgressCount <= 4 ? 'карти' : 'карт')}
+            {activeCards.length !== inProgressCount ? ` (всього ${activeCards.length})` : ''} · {totalQty.toLocaleString('uk-UA')} шт
+          </span>
+        </div>
         {isSyncing && <RefreshCw className="animate-spin" size={16} color="#8b5cf6" />}
       </div>
       <div style={{ overflowX: 'auto', maxWidth: '100%', border: 'none', borderRadius: 0, width: '100%', WebkitOverflowScrolling: 'touch' }}>

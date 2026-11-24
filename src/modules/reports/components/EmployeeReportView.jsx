@@ -162,7 +162,11 @@ export const EmployeeReportView = ({
       operations,
       cards: allCards.size,
       efficiency,
-      employeeCount: employeeStats.filter(e => !e.isNonHuman).length
+      employeeCount: employeeStats.filter(e => !e.isNonHuman).length,
+      shop1CardsTaken: productionSummary?.shop1CardsTaken ?? 0,
+      shop1CardsClosed: productionSummary?.shop1CardsClosed ?? 0,
+      shop2CardsCreated: productionSummary?.shop2CardsCreated ?? 0,
+      shop2CardsCompleted: productionSummary?.shop2CardsCompleted ?? 0
     }
   }, [employeeStats, productionSummary])
 
@@ -357,6 +361,32 @@ export const EmployeeReportView = ({
           </div>
           <div className="emp-metric-sub">
             Працювало: {totals.employeeCount} працівників/бригад
+          </div>
+        </div>
+
+        {/* Shop 1 Cards: Taken vs Closed */}
+        <div className="emp-metric-card border-green">
+          <div className="emp-metric-label">
+            <Scissors size={13} color="#22c55e" /> КАРТКИ ЦЕХ №1 (РОЗКРІЙ)
+          </div>
+          <div className="emp-metric-val val-green">
+            {totals.shop1CardsTaken.toLocaleString('uk-UA')} <span className="emp-metric-unit">/ {totals.shop1CardsClosed.toLocaleString('uk-UA')}</span>
+          </div>
+          <div className="emp-metric-sub">
+            Взято в роботу: {totals.shop1CardsTaken.toLocaleString('uk-UA')} · Закрито: {totals.shop1CardsClosed.toLocaleString('uk-UA')}
+          </div>
+        </div>
+
+        {/* Shop 2 Cards: Created vs Completed */}
+        <div className="emp-metric-card border-cyan">
+          <div className="emp-metric-label">
+            <Layers size={13} color="#06b6d4" /> КАРТКИ ЦЕХ №2
+          </div>
+          <div className="emp-metric-val val-cyan">
+            {totals.shop2CardsCreated.toLocaleString('uk-UA')} <span className="emp-metric-unit">/ {totals.shop2CardsCompleted.toLocaleString('uk-UA')}</span>
+          </div>
+          <div className="emp-metric-sub">
+            Створено: {totals.shop2CardsCreated.toLocaleString('uk-UA')} · Виготовлено: {totals.shop2CardsCompleted.toLocaleString('uk-UA')}
           </div>
         </div>
       </div>
