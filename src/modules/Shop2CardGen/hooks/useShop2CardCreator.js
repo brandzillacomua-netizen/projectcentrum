@@ -185,7 +185,7 @@ export function useShop2CardCreator({ tasks = [], orders = [], nomenclatures = [
       }
 
       if (typeof fetchData === 'function') {
-        await fetchData(['work_cards', 'tasks', 'inventory']).catch(() => {})
+        await fetchData(['work_cards', 'tasks', 'inventory'], { force: true }).catch(() => {})
       }
 
       closeGenModal()

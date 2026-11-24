@@ -102,18 +102,29 @@ export const shop2CardService = {
         })
       }
 
-      if (rpcRes && !rpcRes.success && rpcRes.conflict) {
+      if (rpcRes && !rpcRes.success) {
         throw new Error(rpcRes.error || 'Недостатньо вільних заготовок у буфері')
       }
+      if (rpcErr) {
+        console.warn('[shop2CardService] rpc_generate_shop2_cards_atomic error:', rpcErr.message || rpcErr)
+        if (rpcErr.code && rpcErr.code !== 'PGRST202' && rpcErr.code !== '42883') {
+          throw new Error(rpcErr.message || 'Помилка RPC при створенні карток Цеху №2')
+        }
+      }
     } catch (rpcEx) {
-      if (rpcEx.message && rpcEx.message.includes('Недостатньо')) {
+      if (rpcEx.message && (rpcEx.message.includes('Недостатньо') || rpcEx.message.includes('Помилка RPC') || rpcEx.message.includes('nomenclature_id'))) {
         throw rpcEx
       }
       console.warn('[shop2CardService] RPC unavailable or error, falling back to direct operations:', rpcEx?.message)
     }
 
-    // ── FALLBACK DIRECT EXECUTION (Zero-downtime safety) ──────────────────────────
-    // 1. Insert new Shop 2 cards
+    // ── FALLBACK DIRECT EXECUTION (only when RPC function is missing) ───────────
+    // 1. Deduct from source buffer cards FIRST so cards are never created without deducting buffer
+    if (totalQtyToDeduct > 0) {
+      await this.deductFromSourceBufferCards({ orderId, nomenclatureId, totalQtyToDeduct, legacyIds: sourceNomenclatureIds, sourceOrderIds })
+    }
+
+    // 2. Insert new Shop 2 cards
     const { data, error } = await supabase
       .from('work_cards')
       .insert(insertPayloads)
@@ -122,11 +133,6 @@ export const shop2CardService = {
     if (error) {
       console.error('[shop2CardService] Error creating Shop 2 work cards batch:', error)
       throw error
-    }
-
-    // 2. Deduct from source buffer cards (update used_in_shop2_qty)
-    if (totalQtyToDeduct > 0) {
-      await this.deductFromSourceBufferCards({ orderId, nomenclatureId, totalQtyToDeduct, legacyIds: sourceNomenclatureIds, sourceOrderIds })
     }
 
     if (directPackQty > 0) {
@@ -302,16 +308,24 @@ export const shop2CardService = {
           const deductAmount = Math.min(avail, remainingDeduction)
           const newUsed = currentUsed + deductAmount
 
-          await supabase
+          const { error: updErr } = await supabase
             .from('work_cards')
-            .update({ used_in_shop2_qty: newUsed })
+            .update({ used_in_shop2_qty: newUsed, updated_at: new Date().toISOString() })
             .eq('id', card.id)
+          if (updErr) {
+            console.error('[shop2CardService] Failed to update used_in_shop2_qty:', updErr)
+            throw updErr
+          }
 
           remainingDeduction -= deductAmount
         }
       }
+      if (remainingDeduction > 0) {
+        throw new Error(`Не вдалося списати ${remainingDeduction} шт з буфера Цеху №2`)
+      }
     } catch (err) {
       console.error('[shop2CardService] Buffer deduction error:', err)
+      throw err
     }
   }
 }
