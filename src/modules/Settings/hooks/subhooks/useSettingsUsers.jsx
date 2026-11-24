@@ -88,7 +88,7 @@ export function useSettingsUsers({
   const [filterPosition, setFilterPosition] = useState('all')
   const [filterShift, setFilterShift] = useState('all')
   const [filterOnlyOnline, setFilterOnlyOnline] = useState(false)
-  const [filterEmploymentStatus, setFilterEmploymentStatus] = useState('active')
+  const [filterEmploymentStatus, setFilterEmploymentStatus] = useState('all')
   const [showMobileUserForm, setShowMobileUserForm] = useState(false)
 
   const setUserDismissedStatus = async (user, dismissed, reason = null) => {

@@ -21,7 +21,7 @@ export function SettingsUsersTab(props) {
     setFilterShift,
     filterOnlyOnline,
     setFilterOnlyOnline,
-    filterEmploymentStatus = 'active',
+    filterEmploymentStatus = 'all',
     setFilterEmploymentStatus,
     dismissUser,
     restoreUser,
@@ -412,9 +412,9 @@ export function SettingsUsersTab(props) {
                 value={filterEmploymentStatus}
                 onChange={e => setFilterEmploymentStatus(e.target.value)}
               >
+                <option value="all">Всі ({(systemUsers || []).length})</option>
                 <option value="active">Активні ({(systemUsers || []).filter(u => !u.is_dismissed).length})</option>
                 <option value="dismissed">Звільнені ({(systemUsers || []).filter(u => u.is_dismissed).length})</option>
-                <option value="all">Всі ({(systemUsers || []).length})</option>
               </select>
             )}
 
@@ -443,9 +443,9 @@ export function SettingsUsersTab(props) {
             </label>
 
             {/* Reset Filters */}
-            {(filterDepartment !== 'all' || filterPosition !== 'all' || filterShift !== 'all' || userSearch !== '' || filterOnlyOnline || filterEmploymentStatus !== 'active') && (
+            {(filterDepartment !== 'all' || filterPosition !== 'all' || filterShift !== 'all' || userSearch !== '' || filterOnlyOnline || filterEmploymentStatus !== 'all') && (
               <button 
-                onClick={() => { setFilterDepartment('all'); setFilterPosition('all'); setFilterShift('all'); setUserSearch(''); setFilterOnlyOnline(false); if (typeof setFilterEmploymentStatus === 'function') setFilterEmploymentStatus('active') }}
+                onClick={() => { setFilterDepartment('all'); setFilterPosition('all'); setFilterShift('all'); setUserSearch(''); setFilterOnlyOnline(false); if (typeof setFilterEmploymentStatus === 'function') setFilterEmploymentStatus('all') }}
                 style={{ background: 'var(--fill-subtle)', border: 'none', color: '#aaa', padding: '6px 12px', borderRadius: '8px', fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
               >
                 <X size={12} /> скинути
