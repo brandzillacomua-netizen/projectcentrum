@@ -535,7 +535,8 @@ export function useEmployeeReport({
   filterByDate,
   selectedShiftFilter = 'all',
   selectedEmployeeFilter = 'all',
-  searchQuery = ''
+  searchQuery = '',
+  groupByBrigade = false
 }) {
   const employeeStats = useMemo(() => {
     const workCardsById = new Map((Array.isArray(workCards) ? workCards : []).map(w => [String(w.id), w]))
@@ -828,15 +829,108 @@ export function useEmployeeReport({
       const isShop2Op = isShop2HistoryRecord(h, user, user?.department || 'Виробництво')
 
       const rawOperatorsList = (targetOperator && typeof targetOperator === 'string' && targetOperator.includes(','))
-        ? targetOperator.split(',').map(s => s.trim()).filter(Boolean)
+        ? Array.from(new Set(targetOperator.split(',').map(s => s.trim()).filter(Boolean)))
         : [targetOperator]
+      const teamSize = Math.max(1, rawOperatorsList.length)
 
-      rawOperatorsList.forEach(singleOp => {
-        const empStat = getOrCreateStat(singleOp)
+      // Deterministic integer remainder distribution (e.g. 500 / 3 -> 167, 167, 166)
+      const seedStr = String(h.id || cardId || '')
+      let seedHash = 0
+      for (let i = 0; i < seedStr.length; i++) {
+        seedHash = (seedHash + seedStr.charCodeAt(i)) % 100000
+      }
+      const seedOffset = teamSize > 1 ? (seedHash % teamSize) : 0
+      const splitIntShare = (val, idx) => {
+        const num = Number(val) || 0
+        if (teamSize <= 1 || num === 0) return num
+        if (Number.isInteger(num)) {
+          const base = Math.floor(num / teamSize)
+          const rem = num % teamSize
+          const shiftedIdx = (idx - seedOffset + teamSize) % teamSize
+          return base + (shiftedIdx < rem ? 1 : 0)
+        }
+        return Math.round((num / teamSize) * 10) / 10
+      }
+
+      const getOrCreateBrigadeStat = (members) => {
+        const sortedMembers = [...members].sort((a, b) => a.localeCompare(b, 'uk'))
+        const bKey = `brigade:${sortedMembers.map(m => m.toLowerCase()).join('|')}`
+        if (!stats.has(bKey)) {
+          const firstUser = sortedMembers.map(m => findSystemUser(m, systemUsers)).find(Boolean)
+          stats.set(bKey, {
+            key: bKey,
+            login: null,
+            name: `👥 Бригада (${sortedMembers.length}): ${sortedMembers.join(', ')}`,
+            rawName: sortedMembers.join(', '),
+            position: `Бригада (${sortedMembers.length} ос.)`,
+            department: firstUser?.department || 'Виробництво',
+            shift: h.shift_name || firstUser?.shift || '—',
+            avatar: null,
+            isBrigade: true,
+            brigadeMembers: sortedMembers,
+            produced: 0,
+            scrap: 0,
+            rework: 0,
+            quarantine: 0,
+            util: 0,
+            cat1: 0,
+            cat2: 0,
+            cat3: 0,
+            cat4: 0,
+            unclassified: 0,
+            operations: 0,
+            cardIds: new Set(),
+            history: []
+          })
+        }
+        return stats.get(bKey)
+      }
+
+      const targetBuckets = (groupByBrigade && teamSize > 1)
+        ? [{
+            empStat: getOrCreateBrigadeStat(rawOperatorsList),
+            shareProduced: qtyProduced,
+            shareScrap: qtyScrap,
+            shareCat1: hCat1,
+            shareCat2: hCat2,
+            shareCat3: hCat3,
+            shareCat4: hCat4,
+            shareUnclassified: hUnclassified,
+            shareRework: hRework,
+            shareQuarantine: hQuarantine,
+            shareUtil: hUtil
+          }]
+        : rawOperatorsList.map((singleOp, idx) => ({
+            empStat: getOrCreateStat(singleOp),
+            shareProduced: splitIntShare(qtyProduced, idx),
+            shareScrap: splitIntShare(qtyScrap, idx),
+            shareCat1: splitIntShare(hCat1, idx),
+            shareCat2: splitIntShare(hCat2, idx),
+            shareCat3: splitIntShare(hCat3, idx),
+            shareCat4: splitIntShare(hCat4, idx),
+            shareUnclassified: splitIntShare(hUnclassified, idx),
+            shareRework: splitIntShare(hRework, idx),
+            shareQuarantine: splitIntShare(hQuarantine, idx),
+            shareUtil: splitIntShare(hUtil, idx)
+          }))
+
+      targetBuckets.forEach(({
+        empStat,
+        shareProduced,
+        shareScrap,
+        shareCat1,
+        shareCat2,
+        shareCat3,
+        shareCat4,
+        shareUnclassified,
+        shareRework,
+        shareQuarantine,
+        shareUtil
+      }) => {
 
         // Only count produced quantity and operation count if this was an actual manufacturing operation
         if (!isAttributedQCScrap && !isTechStage && !isNonProd) {
-          empStat.produced += qtyProduced
+          empStat.produced += shareProduced
           empStat.operations += 1
           const cid = h.card_id || h.work_card_id
           if (cid) {
@@ -844,16 +938,16 @@ export function useEmployeeReport({
           }
         }
 
-        empStat.scrap += qtyScrap
+        empStat.scrap += shareScrap
 
-        empStat.cat1 += hCat1
-        empStat.cat2 += hCat2
-        empStat.cat3 += hCat3
-        empStat.cat4 += hCat4
-        empStat.unclassified += hUnclassified
-        empStat.rework += hRework
-        empStat.quarantine += hQuarantine
-        empStat.util += hUtil
+        empStat.cat1 += shareCat1
+        empStat.cat2 += shareCat2
+        empStat.cat3 += shareCat3
+        empStat.cat4 += shareCat4
+        empStat.unclassified += shareUnclassified
+        empStat.rework += shareRework
+        empStat.quarantine += shareQuarantine
+        empStat.util += shareUtil
 
         const startMs = h.started_at ? new Date(h.started_at).getTime() : 0
         const endMs = h.completed_at ? new Date(h.completed_at).getTime() : 0
@@ -900,11 +994,13 @@ export function useEmployeeReport({
           nomenclatureCode: nom?.code || null,
           orderNum,
           machine: h.machine_name || h.machine || '—',
-          produced: isAttributedQCScrap ? 0 : qtyProduced,
-          scrap: qtyScrap,
-          rework: hRework,
-          quarantine: hQuarantine,
-          util: hUtil,
+          produced: isAttributedQCScrap ? 0 : shareProduced,
+          fullProduced: isAttributedQCScrap ? 0 : qtyProduced,
+          teamSize,
+          scrap: shareScrap,
+          rework: shareRework,
+          quarantine: shareQuarantine,
+          util: shareUtil,
           reason: scrapReason
         })
       })
@@ -1054,18 +1150,22 @@ export function useEmployeeReport({
       })
     })
 
+    const round1 = v => Math.round((Number(v) || 0) * 10) / 10
+
     // Calculate final metrics for each employee
     const results = Array.from(stats.values()).map(s => {
-      const totalProcessed = s.produced + s.scrap
+      const producedRounded = round1(s.produced)
+      const scrapRounded = round1(s.scrap)
+      const totalProcessed = producedRounded + scrapRounded
       const efficiency = s.isNonHuman
         ? null
         : (totalProcessed > 0
-            ? Number(((s.produced / totalProcessed) * 100).toFixed(1))
+            ? Number(((producedRounded / totalProcessed) * 100).toFixed(1))
             : 100.0)
       const scrapPercent = s.isNonHuman
         ? null
         : (totalProcessed > 0
-            ? Number(((s.scrap / totalProcessed) * 100).toFixed(1))
+            ? Number(((scrapRounded / totalProcessed) * 100).toFixed(1))
             : 0.0)
 
       // Sort employee history by date descending
@@ -1073,6 +1173,16 @@ export function useEmployeeReport({
 
       return {
         ...s,
+        produced: producedRounded,
+        scrap: scrapRounded,
+        rework: round1(s.rework),
+        quarantine: round1(s.quarantine),
+        util: round1(s.util),
+        cat1: round1(s.cat1),
+        cat2: round1(s.cat2),
+        cat3: round1(s.cat3),
+        cat4: round1(s.cat4),
+        unclassified: round1(s.unclassified),
         cards: s.cardIds ? s.cardIds.size : 0,
         efficiency,
         scrapPercent
@@ -1090,7 +1200,8 @@ export function useEmployeeReport({
           : (selectedEmployeeFilter && selectedEmployeeFilter !== 'all')
 
         if (isEmployeeFiltered) {
-          if (!matchesOperator(s.name, selectedEmployeeFilter) && !matchesOperator(s.rawName, selectedEmployeeFilter)) {
+          const matchesBrigadeMember = Array.isArray(s.brigadeMembers) && s.brigadeMembers.some(m => matchesOperator(m, selectedEmployeeFilter))
+          if (!matchesOperator(s.name, selectedEmployeeFilter) && !matchesOperator(s.rawName, selectedEmployeeFilter) && !matchesBrigadeMember) {
             return false
           }
         }
@@ -1119,7 +1230,8 @@ export function useEmployeeReport({
     filterByDate,
     selectedShiftFilter,
     selectedEmployeeFilter,
-    searchQuery
+    searchQuery,
+    groupByBrigade
   ])
 
   // Aggregate factory-level physical production summary
@@ -1149,11 +1261,12 @@ export function useEmployeeReport({
 
           // 2. Shop 2 (Цех №2 unique cards)
           if (h.isShop2 || isShop2HistoryRecord(h, null, e.department)) {
+            const fullQty = Number(h.fullProduced ?? h.produced) || 0
             if (cardKey) {
               const currentMax = shop2CardsMap.get(cardKey) || 0
-              shop2CardsMap.set(cardKey, Math.max(currentMax, qty))
+              shop2CardsMap.set(cardKey, Math.max(currentMax, fullQty))
             } else {
-              shop2CardsMap.set(`row-${h.id}`, qty)
+              shop2CardsMap.set(`row-${h.id}`, fullQty)
             }
           }
         })

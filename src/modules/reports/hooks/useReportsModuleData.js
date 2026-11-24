@@ -108,6 +108,7 @@ export function useReportsModuleData() {
   const [historyLoadError, setHistoryLoadError] = useState('')
   const [selectedShiftFilter, setSelectedShiftFilter] = useState('all')
   const [selectedEmployeeFilter, setSelectedEmployeeFilter] = useState('all')
+  const [groupByBrigade, setGroupByBrigade] = useState(false)
   const historyRangeCacheRef = useRef(new Map())
   const historyRequestSeqRef = useRef(0)
 
@@ -366,7 +367,8 @@ export function useReportsModuleData() {
     filterByDate,
     selectedShiftFilter,
     selectedEmployeeFilter,
-    searchQuery
+    searchQuery,
+    groupByBrigade
   })
 
   const { scrapStats, scrapReasonsStats } = useScrapReport({
@@ -378,7 +380,8 @@ export function useReportsModuleData() {
     filterByDate,
     selectedShiftFilter,
     selectedEmployeeFilter,
-    searchQuery
+    searchQuery,
+    groupByBrigade
   })
 
   const { supplyStats } = useSuppliesReport({
@@ -401,7 +404,8 @@ export function useReportsModuleData() {
     filterByDate,
     selectedShiftFilter,
     selectedEmployeeFilter,
-    searchQuery
+    searchQuery,
+    groupByBrigade
   })
 
   const machineReport = useMachinesReport({
@@ -517,6 +521,8 @@ export function useReportsModuleData() {
     setSelectedShiftFilter,
     selectedEmployeeFilter,
     setSelectedEmployeeFilter,
+    groupByBrigade,
+    setGroupByBrigade,
     uniqueOperators,
     handleQuickDateSelect,
     handleExport,

@@ -47,6 +47,8 @@ export const EmployeeReportView = ({
   productionSummary = null,
   selectedEmployeeFilter = 'all',
   setSelectedEmployeeFilter,
+  groupByBrigade = false,
+  setGroupByBrigade,
   startDate,
   endDate
 }) => {
@@ -117,11 +119,12 @@ export const EmployeeReportView = ({
 
           // 2. Shop 2 (Цех №2 unique cards)
           if (h.isShop2 || isShop2HistoryRecord(h, null, e.department)) {
+            const fullQty = Number(h.fullProduced ?? h.produced) || 0
             if (cardKey) {
               const currentMax = shop2CardsMap.get(cardKey) || 0
-              shop2CardsMap.set(cardKey, Math.max(currentMax, qty))
+              shop2CardsMap.set(cardKey, Math.max(currentMax, fullQty))
             } else {
-              shop2CardsMap.set(`row-${h.id}`, qty)
+              shop2CardsMap.set(`row-${h.id}`, fullQty)
             }
           }
         })
@@ -423,6 +426,34 @@ export const EmployeeReportView = ({
             </button>
           ))}
         </div>
+
+        {typeof setGroupByBrigade === 'function' && (
+          <label
+            title="Коли увімкнено — командні картки (2+ людей) показуються окремим рядком бригади без ділення; коли вимкнено — діляться порівну в цілих штуках"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '7px',
+              padding: '6px 12px',
+              borderRadius: '10px',
+              cursor: 'pointer',
+              fontSize: '0.78rem',
+              fontWeight: 800,
+              userSelect: 'none',
+              background: groupByBrigade ? 'rgba(255, 144, 0, 0.14)' : 'var(--surface-2, #18181b)',
+              border: `1px solid ${groupByBrigade ? 'rgba(255, 144, 0, 0.45)' : 'var(--border-subtle, #27272a)'}`,
+              color: groupByBrigade ? '#ff9000' : 'var(--text-soft, #d4d4d8)'
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={Boolean(groupByBrigade)}
+              onChange={e => setGroupByBrigade(e.target.checked)}
+              style={{ accentColor: '#ff9000', cursor: 'pointer' }}
+            />
+            👥 Показувати бригадами
+          </label>
+        )}
 
         {/* Right: Scrap filter pills */}
         <div className="emp-filter-group">

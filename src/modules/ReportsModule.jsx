@@ -65,6 +65,8 @@ const ReportsModule = () => {
     setSelectedShiftFilter,
     selectedEmployeeFilter,
     setSelectedEmployeeFilter,
+    groupByBrigade,
+    setGroupByBrigade,
     uniqueOperators,
     handleQuickDateSelect,
     handleExport,
@@ -183,6 +185,8 @@ const ReportsModule = () => {
             productionSummary={productionSummary}
             selectedEmployeeFilter={selectedEmployeeFilter}
             setSelectedEmployeeFilter={setSelectedEmployeeFilter}
+            groupByBrigade={groupByBrigade}
+            setGroupByBrigade={setGroupByBrigade}
             startDate={startDate}
             endDate={endDate}
           />
