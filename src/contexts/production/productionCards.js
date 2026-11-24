@@ -1007,7 +1007,7 @@ export function createProductionCardsActions({
     try {
       const validOrderId = (orderId && /^[0-9a-fA-F-]{36}$/.test(String(orderId))) ? orderId : null
       let order = orders.find(o => String(o.id) === String(orderId))
-      if (!order && validOrderId) {
+      if (validOrderId && (!order || !Array.isArray(order.order_items) || order.order_items.length === 0)) {
         try {
           const { data: dbOrder } = await supabase.from('orders').select('*, order_items(*)').eq('id', validOrderId).maybeSingle()
           if (dbOrder) order = dbOrder

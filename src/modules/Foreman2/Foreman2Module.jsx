@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams, useLocation } from 'react-router-dom'
 import { ListTodo, Tablet } from 'lucide-react'
 import { useMES } from '../../MESContext.jsx'
@@ -150,6 +150,18 @@ export default function Foreman2Module() {
   const activeModel = useMemo(() => {
     return taskModels.find(model => model.id === activeTaskId) || taskModels[0] || null
   }, [taskModels, activeTaskId])
+
+  const fetchedSnapshotIdsRef = useRef(new Set())
+  useEffect(() => {
+    const task = activeModel?.task
+    if (!task?.id || typeof mes?.fetchTaskPlanSnapshot !== 'function') return
+    const hasParts = (activeModel?.parts || []).length > 0
+    if (task.plan_snapshot && hasParts) return
+    const key = String(task.id)
+    if (fetchedSnapshotIdsRef.current.has(key)) return
+    fetchedSnapshotIdsRef.current.add(key)
+    mes.fetchTaskPlanSnapshot(task.id).catch(() => {})
+  }, [activeModel?.task?.id, activeModel?.task?.plan_snapshot, activeModel?.parts?.length, mes])
 
   const handleOpenReport = async (task, order, taskCardsOrForceRefresh = false, explicitForceRefresh = false) => {
     if (!task) return

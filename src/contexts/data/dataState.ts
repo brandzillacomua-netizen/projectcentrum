@@ -328,9 +328,10 @@ export function useDataState() {
           return { table, rows: [], failed: true }
         }
 
+        const selectCols = table === 'orders' ? '*, order_items(*)' : '*'
         const { data, error } = await supabase
           .from(table)
-          .select('*')
+          .select(selectCols)
           .gt('updated_at', lastSyncISO)
         if (error) {
           console.warn(`[CatchUpSync] Incremental query failed for ${table}:`, error.code || error.message)
