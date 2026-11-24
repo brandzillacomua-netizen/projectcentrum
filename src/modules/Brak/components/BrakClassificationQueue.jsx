@@ -186,16 +186,10 @@ export const BrakClassificationQueue = React.memo(({
                       <div style={{ fontSize: '1.4rem', fontWeight: 1000, color: 'var(--text-color, #fff)' }}>{item.total_qty} <small style={{ fontSize: '0.7rem', opacity: 0.3 }}>шт</small></div>
                    </div>
                    {viewingCategory === 'restoration' ? (
-                     <>
-                       <button 
-                         onClick={() => handleRework(item, 'Пресування [ЦЕХ №2]')}
-                         style={{ background: '#8b5cf6', border: 'none', color: '#fff', padding: '10px 15px', borderRadius: '12px', fontWeight: 900, fontSize: '0.75rem', cursor: 'pointer' }}
-                       >ПРЕСУВАННЯ</button>
-                       <button 
-                         onClick={() => handleRework(item, 'Фарбування')}
-                         style={{ background: '#3b82f6', border: 'none', color: '#fff', padding: '10px 15px', borderRadius: '12px', fontWeight: 900, fontSize: '0.75rem', cursor: 'pointer' }}
-                       >ФАРБУВАННЯ</button>
-                     </>
+                     <button 
+                       onClick={() => handleRework(item, 'Доопрацювання')}
+                       style={{ background: '#8b5cf6', border: 'none', color: '#fff', padding: '10px 15px', borderRadius: '12px', fontWeight: 900, fontSize: '0.75rem', cursor: 'pointer' }}
+                     >В БУФЕР ЦЕХУ №2</button>
                    ) : viewingCategory === 'brak' ? (
                      <>
                        <button 

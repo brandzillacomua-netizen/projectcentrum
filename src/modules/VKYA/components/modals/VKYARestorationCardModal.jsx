@@ -86,10 +86,9 @@ export const VKYARestorationCardModal = ({
 
             <div style={{ background: '#06b6d412', border: '1px solid #06b6d444', borderRadius: 14, padding: 15 }}>
               <div style={{ color: '#06b6d4', fontSize: '.72rem', fontWeight: 1000 }}>ПЕРЕДАЧА В ЦЕХ №2</div>
-              <div style={{ color: 'var(--text-muted, #94a3b8)', fontSize: '.7rem', marginTop: 7 }}>Ви можете передати ці відновлені деталі як нове завдання у Цех №2 для проходження додаткової обробки.</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 14 }}>
-                <button onClick={() => dispatchToShop2('Пресування')} disabled={saving || Number(selectedCard.completed_quantity) <= 0} style={{ background: '#06b6d4', border: 0, borderRadius: 12, padding: 12, color: '#001014', fontWeight: 1000, cursor: 'pointer', fontSize: '.78rem' }}>🛠️ ПРЕСУВАННЯ</button>
-                <button onClick={() => dispatchToShop2('Фарбування')} disabled={saving || Number(selectedCard.completed_quantity) <= 0} style={{ background: '#06b6d4', border: 0, borderRadius: 12, padding: 12, color: '#001014', fontWeight: 1000, cursor: 'pointer', fontSize: '.78rem' }}>🎨 ФАРБУВАННЯ</button>
+              <div style={{ color: 'var(--text-muted, #94a3b8)', fontSize: '.7rem', marginTop: 7 }}>Відновлені деталі надійдуть у Вхідний Буфер Цеху №2. Начальник Цеху №2 сформує з них картки в роботу.</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 10, marginTop: 14 }}>
+                <button onClick={() => dispatchToShop2('Буфер Цеху №2')} disabled={saving || Number(selectedCard.completed_quantity) <= 0} style={{ background: '#06b6d4', border: 0, borderRadius: 12, padding: 12, color: '#001014', fontWeight: 1000, cursor: 'pointer', fontSize: '.82rem' }}>📦 ПЕРЕДАТИ В БУФЕР ЦЕХУ №2</button>
               </div>
             </div>
           </div>

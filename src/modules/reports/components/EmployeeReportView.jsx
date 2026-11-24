@@ -694,6 +694,7 @@ export const EmployeeReportView = ({
 function EmployeeDetailModal({ employee, onClose, startDate, endDate }) {
   const [modalSearch, setModalSearch] = useState('')
   const [modalFilter, setModalFilter] = useState('ALL') // 'ALL' | 'SCRAP_ONLY' | 'REWORK' | 'QUARANTINE' | 'UTIL'
+  const [groupByNomenclature, setGroupByNomenclature] = useState(false)
   const [selectedCardForComments, setSelectedCardForComments] = useState(null)
 
   const history = employee.history || []
@@ -702,7 +703,7 @@ function EmployeeDetailModal({ employee, onClose, startDate, endDate }) {
 
   useEffect(() => {
     setVisibleCount(50)
-  }, [modalFilter, modalSearch, employee?.key, employee?.name])
+  }, [modalFilter, modalSearch, groupByNomenclature, employee?.key, employee?.name])
 
   const filteredHistory = useMemo(() => {
     return history.filter(item => {
@@ -724,6 +725,70 @@ function EmployeeDetailModal({ employee, onClose, startDate, endDate }) {
       return true
     })
   }, [history, modalFilter, modalSearch])
+
+  const groupedHistory = useMemo(() => {
+    if (!groupByNomenclature) return []
+    const map = new Map()
+    filteredHistory.forEach(item => {
+      const code = String(item.nomenclatureCode || '').trim()
+      const name = String(item.nomenclatureName || 'Деталь').trim()
+      const key = `${code.toLowerCase()}::${name.toLowerCase()}`
+      if (!map.has(key)) {
+        map.set(key, {
+          id: `nom-group-${key}`,
+          isGroupedRow: true,
+          count: 0,
+          nomenclatureName: name,
+          nomenclatureCode: code,
+          date: item.date || null,
+          ordersSet: new Set(),
+          stagesSet: new Set(),
+          machinesSet: new Set(),
+          reasonsSet: new Set(),
+          plannedDurationMs: 0,
+          durationMs: 0,
+          produced: 0,
+          scrap: 0,
+          rework: 0,
+          quarantine: 0,
+          util: 0
+        })
+      }
+      const grp = map.get(key)
+      grp.count += 1
+      if (item.date && (!grp.date || new Date(item.date).getTime() > new Date(grp.date).getTime())) {
+        grp.date = item.date
+      }
+      const orderLbl = cleanOrderLabel(item.orderNum)
+      if (orderLbl && orderLbl !== '—') grp.ordersSet.add(orderLbl)
+      if (item.stage && item.stage !== '—') grp.stagesSet.add(item.stage)
+      if (item.machine && item.machine !== '—') grp.machinesSet.add(item.machine)
+      if (item.reason && item.reason !== '—') grp.reasonsSet.add(item.reason)
+      grp.plannedDurationMs += Number(item.plannedDurationMs) || 0
+      grp.durationMs += Number(item.durationMs) || 0
+      grp.produced += Number(item.produced) || 0
+      grp.scrap += Number(item.scrap) || 0
+      grp.rework += Number(item.rework) || 0
+      grp.quarantine += Number(item.quarantine) || 0
+      grp.util += Number(item.util) || 0
+    })
+
+    return Array.from(map.values())
+      .map(grp => {
+        const ordersList = Array.from(grp.ordersSet)
+        return {
+          ...grp,
+          orderNum: ordersList.length === 1 ? ordersList[0] : (ordersList.length > 1 ? `${ordersList.length} нар.` : '—'),
+          ordersTooltip: ordersList.join(', '),
+          stage: Array.from(grp.stagesSet).join(', ') || '—',
+          machine: Array.from(grp.machinesSet).join(', ') || '—',
+          reason: Array.from(grp.reasonsSet).join('; ') || '—'
+        }
+      })
+      .sort((a, b) => b.produced - a.produced || b.scrap - a.scrap)
+  }, [filteredHistory, groupByNomenclature])
+
+  const displayedHistory = groupByNomenclature ? groupedHistory : filteredHistory
 
   return (
     <div className="emp-modal-overlay">
@@ -851,6 +916,32 @@ function EmployeeDetailModal({ employee, onClose, startDate, endDate }) {
               ❌ Утиль
             </button>
           </div>
+
+          <label
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              cursor: 'pointer',
+              padding: '7px 12px',
+              borderRadius: '10px',
+              border: `1px solid ${groupByNomenclature ? '#8b5cf6' : 'var(--border-subtle, rgba(148, 163, 184, 0.25))'}`,
+              background: groupByNomenclature ? 'rgba(139, 92, 246, 0.14)' : 'transparent',
+              fontSize: '0.78rem',
+              fontWeight: 800,
+              color: groupByNomenclature ? '#a78bfa' : 'inherit',
+              userSelect: 'none',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={groupByNomenclature}
+              onChange={(e) => setGroupByNomenclature(e.target.checked)}
+              style={{ accentColor: '#8b5cf6', width: '15px', height: '15px', cursor: 'pointer' }}
+            />
+            Сумувати по номенклатурі{groupByNomenclature ? ` (${groupedHistory.length})` : ''}
+          </label>
         </div>
 
         {/* Modal Operations Table */}
@@ -871,15 +962,15 @@ function EmployeeDetailModal({ employee, onClose, startDate, endDate }) {
               </tr>
             </thead>
             <tbody>
-              {filteredHistory.length === 0 ? (
+              {displayedHistory.length === 0 ? (
                 <tr>
                   <td colSpan={10} className="emp-modal-empty-td">
                     Немає операцій за обраними критеріями фільтра
                   </td>
                 </tr>
               ) : (
-                filteredHistory.slice(0, visibleCount).map((item, idx) => {
-                  const displayOrder = cleanOrderLabel(item.orderNum)
+                displayedHistory.slice(0, visibleCount).map((item, idx) => {
+                  const displayOrder = item.isGroupedRow ? item.orderNum : cleanOrderLabel(item.orderNum)
                   const formatOpDuration = rawMs => {
                     const ms = Number(rawMs) || 0
                     if (ms <= 0) return '—'
@@ -896,13 +987,19 @@ function EmployeeDetailModal({ employee, onClose, startDate, endDate }) {
                     <tr key={item.id || idx} className="emp-modal-tbody-tr">
                       {/* Date */}
                       <td className="emp-modal-date-td">
-                        {item.date ? new Date(item.date).toLocaleString('uk-UA', { dateStyle: 'short', timeStyle: 'short' }) : '—'}
+                        {item.isGroupedRow ? (
+                          <span style={{ fontWeight: 800, color: '#a78bfa' }}>
+                            Сума ({item.count} зап.)
+                          </span>
+                        ) : (
+                          item.date ? new Date(item.date).toLocaleString('uk-UA', { dateStyle: 'short', timeStyle: 'short' }) : '—'
+                        )}
                       </td>
 
                       {/* Naryad & Card Comments */}
                       <td className="emp-modal-order-td">
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                          <span className="order-pill" title={item.orderNum}>
+                          <span className="order-pill" title={item.isGroupedRow ? item.ordersTooltip : item.orderNum}>
                             {displayOrder}
                           </span>
                           {item.cardId && (
@@ -998,26 +1095,26 @@ function EmployeeDetailModal({ employee, onClose, startDate, endDate }) {
               )}
             </tbody>
           </table>
-        {visibleCount < filteredHistory.length && (
+        {visibleCount < displayedHistory.length && (
             <div className="emp-modal-load-more-wrap">
               <span className="emp-modal-load-more-info">
-                Показано {visibleCount} із {filteredHistory.length} операцій
+                Показано {visibleCount} із {displayedHistory.length} {groupByNomenclature ? 'номенклатур' : 'операцій'}
               </span>
               <button
                 type="button"
-                onClick={() => setVisibleCount(prev => Math.min(prev + 50, filteredHistory.length))}
+                onClick={() => setVisibleCount(prev => Math.min(prev + 50, displayedHistory.length))}
                 className="emp-modal-load-more-btn"
               >
                 Показати ще 50
               </button>
-              {filteredHistory.length > visibleCount + 50 && (
+              {displayedHistory.length > visibleCount + 50 && (
                 <button
                   type="button"
-                  onClick={() => setVisibleCount(filteredHistory.length)}
+                  onClick={() => setVisibleCount(displayedHistory.length)}
                   className="emp-modal-load-more-btn"
                   style={{ background: 'transparent' }}
                 >
-                  Показати всі ({filteredHistory.length})
+                  Показати всі ({displayedHistory.length})
                 </button>
               )}
             </div>

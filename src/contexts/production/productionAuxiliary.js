@@ -204,8 +204,8 @@ export function createProductionAuxiliaryActions({
     let cardPromise = Promise.resolve()
     const isRestoration = stage.includes('Пресування') || stage.includes('Фарбування')
     const cardInfoText = isRestoration 
-      ? `[RESTORATION] [ЦЕХ №2] ${nom?.name || scrapItem.name} — ВНУТРІШНЄ ВІДНОВЛЕННЯ ВКЯ`
-      : `[REWORK] [ЦЕХ №2] ${nom?.name || scrapItem.name} — ДООПРАЦЮВАННЯ БРАКУ`
+      ? `[VKYA_RETURN] [RESTORATION] ${nom?.name || scrapItem.name} — ВНУТРІШНЄ ВІДНОВЛЕННЯ ВКЯ (БУФЕР ЦЕХУ №2)`
+      : `[VKYA_RETURN] [REWORK] ${nom?.name || scrapItem.name} — ДООПРАЦЮВАННЯ БРАКУ (БУФЕР ЦЕХУ №2)`
 
     if (newTask) {
       cardPromise = supabase
@@ -215,14 +215,27 @@ export function createProductionAuxiliaryActions({
           order_id: orderId,
           nomenclature_id: nomId,
           quantity: qty,
-          status: 'new',
-          operation: stage,
+          status: 'at-shop2-buffer',
+          operation: 'Доопрацювання',
           card_info: cardInfoText
         }])
     }
 
+    const semiShop2Row = (inventory || []).find(i => String(i.nomenclature_id) === String(nomId) && i.type === 'semi_shop2')
+    const bufferInvPromise = semiShop2Row
+      ? supabase.from('inventory').update({ total_qty: (Number(semiShop2Row.total_qty) || 0) + Number(qty), updated_at: new Date().toISOString() }).eq('id', semiShop2Row.id)
+      : supabase.from('inventory').insert([{
+          nomenclature_id: nomId,
+          name: nom?.name || scrapItem.name,
+          unit: nom?.unit || scrapItem.unit || 'шт',
+          total_qty: Number(qty),
+          reserved_qty: 0,
+          type: 'semi_shop2',
+          warehouse: 'production'
+        }])
+
     // 3. Await all inserts & updates in parallel
-    await Promise.all([inventoryPromise, cardPromise])
+    await Promise.all([inventoryPromise, cardPromise, bufferInvPromise])
 
     // 4. Refresh only affected tables in parallel (much faster than full fetchData(true))
     await Promise.all([

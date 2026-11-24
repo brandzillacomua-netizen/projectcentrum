@@ -236,9 +236,9 @@ export const useVKYARestorationData = () => {
     }
   }
 
-  const dispatchToShop2 = async (stage) => {
+  const dispatchToShop2 = async (stage = 'Буфер Цеху №2') => {
     if (!selectedCard || selectedCard.status !== 'completed' || selectedCard.shop2_card_id) return
-    if (!window.confirm(`Передати ${selectedCard.completed_quantity} ${selectedCard.unit || 'шт'} у Цех №2 (${stage})?`)) return
+    if (!window.confirm(`Передати ${selectedCard.completed_quantity} ${selectedCard.unit || 'шт'} у Вхідний буфер Цеху №2?`)) return
     setSaving(true)
     try {
       const { data, error: dispatchError } = await supabase.rpc('dispatch_vkya_restoration_to_shop2', {
