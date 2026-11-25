@@ -43,15 +43,29 @@ export const CutterRestorationModule: React.FC = () => {
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true)
-    const { data, error } = await supabase
-      .from('cutter_restoration_batches')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(500)
-    if (error) {
-      window.alert(`Не вдалося завантажити чергу: ${error.message}`)
+    const allBatches: any[] = []
+    const pageSize = 1000
+    let loadError: any = null
+
+    for (let from = 0; ; from += pageSize) {
+      const { data, error } = await supabase
+        .from('cutter_restoration_batches')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
+        .range(from, from + pageSize - 1)
+      if (error) {
+        loadError = error
+        break
+      }
+      allBatches.push(...(data || []))
+      if (!data || data.length < pageSize) break
+    }
+
+    if (loadError) {
+      window.alert(`Не вдалося завантажити чергу: ${loadError.message}`)
     } else {
-      setBatches(data || [])
+      setBatches(allBatches)
     }
     if (!silent) setLoading(false)
 

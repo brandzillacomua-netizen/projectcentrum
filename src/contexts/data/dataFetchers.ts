@@ -302,7 +302,7 @@ export function useDataFetchers(state: any) {
         const data = requireData(await fetchActiveWorkCards())
         if (data) setWorkCards(data)
       } else if (tableName === 'inventory') {
-        const data = requireData(await supabase.from('inventory').select('*').order('name'))
+        const data = requireData(await fetchAllPaginatedRows('inventory', { orderBy: 'name', ascending: true }))
         if (data) setInventory(data)
       } else if (tableName === 'tasks') {
         const taskResult = await fetchTasksForCurrentRoute()
@@ -330,7 +330,7 @@ export function useDataFetchers(state: any) {
           return next.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
         })
       } else if (tableName === 'machine_operations') {
-        const data = requireData(await supabase.from('machine_operations').select('*'))
+        const data = requireData(await fetchAllPaginatedRows('machine_operations'))
         if (data) setMachineOperations(data)
       } else if (tableName === 'machines') {
         const data = requireData(await supabase.from('machines').select('*').order('name'))
@@ -362,10 +362,11 @@ export function useDataFetchers(state: any) {
         const data = requireData(await supabase.from('task_projects').select('*').order('created_at', { ascending: false }))
         if (data) setTaskProjects(data)
       } else if (tableName === 'system_users') {
-        const data = requireData(await supabase
-          .from('system_users')
-          .select('id, login, first_name, last_name, position, access_rights, department, shift, notification_settings, avatar, last_seen, shift_calendar, is_dismissed, dismissed_at, dismissed_reason')
-          .order('login'))
+        const data = requireData(await fetchAllPaginatedRows('system_users', {
+          select: 'id, login, first_name, last_name, position, access_rights, department, shift, notification_settings, avatar, last_seen, shift_calendar, is_dismissed, dismissed_at, dismissed_reason',
+          orderBy: 'login',
+          ascending: true
+        }))
         if (data) setSystemUsers(data)
       } else if (tableName === 'company_structure') {
         const data = requireData(await supabase.from('company_structure').select('*').order('name'))

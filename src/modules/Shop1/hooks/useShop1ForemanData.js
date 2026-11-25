@@ -823,12 +823,21 @@ export const useShop1ForemanData = () => {
             .eq('order_id', task.order_id)
         : { data: [] }
 
-      const { data: dbCards } = await supabase
-        .from('work_cards')
-        .select('id, created_at, card_info')
-        .eq('task_id', task.id)
-        .order('created_at', { ascending: true })
-        .limit(10000)
+      const dbCards = []
+      const cardPageSize = 1000
+      for (let from = 0; ; from += cardPageSize) {
+        const { data: cardPage, error: cardPageErr } = await supabase
+          .from('work_cards')
+          .select('id, created_at, card_info')
+          .eq('task_id', task.id)
+          .order('created_at', { ascending: true })
+          .order('id', { ascending: true })
+          .range(from, from + cardPageSize - 1)
+        if (cardPageErr) throw cardPageErr
+        if (!cardPage || cardPage.length === 0) break
+        dbCards.push(...cardPage)
+        if (cardPage.length < cardPageSize) break
+      }
 
       const allCardIds = [...new Set((dbCards || []).map(c => c.id))]
       let historyRows = []

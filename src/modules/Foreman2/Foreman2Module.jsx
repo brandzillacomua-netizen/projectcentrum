@@ -221,16 +221,29 @@ export default function Foreman2Module() {
     }
 
     try {
+      const fetchAllTaskCards = async () => {
+        const allCards = []
+        const pageSize = 1000
+        for (let from = 0; ; from += pageSize) {
+          const { data, error } = await mes.supabase
+            .from('work_cards')
+            .select('*')
+            .eq('task_id', task.id)
+            .order('id', { ascending: true })
+            .range(from, from + pageSize - 1)
+          if (error) return { data: null, error }
+          allCards.push(...(data || []))
+          if (!data || data.length < pageSize) break
+        }
+        return { data: allCards, error: null }
+      }
+
       const [{ data: materialRequests, error: reqError }, { data: allTaskCardsDB, error: cardsError }] = await Promise.all([
         mes.supabase
           .from('material_requests')
           .select('*, nomenclature:nomenclatures_v2(*)')
           .eq('task_id', task.id),
-        mes.supabase
-          .from('work_cards')
-          .select('*')
-          .eq('task_id', task.id)
-          .limit(10000)
+        fetchAllTaskCards()
       ])
 
       if (reqError) console.warn('Error fetching material requests:', reqError.message)
