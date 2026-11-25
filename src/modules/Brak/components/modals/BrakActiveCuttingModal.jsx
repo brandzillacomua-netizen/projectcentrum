@@ -17,6 +17,7 @@ import {
 import { parseQcOpsStamps } from '../../../Shop1/utils/shop1Helpers.js'
 import { extractCardSequence } from '../../hooks/useBrakData.js'
 import { useStore } from '../../../../store/index.js'
+import { useActiveCardsHistory } from '../../../../hooks/useActiveCardsHistory.js'
 
 export function resolveCardCuttingStart(card, historyList = []) {
   if (!card) return null
@@ -239,7 +240,14 @@ export const BrakActiveCuttingModal = React.memo(({
   const [sortBy, setSortBy] = useState('duration_desc') // 'duration_desc' | 'qc_urgency' | 'machine'
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [now, setNow] = useState(() => Date.now())
-  const workCardHistory = useStore(state => state.workCardHistory) || []
+  const storeWorkCardHistory = useStore(state => state.workCardHistory) || []
+  const cuttingCardIds = useMemo(() => {
+    if (!isOpen) return []
+    return (workCards || [])
+      .filter(c => c.operation === 'Розкрій' && (c.status === 'in-progress' || c.status === 'paused' || c.status === 'hold'))
+      .map(c => c.id)
+  }, [workCards, isOpen])
+  const workCardHistory = useActiveCardsHistory(cuttingCardIds, storeWorkCardHistory, { enabled: isOpen })
 
   // Keep a live minute ticker for durations
   useEffect(() => {

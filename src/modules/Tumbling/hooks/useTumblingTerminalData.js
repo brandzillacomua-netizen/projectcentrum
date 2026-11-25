@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useMES } from '../../../MESContext'
+import { useActiveCardsHistory } from '../../../hooks/useActiveCardsHistory'
 import { useStore } from '../../../store/index.js'
 import { supabase, getCurrentTime } from '../../../supabase'
 import scannerDebounceGuard, { triggerHapticAudioFeedback } from '../../../services/scannerDebounceGuard'
@@ -31,7 +32,13 @@ export function useTumblingTerminalData() {
   const bomItems = useStore(state => state.bomItems)
   const orders = useStore(state => state.orders)
   const tasks = useStore(state => state.tasks)
-  const workCardHistory = useStore(state => state.workCardHistory)
+  const storeWorkCardHistory = useStore(state => state.workCardHistory)
+  const tumblingCardIds = useMemo(() => {
+    return (workCards || [])
+      .filter(c => c.status !== 'completed' && c.status !== 'cancelled' && (c.operation === 'Розкрій' || String(c.operation || '').startsWith('Галтовка')))
+      .map(c => c.id)
+  }, [workCards])
+  const workCardHistory = useActiveCardsHistory(tumblingCardIds, storeWorkCardHistory)
 
   const [currentTime, setCurrentTime] = useState(getCurrentTime())
   const [selectedShift, setSelectedShift] = useState('')

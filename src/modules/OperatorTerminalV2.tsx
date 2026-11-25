@@ -1,6 +1,7 @@
 import React from 'react'
 import { useMES } from '../MESContext'
 import { useStore } from '../store/index.js'
+import { useActiveCardsHistory } from '../hooks/useActiveCardsHistory.js'
 import { apiService } from '../services/apiDispatcher.js'
 
 import { useOperatorTerminalData } from './Operator/hooks/useOperatorTerminalData'
@@ -33,7 +34,13 @@ export const OperatorTerminal: React.FC = () => {
   const orders = useStore((state: any) => state.orders)
   const nomenclatures = useStore((state: any) => state.nomenclatures)
   const machines = useStore((state: any) => state.machines)
-  const workCardHistory = useStore((state: any) => state.workCardHistory)
+  const storeWorkCardHistory = useStore((state: any) => state.workCardHistory)
+  const activeCardIds = React.useMemo(() => {
+    return (workCards || [])
+      .filter((c: any) => c.status !== 'completed' && c.status !== 'cancelled')
+      .map((c: any) => c.id)
+  }, [workCards])
+  const workCardHistory = useActiveCardsHistory(activeCardIds, storeWorkCardHistory)
   const systemUsers = useStore((state: any) => state.systemUsers)
   const currentUser = useStore((state: any) => state.currentUser)
   const machineOperations = useStore((state: any) => state.machineOperations)

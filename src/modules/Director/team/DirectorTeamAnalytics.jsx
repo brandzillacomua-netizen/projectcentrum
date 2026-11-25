@@ -65,7 +65,7 @@ export const DirectorTeamAnalytics = ({ onBack }) => {
         const pageSize = 1000
         const rows = []
 
-        for (let from = 0; from < 5000; from += pageSize) {
+        for (let from = 0; ; from += pageSize) {
           let query = supabase.from('work_card_history').select(columns)
           if (startIso) query = query.gte('created_at', startIso)
 

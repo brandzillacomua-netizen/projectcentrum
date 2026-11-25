@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useScrapReasons } from '../../../hooks/useScrapReasons'
+import { useActiveCardsHistory } from '../../../hooks/useActiveCardsHistory'
 import { useMES } from '../../../MESContext'
 import { useStore } from '../../../store/index.js'
 import { apiService } from '../../../services/apiDispatcher'
@@ -27,7 +28,7 @@ export function useShop2TerminalState() {
   const orders = useStore(state => state.orders)
   const nomenclatures = useStore(state => state.nomenclatures)
   const inventory = useStore(state => state.inventory)
-  const workCardHistory = useStore(state => state.workCardHistory)
+  const storeWorkCardHistory = useStore(state => state.workCardHistory)
   const currentUser = useStore(state => state.currentUser)
   const systemUsers = useStore(state => state.systemUsers)
   const tasks = useStore(state => state.tasks)
@@ -57,6 +58,14 @@ export function useShop2TerminalState() {
     if (['Пресування', 'Фарбування', 'Малярка'].includes(op)) return true
     return false
   }, [shop2TaskIdsSet])
+
+  const activeShop2CardIds = useMemo(() => {
+    return (workCards || [])
+      .filter(c => isShop2Card(c) && c.status !== 'completed' && c.status !== 'cancelled')
+      .map(c => c.id)
+  }, [workCards, isShop2Card])
+
+  const workCardHistory = useActiveCardsHistory(activeShop2CardIds, storeWorkCardHistory)
 
   const [selectedCardId, setSelectedCardId] = useState(null)
   const [manualId, setManualId] = useState('')

@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import { useMES } from '../../../MESContext'
 import { useStore } from '../../../store/index.js'
 import { getCurrentTime } from '../../../supabase'
+import { useActiveCardsHistory } from '../../../hooks/useActiveCardsHistory'
 
 export function useTumblingDashboardData() {
   const workCards = useStore(state => state.workCards)
@@ -9,7 +10,13 @@ export function useTumblingDashboardData() {
   const bomItems = useStore(state => state.bomItems)
   const orders = useStore(state => state.orders)
   const tasks = useStore(state => state.tasks)
-  const workCardHistory = useStore(state => state.workCardHistory)
+  const storeWorkCardHistory = useStore(state => state.workCardHistory)
+  const tumblingCardIds = useMemo(() => {
+    return (workCards || [])
+      .filter(c => c.status !== 'completed' && c.status !== 'cancelled' && (c.operation === 'Розкрій' || String(c.operation || '').startsWith('Галтовка')))
+      .map(c => c.id)
+  }, [workCards])
+  const workCardHistory = useActiveCardsHistory(tumblingCardIds, storeWorkCardHistory)
   const [currentTime, setCurrentTime] = useState(getCurrentTime())
 
   // Toggle for full-screen or simulated display properties

@@ -292,6 +292,68 @@ export const fetchActiveWorkCards = async () => {
 }
 
 
+export const fetchAllPaginatedRows = async (
+  tableName,
+  { select = '*', orderBy = 'id', ascending = true, pageSize = 1000 } = {}
+) => {
+  const allRows = []
+  for (let from = 0; ; from += pageSize) {
+    let query = supabase
+      .from(tableName)
+      .select(select)
+      .order(orderBy, { ascending })
+    if (orderBy !== 'id') {
+      query = query.order('id', { ascending })
+    }
+    const { data, error } = await query.range(from, from + pageSize - 1)
+    if (error) return { data: null, error }
+    const page = data || []
+    allRows.push(...page)
+    if (page.length < pageSize) break
+  }
+  return { data: allRows, error: null }
+}
+
+export const fetchOperationalTableRows = async (
+  tableName,
+  { completedStatuses = ['completed'], completedLimit = 300, pageSize = 1000 } = {}
+) => {
+  const activeRows = []
+  const statusList = completedStatuses.map(s => `"${s}"`).join(',')
+
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase
+      .from(tableName)
+      .select('*')
+      .or(`status.is.null,status.not.in.(${statusList})`)
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .range(from, from + pageSize - 1)
+
+    if (error) return { data: null, error }
+    const page = data || []
+    activeRows.push(...page)
+    if (page.length < pageSize) break
+  }
+
+  const { data: recentCompleted, error: completedError } = await supabase
+    .from(tableName)
+    .select('*')
+    .in('status', completedStatuses)
+    .order('created_at', { ascending: false })
+    .order('id', { ascending: false })
+    .limit(completedLimit)
+
+  if (completedError) return { data: null, error: completedError }
+
+  const rows = [...activeRows, ...(recentCompleted || [])]
+  return {
+    data: Array.from(new Map(rows.map(row => [String(row.id), row])).values())
+      .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)),
+    error: null
+  }
+}
+
 export const fetchOperationalMaterialRequests = async ({ completedLimit = 200 } = {}) => {
   const pageSize = 1000  // was 500 — halves the number of sequential round-trips
   const activeRows = []

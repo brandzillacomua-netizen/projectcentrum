@@ -10,6 +10,8 @@ import {
   getRouteDataTables,
   fetchOperationalTasks,
   fetchActiveWorkCards,
+  fetchAllPaginatedRows,
+  fetchOperationalTableRows,
   fetchOperationalMaterialRequests,
   fetchPendingMachineCalls,
   fetchWorkCardScrapTotals,
@@ -166,13 +168,13 @@ export function useDataFetchers(state: any) {
   const fetchUnifiedNomenclatures = async () => {
     try {
       const [v1Res, v2Res, groupsRes] = await Promise.all([
-        supabase.from('nomenclatures').select('*').limit(2000),
-        supabase.from('nomenclatures_v2').select('*').limit(2000),
-        supabase.from('nomenclature_catalog_groups').select('*')
+        fetchAllPaginatedRows('nomenclatures'),
+        fetchAllPaginatedRows('nomenclatures_v2'),
+        fetchAllPaginatedRows('nomenclature_catalog_groups')
       ])
-      const v1Data = (v1Res && !v1Res.error && Array.isArray(v1Res.data)) ? v1Res.data : []
-      const v2Data = (v2Res && !v2Res.error && Array.isArray(v2Res.data)) ? v2Res.data : []
-      const groups = (groupsRes && !groupsRes.error && Array.isArray(groupsRes.data)) ? groupsRes.data : []
+      const v1Data: any[] = (v1Res && !v1Res.error && Array.isArray(v1Res.data)) ? v1Res.data : []
+      const v2Data: any[] = (v2Res && !v2Res.error && Array.isArray(v2Res.data)) ? v2Res.data : []
+      const groups: any[] = (groupsRes && !groupsRes.error && Array.isArray(groupsRes.data)) ? groupsRes.data : []
 
       const groupMap = new Map()
       groups.forEach(g => groupMap.set(g.id, g))
@@ -379,20 +381,26 @@ export function useDataFetchers(state: any) {
           nomenclaturesLoadedRef.current = true
         }
       } else if (tableName === 'bom_items') {
-        const data = requireData(await supabase.from('bom_items').select('*').limit(4000))
+        const data = requireData(await fetchAllPaginatedRows('bom_items'))
         if (data) {
           bomItemsRef.current = data
           setBomItems(data)
           bomItemsLoadedRef.current = true
         }
       } else if (tableName === 'customers') {
-        const data = requireData(await supabase.from('customers').select('*').order('name').limit(500))
+        const data = requireData(await fetchAllPaginatedRows('customers', { orderBy: 'name', ascending: true }))
         if (data) setCustomers(data)
       } else if (tableName === 'purchase_requests') {
-        const data = requireData(await supabase.from('purchase_requests').select('*').order('created_at', { ascending: false }).limit(300))
+        const data = requireData(await fetchOperationalTableRows('purchase_requests', {
+          completedStatuses: ['completed', 'cancelled', 'rejected'],
+          completedLimit: 300
+        }))
         if (data) setPurchaseRequests(data)
       } else if (tableName === 'reception_docs') {
-        const data = requireData(await supabase.from('reception_docs').select('*').order('created_at', { ascending: false }).limit(300))
+        const data = requireData(await fetchOperationalTableRows('reception_docs', {
+          completedStatuses: ['completed', 'accepted', 'cancelled'],
+          completedLimit: 300
+        }))
         if (data) setReceptionDocs(data)
       } else if (tableName === 'material_requests' || tableName === 'requests') {
         const data = requireData(await fetchOperationalMaterialRequests())
