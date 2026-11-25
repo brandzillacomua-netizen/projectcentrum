@@ -11,15 +11,8 @@ envText.split('\n').forEach(line => {
 
 const url = env.VITE_SUPABASE_URL || 'https://hurzutjytlcvtbvihnry.supabase.co';
 const key = env.VITE_SUPABASE_ANON_KEY;
-const secret = env.VITE_MES_SECRET || 'CentrumMES2026SecretKey_a9f8';
 
-const supabase = createClient(url, key, {
-  global: {
-    headers: {
-      'x-mes-secret': secret
-    }
-  }
-});
+const supabase = createClient(url, key);
 
 // Log in as audit user if needed to have authenticated RLS
 if (env.AUDIT_EMAIL && env.AUDIT_PASSWORD) {

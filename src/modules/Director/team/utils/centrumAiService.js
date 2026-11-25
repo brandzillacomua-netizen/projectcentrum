@@ -11,7 +11,7 @@ const MODEL_STORAGE_KEY = 'centrum_ai_gemini_model'
 
 export function getSavedAiApiKey() {
   try {
-    return localStorage.getItem(API_KEY_STORAGE_KEY) || import.meta.env.VITE_GEMINI_API_KEY || ''
+    return localStorage.getItem(API_KEY_STORAGE_KEY) || ''
   } catch (_) {
     return ''
   }
