@@ -169,8 +169,6 @@ export function Shop1ShiftChangeModal({
 
   if (!showShiftChangeModal || !currentCard) return null
 
-  const handleClose = onClose || (() => setShowShiftChangeModal && setShowShiftChangeModal(false))
-
   const handleConfirmShiftChange = () => {
     if (!canSubmit) return
     const sideObj = SIDE_OPTIONS.find(s => s.id === selectedSide)

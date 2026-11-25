@@ -1,6 +1,6 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, Calendar, LayoutDashboard, Users, Scissors } from 'lucide-react'
+import { ArrowLeft, Calendar, LayoutDashboard, Users, Scissors, SlidersHorizontal } from 'lucide-react'
 
 export const Shop2ForemanHeader = ({ activeTab, setActiveTab }) => {
   return (
@@ -32,6 +32,9 @@ export const Shop2ForemanHeader = ({ activeTab, setActiveTab }) => {
           </button>
           <button onClick={() => setActiveTab('rubber_orders')} className={`tab-btn ${activeTab === 'rubber_orders' ? 'active' : ''}`}>
             <Scissors size={16} /> Заявки на гуму
+          </button>
+          <button onClick={() => setActiveTab('nomenclature_norms')} className={`tab-btn ${activeTab === 'nomenclature_norms' ? 'active' : ''}`}>
+            <SlidersHorizontal size={16} /> Норми деталей
           </button>
         </div>
       </div>

@@ -780,7 +780,9 @@ function EmployeeDetailModal({ employee, onClose, startDate, endDate }) {
         const matchOrder = cleanOrder.includes(q) || String(item.orderNum || '').toLowerCase().includes(q)
         const matchStage = String(item.stage || '').toLowerCase().includes(q)
         const matchReason = String(item.reason || '').toLowerCase().includes(q)
-        if (!matchNom && !matchOrder && !matchStage && !matchReason) return false
+        const cleanCardQuery = q.replace(/^#/, '')
+        const matchCard = cleanCardQuery && String(item.cardId || '').toLowerCase().includes(cleanCardQuery)
+        if (!matchNom && !matchOrder && !matchStage && !matchReason && !matchCard) return false
       }
 
       return true
@@ -1012,6 +1014,7 @@ function EmployeeDetailModal({ employee, onClose, startDate, endDate }) {
               <tr className="emp-modal-thead-tr">
                 <th style={{ width: '110px' }}>Дата / Час</th>
                 <th style={{ width: '130px' }}>Наряд</th>
+                <th style={{ width: '120px' }}>Системний № картки</th>
                 <th>Деталь / Номенклатура</th>
                 <th>Етап / Верстат</th>
                 <th style={{ textAlign: 'center', width: '95px' }}>Плановий час</th>
@@ -1025,7 +1028,7 @@ function EmployeeDetailModal({ employee, onClose, startDate, endDate }) {
             <tbody>
               {displayedHistory.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="emp-modal-empty-td">
+                  <td colSpan={11} className="emp-modal-empty-td">
                     Немає операцій за обраними критеріями фільтра
                   </td>
                 </tr>
@@ -1083,6 +1086,43 @@ function EmployeeDetailModal({ employee, onClose, startDate, endDate }) {
                             />
                           )}
                         </div>
+                      </td>
+
+                      {/* System Card ID */}
+                      <td className="emp-modal-order-td" style={{ whiteSpace: 'nowrap' }}>
+                        {item.isGroupedRow || !item.cardId ? (
+                          <span style={{ color: 'var(--text-muted)' }}>—</span>
+                        ) : (
+                          (() => {
+                            const seqMatch = String(item.card_info || '').match(/(\d+\/\d+)/)
+                            return (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                <span
+                                  title={item.cardId}
+                                  style={{
+                                    display: 'inline-block',
+                                    width: 'fit-content',
+                                    fontFamily: 'monospace',
+                                    fontSize: '0.72rem',
+                                    fontWeight: 800,
+                                    padding: '2px 7px',
+                                    borderRadius: '6px',
+                                    background: 'var(--fill-subtle, rgba(148, 163, 184, 0.14))',
+                                    border: '1px solid var(--border-subtle)',
+                                    color: 'var(--text-strong)'
+                                  }}
+                                >
+                                  #{String(item.cardId).slice(-8).toUpperCase()}
+                                </span>
+                                {seqMatch && (
+                                  <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 700 }}>
+                                    Картка {seqMatch[1]}
+                                  </span>
+                                )}
+                              </div>
+                            )
+                          })()
+                        )}
                       </td>
 
                       {/* Nomenclature */}

@@ -5,6 +5,7 @@ import { Shop2TodayShiftBanner } from './Shop2Foreman/components/Shop2TodayShift
 import { Shop2MonitoringView } from './Shop2Foreman/components/Shop2MonitoringView'
 import { Shop2StaffView } from './Shop2Foreman/components/Shop2StaffView'
 import { Shop2RubberOrdersView } from './Shop2Foreman/components/Shop2RubberOrdersView'
+import { Shop2NomenclatureAuditView } from './Shop2Foreman/components/Shop2NomenclatureAuditView'
 import { useShop2ForemanData } from './Shop2Foreman/hooks/useShop2ForemanData'
 import './Shop1/Shop1ForemanStyles.css'
 
@@ -85,6 +86,10 @@ export const Shop2ForemanModule: React.FC = () => {
 
         {activeTab === 'rubber_orders' && (
           <Shop2RubberOrdersView />
+        )}
+
+        {activeTab === 'nomenclature_norms' && (
+          <Shop2NomenclatureAuditView />
         )}
       </div>
     </div>
