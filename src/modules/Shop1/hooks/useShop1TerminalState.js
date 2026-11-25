@@ -50,7 +50,72 @@ export function useShop1TerminalState() {
   // Selected Card & Isolated Full History (Single Source of Truth)
   const [selectedCardId, setSelectedCardId] = useState(null);
   const [selectedCardHistory, setSelectedCardHistory] = useState([]);
+  const [activeCardsHistory, setActiveCardsHistory] = useState([]);
   const prevCardIdRef = useRef(null);
+
+  const activeShop1CardIdsKey = useMemo(() => {
+    const ids = (workCards || [])
+      .filter(c => {
+        const isInChain = CHAIN.includes(c?.operation) || (c?.operation && String(c.operation).startsWith('Галтовка'));
+        const isActiveStatus = c?.status === 'in-progress' || c?.status === 'paused' || c?.status === 'hold' || c?.status === 'at-buffer';
+        return isInChain && isActiveStatus && c?.id;
+      })
+      .map(c => String(c.id))
+      .sort();
+    return ids.join(',');
+  }, [workCards]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const ids = activeShop1CardIdsKey ? activeShop1CardIdsKey.split(',').filter(Boolean) : [];
+    if (ids.length === 0) {
+      setActiveCardsHistory([]);
+      return () => { cancelled = true; };
+    }
+
+    const loadActiveCardsHistory = async () => {
+      try {
+        const chunkSize = 40;
+        const pageSize = 1000;
+        const allRows = [];
+
+        for (let i = 0; i < ids.length; i += chunkSize) {
+          const chunk = ids.slice(i, i + chunkSize);
+          for (let from = 0; ; from += pageSize) {
+            const { data, error } = await supabase
+              .from('work_card_history')
+              .select('*')
+              .in('card_id', chunk)
+              .order('created_at', { ascending: true })
+              .range(from, from + pageSize - 1);
+
+            if (error) throw error;
+            allRows.push(...(data || []));
+            if (!data || data.length < pageSize) break;
+          }
+        }
+
+        if (!cancelled) setActiveCardsHistory(allRows);
+      } catch (error) {
+        console.error('Failed to load active cards full history:', error);
+      }
+    };
+
+    loadActiveCardsHistory();
+    return () => { cancelled = true; };
+  }, [activeShop1CardIdsKey]);
+
+  const mergedWorkCardHistory = useMemo(() => {
+    if (!activeCardsHistory.length) return workCardHistory || [];
+    const byId = new Map();
+    for (const row of activeCardsHistory) {
+      if (row?.id) byId.set(String(row.id), row);
+    }
+    for (const row of workCardHistory || []) {
+      if (row?.id) byId.set(String(row.id), { ...byId.get(String(row.id)), ...row });
+    }
+    return Array.from(byId.values());
+  }, [activeCardsHistory, workCardHistory]);
 
   useEffect(() => {
     let cancelled = false;
@@ -148,7 +213,7 @@ export function useShop1TerminalState() {
   const timers = useShop1ShiftTimers({
     selectedCardId,
     selectedCardHistory,
-    workCardHistory
+    workCardHistory: mergedWorkCardHistory
   });
 
   // 2. Modals & Alerts

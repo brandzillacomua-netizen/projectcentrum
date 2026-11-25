@@ -76,8 +76,8 @@ export function useShop1ShiftTimers({
     return map;
   }, [workCardHistory]);
 
-  // Pre-calculate base duration from completed historical stages once per history update
-  const cardHistoryBaseSec = useMemo(() => {
+  // Pre-calculate merged historical intervals once per history update
+  const cardHistoryIntervals = useMemo(() => {
     const map = new Map();
     for (const [cardId, list] of historyByCardId.entries()) {
       const intervals = [];
@@ -98,8 +98,7 @@ export function useShop1ShiftTimers({
           if (!last || s > last[1]) merged.push([s, e]);
           else last[1] = Math.max(last[1], e);
         }
-        const total = merged.reduce((sum, [s, e]) => sum + Math.max(0, Math.floor((e - s) / 1000)), 0);
-        map.set(cardId, total);
+        map.set(cardId, merged);
       }
     }
     return map;
@@ -112,16 +111,15 @@ export function useShop1ShiftTimers({
     const inBuf = card.status === 'at-buffer';
 
     let activeSec = 0;
-    if (card.status === 'in-progress') {
-      const s = parseDBTime(card.started_at)?.getTime() || 0;
-      activeSec = s ? Math.max(0, Math.floor((nowMs - s) / 1000)) : 0;
+    const activeStartMs = card.status === 'in-progress' ? (parseDBTime(card.started_at)?.getTime() || 0) : 0;
+    if (activeStartMs) {
+      activeSec = Math.max(0, Math.floor((nowMs - activeStartMs) / 1000));
     }
 
     let bufferSec = 0;
-    if (inBuf) {
-      const bufferStart = card.completed_at || card.started_at;
-      const s = parseDBTime(bufferStart)?.getTime() || 0;
-      bufferSec = s ? Math.max(0, Math.floor((nowMs - s) / 1000)) : 0;
+    const bufferStartMs = inBuf ? (parseDBTime(card.completed_at || card.started_at)?.getTime() || 0) : 0;
+    if (bufferStartMs) {
+      bufferSec = Math.max(0, Math.floor((nowMs - bufferStartMs) / 1000));
     }
 
     // If active selected card has dedicated real-time history records
@@ -134,12 +132,10 @@ export function useShop1ShiftTimers({
         .map(h => [parseDBTime(h.started_at)?.getTime(), parseDBTime(h.completed_at)?.getTime()])
         .filter(([start, end]) => start && end && end > start);
 
-      if (inBuf && bufferSec > 0) {
-        const bufferStart = parseDBTime(card.completed_at || card.started_at)?.getTime();
-        if (bufferStart) intervals.push([bufferStart, nowMs]);
-      } else if (activeSec > 0) {
-        const currentStart = parseDBTime(card.started_at)?.getTime();
-        if (currentStart) intervals.push([currentStart, nowMs]);
+      if (inBuf && bufferSec > 0 && bufferStartMs) {
+        intervals.push([bufferStartMs, nowMs]);
+      } else if (activeSec > 0 && activeStartMs) {
+        intervals.push([activeStartMs, nowMs]);
       }
 
       intervals.sort((a, b) => a[0] - b[0]);
@@ -161,16 +157,33 @@ export function useShop1ShiftTimers({
       return { totalSec, currentSec, shiftSec };
     }
 
-    // High performance path for table cards: baseSec + activeSec / bufferSec
-    const baseSec = cardHistoryBaseSec.get(cardIdStr) || 0;
+    // High performance path for table cards: merge live interval with pre-merged history intervals
+    const baseIntervals = cardHistoryIntervals.get(cardIdStr) || [];
+    const liveStartMs = inBuf ? (bufferSec > 0 ? bufferStartMs : 0) : (activeSec > 0 ? activeStartMs : 0);
+    let totalSec = 0;
+
+    if (!liveStartMs) {
+      totalSec = baseIntervals.reduce((sum, [s, e]) => sum + Math.max(0, Math.floor((e - s) / 1000)), 0);
+    } else if (baseIntervals.length === 0) {
+      totalSec = Math.max(0, Math.floor((nowMs - liveStartMs) / 1000));
+    } else {
+      const combined = [...baseIntervals, [liveStartMs, nowMs]].sort((a, b) => a[0] - b[0]);
+      const merged = [];
+      for (const [s, e] of combined) {
+        const last = merged[merged.length - 1];
+        if (!last || s > last[1]) merged.push([s, e]);
+        else last[1] = Math.max(last[1], e);
+      }
+      totalSec = merged.reduce((sum, [s, e]) => sum + Math.max(0, Math.floor((e - s) / 1000)), 0);
+    }
+
     const historyList = historyByCardId.get(cardIdStr) || [];
     const shiftHistorySec = inBuf ? 0 : computeShiftHistoryBaseSec(historyList, card);
     const shiftSec = inBuf ? 0 : (shiftHistorySec + activeSec);
     const currentSec = inBuf ? bufferSec : shiftSec;
-    const totalSec = inBuf ? (baseSec + bufferSec) : (baseSec + activeSec);
 
     return { totalSec, currentSec, shiftSec };
-  }, [currentTime, selectedCardId, selectedCardHistory, cardHistoryBaseSec, historyByCardId]);
+  }, [currentTime, selectedCardId, selectedCardHistory, cardHistoryIntervals, historyByCardId]);
 
   // Pre-indexed start dates
   const cardStartDates = useMemo(() => {
