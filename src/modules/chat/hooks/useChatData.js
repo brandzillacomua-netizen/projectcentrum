@@ -253,6 +253,7 @@ export const useChatData = () => {
   const [showAttachMenu, setShowAttachMenu] = useState(false)
   const [showTaskModal, setShowTaskModal] = useState(false)
   const [showPollModal, setShowPollModal] = useState(false)
+  const [openingContactId, setOpeningContactId] = useState(null)
   const [taskForm, setTaskForm] = useState({ title: '', description: '', assignee: null })
 
   const fileInputRef = useRef(null)
@@ -415,6 +416,35 @@ export const useChatData = () => {
       return new Date(b.last_message_at || b.updated_at || b.created_at || 0) - new Date(a.last_message_at || a.updated_at || a.created_at || 0)
     })
   }, [participants, search, threads])
+
+  const contactSearchResults = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return []
+
+    const existingDirectUserIds = new Set()
+    filteredThreads.forEach(t => {
+      const rows = participants.filter(p => p.thread_id === t.id)
+      if (t.thread_type === 'direct' || rows.length === 2) {
+        const other = rows.find(p => String(p.user_id) !== String(me.id))
+        if (other?.user_id) existingDirectUserIds.add(String(other.user_id))
+      }
+    })
+
+    return users
+      .filter(u => !u.is_dismissed && !existingDirectUserIds.has(String(u.id)))
+      .filter(u => {
+        const haystack = [
+          formatUserName(u),
+          u.first_name,
+          u.last_name,
+          u.login,
+          u.position,
+          u.department,
+          u.shift
+        ].filter(Boolean).join(' ').toLowerCase()
+        return haystack.includes(q)
+      })
+  }, [search, filteredThreads, participants, me.id, users])
 
   const filteredUsers = useMemo(() => {
     const q = userSearch.trim().toLowerCase()
@@ -1227,7 +1257,15 @@ export const useChatData = () => {
     if (existingThread) return openThread(existingThread)
 
     const now = new Date().toISOString()
+    const newThreadId = (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
+      ? crypto.randomUUID()
+      : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+          const r = (Math.random() * 16) | 0
+          return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16)
+        })
+
     const threadPayload = {
+      id: newThreadId,
       title,
       thread_type: 'direct',
       direct_key: directKey,
@@ -1241,14 +1279,12 @@ export const useChatData = () => {
     let result = await supabase
       .from('chat_threads')
       .insert([threadPayload])
-      .select()
 
     if (result.error && String(result.error.message || '').includes('direct_key')) {
       const { direct_key, ...fallbackPayload } = threadPayload
       result = await supabase
         .from('chat_threads')
         .insert([fallbackPayload])
-        .select()
     }
 
     if (result.error?.code === '23505') {
@@ -1257,9 +1293,24 @@ export const useChatData = () => {
     }
     if (result.error) throw result.error
 
-    const thread = result.data?.[0]
-    if (!thread?.id) throw new Error('Не вдалося створити чат')
-    return openThread(thread)
+    return openThread({ ...threadPayload, id: newThreadId })
+  }
+
+  const startDirectChat = async (targetUser) => {
+    if (!targetUser?.id || openingContactId) return
+    setOpeningContactId(targetUser.id)
+    setError('')
+    try {
+      const thread = await openDirectThread(targetUser)
+      if (thread) {
+        setSearch('')
+      }
+    } catch (err) {
+      console.error(err)
+      showSetupError(err)
+    } finally {
+      setOpeningContactId(null)
+    }
   }
 
   useEffect(() => {
@@ -1318,9 +1369,17 @@ export const useChatData = () => {
         return
       }
 
-      const { data: threadRows, error: threadError } = await supabase
+      const newThreadId = (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
+        ? crypto.randomUUID()
+        : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+            const r = (Math.random() * 16) | 0
+            return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16)
+          })
+
+      const { error: threadError } = await supabase
         .from('chat_threads')
         .insert([{
+          id: newThreadId,
           title,
           thread_type: newChatType === 'channel' ? 'channel' : 'group',
           is_pinned: newChatType === 'channel',
@@ -1330,12 +1389,10 @@ export const useChatData = () => {
           last_message: 'Чат створено',
           last_message_at: new Date().toISOString()
         }])
-        .select()
 
       if (threadError) throw threadError
 
-      const thread = threadRows?.[0]
-      if (!thread?.id) throw new Error('Не вдалося створити чат')
+      const thread = { id: newThreadId }
 
       const rows = newChatType === 'channel'
         ? buildChannelParticipantRows({ threadId: thread.id, memberIds, me, currentUser, users, systemUsers, formatUserName })
@@ -1762,10 +1819,13 @@ export const useChatData = () => {
     getThreadAvatar,
     getThreadDisplayTitle,
     filteredThreads,
+    contactSearchResults,
+    openingContactId,
     filteredUsers,
     settingsFilteredUsers,
     scrollToBottom,
     openDirectThread,
+    startDirectChat,
     createThread,
     handleFile,
     clearPendingImage,

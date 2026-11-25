@@ -27,6 +27,9 @@ export const ChatModule = () => {
           setSearch={chat.setSearch}
           loadingThreads={chat.loadingThreads}
           filteredThreads={chat.filteredThreads}
+          contactSearchResults={chat.contactSearchResults}
+          openingContactId={chat.openingContactId}
+          startDirectChat={chat.startDirectChat}
           participants={chat.participants}
           activeThreadId={chat.activeThreadId}
           setActiveThreadId={chat.setActiveThreadId}

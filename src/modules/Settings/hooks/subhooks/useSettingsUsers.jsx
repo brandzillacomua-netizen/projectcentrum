@@ -289,12 +289,25 @@ export function useSettingsUsers({
       return matchSearch && matchDept && matchPos && matchShift && matchOnline && matchStatus
     })
 
+    const getLastSeenMs = (u) => {
+      if (!u?.last_seen) return -1
+      const ms = new Date(u.last_seen).getTime()
+      return Number.isFinite(ms) ? ms : -1
+    }
+
     return [...list].sort((a, b) => {
-      const aOnline = a.last_seen && (nowTick - new Date(a.last_seen).getTime() < 120000)
-      const bOnline = b.last_seen && (nowTick - new Date(b.last_seen).getTime() < 120000)
+      const aMs = getLastSeenMs(a)
+      const bMs = getLastSeenMs(b)
+      const aOnline = !a.is_dismissed && aMs > 0 && (nowTick - aMs < 120000)
+      const bOnline = !b.is_dismissed && bMs > 0 && (nowTick - bMs < 120000)
       
       if (aOnline && !bOnline) return -1
       if (!aOnline && bOnline) return 1
+
+      // Offline users: most recently seen first, "never seen" (-1) at the end
+      if (!aOnline && !bOnline && aMs !== bMs) {
+        return bMs - aMs
+      }
       
       const aName = `${a.last_name || ''} ${a.first_name || ''} ${a.login || ''}`.trim()
       const bName = `${b.last_name || ''} ${b.first_name || ''} ${b.login || ''}`.trim()
