@@ -224,6 +224,33 @@ export function SpecBuilderTab() {
     return op.machine_type || op.machine_id || ''
   }
 
+  const hasAnyOpsData = (op) => Boolean(
+    (op?.side1_ops && op.side1_ops.length > 0) ||
+    (op?.side2_ops && op.side2_ops.length > 0) ||
+    (op?.side2_cut_ops && op.side2_cut_ops.length > 0)
+  )
+
+  const findMatchingOpsForMachine = (partId, machineValue) => {
+    if (!partId || !machineValue) return []
+    const matches = (machineOperations || []).filter(o =>
+      String(o.nomenclature_id) === String(partId) &&
+      (o.machine_type === machineValue || o.machine_id === machineValue || getMachineValueForOp(o) === machineValue)
+    )
+    return matches.sort((a, b) => Number(hasAnyOpsData(b)) - Number(hasAnyOpsData(a)))
+  }
+
+  const dedupeOpsByMachineType = (opsList = []) => {
+    const byType = new Map()
+    opsList.forEach(op => {
+      const key = getMachineValueForOp(op) || String(op.id)
+      const prev = byType.get(key)
+      if (!prev || (!hasAnyOpsData(prev) && hasAnyOpsData(op))) {
+        byType.set(key, op)
+      }
+    })
+    return Array.from(byType.values())
+  }
+
   useEffect(() => {
     const isModalOpen = !!activeInlinePart || !!showNomCreate || !!showParentCreate || !!nomCreateConfig
     if (isModalOpen) {
@@ -240,10 +267,7 @@ export function SpecBuilderTab() {
 
   const loadInlineOpsFromDb = () => {
     if (!activeInlinePart || !selectedMachine) return
-    const existing = machineOperations?.find(o => 
-      o.nomenclature_id === activeInlinePart.id && 
-      (o.machine_type === selectedMachine || o.machine_id === selectedMachine)
-    )
+    const existing = findMatchingOpsForMachine(activeInlinePart.id, selectedMachine)[0]
     if (existing) {
       setSide1Ops((existing.side1_ops || []).filter(op => !op.startsWith('__CUTTER__:')))
       const s2 = (existing.side2_ops || []).filter(op => !op.startsWith('__CUTTER__:'))
@@ -324,11 +348,9 @@ export function SpecBuilderTab() {
     setSavingOps(true)
     try {
       const isType = MACHINE_TYPES.includes(selectedMachine)
-      
-      const existing = machineOperations?.find(o => 
-        o.nomenclature_id === activeInlinePart.id && 
-        (o.machine_type === selectedMachine || o.machine_id === selectedMachine)
-      )
+      const matchingRows = findMatchingOpsForMachine(activeInlinePart.id, selectedMachine)
+      const existing = matchingRows[0]
+      const duplicateIds = matchingRows.slice(1).map(r => r.id).filter(Boolean)
       
       const cutterStrings = inlineCuttersList
         .filter(c => c.nomId && c.qty > 0)
@@ -346,6 +368,9 @@ export function SpecBuilderTab() {
       if (existing) {
         const { error } = await supabase.from('machine_operations').update(payload).eq('id', existing.id)
         if (error) throw error
+        if (duplicateIds.length > 0) {
+          await supabase.from('machine_operations').delete().in('id', duplicateIds)
+        }
       } else {
         const { error } = await supabase.from('machine_operations').insert(payload)
         if (error) throw error
@@ -834,7 +859,14 @@ export function SpecBuilderTab() {
                   style={{ width: '100%', padding: '12px 14px', background: modalTheme.inputBg, border: `1px solid ${modalTheme.inputBorder}`, color: modalTheme.inputText, borderRadius: '10px', fontSize: '0.9rem', outline: 'none', fontWeight: 600 }}
                 >
                   <option value="">-- Оберіть тип верстата --</option>
-                  {MACHINE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                  {MACHINE_TYPES.map(t => {
+                    const hasOps = activeInlinePart && findMatchingOpsForMachine(activeInlinePart.id, t).some(hasAnyOpsData)
+                    return (
+                      <option key={t} value={t}>
+                        {t}{hasOps ? ' ✓ (налаштовано)' : ''}
+                      </option>
+                    )
+                  })}
                 </select>
               </div>
 
@@ -1407,7 +1439,9 @@ export function SpecBuilderTab() {
                               globalIdx++
                               const rowNum = globalIdx
                               const child = nomenclatures.find(n => String(n.id) === String(b.child_id))
-                              const existingOps = machineOperations?.filter(o => o.nomenclature_id === b.child_id) || []
+                              const existingOps = dedupeOpsByMachineType(
+                                machineOperations?.filter(o => String(o.nomenclature_id) === String(b.child_id)) || []
+                              )
 
                               const subItems = bomItems.filter(sb => String(sb.parent_id) === String(b.child_id))
 
@@ -1435,7 +1469,9 @@ export function SpecBuilderTab() {
                                       <div style={{ marginTop: '5px', paddingLeft: '15px', borderLeft: '2px solid rgba(139,92,246,0.3)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                         {subItems.map((sb) => {
                                           const sbNom = nomenclatures.find(n => String(n.id) === String(sb.child_id))
-                                          const sbOps = machineOperations?.filter(o => o.nomenclature_id === sb.child_id) || []
+                                          const sbOps = dedupeOpsByMachineType(
+                                            machineOperations?.filter(o => String(o.nomenclature_id) === String(sb.child_id)) || []
+                                          )
                                           return (
                                             <div key={sb.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.7rem', color: 'var(--text-muted, #64748b)', flexWrap: 'wrap' }}>
                                               <span style={{ color: '#8b5cf6' }}>↳</span>
