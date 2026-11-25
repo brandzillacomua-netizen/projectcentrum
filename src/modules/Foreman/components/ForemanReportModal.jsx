@@ -18,6 +18,17 @@ import {
   buildRequestedCuttersBreakdown,
   resolveActualCutterToRequested
 } from '../utils/cutterReport.js'
+
+const getReportMachineCategory = (machineName = '') => {
+  const m = String(machineName || '').toLowerCase()
+  if (!m || m === '—') return 'Інші'
+  if (m.includes('фея') || m.includes('ke xin') || m.includes('kexin') || /№\s*ф\d+/i.test(m)) return 'Фея'
+  if (m.includes('мал') || m.includes('1200') || m.includes('12x8') || m.includes('12х8')) return 'Малий'
+  if (m.includes('3060') || m.includes('тригол') || m.includes('три голов') || m.includes('30x16') || m.includes('30х16')) return 'Триголовий'
+  if (m.includes('дракон') || m.includes('6000') || m.includes('60x20') || m.includes('60х20')) return 'Дракон'
+  if (m.includes('3050') || m.includes('швидкісн') || m.includes('16x16') || m.includes('16х16')) return 'Швидкісний'
+  return String(machineName || '').trim() || 'Інші'
+}
 import { buildCuttingTimeSummary, calculateCuttingPlanSeconds, consolidateCuttingRows, formatHandoverPendingInfo, getHistoryRowDurationSeconds, isCuttingStageRow, isCuttingStopRow, isCuttingWorkRow } from '../utils/cuttingTimeReport.js'
 import { getCardCuttingPlanSeconds } from '../../../utils/cuttingTimeUtils.js'
 import { buildScrapDetailGroups, buildUtilDetailGroups } from '../utils/scrapDetailReport.js'
@@ -184,13 +195,14 @@ export function ForemanReportModal({
   const [internalCardFilter, setInternalCardFilter] = useState('All')
   const [groupHandovers, setGroupHandovers] = useState(true)
   const [hideVkyaOps, setHideVkyaOps] = useState(true)
+  const [reportMachineTypeFilter, setReportMachineTypeFilter] = useState('All')
   const [visibleHistoryLimit, setVisibleHistoryLimit] = useState(100)
   const reportCardFilter = propCardFilter !== undefined ? propCardFilter : internalCardFilter
   const setReportCardFilter = propSetCardFilter || setInternalCardFilter
 
   useEffect(() => {
     setVisibleHistoryLimit(100)
-  }, [reportTaskId, reportStageFilter, reportNomFilter, reportCardFilter, reportSortBy, reportOperatorFilter, groupHandovers, hideVkyaOps])
+  }, [reportTaskId, reportStageFilter, reportNomFilter, reportCardFilter, reportSortBy, reportOperatorFilter, reportMachineTypeFilter, groupHandovers, hideVkyaOps])
 
   const taskCardsById = useMemo(() => {
     const map = new Map()
@@ -951,6 +963,9 @@ export function ForemanReportModal({
                       if (e.target.value !== 'operator') {
                         setReportOperatorFilter('All')
                       }
+                      if (e.target.value !== 'machine-type') {
+                        setReportMachineTypeFilter('All')
+                      }
                     }}
                     style={{
                       background: 'var(--surface-1)',
@@ -968,9 +983,47 @@ export function ForemanReportModal({
                     <option value="min-time">Найменший час</option>
                     <option value="max-time">Найбільший час</option>
                     <option value="operator">По оператору</option>
+                    <option value="machine-type">По типу станка</option>
                     <option value="scrap">По кількості браку</option>
                   </select>
                 </div>
+
+                {reportSortBy === 'machine-type' && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase' }}>Тип станка:</span>
+                    <select
+                      value={reportMachineTypeFilter}
+                      onChange={e => setReportMachineTypeFilter(e.target.value)}
+                      style={{
+                        background: 'var(--surface-1)',
+                        border: '1px solid var(--border-subtle)',
+                        color: 'var(--text-strong)',
+                        padding: '6px 12px',
+                        borderRadius: '8px',
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <option value="All">Всі типи</option>
+                      {(() => {
+                        const uniqueTypes = new Set()
+                        ;(reportData.historyRows || []).forEach(row => {
+                          if (!matchesHistoryStage(row, reportStageFilter)) return
+                          if (hideVkyaOps && isVkyaHistoryRow(row)) return
+                          uniqueTypes.add(getReportMachineCategory(row.machine_name || row.machine))
+                        })
+                        return Array.from(uniqueTypes)
+                          .sort((a, b) => a.localeCompare(b, 'uk'))
+                          .map(typeName => (
+                            <option key={typeName} value={typeName}>
+                              {typeName}
+                            </option>
+                          ))
+                      })()}
+                    </select>
+                  </div>
+                )}
 
                 {reportSortBy === 'operator' && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -1030,6 +1083,9 @@ export function ForemanReportModal({
                     if (seq.label !== reportCardFilter) return false
                   }
                   if (reportSortBy === 'operator' && reportOperatorFilter !== 'All' && row.operator_name !== reportOperatorFilter) return false
+                  if (reportSortBy === 'machine-type' && reportMachineTypeFilter !== 'All') {
+                    if (getReportMachineCategory(row.machine_name || row.machine) !== reportMachineTypeFilter) return false
+                  }
                   return true
                 })
 
@@ -1056,6 +1112,17 @@ export function ForemanReportModal({
                   }
                   if (reportSortBy === 'operator') {
                     return String(a.operator_name || '').localeCompare(String(b.operator_name || ''))
+                  }
+                  if (reportSortBy === 'machine-type') {
+                    const catA = getReportMachineCategory(a.machine_name || a.machine)
+                    const catB = getReportMachineCategory(b.machine_name || b.machine)
+                    const cmpCat = catA.localeCompare(catB, 'uk')
+                    if (cmpCat !== 0) return cmpCat
+                    const mA = String(a.machine_name || a.machine || '')
+                    const mB = String(b.machine_name || b.machine || '')
+                    const cmpM = mA.localeCompare(mB, 'uk', { numeric: true })
+                    if (cmpM !== 0) return cmpM
+                    return new Date(a.started_at || a.created_at) - new Date(b.started_at || b.created_at)
                   }
                   if (reportSortBy === 'scrap') {
                     return (Number(b.scrap_qty) || 0) - (Number(a.scrap_qty) || 0)

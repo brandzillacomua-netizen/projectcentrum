@@ -15,6 +15,7 @@ import { Shop1Header } from './Shop1/components/Shop1Header'
 import { Shop1QueueList } from './Shop1/components/Shop1QueueList'
 import { Shop1CardDetails } from './Shop1/components/Shop1CardDetails'
 import { Shop1Dashboard } from './Shop1/components/Shop1Dashboard'
+import { Shop1FloatingControls } from './Shop1/components/Shop1FloatingControls'
 import { useShop1TerminalState } from './Shop1/hooks/useShop1TerminalState'
 import { supabase } from '../supabase'
 
@@ -138,6 +139,8 @@ export const Shop1Terminal: React.FC = () => {
               setIsDrawerOpen={setIsDrawerOpen}
               setManualId={setManualId}
               setIsScanning={setIsScanning}
+
+
               getNom={getNom}
               orders={orders}
               CHAIN={CHAIN}
@@ -198,6 +201,7 @@ export const Shop1Terminal: React.FC = () => {
               selectedCardHistory={selectedCardHistory}
               workCardHistory={workCardHistory}
               isProcessing={isProcessing}
+
               reworkCount={reworkCount}
               scrapCount={scrapCount}
               requests={s.requests || []}
@@ -211,10 +215,11 @@ export const Shop1Terminal: React.FC = () => {
           ) : (
             <Shop1Dashboard
               manualId={manualId}
-              setManualId={setManualId}
-              isProcessing={isProcessing}
-              setIsScanning={setIsScanning}
-              handleManualEntry={handleManualEntry}
+
+
+
+
+
               setDetailStage={setDetailStage}
               setDetailTab={setDetailTab}
               stageStats={stageStats}
@@ -237,6 +242,15 @@ export const Shop1Terminal: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Persistent Floating Search & QR Scanner (visible both on dashboard and inside card details) */}
+      <Shop1FloatingControls
+        manualId={manualId}
+        setManualId={setManualId}
+        isProcessing={isProcessing}
+        setIsScanning={setIsScanning}
+        handleManualEntry={handleManualEntry}
+      />
 
       {/* QR Scanner Panel */}
       <ScannerPanel
