@@ -3,7 +3,10 @@ import { shop2CardService } from '../services/shop2CardService'
 import { isPackagingOperation } from '../constants/shop2Stages'
 import { buildRerunToParentOrderMap } from '../utils/shop2BufferCalculations'
 import { resolveCanonicalNomId } from '../../Nomenclature/utils/nomenclatureHelpers'
-import { calculateShop2PlannedMinutes } from '../../../utils/shop2RoutingUtils'
+import {
+  calculateShop2PlannedMinutes,
+  generateMixCassetteCode
+} from '../../../utils/shop2RoutingUtils'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -44,6 +47,8 @@ export function collectSourceOrderIds(orderId, orders = []) {
 export function useShop2CardCreator({ tasks = [], orders = [], nomenclatures = [], fetchData, refreshTable }) {
   const [selectedRow, setSelectedRow] = useState(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [isMixModalOpen, setIsMixModalOpen] = useState(false)
+  const [mixInitialItem, setMixInitialItem] = useState(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState(null)
 
@@ -59,12 +64,25 @@ export function useShop2CardCreator({ tasks = [], orders = [], nomenclatures = [
     setError(null)
   }
 
+  const openMixModal = (initialItem = null) => {
+    setError(null)
+    setMixInitialItem(initialItem)
+    setIsMixModalOpen(true)
+  }
+
+  const closeMixModal = () => {
+    setIsMixModalOpen(false)
+    setMixInitialItem(null)
+    setError(null)
+  }
+
   const handleGenerateCards = async ({
     row,
     stage,
     batchSize,
     cardCount,
-    machineName = 'Не вказано'
+    machineName = 'Не вказано',
+    openMixWithRemainder = 0
   }) => {
     if (!row) return
     setIsSubmitting(true)
@@ -189,6 +207,9 @@ export function useShop2CardCreator({ tasks = [], orders = [], nomenclatures = [
       }
 
       closeGenModal()
+      if (openMixWithRemainder > 0) {
+        openMixModal({ row, qty: openMixWithRemainder })
+      }
     } catch (err) {
       console.error('[useShop2CardCreator] Generation error:', err)
       setError(err.message || 'Помилка при створенні карток Цеху №2')
@@ -197,13 +218,135 @@ export function useShop2CardCreator({ tasks = [], orders = [], nomenclatures = [
     }
   }
 
+  const handleGenerateMixCassette = async ({
+    items = [],
+    cassetteCode = '',
+    machineName = 'Не вказано'
+  }) => {
+    const validItems = (items || []).filter(it => it?.row && Number(it.qty) > 0)
+    if (validItems.length === 0) return
+    setIsSubmitting(true)
+    setError(null)
+
+    try {
+      const code = String(cassetteCode || '').trim() || generateMixCassetteCode()
+      const isUuid = str => typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str)
+      const allPendingCards = []
+
+      for (const { row, qty } of validItems) {
+        const requestedQty = Math.floor(Number(qty) || 0)
+        if (requestedQty > row.availableQty) {
+          throw new Error(`Для "${row.nomName}" запитано ${requestedQty} шт, але вільно лише ${row.availableQty} шт`)
+        }
+
+        const availableOrderPools = (row.ordersList || [])
+          .filter(o => o.availableQty > 0)
+          .map(o => ({ ...o }))
+          .sort((a, b) => b.availableQty - a.availableQty)
+
+        if (availableOrderPools.length === 0) {
+          availableOrderPools.push({
+            orderId: null,
+            orderNum: 'Без наряду',
+            availableQty: row.availableQty
+          })
+        }
+
+        const canonicalPartId = resolveCanonicalNomId(row.nomId, nomenclatures) || String(row.nomId || '')
+        const partNom = (nomenclatures || []).find(n => String(n.id) === canonicalPartId) || null
+
+        let remainingToAllocate = requestedQty
+        for (const pool of availableOrderPools) {
+          if (remainingToAllocate <= 0) break
+          const orderId = pool.orderId && pool.orderId !== 'no-order' && isUuid(pool.orderId) ? pool.orderId : null
+          const allocForThisOrder = Math.min(pool.availableQty, remainingToAllocate)
+          if (allocForThisOrder <= 0) continue
+
+          let targetTask = tasks.find(t =>
+            String(t.order_id) === String(orderId) &&
+            (String(t.step || '').toLowerCase().includes('пакування') || String(t.step || '').toLowerCase().includes('цех №2') || String(t.step || '').toLowerCase().includes('пресування'))
+          )
+          if (!targetTask && orderId) {
+            targetTask = tasks.find(t => String(t.order_id) === String(orderId))
+          }
+          const taskId = isUuid(targetTask?.id) ? targetTask.id : null
+          const plannedMinutes = Math.round(calculateShop2PlannedMinutes(partNom, 'Фарбування', allocForThisOrder))
+
+          allPendingCards.push({
+            taskId,
+            orderId,
+            nomenclatureId: row.nomId,
+            operation: 'Фарбування',
+            machine: machineName,
+            quantity: allocForThisOrder,
+            estimatedTime: plannedMinutes,
+            actualSheets: Math.ceil(allocForThisOrder / (row.unitsPerSheet || 1)),
+            bufferQty: 0,
+            cardInfo: `[SHOP:2] [STAGE:Фарбування] [CASSETTE:${code}] [REQ:${allocForThisOrder}]`,
+            status: 'new',
+            completed_at: null,
+            is_rework: false
+          })
+
+          remainingToAllocate -= allocForThisOrder
+        }
+      }
+
+      const totalCreatedCards = allPendingCards.length
+      allPendingCards.forEach((c, idx) => {
+        c.cardInfo = c.cardInfo.replace('[STAGE:Фарбування]', `[STAGE:Фарбування] №${idx + 1}/${totalCreatedCards}`)
+      })
+
+      const insertGroups = new Map()
+      allPendingCards.forEach(c => {
+        const key = `${c.taskId}_${c.orderId}_${c.nomenclatureId}`
+        if (!insertGroups.has(key)) {
+          insertGroups.set(key, {
+            taskId: c.taskId,
+            orderId: c.orderId,
+            nomenclatureId: c.nomenclatureId,
+            cardsBatch: []
+          })
+        }
+        insertGroups.get(key).cardsBatch.push(c)
+      })
+
+      for (const group of insertGroups.values()) {
+        await shop2CardService.createShop2CardsBatch({
+          taskId: group.taskId,
+          orderId: group.orderId,
+          nomenclatureId: group.nomenclatureId,
+          cardsBatch: group.cardsBatch,
+          sourceOrderIds: collectSourceOrderIds(group.orderId, orders),
+          sourceNomenclatureIds: collectSourceNomenclatureIds(group.nomenclatureId, nomenclatures)
+        })
+      }
+
+      if (typeof fetchData === 'function') {
+        await fetchData(['work_cards', 'tasks', 'inventory'], { force: true }).catch(() => {})
+      }
+
+      closeMixModal()
+    } catch (err) {
+      console.error('[useShop2CardCreator] Mix cassette error:', err)
+      setError(err.message || 'Помилка при створенні мікс-касети')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
   return {
     selectedRow,
     isModalOpen,
+    isMixModalOpen,
+    mixInitialItem,
     isSubmitting,
     error,
     openGenModal,
     closeGenModal,
-    handleGenerateCards
+    openMixModal,
+    closeMixModal,
+    handleGenerateCards,
+    handleGenerateMixCassette
   }
 }

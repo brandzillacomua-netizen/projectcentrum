@@ -74,6 +74,7 @@ const CorporateModule = lazy(() => import('./modules/Corporate/CorporateModule')
 const CutterRestorationModule = lazy(() => import('./modules/CutterRestorationModule'))
 const WarehouseFGPModule = lazy(() => import('./modules/WarehouseFGPModule'))
 const Shop2CardGenModule = lazy(() => import('./modules/Shop2CardGen/Shop2CardGenModule'))
+const ProductionAutopilotModule = lazy(() => import('./modules/ProductionAutopilot/ProductionAutopilotModule'))
 
 import { MESProvider, useMES } from './MESContext'
 import { subscribeToPush } from './services/pushService'
@@ -942,6 +943,7 @@ const AppContent = () => {
           <Route path="/machines/:id" element={<PermissionGuard id="machines"><MachinesModule /></PermissionGuard>} />
           <Route path="/machines/:id/call" element={<PermissionGuard id="public_call"><MachineCallModule /></PermissionGuard>} />
           <Route path="/analytics" element={<PermissionGuard id="analytics"><AnalyticsModule /></PermissionGuard>} />
+          <Route path="/autopilot" element={<PermissionGuard id="production_autopilot"><ProductionAutopilotModule /></PermissionGuard>} />
           <Route path="/brak" element={<PermissionGuard id="brak"><BrakModule /></PermissionGuard>} />
           <Route path="/brak/restoration" element={<PermissionGuard id="brak"><VKYARestorationTerminal /></PermissionGuard>} />
           <Route path="/brak/settings" element={<PermissionGuard id="brak"><VKYASettings /></PermissionGuard>} />

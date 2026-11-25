@@ -19,7 +19,8 @@ export function GenerateShop2CardModal({
   isSubmitting = false,
   error = null,
   onClose,
-  onGenerate
+  onGenerate,
+  onOpenMixFromRemainder
 }) {
   const [stage, setStage] = useState('Пресування')
   const [batchSize, setBatchSize] = useState(500)
@@ -60,6 +61,7 @@ export function GenerateShop2CardModal({
 
   const availableQty = row.availableQty || 0
   const totalQtyToCreate = Math.max(0, batchSize * cardCount)
+  const remainderQty = Math.max(0, availableQty - totalQtyToCreate)
   const isOverBuffer = totalQtyToCreate > availableQty
   const isValid = totalQtyToCreate > 0 && !isOverBuffer && !isSubmitting
   const isDirectSGP = isPackagingOperation(stage)
@@ -79,6 +81,17 @@ export function GenerateShop2CardModal({
       stage,
       batchSize: Number(batchSize),
       cardCount: Number(cardCount)
+    })
+  }
+
+  const handleCreateAndOpenMix = () => {
+    if (!isValid || remainderQty <= 0) return
+    onGenerate({
+      row,
+      stage,
+      batchSize: Number(batchSize),
+      cardCount: Number(cardCount),
+      openMixWithRemainder: remainderQty
     })
   }
 
@@ -315,6 +328,58 @@ export function GenerateShop2CardModal({
               </div>
             )}
           </div>
+
+          {/* Mix Cassette shortcut when painting has remainder or partial cassette */}
+          {isPaintingStage && shelfCap > 0 && !isOverBuffer && remainderQty > 0 && (
+            <button
+              type="button"
+              disabled={!isValid}
+              onClick={handleCreateAndOpenMix}
+              style={{
+                width: '100%',
+                background: 'rgba(139, 92, 246, 0.14)',
+                border: '1.5px solid rgba(139, 92, 246, 0.45)',
+                color: '#a78bfa',
+                padding: '13px 16px',
+                borderRadius: '14px',
+                fontSize: '0.84rem',
+                fontWeight: 950,
+                cursor: isValid ? 'pointer' : 'not-allowed',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px'
+              }}
+            >
+              <Paintbrush size={16} />
+              Запустити {cardCount} карт + зібрати мікс із залишку ({remainderQty.toLocaleString()} шт)
+            </button>
+          )}
+
+          {isPaintingStage && shelfCap > 0 && availableQty > 0 && availableQty < shelfCap && typeof onOpenMixFromRemainder === 'function' && (
+            <button
+              type="button"
+              onClick={() => onOpenMixFromRemainder(row, availableQty)}
+              style={{
+                width: '100%',
+                background: 'rgba(139, 92, 246, 0.14)',
+                border: '1.5px solid rgba(139, 92, 246, 0.45)',
+                color: '#a78bfa',
+                padding: '13px 16px',
+                borderRadius: '14px',
+                fontSize: '0.84rem',
+                fontWeight: 950,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px'
+              }}
+            >
+              <Paintbrush size={16} />
+              Зібрати мікс-касету з цих {availableQty.toLocaleString()} шт
+            </button>
+          )}
 
           {/* Action Button */}
           <button

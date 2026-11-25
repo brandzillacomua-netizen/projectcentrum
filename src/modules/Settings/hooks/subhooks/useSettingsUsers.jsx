@@ -46,6 +46,7 @@ export const moduleList = [
   { id: 'nomenclature', label: 'База номенклатур (Old)' },
   { id: 'machines', label: 'Налаштування станків' },
   { id: 'analytics', label: 'Аналітика' },
+  { id: 'production_autopilot', label: 'Автопілот Виробництва (Пріоритети & Час)' },
   { id: 'brak', label: 'ВКЯ (Контроль якості)' },
   { id: 'access', label: 'Система Доступу' },
   { id: 'reports', label: 'Звіти та Аналітика (1C)' },

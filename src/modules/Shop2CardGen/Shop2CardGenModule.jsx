@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, Monitor, RefreshCw, Layers, Clock, Archive, AlertTriangle } from 'lucide-react'
+import { ArrowLeft, Monitor, RefreshCw, Layers, Clock, Archive, AlertTriangle, Paintbrush } from 'lucide-react'
 import { useMES } from '../../MESContext'
 import { supabase } from '../../supabase'
 import { useQualityLossTotals } from '../VKYA/quality-hold/useQualityLossTotals'
@@ -9,6 +9,7 @@ import { useShop2CardCreator } from './hooks/useShop2CardCreator'
 import { useShop2CompletedCards } from './hooks/useShop2CompletedCards'
 import { Shop2BufferQueueTable } from './components/Shop2BufferQueueTable'
 import { GenerateShop2CardModal } from './components/GenerateShop2CardModal'
+import { MixCassetteModal } from './components/MixCassetteModal'
 import { DeficitRerunListModal } from './components/DeficitRerunListModal'
 import { Shop2ActiveCardsList } from './components/Shop2ActiveCardsList'
 import { Shop2HistoryCardsList } from './components/Shop2HistoryCardsList'
@@ -90,11 +91,16 @@ export default function Shop2CardGenModule() {
   const {
     selectedRow,
     isModalOpen,
+    isMixModalOpen,
+    mixInitialItem,
     isSubmitting,
     error,
     openGenModal,
     closeGenModal,
-    handleGenerateCards
+    openMixModal,
+    closeMixModal,
+    handleGenerateCards,
+    handleGenerateMixCassette
   } = useShop2CardCreator({
     tasks,
     orders,
@@ -175,6 +181,26 @@ export default function Shop2CardGenModule() {
               🚨 ПОТРЕБА В ДОВИПУСКУ ({totalDeficitQty} шт)
             </button>
           )}
+
+          <button
+            onClick={() => openMixModal()}
+            style={{
+              background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)',
+              color: '#ffffff',
+              border: 'none',
+              padding: '10px 16px',
+              borderRadius: '12px',
+              fontSize: '0.8rem',
+              fontWeight: 900,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              boxShadow: '0 4px 12px rgba(124, 58, 237, 0.25)'
+            }}
+          >
+            <Paintbrush size={15} /> Зібрати мікс-касету
+          </button>
 
           <button
             onClick={() => {
@@ -333,6 +359,23 @@ export default function Shop2CardGenModule() {
           error={error}
           onClose={closeGenModal}
           onGenerate={handleGenerateCards}
+          onOpenMixFromRemainder={(rowItem, qty) => {
+            closeGenModal()
+            openMixModal({ row: rowItem, qty })
+          }}
+        />
+      )}
+
+      {isMixModalOpen && (
+        <MixCassetteModal
+          rows={bufferRows}
+          nomenclatures={nomenclatures}
+          orders={orders}
+          initialItem={mixInitialItem}
+          isSubmitting={isSubmitting}
+          error={error}
+          onClose={closeMixModal}
+          onGenerateMix={handleGenerateMixCassette}
         />
       )}
 

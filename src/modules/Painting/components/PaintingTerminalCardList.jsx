@@ -2,7 +2,7 @@ import React from 'react'
 import { Layers, Clock, Play, CheckCircle } from 'lucide-react'
 import { ACCENT, ACCENT_RGB } from '../hooks/usePaintingTerminalData'
 import { Shop2PaintingBadge } from '../../../components/common/Shop2PaintingBadge.jsx'
-import { getShop2CardPlannedMinutes, formatShop2PlannedMinutes } from '../../../utils/shop2RoutingUtils.js'
+import { getShop2CardPlannedMinutes, formatShop2PlannedMinutes, extractCassetteCode } from '../../../utils/shop2RoutingUtils.js'
 
 export default function PaintingTerminalCardList({
   displayedCards,
@@ -50,6 +50,16 @@ export default function PaintingTerminalCardList({
                     return seqMatch ? (
                       <span style={{ background: 'rgba(255,144,0,0.15)', color: '#ff9000', border: '1px solid rgba(255,144,0,0.3)', padding: '1px 4px', borderRadius: '4px', fontSize: '0.58rem', fontWeight: 950 }} className="card-seq">{seqMatch[1]}</span>
                     ) : null
+                  })()}
+                  {(() => {
+                    const cassetteCode = extractCassetteCode(card.card_info)
+                    if (!cassetteCode) return null
+                    const groupSize = displayedCards.filter(c => extractCassetteCode(c.card_info) === cassetteCode).length
+                    return (
+                      <span style={{ background: 'rgba(139,92,246,0.16)', color: '#c4b5fd', border: '1px solid rgba(139,92,246,0.4)', padding: '1px 6px', borderRadius: '4px', fontSize: '0.58rem', fontWeight: 950 }}>
+                        🎨 Касета {cassetteCode}{groupSize > 1 ? ` (${groupSize} поз.)` : ''}
+                      </span>
+                    )
                   })()}
                   {isWaiting ? (
                     <span style={{ fontSize: '0.55rem', background: 'rgba(245,158,11,0.12)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.25)', padding: '1px 6px', borderRadius: '4px', fontWeight: 900 }}>

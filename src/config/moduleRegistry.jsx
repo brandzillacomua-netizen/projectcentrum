@@ -52,6 +52,7 @@ export const getAllModules = (badgeCount = 0, chatBadgeCount = 0) => [
   { id: 'director', title: 'Кабінет Директора', icon: <ShieldCheck size={24} />, path: '/director', desc: 'Фінальні погодження та моніторинг', color: '#10b981', pillar: 'erp' },
   { id: 'director_team', title: 'Аналітика команди (AI Директор)', icon: <Users size={24} />, path: '/director?tab=team', desc: 'AI-аудит, рейтинг та порівняння працівників', color: '#10b981', pillar: 'erp' },
   { id: 'analytics', title: 'Аналітика & KPI', icon: <TrendingUp />, path: '/analytics', desc: 'Статистика продуктивності та випуску', color: '#10b981', pillar: 'erp' },
+  { id: 'production_autopilot', title: 'Автопілот Виробництва', icon: <Cpu />, path: '/autopilot', desc: 'Пріоритети цехів, комплектність та фактичний час виробів', color: '#8b5cf6', pillar: 'erp' },
   { id: 'reports', title: 'Звіти (1С / Леджер)', icon: <BarChart2 />, path: '/reports', desc: 'Зведена аналітика та експорт', color: '#10b981', pillar: 'erp' },
   { id: 'access', title: 'Система Доступу (СКУД)', icon: <ShieldCheck />, path: '/access', desc: 'Контроль проходів Fortnet', color: '#10b981', pillar: 'erp' },
   { id: 'machines', title: 'Обладнання & Верстати', icon: <Cpu />, path: '/machines', desc: 'Моніторинг верстатів та викликів', color: '#10b981', pillar: 'erp' },
@@ -117,6 +118,9 @@ export const getAvailableModules = (currentUser, badgeCount, chatBadgeCount = 0)
     if (m.id === 'dashboard') {
       return isAdmin || checkRight('dashboard');
     }
+    if (m.id === 'production_autopilot') {
+      return isAdmin || checkRight('production_autopilot') || checkRight('director');
+    }
     return checkRight(m.id);
   });
 }
@@ -142,6 +146,7 @@ export const CATEGORY_MAP = {
   director: 'erp',
   dashboard: 'erp',
   analytics: 'erp',
+  production_autopilot: 'erp',
   reports: 'erp',
   access: 'erp',
   machines: 'erp',

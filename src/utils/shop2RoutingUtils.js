@@ -18,6 +18,19 @@ export function isShop2CardTag(cardInfo = '') {
   return info.includes('[SHOP:2]') || info.includes('[ЦЕХ №2]') || info.includes('[ЦЕХ 2]')
 }
 
+export function extractCassetteCode(cardInfo = '') {
+  const match = String(cardInfo || '').match(/\[CASSETTE:([^\]]+)\]/)
+  return match?.[1] ? match[1].trim() : null
+}
+
+export function generateMixCassetteCode() {
+  const now = new Date()
+  const hh = String(now.getHours()).padStart(2, '0')
+  const mm = String(now.getMinutes()).padStart(2, '0')
+  const rand = Math.floor(10 + Math.random() * 90)
+  return `M-${hh}${mm}-${rand}`
+}
+
 function buildPaintingDisplay(orderPainting) {
   if (!orderPainting || (orderPainting.type !== 'full' && orderPainting.type !== 'edges')) {
     return null
