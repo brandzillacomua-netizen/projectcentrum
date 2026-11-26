@@ -3,7 +3,8 @@ import {
   stripCuttersBreakdown,
   CHAIN,
   getMachineSequenceConfig,
-  formatMachineSequence
+  formatMachineSequence,
+  getMachineStartBlockAlert
 } from '../../utils/shop1Helpers';
 import { recordSortingHistoryGuaranteed } from '../../../../services/sortingHistoryService';
 import { executeAtomicQcScrap } from '../../../../services/atomicQcScrapService';
@@ -724,35 +725,17 @@ export function useShop1CardWorkflow({
           return;
         }
 
-        const targetNorm = targetMachine.trim().toLowerCase();
-        const targetNumMatch = targetNorm.match(/№\s*(\S+)/);
-
-        const runningCard = (workCards || []).find(c => {
-          if (c.status !== 'in-progress') return false;
-          if (c.id === currentCard.id) return false;
-          if (String(c.operation || '').trim().toLowerCase() !== 'розкрій') return false;
-
-          const cMachine = String(c.machine || '').trim().toLowerCase();
-          if (!cMachine || cMachine === 'не вказано') return false;
-
-          if (cMachine === targetNorm) return true;
-
-          const cNumMatch = cMachine.match(/№\s*(\S+)/);
-          if (cNumMatch && targetNumMatch && cNumMatch[1] === targetNumMatch[1]) return true;
-
-          return false;
+        const blockAlert = getMachineStartBlockAlert({
+          workCards,
+          currentCardId: currentCard.id,
+          targetMachine,
+          machine: matchedMachineObj || null,
+          nomenclatures
         });
 
-        if (runningCard) {
-          const nom = (nomenclatures || []).find(n => n.id === runningCard.nomenclature_id);
+        if (blockAlert) {
           setIsProcessing(false);
-          showAlert(
-            `На ньому зараз виконується робота:\n\n` +
-            `• Картка: #${runningCard.id.slice(-8).toUpperCase()} (${nom?.name || 'Деталь'})\n` +
-            `• Оператор: ${runningCard.operator_name || 'Не вказано'}\n\n` +
-            `Будь ласка, оберіть інший вільний верстат або завершіть поточну картку на цьому верстаті.`,
-            `⚠️ Помилка: Верстат "${targetMachine}" вже зайнятий!`
-          );
+          showAlert(blockAlert.message, blockAlert.title);
           return;
         }
       }

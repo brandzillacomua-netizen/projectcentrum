@@ -3,6 +3,7 @@ import { useMES } from '../MESContext'
 import { useStore } from '../store/index.js'
 import { useActiveCardsHistory } from '../hooks/useActiveCardsHistory.js'
 import { apiService } from '../services/apiDispatcher.js'
+import { getMachineStartBlockAlert } from './Shop1/utils/shop1Helpers'
 
 import { useOperatorTerminalData } from './Operator/hooks/useOperatorTerminalData'
 import { OperatorHeader } from './Operator/components/OperatorHeader'
@@ -124,12 +125,27 @@ export const OperatorTerminal: React.FC = () => {
 
   const handleStartOperation = async () => {
     if (!currentCard || !selectedStage || !selectedOperator) return
+    const selectedMachineObj = machines.find((m: any) => String(m.id) === String(selectedMachine) || m.name === selectedMachine)
+    const targetMachineName = selectedMachineObj?.name || selectedMachine
+    const startStage = String(selectedStage || currentCard.operation || '').trim().toLowerCase()
+    if (startStage === 'розкрій' && targetMachineName) {
+      const blockAlert = getMachineStartBlockAlert({
+        workCards,
+        currentCardId: currentCard.id,
+        targetMachine: targetMachineName,
+        machine: selectedMachineObj || null,
+        nomenclatures
+      })
+      if (blockAlert) {
+        alert(`${blockAlert.title}\n\n${blockAlert.message}`)
+        return
+      }
+    }
     setIsProcessing(true)
     try {
-      const selectedMachineObj = machines.find((m: any) => m.id === selectedMachine || m.name === selectedMachine)
       await apiService.submitOperatorAction('start', currentCard.task_id, currentCard.id, selectedOperator, {
         stage_name: selectedStage || currentCard.operation,
-        machine_name: selectedMachineObj?.name || selectedMachine,
+        machine_name: targetMachineName,
         machine_id: selectedMachineObj?.id || null,
         manager_name: selectedMaster,
         shift_name: selectedShift

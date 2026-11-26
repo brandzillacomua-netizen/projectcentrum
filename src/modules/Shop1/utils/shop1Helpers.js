@@ -299,3 +299,118 @@ export const formatMachine = (name) => {
   const match = name.match(/№\s*(\S+)/)
   return match ? `№${match[1]}` : name
 }
+
+/**
+ * Finds an active or paused cutting card already assigned to the target machine.
+ */
+export const findBlockingMachineCard = ({
+  workCards = [],
+  currentCardId = null,
+  targetMachine = '',
+  machineId = null
+}) => {
+  const targetNorm = String(targetMachine || '').trim().toLowerCase()
+  const targetNumMatch = targetNorm.match(/№\s*(\S+)/)
+
+  return (workCards || []).find(c => {
+    const cardStatus = String(c?.status || '').trim().toLowerCase()
+    if (cardStatus !== 'in-progress' && cardStatus !== 'paused') return false
+    if (currentCardId != null && String(c.id) === String(currentCardId)) return false
+    if (String(c.operation || '').trim().toLowerCase() !== 'розкрій') return false
+
+    if (machineId != null && c.machine_id != null && String(c.machine_id) === String(machineId)) {
+      return true
+    }
+
+    const cMachine = String(c.machine || '').trim().toLowerCase()
+    if (!cMachine || cMachine === 'не вказано') return false
+    if (targetNorm && cMachine === targetNorm) return true
+
+    const cNumMatch = cMachine.match(/№\s*(\S+)/)
+    if (cNumMatch && targetNumMatch && cNumMatch[1] === targetNumMatch[1]) return true
+
+    return false
+  }) || null
+}
+
+/**
+ * Checks whether launching a card onto the target machine is blocked by an
+ * active/paused card or by the machine itself being in the paused state.
+ * Returns `{ title, message }` if blocked, or `null` if free to start.
+ */
+export const getMachineStartBlockAlert = ({
+  workCards = [],
+  currentCardId = null,
+  targetMachine = '',
+  machine = null,
+  nomenclatures = []
+}) => {
+  const blockingCard = findBlockingMachineCard({
+    workCards,
+    currentCardId,
+    targetMachine,
+    machineId: machine?.id ?? null
+  })
+
+  if (blockingCard) {
+    const nom = (nomenclatures || []).find(n => String(n.id) === String(blockingCard.nomenclature_id))
+    const cardLabel = `#${String(blockingCard.id || '').slice(-8).toUpperCase()} (${nom?.name || 'Деталь'})`
+    const operatorLabel = blockingCard.operator_name || 'Не вказано'
+
+    if (String(blockingCard.status || '').trim().toLowerCase() === 'paused') {
+      const pauseReason = blockingCard.card_info?.match(/\[PAUSED:([^\]]+)\]/)?.[1] || 'Причина не вказана'
+      return {
+        title: `⚠️ Верстат "${targetMachine}" на паузі!`,
+        message:
+          `На цьому верстаті вже запущена картка, яка зараз на паузі:\n\n` +
+          `• Картка: ${cardLabel}\n` +
+          `• Оператор: ${operatorLabel}\n` +
+          `• Причина паузи: ${pauseReason}\n\n` +
+          `Завершіть або відновіть поточну картку на цьому верстаті, або оберіть інший вільний верстат.`
+      }
+    }
+
+    return {
+      title: `⚠️ Помилка: Верстат "${targetMachine}" вже зайнятий!`,
+      message:
+        `На ньому зараз виконується робота:\n\n` +
+        `• Картка: ${cardLabel}\n` +
+        `• Оператор: ${operatorLabel}\n\n` +
+        `Будь ласка, оберіть інший вільний верстат або завершіть поточну картку на цьому верстаті.`
+    }
+  }
+
+  if (machine && String(machine.status || '').trim().toLowerCase() === 'paused') {
+    return {
+      title: `⚠️ Верстат "${targetMachine}" на паузі!`,
+      message:
+        `Верстат "${targetMachine}" зараз знаходиться на паузі (активної картки на ньому немає).\n\n` +
+        `Запуск нової картки на верстат на паузі заблоковано. Оберіть інший вільний верстат або зніміть цей верстат з паузи.`
+    }
+  }
+
+  return null
+}
+
+/**
+ * Prevents accidental card selection on mobile when the user touches the screen
+ * to stop a momentum scroll or drags their finger beyond a small tap threshold.
+ */
+export const shouldIgnoreScrollTap = ({
+  lastScrollAt = 0,
+  now = Date.now(),
+  touchStart = null,
+  touchEnd = null,
+  touchMoved = false,
+  scrollCooldownMs = 220,
+  moveThresholdPx = 8
+}) => {
+  if (touchMoved) return true
+  if (lastScrollAt > 0 && (now - lastScrollAt) < scrollCooldownMs) return true
+  if (touchStart && touchEnd) {
+    const dx = Number(touchEnd.x) - Number(touchStart.x)
+    const dy = Number(touchEnd.y) - Number(touchStart.y)
+    if (Math.hypot(dx, dy) > moveThresholdPx) return true
+  }
+  return false
+}

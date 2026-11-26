@@ -1,6 +1,7 @@
 import { supabase } from '../../../supabase'
 import { useMES } from '../../../MESContext'
 import { translateCyrillic, CHAIN } from './useShop1Data'
+import { getMachineStartBlockAlert } from '../utils/shop1Helpers'
 import { deductInventoryAtomic, consumeCuttingInventoryOnce, buildRequestAllocations } from '../../../services/atomicInventoryService'
 import { resolveCutterOrVirtualType, resolveCutterTypeName, isMachineMatch, isMatchingCutterRequest } from '../../../utils/cutterCalculator'
 import { isRequestForCard } from '../../../utils/materialCardMatching'
@@ -654,34 +655,35 @@ export function useShop1Actions({
           return
         }
 
-        const targetNorm = targetMachine.trim().toLowerCase()
-        const targetNumMatch = targetNorm.match(/№\s*(\S+)/)
+        const matchedMachineObj = (machines || []).find(m => {
+          const mName = String(m.name || '').trim().toLowerCase()
+          const mInv = String(m.inventory_no || '').trim().toLowerCase()
+          const mSeq = String(m.sequence_number || '').trim().toLowerCase()
+          const mType = String(m.type || '').trim().toLowerCase()
 
-        const runningCard = (workCards || []).find(c => {
-          if (c.status !== 'in-progress') return false
-          if (c.id === currentCard.id) return false
-          if (String(c.operation || '').trim().toLowerCase() !== 'розкрій') return false
-
-          const cMachine = String(c.machine || '').trim().toLowerCase()
-          if (!cMachine || cMachine === 'не вказано') return false
-          if (cMachine === targetNorm) return true
-
-          const cNumMatch = cMachine.match(/№\s*(\S+)/)
-          if (cNumMatch && targetNumMatch && cNumMatch[1] === targetNumMatch[1]) return true
-
+          if (cleanName && cleanNum) {
+            return (mName === cleanName || mType === cleanName || mName.includes(cleanName) || mType.includes(cleanName)) && (mInv === cleanNum || mSeq === cleanNum)
+          }
+          if (cleanName) {
+            return mName === cleanName || mType === cleanName || mInv === cleanName || mSeq === cleanName || mName.includes(cleanName) || mType.includes(cleanName)
+          }
+          if (cleanNum) {
+            return mInv === cleanNum || mSeq === cleanNum
+          }
           return false
         })
 
-        if (runningCard) {
-          const nom = nomenclatures.find(n => n.id === runningCard.nomenclature_id)
+        const blockAlert = getMachineStartBlockAlert({
+          workCards,
+          currentCardId: currentCard.id,
+          targetMachine,
+          machine: matchedMachineObj || null,
+          nomenclatures
+        })
+
+        if (blockAlert) {
           setIsProcessing(false)
-          showAlert(
-            `На ньому зараз виконується робота:\n\n` +
-            `• Картка: #${runningCard.id.slice(-8).toUpperCase()} (${nom?.name || 'Деталь'})\n` +
-            `• Operator: ${runningCard.operator_name || 'Не вказано'}\n\n` +
-            `Будь ласка, оберіть інший вільний верстат або завершіть поточну картку на цьому верстаті.`,
-            `⚠️ Помилка: Верстат "${targetMachine}" вже зайнятий!`
-          )
+          showAlert(blockAlert.message, blockAlert.title)
           return
         }
       }

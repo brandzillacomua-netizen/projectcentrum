@@ -1,5 +1,6 @@
 import React from 'react'
 import { Layers, ClipboardList, Camera, X } from 'lucide-react'
+import { shouldIgnoreScrollTap } from '../utils/shop1Helpers'
 
 const Shop1QueueCard = React.memo(({
   card,
@@ -10,12 +11,14 @@ const Shop1QueueCard = React.memo(({
   setSelectedCardId,
   setSelectedOperator,
   setIsDrawerOpen,
-  setManualId
+  setManualId,
+  lastScrollAtRef
 }) => {
   const isBuffer = card.status === 'at-buffer'
   const statusColor = isBuffer ? '#f59e0b' : '#3b82f6'
   const statusLabel = isBuffer ? `БУФЕР · ${card.operation}` : `НОВА · ${CHAIN.includes(card.operation) ? card.operation : 'Розкрій'}`
   const orderNum = orders?.find(o => o.id === card.order_id)?.order_num || ''
+  const touchStateRef = React.useRef({ start: null, end: null, moved: false })
 
   const displayVal = React.useMemo(() => {
     const seqMatch = (card.card_info || '').match(/(\d+\/\d+)|(№\d+)/)
@@ -24,7 +27,37 @@ const Shop1QueueCard = React.memo(({
 
   return (
     <div
+      onTouchStart={(e) => {
+        const t = e.touches?.[0]
+        touchStateRef.current = {
+          start: t ? { x: t.clientX, y: t.clientY } : null,
+          end: null,
+          moved: false
+        }
+      }}
+      onTouchMove={(e) => {
+        const t = e.touches?.[0]
+        const start = touchStateRef.current.start
+        if (t && start && Math.hypot(t.clientX - start.x, t.clientY - start.y) > 8) {
+          touchStateRef.current.moved = true
+        }
+      }}
+      onTouchEnd={(e) => {
+        const t = e.changedTouches?.[0]
+        if (t) touchStateRef.current.end = { x: t.clientX, y: t.clientY }
+      }}
       onClick={() => {
+        const ts = touchStateRef.current
+        if (shouldIgnoreScrollTap({
+          lastScrollAt: lastScrollAtRef?.current || 0,
+          touchStart: ts.start,
+          touchEnd: ts.end,
+          touchMoved: ts.moved
+        })) {
+          touchStateRef.current = { start: null, end: null, moved: false }
+          return
+        }
+        touchStateRef.current = { start: null, end: null, moved: false }
         setSelectedCardId(card.id)
         setSelectedOperator('')
         if (setIsDrawerOpen) setIsDrawerOpen(false)
@@ -37,7 +70,9 @@ const Shop1QueueCard = React.memo(({
         border: `1px solid ${active ? '#eab308' : 'var(--border-subtle)'}`,
         boxShadow: active ? '0 10px 20px rgba(234,179,8,0.15)' : 'none',
         transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-        transform: active ? 'scale(1.02)' : 'scale(1)'
+        transform: active ? 'scale(1.02)' : 'scale(1)',
+        touchAction: 'pan-y',
+        WebkitTapHighlightColor: 'transparent'
       }}>
       {/* Верхній рядок: Порядковий номер (Зліва) та Номер замовлення (Справа) */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
@@ -169,7 +204,10 @@ export function Shop1QueueList({
     return uniqueFilteredQueueCards.slice(0, visibleLimit)
   }, [uniqueFilteredQueueCards, visibleLimit])
 
+  const lastScrollAtRef = React.useRef(0)
+
   const handleQueueScroll = (e) => {
+    lastScrollAtRef.current = Date.now()
     const { scrollTop, scrollHeight, clientHeight } = e.currentTarget
     if (scrollHeight - scrollTop - clientHeight < 250) {
       if (visibleLimit < uniqueFilteredQueueCards.length) {
@@ -181,7 +219,15 @@ export function Shop1QueueList({
   const renderQueueItems = () => (
     <div
       onScroll={handleQueueScroll}
-      style={{ flex: 1, overflowY: 'auto', padding: '0 12px 20px', scrollbarWidth: 'none' }}
+      style={{
+        flex: 1,
+        overflowY: 'auto',
+        padding: '0 12px 20px',
+        scrollbarWidth: 'none',
+        touchAction: 'pan-y',
+        overscrollBehavior: 'contain',
+        WebkitOverflowScrolling: 'touch'
+      }}
     >
       <style>{`div::-webkit-scrollbar { display: none; }`}</style>
       {uniqueFilteredQueueCards.length === 0 && (
@@ -206,6 +252,7 @@ export function Shop1QueueList({
             setSelectedOperator={setSelectedOperator}
             setIsDrawerOpen={setIsDrawerOpen}
             setManualId={setManualId}
+            lastScrollAtRef={lastScrollAtRef}
           />
         )
       })}
