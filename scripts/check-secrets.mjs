@@ -9,7 +9,9 @@ const secretPatterns = [
   ['Telegram bot token', /\b\d{8,12}:[A-Za-z0-9_-]{30,}\b/],
   ['GitHub token', /\b(?:ghp|github_pat)_[A-Za-z0-9_]{30,}\b/],
   ['AWS access key', /\bAKIA[0-9A-Z]{16}\b/],
-  ['client-exposed secret variable', /\bVITE_[A-Z0-9_]*(?:SECRET|PASSWORD|PRIVATE_KEY|BOT_TOKEN|API_KEY)\b/]
+  ['client-exposed secret variable', /\bVITE_[A-Z0-9_]*(?:SECRET|PASSWORD|PRIVATE_KEY|BOT_TOKEN|API_KEY)\b/],
+  ['PostgreSQL connection string with password', /postgres(?:ql)?:\/\/[^:\s'"`]+:(?!\$\{)[^@\s'"`]+@[^\s'"`]+/i, { skipTests: true }],
+  ['hardcoded auth password', /signInWithPassword\(\s*\{[\s\S]{0,200}?password\s*:\s*['"`][^'"`]+['"`]/, { skipTests: true }]
 ]
 
 if (tracked.some(file => file === '.env' || /^\.env\.(?!example$)/.test(file))) {
@@ -22,7 +24,8 @@ for (const file of tracked) {
   try { content = readFileSync(file, 'utf8') } catch { continue }
   if (content.includes('\0')) continue
   const activeContent = content.split(/\r?\n/).filter(line => !line.includes('REVOKED_')).join('\n')
-  for (const [label, pattern] of secretPatterns) {
+  for (const [label, pattern, opts] of secretPatterns) {
+    if (opts?.skipTests && file.startsWith('tests/')) continue
     if (pattern.test(activeContent)) findings.push(`${file}: ${label}`)
   }
 }

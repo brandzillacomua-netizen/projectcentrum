@@ -11,20 +11,26 @@ async function run() {
   console.log('🔄 [Reconcile Inventory Reserves] Початок автоматичної синхронізації...\n');
 
   // Try signing in with admin or audit account
+  const auditEmail = process.env.AUDIT_EMAIL;
+  const auditPassword = process.env.AUDIT_PASSWORD;
   let authSuccess = false;
-  try {
-    const { error: authErr } = await supabase.auth.signInWithPassword({
-      email: process.env.AUDIT_EMAIL || 'vvv@centrum.local',
-      password: process.env.AUDIT_PASSWORD || 'vvv'
-    });
-    if (!authErr) {
-      authSuccess = true;
-      console.log('✅ Авторизовано в системі як адміністратор');
-    } else {
-      console.warn('⚠️ Авторизація через пароль:', authErr.message);
+  if (auditEmail && auditPassword) {
+    try {
+      const { error: authErr } = await supabase.auth.signInWithPassword({
+        email: auditEmail,
+        password: auditPassword
+      });
+      if (!authErr) {
+        authSuccess = true;
+        console.log('✅ Авторизовано в системі як адміністратор');
+      } else {
+        console.warn('⚠️ Авторизація через пароль:', authErr.message);
+      }
+    } catch (e) {
+      console.warn('⚠️ Помилка авторизації:', e.message);
     }
-  } catch (e) {
-    console.warn('⚠️ Помилка авторизації:', e.message);
+  } else {
+    console.warn('⚠️ AUDIT_EMAIL / AUDIT_PASSWORD не задані — запуск без авторизації.');
   }
 
   // 1. Fetch all tasks and orders to know terminal statuses
