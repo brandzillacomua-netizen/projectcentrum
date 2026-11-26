@@ -391,26 +391,3 @@ export const getMachineStartBlockAlert = ({
 
   return null
 }
-
-/**
- * Prevents accidental card selection on mobile when the user touches the screen
- * to stop a momentum scroll or drags their finger beyond a small tap threshold.
- */
-export const shouldIgnoreScrollTap = ({
-  lastScrollAt = 0,
-  now = Date.now(),
-  touchStart = null,
-  touchEnd = null,
-  touchMoved = false,
-  scrollCooldownMs = 220,
-  moveThresholdPx = 8
-}) => {
-  if (touchMoved) return true
-  if (lastScrollAt > 0 && (now - lastScrollAt) < scrollCooldownMs) return true
-  if (touchStart && touchEnd) {
-    const dx = Number(touchEnd.x) - Number(touchStart.x)
-    const dy = Number(touchEnd.y) - Number(touchStart.y)
-    if (Math.hypot(dx, dy) > moveThresholdPx) return true
-  }
-  return false
-}

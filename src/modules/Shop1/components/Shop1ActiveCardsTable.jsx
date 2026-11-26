@@ -1,12 +1,11 @@
-import React, { useState, useRef } from 'react'
+import React, { useState } from 'react'
 import { RefreshCw, Eye, MessageSquare, Camera } from 'lucide-react'
 import {
   translateCyrillic,
   CHAIN,
   formatSec,
   formatDateTimeParts,
-  formatMachine,
-  shouldIgnoreScrollTap
+  formatMachine
 } from '../utils/shop1Helpers'
 import { getCardCuttingPlanSeconds, formatCuttingTime } from '../../../utils/cuttingTimeUtils.js'
 import { isShop2OwnedCard } from '../../Shop2CardGen/constants/shop2Stages.js'
@@ -32,8 +31,6 @@ export function Shop1ActiveCardsTable({
 }) {
   const [selectedCardForComments, setSelectedCardForComments] = useState(null)
   const [cuttingMachineFilter, setCuttingMachineFilter] = useState('all')
-  const lastScrollAtRef = useRef(0)
-  const touchStateRef = useRef({ start: null, end: null, moved: false })
 
   const getCuttingMachineCategory = (machineName = '') => {
     const m = String(machineName || '').toLowerCase()
@@ -69,9 +66,7 @@ export function Shop1ActiveCardsTable({
           ))}
         </div>
       </div>
-      <div
-        onScroll={() => { lastScrollAtRef.current = Date.now() }}
-        style={{ overflowX: 'auto', maxWidth: '100%', border: 'none', borderRadius: 0, width: '100%', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y', overscrollBehavior: 'contain' }}>
+      <div style={{ overflowX: 'auto', maxWidth: '100%', border: 'none', borderRadius: 0, width: '100%', WebkitOverflowScrolling: 'touch' }}>
         <table style={{ width: '100%', minWidth: '1200px', borderCollapse: 'collapse', textAlign: 'left' }}>
           <thead>
             <tr className="s1-active-table-head" style={{ background: 'var(--surface-inset)', fontSize: '0.65rem', fontWeight: 900, color: 'var(--text-dim, #555)', textTransform: 'uppercase' }}>
@@ -194,42 +189,9 @@ export function Shop1ActiveCardsTable({
                 const percent = (isCuttingStage && planSec > 0) ? Math.min(100, Math.round((cuttingWorkSec / planSec) * 100)) : 0
 
                 return (
-                  <tr key={card.id}
-                    onTouchStart={(e) => {
-                      const t = e.touches?.[0]
-                      touchStateRef.current = {
-                        start: t ? { x: t.clientX, y: t.clientY } : null,
-                        end: null,
-                        moved: false
-                      }
-                    }}
-                    onTouchMove={(e) => {
-                      const t = e.touches?.[0]
-                      const start = touchStateRef.current.start
-                      if (t && start && Math.hypot(t.clientX - start.x, t.clientY - start.y) > 8) {
-                        touchStateRef.current.moved = true
-                      }
-                    }}
-                    onTouchEnd={(e) => {
-                      const t = e.changedTouches?.[0]
-                      if (t) touchStateRef.current.end = { x: t.clientX, y: t.clientY }
-                    }}
-                    onClick={() => {
-                      const ts = touchStateRef.current
-                      if (shouldIgnoreScrollTap({
-                        lastScrollAt: lastScrollAtRef.current,
-                        touchStart: ts.start,
-                        touchEnd: ts.end,
-                        touchMoved: ts.moved
-                      })) {
-                        touchStateRef.current = { start: null, end: null, moved: false }
-                        return
-                      }
-                      touchStateRef.current = { start: null, end: null, moved: false }
-                      setSelectedCardId && setSelectedCardId(card.id)
-                      setSelectedOperator && setSelectedOperator('')
-                    }}
-                    style={{ borderBottom: '1px solid var(--border-subtle)', fontSize: '0.85rem', cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}>
+                  <tr key={card.id} 
+                    onClick={() => { setSelectedCardId && setSelectedCardId(card.id); setSelectedOperator && setSelectedOperator('') }}
+                    style={{ borderBottom: '1px solid var(--border-subtle)', fontSize: '0.85rem', cursor: 'pointer' }}>
                     <td style={{ padding: '10px 14px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
                       {(() => {
                         const parts = formatDateTimeParts(startDate);
