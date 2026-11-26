@@ -137,14 +137,15 @@ export function useShop1CardWorkflow({
         .from('material_requests')
         .select('*')
         .or(`card_id.eq.${card.id},task_id.eq.${card.task_id}`)
-        .in('status', ['issued', 'pending', 'reserved', 'approved']);
+        .in('status', ['issued', 'pending', 'reserved', 'approved'])
+        .order('created_at', { ascending: true });
       dbTaskRequests = reqData || [];
     } catch (e) {
       console.warn('Error fetching fresh material_requests in useShop1CardWorkflow:', e);
       dbTaskRequests = (requests || []).filter(r =>
         (String(r.card_id) === String(card.id) || String(r.task_id) === String(card.task_id)) &&
         ['issued', 'pending', 'reserved', 'approved'].includes(r.status)
-      );
+      ).sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0));
     }
 
     const allSheetRequests = dbTaskRequests.filter(r =>
@@ -286,14 +287,15 @@ export function useShop1CardWorkflow({
         .from('material_requests')
         .select('*')
         .or(`card_id.eq.${card.id},task_id.eq.${card.task_id}`)
-        .in('status', ['issued', 'pending', 'reserved', 'approved']);
+        .in('status', ['issued', 'pending', 'reserved', 'approved'])
+        .order('created_at', { ascending: true });
       dbTaskRequests = reqData || [];
     } catch (e) {
       console.warn('Error fetching fresh material_requests in useShop1CardWorkflow:', e);
       dbTaskRequests = (requests || []).filter(r =>
         (String(r.card_id) === String(card.id) || String(r.task_id) === String(card.task_id)) &&
         ['issued', 'pending', 'reserved', 'approved'].includes(r.status)
-      );
+      ).sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0));
     }
 
     // Build effective breakdown: ALWAYS collect ALL planned cutters for this card and task.
@@ -457,8 +459,13 @@ export function useShop1CardWorkflow({
         isMatchingCutterRequest(r, cutterName, nom, opInvItem, card, nomenclatures, task)
       );
 
-      const cardSpecificReqs = matchingRequests.filter(r => r.card_id && String(r.card_id) === String(card.id));
-      const otherMatchingReqs = matchingRequests.filter(r => !r.card_id || String(r.card_id) !== String(card.id));
+      const byOldestFirst = (a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0);
+      const cardSpecificReqs = matchingRequests
+        .filter(r => r.card_id && String(r.card_id) === String(card.id))
+        .sort(byOldestFirst);
+      const otherMatchingReqs = matchingRequests
+        .filter(r => !r.card_id || String(r.card_id) !== String(card.id))
+        .sort(byOldestFirst);
       const cutterRequests = [...cardSpecificReqs, ...otherMatchingReqs];
 
       const taskReservedForCutter = cutterRequests.reduce((sum, r) => sum + (Number(r.quantity) || 0), 0);
