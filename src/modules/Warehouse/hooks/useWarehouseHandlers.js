@@ -5,6 +5,7 @@ import { availableInventoryForRequest, inventoryMatchesRequest } from '../utils/
 import { deductInventoryAtomic } from '../../../services/atomicInventoryService.js'
 import { incrementInventoryStock } from '../../../services/inventoryStockService.js'
 import { isMachineMatch, resolveMachineType } from '../../../utils/cutterCalculator.js'
+import { syncPreparedBoxCutterRequest } from '../utils/boxCutterRequestHelper'
 
 export const useWarehouseHandlers = ({
   nomenclatures,
@@ -132,33 +133,12 @@ export const useWarehouseHandlers = ({
 
       for (const cutter of cutters) {
         const qtyToDeduct = cutter.qty
-
-        const { data: existingReq, error: existingReqError } = await supabaseClient
-          .from('material_requests')
-          .select('*')
-          .eq('card_id', card.id)
-          .eq('nomenclature_id', cutter.nomenclature_id)
-          .maybeSingle()
-        if (existingReqError) throw existingReqError
-
-        if (existingReq) {
-          const { error: updateRequestError } = await supabaseClient.from('material_requests')
-            .update({ quantity: qtyToDeduct, status: 'issued' })
-            .eq('id', existingReq.id)
-          if (updateRequestError) throw updateRequestError
-        } else {
-          const cardLabel = card.card_info?.split(' ')[0] || `№${card.id.substring(0, 8)}`
-          const { error: insertRequestError } = await supabaseClient.from('material_requests').insert({
-            order_id: card.order_id,
-            task_id: card.task_id,
-            card_id: card.id,
-            nomenclature_id: cutter.nomenclature_id,
-            quantity: qtyToDeduct,
-            status: 'issued',
-            details: `СКЛАД ОПЕРАТИВНИЙ (Картка ${cardLabel}) (ОБРАНО ВРУЧНУ): ${cutter.name} — ${qtyToDeduct} шт.`
-          })
-          if (insertRequestError) throw insertRequestError
-        }
+        await syncPreparedBoxCutterRequest({
+          supabase: supabaseClient,
+          card,
+          cutter,
+          qtyToDeduct
+        })
       }
 
       const updatePayload = { 

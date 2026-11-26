@@ -3,6 +3,7 @@ import { supabase as supabaseClient } from '../../../supabase'
 import { apiService } from '../../../services/apiDispatcher'
 import { useMES } from '../../../MESContext'
 import { useStore } from '../../../store/index.js'
+import { syncPreparedBoxCutterRequest } from '../utils/boxCutterRequestHelper'
 
 export function useWarehouseActions(dataHook) {
   const { confirmReception, issueMaterialsBatch, createPurchaseRequest, refreshTable } = useMES()
@@ -55,32 +56,13 @@ export function useWarehouseActions(dataHook) {
       const { card, cutters } = boxItem
       for (const cutter of cutters) {
         const qtyToDeduct = cutter.qty
-
-        const { data: existingReq } = await supabaseClient
-          .from('material_requests')
-          .select('*')
-          .eq('card_id', card.id)
-          .eq('nomenclature_id', cutter.nomenclature_id)
-          .maybeSingle()
-
-        if (existingReq) {
-          await supabaseClient.from('material_requests')
-            .update({ quantity: qtyToDeduct, status: 'issued' })
-            .eq('id', existingReq.id)
-        } else {
-          const cardLabel = card.card_info?.split(' ')[0] || `№${card.id.substring(0, 8)}`
-          await supabaseClient.from('material_requests').insert({
-            order_id: card.order_id,
-            task_id: card.task_id,
-            card_id: card.id,
-            nomenclature_id: cutter.nomenclature_id,
-            quantity: qtyToDeduct,
-            category: 'cutter',
-            target_warehouse: 'operational',
-            status: 'issued',
-            details: `СКЛАД ОПЕРАТИВНИЙ (Картка ${cardLabel}) (ОБРАНО ВРУЧНУ): ${cutter.name} — ${qtyToDeduct} шт.`
-          })
-        }
+        await syncPreparedBoxCutterRequest({
+          supabase: supabaseClient,
+          card,
+          cutter,
+          qtyToDeduct,
+          includeCategory: true
+        })
       }
 
       const updatePayload = {
