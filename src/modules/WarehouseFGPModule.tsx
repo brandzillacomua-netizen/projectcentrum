@@ -26,6 +26,8 @@ import { exportSgpStockToExcel } from './WarehouseFGP/utils/exportSgpExcel.js'
 import { PackagingQueueTab as PackagingQueueTabRaw } from './WarehouseFGP/components/PackagingQueueTab.jsx'
 import { InventoryView as InventoryViewRaw } from './WarehouseFGP/components/InventoryView.jsx'
 import { SgpReceptionPanel as SgpReceptionPanelRaw } from './WarehouseFGP/components/SgpReceptionPanel.jsx'
+import { normalizeKey } from './WarehouseFGP/warehouseFgpInventory.js'
+import { recordManualInventoryDelta } from './WarehouseFGP/utils/sgpManualAdjustment.js'
 
 const ReserveAnalysisModal = ReserveAnalysisModalRaw as React.FC<any>
 const PackagingQueueTab = PackagingQueueTabRaw as React.FC<any>
@@ -174,16 +176,36 @@ export const WarehouseFGPModule: React.FC = () => {
     e.preventDefault()
     if (!newItem.name.trim() || !newItem.total_qty) return
     try {
-      const { error } = await supabase.from('inventory').insert([{
-        name: newItem.name.trim(),
-        total_qty: Number(newItem.total_qty) || 0,
+      const cleanName = newItem.name.trim()
+      const initialQty = Number(newItem.total_qty) || 0
+      const matchedNom = (nomenclatures || []).find(
+        (n: any) => normalizeKey(n?.name) === normalizeKey(cleanName)
+      )
+      const { data: insertedRow, error } = await supabase.from('inventory').insert([{
+        name: cleanName,
+        nomenclature_id: matchedNom?.id || null,
+        total_qty: 0,
         reserved_qty: 0,
         unit: newItem.unit || 'шт',
         type: activeTab === 'hardware' ? 'hardware' : activeTab === 'semi' ? 'semi' : activeTab === 'scrap' ? 'scrap' : activeTab === 'bz' ? 'bz' : 'finished',
         warehouse: 'sgp'
-      }])
+      }]).select('id').single()
       if (error) throw error
+
+      if (initialQty > 0 && insertedRow?.id) {
+        await recordManualInventoryDelta({
+          supabase,
+          inventoryId: insertedRow.id,
+          oldTotal: 0,
+          newTotal: initialQty,
+          currentUser,
+          reason: 'Створення нової позиції на СГП',
+          sourceModule: 'warehouse_fgp'
+        })
+      }
+
       if (typeof refreshTable === 'function') refreshTable('inventory')
+      if (typeof fetchData === 'function') fetchData(['inventory'])
       setNewItem({ name: '', total_qty: '', unit: 'шт', type: 'finished' })
       setShowAdd(false)
     } catch (err: any) {

@@ -5,6 +5,7 @@ import { useStore } from '../../../store/index.js'
 import { filterSgpReceiptRegistry } from '../utils/sgpReceiptRegistry.js'
 import { StockCardsAnalysisModal } from './StockCardsAnalysisModal'
 import { normalizeKey } from '../warehouseFgpInventory.js'
+import { recordManualInventoryDelta } from '../utils/sgpManualAdjustment.js'
 import { requestBelongsToOpenWork } from '../../../services/reservationLedger.js'
 import { InventoryAdjustmentButton, InventoryAdjustmentModals, useInventoryAdjustment } from '../../Warehouse/components/InventoryAdjustmentModal.jsx'
 
@@ -156,16 +157,29 @@ export function InventoryTab({
       const primaryRaw = item.rawItems?.[0]
       if (!primaryRaw?.id) throw new Error('Запис інвентарю не знайдено')
 
+      const oldTotal = Number(primaryRaw.total_qty) || 0
       const newTotal = Number(editingInvTotal) || 0
+      const oldReserved = Number(primaryRaw.reserved_qty) || 0
       const newReserved = Number(editingInvReserved) || 0
 
-      // Update primary inventory record
-      const { error } = await supabase.from('inventory').update({
-        total_qty: newTotal,
-        reserved_qty: newReserved
-      }).eq('id', primaryRaw.id)
+      if (newTotal !== oldTotal) {
+        await recordManualInventoryDelta({
+          supabase,
+          inventoryId: primaryRaw.id,
+          oldTotal,
+          newTotal,
+          currentUser,
+          reason: 'Ручне редагування залишку в таблиці СГП',
+          sourceModule: 'warehouse_fgp'
+        })
+      }
 
-      if (error) throw error
+      if (newReserved !== oldReserved) {
+        const { error } = await supabase.from('inventory').update({
+          reserved_qty: newReserved
+        }).eq('id', primaryRaw.id)
+        if (error) throw error
+      }
 
       // If duplicate records exist in the database (e.g. bz_shop2 vs bz), delete stale duplicates
       if (item.rawItems && item.rawItems.length > 1) {
@@ -180,6 +194,7 @@ export function InventoryTab({
       setEditingInvKey(null)
     } catch (err) {
       alert(`Помилка оновлення: ${err.message}`)
+    } finally {
       setIsSavingInv(false)
     }
   }
