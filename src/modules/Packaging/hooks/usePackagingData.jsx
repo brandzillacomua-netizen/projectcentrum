@@ -667,15 +667,12 @@ export function usePackagingData() {
   const pickedItemsWithoutBox = useMemo(() => {
     if (!isWarehouseConfirmed) return []
     return allBOMItems.filter(item => {
-      const fulfillment = getPackagingItemFulfillment(orderRequests, item)
-      const isPicked = fulfillment.fulfilledQty >= Number(item.qty || 0) && !fulfillment.hasPending
-      if (!isPicked) return false
       const boxNum = boxNumbers[String(item.nom.id)]
       return !boxNum || !boxNum.trim()
     })
-  }, [isWarehouseConfirmed, allBOMItems, orderRequests, boxNumbers])
+  }, [isWarehouseConfirmed, allBOMItems, boxNumbers])
 
-  const allBoxesFilled = isWarehouseConfirmed && pickedItemsWithoutBox.length === 0
+  const allBoxesFilled = isWarehouseConfirmed && allBOMItems.length > 0 && pickedItemsWithoutBox.length === 0
 
   const boxSummary = useMemo(() => {
     const map = {}
@@ -797,7 +794,8 @@ export function usePackagingData() {
   }
 
   const saveBoxesToDB = async () => {
-    if (!activeBatchData) return true
+    if (!activeBatchData) return false
+    if (!allBOMItems || allBOMItems.length === 0) return false
     const taskId = activeBatchData.tasks[0]?.id || null
     const batchIndex = activeBatchData.batchIndex || '1'
     const upsertRows = allBOMItems
@@ -812,7 +810,9 @@ export function usePackagingData() {
         updated_at: new Date().toISOString()
       }))
 
-    if (upsertRows.length === 0) return true
+    if (upsertRows.length < allBOMItems.length) {
+      return false
+    }
     const { error } = await supabase
       .from('packaging_boxes')
       .upsert(upsertRows, { onConflict: 'order_id,batch_index,nomenclature_id' })
