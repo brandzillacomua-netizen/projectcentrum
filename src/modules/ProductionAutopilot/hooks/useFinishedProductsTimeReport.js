@@ -1,7 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../../../supabase'
 import { resolveCanonicalNomId } from '../../Nomenclature/utils/nomenclatureHelpers'
-import { extractLogMinutes, normalizeStageGroup, resolveProductBomParts } from '../utils/autopilotEngine'
+import {
+  extractLogIntervalMs,
+  extractLogMinutes,
+  mergeIntervalsMinutes,
+  normalizeStageGroup,
+  resolveProductBomParts
+} from '../utils/autopilotEngine'
 
 const STAGE_ORDER = [
   'Розкрій',
@@ -56,11 +62,35 @@ export function useFinishedProductsTimeReport({
   productsRef.current = products
   bomItemsRef.current = bomItems
 
-  const buildBucketsFromAggregated = useCallback(async (aggRows) => {
+  const buildBucketsFromAggregated = useCallback(async (aggRows, wallRows = []) => {
     const curOrders = ordersRef.current || []
     const curNoms = nomenclaturesRef.current || []
     const curProducts = productsRef.current || []
     const curBomItems = bomItemsRef.current || []
+
+    const partStageWallMap = new Map()
+    const partTotalWallMap = new Map()
+    const orderStageWallMap = new Map()
+    const orderTotalWallMap = new Map()
+
+    ;(wallRows || []).forEach(w => {
+      const oKey = w.order_id ? String(w.order_id) : 'no-order'
+      const mins = Number(w.wall_minutes || 0)
+      if (w.scope === 'order_total') {
+        orderTotalWallMap.set(oKey, (orderTotalWallMap.get(oKey) || 0) + mins)
+      } else if (w.scope === 'order_stage' && w.stage_group) {
+        const k = `${oKey}::${w.stage_group}`
+        orderStageWallMap.set(k, (orderStageWallMap.get(k) || 0) + mins)
+      } else if (w.scope === 'part_total') {
+        const canonNomId = resolveCanonicalNomId(w.nomenclature_id, curNoms) || String(w.nomenclature_id || 'unknown')
+        const k = `${oKey}::${canonNomId}`
+        partTotalWallMap.set(k, (partTotalWallMap.get(k) || 0) + mins)
+      } else if (w.scope === 'part_stage' && w.stage_group) {
+        const canonNomId = resolveCanonicalNomId(w.nomenclature_id, curNoms) || String(w.nomenclature_id || 'unknown')
+        const k = `${oKey}::${canonNomId}::${w.stage_group}`
+        partStageWallMap.set(k, (partStageWallMap.get(k) || 0) + mins)
+      }
+    })
 
     const orderById = new Map(curOrders.map(o => [String(o.id), o]))
     const missingOrderIds = [...new Set(
@@ -191,11 +221,39 @@ export function useFinishedProductsTimeReport({
     ]
 
     const rows = [...productBuckets.values()]
-      .map(b => ({
-        ...b,
-        parts: [...b.partsMap.values()].sort((a, c) => c.totalMinutes - a.totalMinutes),
-        stageColumns: activeStageColumns
-      }))
+      .map(b => {
+        const wallStages = {}
+        activeStageColumns.forEach(st => {
+          const wk = `${b.key}::${st}`
+          if (orderStageWallMap.has(wk)) {
+            wallStages[st] = orderStageWallMap.get(wk)
+          }
+        })
+        const parts = [...b.partsMap.values()]
+          .map(p => {
+            const wallPartStages = {}
+            activeStageColumns.forEach(st => {
+              const psk = `${b.key}::${p.nomId}::${st}`
+              if (partStageWallMap.has(psk)) {
+                wallPartStages[st] = partStageWallMap.get(psk)
+              }
+            })
+            const ptk = `${b.key}::${p.nomId}`
+            return {
+              ...p,
+              wallTotalMinutes: partTotalWallMap.has(ptk) ? partTotalWallMap.get(ptk) : p.totalMinutes,
+              wallStages: wallPartStages
+            }
+          })
+          .sort((a, c) => c.totalMinutes - a.totalMinutes)
+        return {
+          ...b,
+          wallTotalMinutes: orderTotalWallMap.has(b.key) ? orderTotalWallMap.get(b.key) : b.totalMinutes,
+          wallStages,
+          parts,
+          stageColumns: activeStageColumns
+        }
+      })
       .sort((a, b) => b.totalMinutes - a.totalMinutes)
 
     setReportRows(rows)
@@ -215,13 +273,35 @@ export function useFinishedProductsTimeReport({
       const endIso = `${dateTo}T23:59:59.999Z`
 
       // 1. Fast Path: Server-side SQL aggregation (~50-150ms for any date range)
+      const fetchRpcAllPages = async (fnName, params) => {
+        const all = []
+        const pageSize = 1000
+        let from = 0
+        while (true) {
+          const { data, error } = await supabase.rpc(fnName, params).range(from, from + pageSize - 1)
+          if (error) return { data: null, error }
+          if (!Array.isArray(data) || data.length === 0) break
+          all.push(...data)
+          if (data.length < pageSize) break
+          from += pageSize
+        }
+        return { data: all, error: null }
+      }
+
       try {
-        const { data: rpcData, error: rpcErr } = await supabase.rpc('rpc_get_finished_products_time_report', {
-          p_start: startIso,
-          p_end: endIso
-        })
-        if (!rpcErr && Array.isArray(rpcData)) {
-          await buildBucketsFromAggregated(rpcData)
+        const [timeRes, wallRes] = await Promise.all([
+          fetchRpcAllPages('rpc_get_finished_products_time_report', {
+            p_start: startIso,
+            p_end: endIso
+          }),
+          fetchRpcAllPages('rpc_get_finished_products_wall_clock_report', {
+            p_start: startIso,
+            p_end: endIso
+          })
+        ])
+        if (!timeRes.error && Array.isArray(timeRes.data)) {
+          const wallRows = !wallRes?.error && Array.isArray(wallRes.data) ? wallRes.data : []
+          await buildBucketsFromAggregated(timeRes.data, wallRows)
           return
         }
       } catch (_) {}
@@ -264,11 +344,30 @@ export function useFinishedProductsTimeReport({
       }
 
       const perCardStage = new Map()
+      const wallIntervalBuckets = {
+        part_stage: new Map(),
+        part_total: new Map(),
+        order_stage: new Map(),
+        order_total: new Map()
+      }
+      const pushIv = (bucketMap, key, iv) => {
+        if (!iv) return
+        if (!bucketMap.has(key)) bucketMap.set(key, [])
+        bucketMap.get(key).push(iv)
+      }
+
       historyLogs.forEach(log => {
         const stageGroup = normalizeStageGroup(log.stage_name, { includeBuffers: true })
         const card = log.card_id ? cardOrderMap.get(String(log.card_id)) : null
         const orderId = card?.order_id || null
         const nomId = log.nomenclature_id || card?.nomenclature_id || null
+        const iv = extractLogIntervalMs(log)
+        if (iv) {
+          pushIv(wallIntervalBuckets.part_stage, `${orderId || ''}::${nomId || ''}::${stageGroup}`, iv)
+          pushIv(wallIntervalBuckets.part_total, `${orderId || ''}::${nomId || ''}`, iv)
+          pushIv(wallIntervalBuckets.order_stage, `${orderId || ''}::${stageGroup}`, iv)
+          pushIv(wallIntervalBuckets.order_total, `${orderId || ''}`, iv)
+        }
         const key = `${orderId || ''}::${nomId || ''}::${stageGroup}::${log.card_id || ''}`
         const cur = perCardStage.get(key) || {
           order_id: orderId,
@@ -304,7 +403,24 @@ export function useFinishedProductsTimeReport({
         aggMap.set(k, cur)
       })
 
-      await buildBucketsFromAggregated([...aggMap.values()])
+      const wallRows = []
+      wallIntervalBuckets.part_stage.forEach((ivs, k) => {
+        const [oid, nid, st] = k.split('::')
+        wallRows.push({ scope: 'part_stage', order_id: oid || null, nomenclature_id: nid || null, stage_group: st, wall_minutes: mergeIntervalsMinutes(ivs) })
+      })
+      wallIntervalBuckets.part_total.forEach((ivs, k) => {
+        const [oid, nid] = k.split('::')
+        wallRows.push({ scope: 'part_total', order_id: oid || null, nomenclature_id: nid || null, stage_group: null, wall_minutes: mergeIntervalsMinutes(ivs) })
+      })
+      wallIntervalBuckets.order_stage.forEach((ivs, k) => {
+        const [oid, st] = k.split('::')
+        wallRows.push({ scope: 'order_stage', order_id: oid || null, nomenclature_id: null, stage_group: st, wall_minutes: mergeIntervalsMinutes(ivs) })
+      })
+      wallIntervalBuckets.order_total.forEach((ivs, k) => {
+        wallRows.push({ scope: 'order_total', order_id: k || null, nomenclature_id: null, stage_group: null, wall_minutes: mergeIntervalsMinutes(ivs) })
+      })
+
+      await buildBucketsFromAggregated([...aggMap.values()], wallRows)
     } catch (err) {
       console.error('[useFinishedProductsTimeReport] Error:', err)
       setError(err.message || 'Помилка завантаження звіту')

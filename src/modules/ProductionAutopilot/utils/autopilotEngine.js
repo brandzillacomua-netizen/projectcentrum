@@ -48,6 +48,41 @@ export function extractLogMinutes(log) {
   return 0
 }
 
+export function extractLogIntervalMs(log) {
+  if (!log?.started_at || !log?.completed_at) return null
+  const startMs = new Date(log.started_at).getTime()
+  const rawEndMs = new Date(log.completed_at).getTime()
+  if (!Number.isFinite(startMs) || !Number.isFinite(rawEndMs) || rawEndMs <= startMs) return null
+  const maxEndMs = startMs + MAX_VALID_LOG_MINUTES * 60000
+  return [startMs, Math.min(rawEndMs, maxEndMs)]
+}
+
+/**
+ * Merges overlapping [startMs, endMs] intervals and returns total wall-clock minutes.
+ */
+export function mergeIntervalsMinutes(intervals = []) {
+  const valid = (intervals || [])
+    .filter(iv => Array.isArray(iv) && Number.isFinite(iv[0]) && Number.isFinite(iv[1]) && iv[1] > iv[0])
+    .sort((a, b) => a[0] - b[0] || a[1] - b[1])
+  if (valid.length === 0) return 0
+
+  let totalMs = 0
+  let curStart = valid[0][0]
+  let curEnd = valid[0][1]
+  for (let i = 1; i < valid.length; i++) {
+    const [s, e] = valid[i]
+    if (s <= curEnd) {
+      if (e > curEnd) curEnd = e
+    } else {
+      totalMs += curEnd - curStart
+      curStart = s
+      curEnd = e
+    }
+  }
+  totalMs += curEnd - curStart
+  return Math.round((totalMs / 60000) * 100) / 100
+}
+
 export function formatDurationHuman(totalMinutes) {
   const mins = Math.round(Number(totalMinutes) || 0)
   if (mins <= 0) return '—'

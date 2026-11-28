@@ -37,6 +37,10 @@ function formatAvgPerCard(mins) {
   return formatDurationHuman(val)
 }
 
+function getPartCardsCount(part) {
+  return Math.max(0, ...Object.values(part?.stageCards || {}))
+}
+
 export default function ProductionAutopilotModule() {
   const {
     orders = [],
@@ -51,6 +55,47 @@ export default function ProductionAutopilotModule() {
   } = useMES()
 
   const [activeTab, setActiveTab] = useState('priorities') // 'priorities' | 'products_time' | 'products_summary'
+  const [timeMode, setTimeMode] = useState('calendar') // 'calendar' | 'cards'
+
+  const renderTimeModeToggle = () => (
+    <div
+      style={{ display: 'inline-flex', background: 'var(--input-bg)', border: '1px solid var(--border-subtle)', borderRadius: '10px', padding: '3px', gap: '4px' }}
+      title="Реальний календарний час об’єднує перекриті інтервали паралельних карток"
+    >
+      <button
+        type="button"
+        onClick={() => setTimeMode('calendar')}
+        style={{
+          padding: '6px 12px',
+          borderRadius: '8px',
+          border: 'none',
+          cursor: 'pointer',
+          fontSize: '0.76rem',
+          fontWeight: 850,
+          background: timeMode === 'calendar' ? '#0284c7' : 'transparent',
+          color: timeMode === 'calendar' ? '#fff' : 'var(--text-muted)'
+        }}
+      >
+        Реальний календарний час
+      </button>
+      <button
+        type="button"
+        onClick={() => setTimeMode('cards')}
+        style={{
+          padding: '6px 12px',
+          borderRadius: '8px',
+          border: 'none',
+          cursor: 'pointer',
+          fontSize: '0.76rem',
+          fontWeight: 850,
+          background: timeMode === 'cards' ? '#ea580c' : 'transparent',
+          color: timeMode === 'cards' ? '#fff' : 'var(--text-muted)'
+        }}
+      >
+        Сума по картках
+      </button>
+    </div>
+  )
   const [dateFrom, setDateFrom] = useState(getDefaultMonthStart)
   const [dateTo, setDateTo] = useState(getTodayStr)
   const [productSearch, setProductSearch] = useState('')
@@ -160,6 +205,7 @@ export default function ProductionAutopilotModule() {
 
   // Aggregate per-order rows into flat per-Product rows (sum of orders + average per 1 product + per-part breakdown)
   const productSummaryRows = useMemo(() => {
+    const isCalendar = timeMode === 'calendar'
     const map = new Map()
     filteredReportRows.forEach(r => {
       const key = String(r.productName || 'Без виробу').trim().toLowerCase()
@@ -171,8 +217,10 @@ export default function ProductionAutopilotModule() {
           ordersCount: 0,
           totalOrderQty: 0,
           totalMinutes: 0,
+          cardTotalMinutes: 0,
           totalScrap: 0,
           stages: {},
+          cardStages: {},
           stageCards: {},
           partsMap: new Map(),
           stageColumns: r.stageColumns || []
@@ -182,8 +230,14 @@ export default function ProductionAutopilotModule() {
       cur.ordersCount += 1
       if (r.orderNum && r.orderNum !== '—') cur.orderNums.push(r.orderNum)
       cur.totalOrderQty += Number(r.orderQty || 0)
-      cur.totalMinutes += Number(r.totalMinutes || 0)
+      cur.totalMinutes += Number(isCalendar ? (r.wallTotalMinutes ?? r.totalMinutes) : r.totalMinutes || 0)
+      cur.cardTotalMinutes += Number(r.totalMinutes || 0)
       cur.totalScrap += Number(r.totalScrap || 0)
+      if (isCalendar) {
+        Object.entries(r.wallStages || {}).forEach(([st, mins]) => {
+          cur.stages[st] = (cur.stages[st] || 0) + Number(mins || 0)
+        })
+      }
       ;(r.parts || []).forEach(p => {
         if (!cur.partsMap.has(p.nomId)) {
           cur.partsMap.set(p.nomId, {
@@ -193,19 +247,31 @@ export default function ProductionAutopilotModule() {
             qtyCompleted: 0,
             scrapQty: 0,
             totalMinutes: 0,
+            cardTotalMinutes: 0,
             stages: {},
+            cardStages: {},
             stageCards: {}
           })
         }
         const aggPart = cur.partsMap.get(p.nomId)
         aggPart.qtyCompleted += Number(p.qtyCompleted || 0)
         aggPart.scrapQty += Number(p.scrapQty || 0)
-        aggPart.totalMinutes += Number(p.totalMinutes || 0)
+        aggPart.totalMinutes += Number(isCalendar ? (p.wallTotalMinutes ?? p.totalMinutes) : p.totalMinutes || 0)
+        aggPart.cardTotalMinutes += Number(p.totalMinutes || 0)
         Object.entries(p.stages || {}).forEach(([st, mins]) => {
           const m = Number(mins || 0)
-          cur.stages[st] = (cur.stages[st] || 0) + m
-          aggPart.stages[st] = (aggPart.stages[st] || 0) + m
+          cur.cardStages[st] = (cur.cardStages[st] || 0) + m
+          aggPart.cardStages[st] = (aggPart.cardStages[st] || 0) + m
+          if (!isCalendar) {
+            cur.stages[st] = (cur.stages[st] || 0) + m
+            aggPart.stages[st] = (aggPart.stages[st] || 0) + m
+          }
         })
+        if (isCalendar) {
+          Object.entries(p.wallStages || {}).forEach(([st, mins]) => {
+            aggPart.stages[st] = (aggPart.stages[st] || 0) + Number(mins || 0)
+          })
+        }
         Object.entries(p.stageCards || {}).forEach(([st, cnt]) => {
           const c = Number(cnt || 0)
           cur.stageCards[st] = (cur.stageCards[st] || 0) + c
@@ -216,22 +282,19 @@ export default function ProductionAutopilotModule() {
     return [...map.values()]
       .map(item => {
         const parts = [...item.partsMap.values()].sort((a, b) => b.totalMinutes - a.totalMinutes)
-        const totalCards = parts.reduce(
-          (sum, p) => sum + Math.max(0, ...Object.values(p.stageCards || {})),
-          0
-        )
+        const totalCards = parts.reduce((sum, p) => sum + getPartCardsCount(p), 0)
         return {
           ...item,
           orderNums: [...new Set(item.orderNums)],
           parts,
           totalCards,
-          avgMinutesPerCard: totalCards > 0 ? item.totalMinutes / totalCards : 0,
+          avgMinutesPerCard: totalCards > 0 ? item.cardTotalMinutes / totalCards : 0,
           avgMinutesPerProduct: item.totalOrderQty > 0 ? item.totalMinutes / item.totalOrderQty : 0,
           avgMinutesPerOrder: item.ordersCount > 0 ? item.totalMinutes / item.ordersCount : 0
         }
       })
       .sort((a, b) => b.totalMinutes - a.totalMinutes)
-  }, [filteredReportRows])
+  }, [filteredReportRows, timeMode])
 
   const toggleExpandSummary = (key) => {
     setExpandedSummaryKeys(prev => {
@@ -663,27 +726,61 @@ export default function ProductionAutopilotModule() {
                 style={{ width: '100%', background: 'var(--input-bg)', border: '1px solid var(--border-subtle)', color: 'var(--text)', padding: '8px 12px 8px 34px', borderRadius: '10px', fontSize: '0.84rem', fontWeight: 700, boxSizing: 'border-box' }}
               />
             </div>
+            {renderTimeModeToggle()}
           </div>
 
           {/* Summary KPI */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
-            <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border-subtle)', borderRadius: '16px', padding: '16px' }}>
-              <div style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Виробів / нарядів за період</div>
-              <div style={{ fontSize: '1.6rem', fontWeight: 950, color: '#0284c7', marginTop: '4px' }}>{filteredReportRows.length}</div>
-            </div>
-            <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border-subtle)', borderRadius: '16px', padding: '16px' }}>
-              <div style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Кількість у нарядах</div>
-              <div style={{ fontSize: '1.6rem', fontWeight: 950, color: '#059669', marginTop: '4px' }}>
-                {filteredReportRows.reduce((s, r) => s + (r.orderQty || 0), 0).toLocaleString()} шт
+          {(() => {
+            const isCalendar = timeMode === 'calendar'
+            const totalOrderQty = filteredReportRows.reduce((s, r) => s + (r.orderQty || 0), 0)
+            const totalMinutes = filteredReportRows.reduce(
+              (s, r) => s + (isCalendar ? (r.wallTotalMinutes ?? r.totalMinutes) : (r.totalMinutes || 0)),
+              0
+            )
+            const totalCardMinutes = filteredReportRows.reduce((s, r) => s + (r.totalMinutes || 0), 0)
+            const totalCards = filteredReportRows.reduce(
+              (s, r) => s + (r.parts || []).reduce((ps, p) => ps + getPartCardsCount(p), 0),
+              0
+            )
+            const avgPerUnit = totalOrderQty > 0 ? Math.round((totalMinutes / totalOrderQty) * 10) / 10 : 0
+            const avgPerCard = totalCards > 0 ? totalCardMinutes / totalCards : 0
+            return (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px' }}>
+                <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border-subtle)', borderRadius: '16px', padding: '16px' }}>
+                  <div style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Виробів / нарядів за період</div>
+                  <div style={{ fontSize: '1.6rem', fontWeight: 950, color: '#0284c7', marginTop: '4px' }}>{filteredReportRows.length}</div>
+                </div>
+                <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border-subtle)', borderRadius: '16px', padding: '16px' }}>
+                  <div style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Кількість у нарядах</div>
+                  <div style={{ fontSize: '1.6rem', fontWeight: 950, color: '#059669', marginTop: '4px' }}>
+                    {totalOrderQty.toLocaleString()} шт
+                  </div>
+                </div>
+                <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border-subtle)', borderRadius: '16px', padding: '16px' }}>
+                  <div style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Оброблено карт</div>
+                  <div style={{ fontSize: '1.6rem', fontWeight: 950, color: '#7c3aed', marginTop: '4px' }}>
+                    {totalCards.toLocaleString()}
+                  </div>
+                  {avgPerCard > 0 && (
+                    <div style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-muted)', marginTop: '2px' }}>
+                      Середнє: ~{formatAvgPerCard(avgPerCard)} / картку
+                    </div>
+                  )}
+                </div>
+                <div style={{ background: 'var(--card-bg)', border: '1px solid rgba(255,144,0,0.35)', borderRadius: '16px', padding: '16px' }}>
+                  <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#ea580c', textTransform: 'uppercase' }}>Загалом фактичного часу</div>
+                  <div style={{ fontSize: '1.6rem', fontWeight: 950, color: '#ea580c', marginTop: '4px' }}>
+                    {formatDurationHuman(totalMinutes)}
+                  </div>
+                  {avgPerUnit > 0 && (
+                    <div style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-muted)', marginTop: '2px' }}>
+                      Середнє: ~{avgPerUnit} хв / виріб
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-            <div style={{ background: 'var(--card-bg)', border: '1px solid rgba(255,144,0,0.35)', borderRadius: '16px', padding: '16px' }}>
-              <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#ea580c', textTransform: 'uppercase' }}>Загалом фактичного часу</div>
-              <div style={{ fontSize: '1.6rem', fontWeight: 950, color: '#ea580c', marginTop: '4px' }}>
-                {formatDurationHuman(filteredReportRows.reduce((s, r) => s + (r.totalMinutes || 0), 0))}
-              </div>
-            </div>
-          </div>
+            )
+          })()}
 
           {reportError && (
             <div style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.35)', color: '#ef4444', padding: '12px 16px', borderRadius: '12px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -703,9 +800,13 @@ export default function ProductionAutopilotModule() {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {filteredReportRows.map(prod => {
+                const isCalendar = timeMode === 'calendar'
                 const isExpanded = expandedProductKeys.has(prod.key)
                 const isCompletedOrder = ['completed', 'done', 'shipped'].includes(String(prod.orderStatus || '').toLowerCase())
-                const perUnitMin = prod.orderQty > 0 ? Math.round((prod.totalMinutes / prod.orderQty) * 10) / 10 : 0
+                const orderTimeMinutes = isCalendar ? (prod.wallTotalMinutes ?? prod.totalMinutes) : (prod.totalMinutes || 0)
+                const perUnitMin = prod.orderQty > 0 ? Math.round((orderTimeMinutes / prod.orderQty) * 10) / 10 : 0
+                const orderTotalCards = (prod.parts || []).reduce((s, p) => s + getPartCardsCount(p), 0)
+                const orderAvgPerCard = orderTotalCards > 0 ? (prod.totalMinutes || 0) / orderTotalCards : 0
 
                 return (
                   <div
@@ -743,6 +844,11 @@ export default function ProductionAutopilotModule() {
                             <span style={{ fontSize: '0.72rem', fontWeight: 800, background: 'rgba(2,132,199,0.14)', color: '#0284c7', padding: '2px 8px', borderRadius: '6px' }}>
                               Наряд №{prod.orderNum}
                             </span>
+                            {orderTotalCards > 0 && (
+                              <span style={{ fontSize: '0.7rem', fontWeight: 800, background: 'rgba(124,58,237,0.12)', color: '#7c3aed', padding: '2px 8px', borderRadius: '6px' }}>
+                                {orderTotalCards.toLocaleString()} карт
+                              </span>
+                            )}
                             {isCompletedOrder && (
                               <span style={{ fontSize: '0.7rem', fontWeight: 800, background: 'rgba(16,185,129,0.14)', color: '#059669', padding: '2px 8px', borderRadius: '6px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                                 <CheckCircle2 size={12} /> Завершено
@@ -752,69 +858,119 @@ export default function ProductionAutopilotModule() {
                           <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '3px' }}>
                             {prod.customer ? `${prod.customer} · ` : ''}Деталей у роботі: {prod.parts.length} · План наряду: {prod.orderQty.toLocaleString()} шт
                             {perUnitMin > 0 ? ` · ~${perUnitMin} хв/виріб` : ''}
+                            {orderAvgPerCard > 0 ? ` · ~${formatAvgPerCard(orderAvgPerCard)}/карт` : ''}
                           </div>
                         </div>
                       </div>
 
                       <div style={{ textAlign: 'right' }}>
                         <div style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                          Сума по виробу
+                          {isCalendar ? 'Календарний час виробу' : 'Сума по виробу'}
                         </div>
-                        <div style={{ fontSize: '1.15rem', fontWeight: 950, color: '#ea580c' }}>
-                          {formatDurationHuman(prod.totalMinutes)}
+                        <div style={{ fontSize: '1.15rem', fontWeight: 950, color: isCalendar ? '#0284c7' : '#ea580c' }}>
+                          {formatDurationHuman(orderTimeMinutes)}
                         </div>
                       </div>
                     </button>
 
                     {isExpanded && (
                       <div style={{ borderTop: '1px solid var(--border-subtle)', padding: '12px 18px 16px', overflowX: 'auto' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem', minWidth: '720px' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem', minWidth: '860px' }}>
                           <thead>
                             <tr style={{ borderBottom: '1px solid var(--border-subtle)', color: 'var(--text-muted)', textTransform: 'uppercase', fontSize: '0.68rem' }}>
                               <th style={{ padding: '8px', textAlign: 'left' }}>Деталь</th>
                               <th style={{ padding: '8px', textAlign: 'center' }}>Оброблено / Брак</th>
+                              <th style={{ padding: '8px', textAlign: 'center' }}>Карт</th>
+                              <th style={{ padding: '8px', textAlign: 'right', color: '#0284c7' }}>Середнє / картку</th>
                               {prod.stageColumns.map(st => (
-                                <th key={st} style={{ padding: '8px', textAlign: 'right' }}>{st}</th>
+                                <th key={st} style={{ padding: '8px', textAlign: 'right', color: st.startsWith('Буфер') ? '#7c3aed' : undefined }}>{st}</th>
                               ))}
-                              <th style={{ padding: '8px', textAlign: 'right', color: '#ea580c' }}>Разом</th>
+                              <th style={{ padding: '8px', textAlign: 'right', color: isCalendar ? '#0284c7' : '#ea580c' }}>Разом</th>
                             </tr>
                           </thead>
                           <tbody>
-                            {prod.parts.map(p => (
-                              <tr key={p.nomId} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                                <td style={{ padding: '8px', fontWeight: 850, color: 'var(--text-strong)' }}>
-                                  {p.nomName} {p.nomCode ? <span style={{ color: 'var(--text-muted)' }}>({p.nomCode})</span> : ''}
-                                </td>
-                                <td style={{ padding: '8px', textAlign: 'center', fontWeight: 800 }}>
-                                  <span style={{ color: '#059669' }}>{p.qtyCompleted.toLocaleString()}</span>
-                                  {p.scrapQty > 0 && <span style={{ color: '#ef4444' }}> / {p.scrapQty}</span>}
-                                </td>
-                                {prod.stageColumns.map(st => (
-                                  <td key={st} style={{ padding: '8px', textAlign: 'right', color: p.stages[st] > 0 ? 'var(--text)' : 'var(--text-dim)' }}>
-                                    {p.stages[st] > 0 ? formatDurationHuman(p.stages[st]) : '—'}
+                            {prod.parts.map(p => {
+                              const partCardsCount = getPartCardsCount(p)
+                              const partCardMins = p.totalMinutes || 0
+                              const partDisplayMins = isCalendar ? (p.wallTotalMinutes ?? partCardMins) : partCardMins
+                              const partPerCard = partCardsCount > 0 ? partCardMins / partCardsCount : 0
+                              return (
+                                <tr key={p.nomId} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                                  <td style={{ padding: '8px', fontWeight: 850, color: 'var(--text-strong)' }}>
+                                    {p.nomName} {p.nomCode ? <span style={{ color: 'var(--text-muted)' }}>({p.nomCode})</span> : ''}
                                   </td>
-                                ))}
-                                <td style={{ padding: '8px', textAlign: 'right', fontWeight: 950, color: '#ea580c' }}>
-                                  {formatDurationHuman(p.totalMinutes)}
-                                </td>
-                              </tr>
-                            ))}
+                                  <td style={{ padding: '8px', textAlign: 'center', fontWeight: 800 }}>
+                                    <span style={{ color: '#059669' }}>{p.qtyCompleted.toLocaleString()}</span>
+                                    {p.scrapQty > 0 && <span style={{ color: '#ef4444' }}> / {p.scrapQty}</span>}
+                                  </td>
+                                  <td style={{ padding: '8px', textAlign: 'center', fontWeight: 800, color: 'var(--text)' }}>
+                                    {partCardsCount > 0 ? partCardsCount.toLocaleString() : '—'}
+                                  </td>
+                                  <td style={{ padding: '8px', textAlign: 'right', fontWeight: 900, color: '#0284c7' }}>
+                                    {partPerCard > 0 ? formatDurationHuman(partPerCard) : '—'}
+                                  </td>
+                                  {prod.stageColumns.map(st => {
+                                    const stCardMins = p.stages[st] || 0
+                                    const stMins = isCalendar ? (p.wallStages?.[st] ?? stCardMins) : stCardMins
+                                    const stCards = p.stageCards?.[st] || 0
+                                    const avgPerCard = stCards > 0 && stCardMins > 0 ? stCardMins / stCards : 0
+                                    return (
+                                      <td key={st} style={{ padding: '8px', textAlign: 'right' }}>
+                                        {stMins > 0 ? (
+                                          <div>
+                                            <div style={{ color: 'var(--text)' }}>{formatDurationHuman(stMins)}</div>
+                                            {avgPerCard > 0 && (
+                                              <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>
+                                                ~{formatAvgPerCard(avgPerCard)}/карт ({stCards})
+                                              </div>
+                                            )}
+                                          </div>
+                                        ) : (
+                                          <span style={{ color: 'var(--text-dim)' }}>—</span>
+                                        )}
+                                      </td>
+                                    )
+                                  })}
+                                  <td style={{ padding: '8px', textAlign: 'right', fontWeight: 950, color: isCalendar ? '#0284c7' : '#ea580c' }}>
+                                    {formatDurationHuman(partDisplayMins)}
+                                  </td>
+                                </tr>
+                              )
+                            })}
                             {/* Total Row */}
-                            <tr style={{ background: 'rgba(255,144,0,0.08)', fontWeight: 950 }}>
+                            <tr style={{ background: isCalendar ? 'rgba(2,132,199,0.08)' : 'rgba(255,144,0,0.08)', fontWeight: 950 }}>
                               <td style={{ padding: '10px 8px', color: 'var(--text-strong)' }}>СУМА ПО ВИРОБУ</td>
                               <td style={{ padding: '10px 8px', textAlign: 'center' }}>
                                 {prod.totalScrap > 0 ? `Брак: ${prod.totalScrap} шт` : '—'}
                               </td>
+                              <td style={{ padding: '10px 8px', textAlign: 'center', color: 'var(--text)' }}>
+                                {orderTotalCards > 0 ? orderTotalCards.toLocaleString() : '—'}
+                              </td>
+                              <td style={{ padding: '10px 8px', textAlign: 'right', color: '#0284c7' }}>
+                                {orderAvgPerCard > 0 ? formatDurationHuman(orderAvgPerCard) : '—'}
+                              </td>
                               {prod.stageColumns.map(st => {
-                                const stSum = prod.parts.reduce((s, p) => s + (p.stages[st] || 0), 0)
+                                const stCardSum = prod.parts.reduce((s, p) => s + (p.stages[st] || 0), 0)
+                                const stSum = isCalendar ? (prod.wallStages?.[st] ?? stCardSum) : stCardSum
+                                const stCards = prod.parts.reduce((s, p) => s + (p.stageCards?.[st] || 0), 0)
+                                const stAvg = stCards > 0 && stCardSum > 0 ? stCardSum / stCards : 0
                                 return (
                                   <td key={st} style={{ padding: '10px 8px', textAlign: 'right' }}>
-                                    {stSum > 0 ? formatDurationHuman(stSum) : '—'}
+                                    {stSum > 0 ? (
+                                      <div>
+                                        <div>{formatDurationHuman(stSum)}</div>
+                                        {stAvg > 0 && (
+                                          <div style={{ fontSize: '0.62rem', fontWeight: 700, color: 'var(--text-muted)' }}>
+                                            ~{formatAvgPerCard(stAvg)}/карт ({stCards})
+                                          </div>
+                                        )}
+                                      </div>
+                                    ) : '—'}
                                   </td>
                                 )
                               })}
-                              <td style={{ padding: '10px 8px', textAlign: 'right', color: '#ea580c', fontSize: '0.92rem' }}>
-                                {formatDurationHuman(prod.totalMinutes)}
+                              <td style={{ padding: '10px 8px', textAlign: 'right', color: isCalendar ? '#0284c7' : '#ea580c', fontSize: '0.92rem' }}>
+                                {formatDurationHuman(orderTimeMinutes)}
                               </td>
                             </tr>
                           </tbody>
@@ -862,6 +1018,7 @@ export default function ProductionAutopilotModule() {
                 style={{ width: '100%', background: 'var(--input-bg)', border: '1px solid var(--border-subtle)', color: 'var(--text)', padding: '8px 12px 8px 34px', borderRadius: '10px', fontSize: '0.84rem', fontWeight: 700, boxSizing: 'border-box' }}
               />
             </div>
+            {renderTimeModeToggle()}
           </div>
 
           {reportError && (
@@ -942,8 +1099,9 @@ export default function ProductionAutopilotModule() {
                           </td>
                           {(item.stageColumns || []).map(st => {
                             const stMins = item.stages[st] || 0
+                            const stCardMins = item.cardStages?.[st] || stMins
                             const stCards = item.stageCards?.[st] || 0
-                            const stPerCard = stCards > 0 ? stMins / stCards : 0
+                            const stPerCard = stCards > 0 && stCardMins > 0 ? stCardMins / stCards : 0
                             const stPerUnit = item.totalOrderQty > 0 ? Math.round((stMins / item.totalOrderQty) * 10) / 10 : 0
                             return (
                               <td key={st} style={{ padding: '12px 8px', textAlign: 'right' }}>
@@ -990,8 +1148,8 @@ export default function ProductionAutopilotModule() {
                                 </thead>
                                 <tbody>
                                   {item.parts.map(p => {
-                                    const partCardsCount = Math.max(0, ...Object.values(p.stageCards || {}))
-                                    const partPerCard = partCardsCount > 0 ? p.totalMinutes / partCardsCount : 0
+                                    const partCardsCount = getPartCardsCount(p)
+                                    const partPerCard = partCardsCount > 0 ? (p.cardTotalMinutes ?? p.totalMinutes) / partCardsCount : 0
                                     return (
                                       <tr key={p.nomId} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
                                         <td style={{ padding: '6px', fontWeight: 850, color: 'var(--text-strong)' }}>
@@ -1009,8 +1167,9 @@ export default function ProductionAutopilotModule() {
                                         </td>
                                         {(item.stageColumns || []).map(st => {
                                           const stMins = p.stages[st] || 0
+                                          const stCardMins = p.cardStages?.[st] || stMins
                                           const stCards = p.stageCards?.[st] || 0
-                                          const avgPerCard = stCards > 0 ? stMins / stCards : 0
+                                          const avgPerCard = stCards > 0 && stCardMins > 0 ? stCardMins / stCards : 0
                                           return (
                                             <td key={st} style={{ padding: '6px', textAlign: 'right' }}>
                                               {stMins > 0 ? (
