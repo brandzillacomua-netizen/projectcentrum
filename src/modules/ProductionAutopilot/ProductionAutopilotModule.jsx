@@ -888,7 +888,7 @@ export default function ProductionAutopilotModule() {
                     <th style={{ padding: '10px 8px', textAlign: 'right' }}>Кількість (шт)</th>
                     <th style={{ padding: '10px 8px', textAlign: 'right', color: '#0284c7' }}>Середнє / 1 виріб</th>
                     {(productSummaryRows[0]?.stageColumns || []).map(st => (
-                      <th key={st} style={{ padding: '10px 8px', textAlign: 'right' }}>{st}</th>
+                      <th key={st} style={{ padding: '10px 8px', textAlign: 'right', color: st.startsWith('Буфер') ? '#7c3aed' : undefined }}>{st}</th>
                     ))}
                     <th style={{ padding: '10px 8px', textAlign: 'right', color: '#ea580c' }}>Разом часу</th>
                   </tr>
@@ -983,7 +983,7 @@ export default function ProductionAutopilotModule() {
                                     <th style={{ padding: '6px', textAlign: 'center' }}>Карт</th>
                                     <th style={{ padding: '6px', textAlign: 'right', color: '#0284c7' }}>Середнє / картку</th>
                                     {(item.stageColumns || []).map(st => (
-                                      <th key={st} style={{ padding: '6px', textAlign: 'right' }}>{st}</th>
+                                      <th key={st} style={{ padding: '6px', textAlign: 'right', color: st.startsWith('Буфер') ? '#7c3aed' : undefined }}>{st}</th>
                                     ))}
                                     <th style={{ padding: '6px', textAlign: 'right', color: '#ea580c' }}>Разом</th>
                                   </tr>

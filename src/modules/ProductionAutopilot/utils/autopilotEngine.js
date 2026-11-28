@@ -8,9 +8,19 @@ export function isBufferStageLog(stageName = '') {
   return s.includes('буфер') || s.includes('buffer') || s.includes('очікув')
 }
 
-export function normalizeStageGroup(stageName = '') {
+export function normalizeStageGroup(stageName = '', { includeBuffers = false } = {}) {
   const s = String(stageName || '').toLowerCase()
-  if (isBufferStageLog(s)) return 'Буфер'
+  if (isBufferStageLog(s)) {
+    if (!includeBuffers) return 'Буфер'
+    if (s.includes('розкрій') || s.includes('порізк') || s.includes('чпу') || s.includes('фрез')) return 'Буфер Розкрій'
+    if (s.includes('галтов')) return 'Буфер Галтовка'
+    if (s.includes('прийом')) return 'Буфер Прийомка'
+    if (s.includes('сортув')) return 'Буфер Сортування'
+    if (s.includes('пресув') || s.includes('прес')) return 'Буфер Пресування'
+    if (s.includes('фарбув') || s.includes('маляр')) return 'Буфер Фарбування'
+    if (s.includes('доопрац') || s.includes('реставр')) return 'Буфер Доопрацювання'
+    return 'Буфер Інше'
+  }
   if (s.includes('розкрій') || s.includes('порізк') || s.includes('чпу') || s.includes('фрез')) return 'Розкрій'
   if (s.includes('галтов')) return 'Галтовка'
   if (s.includes('прийом')) return 'Прийомка'

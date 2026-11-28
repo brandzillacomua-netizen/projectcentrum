@@ -5,13 +5,24 @@ import { extractLogMinutes, normalizeStageGroup, resolveProductBomParts } from '
 
 const STAGE_ORDER = [
   'Розкрій',
+  'Буфер Розкрій',
   'Галтовка',
+  'Буфер Галтовка',
   'Прийомка',
+  'Буфер Прийомка',
   'Сортування',
+  'Буфер Сортування',
   'Пресування',
   'Фарбування',
   'Доопрацювання',
   'Пакування'
+]
+
+const OPTIONAL_BUFFER_STAGES = [
+  'Буфер Пресування',
+  'Буфер Фарбування',
+  'Буфер Доопрацювання',
+  'Буфер Інше'
 ]
 
 export function useFinishedProductsTimeReport({
@@ -73,9 +84,14 @@ export function useFinishedProductsTimeReport({
     const nomById = new Map(curNoms.map(n => [String(n.id), n]))
     const productBuckets = new Map()
 
+    const presentOptionalBuffers = new Set()
+
     ;(aggRows || []).forEach(row => {
       const stageGroup = row.stage_group
-      if (!stageGroup || stageGroup === 'Буфер') return
+      if (!stageGroup) return
+      if (OPTIONAL_BUFFER_STAGES.includes(stageGroup)) {
+        presentOptionalBuffers.add(stageGroup)
+      }
       const orderId = row.order_id ? String(row.order_id) : null
       const order = orderId ? orderById.get(orderId) : null
       const productKey = order ? `${order.id}` : 'no-order'
@@ -169,11 +185,16 @@ export function useFinishedProductsTimeReport({
       })
     })
 
+    const activeStageColumns = [
+      ...STAGE_ORDER,
+      ...OPTIONAL_BUFFER_STAGES.filter(st => presentOptionalBuffers.has(st))
+    ]
+
     const rows = [...productBuckets.values()]
       .map(b => ({
         ...b,
         parts: [...b.partsMap.values()].sort((a, c) => c.totalMinutes - a.totalMinutes),
-        stageColumns: STAGE_ORDER
+        stageColumns: activeStageColumns
       }))
       .sort((a, b) => b.totalMinutes - a.totalMinutes)
 
@@ -244,8 +265,7 @@ export function useFinishedProductsTimeReport({
 
       const perCardStage = new Map()
       historyLogs.forEach(log => {
-        const stageGroup = normalizeStageGroup(log.stage_name)
-        if (stageGroup === 'Буфер') return
+        const stageGroup = normalizeStageGroup(log.stage_name, { includeBuffers: true })
         const card = log.card_id ? cardOrderMap.get(String(log.card_id)) : null
         const orderId = card?.order_id || null
         const nomId = log.nomenclature_id || card?.nomenclature_id || null
