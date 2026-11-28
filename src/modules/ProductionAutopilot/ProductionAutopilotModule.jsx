@@ -13,12 +13,15 @@ import {
   Search,
   Layers,
   Paintbrush,
-  CheckCircle2
+  CheckCircle2,
+  Calendar
 } from 'lucide-react'
 import { useMES } from '../../MESContext'
 import { supabase } from '../../supabase'
 import { computeProductionPriorities, formatDurationHuman } from './utils/autopilotEngine'
 import { useFinishedProductsTimeReport } from './hooks/useFinishedProductsTimeReport'
+import { useProductionGantt } from './hooks/useProductionGantt'
+import ProductionGanttView from './components/ProductionGanttView'
 
 function getDefaultMonthStart() {
   const d = new Date()
@@ -189,6 +192,23 @@ export default function ProductionAutopilotModule() {
     nomenclatures,
     products,
     bomItems
+  })
+
+  const {
+    loading: ganttLoading,
+    error: ganttError,
+    ganttOrders,
+    orderPartsMap,
+    loadingOrderParts,
+    loadOrderParts,
+    reload: reloadGantt
+  } = useProductionGantt({
+    enabled: activeTab === 'gantt',
+    dateFrom,
+    dateTo,
+    orders,
+    nomenclatures,
+    products
   })
 
   const filteredReportRows = useMemo(() => {
@@ -371,6 +391,7 @@ export default function ProductionAutopilotModule() {
               fetchData(['orders', 'tasks', 'work_cards', 'work_card_history', 'inventory', 'bom_items'], { force: true }).catch(() => {})
             }
             if (activeTab === 'products_time' || activeTab === 'products_summary') reloadReport()
+            if (activeTab === 'gantt') reloadGantt()
           }}
           style={{
             background: 'var(--card-bg)',
@@ -447,6 +468,25 @@ export default function ProductionAutopilotModule() {
           }}
         >
           <BarChart2 size={16} /> По виробах (Сума і Середній час)
+        </button>
+
+        <button
+          onClick={() => setActiveTab('gantt')}
+          style={{
+            background: activeTab === 'gantt' ? 'linear-gradient(135deg, #10b981, #059669)' : 'var(--card-bg)',
+            color: activeTab === 'gantt' ? '#ffffff' : 'var(--text-muted)',
+            border: activeTab === 'gantt' ? 'none' : '1px solid var(--border-subtle)',
+            padding: '10px 18px',
+            borderRadius: '12px',
+            fontSize: '0.85rem',
+            fontWeight: 900,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}
+        >
+          <Calendar size={16} /> Діаграма Ганта
         </button>
       </div>
 
@@ -1234,6 +1274,23 @@ export default function ProductionAutopilotModule() {
             </div>
           )}
         </div>
+      )}
+      {/* TAB 4: PRODUCTION GANTT TIMELINE */}
+      {activeTab === 'gantt' && (
+        <ProductionGanttView
+          dateFrom={dateFrom}
+          setDateFrom={setDateFrom}
+          dateTo={dateTo}
+          setDateTo={setDateTo}
+          search={productSearch}
+          setSearch={setProductSearch}
+          loading={ganttLoading}
+          error={ganttError}
+          ganttOrders={ganttOrders}
+          orderPartsMap={orderPartsMap}
+          loadingOrderParts={loadingOrderParts}
+          loadOrderParts={loadOrderParts}
+        />
       )}
     </div>
   )
